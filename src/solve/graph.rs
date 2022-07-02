@@ -16,6 +16,7 @@ use thiserror::Error;
 use crate::api::{self, Ident, InclusionPolicy, OptNameBuf, PkgName, PkgNameBuf};
 
 use super::errors::{self};
+use super::solver::RwNode;
 use super::{
     package_iterator::PackageIterator,
     solution::{PackageSource, Solution},
@@ -310,8 +311,8 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
 #[derive(Clone, Debug, Error)]
 #[error("Failed to resolve")]
 pub struct Graph {
-    pub root: Arc<tokio::sync::RwLock<Arc<Node>>>,
-    pub nodes: HashMap<u64, Arc<tokio::sync::RwLock<Arc<Node>>>>,
+    pub root: RwNode,
+    pub nodes: HashMap<u64, RwNode>,
 }
 
 impl Graph {
@@ -329,11 +330,7 @@ impl Graph {
         }
     }
 
-    pub async fn add_branch(
-        &mut self,
-        source_id: u64,
-        decision: Arc<Decision>,
-    ) -> Result<Arc<tokio::sync::RwLock<Arc<Node>>>> {
+    pub async fn add_branch(&mut self, source_id: u64, decision: Arc<Decision>) -> Result<RwNode> {
         let old_node = self
             .nodes
             .get(&source_id)
@@ -406,10 +403,10 @@ enum WalkState {
 pub struct GraphIter<'graph> {
     graph: &'graph Graph,
     node_outputs: HashMap<u64, VecDeque<Arc<Decision>>>,
-    to_process: VecDeque<Arc<tokio::sync::RwLock<Arc<Node>>>>,
+    to_process: VecDeque<RwNode>,
     /// Which entry of node_outputs is currently being worked on.
     outs: Option<u64>,
-    iter_node: Arc<tokio::sync::RwLock<Arc<Node>>>,
+    iter_node: RwNode,
     walk_state: WalkState,
 }
 
@@ -1246,10 +1243,10 @@ pub struct StepBack {
 }
 
 impl StepBack {
-    pub fn new(cause: impl Into<String>, to: &Arc<State>, global_counter: Arc<AtomicU64>) -> Self {
+    pub fn new(cause: impl Into<String>, to: Arc<State>, global_counter: Arc<AtomicU64>) -> Self {
         StepBack {
             cause: cause.into(),
-            destination: Arc::clone(to),
+            destination: to,
             global_counter,
         }
     }

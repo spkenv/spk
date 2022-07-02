@@ -13,6 +13,7 @@ use std::{
 
 use async_stream::stream;
 use futures::{Stream, TryStreamExt};
+use nonempty::{nonempty, NonEmpty};
 use priority_queue::priority_queue::PriorityQueue;
 
 use crate::{
@@ -44,14 +45,14 @@ mod solver_test;
 #[derive(Debug)]
 enum StepStateOutcome {
     SolveComplete,
-    Decision(Decision),
+    Decisions(Decisions),
 }
 
-impl From<StepStateOutcome> for Option<Arc<Decision>> {
+impl From<StepStateOutcome> for Option<Decisions> {
     fn from(outcome: StepStateOutcome) -> Self {
         match outcome {
             StepStateOutcome::SolveComplete => None,
-            StepStateOutcome::Decision(decision) => Some(Arc::new(decision)),
+            StepStateOutcome::Decisions(decisions) => Some(decisions),
         }
     }
 }
@@ -214,7 +215,7 @@ impl Solver {
         &mut self,
         node: &Node,
         request: &PkgRequest,
-        builds: Arc<tokio::sync::Mutex<F>>,
+        builds: &Arc<tokio::sync::Mutex<F>>,
         notes: &mut Vec<Note>,
     ) -> Result<Option<Decision>>
     where
@@ -303,6 +304,12 @@ impl Solver {
         Ok(None)
     }
 
+    /// Find the next thing to try adding to the graph.
+    ///
+    /// 1. Find the next package waiting to be solved.
+    /// 2. Each call to `step_state` looks at a single version of that package.
+    /// 3. For each version, return a list of all the viable builds. If there
+    ///    are no viable builds, an error is returned.
     async fn step_state(&mut self, node: &mut Arc<Node>) -> Result<StepStateOutcome> {
         let mut notes = Vec::<Note>::new();
         let request = if let Some(request) = node.state.get_next_request()? {
@@ -360,11 +367,26 @@ impl Solver {
                 builds
             };
 
-            match self.step_builds(node, &request, builds, &mut notes).await {
-                Ok(None) => continue,
-                Ok(Some(decision)) => return Ok(StepStateOutcome::Decision(decision)),
-                Err(err) => return Err(err),
+            let mut decisions = Vec::new();
+
+            loop {
+                match self.step_builds(node, &request, &builds, &mut notes).await {
+                    Ok(None) => break,
+                    Ok(Some(decision)) => decisions.push(Arc::new(decision)),
+                    Err(err) => return Err(err),
+                }
             }
+
+            // Safety: removing this line would violate safety requirements
+            // below.
+            if decisions.is_empty() {
+                continue;
+            }
+
+            return Ok(StepStateOutcome::Decisions(
+                // Safety: Already confirmed that `decisions` is not empty.
+                unsafe { NonEmpty::from_vec(decisions).unwrap_unchecked() },
+            ));
         }
 
         Err(errors::Error::OutOfOptions(errors::OutOfOptions { request, notes }).into())
@@ -518,9 +540,12 @@ impl Solver {
     }
 }
 
+pub(crate) type RwNode = Arc<tokio::sync::RwLock<Arc<Node>>>;
+
 // This is needed so `PriorityQueue` doesn't need to hash the node itself.
+#[derive(Clone, Debug)]
 struct NodeWrapper {
-    pub(crate) node: Arc<tokio::sync::RwLock<Arc<Node>>>,
+    pub(crate) node: RwNode,
     pub(crate) hash: u64,
 }
 
@@ -538,15 +563,61 @@ impl std::hash::Hash for NodeWrapper {
     }
 }
 
-type SolverHistory = PriorityQueue<NodeWrapper, std::cmp::Reverse<u64>>;
+type Nodes = NonEmpty<NodeWrapper>;
+type Decisions = NonEmpty<Arc<Decision>>;
+
+type SolverHistory = PriorityQueue<Nodes, std::cmp::Reverse<u64>>;
+
+/// A [`Decision`] that was derived from a [`Node`].
+#[derive(Debug)]
+struct DecisionFromNode {
+    pub(crate) decision: Arc<Decision>,
+    pub(crate) node: RwNode,
+}
+
+/// The possible states that a solver's current decisions can be in.
+#[derive(Debug, Default)]
+enum SolverDecisions {
+    Initial(Arc<Decision>),
+    DecisionsFromNode(NonEmpty<DecisionFromNode>),
+    SolveComplete,
+    #[default]
+    Empty,
+}
+
+impl SolverDecisions {
+    /// Return if the solver has completed.
+    #[inline]
+    pub(crate) fn is_complete(&self) -> bool {
+        matches!(self, SolverDecisions::SolveComplete)
+    }
+
+    /// Extract the decisions, if any, and leave [`SolverDecisions::empty`]
+    /// in its place.
+    pub(crate) fn take(&mut self) -> Option<NonEmpty<(Arc<Decision>, Option<RwNode>)>> {
+        match self {
+            SolverDecisions::SolveComplete => return None,
+            SolverDecisions::Empty => return None,
+            _ => {}
+        };
+
+        match std::mem::take(self) {
+            SolverDecisions::Initial(decision) => Some(nonempty![(decision, None)]),
+            SolverDecisions::DecisionsFromNode(decisions) => {
+                Some(decisions.map(|d| (d.decision, Some(d.node))))
+            }
+            _ => unreachable!(),
+        }
+    }
+}
 
 #[must_use = "The solver runtime does nothing unless iterated to completion"]
 pub struct SolverRuntime {
     pub solver: Solver,
     graph: Arc<tokio::sync::RwLock<Graph>>,
     history: SolverHistory,
-    current_node: Option<Arc<tokio::sync::RwLock<Arc<Node>>>>,
-    decision: Option<Arc<Decision>>,
+    current_nodes: Option<Nodes>,
+    decisions: SolverDecisions,
 }
 
 impl SolverRuntime {
@@ -556,8 +627,8 @@ impl SolverRuntime {
             solver,
             graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
             history: SolverHistory::default(),
-            current_node: None,
-            decision: Some(Arc::new(initial_decision)),
+            current_nodes: None,
+            decisions: SolverDecisions::Initial(Arc::new(initial_decision)),
         }
     }
 
@@ -584,11 +655,12 @@ impl SolverRuntime {
     /// If the runtime has not yet completed, this solution
     /// may be incomplete or empty.
     pub async fn current_solution(&self) -> Result<Solution> {
-        let current_node = self
-            .current_node
+        let current_node = &self
+            .current_nodes
             .as_ref()
-            .ok_or_else(|| Error::String("Solver runtime has not been consumed".into()))?;
-        let current_node_lock = current_node.read().await;
+            .ok_or_else(|| Error::String("Solver runtime has not been consumed".into()))?
+            .head;
+        let current_node_lock = current_node.node.read().await;
 
         let is_dead = current_node_lock.state.id()
             == self.graph.read().await.root.read().await.state.id()
@@ -615,7 +687,7 @@ impl SolverRuntime {
     /// Generate step-back decision from a node history
     async fn take_a_step_back(
         history: &mut SolverHistory,
-        decision: &mut Option<Arc<Decision>>,
+        decisions: &mut SolverDecisions,
         solver: &Solver,
         message: &String,
     ) {
@@ -625,21 +697,34 @@ impl SolverRuntime {
         // for problem cases that get stuck in a bad path.
         match history.pop() {
             Some((n, _)) => {
-                let n_lock = n.node.read().await;
-                *decision = Some(Arc::new(
-                    Change::StepBack(StepBack::new(
-                        message,
-                        &n_lock.state,
-                        Arc::clone(&solver.number_of_steps_back),
-                    ))
-                    .as_decision(),
-                ))
+                let mut new_decisions = Vec::with_capacity(n.len());
+                for node in n.into_iter() {
+                    let n_lock = node.node.read().await;
+                    let to = Arc::clone(&n_lock.state);
+                    drop(n_lock);
+                    new_decisions.push(DecisionFromNode {
+                        decision: Arc::new(
+                            Change::StepBack(StepBack::new(
+                                message,
+                                to,
+                                Arc::clone(&solver.number_of_steps_back),
+                            ))
+                            .as_decision(),
+                        ),
+                        node: node.node,
+                    });
+                }
+
+                *decisions = SolverDecisions::DecisionsFromNode(
+                    // Safety: `n` was `NonEmpty`.
+                    unsafe { NonEmpty::from_vec(new_decisions).unwrap_unchecked() },
+                )
             }
             None => {
-                *decision = Some(Arc::new(
+                *decisions = SolverDecisions::Initial(Arc::new(
                     Change::StepBack(StepBack::new(
                         message,
-                        &DEAD_STATE,
+                        Arc::clone(&DEAD_STATE),
                         Arc::clone(&solver.number_of_steps_back),
                     ))
                     .as_decision(),
@@ -652,11 +737,11 @@ impl SolverRuntime {
     pub fn iter(&mut self) -> impl Stream<Item = Result<(Arc<Node>, Arc<Decision>)>> + Send + '_ {
         stream! {
             'outer: loop {
-                if self.decision.is_none()
-                    || (self.current_node.is_some()
+                if self.decisions.is_complete()
+                    || (self.current_nodes.is_some()
                         && {
-                            if let Some(n) = self.current_node.as_ref() {
-                                Arc::ptr_eq(&n.read().await.state, &DEAD_STATE)
+                            if let Some(n) = self.current_nodes.as_ref() {
+                                Arc::ptr_eq(&n.head.node.read().await.state, &DEAD_STATE)
                             }
                             else {
                                 false
@@ -666,120 +751,231 @@ impl SolverRuntime {
                     break 'outer;
                 }
 
-                let to_yield = (
+                let node_to_yield =
                     // A clone of Some(current_node) or the root node
                     {
-                        if let Some(n) = self.current_node.as_ref() {
-                            n.read().await.clone()
+                        if let Some(n) = self.current_nodes.as_ref() {
+                            n.head.node.read().await.clone()
                         }
                         else {
                             self.graph.read().await.root.read().await.clone()
                         }
-                    },
-                    self.decision.as_ref().expect("decision is some").clone(),
-                );
+                    };
 
-                self.current_node = Some({
+                let decisions_and_opt_node = self.decisions.take().unwrap();
+
+                // Possible paths to take
+                let mut branches = Vec::with_capacity(decisions_and_opt_node.len());
+                // Paths that lead to ruin
+                let mut failures = Vec::with_capacity(decisions_and_opt_node.len());
+
+                {
                     let mut sg = self.graph.write().await;
                     let root_id = sg.root.read().await.id();
-                    match sg.add_branch({
-                            if let Some(n) = self.current_node.as_ref() {
-                                n.read().await.id()
+                    for (decision, opt_node) in decisions_and_opt_node.into_iter() {
+                        match sg.add_branch({
+                                if let Some(n) = opt_node.as_ref() {
+                                    n.read().await.id()
+                                }
+                                else {
+                                    root_id
+                                }},
+                                decision.clone(),
+                            ).await {
+                            Ok(cn) => branches.push((cn, decision)),
+                            Err(err) => {
+                                failures.push((dbg!(err), dbg!(decision)));
                             }
-                            else {
-                                root_id
-                            }},
-                            self.decision.take().unwrap(),
-                        ).await {
-                        Ok(cn) => cn,
-                        Err(err) => {
-                            SolverRuntime::take_a_step_back(
-                                &mut self.history,
-                                &mut self.decision,
-                                &self.solver,
-                                &err.to_string(),
-                            ).await;
-                            yield Ok(to_yield);
+                        }
+                    }
+                }
+
+                dbg!(branches.len());
+                dbg!(failures.len());
+
+                if branches.is_empty() {
+                    SolverRuntime::take_a_step_back(
+                        &mut self.history,
+                        &mut self.decisions,
+                        &self.solver,
+                        // Safety: `self.decisions` is `NonEmpty` and the loop
+                        // with `add_branch` must loop at least once and
+                        // either add an element to `branches` or `failures`.
+                        // Therefore, `failures` is non-empty.
+                        &unsafe { failures.iter().next().unwrap_unchecked() }.0.to_string(),
+                    ).await;
+                    yield Ok((
+                        node_to_yield,
+                        // Safety: same argument as above.
+                        unsafe { failures.into_iter().next().unwrap_unchecked() }.1
+                    ));
+                    continue 'outer;
+                }
+
+                // These are all the nodes we are exploring now.
+                self.current_nodes = NonEmpty::from_vec(branches.iter().map(|(n, _)| NodeWrapper {
+                    node: Arc::clone(n),
+                    // I tried reversing the order of the hash here and it
+                    // produced the same result.
+                    hash: self.solver.get_number_of_steps() as u64,
+                }).collect::<Vec<_>>());
+                let mut current_level = 0;
+
+                let mut sub_decisions = Vec::with_capacity(branches.len());
+                let mut out_of_options = Vec::with_capacity(branches.len());
+                let mut package_not_found = Vec::with_capacity(branches.len());
+
+                for (current_node, decision) in branches.into_iter() {
+                    // TODO: run this as a spawned task!
+                    let mut current_node_lock = current_node.write().await;
+                    // XXX: will all the nodes be on the same level?
+                    current_level = current_node_lock.state.state_depth;
+                    let outcome = self.solver.step_state(&mut current_node_lock).await;
+
+                    match outcome
+                    {
+                        Ok(StepStateOutcome::SolveComplete) => {
+                            self.decisions = SolverDecisions::SolveComplete;
+                            yield Ok((node_to_yield, decision));
                             continue 'outer;
                         }
-                    }
-                });
-                let current_node = self
-                    .current_node
-                    .as_ref()
-                    .expect("current_node always `is_some` here");
-                let mut current_node_lock = current_node.write().await;
-                let current_level = current_node_lock.state.state_depth;
-                self.decision = match self.solver.step_state(&mut current_node_lock).await
-                {
-                    Ok(decision) => decision.into(),
-                    Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
-                        // Add to problem package counts based on what made
-                        // the request for the blocked package.
-                        let requested_by = err.request.get_requesters();
-                        for req in &requested_by {
-                            if let api::RequestedBy::PackageBuild(problem_package) = req {
-                                self.solver
-                                    .increment_problem_package_count(problem_package.name.to_string())
-                            }
+                        Ok(StepStateOutcome::Decisions(decisions)) => {
+                            dbg!(decisions.len());
+                            sub_decisions.push((decisions, Arc::clone(&current_node)));
                         }
+                        Err(crate::Error::Solve(errors::Error::OutOfOptions(err))) => {
+                            // Add to problem package counts based on what made
+                            // the request for the blocked package.
+                            let requested_by = err.request.get_requesters();
+                            for req in &requested_by {
+                                if let api::RequestedBy::PackageBuild(problem_package) = req {
+                                    self.solver
+                                        .increment_problem_package_count(problem_package.name.to_string())
+                                }
+                            }
 
-                        // Add the requirers to the output so where the
-                        // requests came from is more visible to the user.
-                        let requirers: Vec<String> = requested_by.iter().map(ToString::to_string).collect();
-                        let cause = format!(
-                            "could not satisfy '{}' as required by: {}",
-                            err.request.pkg,
-                            requirers.join(", ")
-                        );
-                        self.solver.increment_error_count(cause.clone());
+                            // Add the requirers to the output so where the
+                            // requests came from is more visible to the user.
+                            let requirers: Vec<String> = requested_by.iter().map(ToString::to_string).collect();
+                            let cause = format!(
+                                "could not satisfy '{}' as required by: {}",
+                                err.request.pkg,
+                                requirers.join(", ")
+                            );
+                            self.solver.increment_error_count(cause.clone());
 
+                            out_of_options.push((decision, err, cause));
+                        }
+                        Err(crate::Error::Solve(errors::Error::PackageNotFoundDuringSolve(err_req))) => {
+                            let requested_by = err_req.get_requesters();
+                            for req in &requested_by {
+                                // Can't recover from a command line request for a
+                                // missing package.
+                                if let api::RequestedBy::CommandLine = req {
+                                    yield Err(crate::Error::Solve(
+                                        errors::Error::PackageNotFoundDuringSolve(err_req.clone()),
+                                    ));
+                                    continue 'outer;
+                                }
+
+                                // Add to problem package counts based on what
+                                // made the request for the blocked package.
+                                if let api::RequestedBy::PackageBuild(problem_package) = req {
+                                    self.solver
+                                        .increment_problem_package_count(problem_package.name.to_string())
+                                };
+                            }
+
+                            let requirers: Vec<String> = requested_by.iter().map(ToString::to_string).collect();
+                            let cause = format!("Package '{}' not found during the solve as required by: {}. Please check the spelling of the package's name", err_req.pkg, requirers.join(", "));
+
+                            self.solver.increment_error_count(cause.clone());
+
+                            package_not_found.push((decision, cause));
+                        }
+                        Err(err) => {
+                            let cause = format!("{}", err);
+                            self.solver.increment_error_count(cause);
+                            yield Err(err);
+                            continue 'outer;
+                        }
+                    };
+                }
+
+                dbg!(sub_decisions.len());
+                dbg!(out_of_options.len());
+                dbg!(package_not_found.len());
+
+                if !sub_decisions.is_empty() {
+                    // XXX: Does it make sense to yield all these decisions?
+                    for (decisions, _node) in sub_decisions.iter() {
+                        for decision in decisions.iter() {
+                            // XXX: really yield `node_to_yield` here and not
+                            // `_node`?
+                            yield Ok((node_to_yield.clone(), decision.clone()))
+                        }
+                    }
+
+                    // These branches of the search are still making progress.
+                    // Make them our current set of decisions.
+                    self.decisions = SolverDecisions::DecisionsFromNode(
+                        // Safety: `sub_decisions` is already proven not empty.
+                        unsafe {
+                            NonEmpty::from_vec(
+                                sub_decisions.into_iter().flat_map(
+                                    |(decision, node)| decision.into_iter().map(
+                                        move |decision| DecisionFromNode { decision, node: Arc::clone(&node) }
+                                    )
+                                )
+                                .collect()
+                            ).unwrap_unchecked()
+                        }
+                    );
+
+                    self.history.push(
+                        self.current_nodes.as_ref().expect("current_nodes always `is_some` here").clone(),
+                        std::cmp::Reverse(current_level),
+                    );
+
+                    // XXX: What if there were _also_ errors?
+                }
+                else if !out_of_options.is_empty() {
+                    debug_assert_eq!(
+                        out_of_options.len(),
+                        1,
+                        "what does it mean for there to be more than one out of option error?"
+                    );
+
+                    for (mut decision, err, cause) in out_of_options.into_iter() {
                         SolverRuntime::take_a_step_back(
                             &mut self.history,
-                            &mut self.decision,
+                            &mut self.decisions,
                             &self.solver,
                             &cause,
                         ).await;
 
-                        self.solver.increment_error_count(cause);
+                        Arc::make_mut(&mut decision).add_notes(err.notes.iter().cloned());
 
-                        if let Some(d) = self.decision.as_mut() {
-                            Arc::make_mut(d).add_notes(err.notes.iter().cloned())
-                        }
-                        yield Ok(to_yield);
+                        yield Ok((node_to_yield, decision));
                         continue 'outer;
                     }
-                    Err(crate::Error::Solve(errors::Error::PackageNotFoundDuringSolve(err_req))) => {
-                        let requested_by = err_req.get_requesters();
-                        for req in &requested_by {
-                            // Can't recover from a command line request for a
-                            // missing package.
-                            if let api::RequestedBy::CommandLine = req {
-                                yield Err(crate::Error::Solve(
-                                    errors::Error::PackageNotFoundDuringSolve(err_req),
-                                ));
-                                continue 'outer;
-                            }
 
-                            // Add to problem package counts based on what
-                            // made the request for the blocked package.
-                            if let api::RequestedBy::PackageBuild(problem_package) = req {
-                                self.solver
-                                    .increment_problem_package_count(problem_package.name.to_string())
-                            };
-                        }
+                    // XXX: What if there were _also_ package not found errors?
+                }
+                else if !package_not_found.is_empty() {
+                    debug_assert_eq!(
+                        package_not_found.len(),
+                        1,
+                        "what does it mean for there to be more than one package not found error?"
+                    );
 
-                        let requirers: Vec<String> = requested_by.iter().map(ToString::to_string).collect();
-                        let cause = format!("Package '{}' not found during the solve as required by: {}. Please check the spelling of the package's name", err_req.pkg, requirers.join(", "));
-
+                    for (decision, cause) in package_not_found.into_iter() {
                         SolverRuntime::take_a_step_back(
                             &mut self.history,
-                            &mut self.decision,
+                            &mut self.decisions,
                             &self.solver,
                             &cause,
                         ).await;
-
-                        self.solver.increment_error_count(cause);
 
                         // This doesn't halt the solve because the missing
                         // package might only have been requested by one
@@ -790,26 +986,13 @@ impl SolverRuntime {
                         // was misspelt in a yaml file that was given on a
                         // command line. So the solver is likely to hit a dead
                         // end and halt fairly soon.
-                        yield Ok(to_yield);
+                        yield Ok((node_to_yield.clone(), decision));
                         continue 'outer;
                     }
-                    Err(err) => {
-                        let cause = format!("{}", err);
-                        self.solver.increment_error_count(cause);
-                        yield Err(err);
-                        continue 'outer;
-                    }
-                };
-                self.history.push(
-                    NodeWrapper {
-                        node: current_node.clone(),
-                        // I tried reversing the order of the hash here and it
-                        // produced the same result.
-                        hash: self.solver.get_number_of_steps() as u64,
-                    },
-                    std::cmp::Reverse(current_level),
-                );
-                yield Ok(to_yield)
+                }
+                else {
+                    unreachable!()
+                }
             }
         }
     }
