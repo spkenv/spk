@@ -355,6 +355,12 @@ pub fn format_change(
 /// How long to wait before showing the solver status bar.
 const STATUS_BAR_DELAY: Duration = Duration::from_secs(5);
 
+enum StatusBarStatus {
+    Inactive,
+    Active(StatusLine),
+    Disabled,
+}
+
 pub struct FormattedDecisionsIter<I>
 where
     I: Stream<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>>,
@@ -367,7 +373,7 @@ where
     start: Instant,
     too_long_counter: u64,
     settings: DecisionFormatterSettings,
-    status_line: Option<StatusLine>,
+    status_bar: StatusBarStatus,
     status_line_rendered_hash: u64,
 }
 
@@ -387,7 +393,7 @@ where
             start: Instant::now(),
             too_long_counter: 0,
             settings,
-            status_line: None,
+            status_bar: StatusBarStatus::Inactive,
             status_line_rendered_hash: 0,
         }
     }
@@ -466,43 +472,51 @@ where
                         }
                     };
 
-            if let Some(status_line) = self.status_line.as_mut() {
-                let resolved_packages_hash = node.state.get_resolved_packages_hash();
-                if resolved_packages_hash != self.status_line_rendered_hash {
-                    let packages = node.state.get_ordered_resolved_packages();
-                    let mut renders = Vec::with_capacity(packages.len());
-                    for package in packages.iter() {
-                        let name = package.pkg.name.as_str();
-                        let version = package.pkg.version.to_string();
-                        let build = package.pkg.build.as_ref().unwrap().to_string();
-                        let max_len = name.len().max(version.len()).max(build.len());
-                        renders.push((name, version, build, max_len));
+                    if let StatusBarStatus::Active(status_line) = &mut self.status_bar {
+                        let resolved_packages_hash = node.state.get_resolved_packages_hash();
+                        if resolved_packages_hash != self.status_line_rendered_hash {
+                            let packages = node.state.get_ordered_resolved_packages();
+                            let mut renders = Vec::with_capacity(packages.len());
+                            for package in packages.iter() {
+                                let name = package.pkg.name.as_str();
+                                let version = package.pkg.version.to_string();
+                                let build = package.pkg.build.as_ref().unwrap().to_string();
+                                let max_len = name.len().max(version.len()).max(build.len());
+                                renders.push((name, version, build, max_len));
+                            }
+                            for row in 0..3 {
+                                status_line.set_status(
+                                    row,
+                                    renders
+                                        .iter()
+                                        .map(|item| {
+                                            format!(
+                                                "{:width$}",
+                                                match row {
+                                                    0 => item.0,
+                                                    1 => &item.1,
+                                                    2 => &item.2,
+                                                    _ => unreachable!(),
+                                                },
+                                                width = item.3
+                                            )
+                                        })
+                                        .join(" |"),
+                                );
+                            }
+                            self.status_line_rendered_hash = resolved_packages_hash
+                        }
+                    } else if !matches!(self.status_bar, StatusBarStatus::Disabled)
+                        && self.start.elapsed() >= STATUS_BAR_DELAY
+                    {
+                        // Don't create the status bar if the terminal is unattended.
+                        let term = Term::stdout();
+                        self.status_bar = if term.features().is_attended() {
+                            StatusBarStatus::Active(StatusLine::new(term, 3))
+                        } else {
+                            StatusBarStatus::Disabled
+                        };
                     }
-                    for row in 0..3 {
-                        status_line.set_status(
-                            row,
-                            renders
-                                .iter()
-                                .map(|item| {
-                                    format!(
-                                        "{:width$}",
-                                        match row {
-                                            0 => item.0,
-                                            1 => &item.1,
-                                            2 => &item.2,
-                                            _ => unreachable!(),
-                                        },
-                                        width = item.3
-                                    )
-                                })
-                                .join(" |"),
-                        );
-                    }
-                    self.status_line_rendered_hash = resolved_packages_hash
-                }
-            } else if self.start.elapsed() >= STATUS_BAR_DELAY {
-                self.status_line = Some(StatusLine::new(Term::stdout(), 3));
-            }
 
                     if self.verbosity > 5 {
                         // Show the state's package requests and resolved
