@@ -37,7 +37,10 @@ impl StatusLine {
             sig_winch_tripped,
         };
 
-        let _ = s.term.clear_last_lines(s.status_height.into());
+        // Scroll the screen to make room for the status bar.
+        for _ in 0..status_height {
+            let _ = s.term.write("\x1bD".as_bytes());
+        }
 
         s.update_scroll_area();
 
