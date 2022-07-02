@@ -83,6 +83,9 @@ pub fn change_is_relevant_at_verbosity(change: &Change, verbosity: u32) -> bool 
     verbosity >= relevant_level
 }
 
+/// How long to wait before showing the solver status bar.
+const STATUS_BAR_DELAY: Duration = Duration::from_secs(5);
+
 pub struct FormattedDecisionsIter<I>
 where
     I: Stream<Item = Result<(Arc<Node>, Arc<Decision>)>>,
@@ -95,7 +98,7 @@ where
     start: Instant,
     too_long_counter: u64,
     settings: DecisionFormatterSettings,
-    status_line: StatusLine,
+    status_line: Option<StatusLine>,
     status_line_rendered_hash: u64,
 }
 
@@ -115,7 +118,7 @@ where
             start: Instant::now(),
             too_long_counter: 0,
             settings,
-            status_line: StatusLine::new(Term::stdout(), 3),
+            status_line: None,
             status_line_rendered_hash: 0,
         }
     }
@@ -192,39 +195,43 @@ where
                         }
                     };
 
-                    let resolved_packages_hash = node.state.get_resolved_packages_hash();
-                    if resolved_packages_hash != self.status_line_rendered_hash {
-                        let packages = node.state.get_ordered_resolved_packages();
-                        let mut renders = Vec::with_capacity(packages.len());
-                        for package in packages.iter() {
-                            let name = package.name().as_str();
-                            let version = package.version().to_string();
-                            let build = package.ident().build.as_ref().unwrap().to_string();
-                            let max_len = name.len().max(version.len()).max(build.len());
-                            renders.push((name, version, build, max_len));
-                        }
-                        for row in 0..3 {
-                            self.status_line.set_status(
-                                row,
-                                renders
-                                    .iter()
-                                    .map(|item| {
-                                        format!(
-                                            "{:width$}",
-                                            match row {
-                                                0 => item.0,
-                                                1 => &item.1,
-                                                2 => &item.2,
-                                                _ => unreachable!(),
-                                            },
-                                            width = item.3
-                                        )
-                                    })
-                                    .join(" |"),
-                            );
-                        }
-                        self.status_line_rendered_hash = resolved_packages_hash
+            if let Some(status_line) = self.status_line.as_mut() {
+                let resolved_packages_hash = node.state.get_resolved_packages_hash();
+                if resolved_packages_hash != self.status_line_rendered_hash {
+                    let packages = node.state.get_ordered_resolved_packages();
+                    let mut renders = Vec::with_capacity(packages.len());
+                    for package in packages.iter() {
+                        let name = package.name().as_str();
+                        let version = package.version().to_string();
+                        let build = package.ident().build.as_ref().unwrap().to_string();
+                        let max_len = name.len().max(version.len()).max(build.len());
+                        renders.push((name, version, build, max_len));
                     }
+                    for row in 0..3 {
+                        status_line.set_status(
+                            row,
+                            renders
+                                .iter()
+                                .map(|item| {
+                                    format!(
+                                        "{:width$}",
+                                        match row {
+                                            0 => item.0,
+                                            1 => &item.1,
+                                            2 => &item.2,
+                                            _ => unreachable!(),
+                                        },
+                                        width = item.3
+                                    )
+                                })
+                                .join(" |"),
+                        );
+                    }
+                    self.status_line_rendered_hash = resolved_packages_hash
+                }
+            } else if self.start.elapsed() >= STATUS_BAR_DELAY {
+                self.status_line = Some(StatusLine::new(Term::stdout(), 3));
+            }
 
                     if self.verbosity > 5 {
                         // Show the state's package requests and resolved
