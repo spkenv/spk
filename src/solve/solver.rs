@@ -40,6 +40,22 @@ use super::{
 #[path = "./solver_test.rs"]
 mod solver_test;
 
+/// Possible outcomes from [`Solver::step_state`]
+#[derive(Debug)]
+enum StepStateOutcome {
+    SolveComplete,
+    Decision(Decision),
+}
+
+impl From<StepStateOutcome> for Option<Arc<Decision>> {
+    fn from(outcome: StepStateOutcome) -> Self {
+        match outcome {
+            StepStateOutcome::SolveComplete => None,
+            StepStateOutcome::Decision(decision) => Some(Arc::new(decision)),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Solver {
     repos: Vec<Arc<storage::RepositoryHandle>>,
@@ -287,12 +303,12 @@ impl Solver {
         Ok(None)
     }
 
-    async fn step_state(&mut self, node: &mut Arc<Node>) -> Result<Option<Decision>> {
+    async fn step_state(&mut self, node: &mut Arc<Node>) -> Result<StepStateOutcome> {
         let mut notes = Vec::<Note>::new();
         let request = if let Some(request) = node.state.get_next_request()? {
             request
         } else {
-            return Ok(None);
+            return Ok(StepStateOutcome::SolveComplete);
         };
 
         // This is a step forward in the solve
@@ -346,7 +362,8 @@ impl Solver {
 
             match self.step_builds(node, &request, builds, &mut notes).await {
                 Ok(None) => continue,
-                other => return other,
+                Ok(Some(decision)) => return Ok(StepStateOutcome::Decision(decision)),
+                Err(err) => return Err(err),
             }
         }
 
@@ -695,7 +712,7 @@ impl SolverRuntime {
                 let current_level = current_node_lock.state.state_depth;
                 self.decision = match self.solver.step_state(&mut current_node_lock).await
                 {
-                    Ok(decision) => decision.map(Arc::new),
+                    Ok(decision) => decision.into(),
                     Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
                         // Add to problem package counts based on what made
                         // the request for the blocked package.
