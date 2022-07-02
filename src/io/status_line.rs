@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::io::Write;
+use std::{
+    io::Write,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use console::Term;
 
@@ -12,37 +18,49 @@ pub(crate) struct StatusLine {
     status_height: u16,
     term_cols: u16,
     term_rows: u16,
+    sig_winch_tripped: Arc<AtomicBool>,
 }
 
 impl StatusLine {
-    pub(crate) fn new(mut term: Term, status_height: u16) -> Self {
-        // TODO: catch SIGWINCH to update sizes
+    pub(crate) fn new(term: Term, status_height: u16) -> Self {
+        // Monitor SIGWINCH to know when the terminal has been resized,
+        // to update our saved dimensions.
+        let sig_winch_tripped = Arc::new(AtomicBool::new(false));
+        let _ = signal_hook::flag::register(
+            signal_hook::consts::SIGWINCH,
+            Arc::clone(&sig_winch_tripped),
+        );
+
         let (term_rows, term_cols) = term.size();
 
-        let _ = term.clear_last_lines(status_height.into());
-
-        // Set the scroll area to leave the bottom line available for a static
-        // message.
-        let _ = term.write_fmt(format_args!(
-            "\x1b[{rows};0r",
-            rows = term_rows - status_height
-        ));
-
-        // Put the cursor above the status bar.
-        let _ = term.move_cursor_to(0, (term_rows - status_height - 1).into());
-
-        Self {
+        let mut s = Self {
             term,
             status_height,
             term_cols,
             term_rows,
-        }
+            sig_winch_tripped,
+        };
+
+        let _ = s.term.clear_last_lines(s.status_height.into());
+
+        s.update_scroll_area();
+
+        s
     }
 
     pub(crate) fn set_status<S>(&mut self, row: u16, msg: S)
     where
         S: AsRef<str>,
     {
+        // Check if the terminal was resized.
+        if self
+            .sig_winch_tripped
+            .compare_exchange(true, false, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
+            (self.term_rows, self.term_cols) = self.term.size();
+        }
+
         let msg = msg.as_ref();
 
         // Escape chars save cursor position and then
@@ -59,6 +77,22 @@ impl StatusLine {
             rows_minus_height = self.term_rows - self.status_height,
             max_cols = (self.term_cols - 1) as usize,
         ));
+    }
+
+    fn update_scroll_area(&mut self) {
+        (self.term_rows, self.term_cols) = self.term.size();
+
+        // Set the scroll area to leave the bottom line available for a static
+        // message.
+        let _ = self.term.write_fmt(format_args!(
+            "\x1b[{rows};0r",
+            rows = self.term_rows - self.status_height
+        ));
+
+        // Put the cursor above the status bar.
+        let _ = self
+            .term
+            .move_cursor_to(0, (self.term_rows - self.status_height - 1).into());
     }
 }
 
