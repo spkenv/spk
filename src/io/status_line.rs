@@ -93,9 +93,15 @@ impl StatusLine {
         ));
 
         // Put the cursor above the status bar.
+        // The `- 2` is necessary to make the scroll area reliable when using
+        // `spk explain` and there is solver output already being printed.
+        // With `- 1`, the solver output overwrites the last line of the
+        // status bar instead of in the scroll area as expected.
+        // But with `- 2`, when using `spk env` and there is no output, then
+        // the cursor is one row higher than it should be.
         let _ = self
             .term
-            .move_cursor_to(0, (self.term_rows - self.status_height - 1).into());
+            .move_cursor_to(0, (self.term_rows - self.status_height - 2).into());
     }
 }
 
