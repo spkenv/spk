@@ -293,7 +293,8 @@ impl<'de> Deserialize<'de> for Spec {
 pub fn read_spec_file<P: AsRef<Path>>(filepath: P) -> Result<Spec> {
     let filepath = filepath.as_ref().canonicalize()?;
     let file = std::fs::File::open(&filepath)?;
-    let mut spec: Spec = serde_yaml::from_reader(file)?;
+    let mut spec: Spec = serde_yaml::from_reader(file)
+        .map_err(|err| Error::InvalidPackageSpecFile(filepath.clone(), err))?;
     if let Some(spec_root) = filepath.parent() {
         for source in spec.sources.iter_mut() {
             if let SourceSpec::Local(source) = source {
@@ -311,7 +312,7 @@ pub fn save_spec_file<P: AsRef<Path>>(filepath: P, spec: &Spec) -> crate::Result
         .create(true)
         .write(true)
         .open(filepath)?;
-    serde_yaml::to_writer(file, spec)?;
+    serde_yaml::to_writer(file, spec).map_err(Error::SpecEncodingError)?;
     Ok(())
 }
 

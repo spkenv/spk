@@ -367,7 +367,7 @@ impl std::fmt::Display for PreReleasePolicy {
 impl std::str::FromStr for PreReleasePolicy {
     type Err = crate::Error;
     fn from_str(value: &str) -> crate::Result<Self> {
-        Ok(serde_yaml::from_str(value)?)
+        serde_yaml::from_str(value).map_err(Error::InvalidPreReleasePolicy)
     }
 }
 
@@ -398,7 +398,7 @@ impl std::fmt::Display for InclusionPolicy {
 impl std::str::FromStr for InclusionPolicy {
     type Err = crate::Error;
     fn from_str(value: &str) -> crate::Result<Self> {
-        Ok(serde_yaml::from_str(value)?)
+        serde_yaml::from_str(value).map_err(Error::InvalidInclusionPolicy)
     }
 }
 

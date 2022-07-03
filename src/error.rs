@@ -17,8 +17,6 @@ pub enum Error {
     #[error(transparent)]
     SPFS(#[from] spfs::Error),
     #[error(transparent)]
-    Serde(#[from] serde_yaml::Error),
-    #[error(transparent)]
     Solve(#[from] crate::solve::Error),
     #[error("Error: {0}")]
     String(String),
@@ -30,6 +28,20 @@ pub enum Error {
     InvalidNameError(#[from] api::InvalidNameError),
     #[error(transparent)]
     InvalidBuildError(#[from] api::InvalidBuildError),
+    #[error("Invalid package spec for {0}: {1}")]
+    InvalidPackageSpec(api::Ident, #[source] serde_yaml::Error),
+    #[error("Failed to encode spec: {0}")]
+    SpecEncodingError(#[source] serde_yaml::Error),
+    #[error("Invalid package spec file {0}: {1}")]
+    InvalidPackageSpecFile(std::path::PathBuf, #[source] serde_yaml::Error),
+    #[error("Invalid repository metadata: {0}")]
+    InvalidRepositoryMetadata(#[source] serde_yaml::Error),
+    #[error("Invalid inheritance: {0}")]
+    InvalidInheritance(#[source] serde_yaml::Error),
+    #[error("Invalid PreReleasePolicy: {0}")]
+    InvalidPreReleasePolicy(#[source] serde_yaml::Error),
+    #[error("Invalid InclusionPolicy: {0}")]
+    InvalidInclusionPolicy(#[source] serde_yaml::Error),
 
     // Storage Errors
     #[error("Package not found: {0}")]
