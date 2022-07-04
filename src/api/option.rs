@@ -216,23 +216,7 @@ impl Ord for VarOpt {
 
 impl PartialOrd for VarOpt {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.var.partial_cmp(&other.var) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        match self.default.partial_cmp(&other.default) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        match self.choices.iter().partial_cmp(other.choices.iter()) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        match self.inheritance.partial_cmp(&other.inheritance) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        self.value.partial_cmp(&other.value)
+        Some(self.cmp(other))
     }
 }
 

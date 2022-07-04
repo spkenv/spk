@@ -211,7 +211,7 @@ impl Ord for FileMatcher {
 
 impl PartialOrd for FileMatcher {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.rules.partial_cmp(&other.rules)
+        Some(self.cmp(other))
     }
 }
 

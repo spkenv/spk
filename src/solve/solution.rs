@@ -52,18 +52,7 @@ impl Ord for PackageSource {
 
 impl PartialOrd for PackageSource {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            (this @ PackageSource::Repository { .. }, other @ PackageSource::Repository { .. }) => {
-                this.partial_cmp(other)
-            }
-            (PackageSource::Repository { .. }, PackageSource::Spec(_)) => {
-                Some(std::cmp::Ordering::Less)
-            }
-            (PackageSource::Spec(_), PackageSource::Repository { .. }) => {
-                Some(std::cmp::Ordering::Greater)
-            }
-            (PackageSource::Spec(this), PackageSource::Spec(other)) => this.partial_cmp(other),
-        }
+        Some(self.cmp(other))
     }
 }
 

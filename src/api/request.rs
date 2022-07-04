@@ -69,24 +69,7 @@ impl Ord for RangeIdent {
 
 impl PartialOrd for RangeIdent {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.name.partial_cmp(&other.name) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        match self
-            .components
-            .iter()
-            .sorted()
-            .partial_cmp(other.components.iter().sorted())
-        {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        match self.version.partial_cmp(&other.version) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        self.build.partial_cmp(&other.build)
+        Some(self.cmp(other))
     }
 }
 

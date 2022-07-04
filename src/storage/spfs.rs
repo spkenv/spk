@@ -50,7 +50,7 @@ impl Ord for SPFSRepository {
 
 impl PartialOrd for SPFSRepository {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.address.partial_cmp(&other.address)
+        Some(self.cmp(other))
     }
 }
 
