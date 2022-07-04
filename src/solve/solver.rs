@@ -647,7 +647,6 @@ impl Iterator for SolverRuntime {
                     err.request.pkg,
                     requirers.join(", ")
                 );
-                self.solver.increment_error_count(cause.clone());
 
                 SolverRuntime::take_a_step_back(
                     &mut self.history,
