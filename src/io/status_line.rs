@@ -22,6 +22,10 @@ pub(crate) struct StatusLine {
 }
 
 impl StatusLine {
+    pub(crate) fn flush(&mut self) {
+        let _ = self.term.flush();
+    }
+
     pub(crate) fn new(term: Term, status_height: u16) -> Self {
         // Monitor SIGWINCH to know when the terminal has been resized,
         // to update our saved dimensions.
@@ -47,6 +51,8 @@ impl StatusLine {
         }
 
         s.update_scroll_area();
+
+        let _ = s.term.flush();
 
         s
     }
@@ -112,5 +118,6 @@ impl Drop for StatusLine {
 
         let _ = self.term.move_cursor_to(0, self.term_rows.into());
         let _ = self.term.write("\n".as_bytes());
+        let _ = self.term.flush();
     }
 }
