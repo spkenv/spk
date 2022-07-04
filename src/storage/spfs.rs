@@ -518,6 +518,7 @@ impl SPFSRepository {
     fn invalidate_caches(&self) {
         let address = self.address();
         LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+        PACKAGE_VERSIONS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
         SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
         TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
     }
