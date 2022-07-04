@@ -109,6 +109,7 @@ impl std::ops::Drop for SPFSRepository {
 
 #[derive(Clone)]
 enum CacheValue<T> {
+    InvalidPackageSpec(api::Ident, String),
     PackageNotFoundError(api::Ident),
     StringError(String),
     StringifiedError(String),
@@ -118,6 +119,10 @@ enum CacheValue<T> {
 impl<T> From<CacheValue<T>> for Result<T> {
     fn from(cv: CacheValue<T>) -> Self {
         match cv {
+            CacheValue::InvalidPackageSpec(i, err) => Err(crate::Error::InvalidPackageSpec(
+                i,
+                serde::ser::Error::custom(err),
+            )),
             CacheValue::PackageNotFoundError(i) => Err(crate::Error::PackageNotFoundError(i)),
             CacheValue::StringError(s) => Err(s.into()),
             CacheValue::StringifiedError(s) => Err(s.into()),
@@ -130,6 +135,9 @@ impl<T> From<std::result::Result<T, &crate::Error>> for CacheValue<T> {
     fn from(r: std::result::Result<T, &crate::Error>) -> Self {
         match r {
             Ok(v) => CacheValue::Success(v),
+            Err(crate::Error::InvalidPackageSpec(i, err)) => {
+                CacheValue::InvalidPackageSpec(i.clone(), err.to_string())
+            }
             Err(crate::Error::PackageNotFoundError(i)) => {
                 CacheValue::PackageNotFoundError(i.clone())
             }
