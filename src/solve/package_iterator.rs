@@ -158,13 +158,18 @@ impl PackageIterator for RepositoryPackageIterator {
         let mut pkg = api::Ident::new(self.package_name.clone());
         pkg.version = (**version).clone();
         if !self.builds_map.contains_key(version) {
-            self.builds_map.insert(
-                (**version).clone(),
-                Arc::new(Mutex::new(RepositoryBuildIterator::new(
-                    pkg.clone(),
-                    repo.clone(),
-                )?)),
-            );
+            match RepositoryBuildIterator::new(pkg.clone(), repo.clone()) {
+                Ok(iter) => {
+                    self.builds_map
+                        .insert((**version).clone(), Arc::new(Mutex::new(iter)));
+                }
+                Err(err @ Error::InvalidPackageSpec(..)) => {
+                    tracing::warn!("Skipping: {}", err);
+                    self.active_version = None;
+                    return self.next();
+                }
+                Err(err) => return Err(err),
+            }
         }
         let builds = self.builds_map.get(version).unwrap();
         if builds.lock().unwrap().is_empty() {
