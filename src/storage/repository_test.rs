@@ -144,8 +144,9 @@ fn test_repo_remove_package(#[case] repo: RepoKind) {
     );
     assert_eq!(repo.read_spec(&spec.pkg).unwrap(), spec);
     repo.remove_package(&spec.pkg).unwrap();
-    assert!(repo
-        .list_package_builds_cp(CachePolicy::BypassCache, &spec.pkg)
-        .unwrap()
-        .is_empty());
+    assert!(crate::with_cache_policy!(repo, CachePolicy::BypassCache, {
+        repo.list_package_builds(&spec.pkg)
+    })
+    .unwrap()
+    .is_empty());
 }

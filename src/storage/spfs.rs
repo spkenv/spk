@@ -6,6 +6,7 @@ use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
     str::FromStr,
+    sync::atomic::{AtomicPtr, Ordering},
 };
 
 use futures::StreamExt;
@@ -17,7 +18,7 @@ use tokio::io::AsyncReadExt;
 use tokio::runtime::Handle;
 
 use super::{CachePolicy, Repository};
-use crate::{api, Error, Result};
+use crate::{api, with_cache_policy, Error, Result};
 
 #[cfg(test)]
 #[path = "./spfs_test.rs"]
@@ -30,6 +31,7 @@ const REPO_VERSION: &str = "1.0.0";
 pub struct SPFSRepository {
     address: url::Url,
     inner: spfs::storage::RepositoryHandle,
+    cache_policy: AtomicPtr<CachePolicy>,
 }
 
 impl std::hash::Hash for SPFSRepository {
@@ -66,6 +68,7 @@ impl<T: Into<spfs::storage::RepositoryHandle>> From<T> for SPFSRepository {
         Self {
             address: inner.address(),
             inner,
+            cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
         }
     }
 }
@@ -76,7 +79,17 @@ impl SPFSRepository {
         Ok(Self {
             address: inner.address(),
             inner,
+            cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
         })
+    }
+}
+
+impl std::ops::Drop for SPFSRepository {
+    fn drop(&mut self) {
+        // Safety: We only put valid `Box` pointers into `self.cache_policy`.
+        unsafe {
+            Box::from_raw(self.cache_policy.load(Ordering::Relaxed));
+        }
     }
 }
 
@@ -144,11 +157,11 @@ impl Repository for SPFSRepository {
         &self.address
     }
 
-    fn list_packages_cp(&self, cache_policy: CachePolicy) -> Result<Vec<api::PkgName>> {
+    fn list_packages(&self) -> Result<Vec<api::PkgName>> {
         let path = relative_path::RelativePath::new("spk/spec");
         // XXX: infallible vs return type
         Ok(crate::HANDLE
-            .block_on(self.ls_tags(cache_policy, path))
+            .block_on(self.ls_tags(path))
             .into_iter()
             .filter_map(|entry| match entry {
                 Ok(EntryType::Folder(name)) => name.parse().ok(),
@@ -158,13 +171,12 @@ impl Repository for SPFSRepository {
             .collect::<Vec<_>>())
     }
 
-    fn list_package_versions_cp(
+    fn list_package_versions(
         &self,
-        cache_policy: CachePolicy,
         name: &api::PkgName,
     ) -> Result<Cow<Vec<Cow<'static, api::Version>>>> {
         let address = self.address();
-        if cache_policy.cached_result_permitted() {
+        if self.cached_result_permitted() {
             let r = PACKAGE_VERSIONS_CACHE.with(|hm| {
                 hm.borrow()
                     .get(address)
@@ -177,7 +189,7 @@ impl Repository for SPFSRepository {
         let r: Result<Cow<_>> = crate::HANDLE.block_on(async {
             let path = self.build_spec_tag(&name.clone().into());
             let versions: HashSet<_> = self
-                .ls_tags(cache_policy, &path)
+                .ls_tags(&path)
                 .await
                 .into_iter()
                 .filter_map(|entry| match entry {
@@ -210,11 +222,7 @@ impl Repository for SPFSRepository {
         r
     }
 
-    fn list_package_builds_cp(
-        &self,
-        cache_policy: CachePolicy,
-        pkg: &api::Ident,
-    ) -> Result<Vec<api::Ident>> {
+    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
         Handle::current().block_on(async {
             let pkg = pkg.with_build(Some(api::Build::Source));
             let mut base = self.build_package_tag(&pkg)?;
@@ -224,7 +232,7 @@ impl Repository for SPFSRepository {
             base.pop();
 
             let builds: HashSet<_> = self
-                .ls_tags(cache_policy, &base)
+                .ls_tags(&base)
                 .await
                 .into_iter()
                 .filter_map(|entry| match entry {
@@ -246,21 +254,17 @@ impl Repository for SPFSRepository {
         })
     }
 
-    fn list_build_components_cp(
-        &self,
-        cache_policy: CachePolicy,
-        pkg: &api::Ident,
-    ) -> Result<Vec<api::Component>> {
-        match crate::HANDLE.block_on(self.lookup_package(cache_policy, pkg)) {
+    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
+        match crate::HANDLE.block_on(self.lookup_package(pkg)) {
             Ok(p) => Ok(p.into_components().into_keys().collect()),
             Err(Error::PackageNotFoundError(_)) => Ok(Vec::new()),
             Err(err) => Err(err),
         }
     }
 
-    fn read_spec_cp(&self, cache_policy: CachePolicy, pkg: &api::Ident) -> Result<api::Spec> {
+    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
         let address = self.address();
-        if cache_policy.cached_result_permitted() {
+        if self.cached_result_permitted() {
             let r =
                 SPEC_CACHE.with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
             if let Some(r) = r {
@@ -270,7 +274,7 @@ impl Repository for SPFSRepository {
         let r: Result<api::Spec> = crate::HANDLE.block_on(async {
             let tag_path = self.build_spec_tag(pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
-            let tag = self.resolve_tag(cache_policy, pkg, &tag_spec).await?;
+            let tag = self.resolve_tag(pkg, &tag_spec).await?;
 
             let mut reader = self.inner.open_payload(tag.target).await?;
             let mut yaml = String::new();
@@ -285,16 +289,15 @@ impl Repository for SPFSRepository {
         r
     }
 
-    fn get_package_cp(
+    fn get_package(
         &self,
-        cache_policy: CachePolicy,
         pkg: &api::Ident,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
-        let package = crate::HANDLE.block_on(self.lookup_package(cache_policy, pkg))?;
+        let package = crate::HANDLE.block_on(self.lookup_package(pkg))?;
         let component_tags = package.into_components();
         let mut components = HashMap::with_capacity(component_tags.len());
         for (name, tag_spec) in component_tags.into_iter() {
-            let tag = crate::HANDLE.block_on(self.resolve_tag(cache_policy, pkg, &tag_spec))?;
+            let tag = crate::HANDLE.block_on(self.resolve_tag(pkg, &tag_spec))?;
             components.insert(name, tag.target);
         }
         Ok(components)
@@ -419,10 +422,10 @@ impl Repository for SPFSRepository {
 
     fn remove_package(&self, pkg: &api::Ident) -> Result<()> {
         Handle::current().block_on(async {
-            for tag_spec in self
-                .lookup_package(CachePolicy::BypassCache, pkg)
-                .await?
-                .tags()
+            for tag_spec in
+                with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
+                    .await?
+                    .tags()
             {
                 match self.inner.remove_tag_stream(tag_spec).await {
                     Err(spfs::Error::UnknownReference(_)) => (),
@@ -464,8 +467,11 @@ impl Repository for SPFSRepository {
             for version in self.list_package_versions(&name)?.iter() {
                 pkg.version = version.clone().into_owned();
                 for build in self.list_package_builds(&pkg)? {
-                    let stored = crate::HANDLE
-                        .block_on(self.lookup_package(CachePolicy::BypassCache, &build))?;
+                    let stored = crate::HANDLE.block_on(with_cache_policy!(
+                        self,
+                        CachePolicy::BypassCache,
+                        { self.lookup_package(&build) }
+                    ))?;
                     if stored.has_components() {
                         continue;
                     }
@@ -497,26 +503,31 @@ impl Repository for SPFSRepository {
         // Note caches are already invalidated in `write_metadata`
         Ok("All packages were re-tagged for components".to_string())
     }
+
+    fn set_cache_policy(&self, cache_policy: CachePolicy) -> CachePolicy {
+        let orig = self
+            .cache_policy
+            .swap(Box::leak(Box::new(cache_policy)), Ordering::Relaxed);
+
+        // Safety: We only put valid `Box` pointers into `self.cache_policy`.
+        *unsafe { Box::from_raw(orig) }
+    }
 }
 
 impl SPFSRepository {
-    async fn has_tag(
-        &self,
-        cache_policy: CachePolicy,
-        for_pkg: &api::Ident,
-        tag: &tracking::TagSpec,
-    ) -> bool {
-        // This goes through the cache!
-        self.resolve_tag(cache_policy, for_pkg, tag).await.is_ok()
+    fn cached_result_permitted(&self) -> bool {
+        // Safety: We only put valid `Box` pointers into `self.cache_policy`.
+        unsafe { *self.cache_policy.load(Ordering::Relaxed) }.cached_result_permitted()
     }
 
-    async fn ls_tags(
-        &self,
-        cache_policy: CachePolicy,
-        path: &relative_path::RelativePath,
-    ) -> Vec<Result<EntryType>> {
+    async fn has_tag(&self, for_pkg: &api::Ident, tag: &tracking::TagSpec) -> bool {
+        // This goes through the cache!
+        self.resolve_tag(for_pkg, tag).await.is_ok()
+    }
+
+    async fn ls_tags(&self, path: &relative_path::RelativePath) -> Vec<Result<EntryType>> {
         let address = self.address();
-        if cache_policy.cached_result_permitted() {
+        if self.cached_result_permitted() {
             let r = LS_TAGS_CACHE.with(|hm| {
                 hm.borrow()
                     .get(address)
@@ -564,12 +575,11 @@ impl SPFSRepository {
 
     async fn resolve_tag(
         &self,
-        cache_policy: CachePolicy,
         for_pkg: &api::Ident,
         tag_spec: &tracking::TagSpec,
     ) -> Result<tracking::Tag> {
         let address = self.address();
-        if cache_policy.cached_result_permitted() {
+        if self.cached_result_permitted() {
             let r = TAG_SPEC_CACHE.with(|hm| {
                 hm.borrow()
                     .get(address)
@@ -615,16 +625,12 @@ impl SPFSRepository {
     /// Find a package stored in this repo in either the new or old way of tagging
     ///
     /// (with or without package components)
-    async fn lookup_package(
-        &self,
-        cache_policy: CachePolicy,
-        pkg: &api::Ident,
-    ) -> Result<StoredPackage> {
+    async fn lookup_package(&self, pkg: &api::Ident) -> Result<StoredPackage> {
         use api::Component;
         use spfs::tracking::TagSpec;
         let tag_path = self.build_package_tag(pkg)?;
         let tag_specs: HashMap<Component, TagSpec> = self
-            .ls_tags(cache_policy, &tag_path)
+            .ls_tags(&tag_path)
             .await
             .into_iter()
             .filter_map(|entry| match entry {
@@ -639,7 +645,7 @@ impl SPFSRepository {
             return Ok(StoredPackage::WithComponents(tag_specs));
         }
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
-        if self.has_tag(cache_policy, pkg, &tag_spec).await {
+        if self.has_tag(pkg, &tag_spec).await {
             return Ok(StoredPackage::WithoutComponents(tag_spec));
         }
         Err(Error::PackageNotFoundError(pkg.clone()))
@@ -735,6 +741,7 @@ pub async fn local_repository() -> Result<SPFSRepository> {
     Ok(SPFSRepository {
         address: inner.address(),
         inner,
+        cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
     })
 }
 
@@ -747,5 +754,6 @@ pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SPFSRepository>
     Ok(SPFSRepository {
         address: repo.address(),
         inner: repo,
+        cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
     })
 }

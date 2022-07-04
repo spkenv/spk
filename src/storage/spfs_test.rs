@@ -96,16 +96,16 @@ fn test_upgrade_changes_tags(tmpdir: tempdir::TempDir) {
         .block_on(spfs_repo.push_tag(&old_path, &spfs::encoding::EMPTY_DIGEST.into()))
         .unwrap();
 
-    let pkg = crate::HANDLE
-        .block_on(repo.lookup_package(CachePolicy::CacheOk, &ident))
-        .unwrap();
+    let pkg = crate::HANDLE.block_on(repo.lookup_package(&ident)).unwrap();
     assert!(matches!(pkg, super::StoredPackage::WithoutComponents(_)));
 
     repo.upgrade()
         .expect("upgrading a simple repo should succeed");
 
     let pkg = crate::HANDLE
-        .block_on(repo.lookup_package(CachePolicy::BypassCache, &ident))
+        .block_on(crate::with_cache_policy!(repo, CachePolicy::BypassCache, {
+            repo.lookup_package(&ident)
+        }))
         .unwrap();
     assert!(matches!(pkg, super::StoredPackage::WithComponents(_)));
 }

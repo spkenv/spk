@@ -5,7 +5,7 @@
 use rstest::rstest;
 
 use super::{load_spec, save_spec};
-use crate::{fixtures::*, storage::CachePolicy};
+use crate::{fixtures::*, storage::CachePolicy, with_cache_policy};
 
 #[rstest]
 fn test_load_spec_local() {
@@ -29,7 +29,8 @@ fn test_save_spec() {
 
     save_spec(spec.clone()).unwrap();
 
-    rt.tmprepo
-        .read_spec_cp(CachePolicy::BypassCache, &spec.pkg)
-        .expect("should exist in repo after saving");
+    with_cache_policy!(rt.tmprepo, CachePolicy::BypassCache, {
+        rt.tmprepo.read_spec(&spec.pkg)
+    })
+    .expect("should exist in repo after saving");
 }

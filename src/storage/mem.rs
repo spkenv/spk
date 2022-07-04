@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use super::{CachePolicy, Repository};
+use super::Repository;
 use crate::api::PkgName;
 use crate::{api, Error, Result};
 
@@ -59,7 +59,7 @@ impl Repository for MemRepository {
         &self.address
     }
 
-    fn list_packages_cp(&self, _cache_policy: CachePolicy) -> Result<Vec<api::PkgName>> {
+    fn list_packages(&self) -> Result<Vec<api::PkgName>> {
         Ok(self
             .specs
             .read()
@@ -69,9 +69,8 @@ impl Repository for MemRepository {
             .collect())
     }
 
-    fn list_package_versions_cp(
+    fn list_package_versions(
         &self,
-        _cache_policy: CachePolicy,
         name: &api::PkgName,
     ) -> Result<Cow<Vec<Cow<'static, api::Version>>>> {
         if let Some(specs) = self.specs.read().unwrap().get(name) {
@@ -83,11 +82,7 @@ impl Repository for MemRepository {
         }
     }
 
-    fn list_package_builds_cp(
-        &self,
-        _cache_policy: CachePolicy,
-        pkg: &api::Ident,
-    ) -> Result<Vec<api::Ident>> {
+    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
         if let Some(versions) = self.packages.read().unwrap().get(&pkg.name) {
             if let Some(builds) = versions.get(&pkg.version) {
                 Ok(builds
@@ -102,11 +97,7 @@ impl Repository for MemRepository {
         }
     }
 
-    fn list_build_components_cp(
-        &self,
-        _cache_policy: CachePolicy,
-        pkg: &api::Ident,
-    ) -> Result<Vec<api::Component>> {
+    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
         let build = match pkg.build.as_ref() {
             Some(b) => b,
             None => return Ok(Vec::new()),
@@ -123,7 +114,7 @@ impl Repository for MemRepository {
             .unwrap_or_default())
     }
 
-    fn read_spec_cp(&self, _cache_policy: CachePolicy, pkg: &api::Ident) -> Result<api::Spec> {
+    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
         match &pkg.build {
             None => self
                 .specs
@@ -148,7 +139,7 @@ impl Repository for MemRepository {
         }
     }
 
-    fn get_package_cp(&self, _cache_policy: CachePolicy, pkg: &api::Ident) -> Result<ComponentMap> {
+    fn get_package(&self, pkg: &api::Ident) -> Result<ComponentMap> {
         match &pkg.build {
             None => Err(Error::PackageNotFoundError(pkg.clone())),
             Some(build) => self
