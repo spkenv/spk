@@ -74,10 +74,14 @@ pub fn configure_sentry() {
         }
     }
 
+    // Call this before `sentry::init` to avoid possible data race, SIGSEGV
+    // in `getpwuid_r ()` -> `getenv ()`. CentOS 7.6.1810.
+    // Thread 2 is always in `SSL_library_init ()` -> `EVP_rc2_cbc ()`.
+    let username = whoami::username();
+
     let _guard = sentry::init(opts);
 
     sentry::configure_scope(|scope| {
-        let username = whoami::username();
         scope.set_user(Some(sentry::protocol::User {
             email: Some(format!("{}@imageworks.com", &username)),
             username: Some(username),
