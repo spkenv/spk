@@ -47,7 +47,7 @@ impl std::hash::Hash for RangeIdent {
 impl Ord for RangeIdent {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match self.name.cmp(&other.name) {
-            core::cmp::Ordering::Equal => {}
+            std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
         match self
@@ -56,11 +56,11 @@ impl Ord for RangeIdent {
             .sorted()
             .cmp(other.components.iter().sorted())
         {
-            core::cmp::Ordering::Equal => {}
+            std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
         match self.version.cmp(&other.version) {
-            core::cmp::Ordering::Equal => {}
+            std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
         self.build.cmp(&other.build)

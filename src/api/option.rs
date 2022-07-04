@@ -195,19 +195,19 @@ impl std::hash::Hash for VarOpt {
 impl Ord for VarOpt {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match self.var.cmp(&other.var) {
-            core::cmp::Ordering::Equal => {}
+            std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
         match self.default.cmp(&other.default) {
-            core::cmp::Ordering::Equal => {}
+            std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
         match self.choices.iter().cmp(other.choices.iter()) {
-            core::cmp::Ordering::Equal => {}
+            std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
         match self.inheritance.cmp(&other.inheritance) {
-            core::cmp::Ordering::Equal => {}
+            std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
         self.value.cmp(&other.value)
