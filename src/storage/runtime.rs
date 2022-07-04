@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{borrow::Cow, collections::HashMap, convert::TryFrom};
+use std::{collections::HashMap, convert::TryFrom, sync::Arc};
 
 use spfs::prelude::*;
 use tokio::runtime::Handle;
@@ -69,11 +69,8 @@ impl Repository for RuntimeRepository {
             .collect())
     }
 
-    fn list_package_versions(
-        &self,
-        name: &api::PkgName,
-    ) -> Result<Cow<Vec<Cow<'static, api::Version>>>> {
-        Ok(Cow::Owned(
+    fn list_package_versions(&self, name: &api::PkgName) -> Result<Arc<Vec<Arc<api::Version>>>> {
+        Ok(Arc::new(
             get_all_filenames(self.root.join(name))?
                 .into_iter()
                 .filter_map(|entry| {
@@ -84,7 +81,7 @@ impl Repository for RuntimeRepository {
                     }
                 })
                 .filter_map(|candidate| match api::parse_version(&candidate) {
-                    Ok(v) => Some(Cow::Owned(v)),
+                    Ok(v) => Some(Arc::new(v)),
                     Err(err) => {
                         tracing::debug!(
                             "Skipping invalid version in /spfs/spk: [{}], {:?}",

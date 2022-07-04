@@ -84,7 +84,7 @@ fn test_repo_publish_spec(#[case] repo: RepoKind) {
         repo.list_package_versions(&spec.pkg.name)
             .unwrap()
             .iter()
-            .map(|v| v.clone().into_owned())
+            .map(|v| (**v).clone())
             .collect::<Vec<_>>(),
         vec!["1.0.0"]
     );

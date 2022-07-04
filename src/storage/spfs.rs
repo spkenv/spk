@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::{
-    borrow::Cow,
     cell::RefCell,
     collections::{HashMap, HashSet},
     str::FromStr,
-    sync::atomic::{AtomicPtr, Ordering},
+    sync::{
+        atomic::{AtomicPtr, Ordering},
+        Arc,
+    },
 };
 
 use futures::StreamExt;
@@ -138,7 +140,7 @@ std::thread_local! {
 
     static PACKAGE_VERSIONS_CACHE : CacheByAddress<
         api::PkgName,
-        CacheValue<Cow<'static, Vec<Cow<'static, api::Version>>>>
+        CacheValue<Arc<Vec<Arc<api::Version>>>>
     > = RefCell::new(HashMap::new());
 
     static SPEC_CACHE : CacheByAddress<
@@ -171,10 +173,7 @@ impl Repository for SPFSRepository {
             .collect::<Vec<_>>())
     }
 
-    fn list_package_versions(
-        &self,
-        name: &api::PkgName,
-    ) -> Result<Cow<Vec<Cow<'static, api::Version>>>> {
+    fn list_package_versions(&self, name: &api::PkgName) -> Result<Arc<Vec<Arc<api::Version>>>> {
         let address = self.address();
         if self.cached_result_permitted() {
             let r = PACKAGE_VERSIONS_CACHE.with(|hm| {
@@ -186,7 +185,7 @@ impl Repository for SPFSRepository {
                 return r.into();
             }
         }
-        let r: Result<Cow<_>> = crate::HANDLE.block_on(async {
+        let r: Result<Arc<_>> = crate::HANDLE.block_on(async {
             let path = self.build_spec_tag(&name.clone().into());
             let versions: HashSet<_> = self
                 .ls_tags(&path)
@@ -206,13 +205,10 @@ impl Repository for SPFSRepository {
                     }
                 })
                 .collect();
-            let mut versions = versions
-                .into_iter()
-                .map(|v| Cow::Borrowed(Box::leak(Box::new(v))))
-                .collect_vec();
+            let mut versions = versions.into_iter().map(Arc::new).collect_vec();
             versions.sort();
             // XXX: infallible vs return type
-            Ok(Cow::Borrowed(Box::leak(Box::new(versions))))
+            Ok(Arc::new(versions))
         });
         PACKAGE_VERSIONS_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
@@ -450,7 +446,7 @@ impl Repository for SPFSRepository {
             tracing::info!("replicating old tags for {}...", name);
             let mut pkg = api::Ident::new(name.to_owned());
             for version in self.list_package_versions(&name)?.iter() {
-                pkg.version = version.clone().into_owned();
+                pkg.version = (**version).clone();
                 for build in self.list_package_builds(&pkg)? {
                     let stored = crate::HANDLE.block_on(with_cache_policy!(
                         self,

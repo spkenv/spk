@@ -38,7 +38,7 @@ impl Run for Search {
                 let mut ident = spk::api::parse_ident(&name)?;
                 let versions = repo.list_package_versions(&name)?;
                 for v in versions.iter() {
-                    ident.version = v.clone().into_owned();
+                    ident.version = (**v).clone();
                     exit = 0;
                     println!("{repo_name: <width$} {}", spk::io::format_ident(&ident));
                 }
