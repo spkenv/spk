@@ -333,11 +333,7 @@ impl Repository for SPFSRepository {
                 }
                 Err(err) => Err(err.into()),
                 Ok(_) => {
-                    // Invalidate caches
-                    let address = self.address();
-                    LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-                    SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-                    TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+                    self.invalidate_caches();
                     Ok(())
                 }
             }
@@ -360,14 +356,7 @@ impl Repository for SPFSRepository {
                 .commit_blob(Box::pin(std::io::Cursor::new(payload)))
                 .await?;
             self.inner.push_tag(&tag_spec, &digest).await?;
-            // Invalidate caches
-            // TODO: This could be smarter and inject new entries
-            // into the cache.
-            let address = self.address();
-            LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-            SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-            TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-
+            self.invalidate_caches();
             Ok(())
         })
     }
@@ -442,11 +431,7 @@ impl Repository for SPFSRepository {
                     res => res?,
                 }
             }
-            // Invalidate caches
-            let address = self.address();
-            LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-            SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-            TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+            self.invalidate_caches();
             Ok(())
         })
     }
@@ -523,6 +508,18 @@ impl SPFSRepository {
     async fn has_tag(&self, for_pkg: &api::Ident, tag: &tracking::TagSpec) -> bool {
         // This goes through the cache!
         self.resolve_tag(for_pkg, tag).await.is_ok()
+    }
+
+    /// Invalidate (clear) all cached results.
+    ///
+    /// # Warning
+    ///
+    /// This only operates on the caches for the current thread.
+    fn invalidate_caches(&self) {
+        let address = self.address();
+        LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+        SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+        TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
     }
 
     async fn ls_tags(&self, path: &relative_path::RelativePath) -> Vec<Result<EntryType>> {
@@ -614,11 +611,7 @@ impl SPFSRepository {
             .commit_blob(Box::pin(std::io::Cursor::new(yaml.into_bytes())))
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
-        // Invalidate caches
-        let address = self.address();
-        LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-        SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-        TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+        self.invalidate_caches();
         Ok(())
     }
 
