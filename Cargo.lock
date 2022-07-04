@@ -2647,6 +2647,7 @@ dependencies = [
  "nom 7.1.1",
  "once_cell",
  "proptest",
+ "rand 0.8.5",
  "regex",
  "relative-path",
  "ring",

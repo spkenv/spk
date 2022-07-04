@@ -107,11 +107,14 @@ impl Solver {
 
     pub fn get_initial_state(&self) -> Arc<State> {
         let mut state = None;
-        let else_closure = || Arc::new(State::default());
+        let base = State::default();
         for change in self.initial_state_builders.iter() {
-            state = Some(change.apply(&state.unwrap_or_else(else_closure)))
+            state = Some(change.apply(
+                Arc::clone(&base),
+                state.unwrap_or_else(|| Arc::clone(&base)),
+            ))
         }
-        state.unwrap_or_else(else_closure)
+        state.unwrap_or(base)
     }
 
     /// Increment the number of occurrences of the given error message
@@ -470,7 +473,7 @@ impl Solver {
 pub struct SolverRuntime {
     pub solver: Solver,
     graph: Arc<RwLock<Graph>>,
-    history: Vec<Arc<RwLock<Arc<Node>>>>,
+    history: std::collections::VecDeque<Arc<RwLock<Arc<Node>>>>,
     current_node: Option<Arc<RwLock<Arc<Node>>>>,
     decision: Option<Arc<Decision>>,
 }
@@ -481,7 +484,7 @@ impl SolverRuntime {
         Self {
             solver,
             graph: Arc::new(RwLock::new(Graph::new())),
-            history: Vec::new(),
+            history: std::collections::VecDeque::new(),
             current_node: None,
             decision: Some(Arc::new(initial_decision)),
         }
@@ -544,12 +547,16 @@ impl SolverRuntime {
     // this method.
     /// Generate step-back decision from a node history
     fn take_a_step_back(
-        history: &mut Vec<Arc<RwLock<Arc<Node>>>>,
+        history: &mut std::collections::VecDeque<Arc<RwLock<Arc<Node>>>>,
         decision: &mut Option<Arc<Decision>>,
         solver: &Solver,
         message: &String,
     ) {
-        match history.pop() {
+        // After encountering a solver error, start trying a new path from the
+        // oldest fork. Experimentation shows that this is able to discover
+        // a valid solution must faster than going back to the newest fork,
+        // for problem cases that get stuck in a bad path.
+        match history.pop_front() {
             Some(n) => {
                 let n_lock = n.read().unwrap();
                 *decision = Some(Arc::new(
@@ -711,7 +718,7 @@ impl Iterator for SolverRuntime {
                 return Some(Err(err));
             }
         };
-        self.history.push(current_node.clone());
+        self.history.push_back(current_node.clone());
         Some(Ok(to_yield))
     }
 }

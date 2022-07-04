@@ -23,7 +23,7 @@ use super::{
 #[path = "./graph_test.rs"]
 mod graph_test;
 
-pub static DEAD_STATE: Lazy<Arc<State>> = Lazy::new(|| Arc::new(State::default()));
+pub static DEAD_STATE: Lazy<Arc<State>> = Lazy::new(State::default);
 
 const BRANCH_ALREADY_ATTEMPTED: &str = "Branch already attempted";
 
@@ -49,14 +49,14 @@ pub enum Change {
 }
 
 impl Change {
-    pub fn apply(&self, base: &State) -> Arc<State> {
+    pub fn apply(&self, parent: Arc<State>, base: Arc<State>) -> Arc<State> {
         match self {
-            Change::RequestPackage(rp) => rp.apply(base),
-            Change::RequestVar(rv) => rv.apply(base),
-            Change::SetOptions(so) => so.apply(base),
-            Change::SetPackage(sp) => sp.apply(base),
-            Change::SetPackageBuild(spb) => spb.apply(base),
-            Change::StepBack(sb) => sb.apply(base),
+            Change::RequestPackage(rp) => rp.apply(parent, base),
+            Change::RequestVar(rv) => rv.apply(parent, base),
+            Change::SetOptions(so) => so.apply(parent, base),
+            Change::SetPackage(sp) => sp.apply(parent, base),
+            Change::SetPackageBuild(spb) => spb.apply(parent, base),
+            Change::StepBack(sb) => sb.apply(parent, base),
         }
     }
 }
@@ -94,11 +94,11 @@ impl Decision {
         }
     }
 
-    pub fn apply(&self, base: &Arc<State>) -> Arc<State> {
+    pub fn apply(&self, base: Arc<State>) -> Arc<State> {
         let mut state = None;
-        let else_closure = || Arc::clone(base);
+        let else_closure = || Arc::clone(&base);
         for change in self.changes.iter() {
-            state = Some(change.apply(&state.unwrap_or_else(else_closure)));
+            state = Some(change.apply(Arc::clone(&base), state.unwrap_or_else(else_closure)));
         }
         state.unwrap_or_else(else_closure)
     }
@@ -334,7 +334,7 @@ impl Graph {
             .get(&source_id)
             .expect("source_id exists in nodes")
             .clone();
-        let new_state = decision.apply(&(old_node.read().unwrap().state));
+        let new_state = decision.apply(Arc::clone(&(old_node.read().unwrap().state)));
         let mut new_node = Arc::new(RwLock::new(Arc::new(Node::new(new_state))));
         {
             let mut new_node_lock = new_node.write().unwrap();
@@ -353,18 +353,27 @@ impl Graph {
             }
         }
 
-        let mut old_node_lock = old_node.write().unwrap();
+        // Don't record `StepBack` changes into the graph. Doing so will
+        // preclude revisiting a `Node` that has unvisited child states.
+        if !(decision.changes.len() == 1
+            && matches!(
+                unsafe { decision.changes.get(0).unwrap_unchecked() },
+                Change::StepBack(_)
+            ))
         {
-            // Avoid deadlock if old_node is the same node as new_node
-            if !Arc::ptr_eq(&old_node, &new_node) {
-                let mut new_node_lock = new_node.write().unwrap();
-                Arc::make_mut(&mut old_node_lock)
-                    .add_output(decision.clone(), &new_node_lock.state)?;
-                Arc::make_mut(&mut new_node_lock).add_input(&old_node_lock.state, decision);
-            } else {
-                let old_state = old_node_lock.state.clone();
-                Arc::make_mut(&mut old_node_lock).add_output(decision.clone(), &old_state)?;
-                Arc::make_mut(&mut old_node_lock).add_input(&old_state, decision);
+            let mut old_node_lock = old_node.write().unwrap();
+            {
+                // Avoid deadlock if old_node is the same node as new_node
+                if !Arc::ptr_eq(&old_node, &new_node) {
+                    let mut new_node_lock = new_node.write().unwrap();
+                    Arc::make_mut(&mut old_node_lock)
+                        .add_output(decision.clone(), &new_node_lock.state)?;
+                    Arc::make_mut(&mut new_node_lock).add_input(&old_node_lock.state, decision);
+                } else {
+                    let old_state = old_node_lock.state.clone();
+                    Arc::make_mut(&mut old_node_lock).add_output(decision.clone(), &old_state)?;
+                    Arc::make_mut(&mut old_node_lock).add_input(&old_state, decision);
+                }
             }
         }
         Ok(new_node)
@@ -431,7 +440,7 @@ impl<'graph> Iterator for GraphIter<'graph> {
                         e.insert(node_lock.outputs_decisions.iter().cloned().collect());
 
                         for decision in node_lock.outputs_decisions.iter().rev() {
-                            let destination = decision.apply(&node_lock.state);
+                            let destination = decision.apply(Arc::clone(&node_lock.state));
                             self.to_process.push_front(
                                 self.graph.nodes.get(&destination.id()).unwrap().clone(),
                             );
@@ -464,7 +473,7 @@ impl<'graph> Iterator for GraphIter<'graph> {
                     let next_state_id = {
                         let node_lock = self.iter_node.read().unwrap();
 
-                        let next_state = decision.apply(&node_lock.state);
+                        let next_state = decision.apply(Arc::clone(&node_lock.state));
                         next_state.id()
                     };
                     self.iter_node = self.graph.nodes.get(&next_state_id).unwrap().clone();
@@ -566,7 +575,7 @@ impl RequestPackage {
         RequestPackage { request }
     }
 
-    pub fn apply(&self, base: &State) -> Arc<State> {
+    pub fn apply(&self, parent: Arc<State>, base: Arc<State>) -> Arc<State> {
         // XXX: An immutable data structure for pkg_requests would
         // allow for sharing.
         let mut cloned_request = Some(self.request.clone());
@@ -659,7 +668,7 @@ impl RequestPackage {
             new_requests.push(Arc::new(self.request.clone().into()));
         }
 
-        Arc::new(base.with_pkg_requests(new_requests))
+        Arc::new(State::with_pkg_requests(parent, base, new_requests))
     }
 }
 
@@ -673,7 +682,7 @@ impl RequestVar {
         RequestVar { request }
     }
 
-    pub fn apply(&self, base: &State) -> Arc<State> {
+    pub fn apply(&self, parent: Arc<State>, base: Arc<State>) -> Arc<State> {
         // XXX: An immutable data structure for var_requests would
         // allow for sharing.
         let mut new_requests = Arc::clone(&base.var_requests);
@@ -682,11 +691,16 @@ impl RequestVar {
             Arc::make_mut(&mut new_requests).insert(self.request.clone());
         }
         let options = SetOptions::compute_new_options(
-            base,
+            &*base,
             vec![(&self.request.var, &self.request.value)].into_iter(),
             true,
         );
-        Arc::new(base.with_var_requests_and_options(new_requests, options))
+        Arc::new(State::with_var_requests_and_options(
+            parent,
+            base,
+            new_requests,
+            options,
+        ))
     }
 }
 
@@ -700,8 +714,9 @@ impl SetOptions {
         SetOptions { options }
     }
 
-    pub fn apply(&self, base: &State) -> Arc<State> {
-        Arc::new(base.with_options(Self::compute_new_options(base, self.options.iter(), false)))
+    pub fn apply(&self, parent: Arc<State>, base: Arc<State>) -> Arc<State> {
+        let new_options = Self::compute_new_options(&*base, self.options.iter(), false);
+        Arc::new(State::with_options(parent, base, new_options))
     }
 
     /// Compute the new options list for a state, preserving the insertion
@@ -742,8 +757,13 @@ impl SetPackage {
         SetPackage { spec, source }
     }
 
-    pub fn apply(&self, base: &State) -> Arc<State> {
-        Arc::new(base.append_package(self.spec.clone(), self.source.clone()))
+    pub fn apply(&self, parent: Arc<State>, base: Arc<State>) -> Arc<State> {
+        Arc::new(State::append_package(
+            Some(parent),
+            base,
+            self.spec.clone(),
+            self.source.clone(),
+        ))
     }
 }
 
@@ -762,8 +782,13 @@ impl SetPackageBuild {
         }
     }
 
-    pub fn apply(&self, base: &State) -> Arc<State> {
-        Arc::new(base.append_package(self.spec.clone(), self.source.clone()))
+    pub fn apply(&self, parent: Arc<State>, base: Arc<State>) -> Arc<State> {
+        Arc::new(State::append_package(
+            Some(parent),
+            base,
+            self.spec.clone(),
+            self.source.clone(),
+        ))
     }
 }
 
@@ -936,6 +961,8 @@ pub struct State {
     options: Arc<BTreeMap<String, String>>,
     state_id: StateId,
     cached_option_map: Arc<OnceCell<api::OptionMap>>,
+    // How deep is this state?
+    pub(crate) state_depth: u64,
 }
 
 impl State {
@@ -944,7 +971,7 @@ impl State {
         var_requests: Vec<api::VarRequest>,
         packages: Vec<(Arc<api::Spec>, PackageSource)>,
         options: Vec<(String, String)>,
-    ) -> Self {
+    ) -> Arc<Self> {
         // TODO: This pre-calculates the hash but there
         // may be states constructed where the id is
         // never accessed. Determine if it is better
@@ -964,16 +991,17 @@ impl State {
             0,
             StateId::options_hash(&options),
         );
-        let mut s = State {
+        let mut s = Arc::new(State {
             pkg_requests: Arc::new(pkg_requests),
             var_requests: Arc::new(var_requests),
             packages: Arc::new(BTreeMap::new()),
             options: Arc::new(options),
             state_id,
             cached_option_map: Arc::new(OnceCell::new()),
-        };
+            state_depth: 0,
+        });
         for (package, source) in packages.into_iter() {
-            s = s.append_package(package, source)
+            s = Arc::new(Self::append_package(None, s, package, source))
         }
         s
     }
@@ -999,7 +1027,7 @@ impl State {
             .contains(&single_var_request_hash)
     }
 
-    pub fn default() -> Self {
+    pub fn default() -> Arc<Self> {
         State::new(
             Vec::default(),
             Vec::default(),
@@ -1094,63 +1122,81 @@ impl State {
         &self.packages
     }
 
-    fn with_options(&self, options: BTreeMap<String, String>) -> Self {
-        let state_id = self.state_id.with_options(&options);
+    fn with_options(
+        parent: Arc<State>,
+        base: Arc<State>,
+        options: BTreeMap<String, String>,
+    ) -> Self {
+        let state_id = base.state_id.with_options(&options);
         Self {
-            pkg_requests: Arc::clone(&self.pkg_requests),
-            var_requests: Arc::clone(&self.var_requests),
-            packages: Arc::clone(&self.packages),
+            pkg_requests: Arc::clone(&base.pkg_requests),
+            var_requests: Arc::clone(&base.var_requests),
+            packages: Arc::clone(&base.packages),
             options: Arc::new(options),
             state_id,
             // options are changing
             cached_option_map: Arc::new(OnceCell::new()),
+            state_depth: parent.state_depth + 1,
         }
     }
 
-    fn append_package(&self, spec: Arc<api::Spec>, source: PackageSource) -> Self {
-        let mut packages = Arc::clone(&self.packages);
+    fn append_package(
+        parent: Option<Arc<State>>,
+        base: Arc<State>,
+        spec: Arc<api::Spec>,
+        source: PackageSource,
+    ) -> Self {
+        let mut packages = Arc::clone(&base.packages);
         Arc::make_mut(&mut packages).insert(spec.pkg.name.clone(), (spec.into(), source));
-        let state_id = self.state_id.with_packages(&packages);
+        let state_id = base.state_id.with_packages(&packages);
         Self {
-            pkg_requests: Arc::clone(&self.pkg_requests),
-            var_requests: Arc::clone(&self.var_requests),
+            pkg_requests: Arc::clone(&base.pkg_requests),
+            var_requests: Arc::clone(&base.var_requests),
             packages,
-            options: Arc::clone(&self.options),
+            options: Arc::clone(&base.options),
             state_id,
             // options are the same
-            cached_option_map: Arc::clone(&self.cached_option_map),
+            cached_option_map: Arc::clone(&base.cached_option_map),
+            state_depth: parent.as_ref().map(|p| p.state_depth + 1).unwrap_or(0),
         }
     }
 
-    fn with_pkg_requests(&self, pkg_requests: Vec<Arc<CachedHash<api::PkgRequest>>>) -> Self {
-        let state_id = self.state_id.with_pkg_requests(&pkg_requests);
+    fn with_pkg_requests(
+        parent: Arc<State>,
+        base: Arc<State>,
+        pkg_requests: Vec<Arc<CachedHash<api::PkgRequest>>>,
+    ) -> Self {
+        let state_id = base.state_id.with_pkg_requests(&pkg_requests);
         Self {
             pkg_requests: Arc::new(pkg_requests),
-            var_requests: Arc::clone(&self.var_requests),
-            packages: Arc::clone(&self.packages),
-            options: Arc::clone(&self.options),
+            var_requests: Arc::clone(&base.var_requests),
+            packages: Arc::clone(&base.packages),
+            options: Arc::clone(&base.options),
             state_id,
             // options are the same
-            cached_option_map: Arc::clone(&self.cached_option_map),
+            cached_option_map: Arc::clone(&base.cached_option_map),
+            state_depth: parent.state_depth + 1,
         }
     }
 
     fn with_var_requests_and_options(
-        &self,
+        parent: Arc<State>,
+        base: Arc<State>,
         var_requests: Arc<BTreeSet<api::VarRequest>>,
         options: BTreeMap<String, String>,
     ) -> Self {
-        let state_id = self
+        let state_id = base
             .state_id
             .with_var_requests_and_options(&var_requests, &options);
         Self {
-            pkg_requests: Arc::clone(&self.pkg_requests),
+            pkg_requests: Arc::clone(&base.pkg_requests),
             var_requests,
-            packages: Arc::clone(&self.packages),
+            packages: Arc::clone(&base.packages),
             options: Arc::new(options),
             state_id,
             // options are changing
             cached_option_map: Arc::new(OnceCell::new()),
+            state_depth: parent.state_depth + 1,
         }
     }
 
@@ -1218,7 +1264,7 @@ impl StepBack {
         }
     }
 
-    pub fn apply(&self, _base: &State) -> Arc<State> {
+    pub fn apply(&self, _parent: Arc<State>, _base: Arc<State>) -> Arc<State> {
         // Increment the counter before restoring the state
         self.global_counter.fetch_add(1, Ordering::SeqCst);
         Arc::clone(&self.destination)

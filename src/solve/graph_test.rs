@@ -18,7 +18,7 @@ fn test_resolve_build_same_result() {
     // should both result in the same final state... this
     // ensures that builds are not attempted when one already exists
 
-    let base = Arc::new(graph::State::default());
+    let base = graph::State::default();
 
     let mut build_spec = spec!({"pkg": "test/1.0.0"});
     build_spec
@@ -33,8 +33,8 @@ fn test_resolve_build_same_result() {
         .build_package(&solve::Solution::new(None))
         .unwrap();
 
-    let with_binary = resolve.apply(&base);
-    let with_build = build.apply(&base);
+    let with_binary = resolve.apply(Arc::clone(&base));
+    let with_build = build.apply(Arc::clone(&base));
 
     println!("resolve");
     for change in resolve.changes.iter() {
@@ -44,7 +44,7 @@ fn test_resolve_build_same_result() {
                 change,
                 io::FormatChangeOptions {
                     verbosity: 100,
-                    level: usize::MAX,
+                    level: u64::MAX,
                 },
                 Some(&with_binary)
             )
@@ -58,7 +58,7 @@ fn test_resolve_build_same_result() {
                 change,
                 io::FormatChangeOptions {
                     verbosity: 100,
-                    level: usize::MAX,
+                    level: u64::MAX,
                 },
                 Some(&with_build)
             )
@@ -79,7 +79,7 @@ fn test_empty_options_do_not_unset() {
     let assign_empty = graph::SetOptions::new(option_map! {"something" => ""});
     let assign_value = graph::SetOptions::new(option_map! {"something" => "value"});
 
-    let new_state = assign_empty.apply(&state);
+    let new_state = assign_empty.apply(Arc::clone(&state), Arc::clone(&state));
     let opts = new_state.get_option_map();
     assert_eq!(
         opts.get("something"),
@@ -87,8 +87,9 @@ fn test_empty_options_do_not_unset() {
         "should assign empty option of no current value"
     );
 
-    let new_state = assign_value.apply(&new_state);
-    let new_state = assign_empty.apply(&new_state);
+    let parent = Arc::clone(&new_state);
+    let new_state = assign_value.apply(Arc::clone(&parent), Arc::clone(&new_state));
+    let new_state = assign_empty.apply(Arc::clone(&parent), new_state);
     let opts = new_state.get_option_map();
     assert_eq!(
         opts.get("something"),
@@ -112,7 +113,7 @@ fn test_request_default_component() {
 
     let resolve_state = DecisionBuilder::new(spec.clone(), &base)
         .resolve_package(solve::solution::PackageSource::Spec(spec.clone()))
-        .apply(&base);
+        .apply(Arc::clone(&base));
     let request = resolve_state
         .get_merged_request(&"dependency".parse().unwrap())
         .unwrap();
@@ -124,7 +125,7 @@ fn test_request_default_component() {
     let build_state = DecisionBuilder::new(spec, &base)
         .build_package(&solve::solution::Solution::new(None))
         .unwrap()
-        .apply(&base);
+        .apply(Arc::clone(&base));
     let request = build_state
         .get_merged_request(&"dependency".parse().unwrap())
         .unwrap();
