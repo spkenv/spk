@@ -109,10 +109,7 @@ impl Solver {
         let mut state = None;
         let base = State::default();
         for change in self.initial_state_builders.iter() {
-            state = Some(change.apply(
-                Arc::clone(&base),
-                state.unwrap_or_else(|| Arc::clone(&base)),
-            ))
+            state = Some(change.apply(&base, state.as_ref().unwrap_or(&base)));
         }
         state.unwrap_or(base)
     }

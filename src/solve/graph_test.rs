@@ -33,8 +33,8 @@ fn test_resolve_build_same_result() {
         .build_package(&solve::Solution::new(None))
         .unwrap();
 
-    let with_binary = resolve.apply(Arc::clone(&base));
-    let with_build = build.apply(Arc::clone(&base));
+    let with_binary = resolve.apply(&base);
+    let with_build = build.apply(&base);
 
     println!("resolve");
     for change in resolve.changes.iter() {
@@ -79,7 +79,7 @@ fn test_empty_options_do_not_unset() {
     let assign_empty = graph::SetOptions::new(option_map! {"something" => ""});
     let assign_value = graph::SetOptions::new(option_map! {"something" => "value"});
 
-    let new_state = assign_empty.apply(Arc::clone(&state), Arc::clone(&state));
+    let new_state = assign_empty.apply(&state, &state);
     let opts = new_state.get_option_map();
     assert_eq!(
         opts.get("something"),
@@ -88,8 +88,8 @@ fn test_empty_options_do_not_unset() {
     );
 
     let parent = Arc::clone(&new_state);
-    let new_state = assign_value.apply(Arc::clone(&parent), Arc::clone(&new_state));
-    let new_state = assign_empty.apply(Arc::clone(&parent), new_state);
+    let new_state = assign_value.apply(&parent, &new_state);
+    let new_state = assign_empty.apply(&parent, &new_state);
     let opts = new_state.get_option_map();
     assert_eq!(
         opts.get("something"),
@@ -113,7 +113,7 @@ fn test_request_default_component() {
 
     let resolve_state = DecisionBuilder::new(spec.clone(), &base)
         .resolve_package(solve::solution::PackageSource::Spec(spec.clone()))
-        .apply(Arc::clone(&base));
+        .apply(&base);
     let request = resolve_state
         .get_merged_request(&"dependency".parse().unwrap())
         .unwrap();
@@ -125,7 +125,7 @@ fn test_request_default_component() {
     let build_state = DecisionBuilder::new(spec, &base)
         .build_package(&solve::solution::Solution::new(None))
         .unwrap()
-        .apply(Arc::clone(&base));
+        .apply(&base);
     let request = build_state
         .get_merged_request(&"dependency".parse().unwrap())
         .unwrap();
