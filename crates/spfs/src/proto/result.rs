@@ -16,6 +16,7 @@ pub(crate) trait RpcResult: Sized {
     }
 }
 
+#[cfg(feature = "server")]
 macro_rules! handle_error {
     ($result:expr) => {
         match $result {
@@ -25,6 +26,7 @@ macro_rules! handle_error {
     };
 }
 
+#[cfg(feature = "server")]
 pub(crate) use handle_error;
 
 macro_rules! rpc_result {

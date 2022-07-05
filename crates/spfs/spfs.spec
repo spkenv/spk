@@ -19,7 +19,7 @@ Filesystem isolation, capture, and distribution.
 %setup -q
 
 %build
-cargo build --release --verbose --all
+cargo build --release --verbose --all --features=server
 
 %install
 mkdir -p %{buildroot}/usr/bin

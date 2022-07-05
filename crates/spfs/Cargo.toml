@@ -43,15 +43,13 @@ path = "src/cli/cmd_server.rs"
 required-features = ["server"]
 
 [features]
-default = ["server"]
+default = []
 
 # If enabled, will create the "local" repository in a subdirectory
 # of the standard storage root, named "ci/pipeline_${CI_PIPELINE_ID}".
 gitlab-ci-local-repo-isolation = []
 sentry = ["dep:sentry"]
 server = [
-    "tokio/signal",
-    "tokio-stream/net",
     "hyper/server",
     "tokio-util/codec",
     "tokio-util/io",
@@ -111,8 +109,9 @@ tokio = { version = "1.15", features = [
     "macros",
     "sync",
     "process",
+    "signal"
 ] }
-tokio-stream = { version = "0.1", features = ["net"], optional = true }
+tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.6", features = ["compat"] }
 tonic = "0.6.1"
 tracing = "0.1.22"
