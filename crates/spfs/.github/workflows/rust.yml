@@ -29,7 +29,9 @@ jobs:
           apt-get install -y libcap2-bin sudo nodejs
           rustup component add clippy rustfmt
       - uses: Swatinem/rust-cache@v1
-      - name: Build
+      - name: Build Slim
+        run: make debug FEATURES=
+      - name: Build Default
         run: make debug
       - name: Build Server
         run: make debug FEATURES=server

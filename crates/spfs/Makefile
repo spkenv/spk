@@ -1,7 +1,7 @@
 VERSION = $(shell cat spfs.spec | grep Version | cut -d ' ' -f 2)
 SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
-cargo_features_arg := $(if $(FEATURES),--features $(FEATURES))
+cargo_features_arg = $(if $(FEATURES),--features $(FEATURES))
 
 .PHONY: act rpm debug release test install install-debug setcap copy-release copy-debug
 default: debug
@@ -11,10 +11,12 @@ act:
     # `--privileged` needed for spfs privilege escalation
 	act --privileged
 
+debug: FEATURES ?= cli
 debug:
 	cd $(SOURCE_ROOT)
 	cargo build --all $(cargo_features_arg)
 
+release: FEATURES ?= cli
 release:
 	cd $(SOURCE_ROOT)
 	cargo build --all --release $(cargo_features_arg)
