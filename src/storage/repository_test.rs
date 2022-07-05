@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use crate::{api, fixtures::*, Error};
+use crate::{api, fixtures::*, storage::CachePolicy, Error};
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
@@ -81,7 +81,11 @@ fn test_repo_publish_spec(#[case] repo: RepoKind) {
     repo.publish_spec(spec.clone()).unwrap();
     assert_eq!(repo.list_packages().unwrap(), vec![spec.pkg.name.clone()]);
     assert_eq!(
-        repo.list_package_versions(&spec.pkg.name).unwrap(),
+        repo.list_package_versions(&spec.pkg.name)
+            .unwrap()
+            .iter()
+            .map(|v| (**v).clone())
+            .collect::<Vec<_>>(),
         vec!["1.0.0"]
     );
 
@@ -140,5 +144,9 @@ fn test_repo_remove_package(#[case] repo: RepoKind) {
     );
     assert_eq!(repo.read_spec(&spec.pkg).unwrap(), spec);
     repo.remove_package(&spec.pkg).unwrap();
-    assert!(repo.list_package_builds(&spec.pkg).unwrap().is_empty());
+    assert!(crate::with_cache_policy!(repo, CachePolicy::BypassCache, {
+        repo.list_package_builds(&spec.pkg)
+    })
+    .unwrap()
+    .is_empty());
 }

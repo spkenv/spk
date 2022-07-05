@@ -4,7 +4,7 @@ use rstest::rstest;
 use spfs::prelude::*;
 
 use super::SPFSRepository;
-use crate::storage::Repository;
+use crate::storage::{CachePolicy, Repository};
 
 use crate::{api, fixtures::*};
 
@@ -102,6 +102,10 @@ fn test_upgrade_changes_tags(tmpdir: tempdir::TempDir) {
     repo.upgrade()
         .expect("upgrading a simple repo should succeed");
 
-    let pkg = crate::HANDLE.block_on(repo.lookup_package(&ident)).unwrap();
+    let pkg = crate::HANDLE
+        .block_on(crate::with_cache_policy!(repo, CachePolicy::BypassCache, {
+            repo.lookup_package(&ident)
+        }))
+        .unwrap();
     assert!(matches!(pkg, super::StoredPackage::WithComponents(_)));
 }

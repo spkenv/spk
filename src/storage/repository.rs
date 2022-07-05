@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{api, Result};
 
@@ -9,17 +9,30 @@ use crate::{api, Result};
 #[path = "./repository_test.rs"]
 mod repository_test;
 
+#[derive(Clone, Copy, Debug)]
+pub enum CachePolicy {
+    CacheOk,
+    BypassCache,
+}
+
+impl CachePolicy {
+    /// Return true if the policy allows for a cached result.
+    pub fn cached_result_permitted(&self) -> bool {
+        matches!(self, CachePolicy::CacheOk)
+    }
+}
+
 pub trait Repository {
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository
     /// share an address
-    fn address(&self) -> url::Url;
+    fn address(&self) -> &url::Url;
 
     /// Return the set of known packages in this repo.
     fn list_packages(&self) -> Result<Vec<api::PkgName>>;
 
     /// Return the set of versions available for the named package.
-    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>>;
+    fn list_package_versions(&self, name: &api::PkgName) -> Result<Arc<Vec<Arc<api::Version>>>>;
 
     /// Return the set of builds for the given package name and version.
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>>;
@@ -87,4 +100,24 @@ pub trait Repository {
     fn upgrade(&self) -> Result<String> {
         Ok("Nothing to do.".to_string())
     }
+
+    /// Change the active cache policy.
+    ///
+    /// The old cache policy is returned. Not all storage types may support
+    /// caching, and calling this may be ignored.
+    fn set_cache_policy(&self, _cache_policy: CachePolicy) -> CachePolicy {
+        CachePolicy::BypassCache
+    }
+}
+
+/// Change the active cache policy while running a block of code.
+#[macro_export]
+macro_rules! with_cache_policy {
+    ($repo:expr, $cp:expr, $expr:block ) => {{
+        let repo = &$repo;
+        let old_cache_policy = repo.set_cache_policy($cp);
+        let r = $expr;
+        repo.set_cache_policy(old_cache_policy);
+        r
+    }};
 }

@@ -68,11 +68,11 @@ dyn_clone::clone_trait_object!(PackageIterator);
 
 #[derive(Clone, Debug)]
 struct VersionIterator {
-    versions: VecDeque<api::Version>,
+    versions: VecDeque<Arc<api::Version>>,
 }
 
 impl Iterator for VersionIterator {
-    type Item = api::Version;
+    type Item = Arc<api::Version>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.versions.pop_front()
@@ -80,7 +80,7 @@ impl Iterator for VersionIterator {
 }
 
 impl VersionIterator {
-    fn new(versions: VecDeque<api::Version>) -> Self {
+    fn new(versions: VecDeque<Arc<api::Version>>) -> Self {
         VersionIterator { versions }
     }
 }
@@ -91,9 +91,9 @@ pub struct RepositoryPackageIterator {
     pub package_name: api::PkgName,
     pub repos: Vec<Arc<storage::RepositoryHandle>>,
     versions: Option<VersionIterator>,
-    version_map: HashMap<api::Version, Arc<storage::RepositoryHandle>>,
+    version_map: HashMap<Arc<api::Version>, Arc<storage::RepositoryHandle>>,
     builds_map: HashMap<api::Version, Arc<Mutex<dyn BuildIterator>>>,
-    active_version: Option<api::Version>,
+    active_version: Option<Arc<api::Version>>,
 }
 
 impl Clone for RepositoryPackageIterator {
@@ -156,10 +156,10 @@ impl PackageIterator for RepositoryPackageIterator {
             ));
         };
         let mut pkg = api::Ident::new(self.package_name.clone());
-        pkg.version = version.clone();
+        pkg.version = (**version).clone();
         if !self.builds_map.contains_key(version) {
             self.builds_map.insert(
-                version.clone(),
+                (**version).clone(),
                 Arc::new(Mutex::new(RepositoryBuildIterator::new(
                     pkg.clone(),
                     repo.clone(),
@@ -191,11 +191,13 @@ impl RepositoryPackageIterator {
         }
     }
 
-    fn build_version_map(&self) -> Result<HashMap<api::Version, Arc<storage::RepositoryHandle>>> {
+    fn build_version_map(
+        &self,
+    ) -> Result<HashMap<Arc<api::Version>, Arc<storage::RepositoryHandle>>> {
         let mut version_map = HashMap::default();
         for repo in self.repos.iter().rev() {
-            for version in repo.list_package_versions(&self.package_name)? {
-                version_map.insert(version, repo.clone());
+            for version in repo.list_package_versions(&self.package_name)?.iter() {
+                version_map.insert(version.clone(), repo.clone());
             }
         }
 
@@ -210,7 +212,7 @@ impl RepositoryPackageIterator {
 
     fn start(&mut self) -> Result<()> {
         self.version_map = self.build_version_map()?;
-        let mut versions: Vec<api::Version> =
+        let mut versions: Vec<Arc<api::Version>> =
             self.version_map.keys().into_iter().cloned().collect();
         versions.sort();
         versions.reverse();

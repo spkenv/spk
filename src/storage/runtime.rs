@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{collections::HashMap, convert::TryFrom};
+use std::{collections::HashMap, convert::TryFrom, sync::Arc};
 
 use spfs::prelude::*;
 use tokio::runtime::Handle;
@@ -11,42 +11,48 @@ use crate::{api, Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {
+    address: url::Url,
     root: std::path::PathBuf,
 }
 
 impl Default for RuntimeRepository {
     fn default() -> Self {
-        Self {
-            root: std::path::PathBuf::from("/spfs/spk/pkg"),
-        }
+        let root = std::path::PathBuf::from("/spfs/spk/pkg");
+        let address = Self::address_from_root(&root);
+        Self { address, root }
     }
 }
 
 impl RuntimeRepository {
-    #[cfg(test)]
-    pub fn new(root: std::path::PathBuf) -> Self {
-        // this function is not allowed outside of testing because get_package
-        // makes assumptions about the runtime directory which cannot be
-        // reasonably altered
-        Self { root }
-    }
-}
-
-impl Repository for RuntimeRepository {
-    fn address(&self) -> url::Url {
-        let address = format!("runtime://{}", self.root.display());
+    fn address_from_root(root: &std::path::PathBuf) -> url::Url {
+        let address = format!("runtime://{}", root.display());
         match url::Url::parse(&address) {
             Ok(a) => a,
             Err(err) => {
                 tracing::error!(
                     "failed to create valid address for path {:?}: {:?}",
-                    self.root,
+                    root,
                     err
                 );
-                url::Url::parse(&format!("runtime://{}", self.root.to_string_lossy()))
+                url::Url::parse(&format!("runtime://{}", root.to_string_lossy()))
                     .expect("Failed to create url from path (fallback)")
             }
         }
+    }
+
+    #[cfg(test)]
+    pub fn new(root: std::path::PathBuf) -> Self {
+        // this function is not allowed outside of testing because get_package
+        // makes assumptions about the runtime directory which cannot be
+        // reasonably altered
+        let address = Self::address_from_root(&root);
+        Self { address, root }
+    }
+}
+
+impl Repository for RuntimeRepository {
+    fn address(&self) -> &url::Url {
+        &self.address
     }
 
     fn list_packages(&self) -> Result<Vec<api::PkgName>> {
@@ -63,28 +69,30 @@ impl Repository for RuntimeRepository {
             .collect())
     }
 
-    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>> {
-        Ok(get_all_filenames(self.root.join(name))?
-            .into_iter()
-            .filter_map(|entry| {
-                if entry.ends_with('/') {
-                    Some(entry[0..entry.len() - 1].to_string())
-                } else {
-                    None
-                }
-            })
-            .filter_map(|candidate| match api::parse_version(&candidate) {
-                Ok(v) => Some(v),
-                Err(err) => {
-                    tracing::debug!(
-                        "Skipping invalid version in /spfs/spk: [{}], {:?}",
-                        candidate,
-                        err
-                    );
-                    None
-                }
-            })
-            .collect())
+    fn list_package_versions(&self, name: &api::PkgName) -> Result<Arc<Vec<Arc<api::Version>>>> {
+        Ok(Arc::new(
+            get_all_filenames(self.root.join(name))?
+                .into_iter()
+                .filter_map(|entry| {
+                    if entry.ends_with('/') {
+                        Some(entry[0..entry.len() - 1].to_string())
+                    } else {
+                        None
+                    }
+                })
+                .filter_map(|candidate| match api::parse_version(&candidate) {
+                    Ok(v) => Some(Arc::new(v)),
+                    Err(err) => {
+                        tracing::debug!(
+                            "Skipping invalid version in /spfs/spk: [{}], {:?}",
+                            candidate,
+                            err
+                        );
+                        None
+                    }
+                })
+                .collect(),
+        ))
     }
 
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {

@@ -3,7 +3,11 @@
 // https://github.com/imageworks/spk
 use std::sync::Arc;
 
-use crate::{api, io, storage, Error, Result};
+use crate::{
+    api, io,
+    storage::{self, CachePolicy},
+    with_cache_policy, Error, Result,
+};
 
 #[cfg(test)]
 #[path = "./publish_test.rs"]
@@ -80,7 +84,9 @@ impl Publisher {
                 }
             }
 
-            self.from.list_package_builds(pkg)?
+            with_cache_policy!(self.from, CachePolicy::BypassCache, {
+                self.from.list_package_builds(pkg)
+            })?
         } else {
             vec![pkg.to_owned()]
         };

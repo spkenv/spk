@@ -11,10 +11,32 @@ use crate::{api, Error, Result};
 type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;
 type BuildMap = HashMap<api::Build, (api::Spec, ComponentMap)>;
 
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct MemRepository {
+    address: url::Url,
     specs: Arc<RwLock<HashMap<PkgName, HashMap<api::Version, api::Spec>>>>,
     packages: Arc<RwLock<HashMap<PkgName, HashMap<api::Version, BuildMap>>>>,
+}
+
+impl MemRepository {
+    pub fn new() -> Self {
+        let specs = Arc::default();
+        // Using the address of `specs` because `self` doesn't exist yet.
+        let address = format!("mem://{:x}", &specs as *const _ as usize);
+        let address = url::Url::parse(&address)
+            .expect("[INTERNAL ERROR] hex address should always create a valid url");
+        Self {
+            address,
+            specs,
+            packages: Arc::default(),
+        }
+    }
+}
+
+impl Default for MemRepository {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl std::hash::Hash for MemRepository {
@@ -32,10 +54,8 @@ impl PartialEq for MemRepository {
 impl Eq for MemRepository {}
 
 impl Repository for MemRepository {
-    fn address(&self) -> url::Url {
-        let address = format!("mem://{:x}", self as *const _ as usize);
-        url::Url::parse(&address)
-            .expect("[INTERNAL ERROR] hex address should always create a valid url")
+    fn address(&self) -> &url::Url {
+        &self.address
     }
 
     fn list_packages(&self) -> Result<Vec<api::PkgName>> {
@@ -48,11 +68,13 @@ impl Repository for MemRepository {
             .collect())
     }
 
-    fn list_package_versions(&self, name: &api::PkgName) -> Result<Vec<api::Version>> {
+    fn list_package_versions(&self, name: &api::PkgName) -> Result<Arc<Vec<Arc<api::Version>>>> {
         if let Some(specs) = self.specs.read().unwrap().get(name) {
-            Ok(specs.keys().map(|v| v.to_owned()).collect())
+            Ok(Arc::new(
+                specs.keys().map(|v| Arc::new(v.to_owned())).collect(),
+            ))
         } else {
-            Ok(Vec::new())
+            Ok(Arc::new(Vec::new()))
         }
     }
 

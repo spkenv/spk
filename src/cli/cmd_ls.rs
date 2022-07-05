@@ -85,7 +85,8 @@ impl Run for Ls {
                 for (index, (_, repo)) in repos.iter().enumerate() {
                     versions.extend(
                         repo.list_package_versions(&pkgname)?
-                            .into_iter()
+                            .iter()
+                            .cloned()
                             .map(|v| (v, index)),
                     );
                 }
@@ -186,8 +187,8 @@ impl Ls {
             } else {
                 let base = spk::api::Ident::from(package);
                 repo.list_package_versions(&base.name)?
-                    .into_iter()
-                    .map(|v| base.with_version(v))
+                    .iter()
+                    .map(|v| base.with_version((**v).clone()))
                     .collect()
             };
             versions.sort();
