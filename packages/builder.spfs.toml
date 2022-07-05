@@ -2,4 +2,4 @@
 root = "/spfs-storage"
 
 [remote.origin]
-address = "file:/spfs-origin"
+address = "file:///spfs-origin?create=true"

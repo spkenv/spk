@@ -33,4 +33,4 @@ COPY rpm/RPMS/x86_64/*.rpm /tmp/
 RUN yum install -y /tmp/*.rpm
 
 RUN mkdir -p /spfs-storage /spfs-origin/{objects,payloads,tags}
-COPY builder.spfs.conf /etc/spfs.conf
+COPY builder.spfs.toml /etc/spfs.toml
