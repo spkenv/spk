@@ -12,7 +12,7 @@ use crate::{Error, Result};
 mod component_spec_test;
 
 /// Defines a named package component.
-#[derive(Debug, Hash, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct ComponentSpec {
     pub name: Component,
     #[serde(default)]
@@ -172,10 +172,20 @@ impl Serialize for Component {
 
 /// Holds a set of valid file patterns for identifying
 /// files in the spfs filesystem after a build
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FileMatcher {
     rules: Vec<String>,
     gitignore: ignore::gitignore::Gitignore,
+}
+
+impl std::fmt::Debug for FileMatcher {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FileMatcher")
+            .field("rules", &self.rules)
+            // Skip the `gitignore` field since it is really noisy.
+            .field("gitignore", &"<elided>")
+            .finish()
+    }
 }
 
 impl Default for FileMatcher {
@@ -190,6 +200,18 @@ impl Default for FileMatcher {
 impl std::hash::Hash for FileMatcher {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.rules.hash(state);
+    }
+}
+
+impl Ord for FileMatcher {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.rules.cmp(&other.rules)
+    }
+}
+
+impl PartialOrd for FileMatcher {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 

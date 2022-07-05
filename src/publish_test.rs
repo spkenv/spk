@@ -12,11 +12,11 @@ fn test_publish_no_version_spec() {
     let _guard = crate::HANDLE.enter();
     let rt = crate::HANDLE.block_on(spfs_runtime());
     let spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
-    rt.tmprepo.publish_spec(spec).unwrap();
+    rt.tmprepo.publish_spec(&spec).unwrap();
     let spec = crate::spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
     rt.tmprepo
         .publish_package(
-            spec.clone(),
+            &spec,
             vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),

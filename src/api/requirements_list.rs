@@ -13,7 +13,7 @@ use crate::{Error, Result};
 mod requirements_list_test;
 
 /// A set of installation requirements.
-#[derive(Debug, Default, Hash, Clone, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct RequirementsList(Vec<Request>);
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::convert::TryInto;
+use std::{convert::TryInto, sync::Arc};
 
 use crate::{
     api,
@@ -15,7 +15,7 @@ use crate::{
 mod global_test;
 
 /// Load a package spec from the default repository.
-pub fn load_spec<S: TryInto<api::Ident, Error = crate::Error>>(pkg: S) -> Result<api::Spec> {
+pub fn load_spec<S: TryInto<api::Ident, Error = crate::Error>>(pkg: S) -> Result<Arc<api::Spec>> {
     let pkg = pkg.try_into()?;
 
     match crate::HANDLE
@@ -30,7 +30,7 @@ pub fn load_spec<S: TryInto<api::Ident, Error = crate::Error>>(pkg: S) -> Result
 }
 
 /// Save a package spec to the local repository.
-pub fn save_spec(spec: api::Spec) -> Result<()> {
+pub fn save_spec(spec: &api::Spec) -> Result<()> {
     let repo = crate::HANDLE.block_on(storage::local_repository())?;
     repo.force_publish_spec(spec)
 }

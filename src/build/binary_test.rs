@@ -69,7 +69,7 @@ fn test_build_workdir(tmpdir: tempdir::TempDir) {
         {"pkg": "test/1.0.0"}
     );
 
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&spec).unwrap();
     spec.build.script = vec![format!("echo $PWD > {:?}", out_file)];
 
     BinaryPackageBuilder::from_spec(spec)
@@ -118,7 +118,7 @@ fn test_build_package_options() {
         }
     );
 
-    rt.tmprepo.publish_spec(dep_spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&dep_spec).unwrap();
 
     BinaryPackageBuilder::from_spec(dep_spec)
         .with_source(BuildSource::LocalPath(".".into()))
@@ -126,7 +126,7 @@ fn test_build_package_options() {
         .build()
         .unwrap();
 
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&spec).unwrap();
     let spec = BinaryPackageBuilder::from_spec(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
@@ -168,13 +168,13 @@ fn test_build_package_pinning() {
         }
     );
 
-    rt.tmprepo.publish_spec(dep_spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&dep_spec).unwrap();
     BinaryPackageBuilder::from_spec(dep_spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build()
         .unwrap();
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&spec).unwrap();
     let spec = BinaryPackageBuilder::from_spec(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
@@ -202,7 +202,7 @@ fn test_build_package_missing_deps() {
             "install": {"requirements": [{"pkg": "does-not-exist"}]},
         }
     );
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&spec).unwrap();
 
     // should not fail to resolve build env and build even though
     // runtime dependency is missing in the current repos
@@ -247,8 +247,8 @@ fn test_build_var_pinning() {
         }
     );
 
-    rt.tmprepo.publish_spec(dep_spec.clone()).unwrap();
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&dep_spec).unwrap();
+    rt.tmprepo.publish_spec(&spec).unwrap();
     BinaryPackageBuilder::from_spec(dep_spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
@@ -288,7 +288,7 @@ fn test_build_bad_options() {
             },
         }
     );
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&spec).unwrap();
 
     let res = BinaryPackageBuilder::from_spec(spec)
         .with_source(BuildSource::LocalPath(".".into()))
@@ -321,7 +321,7 @@ fn test_build_package_source_cleanup() {
             },
         }
     );
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&spec).unwrap();
 
     let src_pkg = SourcePackageBuilder::from_spec(spec.clone())
         .with_target_repository(rt.tmprepo.clone())
@@ -379,8 +379,8 @@ fn test_build_package_requirement_propagation() {
             "build": {"options": [{"pkg": "base"}], "script": "echo building..."},
         }
     );
-    rt.tmprepo.publish_spec(base_spec.clone()).unwrap();
-    rt.tmprepo.publish_spec(top_spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&base_spec).unwrap();
+    rt.tmprepo.publish_spec(&top_spec).unwrap();
 
     SourcePackageBuilder::from_spec(base_spec.clone())
         .with_target_repository(rt.tmprepo.clone())
@@ -480,7 +480,7 @@ fn test_build_components_metadata() {
             }]
         }
     );
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&spec).unwrap();
     let spec = BinaryPackageBuilder::from_spec(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .build()
@@ -527,7 +527,7 @@ fn test_build_add_startup_files(tmpdir: tempdir::TempDir) {
             },
         }
     );
-    rt.tmprepo.publish_spec(spec.clone()).unwrap();
+    rt.tmprepo.publish_spec(&spec).unwrap();
 
     BinaryPackageBuilder::from_spec(spec)
         .with_prefix(tmpdir.path().into())

@@ -13,7 +13,7 @@ const DEFAULT_VAR_SEP: &str = ";";
 const DEFAULT_VAR_SEP: &str = ":";
 
 /// An operation performed to the environment
-#[derive(Debug, Clone, Hash, Serialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(untagged)]
 pub enum EnvOp {
     Append(AppendEnv),
@@ -79,7 +79,7 @@ impl<'de> Deserialize<'de> for EnvOp {
 ///
 /// The separator used defaults to the path separator for the current
 /// host operating system (':' for unix, ';' for windows)
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct AppendEnv {
     append: String,
     #[serde(deserialize_with = "super::option_map::string_from_scalar")]
@@ -132,7 +132,7 @@ impl AppendEnv {
 ///
 /// The separator used defaults to the path separator for the current
 /// host operating system (':' for unix, ';' for windows)
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct PrependEnv {
     prepend: String,
     #[serde(deserialize_with = "super::option_map::string_from_scalar")]
@@ -182,7 +182,7 @@ impl PrependEnv {
 }
 
 /// Operates on an environment variable by setting it to a value
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct SetEnv {
     set: String,
     #[serde(deserialize_with = "super::option_map::string_from_scalar")]

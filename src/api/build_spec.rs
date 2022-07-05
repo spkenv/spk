@@ -13,7 +13,7 @@ use super::{Compatibility, Opt, OptionMap, PkgName, ValidationSpec};
 mod build_spec_test;
 
 /// A set of structured inputs used to build a package.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct BuildSpec {
     pub script: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

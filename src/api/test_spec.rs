@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{OptionMap, Request};
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum TestStage {
     Sources,
     Build,
@@ -70,7 +70,7 @@ impl FromStr for TestStage {
 }
 
 /// A set of structured inputs used to build a package.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct TestSpec {
     pub stage: TestStage,
     #[serde(deserialize_with = "super::build_spec::deserialize_script")]

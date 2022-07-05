@@ -23,6 +23,18 @@ impl Default for RuntimeRepository {
     }
 }
 
+impl Ord for RuntimeRepository {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.address.cmp(&other.address)
+    }
+}
+
+impl PartialOrd for RuntimeRepository {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl RuntimeRepository {
     fn address_from_root(root: &std::path::PathBuf) -> url::Url {
         let address = format!("runtime://{}", root.display());
@@ -135,11 +147,11 @@ impl Repository for RuntimeRepository {
             .collect()
     }
 
-    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
+    fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
         let mut path = self.root.join(pkg.to_string());
         path.push("spec.yaml");
 
-        match api::read_spec_file(&path) {
+        match api::read_spec_file(&path).map(Arc::new) {
             Err(Error::IO(err)) => {
                 if err.kind() == std::io::ErrorKind::NotFound {
                     Err(Error::PackageNotFoundError(pkg.clone()))
@@ -200,11 +212,11 @@ impl Repository for RuntimeRepository {
         Ok(mapped)
     }
 
-    fn force_publish_spec(&self, _spec: api::Spec) -> Result<()> {
+    fn force_publish_spec(&self, _spec: &api::Spec) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
-    fn publish_spec(&self, _spec: api::Spec) -> Result<()> {
+    fn publish_spec(&self, _spec: &api::Spec) -> Result<()> {
         Err(Error::String(
             "Cannot publish to a runtime repository".into(),
         ))
@@ -216,7 +228,7 @@ impl Repository for RuntimeRepository {
 
     fn publish_package(
         &self,
-        _spec: api::Spec,
+        _spec: &api::Spec,
         _components: HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
         Err(Error::String(

@@ -1,9 +1,9 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use std::collections::hash_map::{DefaultHasher, Entry};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -306,13 +306,13 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
 #[derive(Clone, Debug, Error)]
 #[error("Failed to resolve")]
 pub struct Graph {
-    pub root: Arc<RwLock<Node>>,
-    pub nodes: HashMap<u64, Arc<RwLock<Node>>>,
+    pub root: Arc<RwLock<Arc<Node>>>,
+    pub nodes: HashMap<u64, Arc<RwLock<Arc<Node>>>>,
 }
 
 impl Graph {
     pub fn new() -> Self {
-        let dead_state = Arc::new(RwLock::new(Node::new(DEAD_STATE.clone())));
+        let dead_state = Arc::new(RwLock::new(Arc::new(Node::new(DEAD_STATE.clone()))));
         let dead_state_id = dead_state.read().unwrap().id();
         let nodes = [(dead_state_id, dead_state.clone())]
             .iter()
@@ -324,14 +324,18 @@ impl Graph {
         }
     }
 
-    pub fn add_branch(&mut self, source_id: u64, decision: Decision) -> Result<Arc<RwLock<Node>>> {
+    pub fn add_branch(
+        &mut self,
+        source_id: u64,
+        decision: Arc<Decision>,
+    ) -> Result<Arc<RwLock<Arc<Node>>>> {
         let old_node = self
             .nodes
             .get(&source_id)
             .expect("source_id exists in nodes")
             .clone();
         let new_state = decision.apply(&(old_node.read().unwrap().state));
-        let mut new_node = Arc::new(RwLock::new(Node::new(new_state)));
+        let mut new_node = Arc::new(RwLock::new(Arc::new(Node::new(new_state))));
         {
             let mut new_node_lock = new_node.write().unwrap();
 
@@ -339,7 +343,7 @@ impl Graph {
                 None => {
                     self.nodes.insert(new_node_lock.id(), new_node.clone());
                     for (name, iterator) in old_node.read().unwrap().iterators.iter() {
-                        new_node_lock.set_iterator(name.clone(), iterator)
+                        Arc::make_mut(&mut new_node_lock).set_iterator(name.clone(), iterator)
                     }
                 }
                 Some(node) => {
@@ -354,12 +358,13 @@ impl Graph {
             // Avoid deadlock if old_node is the same node as new_node
             if !Arc::ptr_eq(&old_node, &new_node) {
                 let mut new_node_lock = new_node.write().unwrap();
-                old_node_lock.add_output(decision.clone(), &new_node_lock.state)?;
-                new_node_lock.add_input(&old_node_lock.state, decision);
+                Arc::make_mut(&mut old_node_lock)
+                    .add_output(decision.clone(), &new_node_lock.state)?;
+                Arc::make_mut(&mut new_node_lock).add_input(&old_node_lock.state, decision);
             } else {
                 let old_state = old_node_lock.state.clone();
-                old_node_lock.add_output(decision.clone(), &old_state)?;
-                old_node_lock.add_input(&old_state, decision);
+                Arc::make_mut(&mut old_node_lock).add_output(decision.clone(), &old_state)?;
+                Arc::make_mut(&mut old_node_lock).add_input(&old_state, decision);
             }
         }
         Ok(new_node)
@@ -379,16 +384,16 @@ impl Default for Graph {
 enum WalkState {
     ToProcessNonEmpty,
     YieldOuts,
-    YieldNextNode(Decision),
+    YieldNextNode(Arc<Decision>),
 }
 
 pub struct GraphIter<'graph> {
     graph: &'graph Graph,
-    node_outputs: HashMap<u64, VecDeque<Decision>>,
-    to_process: VecDeque<Arc<RwLock<Node>>>,
+    node_outputs: HashMap<u64, VecDeque<Arc<Decision>>>,
+    to_process: VecDeque<Arc<RwLock<Arc<Node>>>>,
     /// Which entry of node_outputs is currently being worked on.
     outs: Option<u64>,
-    iter_node: Arc<RwLock<Node>>,
+    iter_node: Arc<RwLock<Arc<Node>>>,
     walk_state: WalkState,
 }
 
@@ -408,7 +413,7 @@ impl<'graph> GraphIter<'graph> {
 }
 
 impl<'graph> Iterator for GraphIter<'graph> {
-    type Item = (Node, Decision);
+    type Item = (Arc<Node>, Arc<Decision>);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -476,20 +481,20 @@ pub struct Node {
     // Preserve order of inputs/outputs for iterating
     // in the same order.
     inputs: HashSet<u64>,
-    inputs_decisions: Vec<Decision>,
+    inputs_decisions: Vec<Arc<Decision>>,
     outputs: HashSet<u64>,
-    outputs_decisions: Vec<Decision>,
+    outputs_decisions: Vec<Arc<Decision>>,
     pub state: Arc<State>,
     iterators: HashMap<PkgName, Arc<Mutex<Box<dyn PackageIterator>>>>,
 }
 
 impl Node {
-    pub fn add_input(&mut self, state: &State, decision: Decision) {
+    pub fn add_input(&mut self, state: &State, decision: Arc<Decision>) {
         self.inputs.insert(state.id());
         self.inputs_decisions.push(decision);
     }
 
-    pub fn add_output(&mut self, decision: Decision, state: &State) -> Result<()> {
+    pub fn add_output(&mut self, decision: Arc<Decision>, state: &State) -> Result<()> {
         if self.outputs.contains(&state.id()) {
             return Err(GraphError::RecursionError(BRANCH_ALREADY_ATTEMPTED));
         }
@@ -564,70 +569,96 @@ impl RequestPackage {
     pub fn apply(&self, base: &State) -> Arc<State> {
         // XXX: An immutable data structure for pkg_requests would
         // allow for sharing.
-        let mut new_requests = Vec::with_capacity(base.pkg_requests.len() + 1);
-        new_requests.extend(base.pkg_requests.iter().cloned());
-
-        // If the new request is for a package that there is already a
-        // request for, then we want the solver to look at resolving
-        // the requests for this package sooner rather than later.
-        // This is done by moving those requests to the front of the
-        // request list.
-        //
-        // It helps counter resolving delays for common packages
-        // caused by: 1) resolving a package with lots of dependencies
-        // many of which resolve to packages that have varying
-        // requests for the same lower-level package, and 2)
-        // IfAlreadyPresent requests. These situations can exacerbate
-        // the creation of merged requests with impossible to satisfy rules
-        // that result in large amounts of backtracking across many
-        // levels (20+) of the search.
-
-        // Set up flags for checking things during the sort, they will
-        // be used after the sort to add to stats counters.
-        let mut existing_request_for_package = false;
-        let mut duplicate_request = false;
-
-        // Move any requests for the same package to the front of the
-        // list by sorting based on whether a request is for the same
-        // package as the new request or not.
-        //
-        // This sort is stable, so existing requests for the package
-        // will remain in the same relative order as they were, as
-        // will requests for other packages.
-        new_requests.sort_by_cached_key(|req| -> i32 {
-            if req.pkg.name() == self.request.pkg.name() {
-                // There is already a request in the list for the same
-                // package as the new request's package.
-                existing_request_for_package = true;
-
-                // Check if the new request is a completely identical
-                // duplicate request.
-                if req.pkg == self.request.pkg {
-                    duplicate_request = true;
+        let mut cloned_request = Some(self.request.clone());
+        let mut new_requests = base
+            .pkg_requests
+            .iter()
+            .cloned()
+            .map(|existing_request| {
+                // `restrict` doesn't check the package name!
+                if cloned_request.is_none() || existing_request.pkg.name != self.request.pkg.name {
+                    existing_request
+                } else {
+                    // Safety: `cloned_request` is not `None` by previous test.
+                    let mut request = unsafe { cloned_request.take().unwrap_unchecked() };
+                    match request.restrict(&existing_request) {
+                        Ok(_) => Arc::new(request.into()),
+                        Err(_) => {
+                            // Keep looking
+                            cloned_request = Some(request);
+                            existing_request
+                        }
+                    }
                 }
+            })
+            .collect::<Vec<_>>();
 
-                // It's the same package, move it towards the front
-                0
-            } else {
-                // It's a different package, leave it where it is
-                1
+        if cloned_request.is_some() {
+            // No candidate was found to merge with; append.
+
+            // If the new request is for a package that there is already a
+            // request for, then we want the solver to look at resolving
+            // the requests for this package sooner rather than later.
+            // This is done by moving those requests to the front of the
+            // request list.
+            //
+            // It helps counter resolving delays for common packages
+            // caused by: 1) resolving a package with lots of dependencies
+            // many of which resolve to packages that have varying
+            // requests for the same lower-level package, and 2)
+            // IfAlreadyPresent requests. These situations can exacerbate
+            // the creation of merged requests with impossible to satisfy rules
+            // that result in large amounts of backtracking across many
+            // levels (20+) of the search.
+
+            // Set up flags for checking things during the sort, they will
+            // be used after the sort to add to stats counters.
+            let mut existing_request_for_package = false;
+            let mut duplicate_request = false;
+
+            // Move any requests for the same package to the front of the
+            // list by sorting based on whether a request is for the same
+            // package as the new request or not.
+            //
+            // This sort is stable, so existing requests for the package
+            // will remain in the same relative order as they were, as
+            // will requests for other packages.
+            new_requests.sort_by_cached_key(|req| -> i32 {
+                if req.pkg.name() == self.request.pkg.name() {
+                    // There is already a request in the list for the same
+                    // package as the new request's package.
+                    existing_request_for_package = true;
+
+                    // Check if the new request is a completely identical
+                    // duplicate request.
+                    if req.pkg == self.request.pkg {
+                        duplicate_request = true;
+                    }
+
+                    // It's the same package, move it towards the front
+                    0
+                } else {
+                    // It's a different package, leave it where it is
+                    1
+                }
+            });
+
+            // Update the counters with what was found during the sort.
+            if existing_request_for_package {
+                REQUESTS_FOR_SAME_PACKAGE_COUNT.fetch_add(1, Ordering::SeqCst);
             }
-        });
+            if duplicate_request {
+                DUPLICATE_REQUESTS_COUNT.fetch_add(1, Ordering::SeqCst);
+            }
 
-        // Update the counters with what was found during the sort.
-        if existing_request_for_package {
-            REQUESTS_FOR_SAME_PACKAGE_COUNT.fetch_add(1, Ordering::SeqCst);
-        }
-        if duplicate_request {
-            DUPLICATE_REQUESTS_COUNT.fetch_add(1, Ordering::SeqCst);
+            // Add the new request to the end. This is ok because the
+            // other requests for this package are at the front of the
+            // list now. If this package needs resolving, this new request
+            // will be added to the merged request when this package is
+            // next selected by the solver.
+            new_requests.push(Arc::new(self.request.clone().into()));
         }
 
-        // Add the new request to the end. This is ok because the
-        // other requests for this package are at the front of the
-        // list now. If this package needs resolving, this new request
-        // will be added to the merged request when this package is
-        // next selected by the solver.
-        new_requests.push(self.request.clone());
         Arc::new(base.with_pkg_requests(new_requests))
     }
 }
@@ -645,15 +676,16 @@ impl RequestVar {
     pub fn apply(&self, base: &State) -> Arc<State> {
         // XXX: An immutable data structure for var_requests would
         // allow for sharing.
-        let mut new_requests = (*base.var_requests).clone();
-        new_requests.push(self.request.clone());
-        let mut options = base
-            .options
-            .iter()
-            .cloned()
-            .filter(|(var, _)| *var != self.request.var)
-            .collect::<Vec<_>>();
-        options.push((self.request.var.to_owned(), self.request.value.to_owned()));
+        let mut new_requests = Arc::clone(&base.var_requests);
+        // Avoid adding duplicate var requests.
+        if !base.contains_var_request(&self.request) {
+            Arc::make_mut(&mut new_requests).insert(self.request.clone());
+        }
+        let options = SetOptions::compute_new_options(
+            base,
+            vec![(&self.request.var, &self.request.value)].into_iter(),
+            true,
+        );
         Arc::new(base.with_var_requests_and_options(new_requests, options))
     }
 }
@@ -669,46 +701,33 @@ impl SetOptions {
     }
 
     pub fn apply(&self, base: &State) -> Arc<State> {
-        // Update options while preserving order to match
-        // python dictionary behaviour. "Updating a key
-        // does not affect the order."
-        let mut insertion_order = 0;
-        // Build a lookup hash with an insertion order.
-        let mut options: HashMap<String, (i32, String)> = base
-            .options
-            .iter()
-            .cloned()
-            .map(|(var, value)| {
-                let i = insertion_order;
-                insertion_order += 1;
-                (var, (i, value))
-            })
-            .collect();
+        Arc::new(base.with_options(Self::compute_new_options(base, self.options.iter(), false)))
+    }
+
+    /// Compute the new options list for a state, preserving the insertion
+    /// order based on option key.
+    pub fn compute_new_options<'i, I>(
+        base: &State,
+        new_options: I,
+        update_existing_option_with_empty_value: bool,
+    ) -> BTreeMap<String, String>
+    where
+        I: Iterator<Item = (&'i String, &'i String)>,
+    {
+        let mut options = (*base.options).clone();
         // Update base options with request options...
-        for (k, v) in self.options.iter() {
+        for (k, v) in new_options {
             match options.get_mut(k) {
                 // Unless already present and request option value is empty.
-                Some(_) if v.is_empty() => continue,
-                // If option already existed, keep same insertion order.
-                Some((_, value)) => *value = v.to_owned(),
-                // New options are inserted at the end.
+                Some(_) if v.is_empty() && !update_existing_option_with_empty_value => continue,
+                // If option already existed, change the value
+                Some(value) => *value = v.to_owned(),
                 None => {
-                    let i = insertion_order;
-                    insertion_order += 1;
-                    options.insert(k.to_owned(), (i, v.to_owned()));
+                    options.insert(k.to_owned(), v.to_owned());
                 }
             };
         }
-        let mut options = options.into_iter().collect::<Vec<_>>();
-        options.sort_by_key(|(_, (i, _))| *i);
-        Arc::new(
-            base.with_options(
-                options
-                    .into_iter()
-                    .map(|(var, (_, value))| (var, value))
-                    .collect::<Vec<_>>(),
-            ),
-        )
+        options
     }
 }
 
@@ -724,7 +743,7 @@ impl SetPackage {
     }
 
     pub fn apply(&self, base: &State) -> Arc<State> {
-        Arc::new(base.with_package(self.spec.clone(), self.source.clone()))
+        Arc::new(base.append_package(self.spec.clone(), self.source.clone()))
     }
 }
 
@@ -744,7 +763,7 @@ impl SetPackageBuild {
     }
 
     pub fn apply(&self, base: &State) -> Arc<State> {
-        Arc::new(base.with_package(self.spec.clone(), self.source.clone()))
+        Arc::new(base.append_package(self.spec.clone(), self.source.clone()))
     }
 }
 
@@ -752,6 +771,8 @@ impl SetPackageBuild {
 struct StateId {
     pkg_requests_hash: u64,
     var_requests_hash: u64,
+    // A set of what `VarRequest` hashes exist in this `StateId`.
+    var_requests_membership: Arc<HashSet<u64>>,
     packages_hash: u64,
     options_hash: u64,
     full_hash: u64,
@@ -766,6 +787,7 @@ impl StateId {
     pub fn new(
         pkg_requests_hash: u64,
         var_requests_hash: u64,
+        var_requests_membership: Arc<HashSet<u64>>,
         packages_hash: u64,
         options_hash: u64,
     ) -> Self {
@@ -780,60 +802,74 @@ impl StateId {
         Self {
             pkg_requests_hash,
             var_requests_hash,
+            var_requests_membership,
             packages_hash,
             options_hash,
             full_hash,
         }
     }
 
-    fn options_hash(options: &[(String, String)]) -> u64 {
+    fn options_hash(options: &BTreeMap<String, String>) -> u64 {
         let mut hasher = DefaultHasher::new();
         options.hash(&mut hasher);
         hasher.finish()
     }
 
-    fn pkg_requests_hash(pkg_requests: &[api::PkgRequest]) -> u64 {
+    fn pkg_requests_hash(pkg_requests: &Vec<Arc<CachedHash<api::PkgRequest>>>) -> u64 {
         let mut hasher = DefaultHasher::new();
         pkg_requests.hash(&mut hasher);
         hasher.finish()
     }
 
-    fn packages_hash(packages: &[(Arc<api::Spec>, PackageSource)]) -> u64 {
+    fn packages_hash(packages: &StatePackages) -> u64 {
         let mut hasher = DefaultHasher::new();
-        for (p, _) in packages.iter() {
-            p.hash(&mut hasher)
+        for (spec, _) in packages.values() {
+            spec.hash(&mut hasher);
         }
         hasher.finish()
     }
 
-    fn var_requests_hash(var_requests: &[api::VarRequest]) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        var_requests.hash(&mut hasher);
-        hasher.finish()
+    fn var_requests_hash(var_requests: &BTreeSet<api::VarRequest>) -> (u64, HashSet<u64>) {
+        let mut var_requests_membership = HashSet::new();
+        let mut global_hasher = DefaultHasher::new();
+        for var_request in var_requests {
+            // First hash this individual `VarRequest`
+            let mut hasher = DefaultHasher::new();
+            var_request.hash(&mut hasher);
+            let single_var_request_hash = hasher.finish();
+            var_requests_membership.insert(single_var_request_hash);
+
+            // The "global" hash is a hash of hashes
+            single_var_request_hash.hash(&mut global_hasher);
+        }
+        (global_hasher.finish(), var_requests_membership)
     }
 
-    fn with_options(&self, options: &[(String, String)]) -> Self {
+    fn with_options(&self, options: &BTreeMap<String, String>) -> Self {
         Self::new(
             self.pkg_requests_hash,
             self.var_requests_hash,
+            Arc::clone(&self.var_requests_membership),
             self.packages_hash,
             StateId::options_hash(options),
         )
     }
 
-    fn with_pkg_requests(&self, pkg_requests: &[api::PkgRequest]) -> Self {
+    fn with_pkg_requests(&self, pkg_requests: &Vec<Arc<CachedHash<api::PkgRequest>>>) -> Self {
         Self::new(
             StateId::pkg_requests_hash(pkg_requests),
             self.var_requests_hash,
+            Arc::clone(&self.var_requests_membership),
             self.packages_hash,
             self.options_hash,
         )
     }
 
-    fn with_packages(&self, packages: &[(Arc<api::Spec>, PackageSource)]) -> Self {
+    fn with_packages(&self, packages: &StatePackages) -> Self {
         Self::new(
             self.pkg_requests_hash,
             self.var_requests_hash,
+            Arc::clone(&self.var_requests_membership),
             StateId::packages_hash(packages),
             self.options_hash,
         )
@@ -841,26 +877,65 @@ impl StateId {
 
     fn with_var_requests_and_options(
         &self,
-        var_requests: &[api::VarRequest],
-        options: &[(String, String)],
+        var_requests: &BTreeSet<api::VarRequest>,
+        options: &BTreeMap<String, String>,
     ) -> Self {
+        let (var_requests_hash, var_requests_membership) = StateId::var_requests_hash(var_requests);
         Self::new(
             self.pkg_requests_hash,
-            StateId::var_requests_hash(var_requests),
+            var_requests_hash,
+            Arc::new(var_requests_membership),
             self.packages_hash,
             StateId::options_hash(options),
         )
     }
 }
 
+/// For caching the hash of an `api::PkgRequest`.
+///
+/// Computing the hash of `api::PkgRequest` represents a significant portion
+/// of solver runtime.
+#[derive(Clone, Debug)]
+pub struct CachedHash<T> {
+    object: T,
+    hash: u64,
+}
+
+impl<T> std::ops::Deref for CachedHash<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.object
+    }
+}
+
+impl<T: Hash> From<T> for CachedHash<T> {
+    fn from(object: T) -> Self {
+        let mut hasher = DefaultHasher::new();
+        object.hash(&mut hasher);
+        let hash = hasher.finish();
+
+        Self { object, hash }
+    }
+}
+
+impl<T> std::hash::Hash for CachedHash<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.hash.hash(state);
+    }
+}
+
+type StatePackages = Arc<BTreeMap<PkgName, (CachedHash<Arc<api::Spec>>, PackageSource)>>;
+
 // `State` is immutable. It should not derive Clone.
 #[derive(Debug)]
 pub struct State {
-    pub pkg_requests: Arc<Vec<api::PkgRequest>>,
-    var_requests: Arc<Vec<api::VarRequest>>,
-    packages: Arc<Vec<(Arc<api::Spec>, PackageSource)>>,
-    options: Arc<Vec<(String, String)>>,
+    pkg_requests: Arc<Vec<Arc<CachedHash<api::PkgRequest>>>>,
+    var_requests: Arc<BTreeSet<api::VarRequest>>,
+    packages: StatePackages,
+    options: Arc<BTreeMap<String, String>>,
     state_id: StateId,
+    cached_option_map: Arc<OnceCell<api::OptionMap>>,
 }
 
 impl State {
@@ -874,30 +949,54 @@ impl State {
         // may be states constructed where the id is
         // never accessed. Determine if it is better
         // to lazily compute this on demand.
+        let pkg_requests = pkg_requests
+            .into_iter()
+            .map(|el| Arc::new(el.into()))
+            .collect();
+        let var_requests = var_requests.into_iter().collect();
+        let options = options.into_iter().collect();
+        let (var_requests_hash, var_requests_membership) =
+            StateId::var_requests_hash(&var_requests);
         let state_id = StateId::new(
             StateId::pkg_requests_hash(&pkg_requests),
-            StateId::var_requests_hash(&var_requests),
-            StateId::packages_hash(&packages),
+            var_requests_hash,
+            Arc::new(var_requests_membership),
+            0,
             StateId::options_hash(&options),
         );
-        State {
+        let mut s = State {
             pkg_requests: Arc::new(pkg_requests),
             var_requests: Arc::new(var_requests),
-            packages: Arc::new(packages),
+            packages: Arc::new(BTreeMap::new()),
             options: Arc::new(options),
             state_id,
+            cached_option_map: Arc::new(OnceCell::new()),
+        };
+        for (package, source) in packages.into_iter() {
+            s = s.append_package(package, source)
         }
+        s
     }
 
     pub fn as_solution(&self) -> Result<Solution> {
-        let mut solution = Solution::new(Some(self.options.iter().cloned().collect()));
-        for (spec, source) in self.packages.iter() {
+        let mut solution = Solution::new(Some((&self.options).into()));
+        for (spec, source) in self.packages.values() {
             let req = self
                 .get_merged_request(&spec.pkg.name)
                 .map_err(GraphError::RequestError)?;
-            solution.add(&req, spec.clone(), source.clone());
+            solution.add(&req, Arc::clone(&*spec), source.clone());
         }
         Ok(solution)
+    }
+
+    /// Return true if this state already contains this request.
+    pub fn contains_var_request(&self, var_request: &api::VarRequest) -> bool {
+        let mut hasher = DefaultHasher::new();
+        var_request.hash(&mut hasher);
+        let single_var_request_hash = hasher.finish();
+        self.state_id
+            .var_requests_membership
+            .contains(&single_var_request_hash)
     }
 
     pub fn default() -> Self {
@@ -912,17 +1011,13 @@ impl State {
     pub fn get_current_resolve(
         &self,
         name: &PkgName,
-    ) -> errors::GetCurrentResolveResult<(&Arc<api::Spec>, &PackageSource)> {
-        // TODO: cache this
-        for (spec, source) in &*self.packages {
-            if spec.pkg.name == *name {
-                return Ok((spec, source));
-            }
-        }
-        Err(errors::GetCurrentResolveError::PackageNotResolved(format!(
-            "Has not been resolved: '{}'",
-            name
-        )))
+    ) -> errors::GetCurrentResolveResult<(&CachedHash<Arc<api::Spec>>, &PackageSource)> {
+        self.packages.get(name).map(|(s, p)| (s, p)).ok_or_else(|| {
+            errors::GetCurrentResolveError::PackageNotResolved(format!(
+                "Has not been resolved: '{}'",
+                name
+            ))
+        })
     }
 
     pub fn get_merged_request(
@@ -937,7 +1032,7 @@ impl State {
                     if request.pkg.name != *name {
                         continue;
                     }
-                    merged = Some(request.clone());
+                    merged = Some((***request).clone());
                 }
                 Some(merged) => {
                     if request.pkg.name != merged.pkg.name {
@@ -957,13 +1052,6 @@ impl State {
     }
 
     pub fn get_next_request(&self) -> Result<Option<api::PkgRequest>> {
-        // tests reveal this method is not safe to cache.
-        let resolved_packages: HashSet<&PkgName> = self
-            .packages
-            .iter()
-            .map(|(spec, _)| &spec.pkg.name)
-            .collect();
-
         // Note: The next request this returns may not be as expected
         // due to the interaction of multiple requests and
         // 'IfAlreadyPresent' requests.
@@ -972,7 +1060,7 @@ impl State {
         // requests that have not been satisfied, or only merged
         // requests, or both.
         for request in self.pkg_requests.iter() {
-            if resolved_packages.contains(&request.pkg.name) {
+            if self.packages.contains_key(&request.pkg.name) {
                 continue;
             }
             if request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
@@ -992,19 +1080,21 @@ impl State {
         Ok(None)
     }
 
-    pub fn get_pkg_requests(&self) -> &Vec<api::PkgRequest> {
+    pub fn get_pkg_requests(&self) -> &Vec<Arc<CachedHash<api::PkgRequest>>> {
         &self.pkg_requests
     }
 
-    pub fn get_var_requests(&self) -> &Vec<api::VarRequest> {
+    pub fn get_var_requests(&self) -> &BTreeSet<api::VarRequest> {
         &self.var_requests
     }
 
-    pub fn get_resolved_packages(&self) -> &Vec<(Arc<api::Spec>, PackageSource)> {
+    pub fn get_resolved_packages(
+        &self,
+    ) -> &BTreeMap<PkgName, (CachedHash<Arc<api::Spec>>, PackageSource)> {
         &self.packages
     }
 
-    fn with_options(&self, options: Vec<(String, String)>) -> Self {
+    fn with_options(&self, options: BTreeMap<String, String>) -> Self {
         let state_id = self.state_id.with_options(&options);
         Self {
             pkg_requests: Arc::clone(&self.pkg_requests),
@@ -1012,24 +1102,27 @@ impl State {
             packages: Arc::clone(&self.packages),
             options: Arc::new(options),
             state_id,
+            // options are changing
+            cached_option_map: Arc::new(OnceCell::new()),
         }
     }
 
-    fn with_package(&self, spec: Arc<api::Spec>, source: PackageSource) -> Self {
-        let mut packages = Vec::with_capacity(self.packages.len() + 1);
-        packages.extend(self.packages.iter().cloned());
-        packages.push((spec, source));
+    fn append_package(&self, spec: Arc<api::Spec>, source: PackageSource) -> Self {
+        let mut packages = Arc::clone(&self.packages);
+        Arc::make_mut(&mut packages).insert(spec.pkg.name.clone(), (spec.into(), source));
         let state_id = self.state_id.with_packages(&packages);
         Self {
             pkg_requests: Arc::clone(&self.pkg_requests),
             var_requests: Arc::clone(&self.var_requests),
-            packages: Arc::new(packages),
+            packages,
             options: Arc::clone(&self.options),
             state_id,
+            // options are the same
+            cached_option_map: Arc::clone(&self.cached_option_map),
         }
     }
 
-    fn with_pkg_requests(&self, pkg_requests: Vec<api::PkgRequest>) -> Self {
+    fn with_pkg_requests(&self, pkg_requests: Vec<Arc<CachedHash<api::PkgRequest>>>) -> Self {
         let state_id = self.state_id.with_pkg_requests(&pkg_requests);
         Self {
             pkg_requests: Arc::new(pkg_requests),
@@ -1037,29 +1130,33 @@ impl State {
             packages: Arc::clone(&self.packages),
             options: Arc::clone(&self.options),
             state_id,
+            // options are the same
+            cached_option_map: Arc::clone(&self.cached_option_map),
         }
     }
 
     fn with_var_requests_and_options(
         &self,
-        var_requests: Vec<api::VarRequest>,
-        options: Vec<(String, String)>,
+        var_requests: Arc<BTreeSet<api::VarRequest>>,
+        options: BTreeMap<String, String>,
     ) -> Self {
         let state_id = self
             .state_id
             .with_var_requests_and_options(&var_requests, &options);
         Self {
             pkg_requests: Arc::clone(&self.pkg_requests),
-            var_requests: Arc::new(var_requests),
+            var_requests,
             packages: Arc::clone(&self.packages),
             options: Arc::new(options),
             state_id,
+            // options are changing
+            cached_option_map: Arc::new(OnceCell::new()),
         }
     }
 
-    pub fn get_option_map(&self) -> api::OptionMap {
-        // TODO: cache this
-        self.options.iter().cloned().collect()
+    pub fn get_option_map(&self) -> &api::OptionMap {
+        self.cached_option_map
+            .get_or_init(|| (&self.options).into())
     }
 
     pub fn id(&self) -> u64 {

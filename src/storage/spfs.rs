@@ -42,6 +42,18 @@ impl std::hash::Hash for SPFSRepository {
     }
 }
 
+impl Ord for SPFSRepository {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.address.cmp(&other.address)
+    }
+}
+
+impl PartialOrd for SPFSRepository {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl PartialEq for SPFSRepository {
     fn eq(&self, other: &Self) -> bool {
         self.inner.address() == other.inner.address()
@@ -145,7 +157,7 @@ std::thread_local! {
 
     static SPEC_CACHE : CacheByAddress<
         api::Ident,
-        CacheValue<api::Spec>
+        CacheValue<Arc<api::Spec>>
     > = RefCell::new(HashMap::new());
 
     static TAG_SPEC_CACHE : CacheByAddress<
@@ -258,7 +270,7 @@ impl Repository for SPFSRepository {
         }
     }
 
-    fn read_spec(&self, pkg: &api::Ident) -> Result<api::Spec> {
+    fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
         let address = self.address();
         if self.cached_result_permitted() {
             let r =
@@ -267,7 +279,7 @@ impl Repository for SPFSRepository {
                 return r.into();
             }
         }
-        let r: Result<api::Spec> = crate::HANDLE.block_on(async {
+        let r: Result<Arc<api::Spec>> = crate::HANDLE.block_on(async {
             let tag_path = self.build_spec_tag(pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
             let tag = self.resolve_tag(pkg, &tag_spec).await?;
@@ -275,12 +287,12 @@ impl Repository for SPFSRepository {
             let mut reader = self.inner.open_payload(tag.target).await?;
             let mut yaml = String::new();
             reader.read_to_string(&mut yaml).await?;
-            Ok(serde_yaml::from_str(&yaml)?)
+            Ok(Arc::new(serde_yaml::from_str(&yaml)?))
         });
         SPEC_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
             let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(pkg.clone(), r.as_ref().map(|s| s.clone()).into());
+            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
         });
         r
     }
@@ -299,7 +311,7 @@ impl Repository for SPFSRepository {
         Ok(components)
     }
 
-    fn publish_spec(&self, spec: api::Spec) -> Result<()> {
+    fn publish_spec(&self, spec: &api::Spec) -> Result<()> {
         let spec = Handle::current().block_on(async {
             if spec.pkg.build.is_some() {
                 return Err(api::InvalidBuildError::new_error(
@@ -311,7 +323,7 @@ impl Repository for SPFSRepository {
             if self.inner.has_tag(&tag_spec).await {
                 // BUG(rbottriell): this creates a race condition but is not super dangerous
                 // because of the non-destructive tag history
-                Err(Error::VersionExistsError(spec.pkg))
+                Err(Error::VersionExistsError(spec.pkg.clone()))
             } else {
                 Ok(spec)
             }
@@ -336,7 +348,7 @@ impl Repository for SPFSRepository {
         })
     }
 
-    fn force_publish_spec(&self, spec: api::Spec) -> Result<()> {
+    fn force_publish_spec(&self, spec: &api::Spec) -> Result<()> {
         Handle::current().block_on(async {
             if let Some(api::Build::Embedded) = spec.pkg.build {
                 return Err(api::InvalidBuildError::new_error(
@@ -359,7 +371,7 @@ impl Repository for SPFSRepository {
 
     fn publish_package(
         &self,
-        spec: api::Spec,
+        spec: &api::Spec,
         components: HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
         #[cfg(test)]
@@ -385,7 +397,7 @@ impl Repository for SPFSRepository {
                 Error::String("Package must have a run component to be published".to_string())
             })?
         };
-        let spec: Result<api::Spec> = Handle::current().block_on(async {
+        let spec: Result<&api::Spec> = Handle::current().block_on(async {
             self.inner.push_tag(&legacy_tag, &legacy_component).await?;
 
             let components: std::result::Result<Vec<_>, _> = components

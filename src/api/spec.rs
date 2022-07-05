@@ -43,7 +43,7 @@ macro_rules! spec {
     }};
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Spec {
     pub pkg: Ident,
     #[serde(default, skip_serializing_if = "Meta::is_default")]

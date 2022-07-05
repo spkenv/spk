@@ -240,7 +240,7 @@ impl BinaryPackageBuilder {
         let components = crate::HANDLE.block_on(self.build_and_commit_artifacts(env))?;
         crate::HANDLE
             .block_on(storage::local_repository())?
-            .publish_package(self.spec.clone(), components)?;
+            .publish_package(&self.spec, components)?;
         Ok(self.spec.clone())
     }
 
