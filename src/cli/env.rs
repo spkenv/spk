@@ -9,6 +9,9 @@ use once_cell::sync::Lazy;
 
 #[cfg(feature = "sentry")]
 pub fn configure_sentry() -> sentry::ClientInitGuard {
+    // Call this before `sentry::init` to avoid potential `SIGSEGV`.
+    let username = whoami::username();
+
     // When using the sentry feature it is expected that the DSN
     // and other configuration is provided at *compile* time.
     let guard = sentry::init((
@@ -22,14 +25,12 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
         },
     ));
 
-    if let Ok(username) = std::env::var("USER") {
-        sentry::configure_scope(|scope| {
-            scope.set_user(Some(sentry::User {
-                username: Some(username),
-                ..Default::default()
-            }))
-        });
-    }
+    sentry::configure_scope(|scope| {
+        scope.set_user(Some(sentry::User {
+            username: Some(username),
+            ..Default::default()
+        }))
+    });
 
     guard
 }
