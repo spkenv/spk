@@ -109,6 +109,7 @@ impl std::ops::Drop for SPFSRepository {
 
 #[derive(Clone)]
 enum CacheValue<T> {
+    InvalidPackageSpec(api::Ident, String),
     PackageNotFoundError(api::Ident),
     StringError(String),
     StringifiedError(String),
@@ -118,6 +119,10 @@ enum CacheValue<T> {
 impl<T> From<CacheValue<T>> for Result<T> {
     fn from(cv: CacheValue<T>) -> Self {
         match cv {
+            CacheValue::InvalidPackageSpec(i, err) => Err(crate::Error::InvalidPackageSpec(
+                i,
+                serde::ser::Error::custom(err),
+            )),
             CacheValue::PackageNotFoundError(i) => Err(crate::Error::PackageNotFoundError(i)),
             CacheValue::StringError(s) => Err(s.into()),
             CacheValue::StringifiedError(s) => Err(s.into()),
@@ -130,6 +135,9 @@ impl<T> From<std::result::Result<T, &crate::Error>> for CacheValue<T> {
     fn from(r: std::result::Result<T, &crate::Error>) -> Self {
         match r {
             Ok(v) => CacheValue::Success(v),
+            Err(crate::Error::InvalidPackageSpec(i, err)) => {
+                CacheValue::InvalidPackageSpec(i.clone(), err.to_string())
+            }
             Err(crate::Error::PackageNotFoundError(i)) => {
                 CacheValue::PackageNotFoundError(i.clone())
             }
@@ -287,7 +295,9 @@ impl Repository for SPFSRepository {
             let mut reader = self.inner.open_payload(tag.target).await?;
             let mut yaml = String::new();
             reader.read_to_string(&mut yaml).await?;
-            Ok(Arc::new(serde_yaml::from_str(&yaml)?))
+            serde_yaml::from_str(&yaml)
+                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+                .map(Arc::new)
         });
         SPEC_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
@@ -358,7 +368,7 @@ impl Repository for SPFSRepository {
             let tag_path = self.build_spec_tag(&spec.pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
 
-            let payload = serde_yaml::to_vec(&spec)?;
+            let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;
             let digest = self
                 .inner
                 .commit_blob(Box::pin(std::io::Cursor::new(payload)))
@@ -575,7 +585,8 @@ impl SPFSRepository {
         let mut reader = self.inner.open_payload(digest).await?;
         let mut yaml = String::new();
         reader.read_to_string(&mut yaml).await?;
-        let meta: RepositoryMetadata = serde_yaml::from_str(&yaml)?;
+        let meta: RepositoryMetadata =
+            serde_yaml::from_str(&yaml).map_err(Error::InvalidRepositoryMetadata)?;
         Ok(meta)
     }
 
@@ -614,7 +625,7 @@ impl SPFSRepository {
     /// Update the metadata for this spk repository.
     async fn write_metadata(&self, meta: &RepositoryMetadata) -> Result<()> {
         let tag_spec = spfs::tracking::TagSpec::parse(REPO_METADATA_TAG).unwrap();
-        let yaml = serde_yaml::to_string(meta)?;
+        let yaml = serde_yaml::to_string(meta).map_err(Error::InvalidRepositoryMetadata)?;
         let digest = self
             .inner
             .commit_blob(Box::pin(std::io::Cursor::new(yaml.into_bytes())))
