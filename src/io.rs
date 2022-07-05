@@ -39,7 +39,7 @@ pub const SHOW_REQUEST_DETAILS: u32 = 1;
 pub const SHOW_INITIAL_REQUESTS_FULL_VALUES: u32 = 5;
 
 // The level/depth for initial requests
-pub const INITIAL_REQUESTS_LEVEL: usize = 0;
+pub const INITIAL_REQUESTS_LEVEL: u64 = 0;
 
 pub fn format_ident(pkg: &api::Ident) -> String {
     let mut out = pkg.name.bold().to_string();
@@ -71,14 +71,14 @@ pub fn format_options(options: &api::OptionMap) -> String {
 /// Helper to hold values that affect the formatting of a request
 pub struct FormatChangeOptions {
     pub verbosity: u32,
-    pub level: usize,
+    pub level: u64,
 }
 
 impl Default for FormatChangeOptions {
     fn default() -> Self {
         Self {
             verbosity: 0,
-            level: usize::MAX,
+            level: u64::MAX,
         }
     }
 }
@@ -253,7 +253,7 @@ pub fn change_is_relevant_at_verbosity(change: &solve::graph::Change, verbosity:
     verbosity >= relevant_level
 }
 
-fn get_request_change_label(level: usize) -> &'static str {
+fn get_request_change_label(level: u64) -> &'static str {
     if level == INITIAL_REQUESTS_LEVEL {
         "INITIAL REQUEST"
     } else {
@@ -345,7 +345,7 @@ where
     I: Iterator<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>>,
 {
     inner: I,
-    level: usize,
+    level: u64,
     output_queue: VecDeque<String>,
     verbosity: u32,
     // For "too long" and ctrl-c interruption checks during solver steps
@@ -501,7 +501,7 @@ where
             }
 
             if self.verbosity > 1 {
-                let fill: String = ".".repeat(self.level);
+                let fill: String = ".".repeat(self.level as usize);
                 for note in decision.notes.iter() {
                     self.output_queue
                         .push_back(format!("{} {}", fill, format_note(note)));
@@ -509,7 +509,7 @@ where
             }
 
             let mut fill: &str;
-            let mut level_change: i64 = 1;
+            let mut new_level = self.level + 1;
             for change in decision.changes.iter() {
                 use solve::graph::Change::*;
                 match change {
@@ -520,9 +520,9 @@ where
                             fill = ">";
                         }
                     }
-                    StepBack(_) => {
+                    StepBack(solve::graph::StepBack { destination, .. }) => {
                         fill = "!";
-                        level_change = -1;
+                        new_level = destination.state_depth;
                     }
                     _ => {
                         fill = ".";
@@ -540,7 +540,7 @@ where
                     let level_text = self.level.to_string();
                     // The +1 is for the space after 'level_text' in the string
                     let prefix_width = level_text.len() + 1;
-                    let prefix = fill.repeat(self.level - prefix_width);
+                    let prefix = fill.repeat(self.level as usize - prefix_width);
                     self.output_queue.push_back(format!(
                         "{} {} {}",
                         level_text,
@@ -556,7 +556,7 @@ where
                     ));
                 } else {
                     // Just use the fill prefix
-                    let prefix: String = fill.repeat(self.level);
+                    let prefix: String = fill.repeat(self.level as usize);
                     self.output_queue.push_back(format!(
                         "{} {}",
                         prefix,
@@ -571,7 +571,7 @@ where
                     ))
                 }
             }
-            self.level = (self.level as i64 + level_change) as usize;
+            self.level = new_level;
         }
         self.output_queue.pop_front().map(Ok)
     }
