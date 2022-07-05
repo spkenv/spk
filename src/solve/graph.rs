@@ -667,7 +667,7 @@ impl RequestPackage {
             new_requests.push(Arc::new(self.request.clone().into()));
         }
 
-        Arc::new(State::with_pkg_requests(parent, base, new_requests))
+        Arc::new(base.with_pkg_requests(parent, new_requests))
     }
 }
 
@@ -694,12 +694,7 @@ impl RequestVar {
             vec![(&self.request.var, &self.request.value)].into_iter(),
             true,
         );
-        Arc::new(State::with_var_requests_and_options(
-            parent,
-            base,
-            new_requests,
-            options,
-        ))
+        Arc::new(base.with_var_requests_and_options(parent, new_requests, options))
     }
 }
 
@@ -715,7 +710,7 @@ impl SetOptions {
 
     pub fn apply(&self, parent: &Arc<State>, base: &Arc<State>) -> Arc<State> {
         let new_options = Self::compute_new_options(&*base, self.options.iter(), false);
-        Arc::new(State::with_options(parent, base, new_options))
+        Arc::new(base.with_options(parent, new_options))
     }
 
     /// Compute the new options list for a state, preserving the insertion
@@ -757,12 +752,7 @@ impl SetPackage {
     }
 
     pub fn apply(&self, parent: &Arc<State>, base: &Arc<State>) -> Arc<State> {
-        Arc::new(State::append_package(
-            Some(parent),
-            base,
-            self.spec.clone(),
-            self.source.clone(),
-        ))
+        Arc::new(base.append_package(Some(parent), self.spec.clone(), self.source.clone()))
     }
 }
 
@@ -782,12 +772,7 @@ impl SetPackageBuild {
     }
 
     pub fn apply(&self, parent: &Arc<State>, base: &Arc<State>) -> Arc<State> {
-        Arc::new(State::append_package(
-            Some(parent),
-            base,
-            self.spec.clone(),
-            self.source.clone(),
-        ))
+        Arc::new(base.append_package(Some(parent), self.spec.clone(), self.source.clone()))
     }
 }
 
@@ -990,7 +975,7 @@ impl State {
             0,
             StateId::options_hash(&options),
         );
-        let mut s = Arc::new(State {
+        let mut s = State {
             pkg_requests: Arc::new(pkg_requests),
             var_requests: Arc::new(var_requests),
             packages: Arc::new(BTreeMap::new()),
@@ -998,11 +983,11 @@ impl State {
             state_id,
             cached_option_map: Arc::new(OnceCell::new()),
             state_depth: 0,
-        });
+        };
         for (package, source) in packages.into_iter() {
-            s = Arc::new(Self::append_package(None, &s, package, source))
+            s = s.append_package(None, package, source)
         }
-        s
+        Arc::new(s)
     }
 
     pub fn as_solution(&self) -> Result<Solution> {
@@ -1121,16 +1106,12 @@ impl State {
         &self.packages
     }
 
-    fn with_options(
-        parent: &Arc<State>,
-        base: &Arc<State>,
-        options: BTreeMap<String, String>,
-    ) -> Self {
-        let state_id = base.state_id.with_options(&options);
+    fn with_options(&self, parent: &Self, options: BTreeMap<String, String>) -> Self {
+        let state_id = self.state_id.with_options(&options);
         Self {
-            pkg_requests: Arc::clone(&base.pkg_requests),
-            var_requests: Arc::clone(&base.var_requests),
-            packages: Arc::clone(&base.packages),
+            pkg_requests: Arc::clone(&self.pkg_requests),
+            var_requests: Arc::clone(&self.var_requests),
+            packages: Arc::clone(&self.packages),
             options: Arc::new(options),
             state_id,
             // options are changing
@@ -1140,57 +1121,57 @@ impl State {
     }
 
     fn append_package(
-        parent: Option<&Arc<State>>,
-        base: &Arc<State>,
+        &self,
+        parent: Option<&Arc<Self>>,
         spec: Arc<api::Spec>,
         source: PackageSource,
     ) -> Self {
-        let mut packages = Arc::clone(&base.packages);
+        let mut packages = Arc::clone(&self.packages);
         Arc::make_mut(&mut packages).insert(spec.pkg.name.clone(), (spec.into(), source));
-        let state_id = base.state_id.with_packages(&packages);
+        let state_id = self.state_id.with_packages(&packages);
         Self {
-            pkg_requests: Arc::clone(&base.pkg_requests),
-            var_requests: Arc::clone(&base.var_requests),
+            pkg_requests: Arc::clone(&self.pkg_requests),
+            var_requests: Arc::clone(&self.var_requests),
             packages,
-            options: Arc::clone(&base.options),
+            options: Arc::clone(&self.options),
             state_id,
             // options are the same
-            cached_option_map: Arc::clone(&base.cached_option_map),
+            cached_option_map: Arc::clone(&self.cached_option_map),
             state_depth: parent.as_ref().map(|p| p.state_depth + 1).unwrap_or(0),
         }
     }
 
     fn with_pkg_requests(
-        parent: &Arc<State>,
-        base: &Arc<State>,
+        &self,
+        parent: &Self,
         pkg_requests: Vec<Arc<CachedHash<api::PkgRequest>>>,
     ) -> Self {
-        let state_id = base.state_id.with_pkg_requests(&pkg_requests);
+        let state_id = self.state_id.with_pkg_requests(&pkg_requests);
         Self {
             pkg_requests: Arc::new(pkg_requests),
-            var_requests: Arc::clone(&base.var_requests),
-            packages: Arc::clone(&base.packages),
-            options: Arc::clone(&base.options),
+            var_requests: Arc::clone(&self.var_requests),
+            packages: Arc::clone(&self.packages),
+            options: Arc::clone(&self.options),
             state_id,
             // options are the same
-            cached_option_map: Arc::clone(&base.cached_option_map),
+            cached_option_map: Arc::clone(&self.cached_option_map),
             state_depth: parent.state_depth + 1,
         }
     }
 
     fn with_var_requests_and_options(
-        parent: &Arc<State>,
-        base: &Arc<State>,
+        &self,
+        parent: &Self,
         var_requests: Arc<BTreeSet<api::VarRequest>>,
         options: BTreeMap<String, String>,
     ) -> Self {
-        let state_id = base
+        let state_id = self
             .state_id
             .with_var_requests_and_options(&var_requests, &options);
         Self {
-            pkg_requests: Arc::clone(&base.pkg_requests),
+            pkg_requests: Arc::clone(&self.pkg_requests),
             var_requests,
-            packages: Arc::clone(&base.packages),
+            packages: Arc::clone(&self.packages),
             options: Arc::new(options),
             state_id,
             // options are changing
