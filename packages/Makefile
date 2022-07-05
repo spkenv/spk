@@ -95,9 +95,9 @@ docker.%:
 	echo "and place it into dist/rpm/RPMS/x86_64/ before continuing"; \
 	exit 1; \
 	fi
-	cp builder.spfs.conf ../dist
+	cp builder.spfs.toml ../dist
 	docker build ../dist -t spk-package-builder -f Dockerfile
-	docker run --privileged --net=host --rm -i \
+	docker run --privileged --rm -i \
 	-e SPFS_FILESYSTEM_TMPFS_SIZE=10G \
 	-e RUST_LOG \
 	-v $$PWD/../build/packages/:/spfs-storage \

@@ -26,7 +26,7 @@ RUN yum-builddep -y /root/rpmbuild/SPECS/spk.spec && yum clean all
 COPY . /source/spk-$VERSION
 ENV SPFS_PULL_USERNAME ${SPFS_PULL_USERNAME}
 ENV SPFS_PULL_PASSWORD ${SPFS_PULL_PASSWORD}
-RUN sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" /source/spk-$VERSION/Cargo.toml
+RUN find /source -name "Cargo.toml" -exec sed -i "s|github.com|$SPFS_PULL_USERNAME:$SPFS_PULL_PASSWORD@github.com|" "{}" \;
 RUN tar -C /source -czvf /root/rpmbuild/SOURCES/v$VERSION.tar.gz .
 
 RUN rpmbuild -ba /root/rpmbuild/SPECS/spk.spec
