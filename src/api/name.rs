@@ -52,7 +52,7 @@ impl std::ops::Deref for PkgNameBuf {
     type Target = PkgName;
 
     fn deref(&self) -> &Self::Target {
-        PkgName::from_str(&self.0)
+        self.as_ref()
     }
 }
 
@@ -64,7 +64,9 @@ impl AsRef<str> for PkgNameBuf {
 
 impl AsRef<PkgName> for PkgNameBuf {
     fn as_ref(&self) -> &PkgName {
-        PkgName::from_str(&self.0)
+        // Safety: from_str bypasses validation but the contents
+        // of PkgNameBuf must already be valid
+        unsafe { PkgName::from_str(&self.0) }
     }
 }
 
@@ -121,7 +123,7 @@ impl TryFrom<String> for PkgNameBuf {
 
 impl Borrow<PkgName> for PkgNameBuf {
     fn borrow(&self) -> &PkgName {
-        PkgName::from_str(&self.0)
+        self.as_ref()
     }
 }
 
@@ -145,13 +147,20 @@ impl PkgName {
     const MIN_LEN: usize = 2;
     const MAX_LEN: usize = 64;
 
-    const fn from_str(inner: &str) -> &Self {
+    /// Wrap a str as a PkgName
+    ///
+    /// # Safety:
+    ///
+    /// This function bypasses validation and should not be used
+    /// unless the given argument is known to be valid
+    const unsafe fn from_str(inner: &str) -> &Self {
         unsafe { &*(inner as *const str as *const PkgName) }
     }
 
     pub fn new<S: AsRef<str> + ?Sized>(s: &S) -> Result<&PkgName> {
         validate_pkg_name(s)?;
-        Ok(Self::from_str(s.as_ref()))
+        // Safety: fromsStr bypasses validation but we've just done that
+        Ok(unsafe { Self::from_str(s.as_ref()) })
     }
 
     pub fn as_str(&self) -> &str {
