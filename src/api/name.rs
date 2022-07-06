@@ -82,7 +82,7 @@ impl AsRef<std::path::Path> for PkgNameBuf {
 
 impl Borrow<String> for PkgNameBuf {
     fn borrow(&self) -> &String {
-        unsafe { &*(self as *const PkgNameBuf as *const String) }
+        &self.0
     }
 }
 
