@@ -2,15 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use clap::Parser;
+use clap::Args;
 
-#[macro_use]
-mod args;
-
-main!(CmdPush);
+use super::args;
 
 /// Push one or more objects to a remote repository
-#[derive(Debug, Parser)]
+#[derive(Debug, Args)]
 pub struct CmdPush {
     #[clap(flatten)]
     sync: args::Sync,

@@ -2,17 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use clap::Parser;
+use clap::Args;
 
-#[macro_use]
-mod args;
-mod cmd_run;
-
-main!(CmdShell);
+use super::{args, cmd_run};
 
 /// Enter a subshell in a configured spfs environment
-#[derive(Debug, Parser)]
-#[clap(name = "spfs-shell")]
+#[derive(Debug, Args)]
 pub struct CmdShell {
     #[clap(flatten)]
     sync: args::Sync,

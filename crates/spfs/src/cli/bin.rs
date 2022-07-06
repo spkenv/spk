@@ -19,13 +19,19 @@ mod cmd_ls;
 mod cmd_ls_tags;
 mod cmd_migrate;
 mod cmd_platforms;
+mod cmd_pull;
+mod cmd_push;
 mod cmd_read;
 mod cmd_reset;
+mod cmd_run;
 mod cmd_runtime;
 mod cmd_runtime_info;
 mod cmd_runtime_list;
 mod cmd_runtime_remove;
 mod cmd_search;
+#[cfg(feature = "server")]
+mod cmd_server;
+mod cmd_shell;
 mod cmd_tag;
 mod cmd_tags;
 mod cmd_untag;
@@ -39,12 +45,7 @@ main!(Opt);
 #[clap(
     about,
     after_help = "EXTERNAL SUBCOMMANDS:\
-                  \n    run          run a command in an spfs environment\
-                  \n    shell        create a new shell in an spfs environment\
-                  \n    pull         pull one or more object to the local repository\
-                  \n    push         push one or more objects to a remote repository\
                   \n    render       render the contents of an environment or layer\
-                  \n    server       run an spfs server (if installed)\
                   \n    monitor      watch a runtime and clean it up when complete\
                   "
 )]
@@ -63,13 +64,17 @@ pub enum Command {
     Commit(cmd_commit::CmdCommit),
     Config(cmd_config::CmdConfig),
     Reset(cmd_reset::CmdReset),
+    Run(cmd_run::CmdRun),
     Tag(cmd_tag::CmdTag),
     Untag(cmd_untag::CmdUntag),
+    Shell(cmd_shell::CmdShell),
     Runtime(cmd_runtime::CmdRuntime),
     Layers(cmd_layers::CmdLayers),
     Platforms(cmd_platforms::CmdPlatforms),
     Tags(cmd_tags::CmdTags),
     Info(cmd_info::CmdInfo),
+    Pull(cmd_pull::CmdPull),
+    Push(cmd_push::CmdPush),
     Log(cmd_log::CmdLog),
     Search(cmd_search::CmdSearch),
     Diff(cmd_diff::CmdDiff),
@@ -80,6 +85,9 @@ pub enum Command {
     Clean(cmd_clean::CmdClean),
     Read(cmd_read::CmdRead),
     Write(cmd_write::CmdWrite),
+
+    #[cfg(feature = "server")]
+    Server(cmd_server::CmdServer),
 
     #[clap(external_subcommand)]
     External(Vec<String>),
@@ -110,6 +118,12 @@ impl Opt {
             Command::Clean(cmd) => cmd.run(config).await,
             Command::Read(cmd) => cmd.run(config).await,
             Command::Write(cmd) => cmd.run(config).await,
+            Command::Run(cmd) => cmd.run(config).await,
+            Command::Shell(cmd) => cmd.run(config).await,
+            Command::Pull(cmd) => cmd.run(config).await,
+            Command::Push(cmd) => cmd.run(config).await,
+            #[cfg(feature = "server")]
+            Command::Server(cmd) => cmd.run(config).await,
             Command::External(args) => run_external_subcommand(args.clone()).await,
         }
     }

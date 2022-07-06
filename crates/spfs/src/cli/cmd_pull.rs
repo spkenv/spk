@@ -2,15 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use clap::Parser;
+use clap::Args;
 
-#[macro_use]
-mod args;
-
-main!(CmdPull);
+use super::args;
 
 /// Pull one or more objects to the local repository
-#[derive(Debug, Parser)]
+#[derive(Debug, Args)]
 pub struct CmdPull {
     #[clap(flatten)]
     sync: args::Sync,
