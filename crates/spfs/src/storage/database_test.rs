@@ -7,14 +7,12 @@ use crate::{encoding, graph};
 
 use crate::fixtures::*;
 
-#[rstest(
-    tmprepo,
-    case::fs(tmprepo("fs")),
-    case::tar(tmprepo("tar")),
-    case::rpc(tmprepo("rpc"))
-)]
+#[rstest]
+#[case::fs(tmprepo("fs"))]
+#[case::tar(tmprepo("tar"))]
+#[case::rpc(tmprepo("rpc"))]
 #[tokio::test]
-async fn test_object_existence(#[future] tmprepo: TempRepo) {
+async fn test_object_existence(#[case] #[future] tmprepo: TempRepo) {
     let tmprepo = tmprepo.await;
     let digest = encoding::EMPTY_DIGEST.into();
     let obj = graph::Blob::new(digest, 0).into();

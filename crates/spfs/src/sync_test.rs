@@ -72,17 +72,14 @@ async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
     assert!(syncer.sync_ref(tag.to_string()).await.is_ok());
 }
 
-#[rstest(
-    repo_a,
-    repo_b,
-    case::fs(tmprepo("fs"), tmprepo("fs")),
-    case::tar(tmprepo("tar"), tmprepo("tar")),
-    case::rpc(tmprepo("rpc"), tmprepo("rpc"))
-)]
+#[rstest]
+#[case::fs(tmprepo("fs"), tmprepo("fs"))]
+#[case::tar(tmprepo("tar"), tmprepo("tar"))]
+#[case::rpc(tmprepo("rpc"), tmprepo("rpc"))]
 #[tokio::test]
 async fn test_sync_ref(
-    #[future] repo_a: TempRepo,
-    #[future] repo_b: TempRepo,
+    #[case] #[future] repo_a: TempRepo,
+    #[case] #[future] repo_b: TempRepo,
     tmpdir: tempdir::TempDir,
 ) {
     init_logging();
@@ -129,17 +126,14 @@ async fn test_sync_ref(
     assert!(repo_a.has_layer(layer.digest().unwrap()).await);
 }
 
-#[rstest(
-    repo_a,
-    repo_b,
-    case::fs(tmprepo("fs"), tmprepo("fs")),
-    case::tar(tmprepo("tar"), tmprepo("tar")),
-    case::rpc(tmprepo("rpc"), tmprepo("rpc"))
-)]
+#[rstest]
+#[case::fs(tmprepo("fs"), tmprepo("fs"))]
+#[case::tar(tmprepo("tar"), tmprepo("tar"))]
+#[case::rpc(tmprepo("rpc"), tmprepo("rpc"))]
 #[tokio::test]
 async fn test_sync_missing_from_source(
-    #[future] repo_a: TempRepo,
-    #[future] repo_b: TempRepo,
+    #[case] #[future] repo_a: TempRepo,
+    #[case] #[future] repo_b: TempRepo,
     tmpdir: tempdir::TempDir,
 ) {
     init_logging();
@@ -198,17 +192,14 @@ async fn test_sync_missing_from_source(
         .expect("Should not fail when object is already in destination");
 }
 
-#[rstest(
-    repo_a,
-    repo_b,
-    case::fs(tmprepo("fs"), tmprepo("fs")),
-    case::tar(tmprepo("tar"), tmprepo("tar")),
-    case::rpc(tmprepo("rpc"), tmprepo("rpc"))
-)]
+#[rstest]
+#[case::fs(tmprepo("fs"), tmprepo("fs"))]
+#[case::tar(tmprepo("tar"), tmprepo("tar"))]
+#[case::rpc(tmprepo("rpc"), tmprepo("rpc"))]
 #[tokio::test]
 async fn test_sync_through_tar(
-    #[future] repo_a: TempRepo,
-    #[future] repo_b: TempRepo,
+    #[case] #[future] repo_a: TempRepo,
+    #[case] #[future] repo_b: TempRepo,
     tmpdir: tempdir::TempDir,
 ) {
     init_logging();
