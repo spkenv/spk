@@ -9,7 +9,8 @@ use std::pin::Pin;
 
 use async_stream::try_stream;
 use close_err::Closable;
-use futures::Stream;
+use futures::{Stream, TryStreamExt};
+use tokio::fs::DirEntry;
 use tokio::io::AsyncWriteExt;
 
 use crate::runtime::makedirs_with_perms;
@@ -61,6 +62,77 @@ impl FSHashStore {
         self.root.join(&WORK_DIRNAME)
     }
 
+    async fn find_in_entry(
+        search_criteria: crate::graph::DigestSearchCriteria,
+        entry: DirEntry,
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send + 'static>> {
+        let entry_filename = entry.file_name();
+        let entry_filename = entry_filename.to_string_lossy().into_owned();
+        if entry_filename == WORK_DIRNAME {
+            return Box::pin(futures::stream::empty());
+        }
+
+        let entry_partial = match encoding::PartialDigest::parse(&entry_filename) {
+            Err(err) => {
+                tracing::debug!(?err, "invalid digest directory in file storage",);
+                return Box::pin(futures::stream::empty());
+            }
+            Ok(partial) => partial,
+        };
+        let entry_bytes = entry_partial.as_slice();
+
+        match &search_criteria {
+            crate::graph::DigestSearchCriteria::StartsWith(bytes)
+                // If the directory name is shorter than the prefix, check that
+                // the prefix starts with the directory name.
+                if entry_bytes.len() < bytes.len() && !bytes.starts_with(entry_bytes) => {
+                    return Box::pin(futures::stream::empty());
+                }
+            crate::graph::DigestSearchCriteria::StartsWith(bytes)
+                // If the directory name is longer than the prefix, check that
+                // the directory name starts with the prefix.
+                if entry_bytes.len() >= bytes.len() && !entry_bytes.starts_with(bytes) => {
+                    return Box::pin(futures::stream::empty());
+                }
+            _ => {}
+        };
+
+        let mut subdir = match tokio::fs::read_dir(entry.path()).await {
+            Err(err) => match err.raw_os_error() {
+                Some(libc::ENOTDIR) => {
+                    tracing::debug!(?entry_filename, "found non-directory in hash storage");
+                    return Box::pin(futures::stream::empty());
+                }
+                _ => return Box::pin(futures::stream::once(async move { Err(err.into()) })),
+            },
+            Ok(subdir) => subdir,
+        };
+
+        Box::pin(try_stream! {
+            while let Some(name) = subdir.next_entry().await? {
+                let digest_str = format!("{entry_filename}{}", name.file_name().to_string_lossy());
+
+                match encoding::parse_digest(&digest_str) {
+                    Ok(digest) => match &search_criteria {
+                        crate::graph::DigestSearchCriteria::StartsWith(bytes)
+                            if digest.starts_with(bytes.as_slice()) =>
+                        {
+                            yield digest
+                        }
+                        crate::graph::DigestSearchCriteria::StartsWith(_) => continue,
+                        crate::graph::DigestSearchCriteria::All => yield digest,
+                    },
+                    Err(err) => {
+                        tracing::debug!(
+                            ?err, name = ?digest_str,
+                            "invalid digest in file storage",
+                        );
+                    }
+                }
+            }
+        })
+    }
+
     pub fn find(
         &self,
         search_criteria: crate::graph::DigestSearchCriteria,
@@ -73,64 +145,10 @@ impl FSHashStore {
             while let Some(entry) = root.next_entry().await? {
                 let entry_filename = entry.file_name();
                 let entry_filename = entry_filename.to_string_lossy();
-                if entry_filename == WORK_DIRNAME {
-                    continue;
-                }
 
-                let entry_partial = match encoding::PartialDigest::parse(&entry_filename) {
-                    Err(err) => {
-                        tracing::debug!(
-                            ?err, "invalid digest directory in file storage",
-                        );
-                        continue;
-                    },
-                    Ok(partial) => partial,
-                };
-                let entry_bytes = entry_partial.as_slice();
-
-                match &search_criteria {
-                    crate::graph::DigestSearchCriteria::StartsWith(bytes)
-                        // If the directory name is shorter than the prefix, check that
-                        // the prefix starts with the directory name.
-                        if entry_bytes.len() < bytes.len() && !bytes.starts_with(entry_bytes) => {
-                            continue;
-                        }
-                    crate::graph::DigestSearchCriteria::StartsWith(bytes)
-                        // If the directory name is longer than the prefix, check that
-                        // the directory name starts with the prefix.
-                        if entry_bytes.len() >= bytes.len() && !entry_bytes.starts_with(bytes) => {
-                            continue;
-                        }
-                    _ => {
-                    }
-                };
-
-                let mut subdir = match tokio::fs::read_dir(entry.path()).await {
-                    Err(err) => match err.raw_os_error() {
-                        Some(libc::ENOTDIR) => {
-                            tracing::debug!(?entry_filename, "found non-directory in hash storage");
-                            continue;
-                        }
-                        _ => Err(err)?,
-                    }
-                    Ok(subdir) => subdir,
-                };
-                while let Some(name) = subdir.next_entry().await? {
-                    let digest_str = format!("{entry_filename}{}", name.file_name().to_string_lossy());
-
-                    match encoding::parse_digest(&digest_str) {
-                        Ok(digest) => match &search_criteria {
-                            crate::graph::DigestSearchCriteria::StartsWith(bytes) if digest.starts_with(bytes.as_slice()) => yield digest,
-                            crate::graph::DigestSearchCriteria::StartsWith(_) => continue,
-                            crate::graph::DigestSearchCriteria::All => yield digest,
-                        }
-                        Err(err) => {
-                            tracing::debug!(
-                                ?err, name = ?digest_str,
-                                "invalid digest in file storage",
-                            );
-                        }
-                    }
+                let mut entry_stream = Self::find_in_entry(search_criteria.clone(), entry).await;
+                while let Some(digest) = entry_stream.try_next().await? {
+                    yield digest
                 }
 
                 if let crate::graph::DigestSearchCriteria::StartsWith(partial) = &search_criteria {
