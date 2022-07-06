@@ -226,6 +226,14 @@ impl AsRef<PkgName> for PkgName {
     }
 }
 
+impl AsRef<OptName> for PkgName {
+    fn as_ref(&self) -> &OptName {
+        // Safety: from_str skips validation, but we assume (and hopefully test)
+        // that the set of all packages names is a subset of all option names
+        unsafe { OptName::from_str(&self.0) }
+    }
+}
+
 impl AsRef<str> for PkgName {
     fn as_ref(&self) -> &str {
         &self.0
@@ -246,7 +254,7 @@ impl AsRef<std::ffi::OsStr> for PkgName {
 
 impl Borrow<OptName> for PkgName {
     fn borrow(&self) -> &OptName {
-        OptName::from_str(&self.0)
+        self.as_ref()
     }
 }
 
@@ -319,13 +327,20 @@ impl std::ops::Deref for OptNameBuf {
     type Target = OptName;
 
     fn deref(&self) -> &Self::Target {
-        OptName::from_str(self.0.as_str())
+        self.as_ref()
     }
 }
 
 impl AsRef<str> for OptNameBuf {
     fn as_ref(&self) -> &str {
         &self.0
+    }
+}
+
+impl AsRef<OptName> for OptNameBuf {
+    fn as_ref(&self) -> &OptName {
+        // Safety: from_str skips validation but we've already done that
+        unsafe { OptName::from_str(&self.0) }
     }
 }
 
@@ -343,7 +358,7 @@ impl AsRef<std::path::Path> for OptNameBuf {
 
 impl Borrow<String> for OptNameBuf {
     fn borrow(&self) -> &String {
-        unsafe { &*(self as *const OptNameBuf as *const String) }
+        &self.0
     }
 }
 
@@ -382,7 +397,7 @@ impl TryFrom<String> for OptNameBuf {
 
 impl Borrow<OptName> for OptNameBuf {
     fn borrow(&self) -> &OptName {
-        OptName::from_str(&self.0)
+        self.as_ref()
     }
 }
 
@@ -412,23 +427,33 @@ impl OptName {
 
     /// Standard option used to identify the operating system
     pub const fn os() -> &'static Self {
-        Self::from_str("os")
+        // Safety: from_str skips validation, but this is a known good value
+        unsafe { Self::from_str("os") }
     }
 
     /// Standard option used to identify the target architecture
     pub const fn arch() -> &'static Self {
-        Self::from_str("arch")
+        // Safety: from_str skips validation, but this is a known good value
+        unsafe { Self::from_str("arch") }
     }
 
     /// Standard option used to identify the os distribution
     pub const fn distro() -> &'static Self {
-        Self::from_str("distro")
+        // Safety: from_str skips validation, but this is a known good value
+        unsafe { Self::from_str("distro") }
     }
 
-    const fn from_str(inner: &str) -> &Self {
+    /// Wrap the given string as an OptName
+    ///
+    /// # Safety:
+    /// This function does not check that the provided string
+    /// is a valid optname and should only be called for known
+    /// valid values.
+    const unsafe fn from_str(inner: &str) -> &Self {
         unsafe { &*(inner as *const str as *const OptName) }
     }
 
+    /// Validate and wrap the given string as an OptName.
     pub fn new<S: AsRef<str> + ?Sized>(s: &S) -> Result<&OptName> {
         match s.as_ref().split_once(Self::SEP) {
             Some((ns, opt)) => {
@@ -439,7 +464,8 @@ impl OptName {
                 validate_opt_name(s)?;
             }
         }
-        Ok(Self::from_str(s.as_ref()))
+        // Safety: from_str skips validation but we've just done that
+        Ok(unsafe { Self::from_str(s.as_ref()) })
     }
 
     /// The non-namespace portion of this option
@@ -461,7 +487,9 @@ impl OptName {
     pub fn namespace(&self) -> Option<&PkgName> {
         self.0
             .split_once(Self::SEP)
-            .map(|(ns, _)| PkgName::from_str(ns))
+            // Safety: from_str skips validation, but we've already validated
+            // the namespace as a package name in [`Self::new`] if it is set
+            .map(|(ns, _)| unsafe { PkgName::from_str(ns) })
     }
 
     /// Return a copy of this option, adding the provided namespace if there isn't already one set
@@ -481,7 +509,9 @@ impl OptName {
 
     /// Return an option with the same name but no associated namespace
     pub fn without_namespace(&self) -> &OptName {
-        Self::from_str(self.base_name())
+        // Safety: from_str skips validation, but the base name of
+        // any option is also a valid option, it simply doesn't have a namespace
+        unsafe { Self::from_str(self.base_name()) }
     }
 
     pub fn as_str(&self) -> &str {
