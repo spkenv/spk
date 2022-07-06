@@ -20,9 +20,13 @@ use crate::fixtures::*;
 #[rstest]
 #[case::fs(tmprepo("fs"))]
 #[case::tar(tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_find_aliases(#[case] #[future] tmprepo: TempRepo) {
+async fn test_find_aliases(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     init_logging();
     let tmprepo = tmprepo.await;
     tmprepo
@@ -110,9 +114,14 @@ async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[case::fs(tmprepo("fs"))]
 #[case::tar(tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_commit_broken_link(#[case] #[future] tmprepo: TempRepo, tmpdir: tempdir::TempDir) {
+async fn test_commit_broken_link(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+    tmpdir: tempdir::TempDir,
+) {
     let tmprepo = tmprepo.await;
     let src_dir = tmpdir.path().join("source");
     std::fs::create_dir_all(&src_dir).unwrap();
@@ -129,9 +138,14 @@ async fn test_commit_broken_link(#[case] #[future] tmprepo: TempRepo, tmpdir: te
 #[rstest]
 #[case::fs(tmprepo("fs"))]
 #[case::tar(tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_commit_dir(#[case] #[future] tmprepo: TempRepo, tmpdir: tempdir::TempDir) {
+async fn test_commit_dir(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+    tmpdir: tempdir::TempDir,
+) {
     let tmprepo = tmprepo.await;
     let src_dir = tmpdir.path().join("source");
     ensure(src_dir.join("dir1.0/dir2.0/file.txt"), "somedata");

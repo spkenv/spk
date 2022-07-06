@@ -17,9 +17,6 @@ jobs:
     container:
       image: rust
       options: --security-opt seccomp=unconfined --privileged
-      env:
-        # Disable cnproc because we're in a container
-        FEATURES: "disable-cnproc"
     steps:
       - uses: actions/checkout@v2
       - name: Prepare Container
@@ -34,16 +31,17 @@ jobs:
       - name: Build Default
         run: make debug
       - name: Build Server
-        run: make debug FEATURES=server
+        run: make debug FEATURES=server,cli
       # Run test before lint, lint takes a while and it is useful to know that
       # the tests are failing before knowing if the lints are passing.
       - name: Test
-        run: make test
+        run: make test FEATURES=server,cli
       - name: Lint
-        run: make lint
+        run: make lint FEATURES=server,cli
       - name: Integration Test
+        # Disable cnproc because we're in a container
         run: |
-          make install-debug
+          make install-debug FEATURES=cli,disable-cnproc
           ORIGIN_REPO=/tmp/spfs-repos/origin
           mkdir -p "$ORIGIN_REPO"
           # Pre-create a repo

@@ -75,11 +75,15 @@ async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
 #[rstest]
 #[case::fs(tmprepo("fs"), tmprepo("fs"))]
 #[case::tar(tmprepo("tar"), tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"), tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc"), tmprepo("rpc")))]
 #[tokio::test]
 async fn test_sync_ref(
-    #[case] #[future] repo_a: TempRepo,
-    #[case] #[future] repo_b: TempRepo,
+    #[case]
+    #[future]
+    repo_a: TempRepo,
+    #[case]
+    #[future]
+    repo_b: TempRepo,
     tmpdir: tempdir::TempDir,
 ) {
     init_logging();
@@ -129,11 +133,15 @@ async fn test_sync_ref(
 #[rstest]
 #[case::fs(tmprepo("fs"), tmprepo("fs"))]
 #[case::tar(tmprepo("tar"), tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"), tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc"), tmprepo("rpc")))]
 #[tokio::test]
 async fn test_sync_missing_from_source(
-    #[case] #[future] repo_a: TempRepo,
-    #[case] #[future] repo_b: TempRepo,
+    #[case]
+    #[future]
+    repo_a: TempRepo,
+    #[case]
+    #[future]
+    repo_b: TempRepo,
     tmpdir: tempdir::TempDir,
 ) {
     init_logging();
@@ -195,11 +203,15 @@ async fn test_sync_missing_from_source(
 #[rstest]
 #[case::fs(tmprepo("fs"), tmprepo("fs"))]
 #[case::tar(tmprepo("tar"), tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"), tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc"), tmprepo("rpc")))]
 #[tokio::test]
 async fn test_sync_through_tar(
-    #[case] #[future] repo_a: TempRepo,
-    #[case] #[future] repo_b: TempRepo,
+    #[case]
+    #[future]
+    repo_a: TempRepo,
+    #[case]
+    #[future]
+    repo_b: TempRepo,
     tmpdir: tempdir::TempDir,
 ) {
     init_logging();
