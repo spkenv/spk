@@ -39,19 +39,19 @@ impl storage::PayloadStorage for super::RpcRepository {
             .await?
             .into_inner()
             .to_result()?;
-        let client = reqwest::Client::new();
+        let client = hyper::Client::new();
         let stream =
             tokio_util::codec::FramedRead::new(reader, tokio_util::codec::BytesCodec::new());
-        let resp = client
-            .post(&option.url)
-            .body(reqwest::Body::wrap_stream(stream))
-            .send()
-            .await
+        let request = hyper::Request::builder()
+            .method(hyper::Method::POST)
+            .uri(&option.url)
+            .body(hyper::Body::wrap_stream(stream))
             .map_err(|err| {
-                crate::Error::String(format!("Failed to send upload request: {:?}", err))
-            })?
-            .error_for_status()
-            .map_err(|err| crate::Error::String(format!("Upload failed: {:?}", err)))?;
+                crate::Error::String(format!("Failed to build upload request: {err:?}"))
+            })?;
+        let resp = client.request(request).await.map_err(|err| {
+            crate::Error::String(format!("Failed to send upload request: {err:?}"))
+        })?;
         if !resp.status().is_success() {
             // the server is expected to return all errors via the gRPC message
             // payload in the body. Any other status code is unexpected
@@ -60,12 +60,11 @@ impl storage::PayloadStorage for super::RpcRepository {
                 resp.status()
             )));
         }
-        let bytes = resp
-            .bytes()
+        let bytes = hyper::body::to_bytes(resp.into_body())
             .await
-            .map_err(|err| format!("Failed to read response from payload server: {:?}", err))?;
+            .map_err(|err| format!("Failed to read response from payload server: {err:?}"))?;
         let result = crate::proto::write_payload_response::UploadResponse::decode(bytes)
-            .map_err(|err| format!("Payload server returned invalid response data: {:?}", err))?
+            .map_err(|err| format!("Payload server returned invalid response data: {err:?}"))?
             .to_result()?;
         Ok((result.digest.try_into()?, result.size))
     }
@@ -84,17 +83,18 @@ impl storage::PayloadStorage for super::RpcRepository {
             .await?
             .into_inner()
             .to_result()?;
-        let client = reqwest::Client::new();
-        let url = option.locations.get(0).map(String::as_str).unwrap_or("");
-        let resp = client
-            .get(url)
-            .send()
-            .await
+        let client = hyper::Client::new();
+        let url = option
+            .locations
+            .get(0)
+            .ok_or_else(|| crate::Error::String("upload option gave no locations to try".into()))?
+            .parse()
             .map_err(|err| {
-                crate::Error::String(format!("Failed to send download request: {:?}", err))
-            })?
-            .error_for_status()
-            .map_err(|err| crate::Error::String(format!("Download failed: {:?}", err)))?;
+                crate::Error::String(format!("upload option gave invalid uri: {err:?}"))
+            })?;
+        let resp = client.get(url).await.map_err(|err| {
+            crate::Error::String(format!("Failed to send download request: {err:?}"))
+        })?;
         if !resp.status().is_success() {
             // the server is expected to return all errors via the gRPC message
             // payload in the body. Any other status code is unexpected
@@ -104,7 +104,7 @@ impl storage::PayloadStorage for super::RpcRepository {
             )));
         }
         let stream = resp
-            .bytes_stream()
+            .into_body()
             .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e));
         use tokio_util::compat::FuturesAsyncReadCompatExt;
         Ok(Box::pin(stream.into_async_read().compat()))
