@@ -108,7 +108,6 @@ pub fn tmpdir() -> TempDir {
 
 #[fixture(kind = "fs")]
 pub async fn tmprepo(kind: &str) -> TempRepo {
-    use crate::storage::prelude::*;
     init_logging();
     let tmpdir = tmpdir();
     match kind {
@@ -128,6 +127,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
         }
         #[cfg(feature = "server")]
         "rpc" => {
+            use crate::storage::prelude::*;
             let repo = std::sync::Arc::new(spfs::storage::RepositoryHandle::FS(
                 spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
                     .await

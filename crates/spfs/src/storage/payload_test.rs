@@ -11,9 +11,13 @@ use crate::fixtures::*;
 #[rstest]
 #[case::fs(tmprepo("fs"))]
 #[case::tar(tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_payload_io(#[case] #[future] tmprepo: TempRepo) {
+async fn test_payload_io(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     let tmprepo = tmprepo.await;
     let bytes = "simple string data".as_bytes();
     let reader = Box::pin(bytes);
@@ -41,9 +45,13 @@ async fn test_payload_io(#[case] #[future] tmprepo: TempRepo) {
 #[rstest]
 #[case::fs(tmprepo("fs"))]
 #[case::tar(tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_payload_existence(#[case] #[future] tmprepo: TempRepo) {
+async fn test_payload_existence(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     let tmprepo = tmprepo.await;
     let bytes = "simple string data".as_bytes();
     let reader = Box::pin(bytes);
@@ -69,9 +77,13 @@ async fn test_payload_existence(#[case] #[future] tmprepo: TempRepo) {
 #[rstest]
 #[case::fs(tmprepo("fs"))]
 #[case::tar(tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_payloads_iter(#[case] #[future] tmprepo: TempRepo) {
+async fn test_payloads_iter(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     let tmprepo = tmprepo.await;
     let payloads = [
         "simple string data 1".as_bytes(),

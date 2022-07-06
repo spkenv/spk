@@ -17,9 +17,13 @@ use crate::fixtures::*;
 #[rstest]
 #[case::fs(tmprepo("fs"))]
 #[case::tar(tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_tag_stream(#[case] #[future] tmprepo: TempRepo) {
+async fn test_tag_stream(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     init_logging();
     let tmprepo = tmprepo.await;
 
@@ -65,9 +69,13 @@ async fn test_tag_stream(#[case] #[future] tmprepo: TempRepo) {
 #[rstest]
 #[case::fs(tmprepo("fs"))]
 #[case::tar(tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_tag_no_duplication(#[case] #[future] tmprepo: TempRepo) {
+async fn test_tag_no_duplication(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     init_logging();
     let tmprepo = tmprepo.await;
 
@@ -124,9 +132,13 @@ async fn test_tag_permissions(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[case::fs(tmprepo("fs"))]
 #[case::tar(tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_ls_tags(#[case] #[future] tmprepo: TempRepo) {
+async fn test_ls_tags(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     init_logging();
     let tmprepo = tmprepo.await;
 
@@ -181,9 +193,13 @@ async fn test_ls_tags(#[case] #[future] tmprepo: TempRepo) {
 #[rstest]
 #[case::fs(tmprepo("fs"))]
 #[case::tar(tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_tag_ordering(#[case] #[future] tmprepo: TempRepo) {
+async fn test_tag_ordering(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     init_logging();
     let tmprepo = tmprepo.await;
     let tag_name = "spi/stable/my_tag";
@@ -236,9 +252,13 @@ async fn test_tag_ordering(#[case] #[future] tmprepo: TempRepo) {
 #[rstest]
 #[case::fs(tmprepo("fs"))]
 #[case::tar(tmprepo("tar"))]
-#[case::rpc(tmprepo("rpc"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_rm_tags(#[case] #[future] tmprepo: TempRepo) {
+async fn test_rm_tags(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     init_logging();
     let tmprepo = tmprepo.await;
 
