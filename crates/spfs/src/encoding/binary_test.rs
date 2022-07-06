@@ -155,7 +155,9 @@ fn test_read_string_failure() {
         ..Default::default()
     };
     let r = read_string(&mut ts);
-    assert!(matches!(r, Err(crate::Error::IO(io)) if io.raw_os_error() == Some(TEST_RAW_ERROR)));
+    assert!(
+        matches!(r, Err(crate::Error::EncodingReadError(io)) if io.raw_os_error() == Some(TEST_RAW_ERROR))
+    );
 }
 
 #[test]
@@ -163,7 +165,7 @@ fn test_read_string_eof() {
     let mut ts = TestStream::default();
     let r = read_string(&mut ts);
     assert!(
-        matches!(r, Err(crate::Error::IO(io)) if io.kind() == std::io::ErrorKind::UnexpectedEof)
+        matches!(r, Err(crate::Error::EncodingReadError(io)) if io.kind() == std::io::ErrorKind::UnexpectedEof)
     );
 }
 

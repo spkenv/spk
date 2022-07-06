@@ -58,9 +58,9 @@ pub fn join_runtime(rt: &runtime::Runtime) -> Result<()> {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Err(Error::UnknownRuntime {
                     message: rt.name().into(),
-                    source: Box::new(err.into()),
+                    source: Box::new(err),
                 }),
-                _ => Err(err.into()),
+                _ => Err(Error::RuntimeReadError(ns_path, err)),
             }
         }
     };
@@ -146,7 +146,8 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
         });
     }
 
-    Ok(cmd.spawn()?)
+    cmd.spawn()
+        .map_err(|err| Error::ProcessSpawnError("spfs-monitor".to_owned(), err))
 }
 
 /// When provided an active runtime, wait until all contained processes exit
@@ -345,7 +346,7 @@ async fn identify_mount_namespace_of_process(pid: u32) -> Result<Option<std::pat
                     );
                     return Ok(None);
                 }
-                _ => return Err(err.into()),
+                _ => return Err(Error::RuntimeReadError(ns_path, err)),
             },
         };
     }
@@ -359,14 +360,21 @@ async fn identify_mount_namespace_of_process(pid: u32) -> Result<Option<std::pat
 async fn find_processes_in_mount_namespace(ns: &std::path::Path) -> Result<HashSet<u32>> {
     let mut found_processes = HashSet::new();
 
-    let mut read_dir = tokio::fs::read_dir(PROC_DIR).await?;
-    while let Some(entry) = read_dir.next_entry().await? {
+    let mut read_dir = tokio::fs::read_dir(PROC_DIR)
+        .await
+        .map_err(|err| Error::RuntimeReadError(PROC_DIR.into(), err))?;
+    while let Some(entry) = read_dir
+        .next_entry()
+        .await
+        .map_err(|err| Error::RuntimeReadError(PROC_DIR.into(), err))?
+    {
         let pid = match entry.file_name().to_str().map(|s| s.parse::<u32>()) {
             Some(Ok(pid)) => pid,
             // don't bother reading proc dirs that are not named with a valid pid
             _ => continue,
         };
-        let found_ns = match tokio::fs::read_link(entry.path().join("ns/mnt")).await {
+        let link_path = entry.path().join("ns/mnt");
+        let found_ns = match tokio::fs::read_link(&link_path).await {
             Ok(p) => p,
             Err(err) => match err.raw_os_error() {
                 Some(libc::ENOENT) => continue,
@@ -374,7 +382,7 @@ async fn find_processes_in_mount_namespace(ns: &std::path::Path) -> Result<HashS
                 Some(libc::EACCES) => continue,
                 Some(libc::EPERM) => continue,
                 _ => {
-                    return Err(err.into());
+                    return Err(Error::RuntimeReadError(link_path, err));
                 }
             },
         };
@@ -536,9 +544,11 @@ pub fn mask_files(
                 continue;
             }
             if meta.is_file() {
-                std::fs::remove_file(&fullpath)?;
+                std::fs::remove_file(&fullpath)
+                    .map_err(|err| Error::RuntimeWriteError(fullpath.clone(), err))?;
             } else {
-                std::fs::remove_dir_all(&fullpath)?;
+                std::fs::remove_dir_all(&fullpath)
+                    .map_err(|err| Error::RuntimeWriteError(fullpath.clone(), err))?;
             }
         }
 
@@ -563,7 +573,9 @@ pub fn mask_files(
         if !fullpath.is_dir() {
             continue;
         }
-        let existing = &fullpath.symlink_metadata()?;
+        let existing = &fullpath
+            .symlink_metadata()
+            .map_err(|err| Error::RuntimeReadError(fullpath.clone(), err))?;
         if existing.permissions().mode() != node.entry.mode {
             if let Err(err) = std::fs::set_permissions(
                 &fullpath,
@@ -572,10 +584,7 @@ pub fn mask_files(
                 match err.kind() {
                     std::io::ErrorKind::NotFound => continue,
                     _ => {
-                        return Err(Error::wrap_io(
-                            err,
-                            format!("Failed to set permissions on masked file [{}]", node.path),
-                        ));
+                        return Err(Error::RuntimeSetPermissionsError(fullpath, err));
                     }
                 }
             }
@@ -666,10 +675,7 @@ pub(crate) fn mount_env<P: AsRef<Path>>(
     cmd.arg("none");
     cmd.arg(SPFS_DIR);
     match cmd.status() {
-        Err(err) => Err(Error::wrap_io(
-            err,
-            "Failed to run mount command for overlay",
-        )),
+        Err(err) => Err(Error::ProcessSpawnError("mount".to_owned(), err)),
         Ok(status) => match status.code() {
             Some(0) => Ok(()),
             _ => Err("Failed to mount overlayfs".into()),

@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use clap::{Parser, Subcommand};
+use spfs::Error;
 
 #[macro_use]
 mod args;
@@ -130,7 +131,8 @@ async fn run_external_subcommand(args: Vec<String>) -> spfs::Result<i32> {
         let cmd_path = match spfs::which(command.as_str()) {
             Some(cmd) => cmd,
             None => {
-                let mut p = std::env::current_exe()?;
+                let mut p = std::env::current_exe()
+                    .map_err(|err| Error::ProcessSpawnError("current_exe()".into(), err))?;
                 p.set_file_name(&command);
                 p
             }

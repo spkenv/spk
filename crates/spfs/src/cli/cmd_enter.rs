@@ -5,6 +5,7 @@
 use std::ffi::OsString;
 
 use clap::Parser;
+use spfs::Error;
 use tokio::signal::unix::{signal, SignalKind};
 
 #[macro_use]
@@ -77,9 +78,12 @@ impl CmdEnter {
             spfs::reinitialize_runtime(&runtime).await?;
             Ok(0)
         } else {
-            let mut terminate = signal(SignalKind::terminate())?;
-            let mut interrupt = signal(SignalKind::interrupt())?;
-            let mut quit = signal(SignalKind::quit())?;
+            let mut terminate = signal(SignalKind::terminate())
+                .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
+            let mut interrupt = signal(SignalKind::interrupt())
+                .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
+            let mut quit = signal(SignalKind::quit())
+                .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
             let owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
 
             if let Err(err) = spfs::env::spawn_monitor_for_runtime(&owned) {
@@ -112,7 +116,10 @@ impl CmdEnter {
                 }
             };
 
-            Ok(res?.code().unwrap_or(1))
+            Ok(res
+                .map_err(|err| Error::ProcessSpawnError("exec_runtime_command".into(), err))?
+                .code()
+                .unwrap_or(1))
         }
     }
 
@@ -237,6 +244,7 @@ impl CmdEnter {
         };
         let mut proc = cmd.into_tokio();
         tracing::debug!("{:?}", proc);
-        Ok(proc.spawn()?)
+        proc.spawn()
+            .map_err(|err| Error::ProcessSpawnError("exec_runtime_command".into(), err))
     }
 }

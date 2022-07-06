@@ -36,14 +36,17 @@ pub trait PayloadStorage: Sync + Send {
         reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)>;
 
-    /// Return a handle to the full content of a payload.
+    /// Return a handle and filename to the full content of a payload.
     ///
     /// # Errors:
     /// - [`crate::Error::UnknownObject`]: if the payload does not exist in this storage
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>>;
+    ) -> Result<(
+        Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        std::path::PathBuf,
+    )>;
 
     /// Remove the payload identified by the given digest.
     ///
@@ -70,7 +73,10 @@ impl<T: PayloadStorage> PayloadStorage for &T {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>> {
+    ) -> Result<(
+        Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        std::path::PathBuf,
+    )> {
         PayloadStorage::open_payload(&**self, digest).await
     }
 

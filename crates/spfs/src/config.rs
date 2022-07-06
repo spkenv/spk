@@ -296,7 +296,9 @@ pub fn get_config() -> Result<Arc<Config>> {
 pub fn load_config() -> Result<Config> {
     use config::{Config as RawConfig, Environment, File, FileFormat::Ini};
 
-    let user_config = expanduser::expanduser("~/.config/spfs/spfs")?;
+    let user_config_dir = "~/.config/spfs/spfs";
+    let user_config = expanduser::expanduser(&user_config_dir)
+        .map_err(|err| crate::Error::InvalidPath(user_config_dir.into(), err))?;
 
     let config = RawConfig::builder()
         // for backwards compatibility we also support .conf as an ini extension
@@ -349,7 +351,9 @@ pub async fn open_repository_from_string<S: AsRef<str>>(
     let rh = config.get_remote_repository_or_local(specifier).await;
 
     if let Err(crate::Error::FailedToOpenRepository { source, .. }) = &rh {
-        if let crate::Error::UnknownRemoteName(specifier) = &**source {
+        if let Some(crate::Error::UnknownRemoteName(specifier)) =
+            source.downcast_ref::<crate::Error>()
+        {
             // In the event that provided specifier was not a recognized name,
             // attempt to use it as an address instead.
             let rh_as_address = open_repository(specifier).await;

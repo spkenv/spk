@@ -21,11 +21,13 @@ impl DatabaseView for super::FSRepository {
             tokio::io::BufReader::new(tokio::fs::File::open(&filepath).await.map_err(|err| {
                 match err.kind() {
                     std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
-                    _ => Error::from(err),
+                    _ => Error::StorageReadError(filepath.clone(), err),
                 }
             })?);
         let mut buf = Vec::new();
-        file.read_to_end(&mut buf).await?;
+        file.read_to_end(&mut buf)
+            .await
+            .map_err(|err| Error::StorageReadError(filepath.clone(), err))?;
         Object::decode(&mut buf.as_slice())
     }
 
@@ -76,19 +78,20 @@ impl graph::Database for super::FSRepository {
                 .create_new(true)
                 .write(true)
                 .open(&working_file)
-                .await?,
+                .await
+                .map_err(|err| Error::StorageWriteError(working_file.clone(), err))?,
         );
         if let Err(err) = writer.write_all(encoded.as_slice()).await {
             let _ = tokio::fs::remove_file(&working_file).await;
-            return Err(err.into());
+            return Err(Error::StorageWriteError(working_file, err));
         }
         if let Err(err) = writer.flush().await {
             let _ = tokio::fs::remove_file(&working_file).await;
-            return Err(Error::wrap_io(err, "Failed to flush object write"));
+            return Err(Error::StorageWriteError(working_file, err));
         }
         if let Err(err) = writer.into_inner().into_std().await.close() {
             let _ = tokio::fs::remove_file(&working_file).await;
-            return Err(Error::wrap_io(err, "Failed to close object file"));
+            return Err(Error::StorageWriteError(working_file.clone(), err));
         }
         self.objects.ensure_base_dir(&filepath)?;
         match tokio::fs::rename(&working_file, &filepath).await {
@@ -97,7 +100,7 @@ impl graph::Database for super::FSRepository {
                 let _ = tokio::fs::remove_file(&working_file).await;
                 match err.kind() {
                     std::io::ErrorKind::AlreadyExists => Ok(()),
-                    _ => Err(err.into()),
+                    _ => Err(Error::StorageWriteError(filepath, err)),
                 }
             }
         }
@@ -112,7 +115,7 @@ impl graph::Database for super::FSRepository {
         if let Err(err) = tokio::fs::remove_file(&filepath).await {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Ok(()),
-                _ => Err(err.into()),
+                _ => Err(Error::StorageWriteError(filepath, err)),
             };
         }
         Ok(())

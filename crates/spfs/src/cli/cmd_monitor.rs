@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use clap::Parser;
+use spfs::Error;
 use tokio::signal::unix::{signal, SignalKind};
 
 #[macro_use]
@@ -30,9 +31,12 @@ pub struct CmdMonitor {
 
 impl CmdMonitor {
     pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
-        let mut interrupt = signal(SignalKind::interrupt())?;
-        let mut quit = signal(SignalKind::quit())?;
-        let mut terminate = signal(SignalKind::terminate())?;
+        let mut interrupt = signal(SignalKind::interrupt())
+            .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
+        let mut quit = signal(SignalKind::quit())
+            .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
+        let mut terminate = signal(SignalKind::terminate())
+            .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
         let repo = spfs::open_repository(&self.runtime_storage).await?;
         let storage = spfs::runtime::Storage::new(repo);
         let runtime = storage.read_runtime(&self.runtime).await?;

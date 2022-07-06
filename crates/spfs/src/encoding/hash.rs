@@ -355,7 +355,10 @@ impl<'a> Digest {
         let mut count;
         buf.resize(4096, 0);
         loop {
-            count = reader.read(buf.as_mut_slice()).await?;
+            count = reader
+                .read(buf.as_mut_slice())
+                .await
+                .map_err(Error::EncodingReadError)?;
             if count == 0 {
                 break;
             }
@@ -375,7 +378,9 @@ impl<'a> Digest {
         let mut count;
         buf.resize(4096, 0);
         loop {
-            count = reader.read(buf.as_mut_slice())?;
+            count = reader
+                .read(buf.as_mut_slice())
+                .map_err(Error::EncodingReadError)?;
             if count == 0 {
                 break;
             }

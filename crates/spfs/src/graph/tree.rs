@@ -8,7 +8,7 @@ use std::io::BufRead;
 use super::Entry;
 use crate::encoding;
 use crate::encoding::Encodable;
-use crate::Result;
+use crate::{Error, Result};
 
 #[cfg(test)]
 #[path = "./tree_test.rs"]
@@ -52,7 +52,7 @@ impl Tree {
     /// - if an entry with the same name exists
     pub fn add(&mut self, entry: Entry) -> Result<()> {
         if !self.entries.insert(entry) {
-            Err(libc::EEXIST.into())
+            Err(Error::String("Tree entry already exists".to_owned()))
         } else {
             Ok(())
         }

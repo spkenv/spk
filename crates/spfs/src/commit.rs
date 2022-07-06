@@ -36,7 +36,9 @@ pub async fn commit_dir<P>(repo: Arc<RepositoryHandle>, path: P) -> Result<track
 where
     P: AsRef<Path>,
 {
-    let path = tokio::fs::canonicalize(path).await?;
+    let path = tokio::fs::canonicalize(&path)
+        .await
+        .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
     let manifest = {
         let builder = tracking::ManifestBuilder::new(CommitBlobHasher {
             repo: Arc::clone(&repo),

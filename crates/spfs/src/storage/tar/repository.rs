@@ -13,8 +13,8 @@ use tar::{Archive, Builder};
 
 use crate::graph;
 use crate::storage::{tag::TagSpecAndTagStream, EntryType};
-use crate::Result;
 use crate::{encoding, prelude::*, storage, tracking};
+use crate::{Error, Result};
 
 /// Configuration for a tar repository
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
@@ -68,8 +68,11 @@ impl TarRepository {
             let mut file = std::fs::OpenOptions::new()
                 .write(true)
                 .create_new(true)
-                .open(&path)?;
-            Builder::new(&mut file).finish()?;
+                .open(&path)
+                .map_err(|err| Error::StorageWriteError(path.to_owned(), err))?;
+            Builder::new(&mut file)
+                .finish()
+                .map_err(|err| Error::StorageWriteError(path.to_owned(), err))?;
         }
         Self::open(path).await
     }
@@ -77,12 +80,20 @@ impl TarRepository {
     // Open a repository over the given directory, which must already
     // exist and be a repository
     pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let path = path.as_ref().canonicalize()?;
-        let mut file = BufReader::new(std::fs::File::open(&path)?);
+        let path = path
+            .as_ref()
+            .canonicalize()
+            .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
+        let mut file = BufReader::new(
+            std::fs::File::open(&path).map_err(|err| Error::StorageReadError(path.clone(), err))?,
+        );
         let mut archive = Archive::new(&mut file);
-        let tmpdir = tempdir::TempDir::new("spfs-tar-repo")?;
+        let tmpdir = tempdir::TempDir::new("spfs-tar-repo")
+            .map_err(|err| Error::StorageWriteError("temp dir".into(), err))?;
         let repo_path = tmpdir.path().to_path_buf();
-        archive.unpack(&repo_path)?;
+        archive
+            .unpack(&repo_path)
+            .map_err(|err| Error::StorageWriteError(repo_path.clone(), err))?;
         Ok(Self {
             up_to_date: AtomicBool::new(false),
             archive: path,
@@ -95,10 +106,15 @@ impl TarRepository {
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .truncate(true)
-            .open(&self.archive)?;
+            .open(&self.archive)
+            .map_err(|err| Error::StorageWriteError(self.archive.clone(), err))?;
         let mut builder = Builder::new(&mut file);
-        builder.append_dir_all(".", self.repo_dir.path())?;
-        builder.finish()?;
+        builder
+            .append_dir_all(".", self.repo_dir.path())
+            .map_err(|err| Error::StorageWriteError(self.archive.clone(), err))?;
+        builder
+            .finish()
+            .map_err(|err| Error::StorageWriteError(self.archive.clone(), err))?;
         self.up_to_date
             .store(true, std::sync::atomic::Ordering::Release);
         Ok(())
@@ -191,7 +207,10 @@ impl PayloadStorage for TarRepository {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>> {
+    ) -> Result<(
+        Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        std::path::PathBuf,
+    )> {
         self.repo.open_payload(digest).await
     }
 

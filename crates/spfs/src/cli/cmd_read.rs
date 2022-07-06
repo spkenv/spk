@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
+use spfs::Error;
 
 /// Output the contents of a blob to stdout
 #[derive(Debug, Args)]
@@ -54,8 +55,10 @@ impl CmdRead {
             }
         };
 
-        let mut payload = repo.open_payload(blob.digest()).await?;
-        tokio::io::copy(&mut payload, &mut tokio::io::stdout()).await?;
+        let (mut payload, filename) = repo.open_payload(blob.digest()).await?;
+        tokio::io::copy(&mut payload, &mut tokio::io::stdout())
+            .await
+            .map_err(|err| Error::StorageReadError(filename, err))?;
         Ok(0)
     }
 }

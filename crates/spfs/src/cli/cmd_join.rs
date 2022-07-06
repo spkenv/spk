@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use clap::Parser;
-use spfs::Result;
+use spfs::{Error, Result};
 use std::ffi::OsString;
 
 #[macro_use]
@@ -39,7 +39,8 @@ impl CmdJoin {
         // ensure that all code still operates in a single os thread
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .build()?;
+            .build()
+            .map_err(|err| Error::ProcessSpawnError("new_current_thread()".into(), err))?;
         let res = rt.block_on(async {
             let storage = config.get_runtime_storage().await?;
             let rt = storage.read_runtime(&self.runtime).await?;
@@ -65,6 +66,10 @@ impl CmdJoin {
         };
         let mut proc = cmd.into_std();
         tracing::debug!("{:?}", proc);
-        Ok(proc.status()?.code().unwrap_or(1))
+        Ok(proc
+            .status()
+            .map_err(|err| Error::ProcessSpawnError("exec_runtime_command".into(), err))?
+            .code()
+            .unwrap_or(1))
     }
 }

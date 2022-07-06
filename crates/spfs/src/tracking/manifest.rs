@@ -16,7 +16,7 @@ use tokio::fs::DirEntry;
 use super::entry::{Entry, EntryKind};
 use crate::encoding;
 use crate::runtime;
-use crate::Result;
+use crate::{Error, Result};
 
 #[cfg(test)]
 #[path = "./manifest_test.rs"]
@@ -299,9 +299,15 @@ where
     ) -> Result<Entry> {
         tree_node.kind = EntryKind::Tree;
         let base = dirname.as_ref();
-        let mut read_dir = tokio::fs::read_dir(base).await?;
+        let mut read_dir = tokio::fs::read_dir(base)
+            .await
+            .map_err(|err| Error::StorageReadError(base.to_owned(), err))?;
         let mut futures = FuturesUnordered::new();
-        while let Some(dir_entry) = read_dir.next_entry().await? {
+        while let Some(dir_entry) = read_dir
+            .next_entry()
+            .await
+            .map_err(|err| Error::StorageReadError(base.to_owned(), err))?
+        {
             let dir_entry = Arc::new(dir_entry);
             let mb = Arc::clone(&mb);
             let path = base.join(dir_entry.file_name());
@@ -344,10 +350,16 @@ where
                         entry.object = encoding::NULL_DIGEST.into();
                         return Ok(entry);
                     }
-                    _ => return Err(lstat_err.into()),
+                    Ok(_) => {
+                        return Err(Error::String(format!(
+                            "Unexpected non-char device file: {}",
+                            path.as_ref().display()
+                        )))
+                    }
+                    Err(err) => return Err(Error::StorageReadError(path.as_ref().to_owned(), err)),
                 }
             }
-            Err(err) => return Err(err.into()),
+            Err(err) => return Err(Error::StorageReadError(path.as_ref().to_owned(), err)),
         };
 
         entry.mode = stat_result.mode();
@@ -356,7 +368,8 @@ where
         let file_type = stat_result.file_type();
         if file_type.is_symlink() {
             let link_target = tokio::fs::read_link(&path)
-                .await?
+                .await
+                .map_err(|err| Error::StorageReadError(path.as_ref().to_owned(), err))?
                 .into_os_string()
                 .into_string()
                 .map_err(|_| {
@@ -377,7 +390,11 @@ where
             return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
         } else {
             entry.kind = EntryKind::Blob;
-            let reader = tokio::io::BufReader::new(tokio::fs::File::open(path).await?);
+            let reader = tokio::io::BufReader::new(
+                tokio::fs::File::open(&path)
+                    .await
+                    .map_err(|err| Error::StorageReadError(path.as_ref().to_owned(), err))?,
+            );
             entry.object = mb.hasher.hasher(Box::pin(reader)).await?;
         }
         Ok(entry)

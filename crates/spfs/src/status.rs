@@ -36,7 +36,9 @@ pub async fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
     let mut cmd = std::process::Command::new(command.executable);
     cmd.args(command.args);
     tracing::debug!("{:?}", cmd);
-    let res = tokio::task::spawn_blocking(move || cmd.status()).await??;
+    let res = tokio::task::spawn_blocking(move || cmd.status())
+        .await?
+        .map_err(|err| Error::ProcessSpawnError("remount".to_owned(), err))?;
     if res.code() != Some(0) {
         Err("Failed to re-mount runtime filesystem".into())
     } else {

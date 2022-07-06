@@ -382,7 +382,7 @@ where
             matches!(_permit, Ok(_)),
             "We never close the semaphore and so should never see errors"
         );
-        let payload = self.src.open_payload(digest).await?;
+        let (payload, _) = self.src.open_payload(digest).await?;
         // Safety: this is the unsafe part where we actually create
         // the payload without a corresponsing blob
         let (created_digest, size) = unsafe { self.dest.write_data(payload).await? };

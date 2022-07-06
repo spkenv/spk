@@ -41,7 +41,11 @@ pub struct FSHashStore {
 
 impl FSHashStore {
     pub fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
-        Ok(Self::open_unchecked(root.as_ref().canonicalize()?))
+        let root = root.as_ref();
+        Ok(Self::open_unchecked(
+            root.canonicalize()
+                .map_err(|err| Error::InvalidPath(root.to_owned(), err))?,
+        ))
     }
 
     pub fn open_unchecked<P: AsRef<Path>>(root: P) -> Self {
@@ -103,13 +107,17 @@ impl FSHashStore {
                     tracing::debug!(?entry_filename, "found non-directory in hash storage");
                     return Box::pin(futures::stream::empty());
                 }
-                _ => return Box::pin(futures::stream::once(async move { Err(err.into()) })),
+                _ => {
+                    return Box::pin(futures::stream::once(async move {
+                        Err(Error::StorageReadError(entry.path(), err))
+                    }))
+                }
             },
             Ok(subdir) => subdir,
         };
 
         Box::pin(try_stream! {
-            while let Some(name) = subdir.next_entry().await? {
+            while let Some(name) = subdir.next_entry().await.map_err(|err| Error::StorageReadError(entry.path(), err))? {
                 let digest_str = format!("{entry_filename}{}", name.file_name().to_string_lossy());
 
                 match encoding::parse_digest(&digest_str) {
@@ -141,8 +149,8 @@ impl FSHashStore {
         let root = self.root.clone();
 
         try_stream! {
-            let mut root = tokio::fs::read_dir(&root).await?;
-            while let Some(entry) = root.next_entry().await? {
+            let mut root_entries = tokio::fs::read_dir(&root).await.map_err(|err| Error::StorageReadError(root.clone(), err))?;
+            while let Some(entry) = root_entries.next_entry().await.map_err(|err| Error::StorageReadError(root.clone(), err))? {
                 let entry_filename = entry.file_name();
                 let entry_filename = entry_filename.to_string_lossy();
 
@@ -193,23 +201,24 @@ impl FSHashStore {
                 .read(true)
                 .write(true)
                 .open(&working_file)
-                .await?,
+                .await
+                .map_err(|err| Error::StorageWriteError(working_file.clone(), err))?,
         );
         let mut hasher = encoding::Hasher::with_target(&mut writer);
         let copied = match tokio::io::copy(&mut reader, &mut hasher).await {
             Err(err) => {
-                let _ = tokio::fs::remove_file(working_file).await;
-                return Err(Error::wrap_io(err, "Failed to write object data"));
+                let _ = tokio::fs::remove_file(&working_file).await;
+                return Err(Error::StorageWriteError(working_file, err));
             }
             Ok(s) => s,
         };
 
         let digest = hasher.digest();
         if let Err(err) = writer.flush().await {
-            return Err(Error::wrap_io(err, "Failed to flush object write"));
+            return Err(Error::StorageWriteError(working_file, err));
         }
         if let Err(err) = writer.into_inner().into_std().await.close() {
-            return Err(Error::wrap_io(err, "Failed to close object file"));
+            return Err(Error::StorageWriteError(working_file, err));
         }
 
         self.persist_object_with_digest(
@@ -238,7 +247,8 @@ impl FSHashStore {
                     .write(true)
                     .truncate(true)
                     .open(&path)
-                    .await?;
+                    .await
+                    .map_err(|err| Error::StorageWriteError(path.clone(), err))?;
                 0
             }
             PersistableObject::WorkingFile {
@@ -246,10 +256,10 @@ impl FSHashStore {
                 copied,
             } => {
                 if let Err(err) = tokio::fs::rename(&working_file, &path).await {
-                    let _ = tokio::fs::remove_file(working_file).await;
+                    let _ = tokio::fs::remove_file(&working_file).await;
                     match err.kind() {
                         ErrorKind::AlreadyExists => (),
-                        _ => return Err(Error::wrap_io(err, "Failed to store object")),
+                        _ => return Err(Error::StorageWriteError(working_file, err)),
                     }
                 }
                 copied
@@ -292,7 +302,9 @@ impl FSHashStore {
     /// invalid references if given an invalid path.
     pub async fn get_digest_from_path<P: AsRef<Path>>(&self, path: P) -> Result<encoding::Digest> {
         use std::path::Component::Normal;
-        let path = tokio::fs::canonicalize(path).await?;
+        let path = tokio::fs::canonicalize(&path)
+            .await
+            .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
         let mut parts: Vec<_> = path.components().collect();
         let last = parts.pop();
         let second_last = parts.pop();
@@ -324,12 +336,16 @@ impl FSHashStore {
             Err(err) => {
                 return match err.kind() {
                     ErrorKind::NotFound => Err(Error::UnknownReference(short_digest)),
-                    _ => Err(err.into()),
+                    _ => Err(Error::StorageReadError(dirpath.clone(), err)),
                 }
             }
             Ok(mut read_dir) => {
                 let mut mapped = Vec::new();
-                while let Some(next) = read_dir.next_entry().await? {
+                while let Some(next) = read_dir
+                    .next_entry()
+                    .await
+                    .map_err(|err| Error::StorageReadError(dirpath.clone(), err))?
+                {
                     mapped.push(next.file_name());
                 }
                 mapped
@@ -353,16 +369,23 @@ impl FSHashStore {
     /// the possible conflicts to a subdirectory (and subset of all digests)
     pub async fn get_shortened_digest(&self, digest: &encoding::Digest) -> Result<String> {
         let filepath = self.build_digest_path(digest);
-        let entries: Vec<_> = match tokio::fs::read_dir(filepath.parent().unwrap()).await {
+        let filepath_parent = filepath.parent().ok_or_else(|| {
+            Error::String(format!("No parent directory of {}", filepath.display()))
+        })?;
+        let entries: Vec<_> = match tokio::fs::read_dir(filepath_parent).await {
             Err(err) => {
                 return match err.kind() {
                     ErrorKind::NotFound => Err(Error::UnknownObject(*digest)),
-                    _ => Err(err.into()),
+                    _ => Err(Error::StorageReadError(filepath_parent.to_owned(), err)),
                 };
             }
             Ok(mut read_dir) => {
                 let mut mapped = Vec::new();
-                while let Some(next) = read_dir.next_entry().await? {
+                while let Some(next) = read_dir
+                    .next_entry()
+                    .await
+                    .map_err(|err| Error::StorageReadError(filepath_parent.to_owned(), err))?
+                {
                     mapped.push(next.file_name().to_string_lossy().to_string());
                 }
                 mapped

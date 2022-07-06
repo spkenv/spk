@@ -71,7 +71,7 @@ impl ManifestViewer for FSRepository {
                         tracing::warn!(path=?working_dir, "failed to clean up working directory: {:?}", err);
                     }
                 }
-                _ => return Err(Error::wrap_io(err, "Failed to finalize render")),
+                _ => return Err(Error::StorageWriteError(rendered_dirpath, err)),
             },
         }
 
@@ -92,10 +92,7 @@ impl ManifestViewer for FSRepository {
         if let Err(err) = tokio::fs::rename(&rendered_dirpath, &working_dirpath).await {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Ok(()),
-                _ => Err(crate::Error::wrap_io(
-                    err,
-                    "Failed to yank render for deletion",
-                )),
+                _ => Err(crate::Error::StorageWriteError(working_dirpath, err)),
             };
         }
 
@@ -128,9 +125,12 @@ impl FSRepository {
         // other code can run in the current thread)
         for node in entries.iter() {
             let res = match node.entry.kind {
-                tracking::EntryKind::Tree => tokio::fs::create_dir_all(&node.path.to_path("/"))
-                    .await
-                    .map_err(|e| e.into()),
+                tracking::EntryKind::Tree => {
+                    let path_to_create = node.path.to_path("/");
+                    tokio::fs::create_dir_all(&path_to_create)
+                        .await
+                        .map_err(|err| Error::StorageWriteError(path_to_create, err))
+                }
                 tracking::EntryKind::Mask => continue,
                 tracking::EntryKind::Blob => {
                     self.render_blob(node.path.to_path("/"), node.entry, &render_type)
@@ -149,16 +149,14 @@ impl FSRepository {
             if node.entry.is_symlink() {
                 continue;
             }
+            let path_to_change = node.path.to_path("/");
             if let Err(err) = tokio::fs::set_permissions(
-                &node.path.to_path("/"),
+                &path_to_change,
                 std::fs::Permissions::from_mode(node.entry.mode),
             )
             .await
             {
-                return Err(Error::wrap_io(
-                    err,
-                    format!("Failed to set permissions [{}]", node.path),
-                ));
+                return Err(Error::StorageWriteError(path_to_change, err));
             }
         }
 
@@ -172,13 +170,19 @@ impl FSRepository {
         render_type: &RenderType,
     ) -> Result<()> {
         if entry.is_symlink() {
-            let mut reader = self.open_payload(entry.object).await?;
+            let (mut reader, filename) = self.open_payload(entry.object).await?;
             let mut target = String::new();
-            reader.read_to_string(&mut target).await?;
+            reader
+                .read_to_string(&mut target)
+                .await
+                .map_err(|err| Error::StorageReadError(filename, err))?;
             return if let Err(err) = std::os::unix::fs::symlink(&target, &rendered_path) {
                 match err.kind() {
                     std::io::ErrorKind::AlreadyExists => Ok(()),
-                    _ => Err(Error::wrap_io(err, "Failed to render symlink")),
+                    _ => Err(Error::StorageWriteError(
+                        rendered_path.as_ref().to_owned(),
+                        err,
+                    )),
                 }
             } else {
                 Ok(())
@@ -191,13 +195,9 @@ impl FSRepository {
                     match err.kind() {
                         std::io::ErrorKind::AlreadyExists => (),
                         _ => {
-                            return Err(Error::wrap_io(
+                            return Err(Error::StorageWriteError(
+                                rendered_path.as_ref().to_owned(),
                                 err,
-                                format!(
-                                    "Failed to hardlink original:[{}] link:[{}]",
-                                    committed_path.display(),
-                                    rendered_path.as_ref().display()
-                                ),
                             ))
                         }
                     }
@@ -207,7 +207,12 @@ impl FSRepository {
                 if let Err(err) = tokio::fs::copy(&committed_path, &rendered_path).await {
                     match err.kind() {
                         std::io::ErrorKind::AlreadyExists => (),
-                        _ => return Err(Error::wrap_io(err, "Failed to copy file")),
+                        _ => {
+                            return Err(Error::StorageWriteError(
+                                rendered_path.as_ref().to_owned(),
+                                err,
+                            ))
+                        }
                     }
                 }
             }
@@ -225,21 +230,34 @@ impl FSRepository {
 /// change permissions before removal otherwise.
 #[async_recursion::async_recursion]
 async fn open_perms_and_remove_all(root: &Path) -> Result<()> {
-    let mut read_dir = tokio::fs::read_dir(&root).await?;
+    let mut read_dir = tokio::fs::read_dir(&root)
+        .await
+        .map_err(|err| Error::StorageReadError(root.to_owned(), err))?;
     // TODO: parallelize this with async
-    while let Some(entry) = read_dir.next_entry().await? {
+    while let Some(entry) = read_dir
+        .next_entry()
+        .await
+        .map_err(|err| Error::StorageReadError(root.to_owned(), err))?
+    {
         let entry_path = root.join(entry.file_name());
-        let file_type = entry.file_type().await?;
+        let file_type = entry
+            .file_type()
+            .await
+            .map_err(|err| Error::StorageReadError(root.to_owned(), err))?;
         let _ =
             tokio::fs::set_permissions(&entry_path, std::fs::Permissions::from_mode(0o777)).await;
         if file_type.is_symlink() || file_type.is_file() {
-            tokio::fs::remove_file(&entry_path).await?;
+            tokio::fs::remove_file(&entry_path)
+                .await
+                .map_err(|err| Error::StorageWriteError(entry_path.clone(), err))?;
         }
         if file_type.is_dir() {
             open_perms_and_remove_all(&entry_path).await?;
         }
     }
-    tokio::fs::remove_dir(&root).await?;
+    tokio::fs::remove_dir(&root)
+        .await
+        .map_err(|err| Error::StorageWriteError(root.to_owned(), err))?;
     Ok(())
 }
 
@@ -268,7 +286,8 @@ async fn mark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
         .create(true)
         .write(true)
         .open(&marker_path)
-        .await?;
+        .await
+        .map_err(|err| Error::StorageWriteError(marker_path, err))?;
     Ok(())
 }
 
@@ -283,7 +302,7 @@ async fn unmark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
     if let Err(err) = tokio::fs::remove_file(&marker_path).await {
         match err.kind() {
             std::io::ErrorKind::NotFound => Ok(()),
-            _ => Err(err.into()),
+            _ => Err(Error::StorageWriteError(marker_path, err)),
         }
     } else {
         Ok(())
