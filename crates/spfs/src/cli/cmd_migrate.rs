@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
+use spfs::Error;
 
 /// Migrate the data from and older repository format to the latest one
 #[derive(Debug, Args)]
@@ -17,7 +18,9 @@ pub struct CmdMigrate {
 
 impl CmdMigrate {
     pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
-        let repo_root = std::path::PathBuf::from(&self.path).canonicalize()?;
+        let repo_root = std::path::PathBuf::from(&self.path)
+            .canonicalize()
+            .map_err(|err| Error::InvalidPath((&self.path).into(), err))?;
         let result = if self.upgrade {
             spfs::storage::fs::migrations::upgrade_repo(repo_root).await?
         } else {

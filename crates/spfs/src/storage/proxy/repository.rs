@@ -137,7 +137,10 @@ impl PayloadStorage for ProxyRepository {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>> {
+    ) -> Result<(
+        Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        std::path::PathBuf,
+    )> {
         let mut res = self.primary.open_payload(digest).await;
         if res.is_ok() {
             return res;

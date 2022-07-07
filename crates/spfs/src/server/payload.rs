@@ -188,7 +188,7 @@ async fn handle_download(
     relative_path: String,
 ) -> crate::Result<hyper::http::Response<hyper::Body>> {
     let digest = crate::encoding::Digest::parse(&relative_path)?;
-    let reader = repo.open_payload(digest).await?;
+    let (reader, _) = repo.open_payload(digest).await?;
     hyper::Response::builder()
         .status(hyper::http::StatusCode::OK)
         .body(hyper::Body::wrap_stream(tokio_util::io::ReaderStream::new(

@@ -10,7 +10,7 @@ on:
       - 'release-*'
 
 jobs:
-  build:
+  build-rpm:
     runs-on: ubuntu-latest
     # Release build takes a long time!
     timeout-minutes: 30

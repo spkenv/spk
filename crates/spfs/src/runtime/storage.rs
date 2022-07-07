@@ -343,18 +343,26 @@ impl Runtime {
             })
             .collect::<Result<Vec<gitignore::Pattern>>>()?;
         for entry in walkdir::WalkDir::new(&self.config.upper_dir) {
-            let entry = entry?;
+            let entry = entry.map_err(|err| {
+                Error::RuntimeReadError(self.config.upper_dir.clone(), err.into())
+            })?;
             let fullpath = entry.path();
             if fullpath == self.config.upper_dir {
                 continue;
             }
             for pattern in paths.iter() {
-                let is_dir = entry.metadata()?.file_type().is_dir();
+                let is_dir = entry
+                    .metadata()
+                    .map_err(|err| Error::RuntimeReadError(entry.path().to_owned(), err.into()))?
+                    .file_type()
+                    .is_dir();
                 if pattern.is_excluded(fullpath, is_dir) {
                     if is_dir {
-                        std::fs::remove_dir_all(&fullpath)?;
+                        std::fs::remove_dir_all(&fullpath)
+                            .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
                     } else {
-                        std::fs::remove_file(&fullpath)?;
+                        std::fs::remove_file(&fullpath)
+                            .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
                     }
                 }
             }
@@ -406,12 +414,15 @@ impl Runtime {
         std::fs::write(
             &self.config.sh_startup_file,
             startup_sh::source(&tmpdir_value_for_child_process),
-        )?;
+        )
+        .map_err(|err| Error::RuntimeWriteError(self.config.sh_startup_file.clone(), err))?;
         std::fs::write(
             &self.config.csh_startup_file,
             startup_csh::source(&tmpdir_value_for_child_process),
-        )?;
-        std::fs::write(&self.config.csh_expect_file, csh_exp::SOURCE)?;
+        )
+        .map_err(|err| Error::RuntimeWriteError(self.config.csh_startup_file.clone(), err))?;
+        std::fs::write(&self.config.csh_expect_file, csh_exp::SOURCE)
+            .map_err(|err| Error::RuntimeWriteError(self.config.csh_expect_file.clone(), err))?;
         Ok(())
     }
 
@@ -530,19 +541,22 @@ impl Storage {
             }
             Err(err) => return Err(err),
         };
-        let mut reader = self
-            .inner
-            .open_payload(digest)
-            .await
-            .map_err(|err| match err {
-                Error::UnknownObject(_) => Error::UnknownRuntime {
-                    message: format!("{} in storage {}", name.as_ref(), self.address()),
-                    source: Box::new(err),
-                },
-                _ => err,
-            })?;
+        let (mut reader, filename) =
+            self.inner
+                .open_payload(digest)
+                .await
+                .map_err(|err| match err {
+                    Error::UnknownObject(_) => Error::UnknownRuntime {
+                        message: format!("{} in storage {}", name.as_ref(), self.address()),
+                        source: Box::new(err),
+                    },
+                    _ => err,
+                })?;
         let mut data = String::new();
-        reader.read_to_string(&mut data).await?;
+        reader
+            .read_to_string(&mut data)
+            .await
+            .map_err(|err| Error::RuntimeReadError(filename, err))?;
         let config: Data = serde_json::from_str(&data)?;
         Ok(Runtime {
             data: config,
@@ -668,7 +682,7 @@ pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> Result<()>
                 if let Err(err) = std::fs::create_dir(&path) {
                     match err.kind() {
                         std::io::ErrorKind::AlreadyExists => (),
-                        _ => return Err(err.into()),
+                        _ => return Err(Error::RuntimeWriteError(path, err)),
                     }
                 }
                 // not fatal, so it's worth allowing things to continue

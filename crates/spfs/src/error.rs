@@ -13,8 +13,6 @@ pub enum Error {
     String(String),
     #[error(transparent)]
     Nix(#[from] nix::Error),
-    #[error(transparent)]
-    IO(#[from] io::Error),
     #[error("[ERRNO {1}] {0}")]
     Errno(String, i32),
     #[error(transparent)]
@@ -25,6 +23,8 @@ pub enum Error {
     InvalidRemoteUrl(#[from] url::ParseError),
     #[error("Invalid date time: {0:?}")]
     InvalidDateTime(#[from] chrono::ParseError),
+    #[error("Invalid path {0}")]
+    InvalidPath(std::path::PathBuf, #[source] io::Error),
     #[error(transparent)]
     Caps(#[from] caps::errors::CapsError),
     #[error(transparent)]
@@ -33,6 +33,12 @@ pub enum Error {
     Tonic(#[from] tonic::Status),
     #[error(transparent)]
     TokioJoinError(#[from] tokio::task::JoinError),
+    #[error("Encoding read error")]
+    EncodingReadError(#[source] io::Error),
+    #[error("Encoding write error")]
+    EncodingWriteError(#[source] io::Error),
+    #[error("Failed to spawn {0} process")]
+    ProcessSpawnError(String, #[source] io::Error),
 
     /// Denotes a missing object or one that is not present in the database.
     #[error("Unknown Object: {0}")]
@@ -53,7 +59,10 @@ pub enum Error {
         "Failed to open repository: {reason}, {}",
         .source.to_string()
     )]
-    FailedToOpenRepository { reason: String, source: Box<Self> },
+    FailedToOpenRepository {
+        reason: String,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
     #[error("No remote name '{0}' configured.")]
     UnknownRemoteName(String),
 
@@ -67,11 +76,24 @@ pub enum Error {
         "Runtime does not exist: {message}: {}",
         .source.to_string()
     )]
-    UnknownRuntime { message: String, source: Box<Self> },
+    UnknownRuntime {
+        message: String,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
     #[error("Runtime already exists: {0}")]
     RuntimeExists(String),
     #[error("Runtime is already editable")]
     RuntimeAlreadyEditable,
+    #[error("Runtime read error: {0}")]
+    RuntimeReadError(std::path::PathBuf, #[source] io::Error),
+    #[error("Runtime write error: {0}")]
+    RuntimeWriteError(std::path::PathBuf, #[source] io::Error),
+    #[error("Runtime set permissions error: {0}")]
+    RuntimeSetPermissionsError(std::path::PathBuf, #[source] io::Error),
+    #[error("Storage read error: {0}")]
+    StorageReadError(std::path::PathBuf, #[source] io::Error),
+    #[error("Storage write error: {0}")]
+    StorageWriteError(std::path::PathBuf, #[source] io::Error),
 
     #[error("'{0}' not found in PATH, was it installed properly?")]
     MissingBinary(&'static str),
@@ -92,11 +114,6 @@ impl Error {
         Error::Errno(msg, errno)
     }
 
-    pub fn wrap_io<E: Into<String>>(err: std::io::Error, prefix: E) -> Error {
-        let err = Self::from(err);
-        err.wrap(prefix)
-    }
-
     pub fn wrap_nix<E: Into<String>>(err: nix::Error, prefix: E) -> Error {
         let err = Self::from(err);
         err.wrap(prefix)
@@ -111,14 +128,22 @@ impl Error {
     }
 
     pub fn raw_os_error(&self) -> Option<i32> {
-        match self {
-            Error::IO(err) => match err.raw_os_error() {
-                Some(errno) => Some(errno),
-                None => match err.kind() {
-                    std::io::ErrorKind::UnexpectedEof => Some(libc::EOF),
-                    _ => None,
-                },
+        let handle_io_error = |err: &io::Error| match err.raw_os_error() {
+            Some(errno) => Some(errno),
+            None => match err.kind() {
+                std::io::ErrorKind::UnexpectedEof => Some(libc::EOF),
+                _ => None,
             },
+        };
+
+        match self {
+            Error::EncodingReadError(err) => handle_io_error(err),
+            Error::EncodingWriteError(err) => handle_io_error(err),
+            Error::ProcessSpawnError(_, err) => handle_io_error(err),
+            Error::RuntimeReadError(_, err) => handle_io_error(err),
+            Error::RuntimeWriteError(_, err) => handle_io_error(err),
+            Error::StorageReadError(_, err) => handle_io_error(err),
+            Error::StorageWriteError(_, err) => handle_io_error(err),
             Error::Errno(_, errno) => Some(*errno),
             Error::Nix(err) => {
                 let errno = err.as_errno();
@@ -137,11 +162,6 @@ impl From<nix::errno::Errno> for Error {
         Error::Nix(nix::Error::from_errno(errno))
     }
 }
-impl From<i32> for Error {
-    fn from(errno: i32) -> Error {
-        Error::IO(std::io::Error::from_raw_os_error(errno))
-    }
-}
 impl From<String> for Error {
     fn from(err: String) -> Self {
         Self::String(err)
@@ -155,16 +175,6 @@ impl From<&str> for Error {
 impl From<std::path::StripPrefixError> for Error {
     fn from(err: std::path::StripPrefixError) -> Self {
         Error::String(err.to_string())
-    }
-}
-
-impl From<walkdir::Error> for Error {
-    fn from(err: walkdir::Error) -> Self {
-        let msg = err.to_string();
-        match err.into_io_error() {
-            Some(err) => err.into(),
-            None => Self::String(msg),
-        }
     }
 }
 

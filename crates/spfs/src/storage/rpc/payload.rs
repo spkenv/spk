@@ -72,7 +72,10 @@ impl storage::PayloadStorage for super::RpcRepository {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>> {
+    ) -> Result<(
+        Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        std::path::PathBuf,
+    )> {
         let request = proto::OpenPayloadRequest {
             digest: Some(digest.into()),
         };
@@ -84,14 +87,13 @@ impl storage::PayloadStorage for super::RpcRepository {
             .into_inner()
             .to_result()?;
         let client = hyper::Client::new();
-        let url = option
+        let url_str = option
             .locations
             .get(0)
-            .ok_or_else(|| crate::Error::String("upload option gave no locations to try".into()))?
-            .parse()
-            .map_err(|err| {
-                crate::Error::String(format!("upload option gave invalid uri: {err:?}"))
-            })?;
+            .ok_or_else(|| crate::Error::String("upload option gave no locations to try".into()))?;
+        let url = url_str.parse().map_err(|err| {
+            crate::Error::String(format!("upload option gave invalid uri: {err:?}"))
+        })?;
         let resp = client.get(url).await.map_err(|err| {
             crate::Error::String(format!("Failed to send download request: {err:?}"))
         })?;
@@ -107,7 +109,7 @@ impl storage::PayloadStorage for super::RpcRepository {
             .into_body()
             .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e));
         use tokio_util::compat::FuturesAsyncReadCompatExt;
-        Ok(Box::pin(stream.into_async_read().compat()))
+        Ok((Box::pin(stream.into_async_read().compat()), url_str.into()))
     }
 
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {

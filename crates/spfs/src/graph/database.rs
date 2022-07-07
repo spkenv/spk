@@ -128,7 +128,7 @@ impl<'db> Stream for DatabaseIterator<'db> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum DigestSearchCriteria {
     All,
     StartsWith(encoding::PartialDigest),

@@ -94,7 +94,8 @@ impl Runtime {
 
     /// Create a runtime to represent the data under 'root'.
     pub fn new<S: AsRef<Path>>(root: S) -> Result<Self> {
-        let root = std::fs::canonicalize(root)?;
+        let root = std::fs::canonicalize(&root)
+            .map_err(|err| Error::RuntimeReadError(root.as_ref().into(), err))?;
         let name = match root.file_name() {
             None => return Err("Invalid runtime path, has no filename".into()),
             Some(name) => match name.to_str() {
@@ -203,18 +204,25 @@ impl Runtime {
             })
             .collect::<Result<Vec<gitignore::Pattern>>>()?;
         for entry in walkdir::WalkDir::new(&self.upper_dir) {
-            let entry = entry?;
+            let entry =
+                entry.map_err(|err| Error::RuntimeReadError(self.upper_dir.clone(), err.into()))?;
             let fullpath = entry.path();
             if fullpath == self.upper_dir {
                 continue;
             }
             for pattern in paths.iter() {
-                let is_dir = entry.metadata()?.file_type().is_dir();
+                let is_dir = entry
+                    .metadata()
+                    .map_err(|err| Error::RuntimeReadError(entry.path().to_owned(), err.into()))?
+                    .file_type()
+                    .is_dir();
                 if pattern.is_excluded(fullpath, is_dir) {
                     if is_dir {
-                        std::fs::remove_dir_all(&fullpath)?;
+                        std::fs::remove_dir_all(&fullpath)
+                            .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
                     } else {
-                        std::fs::remove_file(&fullpath)?;
+                        std::fs::remove_file(&fullpath)
+                            .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
                     }
                 }
             }
@@ -238,7 +246,8 @@ impl Runtime {
     /// Remove all data pertaining to this runtime.
     pub fn delete(&self) -> Result<()> {
         tracing::debug!("cleaning up runtime: {:?}", &self.root.display());
-        std::fs::remove_dir_all(&self.root)?;
+        std::fs::remove_dir_all(&self.root)
+            .map_err(|err| Error::RuntimeWriteError(self.root.clone(), err))?;
         Ok(())
     }
 
@@ -300,11 +309,15 @@ impl Runtime {
                 .write(true)
                 .create(true)
                 .truncate(true)
-                .open(&self.config_file)?,
+                .open(&self.config_file)
+                .map_err(|err| Error::RuntimeWriteError(self.config_file.clone(), err))?,
         );
         serde_json::to_writer(&mut file, &self.config)?;
-        file.flush()?;
-        file.get_ref().sync_all()?;
+        file.flush()
+            .map_err(|err| Error::RuntimeWriteError(self.config_file.clone(), err))?;
+        file.get_ref()
+            .sync_all()
+            .map_err(|err| Error::RuntimeWriteError(self.config_file.clone(), err))?;
         Ok(())
     }
 
@@ -320,7 +333,7 @@ impl Runtime {
                     self.write_config()?;
                     Ok(&mut self.config)
                 } else {
-                    Err(err.into())
+                    Err(Error::RuntimeReadError(self.config_file.clone(), err))
                 }
             }
         }
@@ -336,7 +349,7 @@ fn ensure_runtime<P: AsRef<Path>>(path: P) -> Result<Runtime> {
     if let Err(err) = std::fs::create_dir(&path) {
         match err.kind() {
             std::io::ErrorKind::AlreadyExists => (),
-            _ => return Err(err.into()),
+            _ => return Err(Error::RuntimeWriteError(path.as_ref().into(), err)),
         }
     }
     let runtime = Runtime::new(&path)?;
@@ -361,12 +374,15 @@ fn ensure_runtime<P: AsRef<Path>>(path: P) -> Result<Runtime> {
     std::fs::write(
         &runtime.sh_startup_file,
         startup_sh::source(&tmpdir_value_for_child_process),
-    )?;
+    )
+    .map_err(|err| Error::RuntimeWriteError(runtime.sh_startup_file.clone(), err))?;
     std::fs::write(
         &runtime.csh_startup_file,
         startup_csh::source(&tmpdir_value_for_child_process),
-    )?;
-    std::fs::write(&runtime.csh_expect_file, csh_exp::SOURCE)?;
+    )
+    .map_err(|err| Error::RuntimeWriteError(runtime.csh_startup_file.clone(), err))?;
+    std::fs::write(&runtime.csh_expect_file, csh_exp::SOURCE)
+        .map_err(|err| Error::RuntimeWriteError(runtime.csh_expect_file.clone(), err))?;
     Ok(runtime)
 }
 
@@ -379,7 +395,8 @@ impl Storage {
     /// Initialize a new storage inside the given root directory.
     pub fn new<P: AsRef<Path>>(root: P) -> Result<Self> {
         makedirs_with_perms(&root, 0o777)?;
-        let root = std::fs::canonicalize(&root)?;
+        let root = std::fs::canonicalize(&root)
+            .map_err(|err| Error::RuntimeWriteError(root.as_ref().into(), err))?;
         Ok(Self { root })
     }
 
@@ -401,7 +418,7 @@ impl Storage {
             Ok(_) => Runtime::new(runtime_dir),
             Err(err) => Err(Error::UnknownRuntime {
                 message: reference.as_ref().to_string_lossy().into(),
-                source: Box::new(err.into()),
+                source: Box::new(err),
             }),
         }
     }
@@ -437,12 +454,14 @@ impl Storage {
                 let root = self.root.clone();
                 Box::new(read_dir.into_iter().map(move |dir| match dir {
                     Ok(dir) => Runtime::new(root.join(dir.file_name())),
-                    Err(err) => Err(err.into()),
+                    Err(err) => Err(Error::RuntimeReadError(root.clone(), err)),
                 }))
             }
             Err(err) => match err.kind() {
                 std::io::ErrorKind::NotFound => Box::new(Vec::new().into_iter()),
-                _ => Box::new(vec![Err(err.into())].into_iter()),
+                _ => {
+                    Box::new(vec![Err(Error::RuntimeReadError(self.root.clone(), err))].into_iter())
+                }
             },
         }
     }
@@ -475,7 +494,7 @@ pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> Result<()>
                 if let Err(err) = std::fs::create_dir(&path) {
                     match err.kind() {
                         std::io::ErrorKind::AlreadyExists => (),
-                        _ => return Err(err.into()),
+                        _ => return Err(Error::RuntimeWriteError(path, err)),
                     }
                 }
                 // not fatal, so it's worth allowing things to continue

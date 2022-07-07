@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use super::FSHashStore;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
-use crate::Result;
+use crate::{Error, Result};
 
 /// Configuration for an fs repository
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
@@ -71,7 +71,9 @@ impl FSRepository {
     /// Establish a new filesystem repository
     pub async fn create<P: AsRef<Path>>(root: P) -> Result<Self> {
         makedirs_with_perms(&root, 0o777)?;
-        let root = tokio::fs::canonicalize(root.as_ref()).await?;
+        let root = tokio::fs::canonicalize(root.as_ref())
+            .await
+            .map_err(|err| Error::InvalidPath(root.as_ref().to_owned(), err))?;
         makedirs_with_perms(root.join("tags"), 0o777)?;
         makedirs_with_perms(root.join("objects"), 0o777)?;
         makedirs_with_perms(root.join("payloads"), 0o777)?;
@@ -126,7 +128,7 @@ impl FSRepository {
             Err(err) => {
                 return Err(crate::Error::FailedToOpenRepository {
                     reason: root.as_ref().to_string_lossy().to_string(),
-                    source: Box::new(err.into()),
+                    source: Box::new(err),
                 })
             }
         };
@@ -205,11 +207,11 @@ pub async fn read_last_migration_version<P: AsRef<Path>>(
     root: P,
 ) -> Result<Option<semver::Version>> {
     let version_file = root.as_ref().join("VERSION");
-    let version = match tokio::fs::read_to_string(version_file).await {
+    let version = match tokio::fs::read_to_string(&version_file).await {
         Ok(version) => version,
         Err(err) => match err.kind() {
             std::io::ErrorKind::NotFound => return Ok(None),
-            _ => return Err(err.into()),
+            _ => return Err(Error::StorageReadError(version_file, err)),
         },
     };
 
@@ -250,15 +252,21 @@ pub async fn set_last_migration<P: AsRef<Path>>(
 }
 
 fn write_version_file<P: AsRef<Path>>(root: P, version: &semver::Version) -> Result<()> {
-    let mut temp_version_file = tempfile::NamedTempFile::new_in(root.as_ref())?;
+    let mut temp_version_file = tempfile::NamedTempFile::new_in(root.as_ref())
+        .map_err(|err| Error::StorageWriteError(root.as_ref().to_owned(), err))?;
     // This file can be read only. It will be replaced by a new file
     // if the contents need to be changed. But for interop with older
     // versions of spfs that need to write to it, enable write.
     temp_version_file
         .as_file()
-        .set_permissions(Permissions::from_mode(0o666))?;
-    temp_version_file.write_all(version.to_string().as_bytes())?;
-    temp_version_file.flush()?;
+        .set_permissions(Permissions::from_mode(0o666))
+        .map_err(|err| Error::StorageWriteError(temp_version_file.path().to_owned(), err))?;
+    temp_version_file
+        .write_all(version.to_string().as_bytes())
+        .map_err(|err| Error::StorageWriteError(temp_version_file.path().to_owned(), err))?;
+    temp_version_file
+        .flush()
+        .map_err(|err| Error::StorageWriteError(temp_version_file.path().to_owned(), err))?;
     temp_version_file
         .persist(root.as_ref().join("VERSION"))
         .map_err(|err| crate::Error::String(err.to_string()))?;

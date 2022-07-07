@@ -34,6 +34,7 @@ async fn test_payload_io(#[future] tmprepo: TempRepo) {
         .open_payload(digest)
         .await
         .unwrap()
+        .0
         .read_to_string(&mut actual)
         .await
         .unwrap();

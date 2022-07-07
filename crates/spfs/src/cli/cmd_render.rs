@@ -4,7 +4,7 @@
 
 use clap::Parser;
 
-use spfs::prelude::*;
+use spfs::{prelude::*, Error};
 
 #[macro_use]
 mod args;
@@ -59,12 +59,18 @@ impl CmdRender {
         env_spec: spfs::tracking::EnvSpec,
         target: &std::path::Path,
     ) -> spfs::Result<std::path::PathBuf> {
-        tokio::fs::create_dir_all(&target).await?;
-        let target_dir = tokio::fs::canonicalize(target).await?;
+        tokio::fs::create_dir_all(&target)
+            .await
+            .map_err(|err| Error::RuntimeWriteError(target.to_owned(), err))?;
+        let target_dir = tokio::fs::canonicalize(target)
+            .await
+            .map_err(|err| Error::InvalidPath(target.to_owned(), err))?;
         if tokio::fs::read_dir(&target_dir)
-            .await?
+            .await
+            .map_err(|err| Error::RuntimeReadError(target_dir.clone(), err))?
             .next_entry()
-            .await?
+            .await
+            .map_err(|err| Error::RuntimeReadError(target_dir.clone(), err))?
             .is_some()
             && !self.allow_existing
         {

@@ -4,6 +4,7 @@
 use std::path::PathBuf;
 
 use clap::Args;
+use spfs::Error;
 
 /// Store an arbitrary blob of data in spfs
 #[derive(Debug, Args)]
@@ -29,7 +30,11 @@ impl CmdWrite {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         let reader: std::pin::Pin<Box<dyn tokio::io::AsyncRead + Sync + Send>> = match &self.file {
-            Some(file) => Box::pin(tokio::fs::File::open(file).await?),
+            Some(file) => Box::pin(
+                tokio::fs::File::open(&file)
+                    .await
+                    .map_err(|err| Error::RuntimeWriteError(file.clone(), err))?,
+            ),
             None => Box::pin(tokio::io::stdin()),
         };
 
