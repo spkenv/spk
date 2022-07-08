@@ -10,10 +10,24 @@ use spk::{api::PkgName, io::Format};
 
 use super::{flags, CommandArgs, Run};
 
+pub trait Output: Default + Send + Sync {
+    /// A line of output to display.
+    fn println(&mut self, line: String);
+}
+
+#[derive(Default)]
+pub struct Console {}
+
+impl Output for Console {
+    fn println(&mut self, line: String) {
+        println!("{line}");
+    }
+}
+
 /// List packages in one or more repositories
 #[derive(Args)]
 #[clap(visible_alias = "list")]
-pub struct Ls {
+pub struct Ls<Output: Default = Console> {
     #[clap(flatten)]
     pub repos: flags::Repositories,
 
@@ -37,10 +51,13 @@ pub struct Ls {
     /// If nothing is provided, list all available packages.
     #[clap(name = "NAME[/VERSION]")]
     package: Option<String>,
+
+    #[clap(skip)]
+    pub(crate) output: Output,
 }
 
 #[async_trait::async_trait]
-impl Run for Ls {
+impl<T: Output> Run for Ls<T> {
     async fn run(&mut self) -> Result<i32> {
         let mut repos = self.repos.get_repos(None).await?;
 
@@ -165,13 +182,13 @@ impl Run for Ls {
         }
 
         for item in results {
-            println!("{}", item);
+            self.output.println(item.to_string());
         }
         Ok(0)
     }
 }
 
-impl CommandArgs for Ls {
+impl<T: Output> CommandArgs for Ls<T> {
     fn get_positional_args(&self) -> Vec<String> {
         // The important positional args for a ls are the packages
         match &self.package {
@@ -181,9 +198,9 @@ impl CommandArgs for Ls {
     }
 }
 
-impl Ls {
+impl<T: Output> Ls<T> {
     async fn list_recursively(
-        &self,
+        &mut self,
         repos: Vec<(String, spk::storage::RepositoryHandle)>,
     ) -> Result<i32> {
         let mut packages = Vec::new();
@@ -244,7 +261,8 @@ impl Ls {
                             width = max_repo_name_len + 2
                         );
                     }
-                    println!("{}", self.format_build(&build, &spec, repo).await?);
+                    self.output
+                        .println((self.format_build(&build, &spec, repo).await?).to_string());
                 }
             }
         }
