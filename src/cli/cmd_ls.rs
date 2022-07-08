@@ -63,7 +63,11 @@ pub struct Ls<Output: Default = Console> {
 #[async_trait::async_trait]
 impl<T: Output> Run for Ls<T> {
     async fn run(&mut self) -> Result<i32> {
-        let mut repos = self.repos.get_repos(None).await?;
+        let mut repos = if self.repos.local_repo {
+            self.repos.get_repos(None).await?
+        } else {
+            self.repos.get_repos(&["origin".to_string()]).await?
+        };
 
         if repos.is_empty() {
             let local = String::from("local");
