@@ -6,7 +6,7 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 
 use rstest::fixture;
-use spfs::prelude::*;
+use spfs::{config::Remote, prelude::*, Result};
 use tokio::sync::{Mutex, MutexGuard};
 
 use crate::storage;
@@ -16,11 +16,21 @@ lazy_static::lazy_static! {
 }
 
 pub struct RuntimeLock {
+    config: Arc<spfs::Config>,
     original_config: spfs::Config,
     _guard: MutexGuard<'static, ()>,
     pub runtime: spfs::runtime::Runtime,
     pub tmprepo: Arc<storage::RepositoryHandle>,
     pub tmpdir: tempdir::TempDir,
+}
+
+impl RuntimeLock {
+    pub fn add_remote_repo<S: ToString>(&mut self, name: S, repo: Remote) -> Result<()> {
+        let mut config = (*self.config).clone();
+        config.remote.insert(name.to_string(), repo);
+        self.config = config.make_current()?;
+        Ok(())
+    }
 }
 
 impl Drop for RuntimeLock {
@@ -191,6 +201,7 @@ pub async fn spfs_runtime() -> RuntimeLock {
         .expect("failed to reset runtime for test");
 
     RuntimeLock {
+        config,
         original_config,
         _guard,
         runtime: replica,
