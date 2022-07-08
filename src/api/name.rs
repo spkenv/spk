@@ -133,9 +133,7 @@ impl TryFrom<String> for PkgNameBuf {
     type Error = crate::Error;
 
     fn try_from(s: String) -> Result<Self> {
-        // we trust that if it can be validated as a pkg_name
-        // then it's a valid value to wrap
-        PkgName::new(&s)?;
+        validate_pkg_name(&s)?;
         Ok(Self(s))
     }
 }
@@ -388,9 +386,7 @@ impl TryFrom<String> for OptNameBuf {
     type Error = crate::Error;
 
     fn try_from(s: String) -> Result<Self> {
-        // we trust that if it can be validated as an opt_name
-        // then it's a valid value to wrap
-        OptName::new(&s)?;
+        validate_opt_name(&s)?;
         Ok(Self(s))
     }
 }
