@@ -24,8 +24,8 @@ release:
 lint:
     # cargo fmt doesn't accept `--features`
 	cargo fmt --check
-	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps $(cargo_features_arg)
 	cargo clippy --tests $(cargo_features_arg) -- -Dwarnings
+	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps $(cargo_features_arg)
 
 test:
 	cargo test --all $(cargo_features_arg)
