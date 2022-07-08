@@ -10,6 +10,10 @@ use spk::api::PkgName;
 
 use super::{flags, CommandArgs, Run};
 
+#[cfg(test)]
+#[path = "./cmd_ls_test.rs"]
+mod cmd_ls_test;
+
 pub trait Output: Default + Send + Sync {
     /// A line of output to display.
     fn println(&mut self, line: String);
