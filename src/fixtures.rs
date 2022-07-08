@@ -166,6 +166,11 @@ pub async fn spfs_runtime() -> RuntimeLock {
     let storage_root = tmprepo.tmpdir.path().join("repo");
 
     let mut new_config = original_config.clone();
+
+    // Remove all configured remote repositories so this isolated runtime
+    // is completely isolated.
+    new_config.remote.clear();
+
     // update the config to use our temp dir for local storage
     std::env::set_var("SPFS_STORAGE_ROOT", &storage_root);
     new_config.storage.root = storage_root;
