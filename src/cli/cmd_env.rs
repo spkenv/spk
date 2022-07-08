@@ -6,7 +6,7 @@ use std::ffi::OsString;
 use anyhow::{Context, Result};
 use clap::Args;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Resolve and run an environment on-the-fly
 ///
@@ -78,6 +78,12 @@ impl Run for Env {
             spfs::build_shell_initialized_command(&rt, cmd, args)?
         };
         self.run_command(command.executable, command.args)
+    }
+}
+
+impl CommandArgs for Env {
+    fn get_positional_args(&self) -> Vec<String> {
+        self.requested.clone()
     }
 }
 

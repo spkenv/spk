@@ -10,7 +10,7 @@ use futures::TryFutureExt;
 use itertools::Itertools;
 use serde::Serialize;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 use spk::{api, solve::PackageSource, solve::SolvedRequest};
 
 // Constants for the valid output formats
@@ -113,6 +113,12 @@ impl Run for Bake {
         };
         println!("{}", data);
         Ok(0)
+    }
+}
+
+impl CommandArgs for Bake {
+    fn get_positional_args(&self) -> Vec<String> {
+        self.requested.clone()
     }
 }
 

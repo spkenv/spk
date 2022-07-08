@@ -8,7 +8,7 @@ use clap::Args;
 use colored::Colorize;
 use spk::io;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 #[cfg(test)]
 #[path = "./cmd_deprecate_test.rs"]
@@ -97,6 +97,13 @@ impl Run for Deprecate {
             self.yes,
         )
         .await
+    }
+}
+
+impl CommandArgs for Deprecate {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional args for a deprecate are the packages
+        self.packages.clone()
     }
 }
 

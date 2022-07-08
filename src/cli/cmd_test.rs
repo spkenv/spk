@@ -7,7 +7,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use clap::Args;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Run package tests
 ///
@@ -211,5 +211,12 @@ impl Run for Test {
             }
         }
         Ok(0)
+    }
+}
+
+impl CommandArgs for Test {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional args for a test are the packages
+        self.packages.clone()
     }
 }

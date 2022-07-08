@@ -5,7 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use super::Run;
+use super::{CommandArgs, Run};
 
 /// Print the spk version information
 #[derive(Args)]
@@ -17,5 +17,12 @@ impl Run for Version {
         println!(" spk {}", spk::VERSION);
         println!("spfs {}", spfs::VERSION);
         Ok(0)
+    }
+}
+
+impl CommandArgs for Version {
+    fn get_positional_args(&self) -> Vec<String> {
+        // There are no important positional args for a version command
+        vec![]
     }
 }

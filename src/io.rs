@@ -673,6 +673,7 @@ pub struct DecisionFormatterBuilder {
     timeout: u64,
     show_solution: bool,
     heading_prefix: String,
+    long_solves_threshold: u64,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -690,6 +691,7 @@ impl DecisionFormatterBuilder {
             timeout: 0,
             show_solution: false,
             heading_prefix: String::from(""),
+            long_solves_threshold: 0,
         }
     }
 
@@ -720,6 +722,11 @@ impl DecisionFormatterBuilder {
 
     pub fn with_header<S: Into<String>>(&mut self, heading: S) -> &mut Self {
         self.heading_prefix = heading.into();
+        self
+    }
+
+    pub fn with_long_solves_threshold(&mut self, long_solves: u64) -> &mut Self {
+        self.long_solves_threshold = long_solves;
         self
     }
 
@@ -756,6 +763,7 @@ impl DecisionFormatterBuilder {
                 max_too_long_count: max_too_long_checks,
                 show_solution: self.show_solution || self.verbosity > 0,
                 heading_prefix: String::from(""),
+                long_solves_threshold: self.long_solves_threshold,
             },
         }
     }
@@ -770,6 +778,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) show_solution: bool,
     /// This is followed immediately by "Installed Packages"
     pub(crate) heading_prefix: String,
+    pub(crate) long_solves_threshold: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -830,6 +839,10 @@ impl DecisionFormatter {
                 // Note: the solution probably won't be
                 // complete because of the interruption.
                 let solve_time = start.elapsed();
+
+                #[cfg(feature = "sentry")]
+                self.add_details_to_next_sentry_event(&runtime.solver, solve_time);
+
                 eprintln!("{}", mesg.yellow());
                 eprintln!("{}", self.format_solve_stats(&runtime.solver, solve_time));
                 return Err(Error::Solve(solve::Error::SolverInterrupted(mesg)));
@@ -840,13 +853,49 @@ impl DecisionFormatter {
             LoopOutcome::Success => {}
         };
 
+        let solve_time = start.elapsed();
+
+        if solve_time > Duration::from_secs(self.settings.long_solves_threshold) {
+            #[cfg(feature = "sentry")]
+            {
+                // The solve took longer than we'd like, record the
+                // details in sentry for later analysis.
+                let mut initial_requests =
+                    self.add_details_to_next_sentry_event(&runtime.solver, solve_time);
+                initial_requests.sort();
+
+                sentry::with_scope(
+                    |scope| {
+                        let mut fingerprints: Vec<&str> =
+                            Vec::with_capacity(initial_requests.len() + 1);
+                        fingerprints.push("{{ message }}");
+                        fingerprints
+                            .extend(initial_requests.iter().map(|s| &**s).collect::<Vec<&str>>());
+                        scope.set_fingerprint(Some(&fingerprints));
+                    },
+                    || {
+                        // Note: putting the requests in the message for
+                        // this kind of sentry event, effectively sets the
+                        // fingerprint to just the '{{ message }}' field.
+                        // But it also changes the sentry title for these
+                        // events.
+                        sentry::capture_message(
+                            &format!(
+                                "Long solve (>{} secs): {}",
+                                self.settings.long_solves_threshold,
+                                initial_requests.join(" ")
+                            ),
+                            sentry::Level::Warning,
+                        )
+                    },
+                );
+            }
+        }
+
         // Note: this time includes the output time because the solver is
         // run in the iterator in the format_decisions_iter() loop above
         if self.settings.report_time {
-            println!(
-                "{}",
-                self.format_solve_stats(&runtime.solver, start.elapsed())
-            );
+            println!("{}", self.format_solve_stats(&runtime.solver, solve_time));
         }
 
         let solution = runtime.current_solution().await;
@@ -862,6 +911,48 @@ impl DecisionFormatter {
         }
 
         solution
+    }
+
+    #[cfg(feature = "sentry")]
+    fn add_details_to_next_sentry_event(
+        &self,
+        solver: &solve::Solver,
+        solve_duration: Duration,
+    ) -> Vec<String> {
+        let seconds = solve_duration.as_secs() as f64 + solve_duration.subsec_nanos() as f64 * 1e-9;
+
+        let initial_state = solver.get_initial_state();
+
+        let pkgs = initial_state.get_pkg_requests();
+        let vars = initial_state.get_var_requests();
+
+        let requests = pkgs
+            .iter()
+            .map(|r| r.pkg.to_string())
+            .collect::<Vec<String>>();
+
+        let mut data = std::collections::BTreeMap::new();
+        data.insert(String::from("pkgs"), serde_json::json!(requests));
+        data.insert(
+            String::from("vars"),
+            serde_json::json!(vars
+                .iter()
+                .map(|v| format!("{}: {}", v.var, v.value))
+                .collect::<Vec<String>>()),
+        );
+
+        data.insert(String::from("seconds"), serde_json::json!(seconds));
+
+        sentry::add_breadcrumb(sentry::Breadcrumb {
+            category: Some("solve".into()),
+            message: Some(format!("Time taken: {} seconds", seconds)),
+            data,
+            level: sentry::Level::Info,
+            ..Default::default()
+        });
+
+        // NOTE: this does not include var requests
+        requests
     }
 
     /// Given a sequence of decisions, returns an iterator

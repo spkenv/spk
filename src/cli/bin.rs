@@ -56,7 +56,56 @@ impl Opt {
             eprintln!("{}", err.to_string().red());
             return Ok(1);
         }
-        self.cmd.run().await
+
+        // Disable this clippy warning because the result value is
+        // used but only with the "sentry" feature enabled.
+        #[allow(clippy::let_and_return)]
+        let result = self.cmd.run().await;
+
+        #[cfg(feature = "sentry")]
+        if let Err(ref err) = result {
+            // Send any error from run() to sentry, if configured.
+            // This is here because the `_sentry_guard` is about to go
+            // out of scope and close the connection. The error will
+            // be output for the user in 'main()' below.
+            sentry::with_scope(
+                |scope| {
+                    let mut positional_args: Vec<String> = self.cmd.get_positional_args();
+                    // Sort to make the fingerprinting consistent.
+                    positional_args.sort();
+
+                    let mut fingerprints: Vec<&str> = Vec::with_capacity(positional_args.len() + 1);
+                    fingerprints.push("{{ error.value }}");
+                    fingerprints
+                        .extend(positional_args.iter().map(|s| &**s).collect::<Vec<&str>>());
+
+                    scope.set_fingerprint(Some(&fingerprints));
+                },
+                || {
+                    /*
+                    // capture_error does not add a backtrace to
+                    // sentry for the error event, unless backtraces
+                    // are enabled for all events when the sentry
+                    // client is configured. This causes less sentry
+                    // empty backtrace noise:
+                    sentry::capture_error(<anyhow::Error as AsRef<
+                        (dyn std::error::Error + Send + Sync + 'static),
+                    >>::as_ref(&_err));
+                     */
+
+                    // This will always add a backtrace to sentry for
+                    // an error event, but it will be empty because
+                    // these errors are not panics and as such have no
+                    // backtrace data. This generates empty backtrace
+                    // noise in sentry. Panics will have backtraces,
+                    // but aren't handled by this, they are sent when
+                    // the _sentry_guard goes out of scope.
+                    sentry_anyhow::capture_anyhow(&err);
+                },
+            );
+        }
+
+        result
     }
 }
 
@@ -67,7 +116,24 @@ trait Run {
     async fn run(&mut self) -> Result<i32>;
 }
 
+/// Trait all cli commands must implement to provide a list of the
+/// "request" equivalent values from their command lines. This may be
+/// expanded in future to include other groupings of arguments.
+#[enum_dispatch]
+trait CommandArgs {
+    /// Get a string list of the important positional arguments for
+    /// the command that may help distinquish it from another instance
+    /// of the same command, or different spk command. If there are no
+    /// positional arguments, this will return an empty list.
+    ///
+    /// Most commands will return a list of their requests or package
+    /// names, but search terms and filepaths may be returned by some
+    /// commands.
+    fn get_positional_args(&self) -> Vec<String>;
+}
+
 #[enum_dispatch(Run)]
+#[enum_dispatch(CommandArgs)]
 #[derive(Subcommand)]
 pub enum Command {
     Bake(cmd_bake::Bake),
