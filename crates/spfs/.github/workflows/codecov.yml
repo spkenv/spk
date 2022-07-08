@@ -18,7 +18,8 @@ jobs:
       options: --security-opt seccomp=unconfined --privileged
       env:
         # Disable cnproc because we're in a container
-        FEATURES: "disable-cnproc,server,cli"
+        SPFS_MONITOR_
+        FEATURES: "server,cli"
     steps:
       - uses: actions/checkout@v2
       - name: Prepare Container

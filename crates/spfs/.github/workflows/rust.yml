@@ -41,12 +41,13 @@ jobs:
       - name: Integration Test
         # Disable cnproc because we're in a container
         run: |
-          make install-debug FEATURES=cli,disable-cnproc
+          make install-debug FEATURES=server,cli
           ORIGIN_REPO=/tmp/spfs-repos/origin
           mkdir -p "$ORIGIN_REPO"
           # Pre-create a repo
           SPFS_REMOTE_origin_ADDRESS="file://${ORIGIN_REPO}?create=true" spfs ls-tags -r origin
           export SPFS_REMOTE_origin_ADDRESS="file://${ORIGIN_REPO}"
+          export SPFS_MONITOR_DISABLE_CNPROC=1
           # Run tests as a normal user to verify privilege escalation
           useradd -m e2e
           su e2e -c tests/integration/run_tests.sh

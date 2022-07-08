@@ -19,6 +19,7 @@ const SPFS_DIR: &str = "/spfs";
 
 const NONE: Option<&str> = None;
 const SPFS_MONITOR_FOREGROUND_LOGGING_VAR: &str = "SPFS_MONITOR_FOREGROUND_LOGGING";
+const SPFS_MONITOR_DISABLE_CNPROC_VAR: &str = "SPFS_MONITOR_DISABLE_CNPROC";
 
 /// A struct for holding the options that will be included
 /// in the overlayfs mount command when mounting an environment.
@@ -165,12 +166,11 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     // we could use our own pid here, but then when running in a container
     // or pid namespace the process id would actually be wrong. Passing
     // zero will get the kernel to determine our pid from its perspective
-    #[cfg(not(feature = "disable-cnproc"))]
-    let monitor = cnproc::PidMonitor::from_id(0)
-        .map_err(|e| crate::Error::String(format!("failed to establish process monitor: {e}")));
-
-    #[cfg(feature = "disable-cnproc")]
-    let monitor: Result<cnproc::PidMonitor> = Err("cnproc disabled".into());
+    let monitor = match is_cnproc_disabled() {
+        false => cnproc::PidMonitor::from_id(0)
+            .map_err(|e| crate::Error::String(format!("failed to establish process monitor: {e}"))),
+        true => Err(format!("cnproc disabled by env: {SPFS_MONITOR_DISABLE_CNPROC_VAR}").into()),
+    };
 
     let mut tracked_processes = HashSet::new();
     let (events_send, mut events_recv) = tokio::sync::mpsc::unbounded_channel();
@@ -308,6 +308,14 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn is_cnproc_disabled() -> bool {
+    match std::env::var(SPFS_MONITOR_DISABLE_CNPROC_VAR) {
+        Err(_) => false,
+        Ok(s) if s == "0" => false,
+        Ok(_) => true,
+    }
 }
 
 /// Identify the mount namespace of the provided process id.
