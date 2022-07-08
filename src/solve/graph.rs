@@ -224,7 +224,10 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         if req.pkg.components.is_empty() {
             // if no component was requested specifically,
             // then we must assume the default run component
-            req.to_mut().pkg.components.insert(api::Component::Run);
+            req.to_mut()
+                .pkg
+                .components
+                .insert(api::Component::default_for_run());
         }
 
         // Add the package that would make this request, into the request

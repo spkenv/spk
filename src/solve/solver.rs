@@ -92,7 +92,10 @@ impl Solver {
         let request = match request {
             Request::Pkg(mut request) => {
                 if request.pkg.components.is_empty() {
-                    request.pkg.components.insert(api::Component::Run);
+                    request
+                        .pkg
+                        .components
+                        .insert(api::Component::default_for_run());
                 }
                 Change::RequestPackage(RequestPackage::new(request))
             }
@@ -426,7 +429,10 @@ impl Solver {
                 // if no components were explicitly requested in a build option,
                 // then we inject the default for this context
                 if request.pkg.components.is_empty() {
-                    request.pkg.components.insert(Component::Build);
+                    request
+                        .pkg
+                        .components
+                        .insert(Component::default_for_build());
                 }
                 self.add_request(request.into())
             }

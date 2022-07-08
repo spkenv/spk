@@ -308,7 +308,9 @@ impl<'a> BinaryPackageBuilder<'a> {
                     )?;
                     if req.pkg.components.is_empty() {
                         // inject the default component for this context if needed
-                        req.pkg.components.insert(api::Component::Build);
+                        req.pkg
+                            .components
+                            .insert(api::Component::default_for_build());
                     }
                     requests.push(req.into());
                 }

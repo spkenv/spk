@@ -15,6 +15,7 @@ path = "src/cli/bin.rs"
 [features]
 sentry = ["dep:sentry"]
 test-macros = []
+migration-to-components = []
 
 [dependencies]
 anyhow = "1.0.56"
