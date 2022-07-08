@@ -276,3 +276,53 @@ async fn test_ls_dash_dash_no_local_repo_shows_remote_packages_only() {
     assert_eq!(opt.ls.output.vec.len(), 1);
     assert_eq!(opt.ls.output.vec.get(0).unwrap(), "my-remote-pkg");
 }
+
+/// `spk ls --disable-repo origin` is expected to list packages in only the
+/// local repository.
+#[tokio::test]
+async fn test_ls_dash_dash_disable_repo_shows_local_packages_only() {
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
+
+    // Populate the "origin" repo with one package.
+    // The "local" repo is empty.
+
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    let spec = spec!({"pkg": "my-remote-pkg/1.0.0"});
+    remote_repo.publish_spec(&spec).await.unwrap();
+    let spec = spec!({"pkg": "my-remote-pkg/1.0.0/BGSHW3CN"});
+    remote_repo
+        .publish_package(
+            &spec,
+            vec![(api::Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    let spec = spec!({"pkg": "my-local-pkg/1.0.0"});
+    rt.tmprepo.publish_spec(&spec).await.unwrap();
+    let spec = spec!({"pkg": "my-local-pkg/1.0.0/BGSHW3CN"});
+    rt.tmprepo
+        .publish_package(
+            &spec,
+            vec![(api::Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    let mut opt = Opt::try_parse_from(["ls", "--disable-repo", "origin"]).unwrap();
+    opt.ls.run().await.unwrap();
+    assert_eq!(opt.ls.output.vec.len(), 1);
+    assert_eq!(opt.ls.output.vec.get(0).unwrap(), "my-local-pkg");
+}
