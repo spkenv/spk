@@ -9,7 +9,7 @@ use rstest::rstest;
 
 use super::{BuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator};
 use crate::api::{self, PkgName};
-use crate::{make_build, make_package, make_repo, option_map, spec};
+use crate::{make_build, make_repo, option_map, spec};
 
 #[rstest]
 #[tokio::test]
