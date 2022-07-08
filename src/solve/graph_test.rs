@@ -18,7 +18,7 @@ fn test_resolve_build_same_result() {
     // should both result in the same final state... this
     // ensures that builds are not attempted when one already exists
 
-    let base = Arc::new(graph::State::default());
+    let base = graph::State::default();
 
     let mut build_spec = spec!({"pkg": "test/1.0.0"});
     build_spec
@@ -44,7 +44,7 @@ fn test_resolve_build_same_result() {
                 change,
                 io::FormatChangeOptions {
                     verbosity: 100,
-                    level: usize::MAX,
+                    level: u64::MAX,
                 },
                 Some(&with_binary)
             )
@@ -58,7 +58,7 @@ fn test_resolve_build_same_result() {
                 change,
                 io::FormatChangeOptions {
                     verbosity: 100,
-                    level: usize::MAX,
+                    level: u64::MAX,
                 },
                 Some(&with_build)
             )
@@ -79,7 +79,7 @@ fn test_empty_options_do_not_unset() {
     let assign_empty = graph::SetOptions::new(option_map! {"something" => ""});
     let assign_value = graph::SetOptions::new(option_map! {"something" => "value"});
 
-    let new_state = assign_empty.apply(&state);
+    let new_state = assign_empty.apply(&state, &state);
     let opts = new_state.get_option_map();
     assert_eq!(
         opts.get("something"),
@@ -87,8 +87,9 @@ fn test_empty_options_do_not_unset() {
         "should assign empty option of no current value"
     );
 
-    let new_state = assign_value.apply(&new_state);
-    let new_state = assign_empty.apply(&new_state);
+    let parent = Arc::clone(&new_state);
+    let new_state = assign_value.apply(&parent, &new_state);
+    let new_state = assign_empty.apply(&parent, &new_state);
     let opts = new_state.get_option_map();
     assert_eq!(
         opts.get("something"),

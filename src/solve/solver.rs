@@ -11,6 +11,8 @@ use std::{
     },
 };
 
+use priority_queue::priority_queue::PriorityQueue;
+
 use crate::{
     api::{self, Build, Component, OptionMap, PkgName, Request},
     solve::graph::StepBack,
@@ -107,11 +109,11 @@ impl Solver {
 
     pub fn get_initial_state(&self) -> Arc<State> {
         let mut state = None;
-        let else_closure = || Arc::new(State::default());
+        let base = State::default();
         for change in self.initial_state_builders.iter() {
-            state = Some(change.apply(&state.unwrap_or_else(else_closure)))
+            state = Some(change.apply(&base, state.as_ref().unwrap_or(&base)));
         }
-        state.unwrap_or_else(else_closure)
+        state.unwrap_or(base)
     }
 
     /// Increment the number of occurrences of the given error message
@@ -466,11 +468,33 @@ impl Solver {
     }
 }
 
+// This is needed so `PriorityQueue` doesn't need to hash the node itself.
+struct NodeWrapper {
+    pub(crate) node: Arc<RwLock<Arc<Node>>>,
+    pub(crate) hash: u64,
+}
+
+impl std::cmp::Eq for NodeWrapper {}
+
+impl std::cmp::PartialEq for NodeWrapper {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
+}
+
+impl std::hash::Hash for NodeWrapper {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.hash.hash(state);
+    }
+}
+
+type SolverHistory = PriorityQueue<NodeWrapper, std::cmp::Reverse<u64>>;
+
 #[must_use = "The solver runtime does nothing unless iterated to completion"]
 pub struct SolverRuntime {
     pub solver: Solver,
     graph: Arc<RwLock<Graph>>,
-    history: Vec<Arc<RwLock<Arc<Node>>>>,
+    history: SolverHistory,
     current_node: Option<Arc<RwLock<Arc<Node>>>>,
     decision: Option<Arc<Decision>>,
 }
@@ -481,7 +505,7 @@ impl SolverRuntime {
         Self {
             solver,
             graph: Arc::new(RwLock::new(Graph::new())),
-            history: Vec::new(),
+            history: SolverHistory::default(),
             current_node: None,
             decision: Some(Arc::new(initial_decision)),
         }
@@ -544,14 +568,18 @@ impl SolverRuntime {
     // this method.
     /// Generate step-back decision from a node history
     fn take_a_step_back(
-        history: &mut Vec<Arc<RwLock<Arc<Node>>>>,
+        history: &mut SolverHistory,
         decision: &mut Option<Arc<Decision>>,
         solver: &Solver,
         message: &String,
     ) {
+        // After encountering a solver error, start trying a new path from the
+        // oldest fork. Experimentation shows that this is able to discover
+        // a valid solution must faster than going back to the newest fork,
+        // for problem cases that get stuck in a bad path.
         match history.pop() {
-            Some(n) => {
-                let n_lock = n.read().unwrap();
+            Some((n, _)) => {
+                let n_lock = n.node.read().unwrap();
                 *decision = Some(Arc::new(
                     Change::StepBack(StepBack::new(
                         message,
@@ -626,6 +654,7 @@ impl Iterator for SolverRuntime {
             .as_ref()
             .expect("current_node always `is_some` here");
         let mut current_node_lock = current_node.write().unwrap();
+        let current_level = current_node_lock.state.state_depth;
         self.decision = match self.solver.step_state(&mut current_node_lock) {
             Ok(decision) => decision.map(Arc::new),
             Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
@@ -710,7 +739,15 @@ impl Iterator for SolverRuntime {
                 return Some(Err(err));
             }
         };
-        self.history.push(current_node.clone());
+        self.history.push(
+            NodeWrapper {
+                node: current_node.clone(),
+                // I tried reversing the order of the hash here and it
+                // produced the same result.
+                hash: self.solver.get_number_of_steps() as u64,
+            },
+            std::cmp::Reverse(current_level),
+        );
         Some(Ok(to_yield))
     }
 }
