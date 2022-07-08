@@ -159,7 +159,7 @@ impl PkgName {
 
     pub fn new<S: AsRef<str> + ?Sized>(s: &S) -> Result<&PkgName> {
         validate_pkg_name(s)?;
-        // Safety: fromsStr bypasses validation but we've just done that
+        // Safety: from_str bypasses validation but we've just done that
         Ok(unsafe { Self::from_str(s.as_ref()) })
     }
 
