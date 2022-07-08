@@ -10,9 +10,7 @@ use super::Solver;
 use crate::fixtures::*;
 use crate::{api, io, Error, Result};
 // macros
-use crate::{
-    make_build, make_build_and_components, make_package, make_repo, opt_name, option_map, spec,
-};
+use crate::{make_build, make_build_and_components, make_repo, opt_name, option_map, spec};
 
 #[fixture]
 fn solver() -> Solver {
