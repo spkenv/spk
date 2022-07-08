@@ -455,20 +455,13 @@ impl OptName {
 
     /// Validate and wrap the given string as an OptName.
     pub fn new<S: AsRef<str> + ?Sized>(s: &S) -> Result<&OptName> {
-        match s.as_ref().split_once(Self::SEP) {
-            Some((ns, opt)) => {
-                validate_pkg_name(ns)?;
-                validate_opt_name(opt)?;
-            }
-            None => {
-                validate_opt_name(s)?;
-            }
-        }
+        validate_opt_name(s)?;
         // Safety: from_str skips validation but we've just done that
         Ok(unsafe { Self::from_str(s.as_ref()) })
     }
 
-    /// The non-namespace portion of this option
+    /// The non-namespace portion of this option. To get an [`OptName`]
+    /// with any leading namespace removed, use [`Self::without_namespace`].
     ///
     /// ```
     /// # #[macro_use] extern crate spk;
@@ -581,10 +574,25 @@ impl std::cmp::PartialEq<str> for OptName {
 
 /// Ensure that the provided string is a valid option name.
 ///
-/// This is for checking option names without any leading
-/// package specifier. Leading package names can be validated
-/// with [`validate_pkg_name`].
+/// This is for checking option names with or without any leading
+/// package namespace.
 fn validate_opt_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
+    match name.as_ref().split_once(OptName::SEP) {
+        Some((ns, opt)) => {
+            validate_pkg_name(ns)?;
+            validate_opt_base_name(opt)
+        }
+        None => validate_opt_base_name(name),
+    }
+}
+
+/// Ensure that the provided string is a valid option name.
+///
+/// This is for checking option names without any leading
+/// package specifier. Complete option names can be validated
+/// with [`validate_opt_name`], or leading package names can
+/// be validated separately with [`validate_pkg_name`].
+fn validate_opt_base_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
     if name.as_ref().len() < OptName::MIN_LEN {
         return Err(InvalidNameError::new_error(format!(
             "Invalid option name, must be at least {} characters, got {} [{}]",
