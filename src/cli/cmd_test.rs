@@ -144,15 +144,14 @@ impl Run for Test {
                             spk::io::format_options(&opts)
                         );
 
-                        let src_formatter = self
-                            .formatter_settings
-                            .get_formatter(self.verbose)
-                            .with_header("Source Resolver ");
+                        let mut builder =
+                            self.formatter_settings.get_formatter_builder(self.verbose);
+                        let src_formatter = builder.with_header("Source Resolver ").build();
                         let build_src_formatter =
-                            src_formatter.clone().with_header("Build Source Resolver ");
-                        let build_formatter = src_formatter.clone().with_header("Build Resolver ");
+                            builder.with_header("Build Source Resolver ").build();
+                        let build_formatter = builder.with_header("Build Resolver ").build();
                         let install_formatter =
-                            src_formatter.clone().with_header("Install Env Resolver ");
+                            builder.with_header("Install Env Resolver ").build();
 
                         match stage {
                             spk::api::TestStage::Sources => {

@@ -44,9 +44,11 @@ impl Run for Explain {
         }
 
         // Always show the solution packages for the solve
-        self.formatter_settings.show_solution = true;
-
-        let formatter = self.formatter_settings.get_formatter(self.verbose + 1);
+        let formatter = self
+            .formatter_settings
+            .get_formatter_builder(self.verbose + 1)
+            .with_solution(true)
+            .build();
         formatter.run_and_print_resolve(&solver).await?;
 
         Ok(0)

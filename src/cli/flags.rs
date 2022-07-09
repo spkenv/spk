@@ -534,13 +534,21 @@ impl DecisionFormatterSettings {
     /// Get a decision formatter configured from the command line
     /// options and their defaults.
     pub fn get_formatter(&self, verbosity: u32) -> spk::io::DecisionFormatter {
+        self.get_formatter_builder(verbosity).build()
+    }
+
+    /// Get a decision formatter builder configured from the command
+    /// line options and defaults and ready to call build() on, in
+    /// case some extra configuration might be needed before calling
+    /// build.
+    pub fn get_formatter_builder(&self, verbosity: u32) -> spk::io::DecisionFormatterBuilder {
         spk::io::DecisionFormatterBuilder::new()
             .with_verbosity(verbosity)
             .with_time_and_stats(self.time)
             .with_verbosity_increase_every(self.increase_verbosity)
             .with_timeout(self.timeout)
             .with_solution(self.show_solution)
-            .build()
+            .clone()
     }
 }
 

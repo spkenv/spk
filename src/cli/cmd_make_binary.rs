@@ -108,15 +108,15 @@ impl Run for MakeBinary {
                 tracing::info!("building variant {}", spk::io::format_options(&opts));
 
                 // Always show the solution packages for the solves
-                self.formatter_settings.show_solution = true;
-                let src_formatter = self
-                    .formatter_settings
-                    .get_formatter(self.verbose)
-                    .with_header("Src Resolver ");
-                let build_formatter = self
-                    .formatter_settings
-                    .get_formatter(self.verbose)
-                    .with_header("Build Resolver ");
+                let mut fmt_builder = self.formatter_settings.get_formatter_builder(self.verbose);
+                let src_formatter = fmt_builder
+                    .with_solution(true)
+                    .with_header("Src Resolver ")
+                    .build();
+                let build_formatter = fmt_builder
+                    .with_solution(true)
+                    .with_header("Build Resolver ")
+                    .build();
 
                 let mut builder = spk::build::BinaryPackageBuilder::from_spec((*spec).clone());
                 builder
