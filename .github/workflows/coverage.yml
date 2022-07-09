@@ -60,13 +60,13 @@ jobs:
         env:
           cache-name: spfs-installation
         with:
-          path: spfs/target/release
+          path: spfs/target/debug
           key: cargo-toml-${{ hashFiles('spfs/Cargo.toml') }}
       - if: steps.cache-spfs-installation.outputs.cache-hit == 'true'
         name: Restore spfs build from cache
         run: |
           cd spfs
-          cp target/release/spfs* /usr/bin/
+          cp target/debug/spfs* /usr/bin/
           make setcap
       - if: steps.cache-spfs-installation.outputs.cache-hit != 'true'
         name: Build and install spfs
