@@ -12,7 +12,7 @@ use std::{
 };
 
 use async_stream::stream;
-use futures::{Stream, StreamExt};
+use futures::{Stream, TryStreamExt};
 use priority_queue::priority_queue::PriorityQueue;
 
 use crate::{
@@ -405,9 +405,7 @@ impl Solver {
         {
             let iter = runtime.iter();
             tokio::pin!(iter);
-            while let Some(step) = iter.next().await {
-                step?;
-            }
+            while let Some(_step) = iter.try_next().await? {}
         }
         runtime.current_solution().await
     }
@@ -535,9 +533,7 @@ impl SolverRuntime {
         {
             let iter = self.iter();
             tokio::pin!(iter);
-            while let Some(item) = iter.next().await {
-                item?;
-            }
+            while let Some(_item) = iter.try_next().await? {}
         }
         self.current_solution().await
     }

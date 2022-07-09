@@ -5,7 +5,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 
 use super::{flags, Run};
 
@@ -78,8 +78,8 @@ impl Run for View {
                         let mut decision_iter = formatter.formatted_decisions_iter(walk_iter);
                         let iter = decision_iter.iter();
                         tokio::pin!(iter);
-                        while let Some(line) = iter.next().await {
-                            println!("{}", line?);
+                        while let Some(line) = iter.try_next().await? {
+                            println!("{line}");
                         }
                     }
                 }
