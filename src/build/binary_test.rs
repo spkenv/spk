@@ -62,6 +62,34 @@ fn test_empty_var_option_is_not_a_request() {
 }
 
 #[rstest]
+fn test_var_with_build_assigns_build() {
+    let spec: crate::api::Spec = serde_yaml::from_str(
+        r#"{
+        pkg: mypackage/1.0.0,
+        build: {
+            options: [
+                {pkg: my-dep}
+            ]
+        }
+    }"#,
+    )
+    .unwrap();
+    let mut builder = super::BinaryPackageBuilder::from_spec(spec);
+    // Assuming there is a request for a version with a specific build...
+    builder.with_option(opt_name!("my-dep"), "1.0.0/QYB6QLCN");
+    let requirements = builder.get_build_requirements().unwrap();
+    assert!(!requirements.is_empty());
+    // ... a requirement is generated for that specific build.
+    assert!(matches!(
+        requirements.get(0).unwrap(),
+        api::Request::Pkg(api::PkgRequest {
+            pkg: api::RangeIdent { name, build: Some(digest), .. },
+            ..
+        })
+     if name.as_str() == "my-dep" && digest.digest() == "QYB6QLCN"));
+}
+
+#[rstest]
 fn test_build_workdir(tmpdir: tempdir::TempDir) {
     let _guard = crate::HANDLE.enter();
     let rt = crate::HANDLE.block_on(spfs_runtime());
