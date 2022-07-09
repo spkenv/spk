@@ -26,8 +26,9 @@ pub struct Export {
     pub filename: Option<std::path::PathBuf>,
 }
 
+#[async_trait::async_trait]
 impl Run for Export {
-    fn run(&mut self) -> Result<i32> {
+    async fn run(&mut self) -> Result<i32> {
         let pkg = self
             .requests
             .parse_idents([self.package.as_str()])?
@@ -41,7 +42,7 @@ impl Run for Export {
         let filename = self.filename.clone().unwrap_or_else(|| {
             std::path::PathBuf::from(format!("{}_{}{build}.spk", pkg.name, pkg.version))
         });
-        let res = spk::storage::export_package(&pkg, &filename);
+        let res = spk::storage::export_package(&pkg, &filename).await;
         if let Err(spk::Error::PackageNotFoundError(_)) = res {
             tracing::warn!("Ensure that you are specifying at least a package and");
             tracing::warn!("version number when exporting from the local repository");

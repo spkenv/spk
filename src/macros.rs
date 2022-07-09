@@ -28,7 +28,7 @@ macro_rules! make_repo {
         let _opts = $options;
         $(
             let (s, cmpts) = make_package!(repo, $spec, &_opts);
-            repo.publish_package(&s, cmpts).unwrap();
+            repo.publish_package(&s, cmpts).await.unwrap();
         )*
         repo
     }};
@@ -54,7 +54,7 @@ macro_rules! make_package {
         let mut spec: $crate::api::Spec = serde_json::from_value(json).expect("Invalid spec json");
         let build = spec.clone();
         spec.pkg.set_build(None);
-        $repo.force_publish_spec(&spec).unwrap();
+        $repo.force_publish_spec(&spec).await.unwrap();
         make_build_and_components!(build, [], $opts, [])
     }};
 }

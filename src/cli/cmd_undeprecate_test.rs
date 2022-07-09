@@ -8,7 +8,8 @@ use super::{change_deprecation_state, ChangeAction};
 use spk::{make_package, make_repo};
 
 #[rstest]
-fn test_undeprecate_without_prompt() {
+#[tokio::test]
+async fn test_undeprecate_without_prompt() {
     // Set up a repo with three package versions, with one build each,
     // two of which are deprecated
     let name1 = "my-pkg/1.0.0";
@@ -27,7 +28,7 @@ fn test_undeprecate_without_prompt() {
     // with the '--yes' flag to prevent it prompting.
     let packages = vec![name1.to_string(), name2.to_string(), name3.to_string()];
     let yes = true;
-    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes);
+    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes).await;
 
     match result {
         Ok(r) => assert_eq!(r, 0),
@@ -43,12 +44,12 @@ fn test_undeprecate_without_prompt() {
     for name in &[name1, name2, name3] {
         let ident = spk::api::parse_ident(name).unwrap();
         let (_, r) = &repos[0];
-        let spec = r.read_spec(&ident).unwrap();
+        let spec = r.read_spec(&ident).await.unwrap();
         println!("checking: {}", ident);
         assert!(!spec.deprecated);
 
-        for b in r.list_package_builds(&ident).unwrap() {
-            let bspec = r.read_spec(&b).unwrap();
+        for b in r.list_package_builds(&ident).await.unwrap() {
+            let bspec = r.read_spec(&b).await.unwrap();
             println!("checking: {}", b);
             assert!(!bspec.deprecated);
         }
@@ -56,7 +57,8 @@ fn test_undeprecate_without_prompt() {
 }
 
 #[rstest]
-fn test_undeprecate_no_repos() {
+#[tokio::test]
+async fn test_undeprecate_no_repos() {
     let name = "my-pkg/1.0.0";
     let repos = Vec::new();
 
@@ -64,7 +66,7 @@ fn test_undeprecate_no_repos() {
     // at all. No packages should be found, this should a result of 1.
     let packages = vec![name.to_string()];
     let yes = true;
-    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes);
+    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes).await;
 
     match result {
         Ok(r) => assert_eq!(r, 1),
@@ -77,7 +79,8 @@ fn test_undeprecate_no_repos() {
 }
 
 #[rstest]
-fn test_undeprecate_no_version() {
+#[tokio::test]
+async fn test_undeprecate_no_version() {
     // Set up a repo with one package that is already deprecated
     let name = "my-pkg";
     let repo = make_repo!([
@@ -89,7 +92,7 @@ fn test_undeprecate_no_version() {
     // This should return a result of 2.
     let packages = vec![name.to_string()];
     let yes = true;
-    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes);
+    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes).await;
 
     match result {
         Ok(r) => assert_eq!(r, 2),
@@ -102,7 +105,8 @@ fn test_undeprecate_no_version() {
 }
 
 #[rstest]
-fn test_undeprecate_no_version_but_trailing_slash() {
+#[tokio::test]
+async fn test_undeprecate_no_version_but_trailing_slash() {
     // Set up a repo with one package that is already deprecated
     let name = "my-pkg";
     let repo = make_repo!([
@@ -114,7 +118,7 @@ fn test_undeprecate_no_version_but_trailing_slash() {
     // putting in a trailing slash. This should return a result of 3.
     let packages = vec![format!("{}/", name)];
     let yes = true;
-    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes);
+    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes).await;
 
     match result {
         Ok(r) => assert_eq!(r, 3),
@@ -127,7 +131,8 @@ fn test_undeprecate_no_version_but_trailing_slash() {
 }
 
 #[rstest]
-fn test_undeprecate_with_no_package_found() {
+#[tokio::test]
+async fn test_undeprecate_with_no_package_found() {
     // Set up a repo with two packages, both already deprecated
     let name1 = "my-pkg/1.0.0";
     let name2 = "my-pkg/1.0.1";
@@ -143,7 +148,7 @@ fn test_undeprecate_with_no_package_found() {
 
     let packages = vec![missing_pkg.to_string()];
     let yes = true;
-    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes);
+    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes).await;
 
     match result {
         Ok(r) => assert_eq!(r, 4),
@@ -160,7 +165,7 @@ fn test_undeprecate_with_no_package_found() {
     for name in &[name1, name2] {
         let ident = spk::api::parse_ident(name).unwrap();
         let repo = &repos[0].1;
-        let spec = repo.read_spec(&ident).unwrap();
+        let spec = repo.read_spec(&ident).await.unwrap();
         assert!(spec.deprecated);
     }
 }

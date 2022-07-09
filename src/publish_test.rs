@@ -8,11 +8,12 @@ use super::Publisher;
 use crate::{api, fixtures::*};
 
 #[rstest]
-fn test_publish_no_version_spec() {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_publish_no_version_spec() {
+    let _guard = crate::MUTEX.lock().await;
+    let rt = spfs_runtime().await;
     let spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
-    rt.tmprepo.publish_spec(&spec).unwrap();
+    rt.tmprepo.publish_spec(&spec).await.unwrap();
     let spec = crate::spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
     rt.tmprepo
         .publish_package(
@@ -21,10 +22,11 @@ fn test_publish_no_version_spec() {
                 .into_iter()
                 .collect(),
         )
+        .await
         .unwrap();
 
-    let destination = crate::HANDLE.block_on(spfsrepo());
+    let destination = spfsrepo().await;
     let publisher = Publisher::new(rt.tmprepo.clone(), destination.repo.clone());
-    publisher.publish(&spec.pkg.with_build(None)).unwrap();
-    destination.get_package(&spec.pkg).unwrap();
+    publisher.publish(&spec.pkg.with_build(None)).await.unwrap();
+    destination.get_package(&spec.pkg).await.unwrap();
 }

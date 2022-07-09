@@ -38,13 +38,15 @@ pub struct Undeprecate {
 }
 
 /// Undeprecates package builds in a repository.
+#[async_trait::async_trait]
 impl Run for Undeprecate {
-    fn run(&mut self) -> Result<i32> {
+    async fn run(&mut self) -> Result<i32> {
         change_deprecation_state(
             ChangeAction::Undeprecate,
-            &self.repos.get_repos(None)?,
+            &self.repos.get_repos(None).await?,
             &self.packages,
             self.yes,
         )
+        .await
     }
 }

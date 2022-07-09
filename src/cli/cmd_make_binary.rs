@@ -47,17 +47,19 @@ pub struct MakeBinary {
     pub formatter_settings: flags::DecisionFormatterSettings,
 }
 
+#[async_trait::async_trait]
 impl Run for MakeBinary {
-    fn run(&mut self) -> Result<i32> {
-        let _runtime = self.runtime.ensure_active_runtime()?;
-
+    async fn run(&mut self) -> Result<i32> {
         let options = self.options.get_options()?;
-        let repos: Vec<_> = self
-            .repos
-            .get_repos(&["origin".to_string()])?
+        #[rustfmt::skip]
+        let (_runtime, repos) = tokio::try_join!(
+            self.runtime.ensure_active_runtime(),
+            async { self.repos.get_repos(&["origin".to_string()]).await }
+        )?;
+        let repos = repos
             .into_iter()
             .map(|(_, r)| Arc::new(r))
-            .collect();
+            .collect::<Vec<_>>();
 
         let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();
         if packages.is_empty() {
@@ -73,7 +75,7 @@ impl Run for MakeBinary {
                 res => {
                     let (_, spec) = res.must_be_found();
                     tracing::info!("saving spec file {}", spk::io::format_ident(&spec.pkg));
-                    spk::save_spec(&spec)?;
+                    spk::save_spec(&spec).await?;
                     spec
                 }
             };
@@ -110,14 +112,14 @@ impl Run for MakeBinary {
                     .with_options(opts.clone())
                     .with_repositories(repos.iter().cloned())
                     .set_interactive(self.interactive)
-                    .with_source_resolver(move |r| formatter.run_and_print_decisions(r))
-                    .with_build_resolver(move |r| formatter.run_and_print_decisions(r));
+                    .with_source_resolver(&formatter)
+                    .with_build_resolver(&formatter);
                 if self.here {
                     let here =
                         std::env::current_dir().context("Failed to get current directory")?;
                     builder.with_source(spk::build::BuildSource::LocalPath(here));
                 }
-                let out = match builder.build() {
+                let out = match builder.build().await {
                     Err(err @ spk::Error::Solve(_))
                     | Err(err @ spk::Error::PackageNotFoundError(_)) => {
                         tracing::error!("variant failed {}", spk::io::format_options(&opts));

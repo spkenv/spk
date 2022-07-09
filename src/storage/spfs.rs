@@ -17,7 +17,6 @@ use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 use spfs::{storage::EntryType, tracking};
 use tokio::io::AsyncReadExt;
-use tokio::runtime::Handle;
 
 use super::{CachePolicy, Repository};
 use crate::{api, with_cache_policy, Error, Result};
@@ -174,16 +173,18 @@ std::thread_local! {
     > = RefCell::new(HashMap::new());
 }
 
+#[async_trait::async_trait]
 impl Repository for SPFSRepository {
     fn address(&self) -> &url::Url {
         &self.address
     }
 
-    fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>> {
+    async fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>> {
         let path = relative_path::RelativePath::new("spk/spec");
         // XXX: infallible vs return type
-        Ok(crate::HANDLE
-            .block_on(self.ls_tags(path))
+        Ok(self
+            .ls_tags(path)
+            .await
             .into_iter()
             .filter_map(|entry| match entry {
                 Ok(EntryType::Folder(name)) => name.parse().ok(),
@@ -193,7 +194,10 @@ impl Repository for SPFSRepository {
             .collect::<Vec<_>>())
     }
 
-    fn list_package_versions(&self, name: &api::PkgName) -> Result<Arc<Vec<Arc<api::Version>>>> {
+    async fn list_package_versions(
+        &self,
+        name: &api::PkgName,
+    ) -> Result<Arc<Vec<Arc<api::Version>>>> {
         let address = self.address();
         if self.cached_result_permitted() {
             let r = PACKAGE_VERSIONS_CACHE.with(|hm| {
@@ -205,7 +209,7 @@ impl Repository for SPFSRepository {
                 return r.into();
             }
         }
-        let r: Result<Arc<_>> = crate::HANDLE.block_on(async {
+        let r: Result<Arc<_>> = async {
             let path = self.build_spec_tag(&name.to_owned().into());
             let versions: HashSet<_> = self
                 .ls_tags(&path)
@@ -229,7 +233,8 @@ impl Repository for SPFSRepository {
             versions.sort();
             // XXX: infallible vs return type
             Ok(Arc::new(versions))
-        });
+        }
+        .await;
         PACKAGE_VERSIONS_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
             let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
@@ -238,47 +243,45 @@ impl Repository for SPFSRepository {
         r
     }
 
-    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        Handle::current().block_on(async {
-            let pkg = pkg.with_build(Some(api::Build::Source));
-            let mut base = self.build_package_tag(&pkg)?;
-            // the package tag contains the name and build, but we need to
-            // remove the trailing build in order to list the containing 'folder'
-            // eg: pkg/1.0.0/src => pkg/1.0.0
-            base.pop();
+    async fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+        let pkg = pkg.with_build(Some(api::Build::Source));
+        let mut base = self.build_package_tag(&pkg)?;
+        // the package tag contains the name and build, but we need to
+        // remove the trailing build in order to list the containing 'folder'
+        // eg: pkg/1.0.0/src => pkg/1.0.0
+        base.pop();
 
-            let builds: HashSet<_> = self
-                .ls_tags(&base)
-                .await
-                .into_iter()
-                .filter_map(|entry| match entry {
-                    Ok(EntryType::Tag(name)) => Some(name),
-                    Ok(EntryType::Folder(name)) => Some(name),
-                    Err(_) => None,
-                })
-                .filter_map(|b| match api::parse_build(&b) {
-                    Ok(v) => Some(v),
-                    Err(_) => {
-                        tracing::warn!("Invalid build found in spfs tags: {}", b);
-                        None
-                    }
-                })
-                .map(|b| pkg.with_build(Some(b)))
-                .collect();
-            // XXX: infallible vs return type
-            Ok(builds.into_iter().collect_vec())
-        })
+        let builds: HashSet<_> = self
+            .ls_tags(&base)
+            .await
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Ok(EntryType::Tag(name)) => Some(name),
+                Ok(EntryType::Folder(name)) => Some(name),
+                Err(_) => None,
+            })
+            .filter_map(|b| match api::parse_build(&b) {
+                Ok(v) => Some(v),
+                Err(_) => {
+                    tracing::warn!("Invalid build found in spfs tags: {}", b);
+                    None
+                }
+            })
+            .map(|b| pkg.with_build(Some(b)))
+            .collect();
+        // XXX: infallible vs return type
+        Ok(builds.into_iter().collect_vec())
     }
 
-    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
-        match crate::HANDLE.block_on(self.lookup_package(pkg)) {
+    async fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
+        match self.lookup_package(pkg).await {
             Ok(p) => Ok(p.into_components().into_keys().collect()),
             Err(Error::PackageNotFoundError(_)) => Ok(Vec::new()),
             Err(err) => Err(err),
         }
     }
 
-    fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
+    async fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
         let address = self.address();
         if self.cached_result_permitted() {
             let r =
@@ -287,7 +290,7 @@ impl Repository for SPFSRepository {
                 return r.into();
             }
         }
-        let r: Result<Arc<api::Spec>> = crate::HANDLE.block_on(async {
+        let r: Result<Arc<api::Spec>> = async {
             let tag_path = self.build_spec_tag(pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
             let tag = self.resolve_tag(pkg, &tag_spec).await?;
@@ -298,7 +301,8 @@ impl Repository for SPFSRepository {
             serde_yaml::from_str(&yaml)
                 .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
                 .map(Arc::new)
-        });
+        }
+        .await;
         SPEC_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
             let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
@@ -307,22 +311,29 @@ impl Repository for SPFSRepository {
         r
     }
 
-    fn get_package(
+    async fn get_package(
         &self,
         pkg: &api::Ident,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
-        let package = crate::HANDLE.block_on(self.lookup_package(pkg))?;
+        let package = self.lookup_package(pkg).await?;
         let component_tags = package.into_components();
         let mut components = HashMap::with_capacity(component_tags.len());
         for (name, tag_spec) in component_tags.into_iter() {
-            let tag = crate::HANDLE.block_on(self.resolve_tag(pkg, &tag_spec))?;
+            let tag = self
+                .inner
+                .resolve_tag(&tag_spec)
+                .await
+                .map_err(|err| match err {
+                    spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
+                    err => err.into(),
+                })?;
             components.insert(name, tag.target);
         }
         Ok(components)
     }
 
-    fn publish_spec(&self, spec: &api::Spec) -> Result<()> {
-        let spec = Handle::current().block_on(async {
+    async fn publish_spec(&self, spec: &api::Spec) -> Result<()> {
+        let spec = async {
             if spec.pkg.build.is_some() {
                 return Err(api::InvalidBuildError::new_error(
                     "Spec must be published with no build".to_string(),
@@ -337,55 +348,52 @@ impl Repository for SPFSRepository {
             } else {
                 Ok(spec)
             }
-        })?;
-        self.force_publish_spec(spec)
+        }
+        .await?;
+        self.force_publish_spec(spec).await
     }
 
-    fn remove_spec(&self, pkg: &api::Ident) -> Result<()> {
-        Handle::current().block_on(async {
-            let tag_path = self.build_spec_tag(pkg);
-            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
-            match self.inner.remove_tag_stream(&tag_spec).await {
-                Err(spfs::Error::UnknownReference(_)) => {
-                    Err(Error::PackageNotFoundError(pkg.clone()))
-                }
-                Err(err) => Err(err.into()),
-                Ok(_) => {
-                    self.invalidate_caches();
-                    Ok(())
-                }
+    async fn remove_spec(&self, pkg: &api::Ident) -> Result<()> {
+        let tag_path = self.build_spec_tag(pkg);
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
+        match self.inner.remove_tag_stream(&tag_spec).await {
+            Err(spfs::Error::UnknownReference(_)) => Err(Error::PackageNotFoundError(pkg.clone())),
+            Err(err) => Err(err.into()),
+            Ok(_) => {
+                self.invalidate_caches();
+                Ok(())
             }
-        })
+        }
     }
 
-    fn force_publish_spec(&self, spec: &api::Spec) -> Result<()> {
-        Handle::current().block_on(async {
-            if let Some(api::Build::Embedded) = spec.pkg.build {
-                return Err(api::InvalidBuildError::new_error(
-                    "Cannot publish embedded package".to_string(),
-                ));
-            }
-            let tag_path = self.build_spec_tag(&spec.pkg);
-            let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
+    async fn force_publish_spec(&self, spec: &api::Spec) -> Result<()> {
+        if let Some(api::Build::Embedded) = spec.pkg.build {
+            return Err(api::InvalidBuildError::new_error(
+                "Cannot publish embedded package".to_string(),
+            ));
+        }
+        let tag_path = self.build_spec_tag(&spec.pkg);
+        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
 
-            let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;
-            let digest = self
-                .inner
-                .commit_blob(Box::pin(std::io::Cursor::new(payload)))
-                .await?;
-            self.inner.push_tag(&tag_spec, &digest).await?;
-            self.invalidate_caches();
-            Ok(())
-        })
+        let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;
+        let digest = self
+            .inner
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .await?;
+        self.inner.push_tag(&tag_spec, &digest).await?;
+        self.invalidate_caches();
+        Ok(())
     }
 
-    fn publish_package(
+    async fn publish_package(
         &self,
         spec: &api::Spec,
         components: HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
         #[cfg(test)]
-        if let Err(Error::PackageNotFoundError(pkg)) = self.read_spec(&spec.pkg.with_build(None)) {
+        if let Err(Error::PackageNotFoundError(pkg)) =
+            self.read_spec(&spec.pkg.with_build(None)).await
+        {
             return Err(Error::String(format!(
                 "[INTERNAL] version spec must be published before a specific build: {:?}",
                 pkg
@@ -407,7 +415,7 @@ impl Repository for SPFSRepository {
                 Error::String("Package must have a run component to be published".to_string())
             })?
         };
-        let spec: Result<&api::Spec> = Handle::current().block_on(async {
+        let spec: Result<&api::Spec> = {
             self.inner.push_tag(&legacy_tag, &legacy_component).await?;
 
             let components: std::result::Result<Vec<_>, _> = components
@@ -421,42 +429,40 @@ impl Repository for SPFSRepository {
                 self.inner.push_tag(&tag_spec, &digest).await?;
             }
             Ok(spec)
-        });
+        };
 
-        self.force_publish_spec(spec?)?;
+        self.force_publish_spec(spec?).await?;
         Ok(())
     }
 
-    fn remove_package(&self, pkg: &api::Ident) -> Result<()> {
-        Handle::current().block_on(async {
-            for tag_spec in
-                with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
-                    .await?
-                    .tags()
-            {
-                match self.inner.remove_tag_stream(tag_spec).await {
-                    Err(spfs::Error::UnknownReference(_)) => (),
-                    res => res?,
-                }
+    async fn remove_package(&self, pkg: &api::Ident) -> Result<()> {
+        for tag_spec in
+            with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
+                .await?
+                .tags()
+        {
+            match self.inner.remove_tag_stream(tag_spec).await {
+                Err(spfs::Error::UnknownReference(_)) => (),
+                res => res?,
             }
-            // because we double-publish packages to be visible/compatible
-            // with the old repo tag structure, we must also try to remove
-            // the legacy version of the tag after removing the discovered
-            // as it may still be there and cause the removal to be ineffective
-            if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)?) {
-                match self.inner.remove_tag_stream(&legacy_tag).await {
-                    Err(spfs::Error::UnknownReference(_)) => (),
-                    res => res?,
-                }
+        }
+        // because we double-publish packages to be visible/compatible
+        // with the old repo tag structure, we must also try to remove
+        // the legacy version of the tag after removing the discovered
+        // as it may still be there and cause the removal to be ineffective
+        if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)?) {
+            match self.inner.remove_tag_stream(&legacy_tag).await {
+                Err(spfs::Error::UnknownReference(_)) => (),
+                res => res?,
             }
-            self.invalidate_caches();
-            Ok(())
-        })
+        }
+        self.invalidate_caches();
+        Ok(())
     }
 
-    fn upgrade(&self) -> Result<String> {
+    async fn upgrade(&self) -> Result<String> {
         let target_version = crate::api::Version::from_str(REPO_VERSION).unwrap();
-        let mut meta = Handle::current().block_on(self.read_metadata())?;
+        let mut meta = self.read_metadata().await?;
         if meta.version > target_version {
             // for this particular upgrade (moving old-style tags to new)
             // we allow it to be run again over the same repo since it's
@@ -464,23 +470,22 @@ impl Repository for SPFSRepository {
             // during the transition period
             return Ok("Nothing to do.".to_string());
         }
-        for name in self.list_packages()? {
+        for name in self.list_packages().await? {
             tracing::info!("replicating old tags for {}...", name);
             let mut pkg = api::Ident::new(name.to_owned());
-            for version in self.list_package_versions(&name)?.iter() {
+            for version in self.list_package_versions(&name).await?.iter() {
                 pkg.version = (**version).clone();
-                for build in self.list_package_builds(&pkg)? {
-                    let stored = crate::HANDLE.block_on(with_cache_policy!(
-                        self,
-                        CachePolicy::BypassCache,
-                        { self.lookup_package(&build) }
-                    ))?;
+                for build in self.list_package_builds(&pkg).await? {
+                    let stored = with_cache_policy!(self, CachePolicy::BypassCache, {
+                        self.lookup_package(&build)
+                    })
+                    .await?;
                     if stored.has_components() {
                         continue;
                     }
                     let components = stored.into_components();
                     for (name, tag_spec) in components.into_iter() {
-                        let tag = crate::HANDLE.block_on(self.inner.resolve_tag(&tag_spec))?;
+                        let tag = self.inner.resolve_tag(&tag_spec).await?;
                         let new_tag_path = self.build_package_tag(&build)?.join(name.to_string());
                         let new_tag_spec = spfs::tracking::TagSpec::parse(&new_tag_path)?;
 
@@ -496,13 +501,13 @@ impl Repository for SPFSRepository {
                         new_tag.time = tag.time;
                         new_tag.user = tag.user;
 
-                        crate::HANDLE.block_on(self.insert_tag(&new_tag))?;
+                        self.insert_tag(&new_tag).await?;
                     }
                 }
             }
         }
         meta.version = target_version;
-        crate::HANDLE.block_on(self.write_metadata(&meta))?;
+        self.write_metadata(&meta).await?;
         // Note caches are already invalidated in `write_metadata`
         Ok("All packages were re-tagged for components".to_string())
     }
