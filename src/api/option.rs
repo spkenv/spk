@@ -419,13 +419,19 @@ impl PkgOpt {
 
     pub fn set_value(&mut self, value: String) -> Result<()> {
         if let Err(err) = VersionRange::from_str(&value) {
-            return Err(Error::wrap(
-                format!(
-                    "Invalid value '{}' for option '{}', not a valid package request",
-                    value, self.pkg
-                ),
-                err,
-            ));
+            // Can this be parsed as a valid ident range instead?
+            // Example: `"1.0.0/QYB6QLCN"`
+            if super::parse_ident_range(format!("pkg-name/{}", &value)).is_err() {
+                // No; reject the value
+                return Err(Error::wrap(
+                    format!(
+                        "Invalid value '{}' for option '{}', not a valid package request",
+                        value, self.pkg
+                    ),
+                    err,
+                ));
+            }
+            // else accept the value
         }
         self.value = Some(value);
         Ok(())
@@ -464,12 +470,7 @@ impl PkgOpt {
         requester: RequestedBy,
     ) -> Result<PkgRequest> {
         let value = self.get_value(given_value.as_deref()).unwrap_or_default();
-        let pkg = super::RangeIdent {
-            name: self.pkg.clone(),
-            version: value.parse()?,
-            components: Default::default(),
-            build: None,
-        };
+        let pkg = super::parse_ident_range(format!("{}/{}", self.pkg, value))?;
 
         let request = PkgRequest::new(pkg, requester)
             .with_prerelease(self.prerelease_policy)

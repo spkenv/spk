@@ -7,6 +7,18 @@ use super::BuildSpec;
 use crate::{api, opt_name, option_map};
 
 #[rstest]
+fn test_variants_may_have_a_build() {
+    let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(
+        r#"{
+        options: [{pkg: "my-pkg"}],
+        variants: [{my-pkg: "1.0.0/QYB6QLCN"}],
+    }"#,
+    );
+
+    assert!(res.is_ok());
+}
+
+#[rstest]
 fn test_variants_must_be_unique() {
     // two variants end up resolving to the same set of options
     let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(
