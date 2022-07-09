@@ -67,7 +67,7 @@ impl Repository for RuntimeRepository {
         &self.address
     }
 
-    fn list_packages(&self) -> Result<Vec<api::PkgName>> {
+    fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>> {
         Ok(get_all_filenames(&self.root)?
             .into_iter()
             .filter_map(|entry| {
@@ -77,7 +77,7 @@ impl Repository for RuntimeRepository {
                     None
                 }
             })
-            .filter_map(|e| api::PkgName::try_from(e).ok())
+            .filter_map(|e| api::PkgNameBuf::try_from(e).ok())
             .collect())
     }
 
@@ -108,7 +108,7 @@ impl Repository for RuntimeRepository {
     }
 
     fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        let mut base = self.root.join(pkg.name.as_str());
+        let mut base = self.root.join(&pkg.name);
         base.push(pkg.version.to_string());
         Ok(get_all_filenames(&base)?
             .into_iter()

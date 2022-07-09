@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use rstest::rstest;
@@ -164,9 +163,9 @@ fn test_solver_sorted_build_iterator_sort_by_option_values() {
         ]),
     ];
 
-    let pkg_name = PkgName::from_str(package_name).unwrap();
+    let pkg_name = PkgName::new(package_name).unwrap();
 
-    let mut rp_iterator = RepositoryPackageIterator::new(pkg_name.clone(), vec![Arc::new(repo)]);
+    let mut rp_iterator = RepositoryPackageIterator::new(pkg_name.to_owned(), vec![Arc::new(repo)]);
     while let Some((_pkg, builds)) = rp_iterator.next().unwrap() {
         // This runs the test, by sorting the builds
         let mut iterator = SortedBuildIterator::new(api::OptionMap::default(), builds).unwrap();
@@ -181,7 +180,7 @@ fn test_solver_sorted_build_iterator_sort_by_option_values() {
             let b = &sorted_builds[i];
             let options = b
                 .build
-                .resolve_all_options(Some(&pkg_name), &api::OptionMap::default());
+                .resolve_all_options(Some(pkg_name), &api::OptionMap::default());
 
             for (n, v) in options.iter() {
                 println!("{} {} {}={}", i, b.pkg, n, v);

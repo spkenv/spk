@@ -77,7 +77,7 @@ impl SolvedRequest {
 pub struct Solution {
     options: api::OptionMap,
     resolved: HashMap<api::PkgRequest, (Arc<api::Spec>, PackageSource)>,
-    by_name: HashMap<api::PkgName, Arc<api::Spec>>,
+    by_name: HashMap<api::PkgNameBuf, Arc<api::Spec>>,
     insertion_order: HashMap<api::PkgRequest, usize>,
 }
 

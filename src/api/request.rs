@@ -17,7 +17,7 @@ use super::{
     parse_build,
     version_range::{self, Ranged},
     Build, CompatRule, Compatibility, Component, EqualsVersion, Ident, InvalidNameError, PkgName,
-    Spec, Version, VersionFilter,
+    PkgNameBuf, Spec, Version, VersionFilter,
 };
 use crate::{Error, Result};
 
@@ -28,7 +28,7 @@ mod request_test;
 /// Identifies a range of package versions and builds.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RangeIdent {
-    pub name: PkgName,
+    pub name: PkgNameBuf,
     pub components: HashSet<Component>,
     pub version: VersionFilter,
     pub build: Option<Build>,
@@ -91,7 +91,7 @@ impl RangeIdent {
         }
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &PkgName {
         &self.name
     }
 
@@ -320,7 +320,7 @@ pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
     })
 }
 
-fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(PkgName, HashSet<Component>)> {
+fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(PkgNameBuf, HashSet<Component>)> {
     let source = source.as_ref();
     let mut components = HashSet::new();
 
@@ -534,12 +534,12 @@ impl VarRequest {
     }
 
     /// Return the name of the package that this var refers to (if any)
-    pub fn package(&self) -> Option<PkgName> {
+    pub fn package(&self) -> Option<PkgNameBuf> {
         if self.var.contains('.') {
             self.var
                 .split('.')
                 .next()
-                .map(PkgName::from_str)
+                .map(PkgNameBuf::from_str)
                 .and_then(Result::ok)
         } else {
             None

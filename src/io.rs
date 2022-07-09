@@ -42,7 +42,7 @@ pub const SHOW_INITIAL_REQUESTS_FULL_VALUES: u32 = 5;
 pub const INITIAL_REQUESTS_LEVEL: u64 = 0;
 
 pub fn format_ident(pkg: &api::Ident) -> String {
-    let mut out = pkg.name.bold().to_string();
+    let mut out = pkg.name.as_str().bold().to_string();
     if !pkg.version.is_zero() || pkg.build.is_some() {
         out = format!("{}/{}", out, pkg.version.to_string().bright_blue());
     }
@@ -92,8 +92,7 @@ pub fn format_request<'a, R>(
 where
     R: IntoIterator<Item = &'a api::PkgRequest>,
 {
-    let mut out = name.bold().to_string();
-
+    let mut out = name.as_str().bold().to_string();
     let mut versions = Vec::new();
     let mut components = std::collections::HashSet::new();
     for req in requests.into_iter() {

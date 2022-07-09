@@ -7,7 +7,7 @@ use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    CompatRule, Compatibility, InclusionPolicy, PkgName, PkgRequest, PreReleasePolicy, Ranged,
+    CompatRule, Compatibility, InclusionPolicy, PkgNameBuf, PkgRequest, PreReleasePolicy, Ranged,
     Request, RequestedBy, VarRequest, VersionRange,
 };
 use crate::{Error, Result};
@@ -63,7 +63,7 @@ pub enum Opt {
 impl Opt {
     pub fn name(&self) -> &str {
         match self {
-            Self::Pkg(opt) => &opt.pkg,
+            Self::Pkg(opt) => opt.pkg.as_str(),
             Self::Var(opt) => &opt.var,
         }
     }
@@ -384,7 +384,7 @@ impl<'de> Deserialize<'de> for VarOpt {
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PkgOpt {
-    pub pkg: PkgName,
+    pub pkg: PkgNameBuf,
     pub default: String,
     pub prerelease_policy: PreReleasePolicy,
     pub required_compat: Option<CompatRule>,
@@ -392,7 +392,7 @@ pub struct PkgOpt {
 }
 
 impl PkgOpt {
-    pub fn new(name: PkgName) -> Result<Self> {
+    pub fn new(name: PkgNameBuf) -> Result<Self> {
         Ok(Self {
             pkg: name,
             default: String::default(),

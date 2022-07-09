@@ -11,7 +11,7 @@ use std::sync::{Mutex, RwLock};
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 
-use crate::api::{self, Ident, InclusionPolicy, PkgName};
+use crate::api::{self, Ident, InclusionPolicy, PkgName, PkgNameBuf};
 
 use super::errors::{self};
 use super::{
@@ -493,7 +493,7 @@ pub struct Node {
     outputs: HashSet<u64>,
     outputs_decisions: Vec<Arc<Decision>>,
     pub state: Arc<State>,
-    iterators: HashMap<PkgName, Arc<Mutex<Box<dyn PackageIterator>>>>,
+    iterators: HashMap<PkgNameBuf, Arc<Mutex<Box<dyn PackageIterator>>>>,
 }
 
 impl Node {
@@ -536,7 +536,7 @@ impl Node {
 
     pub fn set_iterator(
         &mut self,
-        package_name: api::PkgName,
+        package_name: api::PkgNameBuf,
         iterator: &Arc<Mutex<Box<dyn PackageIterator>>>,
     ) {
         if self.iterators.contains_key(&package_name) {
@@ -934,7 +934,7 @@ impl<T> std::hash::Hash for CachedHash<T> {
     }
 }
 
-type StatePackages = Arc<BTreeMap<PkgName, (CachedHash<Arc<api::Spec>>, PackageSource)>>;
+type StatePackages = Arc<BTreeMap<PkgNameBuf, (CachedHash<Arc<api::Spec>>, PackageSource)>>;
 
 // `State` is immutable. It should not derive Clone.
 #[derive(Debug)]
@@ -1041,7 +1041,7 @@ impl State {
         for request in self.pkg_requests.iter() {
             match merged.as_mut() {
                 None => {
-                    if request.pkg.name != *name {
+                    if &*request.pkg.name != name {
                         continue;
                     }
                     merged = Some((***request).clone());
@@ -1072,7 +1072,7 @@ impl State {
         // requests that have not been satisfied, or only merged
         // requests, or both.
         for request in self.pkg_requests.iter() {
-            if self.packages.contains_key(&request.pkg.name) {
+            if self.packages.contains_key(&*request.pkg.name) {
                 continue;
             }
             if request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
@@ -1102,7 +1102,7 @@ impl State {
 
     pub fn get_resolved_packages(
         &self,
-    ) -> &BTreeMap<PkgName, (CachedHash<Arc<api::Spec>>, PackageSource)> {
+    ) -> &BTreeMap<PkgNameBuf, (CachedHash<Arc<api::Spec>>, PackageSource)> {
         &self.packages
     }
 

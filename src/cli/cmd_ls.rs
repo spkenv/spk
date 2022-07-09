@@ -1,7 +1,7 @@
 // Copyright (c) 2022 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{collections::BTreeSet, fmt::Write, str::FromStr};
+use std::{collections::BTreeSet, fmt::Write};
 
 use anyhow::Result;
 use clap::Args;
@@ -73,18 +73,18 @@ impl Run for Ls {
                     set.extend(
                         repo.list_packages()?
                             .into_iter()
-                            .map(spk::api::PkgName::into),
+                            .map(spk::api::PkgNameBuf::into),
                     )
                 }
                 results = set.into_iter().collect();
             }
             Some(package) if !package.contains('/') => {
                 // Given a package name, list all the versions of the package
-                let pkgname = PkgName::from_str(package)?;
+                let pkgname = PkgName::new(package)?;
                 let mut versions = Vec::new();
                 for (index, (_, repo)) in repos.iter().enumerate() {
                     versions.extend(
-                        repo.list_package_versions(&pkgname)?
+                        repo.list_package_versions(pkgname)?
                             .iter()
                             .cloned()
                             .map(|v| (v, index)),
@@ -182,7 +182,7 @@ impl Ls {
         packages.sort();
         for (package, index) in packages {
             let (repo_name, repo) = repos.get(index).unwrap();
-            let mut versions = if package.contains('/') {
+            let mut versions = if package.as_str().contains('/') {
                 vec![spk::api::parse_ident(&package)?]
             } else {
                 let base = spk::api::Ident::from(package);

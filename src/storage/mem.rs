@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use super::Repository;
-use crate::api::PkgName;
+use crate::api::PkgNameBuf;
 use crate::{api, Error, Result};
 
 type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;
@@ -15,8 +15,8 @@ type SpecByVersion = HashMap<api::Version, Arc<api::Spec>>;
 #[derive(Clone, Debug)]
 pub struct MemRepository {
     address: url::Url,
-    specs: Arc<RwLock<HashMap<PkgName, SpecByVersion>>>,
-    packages: Arc<RwLock<HashMap<PkgName, HashMap<api::Version, BuildMap>>>>,
+    specs: Arc<RwLock<HashMap<PkgNameBuf, SpecByVersion>>>,
+    packages: Arc<RwLock<HashMap<PkgNameBuf, HashMap<api::Version, BuildMap>>>>,
 }
 
 impl MemRepository {
@@ -71,7 +71,7 @@ impl Repository for MemRepository {
         &self.address
     }
 
-    fn list_packages(&self) -> Result<Vec<api::PkgName>> {
+    fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>> {
         Ok(self
             .specs
             .read()

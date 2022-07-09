@@ -25,7 +25,7 @@ fn test_repo_list_package_versions_empty(#[case] repo: RepoKind) {
     let _guard = crate::HANDLE.enter();
     let repo = crate::HANDLE.block_on(make_repo(repo));
     assert!(
-        repo.list_package_versions(&"nothing".parse().unwrap())
+        repo.list_package_versions(api::PkgName::new("nothing").unwrap())
             .unwrap()
             .is_empty(),
         "should not fail with unknown package"

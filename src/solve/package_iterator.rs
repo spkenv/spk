@@ -88,7 +88,7 @@ impl VersionIterator {
 /// A stateful cursor yielding package builds from a set of repositories.
 #[derive(Debug)]
 pub struct RepositoryPackageIterator {
-    pub package_name: api::PkgName,
+    pub package_name: api::PkgNameBuf,
     pub repos: Vec<Arc<storage::RepositoryHandle>>,
     versions: Option<VersionIterator>,
     version_map: HashMap<Arc<api::Version>, Arc<storage::RepositoryHandle>>,
@@ -185,7 +185,7 @@ impl PackageIterator for RepositoryPackageIterator {
 }
 
 impl RepositoryPackageIterator {
-    pub fn new(package_name: api::PkgName, repos: Vec<Arc<storage::RepositoryHandle>>) -> Self {
+    pub fn new(package_name: api::PkgNameBuf, repos: Vec<Arc<storage::RepositoryHandle>>) -> Self {
         RepositoryPackageIterator {
             package_name,
             repos,

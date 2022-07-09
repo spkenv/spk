@@ -6,7 +6,7 @@ use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{parse_build, parse_version, Build, InvalidNameError, PkgName, Version};
+use super::{parse_build, parse_version, Build, InvalidNameError, PkgNameBuf, Version};
 
 #[cfg(test)]
 #[path = "./ident_test.rs"]
@@ -37,7 +37,7 @@ macro_rules! ident {
 /// syntax and context
 #[derive(Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Ident {
-    pub name: PkgName,
+    pub name: PkgNameBuf,
     pub version: Version,
     pub build: Option<Build>,
 }
@@ -91,7 +91,7 @@ impl Ident {
 }
 
 impl Ident {
-    pub fn new(name: PkgName) -> Self {
+    pub fn new(name: PkgNameBuf) -> Self {
         Self {
             name,
             version: Default::default(),
@@ -116,8 +116,8 @@ impl Ident {
     }
 }
 
-impl From<PkgName> for Ident {
-    fn from(n: PkgName) -> Self {
+impl From<PkgNameBuf> for Ident {
+    fn from(n: PkgNameBuf) -> Self {
         Self::new(n)
     }
 }
