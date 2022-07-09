@@ -5,13 +5,12 @@
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt;
 
-use clap::Parser;
+use clap::Args;
 
 use super::args;
 
 /// Run a program in a configured spfs environment
-#[derive(Debug, Parser)]
-#[clap(name = "spfs-run")]
+#[derive(Debug, Args)]
 pub struct CmdRun {
     #[clap(flatten)]
     pub sync: args::Sync,

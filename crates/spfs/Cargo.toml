@@ -14,29 +14,12 @@ name = "spfs"
 path = "src/cli/bin.rs"
 required-features = ["cli"]
 [[bin]]
-name = "spfs-run"
-# use a separate module so cmd_run can also be importable from cmd_shell
-path = "src/cli/cmd_run_main.rs"
-required-features = ["cli"]
-[[bin]]
-name = "spfs-shell"
-path = "src/cli/cmd_shell.rs"
-required-features = ["cli"]
-[[bin]]
 name = "spfs-enter"
 path = "src/cli/cmd_enter.rs"
 required-features = ["cli"]
 [[bin]]
 name = "spfs-join"
 path = "src/cli/cmd_join.rs"
-required-features = ["cli"]
-[[bin]]
-name = "spfs-pull"
-path = "src/cli/cmd_pull.rs"
-required-features = ["cli"]
-[[bin]]
-name = "spfs-push"
-path = "src/cli/cmd_push.rs"
 required-features = ["cli"]
 [[bin]]
 name = "spfs-render"
@@ -46,10 +29,6 @@ required-features = ["cli"]
 name = "spfs-monitor"
 path = "src/cli/cmd_monitor.rs"
 required-features = ["cli"]
-[[bin]]
-name = "spfs-server"
-path = "src/cli/cmd_server.rs"
-required-features = ["server", "cli"]
 
 [features]
 default = []

@@ -1,14 +1,16 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use clap::Parser;
 
-#[macro_use]
-mod args;
+use clap::Args;
 
-main!(CmdServer);
+use super::args;
 
-#[derive(Debug, Parser)]
+/// Start an spfs server
+///
+/// The server can be used as a remote repository by
+/// it's clients, communicating over gRPC and http
+#[derive(Debug, Args)]
 pub struct CmdServer {
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
