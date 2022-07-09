@@ -4,7 +4,7 @@ on:
   push:
     paths:
       # Only run coverage report if the sources have changed
-      - 'src/**.rs'
+      - "src/**.rs"
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,7 +18,7 @@ jobs:
       options: --security-opt seccomp=unconfined --privileged
       env:
         # Disable cnproc because we're in a container
-        SPFS_MONITOR_
+        SPFS_MONITOR_DISABLE_CNPROC: "1"
         FEATURES: "server,cli"
     steps:
       - uses: actions/checkout@v2

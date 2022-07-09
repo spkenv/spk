@@ -39,7 +39,6 @@ jobs:
       - name: Lint
         run: make lint FEATURES=server,cli
       - name: Integration Test
-        # Disable cnproc because we're in a container
         run: |
           make install-debug FEATURES=server,cli
           ORIGIN_REPO=/tmp/spfs-repos/origin
@@ -47,6 +46,7 @@ jobs:
           # Pre-create a repo
           SPFS_REMOTE_origin_ADDRESS="file://${ORIGIN_REPO}?create=true" spfs ls-tags -r origin
           export SPFS_REMOTE_origin_ADDRESS="file://${ORIGIN_REPO}"
+          # Disable cnproc because we're in a container
           export SPFS_MONITOR_DISABLE_CNPROC=1
           # Run tests as a normal user to verify privilege escalation
           useradd -m e2e
