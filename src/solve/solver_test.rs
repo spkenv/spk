@@ -107,14 +107,12 @@ async fn run_and_print_resolve_for_tests(solver: &Solver) -> Result<super::Solut
 #[rstest]
 #[tokio::test]
 async fn test_solver_no_requests(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     solver.solve().await.unwrap();
 }
 
 #[rstest]
 #[tokio::test]
 async fn test_solver_package_with_no_spec(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     let repo = crate::storage::RepositoryHandle::new_mem();
 
     let options = option_map! {};
@@ -144,7 +142,6 @@ async fn test_solver_package_with_no_spec(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     let repo = crate::storage::RepositoryHandle::new_mem();
 
     let options = option_map! {};
@@ -179,7 +176,6 @@ async fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_single_package_no_deps(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     let options = option_map! {};
     let repo = make_repo!([{"pkg": "my-pkg/1.0.0"}], options=options.clone());
 
@@ -198,7 +194,6 @@ async fn test_solver_single_package_no_deps(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_single_package_simple_deps(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     let options = option_map! {};
     let repo = make_repo!(
         [
@@ -225,7 +220,6 @@ async fn test_solver_single_package_simple_deps(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_dependency_abi_compat(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     let options = option_map! {};
     let repo = make_repo!(
         [
@@ -255,7 +249,6 @@ async fn test_solver_dependency_abi_compat(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_dependency_incompatible(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test what happens when a dependency is added which is incompatible
     // with an existing request in the stack
     let repo = make_repo!(
@@ -282,7 +275,6 @@ async fn test_solver_dependency_incompatible(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_dependency_incompatible_stepback(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test what happens when a dependency is added which is incompatible
     // with an existing request in the stack - in this case we want the solver
     // to successfully step back into an older package version with
@@ -316,7 +308,6 @@ async fn test_solver_dependency_incompatible_stepback(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_dependency_already_satisfied(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test what happens when a dependency is added which represents
     // a package which has already been resolved
     // - and the resolved version satisfies the request
@@ -348,7 +339,6 @@ async fn test_solver_dependency_already_satisfied(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_dependency_reopen_solvable(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test what happens when a dependency is added which represents
     // a package which has already been resolved
     // - and the resolved version does not satisfy the request
@@ -384,7 +374,6 @@ async fn test_solver_dependency_reopen_solvable(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_dependency_reiterate(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test what happens when a package iterator must be run through twice
     // - walking back up the solve graph should reset the iterator to where it was
 
@@ -419,7 +408,6 @@ async fn test_solver_dependency_reiterate(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_dependency_reopen_unsolvable(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test what happens when a dependency is added which represents
     // a package which has already been resolved
     // - and the resolved version does not satisfy the request
@@ -452,7 +440,6 @@ async fn test_solver_dependency_reopen_unsolvable(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_pre_release_config(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     let repo = make_repo!(
         [
             {"pkg": "my-pkg/0.9.0"},
@@ -485,7 +472,6 @@ async fn test_solver_pre_release_config(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_constraint_only(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test what happens when a dependency is marked as a constraint/optional
     // and no other request is added
     // - the constraint is noted
@@ -513,7 +499,6 @@ async fn test_solver_constraint_only(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_constraint_and_request(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test what happens when a dependency is marked as a constraint/optional
     // and also requested by another package
     // - the constraint is noted
@@ -548,7 +533,6 @@ async fn test_solver_constraint_and_request(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_option_compatibility(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test what happens when an option is given in the solver
     // - the options for each build are checked
     // - the resolved build must have used the option
@@ -629,7 +613,6 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_option_injection(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test the options that are defined when a package is resolved
     // - options are namespaced and added to the environment
     init_logging();
@@ -682,7 +665,6 @@ async fn test_solver_option_injection(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_build_from_source(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when no appropriate build exists but the source is available
     // - the build is skipped
     // - the source package is checked for current options
@@ -734,7 +716,6 @@ async fn test_solver_build_from_source(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when no appropriate build exists but the source is available
     // - if the requested pkg cannot resolve a build environment
     // - this is flagged by the solver as impossible
@@ -772,7 +753,6 @@ async fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_build_from_source_dependency(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when no appropriate build exists but the source is available
     // - the existing build is skipped
     // - the source package is checked for current options
@@ -823,7 +803,6 @@ async fn test_solver_build_from_source_dependency(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_deprecated_build(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     let deprecated = make_build!({"pkg": "my-pkg/1.0.0", "deprecated": true});
     let deprecated_build = deprecated.pkg.clone();
     let repo = make_repo!([
@@ -862,7 +841,6 @@ async fn test_solver_deprecated_build(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_deprecated_version(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     let mut deprecated = make_build!({"pkg": "my-pkg/1.0.0"});
     deprecated.deprecated = true;
     let repo = make_repo!(
@@ -903,7 +881,6 @@ async fn test_solver_deprecated_version(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_build_from_source_deprecated(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when no appropriate build exists and the main package
     // has been deprecated, no source build should be allowed
 
@@ -938,7 +915,6 @@ async fn test_solver_build_from_source_deprecated(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_embedded_package_adds_request(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when there is an embedded package
     // - the embedded package is added to the solution
     // - the embedded package is also added as a request in the resolve
@@ -966,7 +942,6 @@ async fn test_solver_embedded_package_adds_request(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_embedded_package_solvable(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when there is an embedded package
     // - the embedded package is added to the solution
     // - the embedded package resolves existing requests
@@ -999,7 +974,6 @@ async fn test_solver_embedded_package_solvable(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_embedded_package_unsolvable(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when there is an embedded package
     // - the embedded package is added to the solution
     // - the embedded package conflicts with existing requests
@@ -1033,7 +1007,6 @@ async fn test_solver_embedded_package_unsolvable(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_some_versions_conflicting_requests(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when there is a package with some version that have a conflicting dependency
     // - the solver passes over the one with conflicting
     // - the solver logs compat info for versions with conflicts
@@ -1071,7 +1044,6 @@ async fn test_solver_some_versions_conflicting_requests(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_embedded_request_invalidates(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when a package is resolved with an incompatible embedded pkg
     // - the solver tries to resolve the package
     // - there is a conflict in the embedded request
@@ -1106,7 +1078,6 @@ async fn test_solver_embedded_request_invalidates(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_unknown_package_options(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when a package is requested with specific options (eg: pkg.opt)
     // - the solver ignores versions that don't define the option
     // - the solver resolves versions that do define the option
@@ -1132,7 +1103,6 @@ async fn test_solver_unknown_package_options(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_var_requirements(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test what happens when a dependency is added which is incompatible
     // with an existing request in the stack
     let repo = make_repo!(
@@ -1182,7 +1152,6 @@ async fn test_solver_var_requirements(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_var_requirements_unresolve(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when a package is resolved that conflicts in var requirements
     //  - the solver should unresolve the solved package
     //  - the solver should resolve a new version of the package with the right version
@@ -1237,7 +1206,6 @@ async fn test_solver_var_requirements_unresolve(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when a package is resolved with some build option
     //  - that option can conflict with another packages build options
     //  - as long as there is no explicit requirement on that option's value
@@ -1286,7 +1254,6 @@ async fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_components(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when a package is requested with specific components
     // - all the aggregated components are selected in the resolve
     // - the final build has published layers for each component
@@ -1334,7 +1301,6 @@ async fn test_solver_components(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_all_component(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when a package is requested with the 'all' component
     // - all the specs components are selected in the resolve
     // - the final build has published layers for each component
@@ -1376,7 +1342,6 @@ async fn test_solver_all_component(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_component_availability(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when a package is requested with some component
     // - all the specs components are selected in the resolve
     // - the final build has published layers for each component
@@ -1429,7 +1394,6 @@ async fn test_solver_component_availability(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_component_requirements(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when a component has it's own list of requirements
     // - the requirements are added to the existing set of requirements
     // - the additional requirements are resolved
@@ -1478,7 +1442,6 @@ async fn test_solver_component_requirements(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_component_requirements_extending(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when an additional component is requested after a package is resolved
     // - the new components requirements are still added and resolved
 
@@ -1512,7 +1475,6 @@ async fn test_solver_component_requirements_extending(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_component_embedded(mut solver: Solver) {
-    let _guard = crate::MUTEX.lock().await;
     // test when a component has it's own list of embedded packages
     // - the embedded package is immediately selected
     // - it must be compatible with any previous requirements

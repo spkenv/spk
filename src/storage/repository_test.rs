@@ -11,7 +11,6 @@ use crate::{api, fixtures::*, storage::CachePolicy, Error};
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_list_empty(#[case] repo: RepoKind) {
-    let _guard = crate::MUTEX.lock().await;
     let repo = make_repo(repo).await;
     assert!(
         repo.list_packages().await.unwrap().is_empty(),
@@ -24,7 +23,6 @@ async fn test_repo_list_empty(#[case] repo: RepoKind) {
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_list_package_versions_empty(#[case] repo: RepoKind) {
-    let _guard = crate::MUTEX.lock().await;
     let repo = make_repo(repo).await;
     assert!(
         repo.list_package_versions(api::PkgName::new("nothing").unwrap())
@@ -40,7 +38,6 @@ async fn test_repo_list_package_versions_empty(#[case] repo: RepoKind) {
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_list_package_builds_empty(#[case] repo: RepoKind) {
-    let _guard = crate::MUTEX.lock().await;
     let repo = make_repo(repo).await;
     let nothing = api::parse_ident("nothing/1.0.0").unwrap();
     assert!(
@@ -54,7 +51,6 @@ async fn test_repo_list_package_builds_empty(#[case] repo: RepoKind) {
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_read_spec_empty(#[case] repo: RepoKind) {
-    let _guard = crate::MUTEX.lock().await;
     let repo = make_repo(repo).await;
     let nothing = api::parse_ident("nothing").unwrap();
     match repo.read_spec(&nothing).await {
@@ -68,7 +64,6 @@ async fn test_repo_read_spec_empty(#[case] repo: RepoKind) {
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_get_package_empty(#[case] repo: RepoKind) {
-    let _guard = crate::MUTEX.lock().await;
     let repo = make_repo(repo).await;
     let nothing = api::parse_ident("nothing/1.0.0/src").unwrap();
     match repo.read_spec(&nothing).await {
@@ -82,7 +77,6 @@ async fn test_repo_get_package_empty(#[case] repo: RepoKind) {
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_publish_spec(#[case] repo: RepoKind) {
-    let _guard = crate::MUTEX.lock().await;
     let repo = make_repo(repo).await;
     let spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
     repo.publish_spec(&spec).await.unwrap();
@@ -114,7 +108,6 @@ async fn test_repo_publish_spec(#[case] repo: RepoKind) {
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_publish_package(#[case] repo: RepoKind) {
-    let _guard = crate::MUTEX.lock().await;
     let repo = make_repo(repo).await;
     let mut spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
     repo.publish_spec(&spec).await.unwrap();
@@ -140,7 +133,6 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_remove_package(#[case] repo: RepoKind) {
-    let _guard = crate::MUTEX.lock().await;
     let repo = make_repo(repo).await;
     let mut spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
     repo.publish_spec(&spec).await.unwrap();

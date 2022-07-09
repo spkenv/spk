@@ -10,7 +10,6 @@ use crate::{fixtures::*, storage::CachePolicy, with_cache_policy};
 #[rstest]
 #[tokio::test]
 async fn test_load_spec_local() {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let spec = crate::spec!({"pkg": "my-pkg"});
     rt.tmprepo.publish_spec(&spec).await.unwrap();
@@ -22,7 +21,6 @@ async fn test_load_spec_local() {
 #[rstest]
 #[tokio::test]
 async fn test_save_spec() {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let spec = crate::spec!({"pkg": "my-pkg"});
 

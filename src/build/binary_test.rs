@@ -43,7 +43,6 @@ fn test_split_manifest_permissions() {
 #[rstest]
 #[tokio::test]
 async fn test_empty_var_option_is_not_a_request() {
-    let _guard = crate::MUTEX.lock().await;
     let spec: crate::api::Spec = serde_yaml::from_str(
         r#"{
             pkg: mypackage/1.0.0,
@@ -94,7 +93,6 @@ fn test_var_with_build_assigns_build() {
 #[rstest]
 #[tokio::test]
 async fn test_build_workdir(tmpdir: tempdir::TempDir) {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let out_file = tmpdir.path().join("out.log");
     let mut spec = crate::spec!(
@@ -124,7 +122,6 @@ async fn test_build_workdir(tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_build_package_options() {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let dep_spec = crate::spec!(
         {"pkg": "dep/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
@@ -191,7 +188,6 @@ async fn test_build_package_options() {
 #[rstest]
 #[tokio::test]
 async fn test_build_package_pinning() {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let dep_spec = crate::spec!(
         {"pkg": "dep/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
@@ -237,7 +233,6 @@ async fn test_build_package_pinning() {
 #[rstest]
 #[tokio::test]
 async fn test_build_package_missing_deps() {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let spec = crate::spec!(
         {
@@ -261,7 +256,6 @@ async fn test_build_package_missing_deps() {
 #[rstest]
 #[tokio::test]
 async fn test_build_var_pinning() {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let dep_spec = crate::spec!(
         {
@@ -324,7 +318,6 @@ async fn test_build_var_pinning() {
 #[rstest]
 #[tokio::test]
 async fn test_build_bad_options() {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let spec = crate::spec!(
         {
@@ -351,7 +344,6 @@ async fn test_build_bad_options() {
 #[rstest]
 #[tokio::test]
 async fn test_build_package_source_cleanup() {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let spec = crate::spec!(
         {
@@ -410,7 +402,6 @@ async fn test_build_package_source_cleanup() {
 #[rstest]
 #[tokio::test]
 async fn test_build_package_requirement_propagation() {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let base_spec = crate::spec!(
         {
@@ -493,7 +484,6 @@ async fn test_build_package_requirement_propagation() {
 #[rstest]
 #[tokio::test]
 async fn test_default_build_component() {
-    let _guard = crate::MUTEX.lock().await;
     let _rt = spfs_runtime().await;
     let spec = crate::spec!(
         {
@@ -522,7 +512,6 @@ async fn test_default_build_component() {
 #[rstest]
 #[tokio::test]
 async fn test_build_components_metadata() {
-    let _guard = crate::MUTEX.lock().await;
     let mut rt = spfs_runtime().await;
     let spec = crate::spec!(
         {
@@ -567,7 +556,6 @@ async fn test_build_components_metadata() {
 #[rstest]
 #[tokio::test]
 async fn test_build_add_startup_files(tmpdir: tempdir::TempDir) {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let spec = crate::spec!(
         {

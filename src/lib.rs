@@ -42,12 +42,6 @@ lazy_static::lazy_static! {
     };
 }
 
-lazy_static::lazy_static! {
-    pub static ref MUTEX: tokio::sync::Mutex<()> = {
-        tokio::sync::Mutex::new(())
-    };
-}
-
 #[async_trait::async_trait]
 pub trait ResolverCallback: Send + Sync {
     /// Run a solve using the given [`solve::SolverRuntime`],

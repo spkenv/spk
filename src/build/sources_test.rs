@@ -39,7 +39,6 @@ fn test_validate_sources_changeset_ok() {
 #[rstest]
 #[tokio::test]
 async fn test_sources_subdir(_tmpdir: tempdir::TempDir) {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
 
     let tar_file = rt.tmpdir.path().join("archive.tar.gz");
@@ -99,7 +98,6 @@ async fn test_sources_subdir(_tmpdir: tempdir::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_sources_environment(_tmpdir: tempdir::TempDir) {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let mut spec = crate::spec!({"pkg": "sources-test/0.1.0/src"});
     let expected = vec![

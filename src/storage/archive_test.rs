@@ -9,7 +9,6 @@ use crate::{build, fixtures::*};
 #[rstest]
 #[tokio::test]
 async fn test_archive_io() {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let spec = crate::spec!(
         {
@@ -70,7 +69,6 @@ async fn test_archive_io() {
 #[rstest]
 #[tokio::test]
 async fn test_archive_create_parents() {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let spec = crate::spec!(
         {

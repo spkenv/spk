@@ -10,7 +10,6 @@ use crate::{api, fixtures::*};
 #[rstest]
 #[tokio::test]
 async fn test_publish_no_version_spec() {
-    let _guard = crate::MUTEX.lock().await;
     let rt = spfs_runtime().await;
     let spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
     rt.tmprepo.publish_spec(&spec).await.unwrap();
