@@ -13,6 +13,7 @@ use super::{
 use crate::api::parse_ident;
 use crate::api::OptionMap;
 use crate::api::Spec;
+use crate::opt_name;
 
 // For making test case results
 fn make_tag_part(pieces: Vec<&str>) -> Option<Vec<BuildKeyVersionNumberPiece>> {
@@ -225,18 +226,18 @@ fn test_generating_build_key() {
     let a_build = Spec::new(parse_ident("testpackage/1.0.0/TESTTEST").unwrap());
 
     // Set up some resolved build options
-    let name1: String = "alib".to_string();
-    let name2: String = "somevar".to_string();
-    let name3: String = "notinthisbuild".to_string();
-    let name4: String = "apkg".to_string();
-    let name5: String = "versionbuild".to_string();
+    let name1 = opt_name!("alib").to_owned();
+    let name2 = opt_name!("somevar").to_owned();
+    let name3 = opt_name!("notinthisbuild").to_owned();
+    let name4 = opt_name!("apkg").to_owned();
+    let name5 = opt_name!("versionbuild").to_owned();
 
-    let value1: String = "1.2.3".to_string();
-    let value2: String = "something".to_string();
+    let value1 = "1.2.3".to_string();
+    let value2 = "something".to_string();
     // value3 is left out deliberately to exercise unset value processing
-    let value4: String = ">1".to_string();
+    let value4 = ">1".to_string();
     // This is not a valid version, unless the build digest is stripped off
-    let value5: String = "4.1.0/DIGEST".to_string();
+    let value5 = "4.1.0/DIGEST".to_string();
 
     let mut resolved_options: OptionMap = OptionMap::default();
     resolved_options.insert(name1.clone(), value1);
@@ -246,7 +247,7 @@ fn test_generating_build_key() {
     resolved_options.insert(name5.clone(), value5);
 
     // Generate the build's key based on the ordering of option names
-    let ordering: Vec<String> = vec![name1, name2, name3, name4, name5];
+    let ordering = vec![name1, name2, name3, name4, name5];
     let key = BuildKey::new(&a_build.pkg, &ordering, &resolved_options);
 
     // Expected build key structure for this ordering and build options:
@@ -308,15 +309,15 @@ fn test_generating_build_key_src_build() {
     let a_build = Spec::new(parse_ident("testpackage/1.0.0/src").unwrap());
 
     // Set up some resolved build options
-    let name1: String = "alib".to_string();
-    let name2: String = "somevar".to_string();
-    let name3: String = "notinthisbuild".to_string();
-    let name4: String = "apkg".to_string();
+    let name1 = opt_name!("alib").to_owned();
+    let name2 = opt_name!("somevar").to_owned();
+    let name3 = opt_name!("notinthisbuild").to_owned();
+    let name4 = opt_name!("apkg").to_owned();
 
-    let value1: String = "1.2.3".to_string();
-    let value2: String = "something".to_string();
+    let value1 = "1.2.3".to_string();
+    let value2 = "something".to_string();
     // value3 is left out deliberately to exercise unset value processing
-    let value4: String = "1.0.0,<1.5".to_string();
+    let value4 = "1.0.0,<1.5".to_string();
 
     let mut resolved_options: OptionMap = OptionMap::default();
     resolved_options.insert(name1.clone(), value1);
@@ -327,7 +328,7 @@ fn test_generating_build_key_src_build() {
     // Generate the build's key based on the ordering of option
     // names. Note: because this is a source build it won't use any of
     // the ordering or option names in the key generation
-    let ordering: Vec<String> = vec![name1, name2, name3, name4];
+    let ordering = vec![name1, name2, name3, name4];
     let key = BuildKey::new(&a_build.pkg, &ordering, &resolved_options);
 
     // Expected build key structure

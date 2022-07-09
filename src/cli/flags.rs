@@ -128,7 +128,7 @@ impl Options {
         for pair in self.options.iter() {
             let pair = pair.trim();
             if pair.starts_with('{') {
-                let given: HashMap<String, String> = serde_yaml::from_str(pair)
+                let given: HashMap<spk::api::OptNameBuf, String> = serde_yaml::from_str(pair)
                     .context("--opt value looked like yaml, but could not be parsed")?;
                 for (name, value) in given.into_iter() {
                     requests.push(spk::api::VarRequest::new_with_value(name, value));
@@ -141,7 +141,9 @@ impl Options {
                 .or_else(|| pair.split_once(':'))
                 .ok_or_else(|| {
                     anyhow!("Invalid option: -o {pair} (should be in the form name=value)")
-                })?;
+                })
+                .and_then(|(name, value)| Ok((spk::api::OptName::new(name)?, value)))?;
+
             requests.push(spk::api::VarRequest::new_with_value(name, value));
         }
         Ok(requests)

@@ -24,3 +24,14 @@ fn test_var_opt_validation(#[case] spec: &str, #[case] value: &str, #[case] expe
     let res = opt.set_value(value.to_string());
     assert_eq!(res.is_err(), expect_err);
 }
+
+#[rstest]
+#[case("{var: my-var, default: value}", Some("value"))] // deprecated, but still supported
+#[case("{var: my-var/value}", Some("value"))]
+#[case("{var: my-var}", None)]
+#[case("{var: my-var/}", None)] // empty is mapped to none
+fn test_var_opt_parse_default(#[case] spec: &str, #[case] expected: Option<&str>) {
+    let opt: VarOpt = serde_yaml::from_str(spec).unwrap();
+    let actual = opt.get_value(None);
+    assert_eq!(actual.as_deref(), expected);
+}

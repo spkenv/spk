@@ -7,7 +7,7 @@ use rstest::rstest;
 
 use super::DecisionBuilder;
 use crate::{
-    api, io, option_map,
+    api, io, opt_name, option_map,
     solve::{self, graph},
     spec,
 };
@@ -82,7 +82,7 @@ fn test_empty_options_do_not_unset() {
     let new_state = assign_empty.apply(&state, &state);
     let opts = new_state.get_option_map();
     assert_eq!(
-        opts.get("something"),
+        opts.get(opt_name!("something")),
         Some(String::new()).as_ref(),
         "should assign empty option of no current value"
     );
@@ -92,7 +92,7 @@ fn test_empty_options_do_not_unset() {
     let new_state = assign_empty.apply(&parent, &new_state);
     let opts = new_state.get_option_map();
     assert_eq!(
-        opts.get("something"),
+        opts.get(opt_name!("something")),
         Some(String::from("value")).as_ref(),
         "should not unset value when one exists"
     );

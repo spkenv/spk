@@ -10,6 +10,7 @@ use crate::{
     api,
     build::SourcePackageBuilder,
     fixtures::*,
+    opt_name,
     storage::{self, Repository},
 };
 
@@ -131,9 +132,9 @@ fn test_build_package_options() {
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         // option should be set in final published spec
-        .with_option("dep", "2.0.0")
+        .with_option(opt_name!("dep"), "2.0.0")
         // specific option takes precedence
-        .with_option("top.dep", "1.0.0")
+        .with_option(opt_name!("top.dep"), "1.0.0")
         .build()
         .unwrap();
 
@@ -145,7 +146,10 @@ fn test_build_package_options() {
             // given value should be ignored after build
             &crate::option_map! {"dep" => "7"},
         );
-    assert_eq!(build_options.get("dep"), Some(&String::from("~1.0.0")));
+    assert_eq!(
+        build_options.get(opt_name!("dep")),
+        Some(&String::from("~1.0.0"))
+    );
 }
 
 #[rstest]
@@ -292,7 +296,7 @@ fn test_build_bad_options() {
 
     let res = BinaryPackageBuilder::from_spec(spec)
         .with_source(BuildSource::LocalPath(".".into()))
-        .with_option("debug", "false")
+        .with_option(opt_name!("debug"), "false")
         .build();
 
     assert!(matches!(res, Err(crate::Error::String(_))), "got {:?}", res);
@@ -405,7 +409,7 @@ fn test_build_package_requirement_propagation() {
     match opt {
         api::Opt::Var(opt) => {
             assert_eq!(
-                &opt.var, "base.inherited",
+                &*opt.var, "base.inherited",
                 "should be inherited as package option"
             );
             assert_eq!(
@@ -426,7 +430,7 @@ fn test_build_package_requirement_propagation() {
     match req {
         api::Request::Var(req) => {
             assert_eq!(
-                req.var, "base.inherited",
+                &*req.var, "base.inherited",
                 "should be inherited with package namespace"
             );
             assert!(!req.pin, "should not be pinned after build");

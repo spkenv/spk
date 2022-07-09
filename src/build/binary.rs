@@ -61,7 +61,7 @@ pub enum BuildSource {
 ///         "pkg": "my-pkg",
 ///         "build": {"script": "echo hello, world"},
 ///      }))
-///     .with_option("debug", "true")
+///     .with_option(spk::opt_name!("debug"), "true")
 ///     .build()
 ///     .unwrap();
 /// ```
@@ -113,7 +113,7 @@ impl BinaryPackageBuilder {
     /// environment and generated package.
     pub fn with_option<N, V>(&mut self, name: N, value: V) -> &mut Self
     where
-        N: Into<String>,
+        N: Into<api::OptNameBuf>,
         V: Into<String>,
     {
         self.all_options.insert(name.into(), value.into());
@@ -298,7 +298,7 @@ impl BinaryPackageBuilder {
         for opt in self.spec.build.options.iter() {
             match opt {
                 api::Opt::Pkg(opt) => {
-                    let given_value = opts.get(opt.pkg.as_str()).map(String::to_owned);
+                    let given_value = opts.get(opt.pkg.as_opt_name()).map(String::to_owned);
                     let mut req = opt.to_request(
                         given_value,
                         api::RequestedBy::BinaryBuild(self.spec.pkg.clone()),

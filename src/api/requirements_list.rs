@@ -78,12 +78,11 @@ impl RequirementsList {
                     if !request.pin {
                         continue;
                     }
-                    let mut split = request.var.splitn(2, '.');
-                    let (var, opts) = match (split.next().unwrap(), split.next()) {
-                        (package, Some(var)) => (var, options.package_options(package)),
-                        (var, None) => (var, options.clone()),
+                    let opts = match request.var.namespace() {
+                        Some(ns) => options.package_options(ns),
+                        None => options.clone(),
                     };
-                    match opts.get(var) {
+                    match opts.get(request.var.without_namespace()) {
                         None => {
                             return Err(Error::String(
                                 format!("Cannot resolve fromBuildEnv, variable not set: {}\nIs it missing from the package build options?", request.var)

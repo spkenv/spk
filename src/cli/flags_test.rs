@@ -3,6 +3,8 @@
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
+use spk::api::OptName;
+
 #[rstest]
 #[case(&["hello:world"], &[("hello", "world")])]
 #[case(&["hello=world"], &[("hello", "world")])]
@@ -26,7 +28,7 @@ fn test_option_flags_parsing(#[case] args: &[&str], #[case] expected: &[(&str, &
     let actual = options.get_options().unwrap();
     let expected: spk::api::OptionMap = expected
         .iter()
-        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .map(|(k, v)| (OptName::new(k).unwrap().to_owned(), v.to_string()))
         .collect();
     assert_eq!(actual, expected);
 }

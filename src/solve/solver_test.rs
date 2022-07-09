@@ -7,10 +7,12 @@ use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
 
 use super::Solver;
+use crate::fixtures::*;
 use crate::{api, io, Error, Result};
 // macros
-use crate::{make_build, make_build_and_components, make_package, make_repo};
-use crate::{option_map, spec};
+use crate::{
+    make_build, make_build_and_components, make_package, make_repo, opt_name, option_map, spec,
+};
 
 #[fixture]
 fn solver() -> Solver {
@@ -563,7 +565,7 @@ fn test_solver_option_compatibility(mut solver: Solver) {
         solver.add_request(request!("vnp3"));
         solver.add_request(
             api::VarRequest {
-                var: "python".to_string(),
+                var: opt_name!("python").to_owned(),
                 pin: false,
                 value: pyver.to_string(),
             }
@@ -596,7 +598,7 @@ fn test_solver_option_compatibility(mut solver: Solver) {
 fn test_solver_option_injection(mut solver: Solver) {
     // test the options that are defined when a package is resolved
     // - options are namespaced and added to the environment
-
+    init_logging();
     let spec = spec!(
         {
             "pkg": "vnp3/2.0.0",
@@ -626,24 +628,18 @@ fn test_solver_option_injection(mut solver: Solver) {
     let solution = run_and_print_resolve_for_tests(&solver).unwrap();
 
     let mut opts = solution.options();
+    assert_eq!(opts.remove(opt_name!("vnp3")), Some("~2.0.0".to_string()));
     assert_eq!(
-        opts.remove(&String::from("vnp3")),
-        Some("~2.0.0".to_string())
-    );
-    assert_eq!(
-        opts.remove(&String::from("vnp3.python")),
+        opts.remove(opt_name!("vnp3.python")),
         Some("~2.7.5".to_string())
     );
+    assert_eq!(opts.remove(opt_name!("vnp3.debug")), Some("on".to_string()));
     assert_eq!(
-        opts.remove(&String::from("vnp3.debug")),
-        Some("on".to_string())
-    );
-    assert_eq!(
-        opts.remove(&String::from("python.abi")),
+        opts.remove(opt_name!("python.abi")),
         Some("cp27mu".to_string())
     );
     assert!(
-        !opts.contains_key("vnp3.special"),
+        !opts.contains_key(opt_name!("vnp3.special")),
         "should not define empty values"
     );
     assert_eq!(opts.len(), 0, "expected no more options");

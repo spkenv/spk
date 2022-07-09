@@ -162,9 +162,9 @@ impl Solver {
     fn resolve_new_build(&self, spec: &api::Spec, state: &State) -> Result<Solution> {
         let mut opts = state.get_option_map().clone();
         for pkg_request in state.get_pkg_requests() {
-            if !opts.contains_key(pkg_request.pkg.name.as_str()) {
+            if !opts.contains_key(pkg_request.pkg.name.as_opt_name()) {
                 opts.insert(
-                    pkg_request.pkg.name.to_string(),
+                    pkg_request.pkg.name.as_opt_name().to_owned(),
                     pkg_request.pkg.version.to_string(),
                 );
             }
@@ -408,7 +408,7 @@ impl Solver {
         let build_options = spec.resolve_all_options(state.get_option_map());
         for option in &spec.build.options {
             if let api::Opt::Pkg(option) = option {
-                let given = build_options.get(option.pkg.as_str());
+                let given = build_options.get(option.pkg.as_opt_name());
 
                 let mut request = option.to_request(
                     given.cloned(),

@@ -7,10 +7,12 @@ use std::ffi::OsString;
 use std::time::{Duration, Instant};
 use std::{
     collections::{HashMap, VecDeque},
+    convert::TryFrom,
     sync::{Arc, Mutex},
 };
 
 use super::solution::PackageSource;
+use crate::api::OptNameBuf;
 use crate::{
     api::{self, BuildKey},
     storage, Error, Result,
@@ -29,13 +31,14 @@ mod package_iterator_test;
 /// consistent across packages.
 //
 // TODO: add the default value to a config file, once spk has one
-static BUILD_KEY_NAME_ORDER: Lazy<Vec<String>> = Lazy::new(|| {
+static BUILD_KEY_NAME_ORDER: Lazy<Vec<OptNameBuf>> = Lazy::new(|| {
     std::env::var_os("SPK_BUILD_OPTION_KEY_ORDER")
         .unwrap_or_else(|| OsString::from("gcc,python"))
         .to_string_lossy()
         .to_string()
         .split(',')
-        .map(String::from)
+        .map(OptNameBuf::try_from)
+        .filter_map(Result::ok)
         .collect()
 });
 
@@ -399,12 +402,12 @@ impl SortedBuildIterator {
     /// sort_by_build_option_values() below
     fn make_option_values_build_key(
         spec: &api::Spec,
-        ordered_names: &Vec<String>,
-        build_name_values: &HashMap<String, api::OptionMap>,
+        ordered_names: &Vec<OptNameBuf>,
+        build_name_values: &HashMap<api::Ident, api::OptionMap>,
     ) -> BuildKey {
-        let build_id = spec.pkg.to_string();
+        let build_id = &spec.pkg;
         let empty = api::OptionMap::default();
-        let name_values = match build_name_values.get(&build_id) {
+        let name_values = match build_name_values.get(build_id) {
             Some(nv) => nv,
             None => &empty,
         };
@@ -417,11 +420,9 @@ impl SortedBuildIterator {
         let start = Instant::now();
 
         let mut number_non_src_builds: u64 = 0;
-        let mut build_name_values: HashMap<String, api::OptionMap> = HashMap::default();
-        let mut changes: HashMap<String, ChangeCounter> = HashMap::new();
+        let mut build_name_values: HashMap<api::Ident, api::OptionMap> = HashMap::default();
+        let mut changes: HashMap<OptNameBuf, ChangeCounter> = HashMap::new();
 
-        // Get all the build option names across all the builds, and
-        // their values.
         for (build, _) in &self.builds {
             // Skip this if it's '/src' build because '/src' builds
             // won't use the build option values in their key, they
@@ -475,18 +476,18 @@ impl SortedBuildIterator {
                 }
             }
 
-            build_name_values.insert(build.pkg.to_string(), options_map);
+            build_name_values.insert(build.pkg.clone(), options_map);
         }
 
         // Now that all the builds have been processed, pull out the
         // option names will be used to generate build keys. This is
         // the second part of the two-part process (see above) for
         // working out what option names to use.
-        let mut key_entry_names: Vec<String> = changes
+        let mut key_entry_names: Vec<_> = changes
             .iter()
             .filter(|(_, cc)| cc.use_it || cc.count != number_non_src_builds)
             .map(|(n, _)| n.clone())
-            .collect::<Vec<String>>();
+            .collect::<Vec<_>>();
 
         // Sorting the names here provides a fallback alphabetical
         // order when adding to ordered_names later.
@@ -499,11 +500,11 @@ impl SortedBuildIterator {
         // build keys. This gives them a bigger impact on how the
         // builds are ordered when they are sorted. Only names in both
         // BUILD_KEY_NAME_ORDER and key_entry_names are added here.
-        let mut ordered_names: Vec<String> = BUILD_KEY_NAME_ORDER
+        let mut ordered_names: Vec<_> = BUILD_KEY_NAME_ORDER
             .iter()
             .filter(|name| key_entry_names.contains(name))
-            .map(ToString::to_string)
-            .collect::<Vec<String>>();
+            .cloned()
+            .collect::<Vec<_>>();
 
         // The rest of the names not already mentioned in the
         // important BUILD_KEY_NAME_ORDER are added next. They are
@@ -513,8 +514,8 @@ impl SortedBuildIterator {
         // names should be added to the configuration
         // BUILD_KEY_NAME_ORDER to ensure they fall in the correct
         // position for a site's spk setup.
-        for name in &key_entry_names {
-            if !BUILD_KEY_NAME_ORDER.contains(name) {
+        for name in key_entry_names {
+            if !BUILD_KEY_NAME_ORDER.contains(&name) {
                 ordered_names.push(name.clone());
             }
         }
@@ -547,7 +548,11 @@ impl SortedBuildIterator {
         tracing::debug!(
             target: BUILD_SORT_TARGET,
             "Keys by build option values: built from: [{}]",
-            ordered_names.join(", "),
+            ordered_names
+                .iter()
+                .map(|n| n.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
         );
         tracing::debug!(
             target: BUILD_SORT_TARGET,
