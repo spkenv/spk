@@ -150,6 +150,12 @@ impl std::cmp::PartialEq<PkgName> for PkgNameBuf {
     }
 }
 
+impl std::cmp::PartialEq<str> for PkgNameBuf {
+    fn eq(&self, other: &str) -> bool {
+        &**self == other
+    }
+}
+
 impl From<&PkgName> for PkgNameBuf {
     fn from(name: &PkgName) -> Self {
         name.to_owned()
