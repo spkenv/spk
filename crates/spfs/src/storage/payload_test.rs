@@ -8,14 +8,16 @@ use rstest::rstest;
 
 use crate::fixtures::*;
 
-#[rstest(
-    tmprepo,
-    case::fs(tmprepo("fs")),
-    case::tar(tmprepo("tar")),
-    case::rpc(tmprepo("rpc"))
-)]
+#[rstest]
+#[case::fs(tmprepo("fs"))]
+#[case::tar(tmprepo("tar"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_payload_io(#[future] tmprepo: TempRepo) {
+async fn test_payload_io(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     let tmprepo = tmprepo.await;
     let bytes = "simple string data".as_bytes();
     let reader = Box::pin(bytes);
@@ -41,14 +43,16 @@ async fn test_payload_io(#[future] tmprepo: TempRepo) {
     assert_eq!(&actual, "simple string data");
 }
 
-#[rstest(
-    tmprepo,
-    case::fs(tmprepo("fs")),
-    case::tar(tmprepo("tar")),
-    case::rpc(tmprepo("rpc"))
-)]
+#[rstest]
+#[case::fs(tmprepo("fs"))]
+#[case::tar(tmprepo("tar"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_payload_existence(#[future] tmprepo: TempRepo) {
+async fn test_payload_existence(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     let tmprepo = tmprepo.await;
     let bytes = "simple string data".as_bytes();
     let reader = Box::pin(bytes);
@@ -71,14 +75,16 @@ async fn test_payload_existence(#[future] tmprepo: TempRepo) {
     assert!(!actual, "payload should not exist after being removed");
 }
 
-#[rstest(
-    tmprepo,
-    case::fs(tmprepo("fs")),
-    case::tar(tmprepo("tar")),
-    case::rpc(tmprepo("rpc"))
-)]
+#[rstest]
+#[case::fs(tmprepo("fs"))]
+#[case::tar(tmprepo("tar"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_payloads_iter(#[future] tmprepo: TempRepo) {
+async fn test_payloads_iter(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     let tmprepo = tmprepo.await;
     let payloads = [
         "simple string data 1".as_bytes(),

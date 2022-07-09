@@ -11,4 +11,7 @@ mod generated {
 
 pub use conversions::*;
 pub use generated::*;
-pub(crate) use result::{handle_error, RpcResult};
+pub(crate) use result::RpcResult;
+
+#[cfg(feature = "server")]
+pub(crate) use result::handle_error;

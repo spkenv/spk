@@ -10,14 +10,17 @@ use crate::{encoding::Encodable, tracking};
 
 use crate::fixtures::*;
 
-#[rstest(
-    repo,
-    case::fs(tmprepo("fs")),
-    case::tar(tmprepo("tar")),
-    case::rpc(tmprepo("rpc"))
-)]
+#[rstest]
+#[case::fs(tmprepo("fs"))]
+#[case::tar(tmprepo("tar"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_read_write_manifest(#[future] repo: TempRepo, tmpdir: tempdir::TempDir) {
+async fn test_read_write_manifest(
+    #[case]
+    #[future]
+    repo: TempRepo,
+    tmpdir: tempdir::TempDir,
+) {
     let dir = tmpdir.path();
     let repo = repo.await;
     std::fs::File::create(dir.join("file.txt")).unwrap();
@@ -39,14 +42,17 @@ async fn test_read_write_manifest(#[future] repo: TempRepo, tmpdir: tempdir::Tem
     assert!(digests.contains(&expected));
 }
 
-#[rstest(
-    repo,
-    case::fs(tmprepo("fs")),
-    case::tar(tmprepo("tar")),
-    case::rpc(tmprepo("rpc"))
-)]
+#[rstest]
+#[case::fs(tmprepo("fs"))]
+#[case::tar(tmprepo("tar"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
-async fn test_manifest_parity(#[future] repo: TempRepo, tmpdir: tempdir::TempDir) {
+async fn test_manifest_parity(
+    #[case]
+    #[future]
+    repo: TempRepo,
+    tmpdir: tempdir::TempDir,
+) {
     init_logging();
 
     let dir = tmpdir.path();
