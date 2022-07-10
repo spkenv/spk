@@ -5,6 +5,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
+use futures::{StreamExt, TryStreamExt};
 
 use super::{flags, Run};
 
@@ -33,19 +34,22 @@ pub struct View {
     variants: bool,
 }
 
+#[async_trait::async_trait]
 impl Run for View {
-    fn run(&mut self) -> Result<i32> {
+    async fn run(&mut self) -> Result<i32> {
         if self.variants {
             return self.print_variants_info();
         }
 
         let package = match &self.package {
-            None => return self.print_current_env(),
+            None => return self.print_current_env().await,
             Some(p) => p,
         };
 
-        let mut solver = self.solver.get_solver(&self.options)?;
-        let request = self.requests.parse_request(&package, &self.options)?;
+        let (mut solver, request) = tokio::try_join!(
+            self.solver.get_solver(&self.options),
+            self.requests.parse_request(&package, &self.options)
+        )?;
         solver.add_request(request.clone());
         let request = match request {
             spk::api::Request::Pkg(pkg) => pkg,
@@ -55,7 +59,8 @@ impl Run for View {
         let mut runtime = solver.run();
 
         let formatter = self.formatter_settings.get_formatter(self.verbose);
-        let solution = match formatter.run_and_print_decisions(&mut runtime) {
+        let solution = formatter.run_and_print_decisions(&mut runtime).await;
+        let solution = match solution {
             Ok(s) => s,
             Err(err @ spk::Error::Solve(_)) => {
                 println!("{}", err.to_string().red());
@@ -66,9 +71,15 @@ impl Run for View {
                     }
                     _v => {
                         let graph = runtime.graph();
-                        let graph = graph.read().unwrap();
-                        for line in formatter.formatted_decisions_iter(graph.walk().map(Ok)) {
-                            println!("{}", line?);
+                        let graph = graph.read().await;
+                        // Iter much?
+                        let mut graph_walk = graph.walk();
+                        let walk_iter = graph_walk.iter().map(Ok);
+                        let mut decision_iter = formatter.formatted_decisions_iter(walk_iter);
+                        let iter = decision_iter.iter();
+                        tokio::pin!(iter);
+                        while let Some(line) = iter.try_next().await? {
+                            println!("{line}");
                         }
                     }
                 }
@@ -91,8 +102,8 @@ impl Run for View {
 }
 
 impl View {
-    fn print_current_env(&self) -> Result<i32> {
-        let solution = spk::current_env()?;
+    async fn print_current_env(&self) -> Result<i32> {
+        let solution = spk::current_env().await?;
         println!("{}", spk::io::format_solution(&solution, self.verbose));
         Ok(0)
     }

@@ -36,8 +36,9 @@ pub struct Convert {
     args: Vec<String>,
 }
 
+#[async_trait::async_trait]
 impl Run for Convert {
-    fn run(&mut self) -> Result<i32> {
+    async fn run(&mut self) -> Result<i32> {
         let converter_package = format!("spk-convert-{}", self.converter);
 
         let mut command = vec![converter_package.clone()];
@@ -53,6 +54,6 @@ impl Run for Convert {
             requested: vec![converter_package],
             command,
         };
-        env.run()
+        env.run().await
     }
 }

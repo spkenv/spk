@@ -7,10 +7,12 @@ use std::{
     mem::take,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, Mutex, RwLock,
+        Arc,
     },
 };
 
+use async_stream::stream;
+use futures::{Stream, TryStreamExt};
 use priority_queue::priority_queue::PriorityQueue;
 
 use crate::{
@@ -138,28 +140,33 @@ impl Solver {
         &self.problem_packages
     }
 
-    fn get_iterator(
+    async fn get_iterator(
         &self,
         node: &mut Arc<Node>,
         package_name: &PkgName,
-    ) -> Arc<Mutex<Box<dyn PackageIterator>>> {
+    ) -> Arc<tokio::sync::Mutex<Box<dyn PackageIterator + Send>>> {
         if let Some(iterator) = node.get_iterator(package_name) {
             return iterator;
         }
         let iterator = self.make_iterator(package_name.to_owned());
-        Arc::make_mut(node).set_iterator(package_name.to_owned(), &iterator);
+        Arc::make_mut(node)
+            .set_iterator(package_name.to_owned(), &iterator)
+            .await;
         iterator
     }
 
-    fn make_iterator(&self, package_name: api::PkgNameBuf) -> Arc<Mutex<Box<dyn PackageIterator>>> {
+    fn make_iterator(
+        &self,
+        package_name: api::PkgNameBuf,
+    ) -> Arc<tokio::sync::Mutex<Box<dyn PackageIterator + Send>>> {
         debug_assert!(!self.repos.is_empty());
-        Arc::new(Mutex::new(Box::new(RepositoryPackageIterator::new(
-            package_name,
-            self.repos.clone(),
-        ))))
+        Arc::new(tokio::sync::Mutex::new(Box::new(
+            RepositoryPackageIterator::new(package_name, self.repos.clone()),
+        )))
     }
 
-    fn resolve_new_build(&self, spec: &api::Spec, state: &State) -> Result<Solution> {
+    #[async_recursion::async_recursion]
+    async fn resolve_new_build(&self, spec: &api::Spec, state: &State) -> Result<Solution> {
         let mut opts = state.get_option_map().clone();
         for pkg_request in state.get_pkg_requests() {
             if !opts.contains_key(pkg_request.pkg.name.as_opt_name()) {
@@ -180,10 +187,10 @@ impl Solver {
             ..Default::default()
         };
         solver.update_options(opts.clone());
-        solver.solve_build_environment(spec)
+        solver.solve_build_environment(spec).await
     }
 
-    fn step_state(&mut self, node: &mut Arc<Node>) -> Result<Option<Decision>> {
+    async fn step_state(&mut self, node: &mut Arc<Node>) -> Result<Option<Decision>> {
         let mut notes = Vec::<Note>::new();
         let request = if let Some(request) = node.state.get_next_request()? {
             request
@@ -194,10 +201,10 @@ impl Solver {
         // This is a step forward in the solve
         self.number_of_steps += 1;
 
-        let iterator = self.get_iterator(node, &request.pkg.name);
-        let mut iterator_lock = iterator.lock().unwrap();
+        let iterator = self.get_iterator(node, &request.pkg.name).await;
+        let mut iterator_lock = iterator.lock().await;
         loop {
-            let (pkg, builds) = match iterator_lock.next() {
+            let (pkg, builds) = match iterator_lock.next().await {
                 Ok(Some((pkg, builds))) => (pkg, builds),
                 Ok(None) => break,
                 Err(Error::PackageNotFoundError(_)) => {
@@ -215,12 +222,12 @@ impl Solver {
             if !&compat {
                 // Count this version and its builds as incompatible
                 self.number_incompat_versions += 1;
-                self.number_incompat_builds += builds.lock().unwrap().len();
+                self.number_incompat_builds += builds.lock().await.len();
 
                 // Skip this version and move on the to next one
                 iterator_lock.set_builds(
                     &pkg.version,
-                    Arc::new(Mutex::new(EmptyBuildIterator::new())),
+                    Arc::new(tokio::sync::Mutex::new(EmptyBuildIterator::new())),
                 );
                 notes.push(Note::SkipPackageNote(SkipPackageNote::new(
                     pkg.clone(),
@@ -229,18 +236,18 @@ impl Solver {
                 continue;
             }
 
-            let builds = if !builds.lock().unwrap().is_sorted_build_iterator() {
-                let builds = Arc::new(Mutex::new(SortedBuildIterator::new(
-                    node.state.get_option_map().clone(),
-                    builds.clone(),
-                )?));
+            let builds = if !builds.lock().await.is_sorted_build_iterator() {
+                let builds = Arc::new(tokio::sync::Mutex::new(
+                    SortedBuildIterator::new(node.state.get_option_map().clone(), builds.clone())
+                        .await?,
+                ));
                 iterator_lock.set_builds(&pkg.version, builds.clone());
                 builds
             } else {
                 builds
             };
 
-            while let Some((mut spec, repo)) = builds.lock().unwrap().next()? {
+            while let Some((mut spec, repo)) = builds.lock().await.next().await? {
                 // Now all this build to the total considered during
                 // this overall step
                 self.number_total_builds += 1;
@@ -257,7 +264,7 @@ impl Solver {
                         continue;
                     }
 
-                    match repo.read_spec(&spec.pkg.with_build(None)) {
+                    match repo.read_spec(&spec.pkg.with_build(None)).await {
                         Ok(s) => spec = s,
                         Err(Error::PackageNotFoundError(pkg)) => {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
@@ -282,7 +289,7 @@ impl Solver {
                 }
 
                 let mut decision = if build_from_source {
-                    match self.resolve_new_build(&spec, &node.state) {
+                    match self.resolve_new_build(&spec, &node.state).await {
                         Ok(build_env) => {
                             match Decision::builder(spec.clone(), &node.state)
                                 .with_components(&request.pkg.components)
@@ -393,12 +400,14 @@ impl Solver {
         }
     }
 
-    pub fn solve(&mut self) -> Result<Solution> {
+    pub async fn solve(&mut self) -> Result<Solution> {
         let mut runtime = self.run();
-        for step in runtime.iter() {
-            step?;
+        {
+            let iter = runtime.iter();
+            tokio::pin!(iter);
+            while let Some(_step) = iter.try_next().await? {}
         }
-        runtime.current_solution()
+        runtime.current_solution().await
     }
 
     /// Adds requests for all build requirements
@@ -427,9 +436,9 @@ impl Solver {
     }
 
     /// Adds requests for all build requirements and solves
-    pub fn solve_build_environment(&mut self, spec: &api::Spec) -> Result<Solution> {
+    pub async fn solve_build_environment(&mut self, spec: &api::Spec) -> Result<Solution> {
         self.configure_for_build_environment(spec)?;
-        self.solve()
+        self.solve().await
     }
 
     pub fn update_options(&mut self, options: OptionMap) {
@@ -470,7 +479,7 @@ impl Solver {
 
 // This is needed so `PriorityQueue` doesn't need to hash the node itself.
 struct NodeWrapper {
-    pub(crate) node: Arc<RwLock<Arc<Node>>>,
+    pub(crate) node: Arc<tokio::sync::RwLock<Arc<Node>>>,
     pub(crate) hash: u64,
 }
 
@@ -493,9 +502,9 @@ type SolverHistory = PriorityQueue<NodeWrapper, std::cmp::Reverse<u64>>;
 #[must_use = "The solver runtime does nothing unless iterated to completion"]
 pub struct SolverRuntime {
     pub solver: Solver,
-    graph: Arc<RwLock<Graph>>,
+    graph: Arc<tokio::sync::RwLock<Graph>>,
     history: SolverHistory,
-    current_node: Option<Arc<RwLock<Arc<Node>>>>,
+    current_node: Option<Arc<tokio::sync::RwLock<Arc<Node>>>>,
     decision: Option<Arc<Decision>>,
 }
 
@@ -504,7 +513,7 @@ impl SolverRuntime {
         let initial_decision = Decision::new(solver.initial_state_builders.clone());
         Self {
             solver,
-            graph: Arc::new(RwLock::new(Graph::new())),
+            graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
             history: SolverHistory::default(),
             current_node: None,
             decision: Some(Arc::new(initial_decision)),
@@ -512,40 +521,36 @@ impl SolverRuntime {
     }
 
     /// A reference to the solve graph being built by this runtime
-    pub fn graph(&self) -> Arc<RwLock<Graph>> {
+    pub fn graph(&self) -> Arc<tokio::sync::RwLock<Graph>> {
         self.graph.clone()
-    }
-
-    /// Iterate through each step of this runtime, trying to converge on a solution
-    pub fn iter(&mut self) -> SolverRuntimeIter<'_> {
-        SolverRuntimeIter(self)
     }
 
     /// Returns the completed solution for this runtime.
     ///
     /// If needed, this function will iterate any remaining
     /// steps for the current state.
-    pub fn solution(&mut self) -> Result<Solution> {
-        let _guard = crate::HANDLE.enter();
-        for item in self.iter() {
-            item?;
+    pub async fn solution(&mut self) -> Result<Solution> {
+        {
+            let iter = self.iter();
+            tokio::pin!(iter);
+            while let Some(_item) = iter.try_next().await? {}
         }
-        self.current_solution()
+        self.current_solution().await
     }
 
     /// Return the current solution for this runtime.
     ///
     /// If the runtime has not yet completed, this solution
     /// may be incomplete or empty.
-    pub fn current_solution(&self) -> Result<Solution> {
+    pub async fn current_solution(&self) -> Result<Solution> {
         let current_node = self
             .current_node
             .as_ref()
             .ok_or_else(|| Error::String("Solver runtime has not been consumed".into()))?;
-        let current_node_lock = current_node.read().unwrap();
+        let current_node_lock = current_node.read().await;
 
         let is_dead = current_node_lock.state.id()
-            == self.graph.read().unwrap().root.read().unwrap().state.id()
+            == self.graph.read().await.root.read().await.state.id()
             || Arc::ptr_eq(&current_node_lock.state, &DEAD_STATE);
         let is_empty = self
             .solver
@@ -553,7 +558,7 @@ impl SolverRuntime {
             .get_pkg_requests()
             .is_empty();
         if is_dead && !is_empty {
-            Err(super::Error::FailedToResolve((*self.graph).read().unwrap().clone()).into())
+            Err(super::Error::FailedToResolve((*self.graph).read().await.clone()).into())
         } else {
             current_node_lock
                 .state
@@ -567,7 +572,7 @@ impl SolverRuntime {
     // borrowing in next() to allow fewer parameters to be passed into
     // this method.
     /// Generate step-back decision from a node history
-    fn take_a_step_back(
+    async fn take_a_step_back(
         history: &mut SolverHistory,
         decision: &mut Option<Arc<Decision>>,
         solver: &Solver,
@@ -579,7 +584,7 @@ impl SolverRuntime {
         // for problem cases that get stuck in a bad path.
         match history.pop() {
             Some((n, _)) => {
-                let n_lock = n.node.read().unwrap();
+                let n_lock = n.node.read().await;
                 *decision = Some(Arc::new(
                     Change::StepBack(StepBack::new(
                         message,
@@ -601,163 +606,170 @@ impl SolverRuntime {
             }
         }
     }
-}
 
-impl Iterator for SolverRuntime {
-    type Item = Result<(Arc<Node>, Arc<Decision>)>;
+    /// Iterate through each step of this runtime, trying to converge on a solution
+    pub fn iter(&mut self) -> impl Stream<Item = Result<(Arc<Node>, Arc<Decision>)>> + Send + '_ {
+        stream! {
+            'outer: loop {
+                if self.decision.is_none()
+                    || (self.current_node.is_some()
+                        && {
+                            if let Some(n) = self.current_node.as_ref() {
+                                Arc::ptr_eq(&n.read().await.state, &DEAD_STATE)
+                            }
+                            else {
+                                false
+                            }
+                        })
+                {
+                    break 'outer;
+                }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.decision.is_none()
-            || (self.current_node.is_some()
-                && self
+                let to_yield = (
+                    // A clone of Some(current_node) or the root node
+                    {
+                        if let Some(n) = self.current_node.as_ref() {
+                            n.read().await.clone()
+                        }
+                        else {
+                            self.graph.read().await.root.read().await.clone()
+                        }
+                    },
+                    self.decision.as_ref().expect("decision is some").clone(),
+                );
+
+                self.current_node = Some({
+                    let mut sg = self.graph.write().await;
+                    let root_id = sg.root.read().await.id();
+                    match sg.add_branch({
+                            if let Some(n) = self.current_node.as_ref() {
+                                n.read().await.id()
+                            }
+                            else {
+                                root_id
+                            }},
+                            self.decision.take().unwrap(),
+                        ).await {
+                        Ok(cn) => cn,
+                        Err(err) => {
+                            SolverRuntime::take_a_step_back(
+                                &mut self.history,
+                                &mut self.decision,
+                                &self.solver,
+                                &err.to_string(),
+                            ).await;
+                            yield Ok(to_yield);
+                            continue 'outer;
+                        }
+                    }
+                });
+                let current_node = self
                     .current_node
                     .as_ref()
-                    .map(|n| Arc::ptr_eq(&n.read().unwrap().state, &DEAD_STATE))
-                    .unwrap_or_default())
-        {
-            return None;
+                    .expect("current_node always `is_some` here");
+                let mut current_node_lock = current_node.write().await;
+                let current_level = current_node_lock.state.state_depth;
+                self.decision = match self.solver.step_state(&mut current_node_lock).await
+                {
+                    Ok(decision) => decision.map(Arc::new),
+                    Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
+                        // Add to problem package counts based on what made
+                        // the request for the blocked package.
+                        let requested_by = err.request.get_requesters();
+                        for req in &requested_by {
+                            if let api::RequestedBy::PackageBuild(problem_package) = req {
+                                self.solver
+                                    .increment_problem_package_count(problem_package.name.to_string())
+                            }
+                        }
+
+                        // Add the requirers to the output so where the
+                        // requests came from is more visible to the user.
+                        let requirers: Vec<String> = requested_by.iter().map(ToString::to_string).collect();
+                        let cause = format!(
+                            "could not satisfy '{}' as required by: {}",
+                            err.request.pkg,
+                            requirers.join(", ")
+                        );
+                        self.solver.increment_error_count(cause.clone());
+
+                        SolverRuntime::take_a_step_back(
+                            &mut self.history,
+                            &mut self.decision,
+                            &self.solver,
+                            &cause,
+                        ).await;
+
+                        self.solver.increment_error_count(cause);
+
+                        if let Some(d) = self.decision.as_mut() {
+                            Arc::make_mut(d).add_notes(err.notes.iter().cloned())
+                        }
+                        yield Ok(to_yield);
+                        continue 'outer;
+                    }
+                    Err(crate::Error::Solve(errors::Error::PackageNotFoundDuringSolve(err_req))) => {
+                        let requested_by = err_req.get_requesters();
+                        for req in &requested_by {
+                            // Can't recover from a command line request for a
+                            // missing package.
+                            if let api::RequestedBy::CommandLine = req {
+                                yield Err(crate::Error::Solve(
+                                    errors::Error::PackageNotFoundDuringSolve(err_req),
+                                ));
+                                continue 'outer;
+                            }
+
+                            // Add to problem package counts based on what
+                            // made the request for the blocked package.
+                            if let api::RequestedBy::PackageBuild(problem_package) = req {
+                                self.solver
+                                    .increment_problem_package_count(problem_package.name.to_string())
+                            };
+                        }
+
+                        let requirers: Vec<String> = requested_by.iter().map(ToString::to_string).collect();
+                        let cause = format!("Package '{}' not found during the solve as required by: {}. Please check the spelling of the package's name", err_req.pkg, requirers.join(", "));
+
+                        SolverRuntime::take_a_step_back(
+                            &mut self.history,
+                            &mut self.decision,
+                            &self.solver,
+                            &cause,
+                        ).await;
+
+                        self.solver.increment_error_count(cause);
+
+                        // This doesn't halt the solve because the missing
+                        // package might only have been requested by one
+                        // build. It may not be required in the next build the
+                        // solver looks at. However, this kind of error
+                        // usually occurs either because of command line
+                        // request that was mistyped, or because a requirement
+                        // was misspelt in a yaml file that was given on a
+                        // command line. So the solver is likely to hit a dead
+                        // end and halt fairly soon.
+                        yield Ok(to_yield);
+                        continue 'outer;
+                    }
+                    Err(err) => {
+                        let cause = format!("{}", err);
+                        self.solver.increment_error_count(cause);
+                        yield Err(err);
+                        continue 'outer;
+                    }
+                };
+                self.history.push(
+                    NodeWrapper {
+                        node: current_node.clone(),
+                        // I tried reversing the order of the hash here and it
+                        // produced the same result.
+                        hash: self.solver.get_number_of_steps() as u64,
+                    },
+                    std::cmp::Reverse(current_level),
+                );
+                yield Ok(to_yield)
+            }
         }
-
-        let to_yield = (
-            // A clone of Some(current_node) or the root node
-            self.current_node
-                .as_ref()
-                .map(|n| n.read().unwrap().clone())
-                .unwrap_or_else(|| self.graph.read().unwrap().root.read().unwrap().clone()),
-            self.decision.as_ref().expect("decision is some").clone(),
-        );
-
-        self.current_node = Some({
-            let mut sg = self.graph.write().unwrap();
-            let root_id = sg.root.read().unwrap().id();
-            match sg.add_branch(
-                self.current_node
-                    .as_ref()
-                    .map(|n| n.read().unwrap().id())
-                    .unwrap_or(root_id),
-                self.decision.take().unwrap(),
-            ) {
-                Ok(cn) => cn,
-                Err(err) => {
-                    SolverRuntime::take_a_step_back(
-                        &mut self.history,
-                        &mut self.decision,
-                        &self.solver,
-                        &err.to_string(),
-                    );
-                    return Some(Ok(to_yield));
-                }
-            }
-        });
-        let current_node = self
-            .current_node
-            .as_ref()
-            .expect("current_node always `is_some` here");
-        let mut current_node_lock = current_node.write().unwrap();
-        let current_level = current_node_lock.state.state_depth;
-        self.decision = match self.solver.step_state(&mut current_node_lock) {
-            Ok(decision) => decision.map(Arc::new),
-            Err(crate::Error::Solve(errors::Error::OutOfOptions(ref err))) => {
-                // Add to problem package counts based on what made
-                // the request for the blocked package.
-                let requested_by = err.request.get_requesters();
-                for req in &requested_by {
-                    if let api::RequestedBy::PackageBuild(problem_package) = req {
-                        self.solver
-                            .increment_problem_package_count(problem_package.name.to_string())
-                    }
-                }
-
-                // Add the requirers to the output so where the
-                // requests came from is more visible to the user.
-                let requirers: Vec<String> = requested_by.iter().map(ToString::to_string).collect();
-                let cause = format!(
-                    "could not satisfy '{}' as required by: {}",
-                    err.request.pkg,
-                    requirers.join(", ")
-                );
-
-                SolverRuntime::take_a_step_back(
-                    &mut self.history,
-                    &mut self.decision,
-                    &self.solver,
-                    &cause,
-                );
-
-                self.solver.increment_error_count(cause);
-
-                if let Some(d) = self.decision.as_mut() {
-                    Arc::make_mut(d).add_notes(err.notes.iter().cloned())
-                }
-                return Some(Ok(to_yield));
-            }
-            Err(crate::Error::Solve(errors::Error::PackageNotFoundDuringSolve(err_req))) => {
-                let requested_by = err_req.get_requesters();
-                for req in &requested_by {
-                    // Can't recover from a command line request for a
-                    // missing package.
-                    if let api::RequestedBy::CommandLine = req {
-                        return Some(Err(crate::Error::Solve(
-                            errors::Error::PackageNotFoundDuringSolve(err_req),
-                        )));
-                    }
-
-                    // Add to problem package counts based on what
-                    // made the request for the blocked package.
-                    if let api::RequestedBy::PackageBuild(problem_package) = req {
-                        self.solver
-                            .increment_problem_package_count(problem_package.name.to_string())
-                    };
-                }
-
-                let requirers: Vec<String> = requested_by.iter().map(ToString::to_string).collect();
-                let cause = format!("Package '{}' not found during the solve as required by: {}. Please check the spelling of the package's name", err_req.pkg, requirers.join(", "));
-
-                SolverRuntime::take_a_step_back(
-                    &mut self.history,
-                    &mut self.decision,
-                    &self.solver,
-                    &cause,
-                );
-
-                self.solver.increment_error_count(cause);
-
-                // This doesn't halt the solve because the missing
-                // package might only have been requested by one
-                // build. It may not be required in the next build the
-                // solver looks at. However, this kind of error
-                // usually occurs either because of command line
-                // request that was mistyped, or because a requirement
-                // was misspelt in a yaml file that was given on a
-                // command line. So the solver is likely to hit a dead
-                // end and halt fairly soon.
-                return Some(Ok(to_yield));
-            }
-            Err(err) => {
-                let cause = format!("{}", err);
-                self.solver.increment_error_count(cause);
-                return Some(Err(err));
-            }
-        };
-        self.history.push(
-            NodeWrapper {
-                node: current_node.clone(),
-                // I tried reversing the order of the hash here and it
-                // produced the same result.
-                hash: self.solver.get_number_of_steps() as u64,
-            },
-            std::cmp::Reverse(current_level),
-        );
-        Some(Ok(to_yield))
-    }
-}
-
-pub struct SolverRuntimeIter<'a>(&'a mut SolverRuntime);
-
-impl<'a> Iterator for SolverRuntimeIter<'a> {
-    type Item = Result<(Arc<Node>, Arc<Decision>)>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
     }
 }

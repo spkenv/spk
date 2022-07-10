@@ -5,12 +5,12 @@
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use super::TestError;
 use crate::{api, build, exec, solve, storage, Result};
 
-pub struct PackageSourceTester {
+pub struct PackageSourceTester<'a> {
     prefix: PathBuf,
     spec: api::Spec,
     script: String,
@@ -18,11 +18,11 @@ pub struct PackageSourceTester {
     options: api::OptionMap,
     additional_requirements: Vec<api::Request>,
     source: Option<PathBuf>,
-    env_resolver: Box<dyn FnMut(&mut solve::SolverRuntime) -> Result<solve::Solution>>,
-    last_solve_graph: Arc<RwLock<solve::Graph>>,
+    env_resolver: crate::BoxedResolverCallback<'a>,
+    last_solve_graph: Arc<tokio::sync::RwLock<solve::Graph>>,
 }
 
-impl PackageSourceTester {
+impl<'a> PackageSourceTester<'a> {
     pub fn new(spec: api::Spec, script: String) -> Self {
         Self {
             prefix: PathBuf::from("/spfs"),
@@ -32,8 +32,8 @@ impl PackageSourceTester {
             options: api::OptionMap::default(),
             additional_requirements: Vec::new(),
             source: None,
-            env_resolver: Box::new(|r| r.solution()),
-            last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
+            env_resolver: Box::new(crate::DefaultResolver {}),
+            last_solve_graph: Arc::new(tokio::sync::RwLock::new(solve::Graph::new())),
         }
     }
 
@@ -88,7 +88,7 @@ impl PackageSourceTester {
     /// process as needed.
     pub fn watch_environment_resolve<F>(&mut self, resolver: F) -> &mut Self
     where
-        F: FnMut(&mut solve::SolverRuntime) -> Result<solve::Solution> + 'static,
+        F: crate::ResolverCallback + 'a,
     {
         self.env_resolver = Box::new(resolver);
         self
@@ -100,14 +100,13 @@ impl PackageSourceTester {
     /// and test that failed with a SolverError.
     ///
     /// If the tester has not run, return an incomplete graph.
-    pub fn get_solve_graph(&self) -> Arc<RwLock<solve::Graph>> {
+    pub fn get_solve_graph(&self) -> Arc<tokio::sync::RwLock<solve::Graph>> {
         self.last_solve_graph.clone()
     }
 
     /// Execute the source package test as configured.
-    pub fn test(&mut self) -> Result<()> {
-        let _guard = crate::HANDLE.enter();
-        let mut rt = crate::HANDLE.block_on(spfs::active_runtime())?;
+    pub async fn test(&mut self) -> Result<()> {
+        let mut rt = spfs::active_runtime().await?;
         rt.reset_all()?;
         rt.status.editable = true;
         rt.status.stack.clear();
@@ -137,16 +136,15 @@ impl PackageSourceTester {
         }
 
         let mut runtime = solver.run();
+        let solution = self.env_resolver.solve(&mut runtime).await;
         self.last_solve_graph = runtime.graph();
-        let solution = (self.env_resolver)(&mut runtime)?;
+        let solution = solution?;
 
-        for layer in exec::resolve_runtime_layers(&solution)? {
+        for layer in exec::resolve_runtime_layers(&solution).await? {
             rt.push_digest(layer);
         }
-        crate::HANDLE.block_on(async {
-            rt.save_state_to_storage().await?;
-            spfs::remount_runtime(&rt).await
-        })?;
+        rt.save_state_to_storage().await?;
+        spfs::remount_runtime(&rt).await?;
 
         let mut env = solution.to_environment(Some(std::env::vars()));
         env.insert(

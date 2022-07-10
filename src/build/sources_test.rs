@@ -37,9 +37,9 @@ fn test_validate_sources_changeset_ok() {
 }
 
 #[rstest]
-fn test_sources_subdir(_tmpdir: tempdir::TempDir) {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_sources_subdir(_tmpdir: tempdir::TempDir) {
+    let rt = spfs_runtime().await;
 
     let tar_file = rt.tmpdir.path().join("archive.tar.gz");
     let writer = std::fs::OpenOptions::new()
@@ -96,9 +96,9 @@ fn test_sources_subdir(_tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_sources_environment(_tmpdir: tempdir::TempDir) {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_sources_environment(_tmpdir: tempdir::TempDir) {
+    let rt = spfs_runtime().await;
     let mut spec = crate::spec!({"pkg": "sources-test/0.1.0/src"});
     let expected = vec![
         "SPK_PKG=sources-test/0.1.0/src",

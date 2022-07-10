@@ -19,8 +19,9 @@ pub struct New {
     name: spk::api::PkgNameBuf,
 }
 
+#[async_trait::async_trait]
 impl Run for New {
-    fn run(&mut self) -> Result<i32> {
+    async fn run(&mut self) -> Result<i32> {
         let spec = get_stub(&self.name);
 
         let spec_file = format!("{}.spk.yaml", self.name);

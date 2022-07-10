@@ -5,6 +5,7 @@
 use std::{
     collections::VecDeque,
     fmt::Write,
+    pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -12,6 +13,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use async_stream::stream;
+use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
 
 use colored::Colorize;
@@ -341,9 +344,9 @@ pub fn format_change(
 
 pub struct FormattedDecisionsIter<I>
 where
-    I: Iterator<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>>,
+    I: Stream<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>>,
 {
-    inner: I,
+    inner: Pin<Box<I>>,
     level: u64,
     output_queue: VecDeque<String>,
     verbosity: u32,
@@ -355,14 +358,14 @@ where
 
 impl<I> FormattedDecisionsIter<I>
 where
-    I: Iterator<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>>,
+    I: Stream<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>>,
 {
     pub(crate) fn new<T>(inner: T, settings: DecisionFormatterSettings) -> Self
     where
-        T: IntoIterator<IntoIter = I>,
+        T: Into<I>,
     {
         Self {
-            inner: inner.into_iter(),
+            inner: Box::pin(inner.into()),
             level: 0,
             output_queue: VecDeque::new(),
             verbosity: settings.verbosity,
@@ -420,159 +423,160 @@ where
         }
         Ok(())
     }
-}
 
-impl<I> Iterator for FormattedDecisionsIter<I>
-where
-    I: Iterator<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>>,
-{
-    type Item = Result<String>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(next) = self.output_queue.pop_front() {
-            return Some(Ok(next));
-        }
-
-        while self.output_queue.is_empty() {
-            // First, check if the solver has taken too long or the
-            // user has interrupted the solver
-            if let Err(err) = self.check_for_interruptions() {
-                return Some(Err(err));
-            }
-
-            let (node, decision) = match self.inner.next() {
-                None => return None,
-                Some(Ok((n, d))) => (n, d),
-                Some(Err(err)) => return Some(Err(err)),
-            };
-
-            if self.verbosity > 5 {
-                // Show the state's package requests and resolved
-                // packages. This does not use indentation to make
-                // this "State ...:" debugging output stand out from
-                // the other changes.
-                self.output_queue.push_back(format!(
-                    "{} {}",
-                    "State Requests:".yellow(),
-                    node.state
-                        .get_pkg_requests()
-                        .iter()
-                        .map(|r| format_request(
-                            &r.pkg.name,
-                            [&***r],
-                            FormatChangeOptions {
-                                verbosity: self.verbosity,
-                                level: self.level
-                            },
-                        ))
-                        .collect::<Vec<String>>()
-                        .join(", ")
-                ));
-                self.output_queue.push_back(format!(
-                    "{} {}",
-                    "State Resolved:".yellow(),
-                    node.state
-                        .get_resolved_packages()
-                        .values()
-                        .map(|p| format_ident(&(*p).0.pkg))
-                        .collect::<Vec<String>>()
-                        .join(", ")
-                ));
-            }
-
-            if self.verbosity > 9 {
-                // Show the state's var requests and resolved options
-                self.output_queue.push_back(format!(
-                    "{} {:?}",
-                    "State  VarReqs:".yellow(),
-                    node.state
-                        .get_var_requests()
-                        .iter()
-                        .map(|v| format!("{}: {}", v.var, v.value))
-                        .collect::<Vec<String>>()
-                        .join(", ")
-                ));
-                self.output_queue.push_back(format!(
-                    "{} {}",
-                    "State  Options:".yellow(),
-                    format_options(node.state.get_option_map())
-                ));
-            }
-
-            if self.verbosity > 1 {
-                let fill: String = ".".repeat(self.level as usize);
-                for note in decision.notes.iter() {
-                    self.output_queue
-                        .push_back(format!("{} {}", fill, format_note(note)));
+    pub fn iter(&mut self) -> impl Stream<Item = Result<String>> + '_ {
+        stream! {
+            'outer: loop {
+                if let Some(next) = self.output_queue.pop_front() {
+                    yield Ok(next);
+                    continue 'outer;
                 }
-            }
 
-            let mut fill: &str;
-            let mut new_level = self.level + 1;
-            for change in decision.changes.iter() {
-                use solve::graph::Change::*;
-                match change {
-                    SetPackage(change) => {
-                        if change.spec.pkg.build == Some(api::Build::Embedded) {
-                            fill = ".";
-                        } else {
-                            fill = ">";
+                while self.output_queue.is_empty() {
+                    // First, check if the solver has taken too long or the
+                    // user has interrupted the solver
+                    if let Err(err) = self.check_for_interruptions() {
+                        yield Err(err);
+                        continue 'outer;
+                    }
+
+                    let (node, decision) = match self.inner.next().await {
+                        None => break 'outer,
+                        Some(Ok((n, d))) => (n, d),
+                        Some(Err(err)) => {
+                            yield Err(err);
+                            continue 'outer;
+                        }
+                    };
+
+                    if self.verbosity > 5 {
+                        // Show the state's package requests and resolved
+                        // packages. This does not use indentation to make
+                        // this "State ...:" debugging output stand out from
+                        // the other changes.
+                        self.output_queue.push_back(format!(
+                            "{} {}",
+                            "State Requests:".yellow(),
+                            node.state
+                                .get_pkg_requests()
+                                .iter()
+                                .map(|r| format_request(
+                                    &r.pkg.name,
+                                    [&***r],
+                                    FormatChangeOptions {
+                                        verbosity: self.verbosity,
+                                        level: self.level
+                                    },
+                                ))
+                                .collect::<Vec<String>>()
+                                .join(", ")
+                        ));
+                        self.output_queue.push_back(format!(
+                            "{} {}",
+                            "State Resolved:".yellow(),
+                            node.state
+                                .get_resolved_packages()
+                                .values()
+                                .map(|p| format_ident(&(*p).0.pkg))
+                                .collect::<Vec<String>>()
+                                .join(", ")
+                        ));
+                    }
+
+                    if self.verbosity > 9 {
+                        // Show the state's var requests and resolved options
+                        self.output_queue.push_back(format!(
+                            "{} {:?}",
+                            "State  VarReqs:".yellow(),
+                            node.state
+                                .get_var_requests()
+                                .iter()
+                                .map(|v| format!("{}: {}", v.var, v.value))
+                                .collect::<Vec<String>>()
+                                .join(", ")
+                        ));
+                        self.output_queue.push_back(format!(
+                            "{} {}",
+                            "State  Options:".yellow(),
+                            format_options(node.state.get_option_map())
+                        ));
+                    }
+
+                    if self.verbosity > 1 {
+                        let fill: String = ".".repeat(self.level as usize);
+                        for note in decision.notes.iter() {
+                            self.output_queue
+                                .push_back(format!("{} {}", fill, format_note(note)));
                         }
                     }
-                    StepBack(solve::graph::StepBack { destination, .. }) => {
-                        fill = "!";
-                        new_level = destination.state_depth;
-                    }
-                    _ => {
-                        fill = ".";
-                    }
-                }
 
-                if !change_is_relevant_at_verbosity(change, self.verbosity) {
-                    continue;
-                }
+                    let mut fill: &str;
+                    let mut new_level = self.level + 1;
+                    for change in decision.changes.iter() {
+                        use solve::graph::Change::*;
+                        match change {
+                            SetPackage(change) => {
+                                if change.spec.pkg.build == Some(api::Build::Embedded) {
+                                    fill = ".";
+                                } else {
+                                    fill = ">";
+                                }
+                            }
+                            StepBack(solve::graph::StepBack { destination, .. }) => {
+                                fill = "!";
+                                new_level = destination.state_depth;
+                            }
+                            _ => {
+                                fill = ".";
+                            }
+                        }
 
-                if self.verbosity > 2 && self.level > 5 {
-                    // Add level number into the lines to save having
-                    // to count the indentation fill characters when
-                    // dealing with larger numbers of decision levels.
-                    let level_text = self.level.to_string();
-                    // The +1 is for the space after 'level_text' in the string
-                    let prefix_width = level_text.len() + 1;
-                    let prefix = fill.repeat(self.level as usize - prefix_width);
-                    self.output_queue.push_back(format!(
-                        "{} {} {}",
-                        level_text,
-                        prefix,
-                        format_change(
-                            change,
-                            FormatChangeOptions {
-                                verbosity: self.verbosity,
-                                level: self.level
-                            },
-                            Some(&node.state)
-                        )
-                    ));
-                } else {
-                    // Just use the fill prefix
-                    let prefix: String = fill.repeat(self.level as usize);
-                    self.output_queue.push_back(format!(
-                        "{} {}",
-                        prefix,
-                        format_change(
-                            change,
-                            FormatChangeOptions {
-                                verbosity: self.verbosity,
-                                level: self.level
-                            },
-                            Some(&node.state)
-                        )
-                    ))
+                        if !change_is_relevant_at_verbosity(change, self.verbosity) {
+                            continue;
+                        }
+
+                        if self.verbosity > 2 && self.level > 5 {
+                            // Add level number into the lines to save having
+                            // to count the indentation fill characters when
+                            // dealing with larger numbers of decision levels.
+                            let level_text = self.level.to_string();
+                            // The +1 is for the space after 'level_text' in the string
+                            let prefix_width = level_text.len() + 1;
+                            let prefix = fill.repeat(self.level as usize - prefix_width);
+                            self.output_queue.push_back(format!(
+                                "{} {} {}",
+                                level_text,
+                                prefix,
+                                format_change(
+                                    change,
+                                    FormatChangeOptions {
+                                        verbosity: self.verbosity,
+                                        level: self.level
+                                    },
+                                    Some(&node.state)
+                                )
+                            ));
+                        } else {
+                            // Just use the fill prefix
+                            let prefix: String = fill.repeat(self.level as usize);
+                            self.output_queue.push_back(format!(
+                                "{} {}",
+                                prefix,
+                                format_change(
+                                    change,
+                                    FormatChangeOptions {
+                                        verbosity: self.verbosity,
+                                        level: self.level
+                                    },
+                                    Some(&node.state)
+                                )
+                            ))
+                        }
+                    }
+                    self.level = new_level;
                 }
             }
-            self.level = new_level;
         }
-        self.output_queue.pop_front().map(Ok)
     }
 }
 
@@ -756,37 +760,65 @@ pub struct DecisionFormatter {
 impl DecisionFormatter {
     /// Run the solver to completion, printing each step to stdout
     /// as appropriate given a verbosity level.
-    pub fn run_and_print_resolve(&self, solver: &solve::Solver) -> Result<solve::Solution> {
+    pub async fn run_and_print_resolve(&self, solver: &solve::Solver) -> Result<solve::Solution> {
         let mut runtime = solver.run();
-        self.run_and_print_decisions(&mut runtime)
+        self.run_and_print_decisions(&mut runtime).await
     }
 
     /// Run the solver runtime to completion, printing each step to stdout
     /// as appropriate given a verbosity level.
-    pub fn run_and_print_decisions(
-        &self,
-        mut runtime: &mut solve::SolverRuntime,
+    pub async fn run_and_print_decisions(
+        self,
+        runtime: &mut solve::SolverRuntime,
     ) -> Result<solve::Solution> {
+        enum LoopOutcome {
+            Interrupted(String),
+            Failed(crate::Error),
+            Success,
+        }
+
         // Step through the solver runtime's decisions - this runs the solver
         let start = Instant::now();
-        for line in self.formatted_decisions_iter(&mut runtime) {
-            match line {
-                Ok(message) => println!("{message}"),
-                Err(e) => {
-                    match e {
-                        Error::Solve(solve::Error::SolverInterrupted(mesg)) => {
-                            // Note: the solution probably won't be
-                            // complete because of the interruption.
-                            let solve_time = start.elapsed();
-                            eprintln!("{}", mesg.yellow());
-                            eprintln!("{}", self.format_solve_stats(&runtime.solver, solve_time));
-                            return Err(Error::Solve(solve::Error::SolverInterrupted(mesg)));
+        // This block exists to shorten the scope of `runtime`'s borrow.
+        let loop_outcome = {
+            let decisions = runtime.iter();
+            let mut formatted_decisions = self.formatted_decisions_iter(decisions);
+            let iter = formatted_decisions.iter();
+            tokio::pin!(iter);
+            #[allow(clippy::never_loop)]
+            'outer: loop {
+                while let Some(line) = iter.next().await {
+                    match line {
+                        Ok(message) => println!("{message}"),
+                        Err(e) => {
+                            match e {
+                                Error::Solve(solve::Error::SolverInterrupted(mesg)) => {
+                                    break 'outer LoopOutcome::Interrupted(mesg);
+                                }
+                                _ => break 'outer LoopOutcome::Failed(e),
+                            };
                         }
-                        _ => return Err(e),
                     };
                 }
-            };
-        }
+
+                break LoopOutcome::Success;
+            }
+        };
+
+        match loop_outcome {
+            LoopOutcome::Interrupted(mesg) => {
+                // Note: the solution probably won't be
+                // complete because of the interruption.
+                let solve_time = start.elapsed();
+                eprintln!("{}", mesg.yellow());
+                eprintln!("{}", self.format_solve_stats(&runtime.solver, solve_time));
+                return Err(Error::Solve(solve::Error::SolverInterrupted(mesg)));
+            }
+            LoopOutcome::Failed(e) => {
+                return Err(e);
+            }
+            LoopOutcome::Success => {}
+        };
 
         // Note: this time includes the output time because the solver is
         // run in the iterator in the format_decisions_iter() loop above
@@ -797,17 +829,14 @@ impl DecisionFormatter {
             );
         }
 
-        runtime.current_solution()
+        runtime.current_solution().await
     }
 
     /// Given a sequence of decisions, returns an iterator
     ///
-    pub fn formatted_decisions_iter<'a, I>(
-        &self,
-        decisions: I,
-    ) -> FormattedDecisionsIter<I::IntoIter>
+    pub fn formatted_decisions_iter<'a, S>(&self, decisions: S) -> FormattedDecisionsIter<S>
     where
-        I: IntoIterator<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>> + 'a,
+        S: Stream<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>> + 'a,
     {
         FormattedDecisionsIter::new(decisions, self.settings)
     }
@@ -925,5 +954,15 @@ impl DecisionFormatter {
         }
 
         out
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::ResolverCallback for &DecisionFormatter {
+    async fn solve<'s, 'a: 's>(
+        &'s self,
+        r: &'a mut solve::SolverRuntime,
+    ) -> Result<crate::Solution> {
+        self.run_and_print_decisions(r).await
     }
 }

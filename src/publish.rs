@@ -68,25 +68,26 @@ impl Publisher {
     }
 
     /// Publish the identified package as configured.
-    pub fn publish(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+    pub async fn publish(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
         let builds = if pkg.build.is_none() {
             tracing::info!("loading spec: {}", io::format_ident(pkg));
-            match self.from.read_spec(pkg) {
+            match self.from.read_spec(pkg).await {
                 Err(Error::PackageNotFoundError(_)) => (),
                 Err(err) => return Err(err),
                 Ok(spec) => {
                     tracing::info!("publishing spec: {}", io::format_ident(&spec.pkg));
                     if self.force {
-                        self.to.force_publish_spec(&spec)?;
+                        self.to.force_publish_spec(&spec).await?;
                     } else {
-                        self.to.publish_spec(&spec)?;
+                        self.to.publish_spec(&spec).await?;
                     }
                 }
             }
 
             with_cache_policy!(self.from, CachePolicy::BypassCache, {
                 self.from.list_package_builds(pkg)
-            })?
+            })
+            .await?
         } else {
             vec![pkg.to_owned()]
         };
@@ -100,8 +101,8 @@ impl Publisher {
             }
 
             tracing::debug!("   loading package: {}", io::format_ident(build));
-            let spec = self.from.read_spec(build)?;
-            let components = self.from.get_package(build)?;
+            let spec = self.from.read_spec(build).await?;
+            let components = self.from.get_package(build).await?;
             tracing::info!("publishing package: {}", io::format_ident(&spec.pkg));
             let env_spec = components.values().cloned().collect();
             match (&*self.from, &*self.to) {
@@ -112,8 +113,7 @@ impl Publisher {
                     );
                     let syncer = spfs::Syncer::new(src, dest)
                         .with_reporter(spfs::sync::ConsoleSyncReporter::default());
-                    let future = syncer.sync_env(env_spec);
-                    crate::HANDLE.block_on(future)?;
+                    syncer.sync_env(env_spec).await?;
                 }
                 _ => {
                     return Err(Error::String(
@@ -121,7 +121,7 @@ impl Publisher {
                     ))
                 }
             }
-            self.to.publish_package(&spec, components)?;
+            self.to.publish_package(&spec, components).await?;
         }
 
         Ok(builds)

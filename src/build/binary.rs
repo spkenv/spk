@@ -6,14 +6,14 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 use thiserror::Error;
 
 use super::env::data_path;
-use crate::solve::{Solution, SolverRuntime};
+use crate::solve::Solution;
 use crate::{
     api, exec, solve,
     storage::{self, Repository},
@@ -57,40 +57,45 @@ pub enum BuildSource {
 /// Builds a binary package.
 ///
 /// ```no_run
+/// # #[macro_use] extern crate spk;
+/// # async fn demo() {
 /// spk::build::BinaryPackageBuilder::from_spec(spk::spec!({
 ///         "pkg": "my-pkg",
 ///         "build": {"script": "echo hello, world"},
 ///      }))
 ///     .with_option(spk::opt_name!("debug"), "true")
 ///     .build()
+///     .await
 ///     .unwrap();
+/// # }
 /// ```
-pub struct BinaryPackageBuilder {
+pub struct BinaryPackageBuilder<'a> {
     prefix: PathBuf,
     spec: api::Spec,
     all_options: api::OptionMap,
     source: BuildSource,
     solver: solve::Solver,
-    source_resolver: Box<dyn FnMut(&mut SolverRuntime) -> Result<Solution>>,
-    build_resolver: Box<dyn FnMut(&mut SolverRuntime) -> Result<Solution>>,
-    last_solve_graph: Arc<RwLock<solve::Graph>>,
+    source_resolver: crate::BoxedResolverCallback<'a>,
+    build_resolver: crate::BoxedResolverCallback<'a>,
+    last_solve_graph: Arc<tokio::sync::RwLock<solve::Graph>>,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     interactive: bool,
 }
 
-impl BinaryPackageBuilder {
+impl<'a> BinaryPackageBuilder<'a> {
     /// Create a new builder that builds a binary package from the given spec
     pub fn from_spec(spec: api::Spec) -> Self {
         let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
+
         Self {
             spec,
             source,
             prefix: PathBuf::from("/spfs"),
             all_options: api::OptionMap::default(),
             solver: solve::Solver::default(),
-            source_resolver: Box::new(|r| r.solution()),
-            build_resolver: Box::new(|r| r.solution()),
-            last_solve_graph: Arc::new(RwLock::new(solve::Graph::new())),
+            source_resolver: Box::new(crate::DefaultResolver {}),
+            build_resolver: Box::new(crate::DefaultResolver {}),
+            last_solve_graph: Arc::new(tokio::sync::RwLock::new(solve::Graph::new())),
             repos: Default::default(),
             interactive: false,
         }
@@ -159,7 +164,7 @@ impl BinaryPackageBuilder {
     /// process as needed.
     pub fn with_source_resolver<F>(&mut self, resolver: F) -> &mut Self
     where
-        F: FnMut(&mut SolverRuntime) -> Result<Solution> + 'static,
+        F: crate::ResolverCallback + 'a,
     {
         self.source_resolver = Box::new(resolver);
         self
@@ -173,7 +178,7 @@ impl BinaryPackageBuilder {
     /// process as needed.
     pub fn with_build_resolver<F>(&mut self, resolver: F) -> &mut Self
     where
-        F: FnMut(&mut SolverRuntime) -> Result<Solution> + 'static,
+        F: crate::ResolverCallback + 'a,
     {
         self.build_resolver = Box::new(resolver);
         self
@@ -193,13 +198,13 @@ impl BinaryPackageBuilder {
     /// and builds that failed with a SolverError.
     ///
     /// If the builder has not run, return an incomplete graph.
-    pub fn get_solve_graph(&self) -> Arc<RwLock<solve::Graph>> {
+    pub fn get_solve_graph(&self) -> Arc<tokio::sync::RwLock<solve::Graph>> {
         self.last_solve_graph.clone()
     }
 
     /// Build the requested binary package.
-    pub fn build(&mut self) -> Result<api::Spec> {
-        let mut runtime = crate::HANDLE.block_on(spfs::active_runtime())?;
+    pub async fn build(&mut self) -> Result<api::Spec> {
+        let mut runtime = spfs::active_runtime().await?;
         runtime.reset_all()?;
         runtime.status.editable = true;
         runtime.status.stack.clear();
@@ -218,37 +223,35 @@ impl BinaryPackageBuilder {
         let mut stack = Vec::new();
         if let BuildSource::SourcePackage(ident) = self.source.clone() {
             tracing::debug!("Resolving source package for build");
-            let solution = self.resolve_source_package(&ident)?;
-            stack.extend(exec::resolve_runtime_layers(&solution)?)
+            let solution = self.resolve_source_package(&ident).await?;
+            stack.extend(exec::resolve_runtime_layers(&solution).await?)
         };
         tracing::debug!("Resolving build environment");
-        let solution = self.resolve_build_environment()?;
+        let solution = self.resolve_build_environment().await?;
         let mut opts = solution.options();
         std::mem::swap(&mut opts, &mut self.all_options);
         self.all_options.extend(opts);
-        stack.extend(exec::resolve_runtime_layers(&solution)?);
+        stack.extend(exec::resolve_runtime_layers(&solution).await?);
         runtime.status.stack = stack;
-        crate::HANDLE.block_on(async {
-            runtime.save_state_to_storage().await?;
-            spfs::remount_runtime(&runtime).await
-        })?;
+        runtime.save_state_to_storage().await?;
+        spfs::remount_runtime(&runtime).await?;
         let specs = solution.items().into_iter().map(|solved| solved.spec);
         self.spec.update_for_build(&self.all_options, specs)?;
-        let env = std::env::vars();
-        let mut env = solution.to_environment(Some(env));
+        let mut env = solution.to_environment(Some(std::env::vars()));
         env.extend(self.all_options.to_environment());
-        let components = crate::HANDLE.block_on(self.build_and_commit_artifacts(env))?;
-        crate::HANDLE
-            .block_on(storage::local_repository())?
-            .publish_package(&self.spec, components)?;
+        let components = self.build_and_commit_artifacts(env).await?;
+        storage::local_repository()
+            .await?
+            .publish_package(&self.spec, components)
+            .await?;
         Ok(self.spec.clone())
     }
 
-    fn resolve_source_package(&mut self, package: &api::Ident) -> Result<Solution> {
+    async fn resolve_source_package(&mut self, package: &api::Ident) -> Result<Solution> {
         self.solver.reset();
         self.solver.update_options(self.all_options.clone());
         let local_repo: Arc<storage::RepositoryHandle> =
-            Arc::new(crate::HANDLE.block_on(storage::local_repository())?.into());
+            Arc::new(storage::local_repository().await?.into());
         self.solver.add_repository(local_repo.clone());
         for repo in self.repos.iter() {
             if **repo == *local_repo {
@@ -268,12 +271,12 @@ impl BinaryPackageBuilder {
         self.solver.add_request(request.into());
 
         let mut runtime = self.solver.run();
-        let solution = (self.source_resolver)(&mut runtime);
+        let solution = self.source_resolver.solve(&mut runtime).await;
         self.last_solve_graph = runtime.graph();
         solution
     }
 
-    fn resolve_build_environment(&mut self) -> Result<Solution> {
+    async fn resolve_build_environment(&mut self) -> Result<Solution> {
         self.solver.reset();
         self.solver.update_options(self.all_options.clone());
         self.solver.set_binary_only(true);
@@ -286,7 +289,7 @@ impl BinaryPackageBuilder {
         }
 
         let mut runtime = self.solver.run();
-        let solution = (self.build_resolver)(&mut runtime);
+        let solution = self.build_resolver.solve(&mut runtime).await;
         self.last_solve_graph = runtime.graph();
         solution
     }
@@ -525,8 +528,11 @@ pub async fn commit_component_layers(
             manifest: manifest.digest().unwrap(),
         };
         let layer_digest = layer.digest().unwrap();
-        repo.write_object(&manifest.into()).await?;
-        repo.write_object(&layer.into()).await?;
+        #[rustfmt::skip]
+        tokio::try_join!(
+            async { repo.write_object(&manifest.into()).await },
+            async { repo.write_object(&layer.into()).await }
+        )?;
         committed.insert(component, layer_digest);
     }
     Ok(committed)

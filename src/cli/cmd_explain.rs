@@ -30,20 +30,21 @@ pub struct Explain {
     pub requested: Vec<String>,
 }
 
+#[async_trait::async_trait]
 impl Run for Explain {
-    fn run(&mut self) -> Result<i32> {
-        self.runtime.ensure_active_runtime()?;
+    async fn run(&mut self) -> Result<i32> {
+        self.runtime.ensure_active_runtime().await?;
 
-        let mut solver = self.solver.get_solver(&self.options)?;
-        let requests = self
-            .requests
-            .parse_requests(&self.requested, &self.options)?;
+        let (mut solver, requests) = tokio::try_join!(
+            self.solver.get_solver(&self.options),
+            self.requests.parse_requests(&self.requested, &self.options)
+        )?;
         for request in requests {
             solver.add_request(request)
         }
 
         let formatter = self.formatter_settings.get_formatter(self.verbose + 1);
-        let solution = formatter.run_and_print_resolve(&solver)?;
+        let solution = formatter.run_and_print_resolve(&solver).await?;
 
         println!("{}", spk::io::format_solution(&solution, self.verbose + 1));
         Ok(0)

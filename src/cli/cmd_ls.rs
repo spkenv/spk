@@ -39,14 +39,15 @@ pub struct Ls {
     package: Option<String>,
 }
 
+#[async_trait::async_trait]
 impl Run for Ls {
-    fn run(&mut self) -> Result<i32> {
-        let mut repos = self.repos.get_repos(None)?;
+    async fn run(&mut self) -> Result<i32> {
+        let mut repos = self.repos.get_repos(None).await?;
 
         if repos.is_empty() {
             let local = String::from("local");
             if !self.repos.disable_repo.contains(&local) {
-                repos = self.repos.get_repos(None)?;
+                repos = self.repos.get_repos(None).await?;
             } else {
                 eprintln!(
                     "{}",
@@ -58,7 +59,7 @@ impl Run for Ls {
         }
 
         if self.recursive {
-            return self.list_recursively(repos);
+            return self.list_recursively(repos).await;
         }
 
         let mut results = Vec::new();
@@ -71,7 +72,8 @@ impl Run for Ls {
                 let mut set = BTreeSet::new();
                 for (_repo_name, repo) in repos {
                     set.extend(
-                        repo.list_packages()?
+                        repo.list_packages()
+                            .await?
                             .into_iter()
                             .map(spk::api::PkgNameBuf::into),
                     )
@@ -84,10 +86,10 @@ impl Run for Ls {
                 let mut versions = Vec::new();
                 for (index, (_, repo)) in repos.iter().enumerate() {
                     versions.extend(
-                        repo.list_package_versions(pkgname)?
+                        repo.list_package_versions(pkgname)
+                            .await?
                             .iter()
-                            .cloned()
-                            .map(|v| (v, index)),
+                            .map(|v| ((**v).clone(), index)),
                     );
                 }
 
@@ -105,7 +107,7 @@ impl Run for Ls {
                     name.push_str(&version.to_string());
 
                     let ident = spk::api::parse_ident(name.clone())?;
-                    let spec = repo.read_spec(&ident)?;
+                    let spec = repo.read_spec(&ident).await?;
 
                     // TODO: tempted to swap this over to call
                     // format_build, which would add the package name
@@ -134,16 +136,16 @@ impl Run for Ls {
                 // Given a package version (or build), list all its builds
                 let pkg = spk::api::parse_ident(package)?;
                 for (_, repo) in repos {
-                    for build in repo.list_package_builds(&pkg)? {
+                    for build in repo.list_package_builds(&pkg).await? {
                         // Doing this here slows the listing down, but
                         // the spec file is the only place that holds
                         // the deprecation status.
-                        let spec = repo.read_spec(&build)?;
+                        let spec = repo.read_spec(&build).await?;
                         if spec.deprecated && !self.deprecated {
                             // Hide deprecated packages by default
                             continue;
                         }
-                        set.insert(self.format_build(&build, &spec, &repo)?);
+                        set.insert(self.format_build(&build, &spec, &repo).await?);
                     }
                 }
                 results = set.into_iter().collect();
@@ -158,7 +160,7 @@ impl Run for Ls {
 }
 
 impl Ls {
-    fn list_recursively(
+    async fn list_recursively(
         &self,
         repos: Vec<(String, spk::storage::RepositoryHandle)>,
     ) -> Result<i32> {
@@ -168,7 +170,7 @@ impl Ls {
             let num_packages = packages.len();
             match &self.package {
                 None => {
-                    packages.extend(repo.list_packages()?.into_iter().map(|p| (p, index)));
+                    packages.extend(repo.list_packages().await?.into_iter().map(|p| (p, index)));
                 }
                 Some(package) => {
                     packages.push((package.parse()?, index));
@@ -186,7 +188,8 @@ impl Ls {
                 vec![spk::api::parse_ident(&package)?]
             } else {
                 let base = spk::api::Ident::from(package);
-                repo.list_package_versions(&base.name)?
+                repo.list_package_versions(&base.name)
+                    .await?
                     .iter()
                     .map(|v| base.with_version((**v).clone()))
                     .collect()
@@ -194,13 +197,13 @@ impl Ls {
             versions.sort();
             versions.reverse();
             for pkg in versions {
-                let mut builds = repo.list_package_builds(&pkg)?;
+                let mut builds = repo.list_package_builds(&pkg).await?;
                 builds.sort();
                 for build in builds {
                     // Doing this here slows the listing down, but
                     // the spec file is the only place that holds
                     // the deprecation status.
-                    let spec = repo.read_spec(&build)?;
+                    let spec = repo.read_spec(&build).await?;
                     if spec.deprecated && !self.deprecated {
                         // Hide deprecated packages by default
                         continue;
@@ -213,14 +216,14 @@ impl Ls {
                             width = max_repo_name_len + 2
                         );
                     }
-                    println!("{}", self.format_build(&build, &spec, repo)?);
+                    println!("{}", self.format_build(&build, &spec, repo).await?);
                 }
             }
         }
         Ok(0)
     }
 
-    fn format_build(
+    async fn format_build(
         &self,
         pkg: &spk::api::Ident,
         spec: &spk::api::Spec,
@@ -246,7 +249,7 @@ impl Ls {
         }
 
         if self.verbose > 1 || self.components {
-            let cmpts = repo.get_package(pkg)?;
+            let cmpts = repo.get_package(pkg).await?;
             item.push(' ');
             item.push_str(&spk::io::format_components(cmpts.keys()));
         }

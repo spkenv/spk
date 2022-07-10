@@ -8,29 +8,30 @@ use super::{load_spec, save_spec};
 use crate::{fixtures::*, storage::CachePolicy, with_cache_policy};
 
 #[rstest]
-fn test_load_spec_local() {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_load_spec_local() {
+    let rt = spfs_runtime().await;
     let spec = crate::spec!({"pkg": "my-pkg"});
-    rt.tmprepo.publish_spec(&spec).unwrap();
+    rt.tmprepo.publish_spec(&spec).await.unwrap();
 
-    let actual = load_spec("my-pkg").unwrap();
+    let actual = load_spec("my-pkg").await.unwrap();
     assert_eq!(*actual, spec);
 }
 
 #[rstest]
-fn test_save_spec() {
-    let _guard = crate::HANDLE.enter();
-    let rt = crate::HANDLE.block_on(spfs_runtime());
+#[tokio::test]
+async fn test_save_spec() {
+    let rt = spfs_runtime().await;
     let spec = crate::spec!({"pkg": "my-pkg"});
 
-    let res = rt.tmprepo.read_spec(&spec.pkg);
+    let res = rt.tmprepo.read_spec(&spec.pkg).await;
     assert!(matches!(res, Err(crate::Error::PackageNotFoundError(_))));
 
-    save_spec(&spec).unwrap();
+    save_spec(&spec).await.unwrap();
 
     with_cache_policy!(rt.tmprepo, CachePolicy::BypassCache, {
         rt.tmprepo.read_spec(&spec.pkg)
     })
+    .await
     .expect("should exist in repo after saving");
 }

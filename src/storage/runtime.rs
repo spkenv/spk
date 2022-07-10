@@ -4,7 +4,6 @@
 use std::{collections::HashMap, convert::TryFrom, sync::Arc};
 
 use spfs::prelude::*;
-use tokio::runtime::Handle;
 
 use super::Repository;
 use crate::{api, Error, Result};
@@ -62,12 +61,13 @@ impl RuntimeRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl Repository for RuntimeRepository {
     fn address(&self) -> &url::Url {
         &self.address
     }
 
-    fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>> {
+    async fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>> {
         Ok(get_all_filenames(&self.root)?
             .into_iter()
             .filter_map(|entry| {
@@ -81,7 +81,10 @@ impl Repository for RuntimeRepository {
             .collect())
     }
 
-    fn list_package_versions(&self, name: &api::PkgName) -> Result<Arc<Vec<Arc<api::Version>>>> {
+    async fn list_package_versions(
+        &self,
+        name: &api::PkgName,
+    ) -> Result<Arc<Vec<Arc<api::Version>>>> {
         Ok(Arc::new(
             get_all_filenames(self.root.join(name))?
                 .into_iter()
@@ -107,7 +110,7 @@ impl Repository for RuntimeRepository {
         ))
     }
 
-    fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+    async fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
         let mut base = self.root.join(&pkg.name);
         base.push(pkg.version.to_string());
         Ok(get_all_filenames(&base)?
@@ -135,7 +138,7 @@ impl Repository for RuntimeRepository {
             .collect())
     }
 
-    fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
+    async fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
         if pkg.build.is_none() {
             return Ok(Vec::new());
         }
@@ -147,7 +150,7 @@ impl Repository for RuntimeRepository {
             .collect()
     }
 
-    fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
+    async fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
         let mut path = self.root.join(pkg.to_string());
         path.push("spec.yaml");
 
@@ -163,11 +166,10 @@ impl Repository for RuntimeRepository {
         }
     }
 
-    fn get_package(
+    async fn get_package(
         &self,
         pkg: &api::Ident,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
-        let handle = Handle::current();
         let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
         let components: Vec<api::Component> = entries
             .into_iter()
@@ -180,8 +182,8 @@ impl Repository for RuntimeRepository {
 
         let mut mapped = HashMap::with_capacity(components.len());
         for name in components.into_iter() {
-            let digest = handle
-                .block_on(find_layer_by_filename(path.join(format!("{}.cmpt", &name))))
+            let digest = find_layer_by_filename(path.join(format!("{}.cmpt", &name)))
+                .await
                 .map_err(|err| {
                     if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
                         Error::PackageNotFoundError(pkg.clone())
@@ -197,36 +199,34 @@ impl Repository for RuntimeRepository {
             // was added. It does not have distinct components. So add
             // default Build and Run components that point at the full
             // package digest.
-            let digest = handle
-                .block_on(find_layer_by_filename(path))
-                .map_err(|err| {
-                    if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                        Error::PackageNotFoundError(pkg.clone())
-                    } else {
-                        err
-                    }
-                })?;
+            let digest = find_layer_by_filename(path).await.map_err(|err| {
+                if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
+                    Error::PackageNotFoundError(pkg.clone())
+                } else {
+                    err
+                }
+            })?;
             mapped.insert(api::Component::Run, digest);
             mapped.insert(api::Component::Build, digest);
         }
         Ok(mapped)
     }
 
-    fn force_publish_spec(&self, _spec: &api::Spec) -> Result<()> {
+    async fn force_publish_spec(&self, _spec: &api::Spec) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
-    fn publish_spec(&self, _spec: &api::Spec) -> Result<()> {
+    async fn publish_spec(&self, _spec: &api::Spec) -> Result<()> {
         Err(Error::String(
             "Cannot publish to a runtime repository".into(),
         ))
     }
 
-    fn remove_spec(&self, _pkg: &api::Ident) -> Result<()> {
+    async fn remove_spec(&self, _pkg: &api::Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
-    fn publish_package(
+    async fn publish_package(
         &self,
         _spec: &api::Spec,
         _components: HashMap<api::Component, spfs::encoding::Digest>,
@@ -236,7 +236,7 @@ impl Repository for RuntimeRepository {
         ))
     }
 
-    fn remove_package(&self, _pkg: &api::Ident) -> Result<()> {
+    async fn remove_package(&self, _pkg: &api::Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 }
@@ -267,8 +267,9 @@ fn get_all_filenames<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<String>> 
 }
 
 async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding::Digest> {
-    let runtime = spfs::active_runtime().await?;
-    let repo = spfs::get_config()?.get_local_repository_handle().await?;
+    let config = spfs::get_config()?;
+    let (runtime, repo) =
+        tokio::try_join!(spfs::active_runtime(), config.get_local_repository_handle())?;
 
     let layers = spfs::resolve_stack_to_layers(runtime.status.stack.iter(), Some(&repo)).await?;
     for layer in layers.iter().rev() {

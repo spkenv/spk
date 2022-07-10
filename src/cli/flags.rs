@@ -26,9 +26,9 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    pub fn ensure_active_runtime(&self) -> Result<spfs::runtime::Runtime> {
+    pub async fn ensure_active_runtime(&self) -> Result<spfs::runtime::Runtime> {
         if self.no_runtime {
-            return Ok(spk::HANDLE.block_on(spfs::active_runtime())?);
+            return Ok(spfs::active_runtime().await?);
         }
         self.relaunch_with_runtime()
     }
@@ -72,12 +72,13 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn get_solver(&self, options: &Options) -> Result<spk::solve::Solver> {
+    pub async fn get_solver(&self, options: &Options) -> Result<spk::solve::Solver> {
         let option_map = options.get_options()?;
         let mut solver = spk::Solver::default();
         solver.update_options(option_map);
         self.repos
-            .configure_solver(&mut solver, &["origin".to_string()])?;
+            .configure_solver(&mut solver, &["origin".to_string()])
+            .await?;
         solver.set_binary_only(!self.allow_builds);
         for r in options.get_var_requests()? {
             solver.add_request(r.into());
@@ -195,19 +196,20 @@ impl Requests {
     }
 
     /// Parse and build a request from the given string and these flags
-    pub fn parse_request<R: AsRef<str>>(
+    pub async fn parse_request<R: AsRef<str>>(
         &self,
         request: R,
         options: &Options,
     ) -> Result<spk::api::Request> {
         Ok(self
-            .parse_requests([request.as_ref()], options)?
+            .parse_requests([request.as_ref()], options)
+            .await?
             .pop()
             .unwrap())
     }
 
     /// Parse and build requests from the given strings and these flags.
-    pub fn parse_requests<I, S>(
+    pub async fn parse_requests<I, S>(
         &self,
         requests: I,
         options: &Options,
@@ -459,7 +461,7 @@ impl Repositories {
     /// Configure a solver with the repositories requested on the command line.
     ///
     /// The provided defaults are used if nothing was specified.
-    pub fn configure_solver<'a, 'b: 'a, I>(
+    pub async fn configure_solver<'a, 'b: 'a, I>(
         &'b self,
         solver: &mut spk::solve::Solver,
         defaults: I,
@@ -467,7 +469,7 @@ impl Repositories {
     where
         I: IntoIterator<Item = &'a String>,
     {
-        for (name, repo) in self.get_repos(defaults)?.into_iter() {
+        for (name, repo) in self.get_repos(defaults).await?.into_iter() {
             tracing::debug!(repo=%name, "using repository");
             solver.add_repository(repo);
         }
@@ -477,19 +479,19 @@ impl Repositories {
     /// Get the repositories specified on the command line.
     ///
     /// The provided defaults are used if nothing was specified.
-    pub fn get_repos<'a, 'b: 'a, I: IntoIterator<Item = &'a String>>(
+    pub async fn get_repos<'a, 'b: 'a, I: IntoIterator<Item = &'a String>>(
         &'b self,
         defaults: I,
     ) -> Result<Vec<(String, spk::storage::RepositoryHandle)>> {
         let mut repos = Vec::new();
         if !self.no_local_repo {
-            let repo = spk::HANDLE.block_on(spk::storage::local_repository())?;
+            let repo = spk::storage::local_repository().await?;
             repos.push(("local".into(), repo.into()));
         }
         let enabled = self.enable_repo.iter().chain(defaults.into_iter());
         for name in enabled {
             if !self.disable_repo.contains(name) {
-                let repo = spk::HANDLE.block_on(spk::storage::remote_repository(name))?;
+                let repo = spk::storage::remote_repository(name).await?;
                 repos.push((name.into(), repo.into()));
             }
         }

@@ -15,11 +15,12 @@ pub struct Import {
     pub files: Vec<std::path::PathBuf>,
 }
 
+#[async_trait::async_trait]
 impl Run for Import {
-    fn run(&mut self) -> Result<i32> {
+    async fn run(&mut self) -> Result<i32> {
         for filename in self.files.iter() {
-            spk::HANDLE
-                .block_on(spk::storage::import_package(filename))
+            spk::storage::import_package(filename)
+                .await
                 .context("Import failed")?;
         }
         Ok(0)

@@ -45,7 +45,7 @@ pub struct Opt {
 }
 
 impl Opt {
-    pub fn run(&mut self) -> Result<i32> {
+    pub async fn run(&mut self) -> Result<i32> {
         let _guard = spk::HANDLE.enter();
 
         #[cfg(feature = "sentry")]
@@ -56,14 +56,15 @@ impl Opt {
             eprintln!("{}", err.to_string().red());
             return Ok(1);
         }
-        self.cmd.run()
+        self.cmd.run().await
     }
 }
 
 /// Trait all cli commands must implement to be runnable.
+#[async_trait::async_trait]
 #[enum_dispatch]
 trait Run {
-    fn run(&mut self) -> Result<i32>;
+    async fn run(&mut self) -> Result<i32>;
 }
 
 #[enum_dispatch(Run)]
@@ -95,9 +96,10 @@ pub enum Command {
     View(cmd_view::View),
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let mut opts = Opt::parse();
-    let code = match opts.run() {
+    let code = match opts.run().await {
         Ok(code) => code,
         Err(err) => {
             let root = err.root_cause();

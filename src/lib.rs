@@ -41,3 +41,28 @@ lazy_static::lazy_static! {
         handle
     };
 }
+
+#[async_trait::async_trait]
+pub trait ResolverCallback: Send + Sync {
+    /// Run a solve using the given [`solve::SolverRuntime`],
+    /// producing a [`crate::Solution`].
+    async fn solve<'s, 'a: 's>(
+        &'s self,
+        r: &'a mut solve::SolverRuntime,
+    ) -> Result<crate::Solution>;
+}
+
+/// A no-frills implementation of [`ResolverCallback`].
+struct DefaultResolver {}
+
+#[async_trait::async_trait]
+impl ResolverCallback for DefaultResolver {
+    async fn solve<'s, 'a: 's>(
+        &'s self,
+        r: &'a mut solve::SolverRuntime,
+    ) -> Result<crate::Solution> {
+        r.solution().await
+    }
+}
+
+type BoxedResolverCallback<'a> = Box<dyn ResolverCallback + 'a>;

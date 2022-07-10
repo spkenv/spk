@@ -96,21 +96,23 @@ macro_rules! assert_resolved {
 }
 
 // Helper that wraps common solver_test boiler plate
-fn run_and_print_resolve_for_tests(solver: &Solver) -> Result<super::Solution> {
+async fn run_and_print_resolve_for_tests(solver: &Solver) -> Result<super::Solution> {
     let formatter = io::DecisionFormatterBuilder::new()
         .with_verbosity(100)
         .build();
 
-    formatter.run_and_print_resolve(solver)
+    formatter.run_and_print_resolve(solver).await
 }
 
 #[rstest]
-fn test_solver_no_requests(mut solver: Solver) {
-    solver.solve().unwrap();
+#[tokio::test]
+async fn test_solver_no_requests(mut solver: Solver) {
+    solver.solve().await.unwrap();
 }
 
 #[rstest]
-fn test_solver_package_with_no_spec(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_package_with_no_spec(mut solver: Solver) {
     let repo = crate::storage::RepositoryHandle::new_mem();
 
     let options = option_map! {};
@@ -122,13 +124,13 @@ fn test_solver_package_with_no_spec(mut solver: Solver) {
     let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
         .into_iter()
         .collect();
-    repo.publish_package(&spec, components).unwrap();
+    repo.publish_package(&spec, components).await.unwrap();
 
     solver.update_options(options);
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-pkg"));
 
-    let res = run_and_print_resolve_for_tests(&solver);
+    let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(matches!(
         res,
         Err(Error::Solve(crate::solve::errors::Error::FailedToResolve(
@@ -138,7 +140,8 @@ fn test_solver_package_with_no_spec(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
     let repo = crate::storage::RepositoryHandle::new_mem();
 
     let options = option_map! {};
@@ -150,7 +153,7 @@ fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
     let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
         .into_iter()
         .collect();
-    repo.publish_package(&spec, components).unwrap();
+    repo.publish_package(&spec, components).await.unwrap();
 
     solver.update_options(options);
     solver.add_repository(Arc::new(repo));
@@ -161,7 +164,7 @@ fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
     ));
     solver.add_request(req);
 
-    let res = run_and_print_resolve_for_tests(&solver);
+    let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(matches!(
         res,
         Err(Error::Solve(
@@ -171,7 +174,8 @@ fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_single_package_no_deps(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_single_package_no_deps(mut solver: Solver) {
     let options = option_map! {};
     let repo = make_repo!([{"pkg": "my-pkg/1.0.0"}], options=options.clone());
 
@@ -179,7 +183,7 @@ fn test_solver_single_package_no_deps(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-pkg"));
 
-    let packages = run_and_print_resolve_for_tests(&solver).unwrap();
+    let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_eq!(packages.len(), 1, "expected one resolved package");
     let resolved = packages.get("my-pkg").unwrap();
     assert_eq!(&resolved.spec.pkg.version.to_string(), "1.0.0");
@@ -188,7 +192,8 @@ fn test_solver_single_package_no_deps(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_single_package_simple_deps(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_single_package_simple_deps(mut solver: Solver) {
     let options = option_map! {};
     let repo = make_repo!(
         [
@@ -206,14 +211,15 @@ fn test_solver_single_package_simple_deps(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-b/1.1"));
 
-    let packages = run_and_print_resolve_for_tests(&solver).unwrap();
+    let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_eq!(packages.len(), 2, "expected two resolved packages");
     assert_resolved!(packages, "pkg-a", "1.2.1");
     assert_resolved!(packages, "pkg-b", "1.1.0");
 }
 
 #[rstest]
-fn test_solver_dependency_abi_compat(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_dependency_abi_compat(mut solver: Solver) {
     let options = option_map! {};
     let repo = make_repo!(
         [
@@ -234,14 +240,15 @@ fn test_solver_dependency_abi_compat(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-b/1.1"));
 
-    let packages = run_and_print_resolve_for_tests(&solver).unwrap();
+    let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_eq!(packages.len(), 2, "expected two resolved packages");
     assert_resolved!(packages, "pkg-a", "1.1.1");
     assert_resolved!(packages, "pkg-b", "1.1.0");
 }
 
 #[rstest]
-fn test_solver_dependency_incompatible(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_dependency_incompatible(mut solver: Solver) {
     // test what happens when a dependency is added which is incompatible
     // with an existing request in the stack
     let repo = make_repo!(
@@ -260,13 +267,14 @@ fn test_solver_dependency_incompatible(mut solver: Solver) {
     // this one is incompatible with requirements of my-plugin but the solver doesn't know it yet
     solver.add_request(request!("maya/2019"));
 
-    let res = run_and_print_resolve_for_tests(&solver);
+    let res = run_and_print_resolve_for_tests(&solver).await;
 
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
-fn test_solver_dependency_incompatible_stepback(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_dependency_incompatible_stepback(mut solver: Solver) {
     // test what happens when a dependency is added which is incompatible
     // with an existing request in the stack - in this case we want the solver
     // to successfully step back into an older package version with
@@ -291,14 +299,15 @@ fn test_solver_dependency_incompatible_stepback(mut solver: Solver) {
     // this one is incompatible with requirements of my-plugin/1.1.0 but not my-plugin/1.0
     solver.add_request(request!("maya/2019"));
 
-    let packages = run_and_print_resolve_for_tests(&solver).unwrap();
+    let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(packages, "my-plugin", "1.0.0");
     assert_resolved!(packages, "maya", "2019.0.0");
 }
 
 #[rstest]
-fn test_solver_dependency_already_satisfied(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_dependency_already_satisfied(mut solver: Solver) {
     // test what happens when a dependency is added which represents
     // a package which has already been resolved
     // - and the resolved version satisfies the request
@@ -321,14 +330,15 @@ fn test_solver_dependency_already_satisfied(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-top"));
 
-    let packages = run_and_print_resolve_for_tests(&solver).unwrap();
+    let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(packages, ["pkg-top", "dep-1", "dep-2"]);
     assert_resolved!(packages, "dep-1", "1.0.0");
 }
 
 #[rstest]
-fn test_solver_dependency_reopen_solvable(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_dependency_reopen_solvable(mut solver: Solver) {
     // test what happens when a dependency is added which represents
     // a package which has already been resolved
     // - and the resolved version does not satisfy the request
@@ -356,13 +366,14 @@ fn test_solver_dependency_reopen_solvable(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-plugin"));
 
-    let packages = run_and_print_resolve_for_tests(&solver).unwrap();
+    let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_resolved!(packages, ["my-plugin", "some-library", "maya"]);
     assert_resolved!(packages, "maya", "2019.0.0");
 }
 
 #[rstest]
-fn test_solver_dependency_reiterate(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_dependency_reiterate(mut solver: Solver) {
     // test what happens when a package iterator must be run through twice
     // - walking back up the solve graph should reset the iterator to where it was
 
@@ -389,13 +400,14 @@ fn test_solver_dependency_reiterate(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-plugin"));
 
-    let packages = run_and_print_resolve_for_tests(&solver).unwrap();
+    let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_resolved!(packages, ["my-plugin", "some-library", "maya"]);
     assert_resolved!(packages, "maya", "2019.0.0");
 }
 
 #[rstest]
-fn test_solver_dependency_reopen_unsolvable(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_dependency_reopen_unsolvable(mut solver: Solver) {
     // test what happens when a dependency is added which represents
     // a package which has already been resolved
     // - and the resolved version does not satisfy the request
@@ -421,12 +433,13 @@ fn test_solver_dependency_reopen_unsolvable(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("pkg-top"));
 
-    let result = run_and_print_resolve_for_tests(&solver);
+    let result = run_and_print_resolve_for_tests(&solver).await;
     assert!(matches!(result, Err(Error::Solve(_))));
 }
 
 #[rstest]
-fn test_solver_pre_release_config(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_pre_release_config(mut solver: Solver) {
     let repo = make_repo!(
         [
             {"pkg": "my-pkg/0.9.0"},
@@ -440,7 +453,7 @@ fn test_solver_pre_release_config(mut solver: Solver) {
     solver.add_repository(repo.clone());
     solver.add_request(request!("my-pkg"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_resolved!(
         solution,
         "my-pkg",
@@ -452,12 +465,13 @@ fn test_solver_pre_release_config(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(request!({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"}));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_resolved!(solution, "my-pkg", "1.0.0-pre.2");
 }
 
 #[rstest]
-fn test_solver_constraint_only(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_constraint_only(mut solver: Solver) {
     // test what happens when a dependency is marked as a constraint/optional
     // and no other request is added
     // - the constraint is noted
@@ -478,12 +492,13 @@ fn test_solver_constraint_only(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("vnp3"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert!(solution.get("python").is_none());
 }
 
 #[rstest]
-fn test_solver_constraint_and_request(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_constraint_and_request(mut solver: Solver) {
     // test what happens when a dependency is marked as a constraint/optional
     // and also requested by another package
     // - the constraint is noted
@@ -510,13 +525,14 @@ fn test_solver_constraint_and_request(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-tool"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(solution, "python", "3.7.3");
 }
 
 #[rstest]
-fn test_solver_option_compatibility(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_option_compatibility(mut solver: Solver) {
     // test what happens when an option is given in the solver
     // - the options for each build are checked
     // - the resolved build must have used the option
@@ -545,7 +561,7 @@ fn test_solver_option_compatibility(mut solver: Solver) {
     let for_py37 = make_build!(spec, [py37]);
 
     let repo = make_repo!([for_py27, for_py26, for_py37, for_py371]);
-    repo.publish_spec(&spec).unwrap();
+    repo.publish_spec(&spec).await.unwrap();
     let repo = Arc::new(repo);
 
     // The 'by_build_option_values' build sorting method does not use
@@ -572,7 +588,7 @@ fn test_solver_option_compatibility(mut solver: Solver) {
             .into(),
         );
 
-        let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+        let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
         let resolved = solution.get("vnp3").unwrap();
         let opt = resolved.spec.build.options.get(0).unwrap();
@@ -595,7 +611,8 @@ fn test_solver_option_compatibility(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_option_injection(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_option_injection(mut solver: Solver) {
     // test the options that are defined when a package is resolved
     // - options are namespaced and added to the environment
     init_logging();
@@ -620,12 +637,12 @@ fn test_solver_option_injection(mut solver: Solver) {
     );
     let build = make_build!(spec, [pybuild]);
     let repo = make_repo!([build]);
-    repo.publish_spec(&spec).unwrap();
+    repo.publish_spec(&spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("vnp3"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     let mut opts = solution.options();
     assert_eq!(opts.remove(opt_name!("vnp3")), Some("~2.0.0".to_string()));
@@ -646,7 +663,8 @@ fn test_solver_option_injection(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_build_from_source(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_build_from_source(mut solver: Solver) {
     // test when no appropriate build exists but the source is available
     // - the build is skipped
     // - the source package is checked for current options
@@ -674,7 +692,7 @@ fn test_solver_build_from_source(mut solver: Solver) {
     solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     let resolved = solution.get("my-tool").unwrap();
     assert!(
@@ -690,13 +708,14 @@ fn test_solver_build_from_source(mut solver: Solver) {
     solver.set_binary_only(true);
     // Should fail when binary-only is specified
 
-    let res = run_and_print_resolve_for_tests(&solver);
+    let res = run_and_print_resolve_for_tests(&solver).await;
 
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
-fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
     // test when no appropriate build exists but the source is available
     // - if the requested pkg cannot resolve a build environment
     // - this is flagged by the solver as impossible
@@ -727,12 +746,13 @@ fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
     solver.add_request(request!({"var": "gcc/6.3"}));
     solver.add_request(request!("my-tool"));
 
-    let res = run_and_print_resolve_for_tests(&solver);
+    let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
-fn test_solver_build_from_source_dependency(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_build_from_source_dependency(mut solver: Solver) {
     // test when no appropriate build exists but the source is available
     // - the existing build is skipped
     // - the source package is checked for current options
@@ -772,7 +792,7 @@ fn test_solver_build_from_source_dependency(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-tool"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert!(
         solution.get("my-tool").unwrap().is_source_build(),
@@ -781,7 +801,8 @@ fn test_solver_build_from_source_dependency(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_deprecated_build(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_deprecated_build(mut solver: Solver) {
     let deprecated = make_build!({"pkg": "my-pkg/1.0.0", "deprecated": true});
     let deprecated_build = deprecated.pkg.clone();
     let repo = make_repo!([
@@ -794,7 +815,7 @@ fn test_solver_deprecated_build(mut solver: Solver) {
     solver.add_repository(repo.clone());
     solver.add_request(request!("my-pkg"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_resolved!(
         solution,
         "my-pkg",
@@ -808,7 +829,7 @@ fn test_solver_deprecated_build(mut solver: Solver) {
         api::PkgRequest::from_ident(deprecated_build, api::RequestedBy::SpkInternalTest).into(),
     );
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_resolved!(
         solution,
         "my-pkg",
@@ -818,7 +839,8 @@ fn test_solver_deprecated_build(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_deprecated_version(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_deprecated_version(mut solver: Solver) {
     let mut deprecated = make_build!({"pkg": "my-pkg/1.0.0"});
     deprecated.deprecated = true;
     let repo = make_repo!(
@@ -829,7 +851,7 @@ fn test_solver_deprecated_version(mut solver: Solver) {
     solver.add_repository(repo.clone());
     solver.add_request(request!("my-pkg"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_resolved!(
         solution,
         "my-pkg",
@@ -847,7 +869,7 @@ fn test_solver_deprecated_version(mut solver: Solver) {
         .into(),
     );
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_resolved!(
         solution,
         "my-pkg",
@@ -857,7 +879,8 @@ fn test_solver_deprecated_version(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_build_from_source_deprecated(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_build_from_source_deprecated(mut solver: Solver) {
     // test when no appropriate build exists and the main package
     // has been deprecated, no source build should be allowed
 
@@ -872,24 +895,26 @@ fn test_solver_build_from_source_deprecated(mut solver: Solver) {
                 "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
         ],
-       options = {"debug" => "off"}
+    options = {"debug" => "off"}
     );
     let mut spec = repo
         .read_spec(&api::parse_ident("my-tool/1.2.0").unwrap())
+        .await
         .unwrap();
     Arc::make_mut(&mut spec).deprecated = true;
-    repo.force_publish_spec(&spec).unwrap();
+    repo.force_publish_spec(&spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
 
-    let res = run_and_print_resolve_for_tests(&solver);
+    let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
-fn test_solver_embedded_package_adds_request(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_embedded_package_adds_request(mut solver: Solver) {
     // test when there is an embedded package
     // - the embedded package is added to the solution
     // - the embedded package is also added as a request in the resolve
@@ -907,7 +932,7 @@ fn test_solver_embedded_package_adds_request(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("maya"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
     assert_resolved!(solution, "qt", "5.12.6");
@@ -915,7 +940,8 @@ fn test_solver_embedded_package_adds_request(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_embedded_package_solvable(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_embedded_package_solvable(mut solver: Solver) {
     // test when there is an embedded package
     // - the embedded package is added to the solution
     // - the embedded package resolves existing requests
@@ -939,14 +965,15 @@ fn test_solver_embedded_package_solvable(mut solver: Solver) {
     solver.add_request(request!("qt"));
     solver.add_request(request!("maya"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(solution, "qt", "5.12.6");
     assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
 }
 
 #[rstest]
-fn test_solver_embedded_package_unsolvable(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_embedded_package_unsolvable(mut solver: Solver) {
     // test when there is an embedded package
     // - the embedded package is added to the solution
     // - the embedded package conflicts with existing requests
@@ -973,12 +1000,13 @@ fn test_solver_embedded_package_unsolvable(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-plugin"));
 
-    let res = run_and_print_resolve_for_tests(&solver);
+    let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
-fn test_solver_some_versions_conflicting_requests(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_some_versions_conflicting_requests(mut solver: Solver) {
     // test when there is a package with some version that have a conflicting dependency
     // - the solver passes over the one with conflicting
     // - the solver logs compat info for versions with conflicts
@@ -1008,13 +1036,14 @@ fn test_solver_some_versions_conflicting_requests(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-lib"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(solution, "dep", "2.0.0");
 }
 
 #[rstest]
-fn test_solver_embedded_request_invalidates(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_embedded_request_invalidates(mut solver: Solver) {
     // test when a package is resolved with an incompatible embedded pkg
     // - the solver tries to resolve the package
     // - there is a conflict in the embedded request
@@ -1041,13 +1070,14 @@ fn test_solver_embedded_request_invalidates(mut solver: Solver) {
     solver.add_request(request!("python"));
     solver.add_request(request!("my-lib"));
 
-    let res = run_and_print_resolve_for_tests(&solver);
+    let res = run_and_print_resolve_for_tests(&solver).await;
 
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
-fn test_solver_unknown_package_options(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_unknown_package_options(mut solver: Solver) {
     // test when a package is requested with specific options (eg: pkg.opt)
     // - the solver ignores versions that don't define the option
     // - the solver resolves versions that do define the option
@@ -1060,18 +1090,19 @@ fn test_solver_unknown_package_options(mut solver: Solver) {
     solver.add_request(request!({"var": "my-lib.something/value"}));
     solver.add_request(request!("my-lib"));
 
-    let res = run_and_print_resolve_for_tests(&solver);
+    let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(matches!(res, Err(Error::Solve(_))));
 
     // this time we don't request that option, and it should be ok
     solver.reset();
     solver.add_repository(repo);
     solver.add_request(request!("my-lib"));
-    run_and_print_resolve_for_tests(&solver).unwrap();
+    run_and_print_resolve_for_tests(&solver).await.unwrap();
 }
 
 #[rstest]
-fn test_solver_var_requirements(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_var_requirements(mut solver: Solver) {
     // test what happens when a dependency is added which is incompatible
     // with an existing request in the stack
     let repo = make_repo!(
@@ -1103,7 +1134,7 @@ fn test_solver_var_requirements(mut solver: Solver) {
     solver.add_repository(repo.clone());
     solver.add_request(request!("my-app/2"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(solution, "my-app", "2.0.0");
     assert_resolved!(solution, "python", "3.7.3");
@@ -1113,13 +1144,14 @@ fn test_solver_var_requirements(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(request!("my-app/1"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(solution, "python", "2.7.5");
 }
 
 #[rstest]
-fn test_solver_var_requirements_unresolve(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_var_requirements_unresolve(mut solver: Solver) {
     // test when a package is resolved that conflicts in var requirements
     //  - the solver should unresolve the solved package
     //  - the solver should resolve a new version of the package with the right version
@@ -1153,7 +1185,7 @@ fn test_solver_var_requirements_unresolve(mut solver: Solver) {
     // the addition of this app constrains the python.abi to 2.7
     solver.add_request(request!("my-app/1"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(solution, "my-app", "1.0.0");
     assert_resolved!(solution, "python", "2.7.5", "should re-resolve python");
@@ -1165,14 +1197,15 @@ fn test_solver_var_requirements_unresolve(mut solver: Solver) {
     // the addition of this app constrains the global abi to 2.7
     solver.add_request(request!("my-app/2"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(solution, "my-app", "2.0.0");
     assert_resolved!(solution, "python", "2.7.5", "should re-resolve python");
 }
 
 #[rstest]
-fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     // test when a package is resolved with some build option
     //  - that option can conflict with another packages build options
     //  - as long as there is no explicit requirement on that option's value
@@ -1193,8 +1226,8 @@ fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     let a_build = make_build!(a_spec, [dep_v1]);
     let b_build = make_build!(b_spec, [dep_v2]);
     let repo = make_repo!([a_build, b_build,]);
-    repo.publish_spec(&a_spec).unwrap();
-    repo.publish_spec(&b_spec).unwrap();
+    repo.publish_spec(&a_spec).await.unwrap();
+    repo.publish_spec(&b_spec).await.unwrap();
     let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
@@ -1204,7 +1237,7 @@ fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     // b is not affected and can still be resolved
     solver.add_request(request!("pkgb"));
 
-    run_and_print_resolve_for_tests(&solver).unwrap();
+    run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     solver.reset();
     solver.add_repository(repo.clone());
@@ -1214,12 +1247,13 @@ fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     // this time the explicit request will cause a failure
     solver.add_request(request!({"var": "build-dep/=1.0.0"}));
 
-    let res = run_and_print_resolve_for_tests(&solver);
+    let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
-fn test_solver_components(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_components(mut solver: Solver) {
     // test when a package is requested with specific components
     // - all the aggregated components are selected in the resolve
     // - the final build has published layers for each component
@@ -1253,7 +1287,7 @@ fn test_solver_components(mut solver: Solver) {
     solver.add_request(request!("pkga"));
     solver.add_request(request!("pkgb"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     let resolved = solution.get("python").unwrap().request.pkg.components;
     let expected = ["interpreter", "doc", "lib", "run"]
@@ -1265,7 +1299,8 @@ fn test_solver_components(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_all_component(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_all_component(mut solver: Solver) {
     // test when a package is requested with the 'all' component
     // - all the specs components are selected in the resolve
     // - the final build has published layers for each component
@@ -1289,7 +1324,7 @@ fn test_solver_all_component(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("python:all"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     let resolved = solution.get("python").unwrap();
     assert_eq!(resolved.request.pkg.components.len(), 1);
@@ -1305,7 +1340,8 @@ fn test_solver_all_component(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_component_availability(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_component_availability(mut solver: Solver) {
     // test when a package is requested with some component
     // - all the specs components are selected in the resolve
     // - the final build has published layers for each component
@@ -1337,14 +1373,14 @@ fn test_solver_component_availability(mut solver: Solver) {
         (build372, cmpt372),
         (build371, cmpt371),
     ]);
-    repo.publish_spec(&spec373).unwrap();
-    repo.publish_spec(&spec372).unwrap();
-    repo.publish_spec(&spec371).unwrap();
+    repo.publish_spec(&spec373).await.unwrap();
+    repo.publish_spec(&spec372).await.unwrap();
+    repo.publish_spec(&spec371).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("python:bin"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(
         solution,
@@ -1356,7 +1392,8 @@ fn test_solver_component_availability(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_component_requirements(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_component_requirements(mut solver: Solver) {
     // test when a component has it's own list of requirements
     // - the requirements are added to the existing set of requirements
     // - the additional requirements are resolved
@@ -1385,7 +1422,7 @@ fn test_solver_component_requirements(mut solver: Solver) {
     solver.add_repository(repo.clone());
     solver.add_request(request!("mypkg:build"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     solution.get("dep").expect("should exist");
     solution.get("depb").expect("should exist");
@@ -1395,7 +1432,7 @@ fn test_solver_component_requirements(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(request!("mypkg:run"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     solution.get("dep").expect("should exist");
     solution.get("depr").expect("should exist");
@@ -1403,7 +1440,8 @@ fn test_solver_component_requirements(mut solver: Solver) {
 }
 
 #[rstest]
-fn test_solver_component_requirements_extending(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_component_requirements_extending(mut solver: Solver) {
     // test when an additional component is requested after a package is resolved
     // - the new components requirements are still added and resolved
 
@@ -1429,13 +1467,14 @@ fn test_solver_component_requirements_extending(mut solver: Solver) {
     // has a new requirement on depc
     solver.add_request(request!("depb"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     solution.get("depc").expect("should exist");
 }
 
 #[rstest]
-fn test_solver_component_embedded(mut solver: Solver) {
+#[tokio::test]
+async fn test_solver_component_embedded(mut solver: Solver) {
     // test when a component has it's own list of embedded packages
     // - the embedded package is immediately selected
     // - it must be compatible with any previous requirements
@@ -1474,7 +1513,7 @@ fn test_solver_component_embedded(mut solver: Solver) {
     solver.add_repository(repo.clone());
     solver.add_request(request!("downstream1"));
 
-    let solution = run_and_print_resolve_for_tests(&solver).unwrap();
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(solution, "dep-e1", build = Some(api::Build::Embedded));
 
@@ -1485,13 +1524,14 @@ fn test_solver_component_embedded(mut solver: Solver) {
     // should fail because the one embedded package
     // does not meet the requirements in downstream spec
 
-    let res = run_and_print_resolve_for_tests(&solver);
+    let res = run_and_print_resolve_for_tests(&solver).await;
 
     assert!(matches!(res, Err(Error::Solve(_))));
 }
 
 #[rstest]
-fn test_request_default_component() {
+#[tokio::test]
+async fn test_request_default_component() {
     let mut solver = Solver::default();
     solver.add_request(request!("python/3.7.3"));
     let state = solver.get_initial_state();
