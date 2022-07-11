@@ -10,10 +10,28 @@ use spk::api::PkgName;
 
 use super::{flags, Run};
 
+#[cfg(test)]
+#[path = "./cmd_ls_test.rs"]
+mod cmd_ls_test;
+
+pub trait Output: Default + Send + Sync {
+    /// A line of output to display.
+    fn println(&mut self, line: String);
+}
+
+#[derive(Default)]
+pub struct Console {}
+
+impl Output for Console {
+    fn println(&mut self, line: String) {
+        println!("{line}");
+    }
+}
+
 /// List packages in one or more repositories
 #[derive(Args)]
 #[clap(visible_alias = "list")]
-pub struct Ls {
+pub struct Ls<Output: Default = Console> {
     #[clap(flatten)]
     pub repos: flags::Repositories,
 
@@ -37,12 +55,19 @@ pub struct Ls {
     /// If nothing is provided, list all available packages.
     #[clap(name = "NAME[/VERSION]")]
     package: Option<String>,
+
+    #[clap(skip)]
+    pub(crate) output: Output,
 }
 
 #[async_trait::async_trait]
-impl Run for Ls {
+impl<T: Output> Run for Ls<T> {
     async fn run(&mut self) -> Result<i32> {
-        let mut repos = self.repos.get_repos(None).await?;
+        let mut repos = if self.repos.local_repo {
+            self.repos.get_repos(None).await?
+        } else {
+            self.repos.get_repos(&["origin".to_string()]).await?
+        };
 
         if repos.is_empty() {
             let local = String::from("local");
@@ -153,15 +178,15 @@ impl Run for Ls {
         }
 
         for item in results {
-            println!("{}", item);
+            self.output.println(item.to_string());
         }
         Ok(0)
     }
 }
 
-impl Ls {
+impl<T: Output> Ls<T> {
     async fn list_recursively(
-        &self,
+        &mut self,
         repos: Vec<(String, spk::storage::RepositoryHandle)>,
     ) -> Result<i32> {
         let mut packages = Vec::new();
@@ -216,7 +241,8 @@ impl Ls {
                             width = max_repo_name_len + 2
                         );
                     }
-                    println!("{}", self.format_build(&build, &spec, repo).await?);
+                    self.output
+                        .println((self.format_build(&build, &spec, repo).await?).to_string());
                 }
             }
         }

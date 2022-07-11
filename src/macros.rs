@@ -27,7 +27,7 @@ macro_rules! make_repo {
         let repo = $crate::storage::RepositoryHandle::new_mem();
         let _opts = $options;
         $(
-            let (s, cmpts) = make_package!(repo, $spec, &_opts);
+            let (s, cmpts) = $crate::make_package!(repo, $spec, &_opts);
             repo.publish_package(&s, cmpts).await.unwrap();
         )*
         repo

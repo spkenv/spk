@@ -563,6 +563,8 @@ fn warn_local_flag_deprecated(arg: &str) -> Result<bool> {
         eprintln!(
             "{warning}: The -l (--local-repo) is deprecated, please remove it from your command line!",
             warning = "WARNING".yellow());
+        Ok(true)
+    } else {
+        Ok(false)
     }
-    Ok(true)
 }
