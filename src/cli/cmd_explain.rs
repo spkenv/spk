@@ -43,10 +43,14 @@ impl Run for Explain {
             solver.add_request(request)
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose + 1);
-        let solution = formatter.run_and_print_resolve(&solver).await?;
+        // Always show the solution packages for the solve
+        let formatter = self
+            .formatter_settings
+            .get_formatter_builder(self.verbose + 1)
+            .with_solution(true)
+            .build();
+        formatter.run_and_print_resolve(&solver).await?;
 
-        println!("{}", spk::io::format_solution(&solution, self.verbose + 1));
         Ok(0)
     }
 }

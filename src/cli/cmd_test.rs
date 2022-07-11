@@ -144,7 +144,15 @@ impl Run for Test {
                             spk::io::format_options(&opts)
                         );
 
-                        let formatter = self.formatter_settings.get_formatter(self.verbose);
+                        let mut builder =
+                            self.formatter_settings.get_formatter_builder(self.verbose);
+                        let src_formatter = builder.with_header("Source Resolver ").build();
+                        let build_src_formatter =
+                            builder.with_header("Build Source Resolver ").build();
+                        let build_formatter = builder.with_header("Build Resolver ").build();
+                        let install_formatter =
+                            builder.with_header("Install Env Resolver ").build();
+
                         match stage {
                             spk::api::TestStage::Sources => {
                                 spk::test::PackageSourceTester::new(
@@ -155,7 +163,7 @@ impl Run for Test {
                                 .with_repositories(repos.iter().cloned())
                                 .with_requirements(test.requirements.clone())
                                 .with_source(source.clone())
-                                .watch_environment_resolve(&formatter)
+                                .watch_environment_resolve(&src_formatter)
                                 .test()
                                 .await?
                             }
@@ -178,8 +186,8 @@ impl Run for Test {
                                             )
                                         }),
                                 )
-                                .with_source_resolver(&formatter)
-                                .with_build_resolver(&formatter)
+                                .with_source_resolver(&build_src_formatter)
+                                .with_build_resolver(&build_formatter)
                                 .test()
                                 .await?
                             }
@@ -193,7 +201,7 @@ impl Run for Test {
                                 .with_repositories(repos.iter().cloned())
                                 .with_requirements(test.requirements.clone())
                                 .with_source(source.clone())
-                                .watch_environment_resolve(&formatter)
+                                .watch_environment_resolve(&install_formatter)
                                 .test()
                                 .await?
                             }

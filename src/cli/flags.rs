@@ -522,18 +522,33 @@ pub struct DecisionFormatterSettings {
     /// timeout is disabled and the solver will run to completion.
     #[clap(long, env = "SPK_SOLVE_TIMEOUT", default_value_t = 0)]
     pub timeout: u64,
+
+    /// Show the package builds in the solution for any solver
+    /// run. This will be automatically enabled for 'build',
+    /// 'make-binary', and 'explain' commands or if v > 0.
+    #[clap(long)]
+    pub show_solution: bool,
 }
 
 impl DecisionFormatterSettings {
     /// Get a decision formatter configured from the command line
     /// options and their defaults.
     pub fn get_formatter(&self, verbosity: u32) -> spk::io::DecisionFormatter {
+        self.get_formatter_builder(verbosity).build()
+    }
+
+    /// Get a decision formatter builder configured from the command
+    /// line options and defaults and ready to call build() on, in
+    /// case some extra configuration might be needed before calling
+    /// build.
+    pub fn get_formatter_builder(&self, verbosity: u32) -> spk::io::DecisionFormatterBuilder {
         spk::io::DecisionFormatterBuilder::new()
             .with_verbosity(verbosity)
             .with_time_and_stats(self.time)
             .with_verbosity_increase_every(self.increase_verbosity)
             .with_timeout(self.timeout)
-            .build()
+            .with_solution(self.show_solution)
+            .clone()
     }
 }
 
