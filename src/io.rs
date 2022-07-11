@@ -856,6 +856,11 @@ impl DecisionFormatter {
         let solve_time = start.elapsed();
 
         if solve_time > Duration::from_secs(self.settings.long_solves_threshold) {
+            tracing::warn!(
+                "Solve took longer than acceptable time (>{} secs) to finish",
+                self.settings.long_solves_threshold
+            );
+
             #[cfg(feature = "sentry")]
             {
                 // The solve took longer than we'd like, record the
