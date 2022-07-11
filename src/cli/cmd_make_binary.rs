@@ -7,7 +7,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use clap::Args;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Build a binary package from a spec file or source package.
 #[derive(Args)]
@@ -45,6 +45,13 @@ pub struct MakeBinary {
 
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,
+}
+
+impl CommandArgs for MakeBinary {
+    // The important positional args for a make-binary are the packages
+    fn get_positional_args(&self) -> Vec<String> {
+        self.packages.clone()
+    }
 }
 
 #[async_trait::async_trait]

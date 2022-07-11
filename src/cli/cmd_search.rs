@@ -4,7 +4,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Search for packages by name/substring
 #[derive(Args)]
@@ -46,5 +46,12 @@ impl Run for Search {
             }
         }
         Ok(exit)
+    }
+}
+
+impl CommandArgs for Search {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional arg for a search is the search term
+        vec![self.term.clone()]
     }
 }

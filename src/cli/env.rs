@@ -9,6 +9,9 @@ use once_cell::sync::Lazy;
 
 #[cfg(feature = "sentry")]
 pub fn configure_sentry() -> sentry::ClientInitGuard {
+    use serde_json::json;
+    use std::collections::BTreeMap;
+
     // Call this before `sentry::init` to avoid potential `SIGSEGV`.
     let username = whoami::username();
 
@@ -25,11 +28,29 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
         },
     ));
 
+    let args: Vec<_> = std::env::args().collect();
+    let program = args[0].clone();
+    let command = args[1].clone();
+
+    let mut data = BTreeMap::new();
+    data.insert(String::from("program"), json!(program));
+    data.insert(String::from("command"), json!(command.clone()));
+    data.insert(String::from("args"), json!(args));
+
     sentry::configure_scope(|scope| {
         scope.set_user(Some(sentry::User {
             username: Some(username),
             ..Default::default()
-        }))
+        }));
+
+        // Tags are searchable
+        scope.set_tag("command", command);
+        // Contexts are not searchable
+        scope.set_context("SPK", sentry::protocol::Context::Other(data));
+
+        // Okay for captured errors/anyhow, not good for direct
+        // messages because they have no error value
+        scope.set_fingerprint(Some(["{{ error.value }}"].as_ref()));
     });
 
     guard
@@ -68,7 +89,13 @@ pub fn configure_logging(verbosity: u32) -> Result<()> {
     if verbosity < 3 {
         fmt_layer = fmt_layer.with_target(false);
     }
+
+    #[cfg(not(feature = "sentry"))]
     let sub = registry.with(fmt_layer);
+
+    #[cfg(feature = "sentry")]
+    let sub = registry.with(fmt_layer).with(sentry_tracing::layer());
+
     tracing::subscriber::set_global_default(sub).context("Failed to set default logger")
 }
 

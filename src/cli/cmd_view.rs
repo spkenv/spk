@@ -7,7 +7,7 @@ use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// View the current environment or information about a package
 #[derive(Args)]
@@ -99,6 +99,16 @@ impl Run for View {
         }
         tracing::error!("Internal Error: requested package was not in solution");
         Ok(1)
+    }
+}
+
+impl CommandArgs for View {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional arg for a view/info is the package
+        match &self.package {
+            Some(pkg) => vec![pkg.clone()],
+            None => vec![],
+        }
     }
 }
 

@@ -5,7 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Build a binary package from a spec file or source package.
 #[derive(Args, Clone)]
@@ -87,5 +87,12 @@ impl Run for Build {
         }
 
         Ok(0)
+    }
+}
+
+impl CommandArgs for Build {
+    // The important positional args for a build are the packages
+    fn get_positional_args(&self) -> Vec<String> {
+        self.packages.clone()
     }
 }

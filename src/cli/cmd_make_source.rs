@@ -7,7 +7,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use clap::Args;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Build a source package from a spec file.
 #[derive(Args)]
@@ -59,5 +59,12 @@ impl Run for MakeSource {
             tracing::info!("created {}", spk::io::format_ident(&out));
         }
         Ok(0)
+    }
+}
+
+impl CommandArgs for MakeSource {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional args for a make-source are the packages
+        self.packages.clone()
     }
 }

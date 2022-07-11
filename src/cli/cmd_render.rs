@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use anyhow::{bail, Context, Result};
 use clap::Args;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Output the contents of an spk environment (/spfs) to a folder
 #[derive(Args)]
@@ -65,5 +65,14 @@ impl Run for Render {
         spfs::render_into_directory(&env_spec, &path).await?;
         tracing::info!("Render completed: {path:?}");
         Ok(0)
+    }
+}
+
+impl CommandArgs for Render {
+    fn get_positional_args(&self) -> Vec<String> {
+        /*
+        The important positional args for a render are the packages
+        */
+        self.packages.clone()
     }
 }

@@ -29,6 +29,8 @@ Package manager for SPFS
 export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install
 source ~/.bashrc
+export SENTRY_DSN=http://4506b47108ac4b648fdf18a8d803f403@sentry.spimageworks.com/25
+export SENTRY_ENVIRONMENT=production
 # Include `--all` to also build spk-launcher
 dev env -- cargo build --release --features sentry --features migration-to-components --all
 

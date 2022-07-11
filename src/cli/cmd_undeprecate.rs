@@ -7,7 +7,7 @@ use clap::Args;
 
 use crate::cmd_deprecate::{change_deprecation_state, ChangeAction};
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 #[cfg(test)]
 #[path = "./cmd_undeprecate_test.rs"]
@@ -48,5 +48,12 @@ impl Run for Undeprecate {
             self.yes,
         )
         .await
+    }
+}
+
+impl CommandArgs for Undeprecate {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional args for an undeprecate are the packages
+        self.packages.clone()
     }
 }

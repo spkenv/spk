@@ -530,6 +530,11 @@ pub struct DecisionFormatterSettings {
     /// 'make-binary', and 'explain' commands or if v > 0.
     #[clap(long)]
     pub show_solution: bool,
+
+    /// Set the threshold of a longer than acceptable solves, in seconds.
+    ///
+    #[clap(long, env = "SPK_LONG_SOLVE_THRESHOLD", default_value_t = 15)]
+    pub long_solves: u64,
 }
 
 impl DecisionFormatterSettings {
@@ -550,6 +555,7 @@ impl DecisionFormatterSettings {
             .with_verbosity_increase_every(self.increase_verbosity)
             .with_timeout(self.timeout)
             .with_solution(self.show_solution)
+            .with_long_solves_threshold(self.long_solves)
             .clone()
     }
 }

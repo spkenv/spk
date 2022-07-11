@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 
-use super::Run;
+use super::{CommandArgs, Run};
 
 /// Import a previously exported package/archive
 #[derive(Args)]
@@ -24,5 +24,15 @@ impl Run for Import {
                 .context("Import failed")?;
         }
         Ok(0)
+    }
+}
+
+impl CommandArgs for Import {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional args for an import are the archive files
+        self.files
+            .iter()
+            .map(|p| format!("{}", p.display()))
+            .collect::<Vec<String>>()
     }
 }

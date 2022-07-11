@@ -5,7 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Show the resolve process for a set of packages.
 #[derive(Args)]
@@ -52,5 +52,11 @@ impl Run for Explain {
         formatter.run_and_print_resolve(&solver).await?;
 
         Ok(0)
+    }
+}
+
+impl CommandArgs for Explain {
+    fn get_positional_args(&self) -> Vec<String> {
+        self.requested.clone()
     }
 }

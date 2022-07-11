@@ -8,7 +8,7 @@ use clap::Args;
 use colored::Colorize;
 use spk::api;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Remove a package from a repository
 #[derive(Args)]
@@ -79,6 +79,13 @@ impl Run for Remove {
             }
         }
         Ok(0)
+    }
+}
+
+impl CommandArgs for Remove {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional args for a remove are the packages
+        self.packages.clone()
     }
 }
 

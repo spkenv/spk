@@ -8,7 +8,7 @@ use clap::Args;
 use colored::Colorize;
 use spk::api::PkgName;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// List packages in one or more repositories
 #[derive(Args)]
@@ -156,6 +156,16 @@ impl Run for Ls {
             println!("{}", item);
         }
         Ok(0)
+    }
+}
+
+impl CommandArgs for Ls {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional args for a ls are the packages
+        match &self.package {
+            Some(pkg) => vec![pkg.clone()],
+            None => vec![],
+        }
     }
 }
 
