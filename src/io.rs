@@ -392,8 +392,12 @@ where
             verbosity: settings.verbosity,
             start: Instant::now(),
             too_long_counter: 0,
+            status_bar: if settings.status_bar {
+                StatusBarStatus::Inactive
+            } else {
+                StatusBarStatus::Disabled
+            },
             settings,
-            status_bar: StatusBarStatus::Inactive,
             status_line_rendered_hash: 0,
         }
     }
@@ -743,6 +747,7 @@ pub struct DecisionFormatterBuilder {
     timeout: u64,
     show_solution: bool,
     heading_prefix: String,
+    status_bar: bool,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -760,6 +765,7 @@ impl DecisionFormatterBuilder {
             timeout: 0,
             show_solution: false,
             heading_prefix: String::from(""),
+            status_bar: false,
         }
     }
 
@@ -790,6 +796,11 @@ impl DecisionFormatterBuilder {
 
     pub fn with_header<S: Into<String>>(&mut self, heading: S) -> &mut Self {
         self.heading_prefix = heading.into();
+        self
+    }
+
+    pub fn with_status_bar(&mut self, enable: bool) -> &mut Self {
+        self.status_bar = enable;
         self
     }
 
@@ -826,6 +837,7 @@ impl DecisionFormatterBuilder {
                 max_too_long_count: max_too_long_checks,
                 show_solution: self.show_solution || self.verbosity > 0,
                 heading_prefix: String::from(""),
+                status_bar: self.status_bar,
             },
         }
     }
@@ -840,6 +852,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) show_solution: bool,
     /// This is followed immediately by "Installed Packages"
     pub(crate) heading_prefix: String,
+    pub(crate) status_bar: bool,
 }
 
 #[derive(Debug, Clone)]

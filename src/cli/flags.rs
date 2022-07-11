@@ -530,6 +530,11 @@ pub struct DecisionFormatterSettings {
     /// 'make-binary', and 'explain' commands or if v > 0.
     #[clap(long)]
     pub show_solution: bool,
+
+    /// Display a visualization of the solver progress if the solve takes longer
+    /// than a few seconds.
+    #[clap(long)]
+    pub status_bar: bool,
 }
 
 impl DecisionFormatterSettings {
@@ -544,13 +549,15 @@ impl DecisionFormatterSettings {
     /// case some extra configuration might be needed before calling
     /// build.
     pub fn get_formatter_builder(&self, verbosity: u32) -> spk::io::DecisionFormatterBuilder {
-        spk::io::DecisionFormatterBuilder::new()
+        let mut builder = spk::io::DecisionFormatterBuilder::new();
+        builder
             .with_verbosity(verbosity)
             .with_time_and_stats(self.time)
             .with_verbosity_increase_every(self.increase_verbosity)
             .with_timeout(self.timeout)
             .with_solution(self.show_solution)
-            .clone()
+            .with_status_bar(self.status_bar);
+        builder
     }
 }
 
