@@ -863,7 +863,7 @@ async fn test_solver_deprecated_version(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(
         api::PkgRequest::new(
-            api::RangeIdent::exact(&deprecated.pkg, []),
+            api::RangeIdent::equals(&deprecated.pkg, []),
             api::RequestedBy::SpkInternalTest,
         )
         .into(),

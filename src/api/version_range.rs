@@ -4,7 +4,7 @@
 
 use std::{
     collections::BTreeSet,
-    convert::TryInto,
+    convert::{TryFrom, TryInto},
     fmt::{Display, Write},
     hash::Hash,
     ops::Sub,
@@ -18,7 +18,7 @@ use crate::{Error, Result};
 
 use self::intersection::{CombineWith, ValidRange};
 
-use super::{parse_version, version, CompatRule, Compatibility, Spec, Version, VERSION_SEP};
+use super::{version, CompatRule, Compatibility, Spec, Version, VERSION_SEP};
 
 mod intersection;
 
@@ -258,39 +258,42 @@ impl Display for VersionRange {
     }
 }
 
+impl IntoIterator for VersionRange {
+    type Item = VersionRange;
+    type IntoIter = std::collections::btree_set::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.rules().into_iter()
+    }
+}
+
 impl std::str::FromStr for VersionRange {
     type Err = Error;
 
     fn from_str(rule_str: &str) -> Result<Self> {
-        if let Some(end) = rule_str.strip_prefix('^') {
-            SemverRange::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix('~') {
-            LowestSpecifiedRange::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix(">=") {
-            GreaterThanOrEqualToRange::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix("<=") {
-            LessThanOrEqualToRange::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix('>') {
-            GreaterThanRange::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix('<') {
-            LessThanRange::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix("==") {
-            let version = Version::from_str(end)?;
-            Ok(DoubleEqualsVersion::version_range(version))
-        } else if let Some(end) = rule_str.strip_prefix('=') {
-            let version = Version::from_str(end)?;
-            Ok(EqualsVersion::version_range(version))
-        } else if let Some(end) = rule_str.strip_prefix("!==") {
-            DoubleNotEqualsVersion::new_version_range(end)
-        } else if let Some(end) = rule_str.strip_prefix("!=") {
-            NotEqualsVersion::new_version_range(end)
-        } else if rule_str.contains('*') {
-            WildcardRange::new_version_range(rule_str)
-        } else if rule_str.is_empty() {
-            WildcardRange::new_version_range("*")
-        } else {
-            CompatRange::new_version_range(rule_str)
-        }
+        use nom::{
+            branch::alt,
+            combinator::{all_consuming, eof, map},
+            error::convert_error,
+        };
+
+        all_consuming(alt((
+            crate::parsing::version_range,
+            // Allow empty input to be treated like "*"
+            map(eof, |_| {
+                VersionRange::Wildcard(WildcardRange {
+                    specified: 1,
+                    parts: vec![None],
+                })
+            }),
+        )))(rule_str)
+        .map(|(_, vr)| vr)
+        .map_err(|err| match err {
+            nom::Err::Error(e) | nom::Err::Failure(e) => {
+                crate::Error::String(convert_error(rule_str, e))
+            }
+            nom::Err::Incomplete(_) => unreachable!(),
+        })
     }
 }
 
@@ -302,7 +305,7 @@ impl<T: Ranged> From<&T> for VersionRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct SemverRange {
-    minimum: Version,
+    pub(crate) minimum: Version,
 }
 
 impl SemverRange {
@@ -346,8 +349,8 @@ impl Display for SemverRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct WildcardRange {
-    specified: usize,
-    parts: Vec<Option<u32>>,
+    pub(crate) specified: usize,
+    pub(crate) parts: Vec<Option<u32>>,
 }
 
 impl WildcardRange {
@@ -469,23 +472,22 @@ impl Display for WildcardRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct LowestSpecifiedRange {
-    specified: usize,
-    base: Version,
+    pub(crate) specified: usize,
+    pub(crate) base: Version,
 }
 
-impl LowestSpecifiedRange {
-    pub fn new_version_range<S: AsRef<str>>(minimum: S) -> Result<VersionRange> {
-        let range = Self {
-            specified: minimum.as_ref().split(VERSION_SEP).count(),
-            base: parse_version(minimum.as_ref())?,
-        };
-        if range.specified < 2 {
+impl TryFrom<Version> for LowestSpecifiedRange {
+    type Error = crate::Error;
+
+    fn try_from(base: Version) -> Result<Self> {
+        let specified = base.parts.len();
+        if specified < 2 {
             Err(Error::String(format!(
                 "Expected at least two digits in version range, got: {}",
-                minimum.as_ref()
+                base
             )))
         } else {
-            Ok(VersionRange::LowestSpecified(range))
+            Ok(Self { specified, base })
         }
     }
 }
@@ -512,13 +514,14 @@ impl Display for LowestSpecifiedRange {
             .collect_vec()
             .join(VERSION_SEP);
         f.write_char('~')?;
-        f.write_str(&base_str)
+        f.write_str(&base_str)?;
+        self.base.format_tags(f)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct GreaterThanRange {
-    bound: Version,
+    pub(crate) bound: Version,
 }
 
 impl GreaterThanRange {
@@ -557,7 +560,7 @@ impl Display for GreaterThanRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct LessThanRange {
-    bound: Version,
+    pub(crate) bound: Version,
 }
 
 impl LessThanRange {
@@ -596,7 +599,7 @@ impl Display for LessThanRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct GreaterThanOrEqualToRange {
-    bound: Version,
+    pub(crate) bound: Version,
 }
 
 impl GreaterThanOrEqualToRange {
@@ -635,7 +638,7 @@ impl Display for GreaterThanOrEqualToRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct LessThanOrEqualToRange {
-    bound: Version,
+    pub(crate) bound: Version,
 }
 
 impl LessThanOrEqualToRange {
@@ -674,7 +677,7 @@ impl Display for LessThanOrEqualToRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct EqualsVersion {
-    version: Version,
+    pub(crate) version: Version,
 }
 
 impl EqualsVersion {
@@ -734,17 +737,14 @@ impl Display for EqualsVersion {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct NotEqualsVersion {
-    specified: usize,
-    base: Version,
+    pub(crate) specified: usize,
+    pub(crate) base: Version,
 }
 
-impl NotEqualsVersion {
-    pub fn new_version_range<S: AsRef<str>>(exclude: S) -> Result<VersionRange> {
-        let range = Self {
-            specified: exclude.as_ref().split(VERSION_SEP).count(),
-            base: parse_version(exclude)?,
-        };
-        Ok(VersionRange::NotEquals(range))
+impl From<Version> for NotEqualsVersion {
+    fn from(base: Version) -> Self {
+        let specified = base.parts.len();
+        Self { specified, base }
     }
 }
 
@@ -790,13 +790,14 @@ impl Display for NotEqualsVersion {
             .collect_vec()
             .join(VERSION_SEP);
         f.write_str("!=")?;
-        f.write_str(&base_str)
+        f.write_str(&base_str)?;
+        self.base.format_tags(f)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct DoubleEqualsVersion {
-    version: Version,
+    pub(crate) version: Version,
 }
 
 impl DoubleEqualsVersion {
@@ -854,17 +855,14 @@ impl Display for DoubleEqualsVersion {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct DoubleNotEqualsVersion {
-    specified: usize,
-    base: Version,
+    pub(crate) specified: usize,
+    pub(crate) base: Version,
 }
 
-impl DoubleNotEqualsVersion {
-    pub fn new_version_range<S: AsRef<str>>(exclude: S) -> Result<VersionRange> {
-        let range = Self {
-            specified: exclude.as_ref().split(VERSION_SEP).count(),
-            base: parse_version(exclude)?,
-        };
-        Ok(VersionRange::DoubleNotEquals(range))
+impl From<Version> for DoubleNotEqualsVersion {
+    fn from(base: Version) -> Self {
+        let specified = base.parts.len();
+        Self { specified, base }
     }
 }
 
@@ -910,17 +908,18 @@ impl Display for DoubleNotEqualsVersion {
             .collect_vec()
             .join(VERSION_SEP);
         f.write_str("!==")?;
-        f.write_str(&base_str)
+        f.write_str(&base_str)?;
+        self.base.format_tags(f)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct CompatRange {
-    base: Version,
+    pub(crate) base: Version,
     /// if unset, the required compatibility is based on the type
     /// of package being validated. Source packages require api
     /// compat and binary packages require binary compat.
-    required: Option<CompatRule>,
+    pub(crate) required: Option<CompatRule>,
 }
 
 impl CompatRange {
@@ -997,7 +996,7 @@ pub enum RestrictMode {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct VersionFilter {
     // Use `BTreeSet` to make `to_string` output consistent.
-    rules: BTreeSet<VersionRange>,
+    pub(crate) rules: BTreeSet<VersionRange>,
 }
 
 impl VersionFilter {
@@ -1016,6 +1015,20 @@ impl VersionFilter {
             VersionRange::Filter(f) => !f.is_empty(),
             _ => true,
         })
+    }
+
+    /// Flatten this filter's rules to remove nested `VersionFilter`.
+    pub fn flatten(self) -> Self {
+        VersionFilter {
+            rules: self
+                .rules
+                .into_iter()
+                .flat_map(|r| match r {
+                    VersionRange::Filter(f) => VersionRange::Filter(f.flatten()),
+                    _ => r,
+                })
+                .collect(),
+        }
     }
 
     /// Reduce this range by the scope of another

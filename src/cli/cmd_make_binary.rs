@@ -9,6 +9,31 @@ use clap::Args;
 
 use super::{flags, Run};
 
+#[derive(Clone)]
+pub enum PackageSpecifier {
+    Plain(String),
+    WithSourceIdent((String, spk::api::Ident)),
+}
+
+impl PackageSpecifier {
+    // Return the package spec or filename string.
+    fn get_specifier(&self) -> &String {
+        match self {
+            PackageSpecifier::Plain(s) => s,
+            PackageSpecifier::WithSourceIdent((s, _)) => s,
+        }
+    }
+}
+
+impl std::str::FromStr for PackageSpecifier {
+    type Err = clap::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // On the command line, only `Plain` is possible.
+        Ok(PackageSpecifier::Plain(s.to_owned()))
+    }
+}
+
 /// Build a binary package from a spec file or source package.
 #[derive(Args)]
 #[clap(visible_aliases = &["mkbinary", "mkbin", "mkb"])]
@@ -37,7 +62,7 @@ pub struct MakeBinary {
 
     /// The packages or yaml spec files to build
     #[clap(name = "PKG|SPEC_FILE")]
-    pub packages: Vec<String>,
+    pub packages: Vec<PackageSpecifier>,
 
     /// Build only the specified variant, by index, if defined
     #[clap(long)]
@@ -67,7 +92,9 @@ impl Run for MakeBinary {
         }
 
         for package in packages {
-            let spec = match flags::find_package_spec(&package)? {
+            let spec = match flags::find_package_spec(
+                &package.as_ref().map(|p| p.get_specifier().to_owned()),
+            )? {
                 flags::FindPackageSpecResult::NotFound(name) => {
                     // TODO:: load from given repos
                     Arc::new(spk::api::read_spec_file(name)?)
@@ -130,6 +157,9 @@ impl Run for MakeBinary {
                     let here =
                         std::env::current_dir().context("Failed to get current directory")?;
                     builder.with_source(spk::build::BuildSource::LocalPath(here));
+                } else if let Some(PackageSpecifier::WithSourceIdent((_, ref ident))) = package {
+                    // Use the source package `Ident` if the caller supplied one.
+                    builder.with_source(spk::build::BuildSource::SourcePackage(ident.clone()));
                 }
                 let out = match builder.build().await {
                     Err(err @ spk::Error::Solve(_))

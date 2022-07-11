@@ -14,12 +14,11 @@ use serde::{Deserialize, Serialize};
 use super::{
     compat::API_STR,
     compat::BINARY_STR,
-    parse_build,
     version_range::{self, Ranged},
-    Build, CompatRule, Compatibility, Component, EqualsVersion, Ident, InvalidNameError, OptName,
-    OptNameBuf, PkgName, PkgNameBuf, Spec, Version, VersionFilter,
+    Build, CompatRule, Compatibility, Component, EqualsVersion, Ident, OptName, OptNameBuf,
+    PkgName, PkgNameBuf, RepositoryName, Spec, Version, VersionFilter,
 };
-use crate::{Error, Result};
+use crate::{storage::KNOWN_REPOSITORY_NAMES, Error, Result};
 
 #[cfg(test)]
 #[path = "./request_test.rs"]
@@ -28,6 +27,7 @@ mod request_test;
 /// Identifies a range of package versions and builds.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RangeIdent {
+    pub repository_name: Option<RepositoryName>,
     pub name: PkgNameBuf,
     pub components: HashSet<Component>,
     pub version: VersionFilter,
@@ -74,21 +74,45 @@ impl PartialOrd for RangeIdent {
 }
 
 impl RangeIdent {
-    /// Create a range ident that exactly requests the identified package
-    ///
-    /// The returned range will request the identified components of the given package.
-    pub fn exact<I>(ident: &super::Ident, components: I) -> Self
+    fn new<I>(ident: &super::Ident, version_range: super::VersionRange, components: I) -> Self
     where
         I: IntoIterator<Item = Component>,
     {
         Self {
+            repository_name: ident.repository_name().clone(),
             name: ident.name.clone(),
-            version: super::VersionFilter::single(
-                super::EqualsVersion::from(ident.version.clone()).into(),
-            ),
+            version: super::VersionFilter::single(version_range),
             components: components.into_iter().collect(),
             build: ident.build.clone(),
         }
+    }
+
+    /// Create a range ident that requests the identified package using `==` semantics.
+    ///
+    /// The returned range will request the identified components of the given package.
+    pub fn double_equals<I>(ident: &super::Ident, components: I) -> Self
+    where
+        I: IntoIterator<Item = Component>,
+    {
+        Self::new(
+            ident,
+            super::DoubleEqualsVersion::from(ident.version.clone()).into(),
+            components,
+        )
+    }
+
+    /// Create a range ident that requests the identified package using `=` semantics.
+    ///
+    /// The returned range will request the identified components of the given package.
+    pub fn equals<I>(ident: &super::Ident, components: I) -> Self
+    where
+        I: IntoIterator<Item = Component>,
+    {
+        Self::new(
+            ident,
+            super::EqualsVersion::from(ident.version.clone()).into(),
+            components,
+        )
     }
 
     pub fn name(&self) -> &PkgName {
@@ -154,6 +178,24 @@ impl RangeIdent {
         other: &RangeIdent,
         mode: version_range::RestrictMode,
     ) -> Result<()> {
+        match (
+            self.repository_name.as_ref(),
+            other.repository_name.as_ref(),
+        ) {
+            (None, None) => {}                                 // okay
+            (Some(_), None) => {}                              // okay
+            (Some(ours), Some(theirs)) if ours == theirs => {} // okay
+            (None, rn @ Some(_)) => {
+                self.repository_name = rn.cloned();
+            }
+            (Some(ours), Some(theirs)) => {
+                return Err(Error::String(format!(
+                    "Incompatible request for package {} from differing repos: {ours} != {theirs}",
+                    self.name,
+                )))
+            }
+        };
+
         if let Err(err) = self.version.restrict(&other.version, mode) {
             return Err(Error::wrap(format!("[{}]", self.name), err));
         }
@@ -229,6 +271,10 @@ impl RangeIdent {
 
 impl Display for RangeIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if let Some(name) = &self.repository_name {
+            name.fmt(f)?;
+            f.write_char('/')?;
+        }
         self.name.fmt(f)?;
         match self.components.len() {
             0 => (),
@@ -259,7 +305,12 @@ impl FromStr for RangeIdent {
     type Err = crate::Error;
 
     fn from_str(s: &str) -> crate::Result<Self> {
-        parse_ident_range(s)
+        crate::parsing::range_ident::<nom_supreme::error::ErrorTree<_>>(&KNOWN_REPOSITORY_NAMES, s)
+            .map(|(_, ident)| ident)
+            .map_err(|err| match err {
+                nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
+                nom::Err::Incomplete(_) => unreachable!(),
+            })
     }
 }
 
@@ -296,54 +347,7 @@ impl<'de> Deserialize<'de> for RangeIdent {
 /// spk::api::parse_ident_range("maya/^2020.0").unwrap();
 /// ```
 pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
-    let mut parts = source.as_ref().split('/');
-    let name_and_components = parts.next().unwrap_or("");
-    let (name, components) = parse_name_and_components(name_and_components)?;
-    let version = parts.next().unwrap_or("");
-    let build = parts.next();
-
-    if parts.next().is_some() {
-        return Err(Error::String(format!(
-            "Too many tokens in range identifier: {}",
-            source.as_ref()
-        )));
-    }
-
-    Ok(RangeIdent {
-        name,
-        components,
-        version: VersionFilter::from_str(version)?,
-        build: match build {
-            Some(b) => Some(parse_build(b)?),
-            None => None,
-        },
-    })
-}
-
-fn parse_name_and_components<S: AsRef<str>>(source: S) -> Result<(PkgNameBuf, HashSet<Component>)> {
-    let source = source.as_ref();
-    let mut components = HashSet::new();
-
-    if let Some(delim) = source.find(':') {
-        let name = source[..delim].parse()?;
-        let remainder = &source[delim + 1..];
-        let cmpts = match remainder.starts_with('{') {
-            true if remainder.ends_with('}') => &remainder[1..remainder.len() - 1],
-            true => {
-                return Err(InvalidNameError::new_error(
-                    "missing or misplaced closing delimiter for component list: '}'".to_string(),
-                ))
-            }
-            false => remainder,
-        };
-
-        for cmpt in cmpts.split(',') {
-            components.insert(Component::parse(cmpt)?);
-        }
-        return Ok((name, components));
-    }
-
-    Ok((source.parse()?, components))
+    RangeIdent::from_str(source.as_ref())
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -750,6 +754,7 @@ impl PkgRequest {
     // TODO: change parameter to `pkg: Ident`
     pub fn from_ident(pkg: Ident, requester: RequestedBy) -> Self {
         let ri = RangeIdent {
+            repository_name: pkg.repository_name().clone(),
             name: pkg.name,
             components: Default::default(),
             version: VersionFilter::single(EqualsVersion::version_range(pkg.version.clone())),

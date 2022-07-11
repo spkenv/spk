@@ -11,6 +11,7 @@ use crate::{api, Error, Result};
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {
     address: url::Url,
+    name: api::RepositoryName,
     root: std::path::PathBuf,
 }
 
@@ -18,7 +19,11 @@ impl Default for RuntimeRepository {
     fn default() -> Self {
         let root = std::path::PathBuf::from("/spfs/spk/pkg");
         let address = Self::address_from_root(&root);
-        Self { address, root }
+        Self {
+            address,
+            name: api::RepositoryName(root.display().to_string()),
+            root,
+        }
     }
 }
 
@@ -27,7 +32,6 @@ impl Ord for RuntimeRepository {
         self.address.cmp(&other.address)
     }
 }
-
 impl PartialOrd for RuntimeRepository {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -57,7 +61,11 @@ impl RuntimeRepository {
         // makes assumptions about the runtime directory which cannot be
         // reasonably altered
         let address = Self::address_from_root(&root);
-        Self { address, root }
+        Self {
+            address,
+            name: api::RepositoryName(root.display().to_string()),
+            root,
+        }
     }
 }
 
@@ -148,6 +156,10 @@ impl Repository for RuntimeRepository {
             .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
             .map(api::Component::parse)
             .collect()
+    }
+
+    fn name(&self) -> &api::RepositoryName {
+        &self.name
     }
 
     async fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {

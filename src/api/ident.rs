@@ -6,7 +6,9 @@ use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{parse_build, parse_version, Build, InvalidNameError, PkgNameBuf, Version};
+use crate::{parsing, storage::KNOWN_REPOSITORY_NAMES};
+
+use super::{Build, PkgNameBuf, Version};
 
 #[cfg(test)]
 #[path = "./ident_test.rs"]
@@ -30,6 +32,22 @@ macro_rules! ident {
     };
 }
 
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct RepositoryName(pub String);
+
+impl RepositoryName {
+    /// Return if this RepositoryName names the "local" repository
+    pub fn is_local(&self) -> bool {
+        self.0 == "local"
+    }
+}
+
+impl std::fmt::Display for RepositoryName {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(self.0.as_str())
+    }
+}
+
 /// Ident represents a package identifier.
 ///
 /// The identifier is either a specific package or
@@ -37,6 +55,7 @@ macro_rules! ident {
 /// syntax and context
 #[derive(Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Ident {
+    pub(crate) repository_name: Option<RepositoryName>,
     pub name: PkgNameBuf,
     pub version: Version,
     pub build: Option<Build>,
@@ -71,6 +90,7 @@ impl Ident {
     /// Return a copy of this identifier with the given version number instead
     pub fn with_version(&self, version: Version) -> Ident {
         Self {
+            repository_name: self.repository_name.clone(),
             name: self.name.clone(),
             version,
             build: self.build.clone(),
@@ -80,6 +100,16 @@ impl Ident {
     /// Set the build component of this package identifier.
     pub fn set_build(&mut self, build: Option<Build>) {
         self.build = build;
+    }
+
+    /// Get the repository name of this package identifier.
+    pub fn repository_name(&self) -> &Option<RepositoryName> {
+        &self.repository_name
+    }
+
+    /// Set the repository name of this package identifier.
+    pub fn set_repository_name(&mut self, repository_name: Option<RepositoryName>) {
+        self.repository_name = repository_name;
     }
 
     /// Return a copy of this identifier with the given build replaced.
@@ -93,6 +123,7 @@ impl Ident {
 impl Ident {
     pub fn new(name: PkgNameBuf) -> Self {
         Self {
+            repository_name: Default::default(),
             name,
             version: Default::default(),
             build: Default::default(),
@@ -151,26 +182,12 @@ impl FromStr for Ident {
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> crate::Result<Self> {
-        let mut parts = source.split('/');
-        let name = parts.next().unwrap_or_default();
-        let version = parts.next();
-        let build = parts.next();
-
-        if parts.next().is_some() {
-            return Err(InvalidNameError::new_error(format!(
-                "Too many tokens in package identifier, expected at most 2 slashes ('/'): {}",
-                source
-            )));
-        }
-
-        let mut ident = Self::new(name.parse()?);
-        if let Some(version) = version {
-            ident.version = parse_version(version)?;
-        }
-        if let Some(build) = build {
-            ident.build = Some(parse_build(build)?);
-        }
-        Ok(ident)
+        parsing::ident::<nom_supreme::error::ErrorTree<_>>(&KNOWN_REPOSITORY_NAMES, source)
+            .map(|(_, ident)| ident)
+            .map_err(|err| match err {
+                nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
+                nom::Err::Incomplete(_) => unreachable!(),
+            })
     }
 }
 

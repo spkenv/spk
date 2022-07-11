@@ -150,6 +150,12 @@ impl std::cmp::PartialEq<PkgName> for PkgNameBuf {
     }
 }
 
+impl std::cmp::PartialEq<str> for PkgNameBuf {
+    fn eq(&self, other: &str) -> bool {
+        &**self == other
+    }
+}
+
 impl From<&PkgName> for PkgNameBuf {
     fn from(name: &PkgName) -> Self {
         name.to_owned()
@@ -162,13 +168,31 @@ impl Borrow<OptName> for PkgNameBuf {
     }
 }
 
+// Allow tests to manufacture `PkgNameBuf`s with known good values.
+#[cfg(test)]
+impl PkgNameBuf {
+    /// Create a `PkgNameBuf` from a `String`
+    ///
+    /// # Safety
+    ///
+    /// No validation is performed on `name`.
+    pub(crate) unsafe fn from_string(name: String) -> Self {
+        Self(name)
+    }
+
+    /// Consume the `PkgNameBuf`, returning the inner `String`.
+    pub(crate) fn into_inner(self) -> String {
+        self.0
+    }
+}
+
 /// A valid package name
 #[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct PkgName(str);
 
 impl PkgName {
-    const MIN_LEN: usize = 2;
-    const MAX_LEN: usize = 64;
+    pub(crate) const MIN_LEN: usize = 2;
+    pub(crate) const MAX_LEN: usize = 64;
 
     /// Wrap a str as a PkgName
     ///
@@ -176,7 +200,7 @@ impl PkgName {
     ///
     /// This function bypasses validation and should not be used
     /// unless the given argument is known to be valid
-    const unsafe fn from_str(inner: &str) -> &Self {
+    pub(crate) const unsafe fn from_str(inner: &str) -> &Self {
         unsafe { &*(inner as *const str as *const PkgName) }
     }
 

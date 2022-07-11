@@ -5,6 +5,8 @@
 use anyhow::Result;
 use clap::Args;
 
+use crate::cmd_make_binary::PackageSpecifier;
+
 use super::{flags, Run};
 
 /// Build a binary package from a spec file or source package.
@@ -63,10 +65,10 @@ impl Run for Build {
                 packages: packages.clone(),
                 runtime: self.runtime.clone(),
             };
-            let code = make_source.run().await?;
-            if code != 0 {
-                return Ok(code);
-            }
+            let idents = make_source.make_source().await?;
+
+            // TODO: This should constrain the ident's version exactly, using
+            // the proposed new `==` syntax.
 
             let mut make_binary = super::cmd_make_binary::MakeBinary {
                 verbose: self.verbose,
@@ -76,7 +78,11 @@ impl Run for Build {
                 here: self.here,
                 interactive: self.interactive,
                 env: self.env,
-                packages,
+                packages: packages
+                    .into_iter()
+                    .zip(idents.into_iter())
+                    .map(|(package, ident)| PackageSpecifier::WithSourceIdent((package, ident)))
+                    .collect(),
                 variant: self.variant,
                 formatter_settings: self.formatter_settings.clone(),
             };

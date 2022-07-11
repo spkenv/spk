@@ -214,7 +214,7 @@ impl ValidatorT for PkgRequestValidator {
         &self,
         state: &graph::State,
         spec: &api::Spec,
-        _source: &PackageSource,
+        source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         let request = match state.get_merged_request(&spec.pkg.name) {
             Ok(request) => request,
@@ -225,6 +225,25 @@ impl ValidatorT for PkgRequestValidator {
                 ))
             }
         };
+        if let Some(rn) = &request.pkg.repository_name {
+            // If the request names a repository, then the source has to match.
+            match source {
+                PackageSource::Repository { repo, .. } if repo.name() != rn => {
+                    return Ok(api::Compatibility::Incompatible(format!(
+                        "package did not come from requested repo: {} != {}",
+                        repo.name(),
+                        rn
+                    )));
+                }
+                PackageSource::Repository { .. } => {} // okay
+                PackageSource::Spec(_) => {
+                    return Ok(api::Compatibility::Incompatible(
+                        "package did not come from requested repo (it comes from a spec)"
+                            .to_owned(),
+                    ));
+                }
+            };
+        }
         // the initial check is more general and provides more user
         // friendly error messages that we'd like to get
         let mut compat = request.is_version_applicable(&spec.pkg.version);

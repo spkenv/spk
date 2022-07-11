@@ -44,6 +44,9 @@ pub trait Repository: Sync {
     /// Returns the set of components published for a package build
     async fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>>;
 
+    /// Return the repository's name, as in "local" or its name in the config file.
+    fn name(&self) -> &api::RepositoryName;
+
     /// Read a package spec file for the given package, version and optional build.
     ///
     /// # Errors:

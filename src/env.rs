@@ -28,7 +28,7 @@ pub async fn current_env() -> Result<solve::Solution> {
             for pkg in repo.list_package_builds(&pkg).await? {
                 let spec = repo.read_spec(&pkg).await?;
                 let components = repo.get_package(&spec.pkg).await?;
-                let range_ident = api::RangeIdent::exact(&spec.pkg, components.keys().cloned());
+                let range_ident = api::RangeIdent::equals(&spec.pkg, components.keys().cloned());
                 let mut request =
                     api::PkgRequest::new(range_ident, api::RequestedBy::CurrentEnvironment);
                 request.prerelease_policy = api::PreReleasePolicy::IncludeAll;

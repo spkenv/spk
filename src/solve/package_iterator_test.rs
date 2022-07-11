@@ -175,8 +175,10 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
 
         // The rest of this is checking the test results
         let mut sorted_builds: Vec<Arc<api::Spec>> = Vec::new();
-        while let Some((build, _)) = iterator.next().await.unwrap() {
-            sorted_builds.push(Arc::clone(&build));
+        while let Some(hm) = iterator.next().await.unwrap() {
+            for (build, _) in hm.values() {
+                sorted_builds.push(Arc::clone(build));
+            }
         }
 
         for i in 0..sorted_builds.len() {
