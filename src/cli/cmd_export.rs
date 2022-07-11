@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Export a package as a tar file
 #[derive(Args)]
@@ -55,5 +55,12 @@ impl Run for Export {
         res?;
         println!("{}: {:?}", "Created".green(), filename);
         Ok(0)
+    }
+}
+
+impl CommandArgs for Export {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional args for an export are the packages
+        vec![self.package.clone()]
     }
 }

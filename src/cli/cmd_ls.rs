@@ -8,7 +8,7 @@ use clap::Args;
 use colored::Colorize;
 use spk::api::PkgName;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 #[cfg(test)]
 #[path = "./cmd_ls_test.rs"]
@@ -181,6 +181,16 @@ impl<T: Output> Run for Ls<T> {
             self.output.println(item.to_string());
         }
         Ok(0)
+    }
+}
+
+impl<T: Output> CommandArgs for Ls<T> {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional args for a ls are the packages
+        match &self.package {
+            Some(pkg) => vec![pkg.clone()],
+            None => vec![],
+        }
     }
 }
 

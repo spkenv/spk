@@ -9,7 +9,7 @@ use clap::Args;
 use colored::Colorize;
 use futures::TryFutureExt;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Install a package into the current environment
 #[derive(Args)]
@@ -114,5 +114,12 @@ impl Run for Install {
             .context("Failed to build one or more packages from source")?;
         spk::setup_current_runtime(&compiled_solution).await?;
         Ok(0)
+    }
+}
+
+impl CommandArgs for Install {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional args for an install are the packages
+        self.packages.clone()
     }
 }

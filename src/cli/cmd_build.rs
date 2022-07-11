@@ -7,7 +7,7 @@ use clap::Args;
 
 use crate::cmd_make_binary::PackageSpecifier;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Build a binary package from a spec file or source package.
 #[derive(Args, Clone)]
@@ -93,5 +93,12 @@ impl Run for Build {
         }
 
         Ok(0)
+    }
+}
+
+impl CommandArgs for Build {
+    // The important positional args for a build are the packages
+    fn get_positional_args(&self) -> Vec<String> {
+        self.packages.clone()
     }
 }

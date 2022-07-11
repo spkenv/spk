@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Build a source package from a spec file.
 #[derive(Args)]
@@ -25,5 +25,15 @@ impl Run for NumVariants {
         println!("{}", spec.build.variants.len());
 
         Ok(0)
+    }
+}
+
+impl CommandArgs for NumVariants {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional arg for a num-variants is the package
+        match &self.package {
+            Some(pkg) => vec![pkg.clone()],
+            None => vec![],
+        }
     }
 }

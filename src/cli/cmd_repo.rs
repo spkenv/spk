@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 use spk::storage::Repository;
 
-use super::Run;
+use super::{CommandArgs, Run};
 
 /// Perform repository-level actions and maintenance
 #[derive(Args)]
@@ -19,6 +19,13 @@ pub struct Repo {
 impl Run for Repo {
     async fn run(&mut self) -> Result<i32> {
         self.command.run().await
+    }
+}
+
+impl CommandArgs for Repo {
+    fn get_positional_args(&self) -> Vec<String> {
+        // There are no important positional args for the repo command
+        vec![]
     }
 }
 

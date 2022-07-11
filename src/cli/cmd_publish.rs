@@ -6,7 +6,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use clap::Args;
 
-use super::Run;
+use super::{CommandArgs, Run};
 
 /// Publish a package into a shared repository
 #[derive(Args)]
@@ -65,5 +65,15 @@ impl Run for Publish {
 
         tracing::info!("done");
         Ok(0)
+    }
+}
+
+impl CommandArgs for Publish {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional args for a publish are the packages
+        self.packages
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<String>>()
     }
 }

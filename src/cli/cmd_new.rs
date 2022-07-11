@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 
-use super::Run;
+use super::{CommandArgs, Run};
 
 #[cfg(test)]
 #[path = "./cmd_new_test.rs"]
@@ -28,6 +28,13 @@ impl Run for New {
         std::fs::write(&spec_file, &spec)?;
         println!("{}: {}", "Created".green(), spec_file);
         Ok(0)
+    }
+}
+
+impl CommandArgs for New {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional arg for a make-source is the name
+        vec![self.name.to_string()]
     }
 }
 

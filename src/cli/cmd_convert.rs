@@ -5,7 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use super::{flags, Run};
+use super::{flags, CommandArgs, Run};
 
 /// Convert a package from an external packaging system for use in spk
 #[derive(Args)]
@@ -55,5 +55,15 @@ impl Run for Convert {
             command,
         };
         env.run().await
+    }
+}
+
+impl CommandArgs for Convert {
+    fn get_positional_args(&self) -> Vec<String> {
+        // The important positional args for a convert are the specified converter and args
+        let mut tmp: Vec<String> = Vec::with_capacity(self.args.len() + 1);
+        tmp.push(self.converter.clone());
+        tmp.extend(self.args.clone());
+        tmp
     }
 }
