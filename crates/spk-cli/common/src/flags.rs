@@ -648,6 +648,11 @@ pub struct DecisionFormatterSettings {
     /// displayed in solve stats reports
     #[clap(long, env = "SPK_MAX_FREQUENT_ERRORS", default_value_t = 15)]
     pub max_frequent_errors: usize,
+
+    /// Display a visualization of the solver progress if the solve takes longer
+    /// than a few seconds.
+    #[clap(long)]
+    pub status_bar: bool,
 }
 
 impl DecisionFormatterSettings {
@@ -662,7 +667,8 @@ impl DecisionFormatterSettings {
     /// case some extra configuration might be needed before calling
     /// build.
     pub fn get_formatter_builder(&self, verbosity: u32) -> DecisionFormatterBuilder {
-        DecisionFormatterBuilder::new()
+        let mut builder = DecisionFormatterBuilder::new();
+        builder
             .with_verbosity(verbosity)
             .with_time_and_stats(self.time)
             .with_verbosity_increase_every(self.increase_verbosity)
@@ -670,7 +676,8 @@ impl DecisionFormatterSettings {
             .with_solution(self.show_solution)
             .with_long_solves_threshold(self.long_solves)
             .with_max_frequent_errors(self.max_frequent_errors)
-            .clone()
+            .with_status_bar(self.status_bar);
+        builder
     }
 }
 

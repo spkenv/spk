@@ -123,8 +123,12 @@ where
             verbosity: settings.verbosity,
             start: Instant::now(),
             too_long_counter: 0,
+            status_bar: if settings.status_bar {
+                StatusBarStatus::Inactive
+            } else {
+                StatusBarStatus::Disabled
+            },
             settings,
-            status_bar: StatusBarStatus::Inactive,
             status_line_rendered_hash: 0,
         }
     }
@@ -387,6 +391,7 @@ pub struct DecisionFormatterBuilder {
     heading_prefix: String,
     long_solves_threshold: u64,
     max_frequent_errors: usize,
+    status_bar: bool,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -406,6 +411,7 @@ impl DecisionFormatterBuilder {
             heading_prefix: String::from(""),
             long_solves_threshold: 0,
             max_frequent_errors: 0,
+            status_bar: false,
         }
     }
 
@@ -449,6 +455,11 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_status_bar(&mut self, enable: bool) -> &mut Self {
+        self.status_bar = enable;
+        self
+    }
+
     pub fn build(&self) -> DecisionFormatter {
         let too_long_seconds = if self.verbosity_increase_seconds == 0
             || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
@@ -484,6 +495,7 @@ impl DecisionFormatterBuilder {
                 heading_prefix: String::from(""),
                 long_solves_threshold: self.long_solves_threshold,
                 max_frequent_errors: self.max_frequent_errors,
+                status_bar: self.status_bar,
             },
         }
     }
@@ -508,6 +520,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) heading_prefix: String,
     pub(crate) long_solves_threshold: u64,
     pub(crate) max_frequent_errors: usize,
+    pub(crate) status_bar: bool,
 }
 
 #[derive(Debug, Clone)]
