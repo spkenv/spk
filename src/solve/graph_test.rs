@@ -118,8 +118,11 @@ fn test_request_default_component() {
         .get_merged_request(api::PkgName::new("dependency").unwrap())
         .unwrap();
     assert!(
-        request.pkg.components.contains(&api::Component::Run),
-        "default run component should be injected when none specified"
+        request
+            .pkg
+            .components
+            .contains(&api::Component::default_for_run()),
+        "default component should be injected when none specified"
     );
 
     let build_state = DecisionBuilder::new(spec, &base)
@@ -130,7 +133,10 @@ fn test_request_default_component() {
         .get_merged_request(api::PkgName::new("dependency").unwrap())
         .unwrap();
     assert!(
-        request.pkg.components.contains(&api::Component::Run),
-        "default run component should be injected when none specified"
+        request
+            .pkg
+            .components
+            .contains(&api::Component::default_for_run()),
+        "default component should be injected when none specified"
     );
 }

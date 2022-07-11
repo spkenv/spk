@@ -30,7 +30,7 @@ export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install
 source ~/.bashrc
 # Include `--all` to also build spk-launcher
-dev env -- cargo build --release --features sentry --all
+dev env -- cargo build --release --features sentry --features migration-to-components --all
 
 %install
 mkdir -p %{buildroot}/usr/local/bin

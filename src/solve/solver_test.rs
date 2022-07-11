@@ -1300,6 +1300,53 @@ async fn test_solver_components(mut solver: Solver) {
 
 #[rstest]
 #[tokio::test]
+async fn test_solver_components_when_no_components_requested(mut solver: Solver) {
+    // test when a package is requested with no components and the
+    // package is one that has components
+    // - the default component(s) should be the ones in the resolve
+    //   for that package
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "python/3.7.3",
+                "install": {
+                    "components": [
+                        {"name": "interpreter"},
+                        {"name": "lib"},
+                        {"name": "doc"},
+                    ]
+                },
+            },
+            {
+                "pkg": "pkga",
+                "install": {
+                    "requirements": [{"pkg": "python/3.7.3"}, {"pkg": "pkgb"}]
+                },
+            },
+            {
+                "pkg": "pkgb",
+                "install": {"requirements": [{"pkg": "python"}]},
+            },
+        ]
+    );
+
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(request!("pkga"));
+    solver.add_request(request!("pkgb"));
+
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
+
+    let resolved = solution.get("python").unwrap().request.pkg.components;
+    let expected = [api::Component::default_for_run()]
+        .iter()
+        .map(api::Component::parse)
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(resolved, expected);
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_solver_all_component(mut solver: Solver) {
     // test when a package is requested with the 'all' component
     // - all the specs components are selected in the resolve
@@ -1542,7 +1589,9 @@ async fn test_request_default_component() {
         .expect("solver should have a request");
     assert_eq!(
         request.pkg.components,
-        vec![api::Component::Run].into_iter().collect(),
+        vec![api::Component::default_for_run()]
+            .into_iter()
+            .collect(),
         "solver should inject a default run component if not otherwise given"
     )
 }

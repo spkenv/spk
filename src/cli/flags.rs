@@ -298,7 +298,9 @@ impl Requests {
             req.add_requester(spk::api::RequestedBy::CommandLine);
 
             if req.pkg.components.is_empty() {
-                req.pkg.components.insert(spk::api::Component::Run);
+                req.pkg
+                    .components
+                    .insert(spk::api::Component::default_for_run());
             }
             if req.required_compat.is_none() {
                 req.required_compat = Some(spk::api::CompatRule::API);
