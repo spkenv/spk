@@ -16,8 +16,8 @@ use nom_supreme::tag::TagError;
 use crate::api::{Build, Component, PkgName, RangeIdent, VersionFilter};
 
 use super::{
-    component::components, name::package_name, parse_until, repo_name_in_ident,
-    version_and_optional_build, version_range::version_range,
+    component::components, name::package_name, repo_name_in_ident, version_and_optional_build,
+    version_range::version_range,
 };
 
 /// Parse a package name in the context of a range identity.
@@ -35,14 +35,11 @@ fn range_ident_pkg_name<'a, E>(
 where
     E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
 {
-    parse_until(
-        "/",
-        pair(
-            package_name,
-            map(
-                opt(preceded(char(':'), cut(components))),
-                |opt_components| opt_components.unwrap_or_default(),
-            ),
+    pair(
+        package_name,
+        map(
+            opt(preceded(char(':'), cut(components))),
+            |opt_components| opt_components.unwrap_or_default(),
         ),
     )(input)
 }
@@ -65,7 +62,7 @@ where
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
-    map(parse_until("/", version_range), |v| VersionFilter {
+    map(version_range, |v| VersionFilter {
         rules: v.into_iter().collect(),
     })(input)
 }

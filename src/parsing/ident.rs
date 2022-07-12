@@ -17,7 +17,7 @@ use crate::api::{Build, Ident, Version};
 
 use super::{
     name::package_name,
-    parse_until, repo_name_in_ident,
+    repo_name_in_ident,
     version::{version, version_str},
     version_and_optional_build,
 };
@@ -78,7 +78,7 @@ fn package_ident<'a, E>(input: &'a str) -> IResult<&'a str, Ident, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
-    parse_until("/", map(package_name, |name| Ident::new(name.to_owned())))(input)
+    map(package_name, |name| Ident::new(name.to_owned()))(input)
 }
 
 /// Parse a version and optional build in the context of an identity string.
@@ -94,5 +94,5 @@ where
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
-    version_and_optional_build(parse_until("/", version))(input)
+    version_and_optional_build(version)(input)
 }
