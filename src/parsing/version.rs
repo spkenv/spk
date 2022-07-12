@@ -17,7 +17,7 @@ use nom_supreme::tag::{complete::tag, TagError};
 
 use crate::api::{InvalidVersionError, TagSet, Version};
 
-use super::name::tag_name;
+use super::{name::tag_name, separated_list1_with_cut};
 
 /// Parse a valid version pre- or post-tag.
 ///
@@ -135,7 +135,7 @@ where
 {
     map(
         pair(
-            separated_list1(char('.'), map_res(digit1, |n: &str| n.parse::<u32>())),
+            separated_list1_with_cut(char('.'), map_res(digit1, |n: &str| n.parse::<u32>())),
             pair(
                 opt(preceded(char('-'), ptagset)),
                 opt(preceded(char('+'), ptagset)),
@@ -171,7 +171,7 @@ where
         + TagError<&'a str, &'static str>,
 {
     recognize(pair(
-        separated_list1(char('.'), digit1),
+        separated_list1_with_cut(char('.'), digit1),
         pair(
             opt(preceded(char('-'), recognize(ptagset_str))),
             opt(preceded(char('+'), recognize(ptagset_str))),
