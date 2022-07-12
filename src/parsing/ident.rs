@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use nom::{
     character::complete::char,
     combinator::{all_consuming, map, opt},
-    error::{context, ContextError, FromExternalError, ParseError},
+    error::{ContextError, FromExternalError, ParseError},
     sequence::preceded,
     IResult,
 };
@@ -55,10 +55,8 @@ where
     ))(input)?;
     let (input, mut ident) = package_ident(input)?;
     ident.repository_name = repository_name;
-    let (input, version_and_build) = all_consuming(context(
-        "ident version",
-        opt(preceded(char('/'), version_and_build)),
-    ))(input)?;
+    let (input, version_and_build) =
+        all_consuming(opt(preceded(char('/'), version_and_build)))(input)?;
     match version_and_build {
         Some(v_and_b) => {
             ident.version = v_and_b.0;
@@ -96,5 +94,5 @@ where
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
-    version_and_optional_build(context("parse_version", parse_until("/", version)))(input)
+    version_and_optional_build(parse_until("/", version))(input)
 }
