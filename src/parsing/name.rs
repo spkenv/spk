@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use nom::{
     bytes::complete::{is_not, take_while1, take_while_m_n},
     combinator::{fail, map, recognize},
-    error::{context, ContextError, ParseError},
+    error::{ContextError, ParseError},
     multi::many1,
     IResult,
 };
@@ -63,19 +63,16 @@ pub(crate) fn package_name<'a, E>(input: &'a str) -> IResult<&'a str, &PkgName, 
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
-    context(
-        "package_name",
-        map(
-            take_while_m_n(
-                PkgName::MIN_LEN,
-                PkgName::MAX_LEN,
-                is_legal_package_name_chr,
-            ),
-            |s: &str| {
-                // Safety: we only generate valid package names
-                unsafe { PkgName::from_str(s) }
-            },
+    map(
+        take_while_m_n(
+            PkgName::MIN_LEN,
+            PkgName::MAX_LEN,
+            is_legal_package_name_chr,
         ),
+        |s: &str| {
+            // Safety: we only generate valid package names
+            unsafe { PkgName::from_str(s) }
+        },
     )(input)
 }
 

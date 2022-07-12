@@ -17,7 +17,7 @@ use nom::{
     bytes::complete::{is_not, take_while1},
     character::complete::char,
     combinator::{all_consuming, eof, fail, opt, peek},
-    error::{context, ContextError, FromExternalError, ParseError},
+    error::{ContextError, FromExternalError, ParseError},
     sequence::{pair, preceded, terminated},
     IResult, Parser,
 };
@@ -186,9 +186,6 @@ where
 {
     pair(
         version_parser,
-        opt(preceded(
-            char('/'),
-            all_consuming(context("parse_build", build)),
-        )),
+        opt(preceded(char('/'), all_consuming(build))),
     )
 }

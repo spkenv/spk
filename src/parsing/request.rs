@@ -8,7 +8,7 @@ use nom::{
     branch::alt,
     character::complete::char,
     combinator::{all_consuming, cut, eof, map, opt},
-    error::{context, ContextError, FromExternalError, ParseError},
+    error::{ContextError, FromExternalError, ParseError},
     sequence::{pair, preceded},
     IResult,
 };
@@ -41,10 +41,7 @@ where
         pair(
             package_name,
             map(
-                opt(preceded(
-                    char(':'),
-                    context("range ident package components", cut(components)),
-                )),
+                opt(preceded(char(':'), cut(components))),
                 |opt_components| opt_components.unwrap_or_default(),
             ),
         ),
@@ -69,12 +66,9 @@ where
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
-    context(
-        "range_ident_version_filter",
-        map(parse_until("/", version_range), |v| VersionFilter {
-            rules: v.into_iter().collect(),
-        }),
-    )(input)
+    map(parse_until("/", version_range), |v| VersionFilter {
+        rules: v.into_iter().collect(),
+    })(input)
 }
 
 /// Parse a package range identity into a [`RangeIdent`].
@@ -104,15 +98,11 @@ where
         range_ident_version_filter,
         version_filter_and_build,
     ))(input)?;
-    let (input, (name, components)) =
-        context("range ident package name", range_ident_pkg_name)(input)?;
-    let (input, (version, build)) = context(
-        "range ident version range",
-        alt((
-            map(eof, |_| (VersionFilter::default(), None)),
-            preceded(char('/'), all_consuming(version_filter_and_build)),
-        )),
-    )(input)?;
+    let (input, (name, components)) = range_ident_pkg_name(input)?;
+    let (input, (version, build)) = alt((
+        map(eof, |_| (VersionFilter::default(), None)),
+        preceded(char('/'), all_consuming(version_filter_and_build)),
+    ))(input)?;
     Ok((
         input,
         RangeIdent {
@@ -141,5 +131,5 @@ where
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
-    version_and_optional_build(context("parse_version_filter", range_ident_version_filter))(input)
+    version_and_optional_build(range_ident_version_filter)(input)
 }

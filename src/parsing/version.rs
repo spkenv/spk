@@ -8,7 +8,7 @@ use nom::{
     branch::alt,
     character::complete::{char, digit1},
     combinator::{eof, map, map_res, opt, peek, recognize},
-    error::{context, ContextError, FromExternalError, ParseError},
+    error::{ContextError, FromExternalError, ParseError},
     multi::separated_list1,
     sequence::{pair, preceded, separated_pair, terminated},
     IResult,
@@ -133,22 +133,19 @@ where
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
-    context(
-        "version",
-        map(
+    map(
+        pair(
+            separated_list1(char('.'), map_res(digit1, |n: &str| n.parse::<u32>())),
             pair(
-                separated_list1(char('.'), map_res(digit1, |n: &str| n.parse::<u32>())),
-                pair(
-                    context("optional pre-tag", opt(preceded(char('-'), ptagset))),
-                    context("optional post-tag", opt(preceded(char('+'), ptagset))),
-                ),
+                opt(preceded(char('-'), ptagset)),
+                opt(preceded(char('+'), ptagset)),
             ),
-            |(parts, (pre, post))| Version {
-                parts: parts.into(),
-                pre: pre.unwrap_or_default(),
-                post: post.unwrap_or_default(),
-            },
         ),
+        |(parts, (pre, post))| Version {
+            parts: parts.into(),
+            pre: pre.unwrap_or_default(),
+            post: post.unwrap_or_default(),
+        },
     )(input)
 }
 
@@ -173,20 +170,11 @@ where
         + FromExternalError<&'a str, crate::error::Error>
         + TagError<&'a str, &'static str>,
 {
-    context(
-        "version_str",
-        recognize(pair(
-            separated_list1(char('.'), digit1),
-            pair(
-                context(
-                    "optional pre-tag",
-                    opt(preceded(char('-'), recognize(ptagset_str))),
-                ),
-                context(
-                    "optional post-tag",
-                    opt(preceded(char('+'), recognize(ptagset_str))),
-                ),
-            ),
-        )),
-    )(input)
+    recognize(pair(
+        separated_list1(char('.'), digit1),
+        pair(
+            opt(preceded(char('-'), recognize(ptagset_str))),
+            opt(preceded(char('+'), recognize(ptagset_str))),
+        ),
+    ))(input)
 }

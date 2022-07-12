@@ -8,7 +8,7 @@ use nom::{
     branch::alt,
     character::complete::{char, digit1},
     combinator::{cut, map, map_res, verify},
-    error::{context, ContextError, FromExternalError, ParseError},
+    error::{ContextError, FromExternalError, ParseError},
     multi::separated_list1,
     sequence::{pair, preceded, terminated},
     IResult,
@@ -127,72 +127,69 @@ where
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
-    context(
-        "version_range",
-        map(
-            separated_list1(
-                tag(crate::api::VERSION_RANGE_SEP),
-                alt((
-                    // Use `cut` for these that first match on an operator first,
-                    // if the version fails to parse then it shouldn't continue to
-                    // try the other options of the `alt` here.
-                    map_res(
-                        preceded(char('^'), cut(version_str)),
-                        SemverRange::new_version_range,
-                    ),
-                    map_res(preceded(char('~'), cut(version)), |v| {
-                        LowestSpecifiedRange::try_from(v).map(VersionRange::LowestSpecified)
-                    }),
-                    map_res(
-                        preceded(tag(">="), cut(version_str)),
-                        GreaterThanOrEqualToRange::new_version_range,
-                    ),
-                    map_res(
-                        preceded(tag("<="), cut(version_str)),
-                        LessThanOrEqualToRange::new_version_range,
-                    ),
-                    map_res(
-                        preceded(char('>'), cut(version_str)),
-                        GreaterThanRange::new_version_range,
-                    ),
-                    map_res(
-                        preceded(char('<'), cut(version_str)),
-                        LessThanRange::new_version_range,
-                    ),
-                    map(
-                        preceded(tag("=="), cut(version)),
-                        DoubleEqualsVersion::version_range,
-                    ),
-                    map(
-                        preceded(char('='), cut(version)),
-                        EqualsVersion::version_range,
-                    ),
-                    map(preceded(tag("!=="), cut(version)), |v| {
-                        VersionRange::DoubleNotEquals(DoubleNotEqualsVersion::from(v))
-                    }),
-                    map(preceded(tag("!="), cut(version)), |v| {
-                        VersionRange::NotEquals(NotEqualsVersion::from(v))
-                    }),
-                    compat_range,
-                    wildcard_range,
-                    // Just a plain version can be a version range.
-                    map(version, |base| {
-                        VersionRange::Compat(CompatRange {
-                            base,
-                            required: None,
-                        })
-                    }),
-                )),
-            ),
-            |mut version_range| {
-                if version_range.len() == 1 {
-                    version_range.remove(0)
-                } else {
-                    VersionRange::Filter(VersionFilter {
-                        rules: version_range.into_iter().collect(),
+    map(
+        separated_list1(
+            tag(crate::api::VERSION_RANGE_SEP),
+            alt((
+                // Use `cut` for these that first match on an operator first,
+                // if the version fails to parse then it shouldn't continue to
+                // try the other options of the `alt` here.
+                map_res(
+                    preceded(char('^'), cut(version_str)),
+                    SemverRange::new_version_range,
+                ),
+                map_res(preceded(char('~'), cut(version)), |v| {
+                    LowestSpecifiedRange::try_from(v).map(VersionRange::LowestSpecified)
+                }),
+                map_res(
+                    preceded(tag(">="), cut(version_str)),
+                    GreaterThanOrEqualToRange::new_version_range,
+                ),
+                map_res(
+                    preceded(tag("<="), cut(version_str)),
+                    LessThanOrEqualToRange::new_version_range,
+                ),
+                map_res(
+                    preceded(char('>'), cut(version_str)),
+                    GreaterThanRange::new_version_range,
+                ),
+                map_res(
+                    preceded(char('<'), cut(version_str)),
+                    LessThanRange::new_version_range,
+                ),
+                map(
+                    preceded(tag("=="), cut(version)),
+                    DoubleEqualsVersion::version_range,
+                ),
+                map(
+                    preceded(char('='), cut(version)),
+                    EqualsVersion::version_range,
+                ),
+                map(preceded(tag("!=="), cut(version)), |v| {
+                    VersionRange::DoubleNotEquals(DoubleNotEqualsVersion::from(v))
+                }),
+                map(preceded(tag("!="), cut(version)), |v| {
+                    VersionRange::NotEquals(NotEqualsVersion::from(v))
+                }),
+                compat_range,
+                wildcard_range,
+                // Just a plain version can be a version range.
+                map(version, |base| {
+                    VersionRange::Compat(CompatRange {
+                        base,
+                        required: None,
                     })
-                }
-            },
+                }),
+            )),
         ),
+        |mut version_range| {
+            if version_range.len() == 1 {
+                version_range.remove(0)
+            } else {
+                VersionRange::Filter(VersionFilter {
+                    rules: version_range.into_iter().collect(),
+                })
+            }
+        },
     )(input)
 }

@@ -9,7 +9,7 @@ use nom::{
     bytes::complete::take_while_m_n,
     character::complete::char,
     combinator::{all_consuming, cut, map},
-    error::{context, ContextError, ParseError},
+    error::{ContextError, ParseError},
     multi::separated_list1,
     sequence::delimited,
     IResult,
@@ -29,26 +29,20 @@ pub(crate) fn component<'a, E>(input: &'a str) -> IResult<&'a str, Component, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
 {
-    context(
-        "component",
-        alt((
-            all_consuming(map(tag("all"), |_| Component::All)),
-            all_consuming(map(tag("run"), |_| Component::Run)),
-            all_consuming(map(tag("build"), |_| Component::Build)),
-            all_consuming(map(tag("src"), |_| Component::Source)),
-            map(
-                context(
-                    "valid component name character",
-                    take_while_m_n(
-                        PkgName::MIN_LEN,
-                        PkgName::MAX_LEN,
-                        is_legal_package_name_chr,
-                    ),
-                ),
-                |s: &str| Component::Named(s.to_owned()),
+    alt((
+        all_consuming(map(tag("all"), |_| Component::All)),
+        all_consuming(map(tag("run"), |_| Component::Run)),
+        all_consuming(map(tag("build"), |_| Component::Build)),
+        all_consuming(map(tag("src"), |_| Component::Source)),
+        map(
+            take_while_m_n(
+                PkgName::MIN_LEN,
+                PkgName::MAX_LEN,
+                is_legal_package_name_chr,
             ),
-        )),
-    )(input)
+            |s: &str| Component::Named(s.to_owned()),
+        ),
+    ))(input)
 }
 
 /// Parse a component group expression into a [`HashSet<Component>`].
@@ -64,19 +58,13 @@ where
     E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
 {
     alt((
-        context(
-            "component set",
-            delimited(
-                char('{'),
-                context(
-                    "component set element",
-                    cut(map(
-                        separated_list1(char(','), parse_until(",}", component)),
-                        |comps| comps.into_iter().collect(),
-                    )),
-                ),
-                cut(char('}')),
-            ),
+        delimited(
+            char('{'),
+            cut(map(
+                separated_list1(char(','), parse_until(",}", component)),
+                |comps| comps.into_iter().collect(),
+            )),
+            cut(char('}')),
         ),
         map(component, |comp| HashSet::from([comp])),
     ))(input)
