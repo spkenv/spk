@@ -122,7 +122,7 @@ trait Run {
 #[enum_dispatch]
 trait CommandArgs {
     /// Get a string list of the important positional arguments for
-    /// the command that may help distinquish it from another instance
+    /// the command that may help distinguish it from another instance
     /// of the same command, or different spk command. If there are no
     /// positional arguments, this will return an empty list.
     ///
