@@ -41,7 +41,7 @@ where
         + TagError<&'a str, &'static str>,
 {
     map(
-        pair(terminated(compat_rule, char(':')), cut(version)),
+        pair(terminated(compat_rule, cut(char(':'))), cut(version)),
         |(required, base)| {
             VersionRange::Compat(CompatRange {
                 base,

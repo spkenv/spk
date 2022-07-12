@@ -5,9 +5,8 @@
 use std::collections::HashSet;
 
 use nom::{
-    branch::alt,
     character::complete::char,
-    combinator::{all_consuming, cut, eof, map, opt},
+    combinator::{all_consuming, cut, map, opt},
     error::{ContextError, FromExternalError, ParseError},
     sequence::{pair, preceded},
     IResult,
@@ -99,9 +98,9 @@ where
         version_filter_and_build,
     ))(input)?;
     let (input, (name, components)) = range_ident_pkg_name(input)?;
-    let (input, (version, build)) = alt((
-        map(eof, |_| (VersionFilter::default(), None)),
-        preceded(char('/'), all_consuming(version_filter_and_build)),
+    let (input, (version, build)) = all_consuming(map(
+        opt(preceded(char('/'), cut(version_filter_and_build))),
+        |v_and_b| v_and_b.unwrap_or_default(),
     ))(input)?;
     Ok((
         input,
