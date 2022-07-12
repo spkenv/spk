@@ -5,7 +5,7 @@
 use std::{collections::HashSet, str::FromStr};
 
 use itertools::Itertools;
-use nom::{combinator::rest, error::ErrorKind};
+use nom::error::ErrorKind;
 use proptest::{
     collection::{btree_map, btree_set, hash_set, vec},
     option::weighted,
@@ -54,6 +54,11 @@ prop_compose! {
         Just(Component::Run),
         Just(Component::Build),
         Just(Component::Source),
+        // components that look like reserved names
+        "all[a-z]+".prop_map(Component::Named),
+        "run[a-z]+".prop_map(Component::Named),
+        "build[a-z]+".prop_map(Component::Named),
+        "src[a-z]+".prop_map(Component::Named),
         arb_pkg_name().prop_filter("name can't be a reserved name", |name| !(name == "all" || name == "run" || name == "build" || name == "src")).prop_map(|name| Component::Named(name.into_inner())),
     ]) -> Component {
         component
@@ -411,20 +416,6 @@ fn parse_ident_with_basic_errors() {
     let empty = HashSet::new();
     let r = crate::parsing::ident::<(_, ErrorKind)>(&empty, "pkg-name");
     assert!(r.is_ok(), "{}", r.unwrap_err());
-}
-
-#[test]
-fn test_parse_until() {
-    let (input, result) =
-        crate::parsing::parse_until::<_, _, (_, ErrorKind)>("p", rest)("my input").unwrap();
-    assert_eq!(input, "put");
-    assert_eq!(result, "my in");
-
-    // Empty input is not an error.
-    let (input, result) =
-        crate::parsing::parse_until::<_, _, (_, ErrorKind)>("p", rest)("").unwrap();
-    assert_eq!(input, "");
-    assert_eq!(result, "");
 }
 
 /// Fail if post-tags are specified before pre-tags.
