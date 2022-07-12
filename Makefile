@@ -23,6 +23,8 @@ lint: lint-rust
 lint-rust:
 	cargo fmt --check
 	cargo clippy --tests -- -Dwarnings
+	# also check SPI's configuration
+	cargo clippy --tests --features "sentry, migration-to-components" -- -Dwarnings
 	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps
 
 .PHONY: format

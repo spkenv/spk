@@ -34,7 +34,7 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
 
     let mut data = BTreeMap::new();
     data.insert(String::from("program"), json!(program));
-    data.insert(String::from("command"), json!(command.clone()));
+    data.insert(String::from("command"), json!(command));
     data.insert(String::from("args"), json!(args));
 
     sentry::configure_scope(|scope| {
