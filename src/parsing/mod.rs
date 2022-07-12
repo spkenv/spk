@@ -16,7 +16,7 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, take_while1},
     character::complete::char,
-    combinator::{all_consuming, eof, fail, opt, peek},
+    combinator::{cut, eof, fail, opt, peek},
     error::{ContextError, FromExternalError, ParseError},
     sequence::{pair, preceded, terminated},
     IResult, Parser,
@@ -184,8 +184,5 @@ where
         + FromExternalError<&'i str, crate::error::Error>
         + TagError<&'i str, &'static str>,
 {
-    pair(
-        version_parser,
-        opt(preceded(char('/'), all_consuming(build))),
-    )
+    pair(version_parser, opt(preceded(char('/'), cut(build))))
 }
