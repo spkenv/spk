@@ -100,7 +100,7 @@ impl Opt {
                     // noise in sentry. Panics will have backtraces,
                     // but aren't handled by this, they are sent when
                     // the _sentry_guard goes out of scope.
-                    sentry_anyhow::capture_anyhow(&err);
+                    sentry_anyhow::capture_anyhow(err);
                 },
             );
         }
