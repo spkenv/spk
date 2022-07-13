@@ -107,7 +107,7 @@ tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.3", features = ["compat"] }
 tonic = "0.7.2"
 tracing = "0.1.22"
-tracing-subscriber = { version = "0.2.15", optional = true }
+tracing-subscriber = { version = "0.3.14", features = ["env-filter"], optional = true }
 url = { version = "2.2", features = ["serde"] }
 uuid = { version = "0.8.1", features = ["v4"] }
 walkdir = "2.3"
@@ -121,7 +121,7 @@ tonic-build = "0.7.2"
 criterion = { version = "0.3", features = ["async_tokio", "html_reports"] }
 rstest = { version = "0.15.0", default_features = false }
 serial_test = "0.8.0"
-tracing-subscriber = "0.2.15"
+tracing-subscriber = { version = "0.3.14", features = ["env-filter"] }
 
 [[bench]]
 name = "spfs_bench"
