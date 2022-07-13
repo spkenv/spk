@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate as spfs;
 use rstest::fixture;
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 pub enum TempRepo {
     FS(Arc<spfs::storage::RepositoryHandle>, TempDir),
@@ -103,7 +103,10 @@ pub fn spfs_binary() -> std::path::PathBuf {
 
 #[fixture]
 pub fn tmpdir() -> TempDir {
-    TempDir::new("spfs-test-").expect("failed to create dir for test")
+    tempfile::Builder::new()
+        .prefix("spfs-test-")
+        .tempdir()
+        .expect("failed to create dir for test")
 }
 
 #[fixture(kind = "fs")]

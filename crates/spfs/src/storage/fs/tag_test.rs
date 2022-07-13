@@ -11,7 +11,7 @@ use crate::{encoding, storage::TagStorage, tracking};
 use crate::fixtures::*;
 
 #[rstest]
-fn test_tag_permissions(tmpdir: tempdir::TempDir) {
+fn test_tag_permissions(tmpdir: tempfile::TempDir) {
     let mut storage = FSRepository::create(tmpdir.path().join("repo")).unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();
     storage

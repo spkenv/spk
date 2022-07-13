@@ -68,7 +68,7 @@ async fn test_get_attached_payloads(#[future] tmprepo: TempRepo) {
 #[tokio::test]
 async fn test_get_attached_unattached_objects_blob(
     #[future] tmprepo: TempRepo,
-    tmpdir: tempdir::TempDir,
+    tmpdir: tempfile::TempDir,
 ) {
     init_logging();
     let tmprepo = tmprepo.await;
@@ -113,7 +113,7 @@ async fn test_get_attached_unattached_objects_blob(
 
 #[rstest]
 #[tokio::test]
-async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempdir::TempDir) {
+async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfile::TempDir) {
     init_logging();
     let tmprepo = tmprepo.await;
 
@@ -209,7 +209,7 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
 
 #[rstest]
 #[tokio::test]
-async fn test_clean_manifest_renders(tmpdir: tempdir::TempDir) {
+async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
     let tmprepo = Arc::new(
         storage::fs::FSRepository::create(tmpdir.path())
             .await

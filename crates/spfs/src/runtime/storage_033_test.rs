@@ -25,7 +25,7 @@ fn test_config_serialization() {
 }
 
 #[rstest]
-fn test_runtime_properties(tmpdir: tempdir::TempDir) {
+fn test_runtime_properties(tmpdir: tempfile::TempDir) {
     let runtime = Runtime::new(tmpdir.path()).expect("failed to create runtime for test");
     assert_eq!(tmpdir.path().canonicalize().unwrap(), runtime.root());
     assert_eq!(
@@ -35,7 +35,7 @@ fn test_runtime_properties(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_runtime_config_notnone(tmpdir: tempdir::TempDir) {
+fn test_runtime_config_notnone(tmpdir: tempfile::TempDir) {
     let mut runtime = Runtime::new(tmpdir.path()).expect("failed to create runtime for test");
     let expected = Config {
         name: runtime.name().to_string(),
@@ -47,7 +47,7 @@ fn test_runtime_config_notnone(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_ensure_runtime(tmpdir: tempdir::TempDir) {
+fn test_ensure_runtime(tmpdir: tempfile::TempDir) {
     let runtime = ensure_runtime(tmpdir.path().join("root")).expect("failed to ensure runtime");
     assert!(runtime.root().metadata().is_ok(), "root should exist");
     assert!(
@@ -59,7 +59,7 @@ fn test_ensure_runtime(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_storage_create_runtime(tmpdir: tempdir::TempDir) {
+fn test_storage_create_runtime(tmpdir: tempfile::TempDir) {
     let storage = Storage::new(tmpdir.path()).expect("failed to create storage");
 
     let runtime = storage
@@ -72,7 +72,7 @@ fn test_storage_create_runtime(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
+fn test_storage_remove_runtime(tmpdir: tempfile::TempDir) {
     let storage = Storage::new(tmpdir.path()).expect("failed to create storage");
 
     assert!(
@@ -89,7 +89,7 @@ fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_storage_iter_runtimes(tmpdir: tempdir::TempDir) {
+fn test_storage_iter_runtimes(tmpdir: tempfile::TempDir) {
     let storage = Storage::new(tmpdir.path().join("root")).expect("failed to create storage");
 
     let runtimes: crate::Result<Vec<_>> = storage.iter_runtimes().collect();
@@ -118,7 +118,7 @@ fn test_storage_iter_runtimes(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_runtime_reset(tmpdir: tempdir::TempDir) {
+fn test_runtime_reset(tmpdir: tempfile::TempDir) {
     let storage = Storage::new(tmpdir.path().join("root")).expect("failed to create storage");
     let mut runtime = storage
         .create_owned_runtime()
@@ -156,7 +156,7 @@ fn test_runtime_reset(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_makedirs_dont_change_existing(tmpdir: tempdir::TempDir) {
+fn test_makedirs_dont_change_existing(tmpdir: tempfile::TempDir) {
     let chkdir = tmpdir.path().join("my_dir");
     ensure(chkdir.join("file"), "data");
     std::fs::set_permissions(&chkdir, std::fs::Permissions::from_mode(0o755)).unwrap();

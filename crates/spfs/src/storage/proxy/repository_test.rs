@@ -9,7 +9,7 @@ use crate::prelude::*;
 
 #[rstest]
 #[tokio::test]
-async fn test_proxy_payload_read_through(tmpdir: tempdir::TempDir) {
+async fn test_proxy_payload_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
     let primary = crate::storage::fs::FSRepository::create(tmpdir.path().join("primary"))
@@ -37,7 +37,7 @@ async fn test_proxy_payload_read_through(tmpdir: tempdir::TempDir) {
 
 #[rstest]
 #[tokio::test]
-async fn test_proxy_object_read_through(tmpdir: tempdir::TempDir) {
+async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
     let primary = crate::storage::fs::FSRepository::create(tmpdir.path().join("primary"))
@@ -65,7 +65,7 @@ async fn test_proxy_object_read_through(tmpdir: tempdir::TempDir) {
 
 #[rstest]
 #[tokio::test]
-async fn test_proxy_tag_read_through(tmpdir: tempdir::TempDir) {
+async fn test_proxy_tag_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
     let primary = crate::storage::fs::FSRepository::create(tmpdir.path().join("primary"))

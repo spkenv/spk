@@ -16,7 +16,7 @@ use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]
-async fn test_sync_ref_unknown(#[future] config: (tempdir::TempDir, Config)) {
+async fn test_sync_ref_unknown(#[future] config: (tempfile::TempDir, Config)) {
     init_logging();
     let (_handle, config) = config.await;
     let local = config.get_local_repository().await.unwrap().into();
@@ -40,7 +40,7 @@ async fn test_sync_ref_unknown(#[future] config: (tempdir::TempDir, Config)) {
 
 #[rstest]
 #[tokio::test]
-async fn test_push_ref(#[future] config: (tempdir::TempDir, Config)) {
+async fn test_push_ref(#[future] config: (tempfile::TempDir, Config)) {
     init_logging();
     let (tmpdir, config) = config.await;
     let src_dir = tmpdir.path().join("source");
@@ -84,7 +84,7 @@ async fn test_sync_ref(
     #[case]
     #[future]
     repo_b: TempRepo,
-    tmpdir: tempdir::TempDir,
+    tmpdir: tempfile::TempDir,
 ) {
     init_logging();
     let repo_a = repo_a.await;
@@ -142,7 +142,7 @@ async fn test_sync_missing_from_source(
     #[case]
     #[future]
     repo_b: TempRepo,
-    tmpdir: tempdir::TempDir,
+    tmpdir: tempfile::TempDir,
 ) {
     init_logging();
     let repo_a = repo_a.await;
@@ -212,7 +212,7 @@ async fn test_sync_through_tar(
     #[case]
     #[future]
     repo_b: TempRepo,
-    tmpdir: tempdir::TempDir,
+    tmpdir: tempfile::TempDir,
 ) {
     init_logging();
     let repo_a = repo_a.await;
@@ -265,7 +265,7 @@ async fn test_sync_through_tar(
 }
 
 #[fixture]
-async fn config(tmpdir: tempdir::TempDir) -> (tempdir::TempDir, Config) {
+async fn config(tmpdir: tempfile::TempDir) -> (tempfile::TempDir, Config) {
     let repo_path = tmpdir.path().join("repo");
     crate::storage::fs::FSRepository::create(&repo_path)
         .await

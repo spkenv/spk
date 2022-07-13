@@ -10,7 +10,7 @@ use crate::{fixtures::*, graph::DigestSearchCriteria, storage::fs::hash_store::P
 
 #[rstest]
 #[tokio::test]
-async fn test_hash_store_iter_states(tmpdir: tempdir::TempDir) {
+async fn test_hash_store_iter_states(tmpdir: tempfile::TempDir) {
     init_logging();
     let store = super::FSHashStore::open(tmpdir.path()).unwrap();
     let mut stream = Box::pin(store.iter());
@@ -29,7 +29,7 @@ macro_rules! digest {
 
 #[rstest]
 #[tokio::test]
-async fn test_hash_store_find_digest(tmpdir: tempdir::TempDir) {
+async fn test_hash_store_find_digest(tmpdir: tempfile::TempDir) {
     init_logging();
     let store = super::FSHashStore::open(tmpdir.path()).unwrap();
     let content = ["AAA", "ABC", "ABD", "BBB", "BCD", "CCC", "EEE"];
