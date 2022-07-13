@@ -170,8 +170,8 @@ async fn run_external_subcommand(args: Vec<String>) -> spfs::Result<i32> {
             })
         }
         if let Err(err) = nix::unistd::execvp(command_cstr.as_c_str(), args_cstr.as_slice()) {
-            match err.as_errno() {
-                Some(nix::errno::Errno::ENOENT) => {
+            match err {
+                nix::errno::Errno::ENOENT => {
                     tracing::error!("{command} not found in PATH, was it properly installed?")
                 }
                 _ => tracing::error!("subcommand failed: {err:?}"),

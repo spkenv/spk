@@ -67,8 +67,8 @@ pub fn join_runtime(rt: &runtime::Runtime) -> Result<()> {
     };
 
     if let Err(err) = nix::sched::setns(file.as_raw_fd(), nix::sched::CloneFlags::empty()) {
-        return Err(match err.as_errno() {
-            Some(nix::errno::Errno::EPERM) => Error::new_errno(
+        return Err(match err {
+            nix::errno::Errno::EPERM => Error::new_errno(
                 libc::EPERM,
                 "spfs binary was not installed with required capabilities",
             ),
@@ -140,10 +140,7 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
         // into a separate process group
         cmd.pre_exec(|| match nix::unistd::setsid() {
             Ok(_pid) => Ok(()),
-            Err(err) => Err(match err.as_errno() {
-                Some(errno) => std::io::Error::from_raw_os_error(errno as i32),
-                None => std::io::Error::new(std::io::ErrorKind::Other, err),
-            }),
+            Err(err) => Err(std::io::Error::from_raw_os_error(err as i32)),
         });
     }
 
@@ -599,8 +596,8 @@ pub fn mask_files(
         }
         if existing.uid() != owner.as_raw() {
             if let Err(err) = nix::unistd::chown(&fullpath, Some(owner), None) {
-                match err.as_errno() {
-                    Some(nix::errno::Errno::ENOENT) => continue,
+                match err {
+                    nix::errno::Errno::ENOENT => continue,
                     _ => {
                         return Err(Error::wrap_nix(
                             err,
