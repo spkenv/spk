@@ -11,4 +11,4 @@ anyhow = "1.0"
 nix = "0.24.1"
 spfs = { git = 'https://github.com/imageworks/spfs', tag = 'v0.34.4' }
 tempdir = "0.3"
-tokio = { version = "1.15", features = ["rt"] }
+tokio = { version = "1.20", features = ["rt"] }
