@@ -2709,7 +2709,7 @@ dependencies = [
  "palaver",
  "prost",
  "question",
- "rand 0.7.3",
+ "rand 0.8.5",
  "relative-path",
  "ring",
  "rstest",
