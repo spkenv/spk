@@ -61,7 +61,7 @@ clap = { version = "3.1", features = ["derive", "env"], optional = true }
 close-err = "1.0"
 cnproc = { git = "https://github.com/rydrman/cnproc-rs", branch = "act-like-iterator" }
 colored = "2.0"
-config = "0.12.0"
+config = "0.13.1"
 data-encoding = "2.3"
 expanduser = "1.2"
 faccess = "0.2.3"
