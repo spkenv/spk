@@ -192,7 +192,7 @@ impl<'a> PackageBuildTester<'a> {
             BuildSource::LocalPath(path) => path.clone(),
         };
 
-        let tmpdir = tempdir::TempDir::new("spk-test")?;
+        let tmpdir = tempfile::Builder::new().prefix("spk-test").tempdir()?;
         let script_path = tmpdir.path().join("test.sh");
         let mut script_file = std::fs::File::create(&script_path)?;
         script_file.write_all(self.script.as_bytes())?;

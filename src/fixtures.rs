@@ -20,7 +20,7 @@ pub struct RuntimeLock {
     _guard: MutexGuard<'static, ()>,
     pub runtime: spfs::runtime::Runtime,
     pub tmprepo: Arc<storage::RepositoryHandle>,
-    pub tmpdir: tempdir::TempDir,
+    pub tmpdir: tempfile::TempDir,
 }
 
 impl Drop for RuntimeLock {
@@ -43,7 +43,7 @@ pub enum RepoKind {
 /// A temporary repository of some type for use in testing
 pub struct TempRepo {
     pub repo: Arc<storage::RepositoryHandle>,
-    pub tmpdir: tempdir::TempDir,
+    pub tmpdir: tempfile::TempDir,
 }
 
 impl std::ops::Deref for TempRepo {
@@ -78,8 +78,11 @@ pub fn empty_layer_digest() -> spfs::Digest {
 }
 
 #[fixture]
-pub fn tmpdir() -> tempdir::TempDir {
-    tempdir::TempDir::new("spk-test-").expect("Failed to establish temporary directory for testing")
+pub fn tmpdir() -> tempfile::TempDir {
+    tempfile::Builder::new()
+        .prefix("spk-test-")
+        .tempdir()
+        .expect("Failed to establish temporary directory for testing")
 }
 
 #[fixture]
@@ -100,7 +103,9 @@ pub async fn spfsrepo() -> TempRepo {
 pub async fn make_repo(kind: RepoKind) -> TempRepo {
     tracing::trace!(?kind, "creating repo for test...");
 
-    let tmpdir = tempdir::TempDir::new("spk-test-spfs-repo")
+    let tmpdir = tempfile::Builder::new()
+        .prefix("spk-test-spfs-repo")
+        .tempdir()
         .expect("failed to establish tmpdir for spfs runtime");
     let repo = match kind {
         RepoKind::Spfs => {

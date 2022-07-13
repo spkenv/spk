@@ -5,7 +5,10 @@ use rstest::rstest;
 
 #[rstest]
 fn test_template_is_valid() {
-    let tmpdir = tempdir::TempDir::new("spk-cli-test").unwrap();
+    let tmpdir = tempfile::Builder::new()
+        .prefix("spk-cli-test")
+        .tempdir()
+        .unwrap();
     let raw_spec = super::get_stub(&"my-package".parse().unwrap());
     let spec_file = tmpdir.path().join("file");
     std::fs::write(&spec_file, raw_spec).unwrap();

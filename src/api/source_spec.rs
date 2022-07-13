@@ -205,7 +205,7 @@ pub struct TarSource {
 impl TarSource {
     /// Collect the represented sources files into the given directory.
     pub fn collect(&self, dirname: &Path) -> Result<()> {
-        let tmpdir = tempdir::TempDir::new("spk-untar")?;
+        let tmpdir = tempfile::Builder::new().prefix("spk-untar").tempdir()?;
         let tarfile = relative_path::RelativePathBuf::from(&self.tar);
         let filename = tarfile.file_name().unwrap_or_default();
         let mut tarfile = tmpdir.path().join(filename);

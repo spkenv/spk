@@ -2482,7 +2482,7 @@ dependencies = [
  "spk",
  "sys-info",
  "tar",
- "tempdir",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
@@ -2498,7 +2498,7 @@ dependencies = [
  "anyhow",
  "nix 0.24.1",
  "spfs",
- "tempdir",
+ "tempfile",
  "tokio",
 ]
 
