@@ -109,7 +109,7 @@ tonic = "0.7.2"
 tracing = "0.1.22"
 tracing-subscriber = { version = "0.3.14", features = ["env-filter"], optional = true }
 url = { version = "2.2", features = ["serde"] }
-uuid = { version = "0.8.1", features = ["v4"] }
+uuid = { version = "1.1", features = ["v4"] }
 walkdir = "2.3"
 whoami = "1.2"
 thiserror = "1.0"
