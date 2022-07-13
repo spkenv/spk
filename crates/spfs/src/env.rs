@@ -83,7 +83,13 @@ pub fn join_runtime(rt: &runtime::Runtime) -> Result<()> {
 
 // Checks if the current process will be able to join an existing runtime
 fn check_can_join() -> Result<()> {
-    if palaver::thread::count() != 1 {
+    if procfs::process::Process::myself()
+        .map_err(|err| Error::String(err.to_string()))?
+        .stat()
+        .map_err(|err| Error::String(err.to_string()))?
+        .num_threads
+        != 1
+    {
         return Err("Program must be single-threaded to join an existing runtime".into());
     }
     if !have_required_join_capabilities()? {
