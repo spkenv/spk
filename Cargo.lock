@@ -2462,7 +2462,7 @@ dependencies = [
  "glob",
  "ignore",
  "indexmap",
- "itertools 0.9.0",
+ "itertools 0.10.3",
  "lazy_static",
  "nix 0.23.1",
  "nom 7.1.1",
