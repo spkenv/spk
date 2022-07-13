@@ -57,7 +57,7 @@ async-recursion = "1.0"
 async-stream = "0.3"
 caps = "0.5.3"
 chrono = { version = "0.4.19", features = ["serde"] }
-clap = { version = "3.1", features = ["derive", "env"], optional = true }
+clap = { version = "3.2", features = ["derive", "env"], optional = true }
 close-err = "1.0"
 cnproc = { git = "https://github.com/rydrman/cnproc-rs", branch = "act-like-iterator" }
 colored = "2.0"
