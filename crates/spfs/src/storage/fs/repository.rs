@@ -221,11 +221,9 @@ pub async fn read_last_migration_version<P: AsRef<Path>>(
     }
     match semver::Version::parse(version) {
         Ok(v) => Ok(Some(v)),
-        Err(err) => match err {
-            semver::SemVerError::ParseError(err) => Err(crate::Error::String(format!(
-                "Failed to parse repository version '{version}': {err}",
-            ))),
-        },
+        Err(err) => Err(crate::Error::String(format!(
+            "Failed to parse repository version '{version}': {err}",
+        ))),
     }
 }
 
