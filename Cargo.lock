@@ -1289,19 +1289,6 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.23.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f866317acbd3a240710c63f065ffb1e4fd466259045ccb504130b7f668f35c6"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if 1.0.0",
- "libc",
- "memoffset",
-]
-
-[[package]]
-name = "nix"
 version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f17df307904acd05aa8e32e97bb20f2a0df1728bbc2d771ae8f9a90463441e9"
@@ -1309,6 +1296,7 @@ dependencies = [
  "bitflags",
  "cfg-if 1.0.0",
  "libc",
+ "memoffset",
 ]
 
 [[package]]
@@ -2464,7 +2452,7 @@ dependencies = [
  "indexmap",
  "itertools 0.10.3",
  "lazy_static",
- "nix 0.23.1",
+ "nix 0.24.1",
  "nom 7.1.1",
  "once_cell",
  "priority-queue",
@@ -2499,7 +2487,7 @@ name = "spk-launcher"
 version = "0.33.6"
 dependencies = [
  "anyhow",
- "nix 0.23.1",
+ "nix 0.24.1",
  "spfs",
  "tempdir",
  "tokio",
