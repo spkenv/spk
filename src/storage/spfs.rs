@@ -295,7 +295,7 @@ impl Repository for SPFSRepository {
             let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
             let tag = self.resolve_tag(pkg, &tag_spec).await?;
 
-            let mut reader = self.inner.open_payload(tag.target).await?;
+            let (mut reader, _) = self.inner.open_payload(tag.target).await?;
             let mut yaml = String::new();
             reader.read_to_string(&mut yaml).await?;
             serde_yaml::from_str(&yaml)
@@ -587,7 +587,7 @@ impl SPFSRepository {
             Err(spfs::Error::UnknownReference(_)) => return Ok(Default::default()),
             Err(err) => return Err(err.into()),
         };
-        let mut reader = self.inner.open_payload(digest).await?;
+        let (mut reader, _) = self.inner.open_payload(digest).await?;
         let mut yaml = String::new();
         reader.read_to_string(&mut yaml).await?;
         let meta: RepositoryMetadata =
