@@ -50,9 +50,10 @@ pub struct Test {
 impl Run for Test {
     async fn run(&mut self) -> Result<i32> {
         let options = self.options.get_options()?;
+        let default_repos = ["origin".to_string()];
         let (_runtime, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(),
-            self.repos.get_repos(None)
+            self.repos.get_repos(&default_repos)
         )?;
         let repos = repos
             .into_iter()
