@@ -72,11 +72,39 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// Test that the set of all valid versions in self is a superset of
     /// all valid versions in other.
     fn contains(&self, other: impl Ranged) -> Compatibility {
-        if self.get_compat_rule() > other.get_compat_rule() {
-            return Compatibility::Incompatible(format!(
-                "{self} has stronger compatibility requirements than {other}"
-            ));
-        }
+        match (self.get_compat_rule(), other.get_compat_rule()) {
+            (Some(_), None) => {
+                // Allow `Binary:1.2.3` to contain `=1.2.3` so that these two
+                // ranges can be simplified to just `=1.2.3`.
+                let other_v = match other.clone().into() {
+                    VersionRange::DoubleEquals(v) => Some(v.version),
+                    VersionRange::Equals(v) => Some(v.version),
+                    _ => None,
+                };
+
+                let contains = if let Some(other_v) = other_v {
+                    if let VersionRange::Compat(c) = self.clone().into() {
+                        c.base == other_v
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+
+                if !contains {
+                    return Compatibility::Incompatible(format!(
+                        "{self} has stronger compatibility requirements than {other}"
+                    ));
+                }
+            }
+            (Some(x), Some(y)) if x > y => {
+                return Compatibility::Incompatible(format!(
+                    "{self} has stronger compatibility requirements than {other}"
+                ));
+            }
+            _ => {}
+        };
 
         let self_lower = self.greater_or_equal_to();
         let self_upper = self.less_than();
@@ -1081,11 +1109,17 @@ impl VersionFilter {
                 let (lhs_index, lhs_vr) = candidates.get(0).unwrap();
                 let (_, rhs_vr) = candidates.get(1).unwrap();
 
-                if !allow_compat_ranges_to_merge
-                    && (matches!(lhs_vr, VersionRange::Compat(_))
-                        || matches!(rhs_vr, VersionRange::Compat(_)))
-                {
-                    continue;
+                // `Binary:1.2.3` and `=1.2.3` are allowed to merge as a
+                // special case.
+                if !allow_compat_ranges_to_merge {
+                    match (lhs_vr, rhs_vr) {
+                        (VersionRange::Compat(lhs), VersionRange::Equals(rhs))
+                            if lhs.base == rhs.version => {}
+                        (VersionRange::Compat(lhs), VersionRange::DoubleEquals(rhs))
+                            if lhs.base == rhs.version => {}
+                        (_, VersionRange::Compat(_)) | (VersionRange::Compat(_), _) => continue,
+                        _ => {}
+                    };
                 }
 
                 // Note that `permutations` will give every element a chance
