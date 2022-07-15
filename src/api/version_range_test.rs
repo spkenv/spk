@@ -504,6 +504,11 @@ proptest! {
 #[case("Binary:1.2.3", "1.2.3", false)] // decreasing strictness
 #[case(">1.0", "Binary:1.2.3", true)] // increasing strictness; narrowing range
 #[case(">2.0", "Binary:1.2.3", false)] // increasing strictness; widening range
+// CompatRange special case
+#[case("Binary:1.2.3", "=1.2.3", true)] // matching version
+#[case("Binary:1.2.3", "==1.2.3", true)] // matching version
+#[case("Binary:1.2.3+r.1", "=1.2.3", false)]
+#[case("Binary:1.2.4", "=1.2.3", false)]
 fn test_contains(#[case] range1: &str, #[case] range2: &str, #[case] expected: bool) {
     let a = parse_version_range(range1).unwrap();
     let b = parse_version_range(range2).unwrap();
@@ -526,6 +531,11 @@ fn test_contains(#[case] range1: &str, #[case] range2: &str, #[case] expected: b
 #[case("1.2.3,Binary:1.2.3", Some("Binary:1.2.3"))] // increasing strictness
 #[case("API:1.2.3,1.2.3", Some("API:1.2.3"))] // decreasing strictness
 #[case("Binary:1.2.3,1.2.3", Some("Binary:1.2.3"))] // decreasing strictness
+// CompatRange special case
+#[case("=1.2.3,Binary:1.2.3", Some("=1.2.3"))] // matching version
+#[case("==1.2.3,Binary:1.2.3", Some("==1.2.3"))] // matching version
+#[case("=1.2.3,Binary:1.2.3+r.1", None)]
+#[case("=1.2.3,Binary:1.2.4", None)]
 fn test_parse_version_range_simplifies(#[case] range1: &str, #[case] expected: Option<&str>) {
     let a = parse_version_range(range1).unwrap();
     match expected.map(|s| parse_version_range(s).unwrap()) {
