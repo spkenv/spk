@@ -277,6 +277,7 @@ impl InvalidNameError {
 
 name!(OptName, "option");
 name!(PkgName, "package");
+name!(RepositoryName, "repository");
 
 impl TryFrom<String> for PkgNameBuf {
     type Error = crate::Error;
@@ -550,4 +551,20 @@ where
         return i as isize;
     }
     -1
+}
+
+impl RepositoryName {
+    pub fn new<S: AsRef<str> + ?Sized>(s: &S) -> Result<&RepositoryName> {
+        // Using the same validation strategy as package names.
+        validate_pkg_name(s)?;
+        // Safety: from_str bypasses validation but we've just done that
+        Ok(unsafe { Self::from_str(s.as_ref()) })
+    }
+}
+
+impl RepositoryNameBuf {
+    /// Return if this RepositoryName names the "local" repository
+    pub fn is_local(&self) -> bool {
+        self.0 == "local"
+    }
 }

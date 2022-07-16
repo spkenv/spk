@@ -54,7 +54,7 @@ where
         version_and_build,
     ))(input)?;
     let (input, mut ident) = package_ident(input)?;
-    ident.repository_name = repository_name;
+    ident.repository_name = repository_name.map(ToOwned::to_owned);
     let (input, version_and_build) =
         all_consuming(opt(preceded(char('/'), version_and_build)))(input)?;
     match version_and_build {

@@ -11,7 +11,7 @@ use crate::{api, Error, Result};
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {
     address: url::Url,
-    name: api::RepositoryName,
+    name: api::RepositoryNameBuf,
     root: std::path::PathBuf,
 }
 
@@ -21,7 +21,9 @@ impl Default for RuntimeRepository {
         let address = Self::address_from_root(&root);
         Self {
             address,
-            name: api::RepositoryName(root.display().to_string()),
+            name: api::RepositoryName::new("runtime")
+                .expect("valid repository name")
+                .to_owned(),
             root,
         }
     }
@@ -63,7 +65,9 @@ impl RuntimeRepository {
         let address = Self::address_from_root(&root);
         Self {
             address,
-            name: api::RepositoryName(root.display().to_string()),
+            name: api::RepositoryName::new("runtime")
+                .expect("valid repository name")
+                .to_owned(),
             root,
         }
     }

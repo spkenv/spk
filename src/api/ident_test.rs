@@ -6,8 +6,8 @@ use std::str::FromStr;
 
 use rstest::rstest;
 
-use super::{parse_ident, Ident, RepositoryName};
-use crate::api::{parse_version, Build, Version};
+use super::{parse_ident, Ident};
+use crate::api::{parse_version, Build, RepositoryName, Version};
 
 #[rstest]
 #[case("package")]
@@ -29,11 +29,11 @@ fn test_ident_to_yaml() {
 #[rstest]
 #[case(
     "local/hello/1.0.0/src",
-    Ident{repository_name: Some(RepositoryName("local".to_string())), name: "hello".parse().unwrap(), version: parse_version("1.0.0").unwrap(), build: Some(Build::Source)}
+    Ident{repository_name: Some(RepositoryName::new("local").unwrap().to_owned()), name: "hello".parse().unwrap(), version: parse_version("1.0.0").unwrap(), build: Some(Build::Source)}
 )]
 #[case(
     "local/hello",
-    Ident{repository_name: Some(RepositoryName("local".to_string())), name: "hello".parse().unwrap(), version: Version::default(), build: None}
+    Ident{repository_name: Some(RepositoryName::new("local").unwrap().to_owned()), name: "hello".parse().unwrap(), version: Version::default(), build: None}
 )]
 #[case(
     "hello/1.0.0/src",
@@ -81,7 +81,7 @@ fn test_ident_to_yaml() {
 // pathological cases: names that could be version numbers
 #[case(
     "111/222/333",
-    Ident{repository_name: Some(RepositoryName("111".to_string())), name: "222".parse().unwrap(), version: parse_version("333").unwrap(), build: None}
+    Ident{repository_name: Some(RepositoryName::new("111").unwrap().to_owned()), name: "222".parse().unwrap(), version: parse_version("333").unwrap(), build: None}
 )]
 #[case(
     "222/333",
@@ -93,7 +93,7 @@ fn test_ident_to_yaml() {
 )]
 #[case(
     "local/222",
-    Ident{repository_name: Some(RepositoryName("local".to_string())), name: "222".parse().unwrap(), version: Version::default(), build: None}
+    Ident{repository_name: Some(RepositoryName::new("local").unwrap().to_owned()), name: "222".parse().unwrap(), version: Version::default(), build: None}
 )]
 #[case(
     // like the "222/333" case but with a package name that
