@@ -11,7 +11,7 @@ mod error;
 pub mod exec;
 mod global;
 pub mod io;
-pub(crate) mod parsing;
+pub mod parsing;
 mod publish;
 pub mod solve;
 pub mod storage;

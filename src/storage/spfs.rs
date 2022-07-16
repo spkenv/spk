@@ -30,7 +30,7 @@ mod spfs_test;
 const REPO_METADATA_TAG: &str = "spk/repo";
 const REPO_VERSION: &str = "1.0.0";
 
-pub(crate) static KNOWN_REPOSITORY_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+pub static KNOWN_REPOSITORY_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     let mut known_repositories = HashSet::from(["local"]);
     if let Ok(config) = spfs::get_config() {
         for name in config.list_remote_names() {
