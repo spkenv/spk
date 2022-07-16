@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::{collections::BTreeSet, fmt::Write};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::Args;
 use colored::Colorize;
 use spk::api::PkgName;
@@ -174,16 +174,38 @@ impl Ls {
         &self,
         repos: Vec<(String, spk::storage::RepositoryHandle)>,
     ) -> Result<i32> {
+        let search_term = self
+            .package
+            .as_ref()
+            .map(|ident| {
+                spk::parsing::ident_parts::<nom_supreme::error::ErrorTree<_>>(
+                    &spk::storage::KNOWN_REPOSITORY_NAMES,
+                    ident,
+                )
+                .map(|(_, parts)| parts)
+                .map_err(|err| match err {
+                    nom::Err::Error(e) | nom::Err::Failure(e) => {
+                        anyhow!(e.to_string())
+                    }
+                    nom::Err::Incomplete(_) => unreachable!(),
+                })
+            })
+            .transpose()?;
+
         let mut packages = Vec::new();
         let mut max_repo_name_len = 0;
         for (index, (repo_name, repo)) in repos.iter().enumerate() {
             let num_packages = packages.len();
-            match &self.package {
+            match &search_term {
                 None => {
                     packages.extend(repo.list_packages().await?.into_iter().map(|p| (p, index)));
                 }
-                Some(package) => {
-                    packages.push((package.parse()?, index));
+                Some(spk::parsing::IdentParts {
+                    repository_name: Some(name),
+                    ..
+                }) if name != repo_name => continue,
+                Some(spk::parsing::IdentParts { pkg_name, .. }) => {
+                    packages.push((pkg_name.parse()?, index));
                 }
             };
             // Ignore this repo name if it didn't contribute any packages.
@@ -194,15 +216,19 @@ impl Ls {
         packages.sort();
         for (package, index) in packages {
             let (repo_name, repo) = repos.get(index).unwrap();
-            let mut versions = if package.as_str().contains('/') {
-                vec![spk::api::parse_ident(&package)?]
-            } else {
+            let mut versions = {
                 let base = spk::api::Ident::from(package);
                 repo.list_package_versions(&base.name)
                     .await?
                     .iter()
-                    .map(|v| base.with_version((**v).clone()))
-                    .collect()
+                    .filter_map(|v| match search_term {
+                        Some(spk::parsing::IdentParts {
+                            version_str: Some(version),
+                            ..
+                        }) if version != v.to_string() => None,
+                        _ => Some(base.with_version((**v).clone())),
+                    })
+                    .collect::<Vec<_>>()
             };
             versions.sort();
             versions.reverse();
@@ -210,6 +236,18 @@ impl Ls {
                 let mut builds = repo.list_package_builds(&pkg).await?;
                 builds.sort();
                 for build in builds {
+                    if let Some(spk::parsing::IdentParts {
+                        build_str: Some(search_build),
+                        ..
+                    }) = search_term
+                    {
+                        if let Some(this_build) = &build.build {
+                            if search_build != this_build.to_string() {
+                                continue;
+                            }
+                        }
+                    }
+
                     // Doing this here slows the listing down, but
                     // the spec file is the only place that holds
                     // the deprecation status.
