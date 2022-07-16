@@ -16,7 +16,7 @@ use crate::api::{
     parse_ident, Build, CompatRange, CompatRule, Component, DoubleEqualsVersion,
     DoubleNotEqualsVersion, EqualsVersion, GreaterThanOrEqualToRange, GreaterThanRange,
     LessThanOrEqualToRange, LessThanRange, LowestSpecifiedRange, NotEqualsVersion, PkgNameBuf,
-    RangeIdent, RepositoryName, SemverRange, TagSet, Version, VersionFilter, VersionRange,
+    RangeIdent, RepositoryNameBuf, SemverRange, TagSet, Version, VersionFilter, VersionRange,
     WildcardRange,
 };
 
@@ -144,8 +144,9 @@ fn arb_opt_version_filter() -> impl Strategy<Value = Option<VersionFilter>> {
 }
 
 prop_compose! {
-    fn arb_repo()(name in weighted(0.9, prop_oneof!["local", "origin", arb_pkg_legal_name().prop_map(|name| name.into_inner())])) -> Option<RepositoryName> {
-        name.map(RepositoryName)
+    fn arb_repo()(name in weighted(0.9, prop_oneof!["local", "origin", arb_pkg_legal_name().prop_map(|name| name.into_inner())])) -> Option<RepositoryNameBuf> {
+        // Safety: We only generate legal repository names.
+        name.map(|n| unsafe { RepositoryNameBuf::from_string(n) })
     }
 }
 
@@ -443,7 +444,7 @@ proptest! {
         // This avoids any normalization that may reduce the types of
         // inputs that end up getting parsed.
         let ident = [
-            repo.as_ref().map(|r| r.0.to_owned()),
+            repo.as_ref().map(|r| r.as_str().to_owned()),
             Some(name_and_component_str),
             version.as_ref().map(|v| {
                 v.to_string()

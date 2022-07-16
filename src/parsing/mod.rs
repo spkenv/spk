@@ -99,7 +99,7 @@ pub(crate) fn repo_name_in_ident<'a, 'i, I, V1, V2, B, F1, F2, F3, E>(
     ident_parser: F1,
     version_parser: F2,
     version_and_build_parser: F3,
-) -> impl FnMut(&'i str) -> IResult<&'i str, RepositoryName, E> + 'a
+) -> impl FnMut(&'i str) -> IResult<&'i str, &'i RepositoryName, E> + 'a
 where
     'i: 'a,
     I: 'a,

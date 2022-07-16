@@ -111,7 +111,7 @@ impl Default for FormatChangeOptions {
 
 /// Create a canonical string to describe the combined request for a package.
 pub fn format_request<'a, R>(
-    repository_name: &Option<api::RepositoryName>,
+    repository_name: &Option<api::RepositoryNameBuf>,
     name: &api::PkgName,
     requests: R,
     format_settings: FormatChangeOptions,

@@ -16,7 +16,7 @@ use super::{
     compat::BINARY_STR,
     version_range::{self, Ranged},
     Build, BuildIdent, CompatRule, Compatibility, Component, EqualsVersion, Ident, OptName,
-    OptNameBuf, PkgName, PkgNameBuf, RepositoryName, Spec, Version, VersionFilter,
+    OptNameBuf, PkgName, PkgNameBuf, RepositoryNameBuf, Spec, Version, VersionFilter,
 };
 use crate::{storage::KNOWN_REPOSITORY_NAMES, Error, Result};
 
@@ -27,7 +27,7 @@ mod request_test;
 /// Identifies a range of package versions and builds.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RangeIdent {
-    pub repository_name: Option<RepositoryName>,
+    pub repository_name: Option<RepositoryNameBuf>,
     pub name: PkgNameBuf,
     pub components: HashSet<Component>,
     pub version: VersionFilter,

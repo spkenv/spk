@@ -100,7 +100,7 @@ where
     Ok((
         input,
         RangeIdent {
-            repository_name,
+            repository_name: repository_name.map(ToOwned::to_owned),
             name: name.to_owned(),
             components,
             version,
