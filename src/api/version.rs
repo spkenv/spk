@@ -425,16 +425,17 @@ impl Ord for Version {
             },
         }
 
-        match self.post.cmp(&other.post) {
-            Ordering::Equal => (),
-            x => return x,
+        // Compare epsilon _before_ post release:
+        //
+        //     1.73.0 < 1.73.0+r.1 < 1.73.0+ε
+        //
+        match (self.parts.plus_epsilon, other.parts.plus_epsilon) {
+            (true, false) => return Ordering::Greater,
+            (false, true) => return Ordering::Less,
+            _ => (),
         }
 
-        match (self.parts.plus_epsilon, other.parts.plus_epsilon) {
-            (true, false) => Ordering::Greater,
-            (false, true) => Ordering::Less,
-            _ => Ordering::Equal,
-        }
+        self.post.cmp(&other.post)
     }
 }
 

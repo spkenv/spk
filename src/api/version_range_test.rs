@@ -174,6 +174,7 @@ fn test_version_range_is_satisfied(
 #[case(">=1.0", ">=2.0", true)]
 #[case(">=1.2", "=1.1", false)]
 #[case("~1.2.0", "=1.2.1", true)]
+#[case("1.73.0+r.2", "=1.73.0", true)]
 fn test_intersects(#[case] range1: &str, #[case] range2: &str, #[case] expected: bool) {
     let a = parse_version_range(range1).unwrap();
     let b = parse_version_range(range2).unwrap();
