@@ -1511,6 +1511,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "paste"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c520e05135d6e763148b6426a837e239041653ba7becd2e538c076c738025fc"
+
+[[package]]
 name = "pathdiff"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2507,6 +2513,7 @@ dependencies = [
  "nom 7.1.1",
  "nom-supreme",
  "once_cell",
+ "paste",
  "priority-queue",
  "proptest",
  "rand 0.8.5",
