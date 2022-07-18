@@ -5,6 +5,7 @@ use rstest::rstest;
 #[case("with-dashes")]
 #[case("num000")]
 #[case("000-000")]
+#[should_panic]
 #[case("-----")]
 #[should_panic]
 #[case("upperCase")] // no upper case
