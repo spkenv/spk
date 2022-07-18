@@ -20,16 +20,19 @@ pub async fn load_spec<S: TryInto<api::Ident, Error = crate::Error>>(
 ) -> Result<Arc<api::Spec>> {
     let pkg = pkg.try_into()?;
 
-    match storage::remote_repository("origin")
-        .await?
-        .read_spec(&pkg)
-        .await
-    {
-        Err(Error::PackageNotFoundError(_)) => {
-            storage::local_repository().await?.read_spec(&pkg).await
-        }
-        res => res,
+    // Do not require "origin" to exist.
+    match storage::remote_repository("origin").await {
+        Ok(repo) => match repo.read_spec(&pkg).await {
+            Ok(spec) => return Ok(spec),
+            Err(Error::PackageNotFoundError(_)) => {}
+            Err(err) => return Err(err),
+        },
+        Err(Error::SPFS(spfs::Error::FailedToOpenRepository { source, .. }))
+            if matches!(*source, spfs::Error::UnknownRemoteName(_)) => {}
+        Err(err) => return Err(err),
     }
+
+    storage::local_repository().await?.read_spec(&pkg).await
 }
 
 /// Save a package spec to the local repository.

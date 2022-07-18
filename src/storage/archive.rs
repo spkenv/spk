@@ -29,45 +29,50 @@ pub async fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Re
         .map(std::fs::create_dir_all)
         .unwrap_or_else(|| Ok(()))?;
 
-    let (local_repo, remote_repo, mut target_repo) = tokio::try_join!(
+    // Don't require the "origin" repo to exist here.
+    let (local_repo, remote_repo) = tokio::join!(
         super::local_repository(),
         super::remote_repository("origin"),
-        async {
-            Ok(super::SPFSRepository::from((
-                filename.display().to_string(),
-                spfs::storage::RepositoryHandle::from(
-                    spfs::storage::tar::TarRepository::create(&filename).await?,
-                ),
-            )))
-        },
-    )?;
+    );
+    let local_repo = local_repo?;
+    let mut target_repo = super::SPFSRepository::from((
+        filename.display().to_string(),
+        spfs::storage::RepositoryHandle::from(
+            spfs::storage::tar::TarRepository::create(&filename).await?,
+        ),
+    ));
 
     // these are sorted to ensure that the version spec is published
     // before any build - it's only an error in testing, but still best practice
     let mut to_transfer = std::collections::BTreeSet::new();
     to_transfer.insert(pkg.clone());
     if pkg.build.is_none() {
-        let (local, remote) = tokio::try_join!(
-            local_repo.list_package_builds(pkg),
-            remote_repo.list_package_builds(pkg)
-        )?;
-        to_transfer.extend(local);
-        to_transfer.extend(remote);
+        to_transfer.extend(local_repo.list_package_builds(pkg).await?);
+        if remote_repo.is_err() {
+            return remote_repo.map(|_| ());
+        }
+        to_transfer.extend(
+            remote_repo
+                .as_ref()
+                .unwrap()
+                .list_package_builds(pkg)
+                .await?,
+        );
     } else {
         to_transfer.insert(pkg.with_build(None));
     }
 
     for pkg in to_transfer.into_iter() {
-        let (local, remote) = tokio::join!(
-            copy_package(&pkg, &local_repo, &target_repo),
-            copy_package(&pkg, &remote_repo, &target_repo)
-        );
-        let local_err = match local {
+        let local_err = match copy_package(&pkg, &local_repo, &target_repo).await {
             Ok(_) => continue,
             Err(Error::PackageNotFoundError(_)) => None,
             Err(err) => Some(err),
         };
-        let remote_err = match remote {
+        if remote_repo.is_err() {
+            return remote_repo.map(|_| ());
+        }
+        let remote_err = match copy_package(&pkg, remote_repo.as_ref().unwrap(), &target_repo).await
+        {
             Ok(_) => continue,
             Err(Error::PackageNotFoundError(_)) => None,
             Err(err) => Some(err),
