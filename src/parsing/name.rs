@@ -45,14 +45,18 @@ pub(crate) fn is_legal_tag_name_alpha_chr(c: char) -> bool {
 /// names.
 pub(crate) fn known_repository_name<'a, 'i, E>(
     known_repositories: &'a HashSet<&str>,
-) -> impl Fn(&'i str) -> IResult<&'i str, RepositoryName, E> + 'a
+) -> impl Fn(&'i str) -> IResult<&'i str, &'i RepositoryName, E> + 'a
 where
     E: ParseError<&'i str> + ContextError<&'i str> + 'a,
 {
     move |input| {
         let (input, name) = recognize(many1(is_not("/")))(input)?;
         if known_repositories.contains(name) {
-            return Ok((input, RepositoryName(name.to_owned())));
+            return Ok((
+                input,
+                // Safety: A known repository is assumed to be a valid name.
+                unsafe { RepositoryName::from_str(name) },
+            ));
         }
         fail("not a known repository")
     }
@@ -91,12 +95,13 @@ where
 /// Examples:
 /// - `"repo1"`
 /// - `"repo-name"`
-pub(crate) fn repository_name<'a, E>(input: &'a str) -> IResult<&'a str, RepositoryName, E>
+pub(crate) fn repository_name<'a, E>(input: &'a str) -> IResult<&'a str, &'a RepositoryName, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
     map(take_while1(is_legal_repo_name_chr), |s: &str| {
-        RepositoryName(s.to_owned())
+        // Safety: we only parse valid names.
+        unsafe { RepositoryName::from_str(s) }
     })(input)
 }
 

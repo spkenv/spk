@@ -23,16 +23,14 @@ use nom::{
 };
 
 pub(crate) use ident::ident;
+pub use ident::{ident_parts, IdentParts};
 use nom_supreme::tag::TagError;
 pub(crate) use request::{range_ident, version_filter_and_build};
 pub(crate) use version_range::version_range;
 
-use crate::api::{Build, RepositoryName};
+use crate::api::RepositoryName;
 
-use self::{
-    build::build,
-    name::{is_legal_package_name_chr, known_repository_name, repository_name},
-};
+use self::name::{is_legal_package_name_chr, known_repository_name, repository_name};
 
 #[cfg(test)]
 #[path = "./parsing_test.rs"]
@@ -99,7 +97,7 @@ pub(crate) fn repo_name_in_ident<'a, 'i, I, V1, V2, B, F1, F2, F3, E>(
     ident_parser: F1,
     version_parser: F2,
     version_and_build_parser: F3,
-) -> impl FnMut(&'i str) -> IResult<&'i str, RepositoryName, E> + 'a
+) -> impl FnMut(&'i str) -> IResult<&'i str, &'i RepositoryName, E> + 'a
 where
     'i: 'a,
     I: 'a,
@@ -192,15 +190,17 @@ where
 ///
 /// This function is generic over the type of version-like expression
 /// that is expected.
-pub(crate) fn version_and_optional_build<'i, V, F, E>(
-    version_parser: F,
-) -> impl FnMut(&'i str) -> IResult<&'i str, (V, Option<Build>), E>
+pub(crate) fn version_and_optional_build<'i, V, B, F1, F2, E>(
+    version_parser: F1,
+    build_parser: F2,
+) -> impl FnMut(&'i str) -> IResult<&'i str, (V, Option<B>), E>
 where
-    F: Parser<&'i str, V, E>,
+    F1: Parser<&'i str, V, E>,
+    F2: Parser<&'i str, B, E>,
     E: ParseError<&'i str>
         + ContextError<&'i str>
         + FromExternalError<&'i str, crate::error::Error>
         + TagError<&'i str, &'static str>,
 {
-    pair(version_parser, opt(preceded(char('/'), cut(build))))
+    pair(version_parser, opt(preceded(char('/'), cut(build_parser))))
 }

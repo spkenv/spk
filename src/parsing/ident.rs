@@ -13,9 +13,10 @@ use nom::{
 };
 use nom_supreme::tag::TagError;
 
-use crate::api::{Build, Ident, Version};
+use crate::api::{Build, Ident, RepositoryName, Version};
 
 use super::{
+    build::{build, build_str},
     name::package_name,
     repo_name_in_ident,
     version::{version, version_str},
@@ -54,7 +55,7 @@ where
         version_and_build,
     ))(input)?;
     let (input, mut ident) = package_ident(input)?;
-    ident.repository_name = repository_name;
+    ident.repository_name = repository_name.map(ToOwned::to_owned);
     let (input, version_and_build) =
         all_consuming(opt(preceded(char('/'), version_and_build)))(input)?;
     match version_and_build {
@@ -64,6 +65,62 @@ where
             Ok((input, ident))
         }
         None => Ok((input, ident)),
+    }
+}
+
+#[derive(Debug)]
+pub struct IdentParts<'s> {
+    pub repository_name: Option<&'s str>,
+    pub pkg_name: &'s str,
+    pub version_str: Option<&'s str>,
+    pub build_str: Option<&'s str>,
+}
+
+/// Parse a package identity into parts.
+///
+/// Returns an [`IdentParts`] making it possible to identify which parts were
+/// specified.
+pub fn ident_parts<'a, 'b, E>(
+    known_repositories: &'a HashSet<&str>,
+    input: &'b str,
+) -> IResult<&'b str, IdentParts<'b>, E>
+where
+    E: ParseError<&'b str>
+        + ContextError<&'b str>
+        + FromExternalError<&'b str, crate::error::Error>
+        + FromExternalError<&'b str, std::num::ParseIntError>
+        + TagError<&'b str, &'static str>,
+{
+    let (input, repository_name) = opt(repo_name_in_ident(
+        known_repositories,
+        package_ident,
+        version_str,
+        version_and_build,
+    ))(input)?;
+    let (input, pkg_name) = package_name(input)?;
+    let (input, version_and_build) = all_consuming(opt(preceded(
+        char('/'),
+        version_and_optional_build(version_str, build_str),
+    )))(input)?;
+    match version_and_build {
+        Some(v_and_b) => Ok((
+            input,
+            IdentParts {
+                repository_name: repository_name.map(RepositoryName::as_str),
+                pkg_name: pkg_name.as_str(),
+                version_str: Some(v_and_b.0),
+                build_str: v_and_b.1,
+            },
+        )),
+        None => Ok((
+            input,
+            IdentParts {
+                repository_name: repository_name.map(RepositoryName::as_str),
+                pkg_name: pkg_name.as_str(),
+                version_str: None,
+                build_str: None,
+            },
+        )),
     }
 }
 
@@ -94,5 +151,5 @@ where
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
-    version_and_optional_build(version)(input)
+    version_and_optional_build(version, build)(input)
 }

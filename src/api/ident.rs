@@ -8,7 +8,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{parsing, storage::KNOWN_REPOSITORY_NAMES};
 
-use super::{Build, PkgNameBuf, Version};
+use super::{Build, PkgNameBuf, RepositoryNameBuf, Version};
 
 #[cfg(test)]
 #[path = "./ident_test.rs"]
@@ -32,22 +32,6 @@ macro_rules! ident {
     };
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct RepositoryName(pub String);
-
-impl RepositoryName {
-    /// Return if this RepositoryName names the "local" repository
-    pub fn is_local(&self) -> bool {
-        self.0 == "local"
-    }
-}
-
-impl std::fmt::Display for RepositoryName {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(self.0.as_str())
-    }
-}
-
 /// Ident represents a package identifier.
 ///
 /// The identifier is either a specific package or
@@ -55,7 +39,7 @@ impl std::fmt::Display for RepositoryName {
 /// syntax and context
 #[derive(Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Ident {
-    pub(crate) repository_name: Option<RepositoryName>,
+    pub(crate) repository_name: Option<RepositoryNameBuf>,
     pub name: PkgNameBuf,
     pub version: Version,
     pub build: Option<Build>,
@@ -103,12 +87,12 @@ impl Ident {
     }
 
     /// Get the repository name of this package identifier.
-    pub fn repository_name(&self) -> &Option<RepositoryName> {
+    pub fn repository_name(&self) -> &Option<RepositoryNameBuf> {
         &self.repository_name
     }
 
     /// Set the repository name of this package identifier.
-    pub fn set_repository_name(&mut self, repository_name: Option<RepositoryName>) {
+    pub fn set_repository_name(&mut self, repository_name: Option<RepositoryNameBuf>) {
         self.repository_name = repository_name;
     }
 

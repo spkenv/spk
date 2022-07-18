@@ -43,7 +43,7 @@ static BUILD_KEY_NAME_ORDER: Lazy<Vec<OptNameBuf>> = Lazy::new(|| {
         .collect()
 });
 
-type BuildWithRepos = HashMap<api::RepositoryName, (Arc<api::Spec>, PackageSource)>;
+type BuildWithRepos = HashMap<api::RepositoryNameBuf, (Arc<api::Spec>, PackageSource)>;
 
 #[async_trait::async_trait]
 pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
@@ -105,7 +105,7 @@ impl VersionIterator {
 }
 
 type RepositoryByNameByVersion =
-    HashMap<Arc<api::Version>, HashMap<api::RepositoryName, Arc<storage::RepositoryHandle>>>;
+    HashMap<Arc<api::Version>, HashMap<api::RepositoryNameBuf, Arc<storage::RepositoryHandle>>>;
 
 /// A stateful cursor yielding package builds from a set of repositories.
 #[derive(Debug)]
@@ -235,12 +235,12 @@ impl RepositoryPackageIterator {
             for version in repo.list_package_versions(&self.package_name).await?.iter() {
                 match version_map.get_mut(version) {
                     Some(repos) => {
-                        repos.insert(repo.name().clone(), Arc::clone(repo));
+                        repos.insert(repo.name().to_owned(), Arc::clone(repo));
                     }
                     None => {
                         version_map.insert(
                             Arc::clone(version),
-                            HashMap::from([(repo.name().clone(), Arc::clone(repo))]),
+                            HashMap::from([(repo.name().to_owned(), Arc::clone(repo))]),
                         );
                     }
                 }
@@ -271,7 +271,7 @@ impl RepositoryPackageIterator {
 pub struct RepositoryBuildIterator {
     builds: VecDeque<(
         api::Ident,
-        HashMap<api::RepositoryName, Arc<storage::RepositoryHandle>>,
+        HashMap<api::RepositoryNameBuf, Arc<storage::RepositoryHandle>>,
     )>,
     spec: Option<Arc<api::Spec>>,
 }
@@ -347,11 +347,11 @@ impl BuildIterator for RepositoryBuildIterator {
 impl RepositoryBuildIterator {
     async fn new(
         pkg: api::Ident,
-        repos: HashMap<api::RepositoryName, Arc<storage::RepositoryHandle>>,
+        repos: HashMap<api::RepositoryNameBuf, Arc<storage::RepositoryHandle>>,
     ) -> Result<Self> {
         let mut builds_and_repos: HashMap<
             api::Ident,
-            HashMap<api::RepositoryName, Arc<storage::RepositoryHandle>>,
+            HashMap<api::RepositoryNameBuf, Arc<storage::RepositoryHandle>>,
         > = HashMap::new();
 
         let mut spec = None;
