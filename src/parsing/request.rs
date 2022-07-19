@@ -62,9 +62,7 @@ where
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
-    map(version_range, |v| VersionFilter {
-        rules: v.into_iter().collect(),
-    })(input)
+    map(version_range, VersionFilter::new)(input)
 }
 
 /// Parse a package range identity into a [`RangeIdent`].

@@ -333,10 +333,15 @@ impl<T: Ranged> From<&T> for VersionRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct SemverRange {
-    pub(crate) minimum: Version,
+    minimum: Version,
 }
 
 impl SemverRange {
+    #[cfg(test)]
+    pub(crate) fn new(minimum: Version) -> Self {
+        Self { minimum }
+    }
+
     pub fn new_version_range<V: TryInto<Version, Error = Error>>(
         minimum: V,
     ) -> Result<VersionRange> {
@@ -377,11 +382,22 @@ impl Display for SemverRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct WildcardRange {
-    pub(crate) specified: usize,
-    pub(crate) parts: Vec<Option<u32>>,
+    specified: usize,
+    parts: Vec<Option<u32>>,
 }
 
 impl WildcardRange {
+    /// # Safety
+    ///
+    /// A `WildcardRange` must have one and only one optional part. This
+    /// constructor does not verify this.
+    pub(crate) unsafe fn new_unchecked(parts: Vec<Option<u32>>) -> Self {
+        Self {
+            specified: parts.len(),
+            parts,
+        }
+    }
+
     pub fn new_version_range<S: AsRef<str>>(minimum: S) -> Result<VersionRange> {
         let mut parts = Vec::new();
         for part in minimum.as_ref().split(VERSION_SEP) {
@@ -500,8 +516,12 @@ impl Display for WildcardRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct LowestSpecifiedRange {
-    pub(crate) specified: usize,
-    pub(crate) base: Version,
+    specified: usize,
+    base: Version,
+}
+
+impl LowestSpecifiedRange {
+    pub(crate) const REQUIRED_NUMBER_OF_DIGITS: usize = 2;
 }
 
 impl TryFrom<Version> for LowestSpecifiedRange {
@@ -509,10 +529,10 @@ impl TryFrom<Version> for LowestSpecifiedRange {
 
     fn try_from(base: Version) -> Result<Self> {
         let specified = base.parts.len();
-        if specified < 2 {
+        if specified < Self::REQUIRED_NUMBER_OF_DIGITS {
             Err(Error::String(format!(
-                "Expected at least two digits in version range, got: {}",
-                base
+                "Expected at least {required} digits in version range, got: {base}",
+                required = Self::REQUIRED_NUMBER_OF_DIGITS
             )))
         } else {
             Ok(Self { specified, base })
@@ -549,10 +569,15 @@ impl Display for LowestSpecifiedRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct GreaterThanRange {
-    pub(crate) bound: Version,
+    bound: Version,
 }
 
 impl GreaterThanRange {
+    #[cfg(test)]
+    pub(crate) fn new(bound: Version) -> Self {
+        Self { bound }
+    }
+
     pub fn new_version_range<V: TryInto<Version, Error = Error>>(
         boundary: V,
     ) -> Result<VersionRange> {
@@ -588,10 +613,15 @@ impl Display for GreaterThanRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct LessThanRange {
-    pub(crate) bound: Version,
+    bound: Version,
 }
 
 impl LessThanRange {
+    #[cfg(test)]
+    pub(crate) fn new(bound: Version) -> Self {
+        Self { bound }
+    }
+
     pub fn new_version_range<V: TryInto<Version, Error = Error>>(
         boundary: V,
     ) -> Result<VersionRange> {
@@ -627,10 +657,15 @@ impl Display for LessThanRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct GreaterThanOrEqualToRange {
-    pub(crate) bound: Version,
+    bound: Version,
 }
 
 impl GreaterThanOrEqualToRange {
+    #[cfg(test)]
+    pub(crate) fn new(bound: Version) -> Self {
+        Self { bound }
+    }
+
     pub fn new_version_range<V: TryInto<Version, Error = Error>>(
         boundary: V,
     ) -> Result<VersionRange> {
@@ -666,10 +701,15 @@ impl Display for GreaterThanOrEqualToRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct LessThanOrEqualToRange {
-    pub(crate) bound: Version,
+    bound: Version,
 }
 
 impl LessThanOrEqualToRange {
+    #[cfg(test)]
+    pub(crate) fn new(bound: Version) -> Self {
+        Self { bound }
+    }
+
     pub fn new_version_range<V: TryInto<Version, Error = Error>>(
         boundary: V,
     ) -> Result<VersionRange> {
@@ -705,10 +745,15 @@ impl Display for LessThanOrEqualToRange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct EqualsVersion {
-    pub(crate) version: Version,
+    version: Version,
 }
 
 impl EqualsVersion {
+    #[cfg(test)]
+    pub(crate) fn new(version: Version) -> Self {
+        Self { version }
+    }
+
     pub fn version_range(version: Version) -> VersionRange {
         VersionRange::Equals(Self { version })
     }
@@ -765,8 +810,8 @@ impl Display for EqualsVersion {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct NotEqualsVersion {
-    pub(crate) specified: usize,
-    pub(crate) base: Version,
+    specified: usize,
+    base: Version,
 }
 
 impl From<Version> for NotEqualsVersion {
@@ -825,10 +870,15 @@ impl Display for NotEqualsVersion {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct DoubleEqualsVersion {
-    pub(crate) version: Version,
+    version: Version,
 }
 
 impl DoubleEqualsVersion {
+    #[cfg(test)]
+    pub(crate) fn new(version: Version) -> Self {
+        Self { version }
+    }
+
     pub fn version_range(version: Version) -> VersionRange {
         VersionRange::DoubleEquals(Self { version })
     }
@@ -883,8 +933,8 @@ impl Display for DoubleEqualsVersion {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct DoubleNotEqualsVersion {
-    pub(crate) specified: usize,
-    pub(crate) base: Version,
+    specified: usize,
+    base: Version,
 }
 
 impl From<Version> for DoubleNotEqualsVersion {
@@ -943,14 +993,18 @@ impl Display for DoubleNotEqualsVersion {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct CompatRange {
-    pub(crate) base: Version,
+    base: Version,
     /// if unset, the required compatibility is based on the type
     /// of package being validated. Source packages require api
     /// compat and binary packages require binary compat.
-    pub(crate) required: Option<CompatRule>,
+    required: Option<CompatRule>,
 }
 
 impl CompatRange {
+    pub(crate) fn new(base: Version, required: Option<CompatRule>) -> Self {
+        Self { base, required }
+    }
+
     pub fn new_version_range<R: AsRef<str>>(range: R) -> Result<VersionRange> {
         let range = range.as_ref();
         let compat_range = match range.rsplit_once(':') {
@@ -1024,10 +1078,16 @@ pub enum RestrictMode {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct VersionFilter {
     // Use `BTreeSet` to make `to_string` output consistent.
-    pub(crate) rules: BTreeSet<VersionRange>,
+    rules: BTreeSet<VersionRange>,
 }
 
 impl VersionFilter {
+    pub(crate) fn new<I: IntoIterator<Item = VersionRange>>(rules: I) -> Self {
+        Self {
+            rules: rules.into_iter().collect(),
+        }
+    }
+
     pub fn single(item: VersionRange) -> Self {
         let mut filter = Self::default();
         filter.rules.insert(item);
@@ -1090,7 +1150,7 @@ impl VersionFilter {
     }
 
     /// Remove redundant rules from a set of `VersionRange` values.
-    pub(crate) fn simplify_rules(&mut self, allow_compat_ranges_to_merge: bool) {
+    fn simplify_rules(&mut self, allow_compat_ranges_to_merge: bool) {
         if self.rules.len() <= 1 {
             return;
         }

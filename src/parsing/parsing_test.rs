@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::HashSet, str::FromStr};
+use std::{collections::HashSet, convert::TryFrom, str::FromStr};
 
 use itertools::Itertools;
 use nom::error::ErrorKind;
@@ -24,9 +24,7 @@ macro_rules! arb_version_range_struct {
     ($arb_name:ident, $type_name:ident, $($var:ident in $strategy:expr),+ $(,)?) => {
         prop_compose! {
             fn $arb_name()($($var in $strategy),+) -> $type_name {
-                $type_name {
-                    $($var),+
-                }
+                $type_name::new($($var),+)
             }
         }
     }
@@ -73,20 +71,15 @@ prop_compose! {
 
 prop_compose! {
     fn arb_double_not_equals_version()(base in arb_version()) -> DoubleNotEqualsVersion {
-        DoubleNotEqualsVersion {
-            specified: base.parts.len(),
-            base,
-        }
+        DoubleNotEqualsVersion::from(base)
     }
 }
 
 prop_compose! {
     // LowestSpecifiedRange requires there to be at least 2 version elements specified.
-    fn arb_lowest_specified_range()(base in arb_version_min_len(2)) -> LowestSpecifiedRange {
-        LowestSpecifiedRange {
-            specified: base.parts.len(),
-            base,
-        }
+    fn arb_lowest_specified_range()(base in arb_version_min_len(LowestSpecifiedRange::REQUIRED_NUMBER_OF_DIGITS)) -> LowestSpecifiedRange {
+        // Safety: we generate at least the required minimum of two parts.
+        unsafe { LowestSpecifiedRange::try_from(base).unwrap_unchecked() }
     }
 }
 
@@ -100,10 +93,7 @@ prop_compose! {
 
 prop_compose! {
     fn arb_not_equals_version()(base in arb_version()) -> NotEqualsVersion {
-        NotEqualsVersion {
-            specified: base.parts.len(),
-            base,
-        }
+        NotEqualsVersion::from(base)
     }
 }
 
@@ -186,7 +176,7 @@ fn arb_version_min_len(min_len: usize) -> impl Strategy<Value = Version> {
 
 prop_compose! {
     fn arb_version_filter()(rules in btree_set(arb_version_range(), 1..10)) -> VersionFilter {
-        VersionFilter { rules }
+        VersionFilter::new(rules)
     }
 }
 
@@ -209,7 +199,7 @@ fn arb_version_range() -> impl Strategy<Value = VersionRange> {
     // XXX: Generating a VersionRange::Filter (recursively) is pointless
     // since it becomes flattened when turned into a string, before parsing.
     leaf.prop_recursive(3, 16, 10, |inner| {
-        btree_set(inner, 1..10).prop_map(|rules| VersionRange::Filter(VersionFilter { rules }))
+        btree_set(inner, 1..10).prop_map(|rules| VersionRange::Filter(VersionFilter::new(rules)))
     })
 }
 
@@ -321,10 +311,8 @@ prop_compose! {
             }
         }).collect::<Vec<_>>()).prop_shuffle(),
     ) -> WildcardRange {
-        WildcardRange {
-            specified: parts.len(),
-            parts,
-        }
+        // Safety: we generate the required one and only one optional part.
+        unsafe { WildcardRange::new_unchecked(parts) }
     }
 }
 

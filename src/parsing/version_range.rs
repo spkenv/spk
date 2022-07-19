@@ -42,12 +42,7 @@ where
 {
     map(
         pair(terminated(compat_rule, cut(char(':'))), cut(version)),
-        |(required, base)| {
-            VersionRange::Compat(CompatRange {
-                base,
-                required: Some(required),
-            })
-        },
+        |(required, base)| VersionRange::Compat(CompatRange::new(base, Some(required))),
     )(input)
 }
 
@@ -92,10 +87,11 @@ where
             |parts: &Vec<Option<u32>>| parts.iter().filter(|p| p.is_none()).count() == 1,
         ),
         |parts| {
-            VersionRange::Wildcard(WildcardRange {
-                specified: parts.len(),
-                parts,
-            })
+            VersionRange::Wildcard(
+                // Safety: `verify` checks that `parts` has the required one and
+                // only one optional part.
+                unsafe { WildcardRange::new_unchecked(parts) },
+            )
         },
     )(input)
 }
@@ -175,10 +171,7 @@ where
                 wildcard_range,
                 // Just a plain version can be a version range.
                 map(version, |base| {
-                    VersionRange::Compat(CompatRange {
-                        base,
-                        required: None,
-                    })
+                    VersionRange::Compat(CompatRange::new(base, None))
                 }),
             )),
         ),
@@ -186,9 +179,7 @@ where
             if version_range.len() == 1 {
                 version_range.remove(0)
             } else {
-                VersionRange::Filter(VersionFilter {
-                    rules: version_range.into_iter().collect(),
-                })
+                VersionRange::Filter(VersionFilter::new(version_range))
             }
         },
     )(input)
