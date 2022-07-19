@@ -270,8 +270,7 @@ impl<'a> BinaryPackageBuilder<'a> {
                 }
                 if !found {
                     return Err(Error::String(format!(
-                        "Repository not found (or enabled) for {}",
-                        package
+                        "Repository not found (or enabled) for {package}",
                     )));
                 }
             }

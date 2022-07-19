@@ -315,7 +315,7 @@ impl Solver {
                                         notes.push(Note::SkipPackageNote(
                                             SkipPackageNote::new_from_message(
                                                 spec.pkg.clone(),
-                                                &format!("cannot build package: {:?}", err),
+                                                &format!("cannot build package: {err:?}"),
                                             ),
                                         ));
                                         self.number_builds_skipped += 1;
@@ -329,7 +329,7 @@ impl Solver {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
                                         spec.pkg.clone(),
-                                        &format!("cannot resolve build env: {:?}", err),
+                                        &format!("cannot resolve build env: {err:?}"),
                                     ),
                                 ));
                                 self.number_builds_skipped += 1;
