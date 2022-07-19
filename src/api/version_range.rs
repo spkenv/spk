@@ -308,12 +308,10 @@ impl std::str::FromStr for VersionRange {
         all_consuming(alt((
             crate::parsing::version_range,
             // Allow empty input to be treated like "*"
-            map(eof, |_| {
-                VersionRange::Wildcard(WildcardRange {
-                    specified: 1,
-                    parts: vec![None],
-                })
-            }),
+            map(
+                eof,
+                |_| VersionRange::Wildcard(WildcardRange::any_version()),
+            ),
         )))(rule_str)
         .map(|(_, vr)| vr)
         .map_err(|err| match err {
@@ -387,6 +385,14 @@ pub struct WildcardRange {
 }
 
 impl WildcardRange {
+    /// Return a `WildcardRange` representing "*".
+    pub(crate) fn any_version() -> Self {
+        Self {
+            specified: 1,
+            parts: vec![None],
+        }
+    }
+
     /// # Safety
     ///
     /// A `WildcardRange` must have one and only one optional part. This
