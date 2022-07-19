@@ -71,6 +71,15 @@ fn test_inclusion_policy() {
 }
 
 #[rstest]
+fn test_compat_and_equals_restrict() {
+    let mut a: PkgRequest = serde_yaml::from_str("{pkg: something/Binary:1.2.3}").unwrap();
+    let b: PkgRequest = serde_yaml::from_str("{pkg: something/=1.2.3}").unwrap();
+
+    a.restrict(&b).unwrap();
+    assert_eq!(a.pkg.version.to_string(), "=1.2.3");
+}
+
+#[rstest]
 // Compatible inclusion policies are expected to merge,
 // case 1
 #[case(
