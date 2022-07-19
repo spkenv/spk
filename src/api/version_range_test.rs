@@ -337,21 +337,24 @@ fn arb_semver_range_from_version(version: Version) -> impl Strategy<Value = Vers
 
 fn arb_wildcard_range_from_version(version: Version) -> impl Strategy<Value = VersionRange> {
     (Just(version.clone()), 0..version.parts.len()).prop_map(|(version, index_to_wildcard)| {
-        VersionRange::Wildcard(WildcardRange {
-            specified: version.parts.len(),
-            parts: version
-                .parts
-                .iter()
-                .enumerate()
-                .map(|(index, num)| {
-                    if index == index_to_wildcard {
-                        None
-                    } else {
-                        Some(*num)
-                    }
-                })
-                .collect::<Vec<_>>(),
-        })
+        debug_assert!(!version.parts.is_empty());
+        let parts = version
+            .parts
+            .iter()
+            .enumerate()
+            .map(|(index, num)| {
+                if index == index_to_wildcard {
+                    None
+                } else {
+                    Some(*num)
+                }
+            })
+            .collect::<Vec<_>>();
+        VersionRange::Wildcard(
+            // Safety: we generate parts with the required one and only one
+            // optional element.
+            unsafe { WildcardRange::new_unchecked(parts) },
+        )
     })
 }
 
