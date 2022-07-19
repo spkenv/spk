@@ -67,9 +67,6 @@ impl Run for Build {
             };
             let idents = make_source.make_source().await?;
 
-            // TODO: This should constrain the ident's version exactly, using
-            // the proposed new `==` syntax.
-
             let mut make_binary = super::cmd_make_binary::MakeBinary {
                 verbose: self.verbose,
                 runtime: self.runtime.clone(),
