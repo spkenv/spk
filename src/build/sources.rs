@@ -80,7 +80,11 @@ impl SourcePackageBuilder {
                 self.repo.insert(Arc::new(repo.into()))
             }
         };
-        let pkg = self.spec.pkg.clone();
+        let mut pkg = self.spec.pkg.clone();
+        // Capture the repository name we published the source package to into
+        // the ident so it will be resolved later from the same repo and not
+        // unexpectedly from some other repo.
+        pkg.set_repository_name(Some(repo.name().clone()));
         let mut components = std::collections::HashMap::with_capacity(1);
         components.insert(api::Component::Source, layer.digest()?);
         repo.publish_package(&self.spec, components).await?;

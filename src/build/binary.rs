@@ -250,18 +250,44 @@ impl<'a> BinaryPackageBuilder<'a> {
     async fn resolve_source_package(&mut self, package: &api::Ident) -> Result<Solution> {
         self.solver.reset();
         self.solver.update_options(self.all_options.clone());
-        let local_repo: Arc<storage::RepositoryHandle> =
-            Arc::new(storage::local_repository().await?.into());
-        self.solver.add_repository(local_repo.clone());
-        for repo in self.repos.iter() {
-            if **repo == *local_repo {
-                // local repo is always injected first, and duplicates are redundant
-                continue;
+
+        let local_repo =
+            async { Ok::<_, crate::Error>(Arc::new(storage::local_repository().await?.into())) };
+
+        // If `package` specifies a repository name, only add the
+        // repository that matches.
+        if let Some(repo_name) = &package.repository_name() {
+            if repo_name.is_local() {
+                self.solver.add_repository(local_repo.await?);
+            } else {
+                let mut found = false;
+                for repo in self.repos.iter() {
+                    if repo_name == repo.name() {
+                        self.solver.add_repository(repo.clone());
+                        found = true;
+                        break;
+                    }
+                }
+                if !found {
+                    return Err(Error::String(format!(
+                        "Repository not found (or enabled) for {package}",
+                    )));
+                }
             }
-            self.solver.add_repository(repo.clone());
+        } else {
+            // `package` has no opinion about what repo to use.
+            let local_repo = local_repo.await?;
+            self.solver.add_repository(local_repo.clone());
+            for repo in self.repos.iter() {
+                if **repo == *local_repo {
+                    // local repo is always injected first, and duplicates are redundant
+                    continue;
+                }
+                self.solver.add_repository(repo.clone());
+            }
         }
 
-        let ident_range = api::RangeIdent::exact(package, [api::Component::Source]);
+        let ident_range = api::RangeIdent::double_equals(package, [api::Component::Source]);
         let request: api::PkgRequest =
             api::PkgRequest::new(ident_range, api::RequestedBy::SourceBuild(package.clone()))
                 .with_prerelease(api::PreReleasePolicy::IncludeAll)

@@ -376,6 +376,10 @@ struct BuildKeyVersionNumber {
     plus_epsilon: bool,
     /// Any post-release tag pieces, e.g. Some(['r', 1]) or None
     posttag: Option<Vec<BuildKeyVersionNumberPiece>>,
+    /// Marker for a version number without any pre or post tags, to
+    /// ensure it is ordered in-between any with the same digits and
+    /// some pre or post tags.
+    notags: bool,
     /// Any pre-release tag pieces, e.g. Some(['r', 2]) or None
     pretag: Option<Vec<BuildKeyVersionNumberPiece>>,
 }
@@ -403,6 +407,7 @@ impl std::fmt::Display for BuildKeyVersionNumber {
                     .join("."),
             )?;
         }
+
         if let Some(tag) = &self.posttag {
             f.write_str("+")?;
             f.write_str(
@@ -461,12 +466,17 @@ impl BuildKeyVersionNumber {
             Some(pretags)
         };
 
-        // Combine the pieces in a form suitable for sorting. Digits are
-        // first as the most important, then post tags, with pre tags last
+        let notags = pretag.is_none() && posttag.is_none();
+
+        // Combine the pieces in a form suitable for sorting. Digits
+        // are first as the most important, then plus_epsilon, then
+        // post tags, then ones with no tags, and finally pre tags
+        // last, i.e.  1.0+e > 1.0+r.1 > 1.0 > 1.0-r.1
         BuildKeyVersionNumber {
             digits,
             plus_epsilon: v.parts.plus_epsilon,
             posttag,
+            notags,
             pretag,
         }
     }

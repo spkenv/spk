@@ -1229,10 +1229,10 @@ impl SkipPackageNote {
         }
     }
 
-    pub fn new_from_message(pkg: Ident, reason: &str) -> Self {
+    pub fn new_from_message<S: ToString>(pkg: Ident, reason: S) -> Self {
         SkipPackageNote {
             pkg,
-            reason: SkipPackageNoteReason::String(reason.to_owned()),
+            reason: SkipPackageNoteReason::String(reason.to_string()),
         }
     }
 }

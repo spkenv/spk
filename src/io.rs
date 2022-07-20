@@ -802,7 +802,7 @@ impl DecisionFormatter {
     ) -> Result<solve::Solution> {
         enum LoopOutcome {
             Interrupted(String),
-            Failed(crate::Error),
+            Failed(Box<crate::Error>),
             Success,
         }
 
@@ -824,7 +824,7 @@ impl DecisionFormatter {
                                 Error::Solve(solve::Error::SolverInterrupted(mesg)) => {
                                     break 'outer LoopOutcome::Interrupted(mesg);
                                 }
-                                _ => break 'outer LoopOutcome::Failed(e),
+                                _ => break 'outer LoopOutcome::Failed(Box::new(e)),
                             };
                         }
                     };
@@ -848,7 +848,7 @@ impl DecisionFormatter {
                 return Err(Error::Solve(solve::Error::SolverInterrupted(mesg)));
             }
             LoopOutcome::Failed(e) => {
-                return Err(e);
+                return Err(*e);
             }
             LoopOutcome::Success => {}
         };

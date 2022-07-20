@@ -33,11 +33,12 @@ pub async fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Re
         super::local_repository(),
         super::remote_repository("origin"),
         async {
-            Ok(super::SPFSRepository::from(
+            Ok(super::SPFSRepository::from((
+                filename.display().to_string(),
                 spfs::storage::RepositoryHandle::from(
                     spfs::storage::tar::TarRepository::create(&filename).await?,
                 ),
-            ))
+            )))
         },
     )?;
 

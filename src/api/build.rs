@@ -11,8 +11,8 @@ use thiserror::Error;
 #[path = "./build_test.rs"]
 mod build_test;
 
-const SRC: &str = "src";
-const EMBEDDED: &str = "embedded";
+pub(crate) const SRC: &str = "src";
+pub(crate) const EMBEDDED: &str = "embedded";
 
 /// Denotes that an invalid build digest was given.
 #[derive(Debug, Error)]
