@@ -76,6 +76,20 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
             environment: option_env!("SENTRY_ENVIRONMENT")
                 .map(ToString::to_string)
                 .map(std::borrow::Cow::Owned),
+            before_send: Some(std::sync::Arc::new(|mut event| {
+                // Remove ansi color codes from the event message
+                if let Some(message) = event.message {
+                    event.message = Some(remove_ansi_escapes(message));
+                }
+                Some(event)
+            })),
+            before_breadcrumb: Some(std::sync::Arc::new(|mut breadcrumb| {
+                // Remove ansi color codes from the breadcrumb message
+                if let Some(message) = breadcrumb.message {
+                    breadcrumb.message = Some(remove_ansi_escapes(message));
+                }
+                Some(breadcrumb)
+            })),
             ..Default::default()
         },
     ));
@@ -83,11 +97,16 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
     let args: Vec<_> = std::env::args().collect();
     let program = args[0].clone();
     let command = args[1].clone();
+    let cwd = match std::env::current_dir() {
+        Ok(p) => Some(p),
+        Err(_) => None,
+    };
 
     let mut data = BTreeMap::new();
     data.insert(String::from("program"), json!(program));
     data.insert(String::from("command"), json!(command));
     data.insert(String::from("args"), json!(args));
+    data.insert(String::from("cwd"), json!(cwd));
 
     sentry::configure_scope(|scope| {
         scope.set_user(Some(sentry::User {
@@ -106,6 +125,16 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
     });
 
     guard
+}
+
+#[cfg(feature = "sentry")]
+fn remove_ansi_escapes(message: String) -> String {
+    if let Ok(b) = strip_ansi_escapes::strip(message.clone()) {
+        if let Ok(s) = std::str::from_utf8(&b) {
+            return s.to_string();
+        }
+    }
+    message
 }
 
 pub fn configure_logging(verbosity: u32) -> Result<()> {
