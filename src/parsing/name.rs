@@ -6,7 +6,8 @@ use std::collections::HashSet;
 
 use nom::{
     bytes::complete::{is_not, take_while1, take_while_m_n},
-    combinator::{fail, map, recognize},
+    character::complete::char,
+    combinator::{fail, map, not, peek, recognize},
     error::{ContextError, ParseError},
     multi::many1,
     IResult,
@@ -63,6 +64,9 @@ pub(crate) fn package_name<'a, E>(input: &'a str) -> IResult<&'a str, &PkgName, 
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
+    // Package names may not begin with a '-'
+    let (input, _) = not(peek(char('-')))(input)?;
+
     map(
         take_while_m_n(
             PkgName::MIN_LEN,
