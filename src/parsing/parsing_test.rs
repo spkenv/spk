@@ -30,14 +30,14 @@ macro_rules! arb_version_range_struct {
     }
 }
 
-arb_version_range_struct!(arb_compat_range, CompatRange, base in arb_version(), required in weighted(0.66, arb_compat_rule()));
-arb_version_range_struct!(arb_double_equals_version, DoubleEqualsVersion, version in arb_version());
-arb_version_range_struct!(arb_equals_version, EqualsVersion, version in arb_version());
-arb_version_range_struct!(arb_greater_than_range, GreaterThanRange, bound in arb_version());
-arb_version_range_struct!(arb_greater_than_or_equal_to_range, GreaterThanOrEqualToRange, bound in arb_version());
-arb_version_range_struct!(arb_less_than_range, LessThanRange, bound in arb_version());
-arb_version_range_struct!(arb_less_than_or_equal_to_range, LessThanOrEqualToRange, bound in arb_version());
-arb_version_range_struct!(arb_semver_range, SemverRange, minimum in arb_version());
+arb_version_range_struct!(arb_compat_range, CompatRange, base in arb_legal_version(), required in weighted(0.66, arb_compat_rule()));
+arb_version_range_struct!(arb_double_equals_version, DoubleEqualsVersion, version in arb_legal_version());
+arb_version_range_struct!(arb_equals_version, EqualsVersion, version in arb_legal_version());
+arb_version_range_struct!(arb_greater_than_range, GreaterThanRange, bound in arb_legal_version());
+arb_version_range_struct!(arb_greater_than_or_equal_to_range, GreaterThanOrEqualToRange, bound in arb_legal_version());
+arb_version_range_struct!(arb_less_than_range, LessThanRange, bound in arb_legal_version());
+arb_version_range_struct!(arb_less_than_or_equal_to_range, LessThanOrEqualToRange, bound in arb_legal_version());
+arb_version_range_struct!(arb_semver_range, SemverRange, minimum in arb_legal_version());
 
 prop_compose! {
     // CompatRule::None intentionally not included in this list.
@@ -70,14 +70,14 @@ prop_compose! {
 }
 
 prop_compose! {
-    fn arb_double_not_equals_version()(base in arb_version()) -> DoubleNotEqualsVersion {
+    fn arb_double_not_equals_version()(base in arb_legal_version()) -> DoubleNotEqualsVersion {
         DoubleNotEqualsVersion::from(base)
     }
 }
 
 prop_compose! {
     // LowestSpecifiedRange requires there to be at least 2 version elements specified.
-    fn arb_lowest_specified_range()(base in arb_version_min_len(LowestSpecifiedRange::REQUIRED_NUMBER_OF_DIGITS)) -> LowestSpecifiedRange {
+    fn arb_lowest_specified_range()(base in arb_legal_version_min_len(LowestSpecifiedRange::REQUIRED_NUMBER_OF_DIGITS)) -> LowestSpecifiedRange {
         // Safety: we generate at least the required minimum of two parts.
         unsafe { LowestSpecifiedRange::try_from(base).unwrap_unchecked() }
     }
@@ -114,13 +114,29 @@ fn arb_pkg_name() -> impl Strategy<Value = (String, bool)> {
 }
 
 prop_compose! {
-    fn arb_not_equals_version()(base in arb_version()) -> NotEqualsVersion {
+    fn arb_not_equals_version()(base in arb_legal_version()) -> NotEqualsVersion {
         NotEqualsVersion::from(base)
     }
 }
 
-fn arb_opt_version() -> impl Strategy<Value = Option<Version>> {
-    weighted(0.9, arb_version())
+fn arb_opt_legal_version() -> impl Strategy<Value = Option<Version>> {
+    weighted(0.9, arb_legal_version())
+}
+
+fn arb_opt_illegal_version() -> impl Strategy<Value = Option<Version>> {
+    weighted(0.9, arb_illegal_version())
+}
+
+// May generate an illegal version.
+fn arb_opt_version() -> impl Strategy<Value = (Option<Version>, bool)> {
+    prop_oneof![
+        9 => arb_opt_legal_version().prop_map(|v| (v, true)),
+        1 => arb_opt_illegal_version().prop_map(|v| {
+            // If it is None, it is not illegal
+            let is_some = v.is_some();
+            (v, !is_some)
+        })
+    ]
 }
 
 fn arb_opt_version_filter() -> impl Strategy<Value = Option<VersionFilter>> {
@@ -156,18 +172,27 @@ prop_compose! {
     }
 }
 
-fn arb_tagset() -> impl Strategy<Value = TagSet> {
-    prop_oneof![
-        9 => arb_unambiguous_tagset(),
-        1 => arb_ambiguous_tagset(),
-    ]
+fn arb_legal_tagset() -> impl Strategy<Value = TagSet> {
+    arb_unambiguous_tagset()
 }
 
-fn arb_version() -> impl Strategy<Value = Version> {
-    arb_version_min_len(1)
+prop_compose! {
+    // XXX: The illegal tagset is limited to a maximum of one entry because of
+    // the ambiguous use of commas to delimit both tags and version filters.
+    fn arb_illegal_tagset()(tags in btree_map("[0-9]+", any::<u32>(), 1..=1)) -> TagSet {
+        TagSet { tags }
+    }
 }
 
-fn arb_version_min_len(min_len: usize) -> impl Strategy<Value = Version> {
+fn arb_legal_version() -> impl Strategy<Value = Version> {
+    arb_legal_version_min_len(1)
+}
+
+fn arb_illegal_version() -> impl Strategy<Value = Version> {
+    arb_illegal_version_min_len(1)
+}
+
+fn arb_legal_version_min_len(min_len: usize) -> impl Strategy<Value = Version> {
     (
         vec(any::<u32>(), min_len..min_len.max(10)).prop_filter(
             // Avoid generating version parts that look like [0, 0].
@@ -184,8 +209,8 @@ fn arb_version_min_len(min_len: usize) -> impl Strategy<Value = Version> {
             "No parts of length 2",
             |parts| parts.len() != 2,
         ),
-        arb_tagset(),
-        arb_tagset(),
+        arb_legal_tagset(),
+        arb_legal_tagset(),
     )
         .prop_map(|(parts, pre, post)| Version {
             // We don't expect to generate any values that have `plus_epsilon`
@@ -193,6 +218,34 @@ fn arb_version_min_len(min_len: usize) -> impl Strategy<Value = Version> {
             parts: parts.into(),
             pre,
             post,
+        })
+}
+
+fn arb_illegal_version_min_len(min_len: usize) -> impl Strategy<Value = Version> {
+    (
+        vec(any::<u32>(), min_len..min_len.max(10)),
+        any::<bool>(),
+        arb_legal_tagset(),
+        arb_illegal_tagset(),
+    )
+        .prop_map(|(parts, use_illegal_for_pre, legal, illegal)| {
+            if use_illegal_for_pre {
+                Version {
+                    // We don't expect to generate any values that have `plus_epsilon`
+                    // enabled.
+                    parts: parts.into(),
+                    pre: illegal,
+                    post: legal,
+                }
+            } else {
+                Version {
+                    // We don't expect to generate any values that have `plus_epsilon`
+                    // enabled.
+                    parts: parts.into(),
+                    pre: legal,
+                    post: illegal,
+                }
+            }
         })
 }
 
@@ -343,7 +396,7 @@ proptest! {
     fn prop_test_parse_ident(
             repo in arb_repo(),
             (name, name_is_legal) in arb_pkg_name(),
-            version in arb_opt_version(),
+            (version, version_is_legal) in arb_opt_version(),
             build in arb_build()) {
         // If specifying a build, a version must also be specified.
         prop_assume!(build.is_none() || version.is_some());
@@ -356,7 +409,7 @@ proptest! {
             build.as_ref().map(|b| b.to_string()),
         ].iter().flatten().join("/");
         let parsed = parse_ident(&ident);
-        if name_is_legal {
+        if name_is_legal && version_is_legal {
             assert!(parsed.is_ok(), "parse '{}' failure:\n{}", ident, parsed.unwrap_err());
             let parsed = parsed.unwrap();
             // XXX: This doesn't handle the ambiguous corner cases as checked
