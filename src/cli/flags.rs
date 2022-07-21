@@ -218,10 +218,19 @@ impl Requests {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        let options = options.get_options()?;
-
         let mut out = Vec::<spk::api::Request>::new();
-        for (name, value) in spk::api::host_options()?.into_iter() {
+        let var_requests = options.get_var_requests()?;
+        let mut options = match options.no_host {
+            true => spk::api::OptionMap::default(),
+            false => spk::api::host_options()?,
+        };
+        // Insert var_requests, which includes requests specified on the command-line,
+        // into the map so that they can override values provided by host_options().
+        for req in var_requests {
+            options.insert(req.var, req.value);
+        }
+
+        for (name, value) in options.iter() {
             if !value.is_empty() {
                 out.push(spk::api::VarRequest::new_with_value(name, value).into());
             }
