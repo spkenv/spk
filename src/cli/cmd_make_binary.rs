@@ -91,7 +91,7 @@ impl Run for MakeBinary {
         #[rustfmt::skip]
         let (_runtime, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(),
-            async { self.repos.get_repos(&["origin".to_string()]).await }
+            async { self.repos.get_repos_for_non_destructive_operation().await }
         )?;
         let repos = repos
             .into_iter()

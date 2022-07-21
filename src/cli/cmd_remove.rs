@@ -28,7 +28,7 @@ pub struct Remove {
 #[async_trait::async_trait]
 impl Run for Remove {
     async fn run(&mut self) -> Result<i32> {
-        let repos = self.repos.get_repos(None).await?;
+        let repos = self.repos.get_repos_for_destructive_operation().await?;
         if repos.is_empty() {
             eprintln!(
                 "{}",

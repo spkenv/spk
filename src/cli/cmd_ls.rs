@@ -63,25 +63,7 @@ pub struct Ls<Output: Default = Console> {
 #[async_trait::async_trait]
 impl<T: Output> Run for Ls<T> {
     async fn run(&mut self) -> Result<i32> {
-        let mut repos = if self.repos.local_repo {
-            self.repos.get_repos(None).await?
-        } else {
-            self.repos.get_repos(&["origin".to_string()]).await?
-        };
-
-        if repos.is_empty() {
-            let local = String::from("local");
-            if !self.repos.disable_repo.contains(&local) {
-                repos = self.repos.get_repos(None).await?;
-            } else {
-                eprintln!(
-                    "{}",
-                    "No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r)"
-                        .yellow()
-                );
-                return Ok(1);
-            }
-        }
+        let repos = self.repos.get_repos_for_non_destructive_operation().await?;
 
         if self.recursive {
             return self.list_recursively(repos).await;

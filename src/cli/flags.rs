@@ -76,9 +76,10 @@ impl Solver {
         let option_map = options.get_options()?;
         let mut solver = spk::Solver::default();
         solver.update_options(option_map);
-        self.repos
-            .configure_solver(&mut solver, &["origin".to_string()])
-            .await?;
+        for (name, repo) in self.repos.get_repos_for_non_destructive_operation().await? {
+            tracing::debug!(repo=%name, "using repository");
+            solver.add_repository(repo);
+        }
         solver.set_binary_only(!self.allow_builds);
         for r in options.get_var_requests()? {
             solver.add_request(r.into());
@@ -469,42 +470,74 @@ pub struct Repositories {
 }
 
 impl Repositories {
-    /// Configure a solver with the repositories requested on the command line.
+    /// Get the repositories to use based on command-line options.
     ///
-    /// The provided defaults are used if nothing was specified.
-    pub async fn configure_solver<'a, 'b: 'a, I>(
-        &'b self,
-        solver: &mut spk::solve::Solver,
-        defaults: I,
-    ) -> Result<()>
-    where
-        I: IntoIterator<Item = &'a String>,
-    {
-        for (name, repo) in self.get_repos(defaults).await?.into_iter() {
-            tracing::debug!(repo=%name, "using repository");
-            solver.add_repository(repo);
+    /// This method enables the local repository by default, except if any
+    /// repositories have been enabled with `--enable-repo`, or if
+    /// `--no-local-repo` is used.
+    pub async fn get_repos_for_destructive_operation(
+        &self,
+    ) -> Result<Vec<(String, spk::storage::RepositoryHandle)>> {
+        let mut repos = Vec::new();
+        if !self.no_local_repo && self.enable_repo.is_empty() {
+            let repo = spk::storage::local_repository().await?;
+            repos.push(("local".into(), repo.into()));
         }
-        Ok(())
+        for name in self.enable_repo.iter() {
+            if self.disable_repo.contains(name) {
+                continue;
+            }
+            if repos.iter().any(|(s, _)| s == name) {
+                // Already added
+                continue;
+            }
+
+            let repo = spk::storage::remote_repository(name).await?;
+            repos.push((name.into(), repo.into()));
+        }
+        Ok(repos)
     }
 
-    /// Get the repositories specified on the command line.
+    /// Get the repositories to use based on command-line options.
     ///
-    /// The provided defaults are used if nothing was specified.
-    pub async fn get_repos<'a, 'b: 'a, I: IntoIterator<Item = &'a String>>(
-        &'b self,
-        defaults: I,
+    /// This method enables the "local" and "origin" repositories by default.
+    /// This behavior can be altered with the `--enable-repo`, `--disable-repo`,
+    /// and `--no-local-repo` flags.
+    ///
+    /// For backwards compatibility purposes, if the deprecated `--local-repo`
+    /// flag is used, then only the local repo is enabled.
+    ///
+    /// The `--enable-repo` is considered additive instead of exclusive.
+    ///
+    /// Remote repos enabled with `--enable-repo` are added to the list before
+    /// "origin".
+    pub async fn get_repos_for_non_destructive_operation(
+        &self,
     ) -> Result<Vec<(String, spk::storage::RepositoryHandle)>> {
         let mut repos = Vec::new();
         if !self.no_local_repo {
             let repo = spk::storage::local_repository().await?;
             repos.push(("local".into(), repo.into()));
         }
-        let enabled = self.enable_repo.iter().chain(defaults.into_iter());
-        for name in enabled {
-            if !self.disable_repo.contains(name) {
-                let repo = spk::storage::remote_repository(name).await?;
-                repos.push((name.into(), repo.into()));
+        if self.local_repo {
+            return Ok(repos);
+        }
+        for name in self
+            .enable_repo
+            .iter()
+            .map(|s| s.as_ref())
+            .chain(std::iter::once("origin"))
+        {
+            if self.disable_repo.iter().any(|s| s == name) {
+                continue;
             }
+            if repos.iter().any(|(s, _)| s == name) {
+                // Already added
+                continue;
+            }
+
+            let repo = spk::storage::remote_repository(name).await?;
+            repos.push((name.into(), repo.into()));
         }
         Ok(repos)
     }
