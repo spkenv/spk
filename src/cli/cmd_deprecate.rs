@@ -1,12 +1,11 @@
 // Copyright (c) 2022 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{io::Write, sync::Arc};
-
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 use spk::io::Format;
+use std::{io::Write, sync::Arc};
 
 use super::{flags, CommandArgs, Run};
 
@@ -76,6 +75,9 @@ pub struct Deprecate {
     #[clap(long, short)]
     pub yes: bool,
 
+    /// Add a comment when deprecating a package
+    #[clap(long, short)]
+    pub comment: Vec<String>,
     /// The package version or build to deprecate
     ///
     /// By deprecating a package version, as opposed to an individual
@@ -95,6 +97,7 @@ impl Run for Deprecate {
             &self.repos.get_repos_for_destructive_operation().await?,
             &self.packages,
             self.yes,
+            &self.comment,
         )
         .await
     }
@@ -130,6 +133,7 @@ pub(crate) async fn change_deprecation_state(
     repositories: &[(String, spk::storage::RepositoryHandle)],
     packages: &[String],
     yes: bool,
+    comment: &[String],
 ) -> Result<i32> {
     let repos: Vec<_> = repositories
         .iter()
@@ -278,7 +282,14 @@ pub(crate) async fn change_deprecation_state(
             action.as_present_tense(),
             spec.pkg.format_ident(),
         );
-
+        match comment.is_empty() {
+            true => Arc::make_mut(&mut spec)
+                .meta
+                .update_modified_time(action.as_str(), "None".to_string()),
+            false => Arc::make_mut(&mut spec)
+                .meta
+                .update_modified_time(action.as_str(), comment.first().unwrap().to_string()),
+        };
         Arc::make_mut(&mut spec).deprecated = new_status;
         repo.force_publish_spec(&spec).await?;
         tracing::info!(repo=%repo_name, "{} {fmt}", action.as_past_tense());

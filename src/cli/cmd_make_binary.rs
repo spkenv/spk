@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use chrono::offset::Local;
 use clap::Args;
 use spk::io::Format;
 
@@ -111,9 +112,18 @@ impl Run for MakeBinary {
                     // TODO:: load from given repos
                     Arc::new(spk::api::read_spec_file(name)?)
                 }
+
                 res => {
-                    let (_, spec) = res.must_be_found();
-                    tracing::info!("saving spec file {}", spec.pkg.format_ident());
+                    let (_, mut spec) = res.must_be_found();
+                    let mut modified_data = spk::api::Meta::new_modified_meta_data();
+                    modified_data.comment = "New package creation".to_string();
+                    modified_data.action = "make binary".to_string();
+                    modified_data.timestamp = Local::now().timestamp();
+                    Arc::make_mut(&mut spec)
+                        .meta
+                        .modified_stack
+                        .push(modified_data);
+                    tracing::info!("saving spec file {}", Format::format_ident(&spec.pkg));
                     spk::save_spec(&spec).await?;
                     spec
                 }

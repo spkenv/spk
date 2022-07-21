@@ -2495,6 +2495,7 @@ dependencies = [
  "async-recursion",
  "async-stream",
  "async-trait",
+ "chrono",
  "clap",
  "colored",
  "ctrlc",

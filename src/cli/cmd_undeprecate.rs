@@ -28,6 +28,10 @@ pub struct Undeprecate {
     #[clap(long, short)]
     pub yes: bool,
 
+    /// Add a comment when undeprecating a package
+    #[clap(long, short)]
+    pub comment: Vec<String>,
+
     /// The package version or build to undeprecate
     ///
     /// By undeprecating a package version, as opposed to an
@@ -46,6 +50,7 @@ impl Run for Undeprecate {
             &self.repos.get_repos_for_destructive_operation().await?,
             &self.packages,
             self.yes,
+            &self.comment,
         )
         .await
     }
