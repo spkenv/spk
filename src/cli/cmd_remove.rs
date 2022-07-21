@@ -33,8 +33,7 @@ impl Run for Remove {
         if repos.is_empty() {
             eprintln!(
                 "{}",
-                "No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r)"
-                    .yellow()
+                "No repositories selected, specify --enable-repo (-r)".yellow()
             );
             return Ok(1);
         }

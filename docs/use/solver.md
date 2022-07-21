@@ -28,7 +28,7 @@ This error is one of the most obvious - but knowing when and why it can appear h
 #### Possible Solutions
 
 - check that the package name was spelled correctly
-- if you just created the package but haven't published it, make sure the the `--local-repo` flag is used
+- if you just created the package but haven't published it, make sure the the `--enable-repo=local` flag is used
 - if the package is in a testing or other alternative repository, make sure to enable the repository with `--enable-repo=<name>`
 - try using the `spk search` command to see if the package lives under a slightly different name
 
@@ -52,7 +52,7 @@ In these cases, the additional use of the `--verbose (-v)` flag is extremely hel
 
 #### Possible Solutions
 
-- if you just created a new version but haven't published it, make sure the the `--local-repo` flag is used
+- if you just created a new version but haven't published it, make sure the the `--enable-repo=local` flag is used
 - if the package is in a testing or other alternative repository, make sure to enable the repository with `--enable-repo=<name>`
 - try using the `spk ls <name>` command to list the available versions of the package
 - try loosening the version requirements or using a different version altogether of the requested package
