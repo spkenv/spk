@@ -162,12 +162,12 @@ impl<'de> Deserialize<'de> for Opt {
         if mapping.get(&Value::String("var".to_string())).is_some() {
             Ok(Opt::Var(
                 VarOpt::deserialize(Value::Mapping(mapping))
-                    .map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?,
+                    .map_err(|e| serde::de::Error::custom(e.to_string()))?,
             ))
         } else if mapping.get(&Value::String("pkg".to_string())).is_some() {
             Ok(Opt::Pkg(
                 PkgOpt::deserialize(Value::Mapping(mapping))
-                    .map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?,
+                    .map_err(|e| serde::de::Error::custom(e.to_string()))?,
             ))
         } else {
             Err(serde::de::Error::custom(

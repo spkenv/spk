@@ -107,7 +107,13 @@ impl Run for Ls {
                     name.push_str(&version.to_string());
 
                     let ident = spk::api::parse_ident(name.clone())?;
-                    let spec = repo.read_spec(&ident).await?;
+                    let spec = match repo.read_spec(&ident).await {
+                        Ok(spec) => spec,
+                        Err(err) => {
+                            tracing::warn!("Skipping {ident}: {err}");
+                            continue;
+                        }
+                    };
 
                     // TODO: tempted to swap this over to call
                     // format_build, which would add the package name
@@ -140,7 +146,13 @@ impl Run for Ls {
                         // Doing this here slows the listing down, but
                         // the spec file is the only place that holds
                         // the deprecation status.
-                        let spec = repo.read_spec(&build).await?;
+                        let spec = match repo.read_spec(&build).await {
+                            Ok(spec) => spec,
+                            Err(err) => {
+                                tracing::warn!("Skipping {build}: {err}");
+                                continue;
+                            }
+                        };
                         if spec.deprecated && !self.deprecated {
                             // Hide deprecated packages by default
                             continue;
@@ -213,7 +225,13 @@ impl Ls {
                     // Doing this here slows the listing down, but
                     // the spec file is the only place that holds
                     // the deprecation status.
-                    let spec = repo.read_spec(&build).await?;
+                    let spec = match repo.read_spec(&build).await {
+                        Ok(spec) => spec,
+                        Err(err) => {
+                            tracing::warn!("Skipping {build}: {err}");
+                            continue;
+                        }
+                    };
                     if spec.deprecated && !self.deprecated {
                         // Hide deprecated packages by default
                         continue;
