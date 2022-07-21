@@ -444,25 +444,25 @@ where
 
 #[derive(Args, Clone)]
 pub struct Repositories {
-    /// Resolve packages from the local repository (DEPRECATED)
+    /// Enable the local repository (DEPRECATED)
     ///
     /// This option is ignored and the local repository is enabled by default.
     /// Use `--no-local-repo` to disable the local repository.
     #[clap(short, long, value_parser = warn_local_flag_deprecated)]
     pub local_repo: bool,
 
-    /// Disable resolving packages from the local repository
+    /// Disable the local repository
     #[clap(long, hide = true)]
     pub no_local_repo: bool,
 
-    /// Repositories to include in the resolve
+    /// Repositories to enable for the command
     ///
     /// Any configured spfs repository can be named here as well as "local" or
     /// a path on disk or a full remote repository url.
     #[clap(long, short = 'r')]
     pub enable_repo: Vec<String>,
 
-    /// Repositories to exclude in the resolve
+    /// Repositories to exclude from the command
     ///
     /// Any configured spfs repository can be named here as well as "local"
     #[clap(long)]
