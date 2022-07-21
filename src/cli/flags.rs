@@ -452,19 +452,19 @@ pub struct Repositories {
     pub local_repo: bool,
 
     /// Disable resolving packages from the local repository
-    #[clap(long)]
+    #[clap(long, hide = true)]
     pub no_local_repo: bool,
 
     /// Repositories to include in the resolve
     ///
-    /// Any configured spfs repository can be named here as well as a path
-    /// on disk or a full remote repository url.
+    /// Any configured spfs repository can be named here as well as "local" or
+    /// a path on disk or a full remote repository url.
     #[clap(long, short = 'r')]
     pub enable_repo: Vec<String>,
 
     /// Repositories to exclude in the resolve
     ///
-    /// Any configured spfs repository can be named here
+    /// Any configured spfs repository can be named here as well as "local"
     #[clap(long)]
     pub disable_repo: Vec<String>,
 }
@@ -479,7 +479,12 @@ impl Repositories {
         &self,
     ) -> Result<Vec<(String, spk::storage::RepositoryHandle)>> {
         let mut repos = Vec::new();
-        if !self.no_local_repo && self.enable_repo.is_empty() {
+        if !self.no_local_repo
+            && self.enable_repo.is_empty()
+            // Interpret `--disable-repo local` as a request to not use the
+            // local repo.
+            && !self.disable_repo.iter().any(|s| s == "local")
+        {
             let repo = spk::storage::local_repository().await?;
             repos.push(("local".into(), repo.into()));
         }
@@ -492,7 +497,11 @@ impl Repositories {
                 continue;
             }
 
-            let repo = spk::storage::remote_repository(name).await?;
+            let repo = match name.as_str() {
+                // Allow `--enable-repo local` to work to enable the local repo.
+                "local" => spk::storage::local_repository().await,
+                name => spk::storage::remote_repository(name).await,
+            }?;
             repos.push((name.into(), repo.into()));
         }
         Ok(repos)
@@ -515,7 +524,11 @@ impl Repositories {
         &self,
     ) -> Result<Vec<(String, spk::storage::RepositoryHandle)>> {
         let mut repos = Vec::new();
-        if !self.no_local_repo {
+        if !self.no_local_repo
+            // Interpret `--disable-repo local` as a request to not use the
+            // local repo.
+            && !self.disable_repo.iter().any(|s| s == "local")
+        {
             let repo = spk::storage::local_repository().await?;
             repos.push(("local".into(), repo.into()));
         }
@@ -536,7 +549,11 @@ impl Repositories {
                 continue;
             }
 
-            let repo = spk::storage::remote_repository(name).await?;
+            let repo = match name {
+                // Allow `--enable-repo local` to work to enable the local repo.
+                "local" => spk::storage::local_repository().await,
+                name => spk::storage::remote_repository(name).await,
+            }?;
             repos.push((name.into(), repo.into()));
         }
         Ok(repos)
