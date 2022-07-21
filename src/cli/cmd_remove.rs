@@ -6,6 +6,7 @@ use std::io::Write;
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
+use itertools::Itertools;
 use spk::{api, io::Format};
 
 use super::{flags, CommandArgs, Run};
@@ -43,8 +44,11 @@ impl Run for Remove {
                 let mut input = String::new();
                 print!(
                     "{}",
-                    format!("Are you sure that you want to remove all versions of {name}? [y/N]: ")
-                        .yellow()
+                    format!(
+                        "Are you sure that you want to remove all versions of {name} from {repos}? [y/N]: ",
+                        repos = repos.iter().map(|(name, _)| name).join(", ")
+                    )
+                    .yellow()
                 );
                 let _ = std::io::stdout().flush();
                 std::io::stdin().read_line(&mut input)?;
