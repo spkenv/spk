@@ -111,6 +111,7 @@ impl Run for MakeBinary {
                     // TODO:: load from given repos
                     Arc::new(spk::api::read_spec_file(name)?)
                 }
+
                 res => {
                     let (_, spec) = res.must_be_found();
                     tracing::info!("saving spec file {}", spec.pkg.format_ident());
