@@ -232,7 +232,7 @@ impl Requests {
 
         for (name, value) in options.iter() {
             if !value.is_empty() {
-                out.push(spk::api::VarRequest::new_with_value(name, value).into());
+                out.push(spk::api::VarRequest::new_with_value(name.clone(), value).into());
             }
         }
 
