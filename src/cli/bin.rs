@@ -10,6 +10,7 @@ use enum_dispatch::enum_dispatch;
 
 mod cmd_bake;
 mod cmd_build;
+mod cmd_changelog;
 mod cmd_convert;
 mod cmd_deprecate;
 mod cmd_env;
@@ -131,6 +132,8 @@ trait CommandArgs {
     /// commands.
     fn get_positional_args(&self) -> Vec<String>;
 }
+//cargo build
+//target/debug/spk
 
 #[enum_dispatch(Run)]
 #[enum_dispatch(CommandArgs)]
@@ -139,6 +142,7 @@ pub enum Command {
     Bake(cmd_bake::Bake),
     Build(cmd_build::Build),
     Convert(cmd_convert::Convert),
+    ChangeLog(cmd_changelog::ChangeLog),
     Deprecate(cmd_deprecate::Deprecate),
     Env(cmd_env::Env),
     Explain(cmd_explain::Explain),

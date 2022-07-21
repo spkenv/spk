@@ -22,6 +22,7 @@ pub struct Meta {
     pub license: String,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub labels: BTreeMap<String, String>,
+    pub creation_timestamp: i64,
 }
 
 impl Default for Meta {
@@ -31,6 +32,7 @@ impl Default for Meta {
             homepage: None,
             license: Self::default_license(),
             labels: Default::default(),
+            creation_timestamp: i64::default(),
         }
     }
 }
