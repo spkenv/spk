@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Args;
+use chrono;
 
 use super::{flags, CommandArgs, Run};
 
@@ -110,8 +111,10 @@ impl Run for MakeBinary {
                     // TODO:: load from given repos
                     Arc::new(spk::api::read_spec_file(name)?)
                 }
+
                 res => {
                     let (_, spec) = res.must_be_found();
+                    // Arc::make_mut(&mut spec).meta.creation_timestamp = chrono::offset::Local::now().timestamp();
                     tracing::info!("saving spec file {}", spk::io::format_ident(&spec.pkg));
                     spk::save_spec(&spec).await?;
                     spec
