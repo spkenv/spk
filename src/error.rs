@@ -91,3 +91,9 @@ impl From<String> for Error {
         Error::String(err)
     }
 }
+
+impl From<&str> for Error {
+    fn from(err: &str) -> Error {
+        Error::String(err.to_owned())
+    }
+}

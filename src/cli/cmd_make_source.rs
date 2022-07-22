@@ -33,7 +33,7 @@ impl Run for MakeSource {
 }
 
 impl MakeSource {
-    pub(crate) async fn make_source(&mut self) -> Result<Vec<spk::api::Ident>> {
+    pub(crate) async fn make_source(&mut self) -> Result<Vec<spk::api::BuildIdent>> {
         let _runtime = self.runtime.ensure_active_runtime().await?;
 
         let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();

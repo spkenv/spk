@@ -71,7 +71,7 @@ impl SourcePackageBuilder {
     }
 
     /// Build the requested source package.
-    pub async fn build(&mut self) -> Result<api::Ident> {
+    pub async fn build(&mut self) -> Result<api::BuildIdent> {
         let layer = self.collect_and_commit_sources().await?;
         let repo = match &mut self.repo {
             Some(r) => r,
@@ -80,11 +80,14 @@ impl SourcePackageBuilder {
                 self.repo.insert(Arc::new(repo.into()))
             }
         };
-        let mut pkg = self.spec.pkg.clone();
         // Capture the repository name we published the source package to into
-        // the ident so it will be resolved later from the same repo and not
+        // the BuildIdent so it will be resolved later from the same repo and not
         // unexpectedly from some other repo.
-        pkg.set_repository_name(Some(repo.name().clone()));
+        let pkg = self
+            .spec
+            .pkg
+            .clone()
+            .try_into_build_ident(repo.name().clone())?;
         let mut components = std::collections::HashMap::with_capacity(1);
         components.insert(api::Component::Source, layer.digest()?);
         repo.publish_package(&self.spec, components).await?;

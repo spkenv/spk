@@ -67,6 +67,17 @@ impl Format for api::Ident {
     }
 }
 
+impl Format for api::BuildIdent {
+    fn format_ident(&self) -> String {
+        format!(
+            "{}/{}/{}",
+            self.name.as_str().bold(),
+            self.version.to_string().bright_blue(),
+            format_build(&self.build)
+        )
+    }
+}
+
 pub fn format_build(build: &api::Build) -> String {
     match build {
         api::Build::Embedded => build.digest().bright_magenta().to_string(),

@@ -4,6 +4,7 @@
 
 use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
+use relative_path::RelativePathBuf;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{parsing, storage::KNOWN_REPOSITORY_NAMES, Result};
@@ -46,6 +47,11 @@ impl std::fmt::Display for RepositoryName {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str(self.0.as_str())
     }
+}
+
+pub trait DataPath {
+    /// Return the relative path for package metadata for an ident.
+    fn data_path(&self) -> RelativePathBuf;
 }
 
 /// Ident represents a package identifier.
@@ -128,6 +134,21 @@ impl Ident {
         }
     }
 
+    /// Convert into a [`BuildIdent`] with the given [`RepositoryName`].
+    ///
+    /// A build must be assigned.
+    pub fn try_into_build_ident(mut self, repository_name: RepositoryName) -> Result<BuildIdent> {
+        self.build
+            .take()
+            .map(|build| BuildIdent {
+                repository_name,
+                name: self.name,
+                version: self.version,
+                build,
+            })
+            .ok_or_else(|| "Ident must contain a build to become a BuildIdent".into())
+    }
+
     /// A string containing the properly formatted name and version number
     ///
     /// This is the same as [`ToString::to_string`] when the build is None.
@@ -141,6 +162,18 @@ impl Ident {
                     Some(self.version.to_string())
                 }
             }
+        }
+    }
+}
+
+impl DataPath for Ident {
+    fn data_path(&self) -> RelativePathBuf {
+        // The data path *does not* include the repository name.
+        let path = RelativePathBuf::from(self.name.as_str());
+        if let Some(vb) = self.version_and_build() {
+            path.join(vb.as_str())
+        } else {
+            path
         }
     }
 }
@@ -209,5 +242,71 @@ impl<'de> Deserialize<'de> for Ident {
     {
         let s = String::deserialize(deserializer)?;
         Self::from_str(&s).map_err(de::Error::custom)
+    }
+}
+
+/// BuildIdent represents a specific package build.
+///
+/// Like [`Ident`], except a [`RepositoryName`] and [`Build`] are required.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct BuildIdent {
+    pub repository_name: RepositoryName,
+    pub name: PkgNameBuf,
+    pub version: Version,
+    pub build: Build,
+}
+
+impl BuildIdent {
+    /// Return true if this identifier is for a source package.
+    pub fn is_source(&self) -> bool {
+        self.build.is_source()
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+}
+
+impl DataPath for BuildIdent {
+    fn data_path(&self) -> RelativePathBuf {
+        // The data path *does not* include the repository name.
+        RelativePathBuf::from(self.name.as_str())
+            .join(self.version.to_string())
+            .join(self.build.to_string())
+    }
+}
+
+impl std::fmt::Display for BuildIdent {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(self.repository_name.0.as_str())?;
+        f.write_char('/')?;
+        f.write_str(self.name.as_str())?;
+        f.write_char('/')?;
+        f.write_str(self.version.to_string().as_str())?;
+        f.write_char('/')?;
+        f.write_str(self.build.to_string().as_str())?;
+        Ok(())
+    }
+}
+
+impl From<BuildIdent> for Ident {
+    fn from(bi: BuildIdent) -> Self {
+        Ident {
+            repository_name: Some(bi.repository_name),
+            name: bi.name,
+            version: bi.version,
+            build: Some(bi.build),
+        }
+    }
+}
+
+impl From<&BuildIdent> for Ident {
+    fn from(bi: &BuildIdent) -> Self {
+        Ident {
+            repository_name: Some(bi.repository_name.clone()),
+            name: bi.name.clone(),
+            version: bi.version.clone(),
+            build: Some(bi.build.clone()),
+        }
     }
 }
