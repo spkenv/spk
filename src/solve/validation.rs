@@ -32,28 +32,26 @@ pub trait ValidatorT {
     /// Check if the given package is appropriate for the provided state.
     fn validate(
         &self,
-        state: &graph::State,
         spec: &api::Spec,
         source: &PackageSource,
     ) -> crate::Result<api::Compatibility>;
 }
 
-impl ValidatorT for Validators {
+impl ValidatorT for (&graph::State, &Validators) {
     fn validate(
         &self,
-        state: &graph::State,
         spec: &api::Spec,
         source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        match self {
-            Validators::Deprecation(v) => v.validate(state, spec, source),
-            Validators::BinaryOnly(v) => v.validate(state, spec, source),
-            Validators::PackageRequest(v) => v.validate(state, spec, source),
-            Validators::Components(v) => v.validate(state, spec, source),
-            Validators::Options(v) => v.validate(state, spec, source),
-            Validators::VarRequirements(v) => v.validate(state, spec, source),
-            Validators::PkgRequirements(v) => v.validate(state, spec, source),
-            Validators::EmbeddedPackage(v) => v.validate(state, spec, source),
+        match self.1 {
+            Validators::Deprecation(v) => (self.0, v).validate(spec, source),
+            Validators::BinaryOnly(v) => (self.0, v).validate(spec, source),
+            Validators::PackageRequest(v) => (self.0, v).validate(spec, source),
+            Validators::Components(v) => (self.0, v).validate(spec, source),
+            Validators::Options(v) => (self.0, v).validate(spec, source),
+            Validators::VarRequirements(v) => (self.0, v).validate(spec, source),
+            Validators::PkgRequirements(v) => (self.0, v).validate(spec, source),
+            Validators::EmbeddedPackage(v) => (self.0, v).validate(spec, source),
         }
     }
 }
@@ -62,13 +60,13 @@ impl ValidatorT for Validators {
 #[derive(Clone, Copy)]
 pub struct DeprecationValidator {}
 
-impl ValidatorT for DeprecationValidator {
+impl ValidatorT for (&graph::State, &DeprecationValidator) {
     fn validate(
         &self,
-        state: &graph::State,
         spec: &api::Spec,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
+        let state = self.0;
         if !spec.deprecated {
             return Ok(api::Compatibility::Compatible);
         }
@@ -91,13 +89,13 @@ impl ValidatorT for DeprecationValidator {
 #[derive(Clone, Copy)]
 pub struct BinaryOnlyValidator {}
 
-impl ValidatorT for BinaryOnlyValidator {
+impl ValidatorT for (&graph::State, &BinaryOnlyValidator) {
     fn validate(
         &self,
-        state: &graph::State,
         spec: &api::Spec,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
+        let state = self.0;
         if spec.pkg.build.is_none() {
             return Ok(api::Compatibility::Incompatible(format!(
                 "Skipping {}, it has no builds, and building from source is not enabled",
@@ -118,20 +116,21 @@ impl ValidatorT for BinaryOnlyValidator {
 #[derive(Clone, Copy)]
 pub struct EmbeddedPackageValidator {}
 
-impl ValidatorT for EmbeddedPackageValidator {
+impl ValidatorT for (&graph::State, &EmbeddedPackageValidator) {
     fn validate(
         &self,
-        state: &graph::State,
         spec: &api::Spec,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
+        let state = self.0;
         if spec.pkg.is_source() {
             // source packages are not being "installed" so requests don't matter
             return Ok(api::Compatibility::Compatible);
         }
 
         for embedded in spec.install.embedded.iter() {
-            let compat = Self::validate_embedded_package_against_state(embedded, state)?;
+            let compat =
+                EmbeddedPackageValidator::validate_embedded_package_against_state(embedded, state)?;
             if !&compat {
                 return Ok(compat);
             }
@@ -168,13 +167,13 @@ impl EmbeddedPackageValidator {
 #[derive(Clone, Copy, Default)]
 pub struct OptionsValidator {}
 
-impl ValidatorT for OptionsValidator {
+impl ValidatorT for (&graph::State, &OptionsValidator) {
     fn validate(
         &self,
-        state: &graph::State,
         spec: &api::Spec,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
+        let state = self.0;
         let requests = state.get_var_requests();
         let qualified_requests: HashSet<_> = requests
             .iter()
@@ -208,14 +207,14 @@ impl ValidatorT for OptionsValidator {
 #[derive(Clone, Copy)]
 pub struct PkgRequestValidator {}
 
-impl ValidatorT for PkgRequestValidator {
+impl ValidatorT for (&graph::State, &PkgRequestValidator) {
     #[allow(clippy::nonminimal_bool)]
     fn validate(
         &self,
-        state: &graph::State,
         spec: &api::Spec,
         source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
+        let state = self.0;
         let request = match state.get_merged_request(&spec.pkg.name) {
             Ok(request) => request,
             // FIXME: This should only catch KeyError
@@ -258,15 +257,15 @@ impl ValidatorT for PkgRequestValidator {
 #[derive(Clone, Copy)]
 pub struct ComponentsValidator {}
 
-impl ValidatorT for ComponentsValidator {
+impl ValidatorT for (&graph::State, &ComponentsValidator) {
     #[allow(clippy::nonminimal_bool)]
     fn validate(
         &self,
-        state: &graph::State,
         spec: &api::Spec,
         source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         use Compatibility::Compatible;
+        let state = self.0;
         if spec.pkg.build.is_none() {
             // we are only concerned with published package components,
             // source builds will validate against the spec separately
@@ -324,20 +323,22 @@ impl ValidatorT for ComponentsValidator {
 #[derive(Clone, Copy)]
 pub struct PkgRequirementsValidator {}
 
-impl ValidatorT for PkgRequirementsValidator {
+impl ValidatorT for (&graph::State, &PkgRequirementsValidator) {
     fn validate(
         &self,
-        state: &graph::State,
         spec: &api::Spec,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
+        let state = self.0;
         if spec.pkg.is_source() {
             // source packages are not being "installed" so requests don't matter
             return Ok(api::Compatibility::Compatible);
         }
 
         for request in spec.install.requirements.iter() {
-            let compat = self.validate_request_against_existing_state(state, request)?;
+            let compat = self
+                .1
+                .validate_request_against_existing_state(state, request)?;
             if !&compat {
                 return Ok(compat);
             }
@@ -464,13 +465,13 @@ impl PkgRequirementsValidator {
 #[derive(Clone, Copy, Default)]
 pub struct VarRequirementsValidator {}
 
-impl ValidatorT for VarRequirementsValidator {
+impl ValidatorT for (&graph::State, &VarRequirementsValidator) {
     fn validate(
         &self,
-        state: &graph::State,
         spec: &api::Spec,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
+        let state = self.0;
         if spec.pkg.is_source() {
             // source packages are not being "installed" so requests don't matter
             return Ok(api::Compatibility::Compatible);

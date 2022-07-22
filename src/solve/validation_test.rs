@@ -45,7 +45,10 @@ fn test_src_package_install_requests_are_not_considered() {
     for validator in validators {
         let msg = "Source package should be valid regardless of requirements";
         assert!(
-            validator.validate(&state, &*spec, &source).unwrap().is_ok(),
+            (&*state, validator)
+                .validate(&*spec, &source)
+                .unwrap()
+                .is_ok(),
             "{}",
             msg
         );
@@ -74,7 +77,10 @@ fn test_empty_options_can_match_anything() {
     let source = solve::PackageSource::Spec(spec.clone());
 
     assert!(
-        validator.validate(&state, &*spec, &source).unwrap().is_ok(),
+        (&*state, &validator)
+            .validate(&*spec, &source)
+            .unwrap()
+            .is_ok(),
         "empty option should not invalidate requirement"
     );
 }
@@ -104,7 +110,7 @@ fn test_qualified_var_supersedes_unqualified() {
     ));
     let source = solve::PackageSource::Spec(spec.clone());
 
-    let compat = validator.validate(&state, &*spec, &source).unwrap();
+    let compat = (&*state, &validator).validate(&*spec, &source).unwrap();
     assert!(
         compat.is_ok(),
         "qualified var requests should superseded unqualified ones, got: {}",
@@ -121,7 +127,7 @@ fn test_qualified_var_supersedes_unqualified() {
         }
     ));
     let source = solve::PackageSource::Spec(spec.clone());
-    let compat = validator.validate(&state, &*spec, &source).unwrap();
+    let compat = (&*state, &validator).validate(&*spec, &source).unwrap();
     assert!(
         !compat.is_ok(),
         "qualified var requests should superseded unqualified ones, got: {}",
