@@ -6,7 +6,7 @@ use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{parsing, storage::KNOWN_REPOSITORY_NAMES};
+use crate::{parsing, storage::KNOWN_REPOSITORY_NAMES, Result};
 
 use super::{Build, PkgNameBuf, Version};
 
@@ -156,7 +156,7 @@ impl From<PkgNameBuf> for Ident {
 impl TryFrom<&str> for Ident {
     type Error = crate::Error;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self> {
         Self::from_str(value)
     }
 }
@@ -164,7 +164,7 @@ impl TryFrom<&str> for Ident {
 impl TryFrom<&String> for Ident {
     type Error = crate::Error;
 
-    fn try_from(value: &String) -> Result<Self, Self::Error> {
+    fn try_from(value: &String) -> Result<Self> {
         Self::from_str(value.as_str())
     }
 }
@@ -172,7 +172,7 @@ impl TryFrom<&String> for Ident {
 impl TryFrom<String> for Ident {
     type Error = crate::Error;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: String) -> Result<Self> {
         Self::from_str(value.as_str())
     }
 }
@@ -181,7 +181,7 @@ impl FromStr for Ident {
     type Err = crate::Error;
 
     /// Parse the given identifier string into this instance.
-    fn from_str(source: &str) -> crate::Result<Self> {
+    fn from_str(source: &str) -> Result<Self> {
         parsing::ident::<nom_supreme::error::ErrorTree<_>>(&KNOWN_REPOSITORY_NAMES, source)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
@@ -192,12 +192,12 @@ impl FromStr for Ident {
 }
 
 /// Parse a package identifier string.
-pub fn parse_ident<S: AsRef<str>>(source: S) -> crate::Result<Ident> {
+pub fn parse_ident<S: AsRef<str>>(source: S) -> Result<Ident> {
     Ident::from_str(source.as_ref())
 }
 
 impl Serialize for Ident {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -205,7 +205,7 @@ impl Serialize for Ident {
     }
 }
 impl<'de> Deserialize<'de> for Ident {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
