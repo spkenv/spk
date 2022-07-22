@@ -3,5 +3,6 @@
 // https://github.com/imageworks/spk
 
 mod metadata_path;
+pub mod parsing;
 
 pub use metadata_path::MetadataPath;

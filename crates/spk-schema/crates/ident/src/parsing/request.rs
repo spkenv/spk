@@ -12,14 +12,18 @@ use nom::{
     IResult,
 };
 use nom_supreme::tag::TagError;
-use spk_schema_foundation::ident_build::{parsing::build, Build};
-use spk_schema_foundation::ident_component::{parsing::components, Component};
 use spk_schema_foundation::name::{parsing::package_name, PkgName};
 use spk_schema_foundation::version_range::{parsing::version_range, VersionFilter};
+use spk_schema_foundation::{
+    ident_build::{parsing::build, Build},
+    ident_ops::parsing::repo_name_in_ident,
+};
+use spk_schema_foundation::{
+    ident_component::{parsing::components, Component},
+    ident_ops::parsing::version_and_optional_build,
+};
 
 use crate::RangeIdent;
-
-use super::{repo_name_in_ident, version_and_optional_build};
 
 /// Parse a package name in the context of a range identity.
 ///

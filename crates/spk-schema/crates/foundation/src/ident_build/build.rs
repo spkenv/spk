@@ -25,11 +25,28 @@ impl InvalidBuildError {
     }
 }
 
+/// An embedded package's source (if known).
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum EmbeddedSource {
+    Ident(String),
+    Unknown,
+}
+
+impl std::fmt::Display for EmbeddedSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{EMBEDDED}")?;
+        match self {
+            EmbeddedSource::Ident(ident) => write!(f, "[{ident}]"),
+            EmbeddedSource::Unknown => Ok(()),
+        }
+    }
+}
+
 /// Build represents a package build identifier.
 #[derive(Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum Build {
     Source,
-    Embedded,
+    Embedded(EmbeddedSource),
     Digest([char; crate::option_map::DIGEST_SIZE]),
 }
 
@@ -38,7 +55,7 @@ impl Build {
     pub fn digest(&self) -> String {
         match self {
             Build::Source => SRC.to_string(),
-            Build::Embedded => EMBEDDED.to_string(),
+            Build::Embedded(by) => by.to_string(),
             Build::Digest(d) => d.iter().collect(),
         }
     }
@@ -48,7 +65,7 @@ impl Build {
     }
 
     pub fn is_embedded(&self) -> bool {
-        matches!(self, Build::Embedded)
+        matches!(self, Build::Embedded(_))
     }
 }
 

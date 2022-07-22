@@ -175,7 +175,7 @@ pub trait Repository: Storage + Sync {
             }
         };
 
-        if let Build::Embedded = build {
+        if let Build::Embedded(_) = build {
             return Err(Error::SpkIdentBuildError(InvalidBuildError::new_error(
                 "Cannot publish embedded package".to_string(),
             )));

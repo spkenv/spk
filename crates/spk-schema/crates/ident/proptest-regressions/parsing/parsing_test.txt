@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc a64d106f79768de026f961ad733c4426824936495466d14a0f82d40b2123dc4b # shrinks to repo = None, (name, name_is_legal) = ("a-", true), components = {}, version = Some(VersionFilter { rules: {Filter(VersionFilter { rules: {Compat(CompatRange { base: Version { parts: VersionParts { parts: [0, 0, 0], plus_epsilon: false }, pre: TagSet { tags: {} }, post: TagSet { tags: {} } }, required: None }), Wildcard(WildcardRange { specified: 1, parts: [None] })} })} }), build = Some(src)
+cc 5373518872f5ec773570802bbca266c17c477a8c81a7fa614e1b7179a36d8569 # shrinks to (name, name_is_legal) = ("aa", true), (version, version_is_legal) = (Some(Version { parts: VersionParts { parts: [0, 0, 0], plus_epsilon: false }, pre: TagSet { tags: {} }, post: TagSet { tags: {} } }), true), build = Some(embedded[aa])
