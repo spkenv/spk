@@ -4,4 +4,4 @@
 
 mod build;
 
-pub use build::{build, build_str};
+pub use build::build;

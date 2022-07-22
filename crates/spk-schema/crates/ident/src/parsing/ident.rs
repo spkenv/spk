@@ -6,16 +6,13 @@ use std::collections::HashSet;
 
 use nom::{
     character::complete::char,
-    combinator::{all_consuming, map, opt},
+    combinator::{all_consuming, map, opt, recognize},
     error::{ContextError, FromExternalError, ParseError},
     sequence::preceded,
     IResult,
 };
 use nom_supreme::tag::TagError;
-use spk_schema_foundation::ident_build::{
-    parsing::{build, build_str},
-    Build,
-};
+use spk_schema_foundation::ident_build::{parsing::build, Build};
 use spk_schema_foundation::name::{parsing::package_name, RepositoryName};
 use spk_schema_foundation::version::{
     parsing::{version, version_str},
@@ -89,7 +86,7 @@ where
     let (input, pkg_name) = package_name(input)?;
     let (input, version_and_build) = all_consuming(opt(preceded(
         char('/'),
-        version_and_optional_build(version_str, build_str),
+        version_and_optional_build(version_str, recognize(build)),
     )))(input)?;
     match version_and_build {
         Some(v_and_b) => Ok((

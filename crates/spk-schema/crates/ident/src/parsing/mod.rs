@@ -20,13 +20,14 @@ use nom::{
     sequence::{pair, preceded, terminated},
     IResult, Parser,
 };
+
+pub use ident::{ident, ident_parts, IdentParts};
 use nom_supreme::tag::TagError;
 use spk_schema_foundation::name::{
     parsing::{is_legal_package_name_chr, known_repository_name, repository_name},
     RepositoryName,
 };
 
-pub use ident::{ident, ident_parts, IdentParts};
 pub use request::{range_ident, range_ident_version_filter, version_filter_and_build};
 
 /// Parse a package name.
