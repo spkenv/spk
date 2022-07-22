@@ -6,7 +6,7 @@ use std::{collections::BTreeSet, fmt::Write};
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
-use spk::api::PkgName;
+use spk::{api::PkgName, io::Format};
 
 use super::{flags, CommandArgs, Run};
 
@@ -257,7 +257,7 @@ impl Ls {
         spec: &spk::api::Spec,
         repo: &spk::storage::RepositoryHandle,
     ) -> Result<String> {
-        let mut item = spk::io::format_ident(pkg);
+        let mut item = pkg.format_ident();
         if spec.deprecated {
             let _ = write!(item, " {}", "DEPRECATED".red());
         }

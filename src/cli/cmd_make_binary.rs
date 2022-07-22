@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Args;
+use spk::io::Format;
 
 use super::{flags, CommandArgs, Run};
 
@@ -112,16 +113,13 @@ impl Run for MakeBinary {
                 }
                 res => {
                     let (_, spec) = res.must_be_found();
-                    tracing::info!("saving spec file {}", spk::io::format_ident(&spec.pkg));
+                    tracing::info!("saving spec file {}", spec.pkg.format_ident());
                     spk::save_spec(&spec).await?;
                     spec
                 }
             };
 
-            tracing::info!(
-                "building binary package {}",
-                spk::io::format_ident(&spec.pkg)
-            );
+            tracing::info!("building binary package {}", spec.pkg.format_ident());
             let mut built = std::collections::HashSet::new();
 
             let variants_to_build = match self.variant {
@@ -181,7 +179,7 @@ impl Run for MakeBinary {
                     Ok(out) => out,
                     Err(err) => return Err(err.into()),
                 };
-                tracing::info!("created {}", spk::io::format_ident(&out.pkg));
+                tracing::info!("created {}", out.pkg.format_ident());
 
                 if self.env {
                     let request = spk::api::PkgRequest::from_ident(

@@ -6,7 +6,7 @@ use std::{io::Write, sync::Arc};
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
-use spk::io;
+use spk::io::Format;
 
 use super::{flags, CommandArgs, Run};
 
@@ -230,7 +230,7 @@ pub(crate) async fn change_deprecation_state(
         to_action.len()
     );
     for (spec, repo_name, _) in to_action.iter() {
-        println!("  {} (in {repo_name})", io::format_ident(&spec.pkg));
+        println!("  {} (in {repo_name})", spec.pkg.format_ident());
     }
 
     // Ask the user if they are sure they want to do the action on
@@ -261,13 +261,13 @@ pub(crate) async fn change_deprecation_state(
     // the action, unless they are already in that state.
     let new_status = action == ChangeAction::Deprecate;
     for (mut spec, repo_name, repo) in to_action.into_iter() {
-        let fmt = spk::io::format_ident(&spec.pkg);
+        let fmt = spec.pkg.format_ident();
 
         if spec.deprecated == new_status {
             println!(
                 " {} {} in {repo_name}, it is already {}.",
                 "Skipping".yellow(),
-                io::format_ident(&spec.pkg),
+                spec.pkg.format_ident(),
                 action.as_past_tense(),
             );
             continue;
@@ -276,7 +276,7 @@ pub(crate) async fn change_deprecation_state(
         println!(
             "{} {} in {repo_name}",
             action.as_present_tense(),
-            io::format_ident(&spec.pkg),
+            spec.pkg.format_ident(),
         );
 
         Arc::make_mut(&mut spec).deprecated = new_status;

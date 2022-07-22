@@ -4,7 +4,11 @@
 
 use std::sync::Arc;
 
-use crate::{api, build, io, solve, storage, Error, Result};
+use crate::{
+    api, build,
+    io::{self, Format},
+    solve, storage, Error, Result,
+};
 use spfs::encoding::Digest;
 
 /// Pull and list the necessary layers to have all solution packages.
@@ -79,7 +83,7 @@ pub async fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Di
                 "collecting {} of {} {}",
                 i + 1,
                 to_sync_count,
-                io::format_ident(&spec.pkg),
+                spec.pkg.format_ident(),
             );
             let syncer = spfs::Syncer::new(repo, &local_repo)
                 .with_reporter(spfs::sync::ConsoleSyncReporter::default());
@@ -127,7 +131,7 @@ pub async fn build_required_packages(solution: &solve::Solution) -> Result<solve
 
         tracing::info!(
             "Building: {} for {}",
-            io::format_ident(&item.spec.pkg),
+            item.spec.pkg.format_ident(),
             io::format_options(&options)
         );
         let spec = build::BinaryPackageBuilder::from_spec((*source_spec).clone())

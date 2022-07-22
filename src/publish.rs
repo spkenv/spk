@@ -4,7 +4,8 @@
 use std::sync::Arc;
 
 use crate::{
-    api, io,
+    api,
+    io::{self, Format},
     storage::{self, CachePolicy},
     with_cache_policy, Error, Result,
 };
@@ -70,12 +71,12 @@ impl Publisher {
     /// Publish the identified package as configured.
     pub async fn publish(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
         let builds = if pkg.build.is_none() {
-            tracing::info!("loading spec: {}", io::format_ident(pkg));
+            tracing::info!("loading spec: {}", pkg.format_ident());
             match self.from.read_spec(pkg).await {
                 Err(Error::PackageNotFoundError(_)) => (),
                 Err(err) => return Err(err),
                 Ok(spec) => {
-                    tracing::info!("publishing spec: {}", io::format_ident(&spec.pkg));
+                    tracing::info!("publishing spec: {}", spec.pkg.format_ident());
                     if self.force {
                         self.to.force_publish_spec(&spec).await?;
                     } else {
@@ -96,14 +97,14 @@ impl Publisher {
             use crate::storage::RepositoryHandle::SPFS;
 
             if build.is_source() && self.skip_source_packages {
-                tracing::info!("skipping source package: {}", io::format_ident(build));
+                tracing::info!("skipping source package: {}", build.format_ident());
                 continue;
             }
 
-            tracing::debug!("   loading package: {}", io::format_ident(build));
+            tracing::debug!("   loading package: {}", build.format_ident());
             let spec = self.from.read_spec(build).await?;
             let components = self.from.get_package(build).await?;
-            tracing::info!("publishing package: {}", io::format_ident(&spec.pkg));
+            tracing::info!("publishing package: {}", spec.pkg.format_ident());
             let env_spec = components.values().cloned().collect();
             match (&*self.from, &*self.to) {
                 (SPFS(src), SPFS(dest)) => {

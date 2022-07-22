@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 use anyhow::Result;
 use clap::Args;
+use spk::io::Format;
 
 use super::{flags, CommandArgs, Run};
 
@@ -41,7 +42,7 @@ impl Run for Search {
                 for v in versions.iter() {
                     ident.version = (**v).clone();
                     exit = 0;
-                    println!("{repo_name: <width$} {}", spk::io::format_ident(&ident));
+                    println!("{repo_name: <width$} {}", ident.format_ident());
                 }
             }
         }
