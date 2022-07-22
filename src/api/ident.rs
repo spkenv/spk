@@ -118,9 +118,7 @@ impl Ident {
         new.build = build;
         new
     }
-}
 
-impl Ident {
     pub fn new(name: PkgNameBuf) -> Self {
         Self {
             repository_name: Default::default(),
