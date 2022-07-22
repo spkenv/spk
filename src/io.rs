@@ -111,6 +111,7 @@ impl Default for FormatChangeOptions {
 
 /// Create a canonical string to describe the combined request for a package.
 pub fn format_request<'a, R>(
+    repository_name: &Option<api::RepositoryName>,
     name: &api::PkgName,
     requests: R,
     format_settings: FormatChangeOptions,
@@ -118,7 +119,10 @@ pub fn format_request<'a, R>(
 where
     R: IntoIterator<Item = &'a api::PkgRequest>,
 {
-    let mut out = name.as_str().bold().to_string();
+    let mut out = match repository_name {
+        Some(repository_name) => format!("{repository_name}/{}", name.as_str().bold()),
+        None => name.as_str().bold().to_string(),
+    };
     let mut versions = Vec::new();
     let mut components = std::collections::HashSet::new();
     for req in requests.into_iter() {
@@ -222,6 +226,7 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
             out,
             "  {}",
             format_request(
+                &None,
                 &req.spec.pkg.name,
                 &[installed],
                 FormatChangeOptions::default()
@@ -297,7 +302,12 @@ pub fn format_change(
             format!(
                 "{} {}",
                 get_request_change_label(format_settings.level).blue(),
-                format_request(&c.request.pkg.name, [&c.request], format_settings)
+                format_request(
+                    &c.request.pkg.repository_name,
+                    &c.request.pkg.name,
+                    [&c.request],
+                    format_settings
+                )
             )
         }
         RequestVar(c) => {
@@ -484,6 +494,7 @@ where
                                 .get_pkg_requests()
                                 .iter()
                                 .map(|r| format_request(
+                                    &r.pkg.repository_name,
                                     &r.pkg.name,
                                     [&***r],
                                     FormatChangeOptions {
