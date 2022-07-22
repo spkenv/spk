@@ -25,7 +25,7 @@ use nom::{
 pub(crate) use build::build;
 pub(crate) use ident::ident;
 pub use ident::{ident_parts, IdentParts};
-use nom_supreme::tag::TagError;
+use nom_supreme::tag::{complete::tag, TagError};
 pub(crate) use request::{range_ident, version_filter_and_build};
 pub(crate) use version_range::version_range;
 
@@ -53,7 +53,7 @@ where
     F1: Parser<&'i str, I, E>,
     F2: Parser<&'i str, V1, E>,
     F3: Parser<&'i str, (V2, Option<B>), E>,
-    E: ParseError<&'i str> + ContextError<&'i str>,
+    E: ParseError<&'i str> + ContextError<&'i str> + TagError<&'i str, &'static str>,
 {
     move |input: &str| {
         let (tail, ident) = ident_parser.parse(input)?;
@@ -64,7 +64,7 @@ where
         // package name instead of as a repository name.
         let r = version_parser
             .parse(input)
-            .and_then(|(input, _)| eof::<&str, _>(input));
+            .and_then(|(input, _)| alt((tag("]"), eof::<&str, _>))(input));
         if r.is_ok() {
             return fail("could be version");
         }
@@ -76,7 +76,9 @@ where
         // instead of as a repository name.
         let r = version_and_build_parser
             .parse(input)
-            .and_then(|(input, v_and_b)| eof(input).map(|(input, _)| (input, v_and_b)));
+            .and_then(|(input, v_and_b)| {
+                alt((tag("]"), eof))(input).map(|(input, _)| (input, v_and_b))
+            });
         if let Ok((_, (_version, Some(_build)))) = r {
             return fail("could be a build");
         }
@@ -108,7 +110,7 @@ where
     F1: Parser<&'i str, I, E> + 'a,
     F2: Parser<&'i str, V1, E> + 'a,
     F3: Parser<&'i str, (V2, Option<B>), E> + 'a,
-    E: ParseError<&'i str> + ContextError<&'i str> + 'a,
+    E: ParseError<&'i str> + ContextError<&'i str> + TagError<&'i str, &'static str> + 'a,
 {
     // To disambiguate cases like:
     //    local/222
@@ -118,7 +120,10 @@ where
     alt((
         terminated(
             terminated(known_repository_name(known_repositories), char('/')),
-            peek(terminated(take_while1(is_legal_package_name_chr), eof)),
+            peek(terminated(
+                take_while1(is_legal_package_name_chr),
+                alt((tag("]"), eof)),
+            )),
         ),
         terminated(
             terminated(repository_name, char('/')),
@@ -201,6 +206,7 @@ where
     E: ParseError<&'i str>
         + ContextError<&'i str>
         + FromExternalError<&'i str, crate::error::Error>
+        + FromExternalError<&'i str, std::num::ParseIntError>
         + TagError<&'i str, &'static str>,
 {
     pair(version_parser, opt(preceded(char('/'), cut(build_parser))))

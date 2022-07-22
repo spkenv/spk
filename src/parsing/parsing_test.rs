@@ -5,7 +5,7 @@
 use std::{collections::HashSet, convert::TryFrom, str::FromStr};
 
 use itertools::Itertools;
-use nom::error::ErrorKind;
+use nom::{combinator::all_consuming, error::ErrorKind};
 use proptest::{
     collection::{btree_map, btree_set, hash_set, vec},
     option::weighted,
@@ -14,10 +14,10 @@ use proptest::{
 
 use crate::api::{
     parse_ident, Build, CompatRange, CompatRule, Component, DoubleEqualsVersion,
-    DoubleNotEqualsVersion, EqualsVersion, GreaterThanOrEqualToRange, GreaterThanRange,
-    LessThanOrEqualToRange, LessThanRange, LowestSpecifiedRange, NotEqualsVersion, PkgNameBuf,
-    RangeIdent, RepositoryNameBuf, SemverRange, TagSet, Version, VersionFilter, VersionRange,
-    WildcardRange,
+    DoubleNotEqualsVersion, EmbeddedSource, EqualsVersion, GreaterThanOrEqualToRange,
+    GreaterThanRange, Ident, LessThanOrEqualToRange, LessThanRange, LowestSpecifiedRange,
+    NotEqualsVersion, PkgNameBuf, RangeIdent, RepositoryNameBuf, SemverRange, TagSet, Version,
+    VersionFilter, VersionRange, WildcardRange,
 };
 
 macro_rules! arb_version_range_struct {
@@ -357,13 +357,31 @@ prop_compose! {
     }
 }
 
+prop_compose! {
+    fn arb_ident()(
+        name in arb_pkg_legal_name(),
+        version in arb_legal_version(),
+    ) -> Ident {
+        // TODO: mutually recursive strategy here Ident -> Build -> Ident.
+        // There is a "proptest-recurse" crate but it looks unmaintained.
+        Ident { name, version, build: None }
+    }
+}
+
+fn arb_embedded_build() -> impl Strategy<Value = Build> {
+    prop_oneof![
+        3 => Just(Build::Embedded(EmbeddedSource::Unknown)),
+        7 => arb_ident().prop_map(|ident| Build::Embedded(EmbeddedSource::Ident(Box::new(ident)))),
+    ]
+}
+
 fn arb_build() -> impl Strategy<Value = Option<Build>> {
     weighted(
         0.9,
         prop_oneof![
-            Just(Build::Source),
-            Just(Build::Embedded),
-            "[2-7A-Z]{8}"
+            1 => Just(Build::Source),
+            2 => arb_embedded_build(),
+            8 => "[2-7A-Z]{8}"
                 .prop_filter("valid BASE32 value", |s| data_encoding::BASE32
                     .decode(s.as_bytes())
                     .is_ok())
@@ -462,7 +480,7 @@ proptest! {
             // the parsed one, since the parsed one gets flattened too.
             let flattened = version.unwrap_or_default().flatten();
             assert_eq!(parsed.version, flattened, "Parsing: `{}`\n  left: `{}`\n right: `{}`", ident, parsed.version, flattened);
-            assert_eq!(parsed.build, build);
+            assert_eq!(parsed.build, build, "{:?} != {:?}", parsed.build, build);
         }
         else {
             assert!(parsed.is_err(), "expected '{}' to fail to parse", ident);
@@ -488,6 +506,6 @@ fn parse_ident_with_basic_errors() {
 /// Fail if post-tags are specified before pre-tags.
 #[test]
 fn check_wrong_tag_order_is_a_parse_error() {
-    let r = crate::parsing::ident::<(_, ErrorKind)>("pkg-name/1.0+a.0-b.0");
+    let r = all_consuming(crate::parsing::ident::<(_, ErrorKind)>)("pkg-name/1.0+a.0-b.0");
     assert!(r.is_err(), "expected to fail; got {:?}", r);
 }

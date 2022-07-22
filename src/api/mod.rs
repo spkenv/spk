@@ -33,7 +33,7 @@ mod version;
 mod version_range;
 
 pub use build::{parse_build, Build, InvalidBuildError};
-pub(crate) use build::{EMBEDDED, SRC};
+pub(crate) use build::{EmbeddedSource, EMBEDDED, SRC};
 pub use build_key::BuildKey;
 pub use build_spec::BuildSpec;
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};

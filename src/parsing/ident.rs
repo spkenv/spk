@@ -38,8 +38,7 @@ where
         + TagError<&'b str, &'static str>,
 {
     let (input, mut ident) = package_ident(input)?;
-    let (input, version_and_build) =
-        all_consuming(opt(preceded(char('/'), version_and_build)))(input)?;
+    let (input, version_and_build) = opt(preceded(char('/'), version_and_build))(input)?;
     match version_and_build {
         Some(v_and_b) => {
             ident.version = v_and_b.0;

@@ -7,13 +7,16 @@ use std::convert::TryInto;
 use nom::{
     branch::alt,
     bytes::complete::take_while_m_n,
-    combinator::{map, map_res, verify},
+    combinator::{cut, map, map_res, opt, verify},
     error::{ContextError, FromExternalError, ParseError},
+    sequence::{delimited, preceded},
     IResult,
 };
 use nom_supreme::tag::{complete::tag, TagError};
 
-use crate::api::{Build, InvalidBuildError};
+use crate::api::{Build, EmbeddedSource, InvalidBuildError};
+
+use super::ident;
 
 /// Parse a base32 build.
 ///
@@ -38,18 +41,23 @@ where
 ///
 /// Examples:
 /// - `"src"`
-/// - `"embedded"`
+/// - `"embedded[pkg/1.0/CU7ZWOIF]"`
+/// - `"embedded"` (legacy format)
 /// - `"CU7ZWOIF"`
 pub(crate) fn build<'a, E>(input: &'a str) -> IResult<&'a str, Build, E>
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
         + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
     alt((
         map(tag(crate::api::SRC), |_| Build::Source),
-        map(tag(crate::api::EMBEDDED), |_| Build::Embedded),
+        map(
+            preceded(tag(crate::api::EMBEDDED), cut(embedded_source)),
+            Build::Embedded,
+        ),
         map_res(base32_build, |digest| {
             digest
                 .chars()
@@ -63,6 +71,24 @@ where
                 .map(Build::Digest)
         }),
     ))(input)
+}
+
+fn embedded_source<'b, E>(input: &'b str) -> IResult<&'b str, EmbeddedSource, E>
+where
+    E: ParseError<&'b str>
+        + ContextError<&'b str>
+        + FromExternalError<&'b str, crate::error::Error>
+        + FromExternalError<&'b str, std::num::ParseIntError>
+        + TagError<&'b str, &'static str>,
+{
+    map(
+        opt(delimited(tag("["), cut(ident), cut(tag("]")))),
+        |ident| {
+            ident
+                .map(|ident| EmbeddedSource::Ident(Box::new(ident)))
+                .unwrap_or(EmbeddedSource::Unknown)
+        },
+    )(input)
 }
 
 #[inline]

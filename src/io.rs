@@ -80,7 +80,7 @@ impl Format for api::BuildIdent {
 
 pub fn format_build(build: &api::Build) -> String {
     match build {
-        api::Build::Embedded => build.digest().bright_magenta().to_string(),
+        api::Build::Embedded(_) => build.digest().bright_magenta().to_string(),
         api::Build::Source => build.digest().bright_yellow().to_string(),
         _ => build.digest().dimmed().to_string(),
     }
@@ -553,7 +553,7 @@ where
                         use solve::graph::Change::*;
                         match change {
                             SetPackage(change) => {
-                                if change.spec.ident().build == Some(api::Build::Embedded) {
+                                if matches!(change.spec.ident().build, Some(api::Build::Embedded(_))) {
                                     fill = ".";
                                 } else {
                                     fill = ">";

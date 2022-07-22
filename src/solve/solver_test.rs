@@ -7,6 +7,7 @@ use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
 
 use super::Solver;
+use crate::api::EmbeddedSource;
 use crate::{api, io, prelude::*, Error, Result};
 use crate::{fixtures::*, recipe};
 // macros
@@ -924,9 +925,17 @@ async fn test_solver_embedded_package_adds_request(mut solver: Solver) {
 
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
-    assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
+    assert_resolved!(
+        solution,
+        "qt",
+        build = Some(api::Build::Embedded(EmbeddedSource::Unknown))
+    );
     assert_resolved!(solution, "qt", "5.12.6");
-    assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
+    assert_resolved!(
+        solution,
+        "qt",
+        build = Some(api::Build::Embedded(EmbeddedSource::Unknown))
+    );
 }
 
 #[rstest]
@@ -958,7 +967,11 @@ async fn test_solver_embedded_package_solvable(mut solver: Solver) {
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(solution, "qt", "5.12.6");
-    assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
+    assert_resolved!(
+        solution,
+        "qt",
+        build = Some(api::Build::Embedded(EmbeddedSource::Unknown))
+    );
 }
 
 #[rstest]
@@ -1566,7 +1579,11 @@ async fn test_solver_component_embedded(mut solver: Solver) {
 
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
-    assert_resolved!(solution, "dep-e1", build = Some(api::Build::Embedded));
+    assert_resolved!(
+        solution,
+        "dep-e1",
+        build = Some(api::Build::Embedded(EmbeddedSource::Unknown))
+    );
 
     solver.reset();
     solver.add_repository(repo);

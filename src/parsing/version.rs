@@ -68,7 +68,10 @@ where
             // Don't parse as a ptag unless it is followed by something that
             // terminates a ptag. For example, don't consume the `0.0` in
             // `!=0+a.0,0.0.*` as a ptag.
-            terminated(ptag, peek(alt((tag(","), tag("/"), tag("+"), eof)))),
+            terminated(
+                ptag,
+                peek(alt((tag(","), tag("/"), tag("+"), tag("]"), eof))),
+            ),
         ),
         |vec| {
             let mut tags = BTreeMap::new();
@@ -105,7 +108,10 @@ where
             // Don't parse as a ptag unless it is followed by something that
             // terminates a ptag. For example, don't consume the `0.0` in
             // `!=0+a.0,0.0.*` as a ptag.
-            terminated(ptag_str, peek(alt((tag(","), tag("/"), tag("+"), eof)))),
+            terminated(
+                ptag_str,
+                peek(alt((tag(","), tag("/"), tag("+"), tag("]"), eof))),
+            ),
         ),
         |tags| {
             let mut set = HashSet::with_capacity(tags.len());

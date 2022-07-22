@@ -5,6 +5,8 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
+use super::Ident;
+
 #[cfg(test)]
 #[path = "./build_test.rs"]
 mod build_test;
@@ -25,11 +27,28 @@ impl InvalidBuildError {
     }
 }
 
+/// An embedded package's source (if known).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub enum EmbeddedSource {
+    Ident(Box<Ident>),
+    Unknown,
+}
+
+impl std::fmt::Display for EmbeddedSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{EMBEDDED}")?;
+        match self {
+            EmbeddedSource::Ident(ident) => write!(f, "[{ident}]"),
+            EmbeddedSource::Unknown => Ok(()),
+        }
+    }
+}
+
 /// Build represents a package build identifier.
 #[derive(Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum Build {
     Source,
-    Embedded,
+    Embedded(EmbeddedSource),
     Digest([char; super::option_map::DIGEST_SIZE]),
 }
 
@@ -38,7 +57,7 @@ impl Build {
     pub fn digest(&self) -> String {
         match self {
             Build::Source => SRC.to_string(),
-            Build::Embedded => EMBEDDED.to_string(),
+            Build::Embedded(by) => by.to_string(),
             Build::Digest(d) => d.iter().collect(),
         }
     }
@@ -48,7 +67,7 @@ impl Build {
     }
 
     pub fn is_embedded(&self) -> bool {
-        matches!(self, Build::Embedded)
+        matches!(self, Build::Embedded(_))
     }
 }
 

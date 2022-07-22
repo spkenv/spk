@@ -225,7 +225,9 @@ impl FromStr for Ident {
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> Result<Self> {
-        parsing::ident::<nom_supreme::error::ErrorTree<_>>(source)
+        use nom::combinator::all_consuming;
+
+        all_consuming(parsing::ident::<nom_supreme::error::ErrorTree<_>>)(source)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
                 nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
