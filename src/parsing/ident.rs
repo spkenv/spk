@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
-
 use nom::{
     character::complete::char,
     combinator::{all_consuming, map, opt},
@@ -15,31 +13,15 @@ use nom_supreme::tag::TagError;
 
 use crate::api::{Build, Ident, Version};
 
-use super::{
-    name::package_name,
-    repo_name_in_ident,
-    version::{version, version_str},
-    version_and_optional_build,
-};
+use super::{name::package_name, version::version, version_and_optional_build};
 
 /// Parse a package identity into an [`Ident`].
-///
-/// `known_repositories` is used to disambiguate input that
-/// can be parsed in multiple ways. The first element of the
-/// identity is more likely to be interpreted as a repository
-/// name if it is a known repository name.
 ///
 /// Examples:
 /// - `"pkg-name"`
 /// - `"pkg-name/1.0"`
 /// - `"pkg-name/1.0/CU7ZWOIF"`
-/// - `"repo-name/pkg-name"`
-/// - `"repo-name/pkg-name/1.0"`
-/// - `"repo-name/pkg-name/1.0/CU7ZWOIF"`
-pub(crate) fn ident<'a, 'b, E>(
-    known_repositories: &'a HashSet<&str>,
-    input: &'b str,
-) -> IResult<&'b str, Ident, E>
+pub(crate) fn ident<'b, E>(input: &'b str) -> IResult<&'b str, Ident, E>
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>
@@ -47,14 +29,7 @@ where
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {
-    let (input, repository_name) = opt(repo_name_in_ident(
-        known_repositories,
-        package_ident,
-        version_str,
-        version_and_build,
-    ))(input)?;
     let (input, mut ident) = package_ident(input)?;
-    ident.repository_name = repository_name;
     let (input, version_and_build) =
         all_consuming(opt(preceded(char('/'), version_and_build)))(input)?;
     match version_and_build {

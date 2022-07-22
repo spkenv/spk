@@ -7,9 +7,9 @@ use std::{convert::TryFrom, fmt::Write, str::FromStr};
 use relative_path::RelativePathBuf;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{parsing, storage::KNOWN_REPOSITORY_NAMES, Result};
+use crate::{parsing, Result};
 
-use super::{Build, PkgNameBuf, Version};
+use super::{Build, PkgNameBuf, RangeIdent, Version};
 
 #[cfg(test)]
 #[path = "./ident_test.rs"]
@@ -61,7 +61,6 @@ pub trait DataPath {
 /// syntax and context
 #[derive(Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Ident {
-    pub(crate) repository_name: Option<RepositoryName>,
     pub name: PkgNameBuf,
     pub version: Version,
     pub build: Option<Build>,
@@ -96,7 +95,6 @@ impl Ident {
     /// Return a copy of this identifier with the given version number instead
     pub fn with_version(&self, version: Version) -> Ident {
         Self {
-            repository_name: self.repository_name.clone(),
             name: self.name.clone(),
             version,
             build: self.build.clone(),
@@ -108,16 +106,6 @@ impl Ident {
         self.build = build;
     }
 
-    /// Get the repository name of this package identifier.
-    pub fn repository_name(&self) -> &Option<RepositoryName> {
-        &self.repository_name
-    }
-
-    /// Set the repository name of this package identifier.
-    pub fn set_repository_name(&mut self, repository_name: Option<RepositoryName>) {
-        self.repository_name = repository_name;
-    }
-
     /// Return a copy of this identifier with the given build replaced.
     pub fn with_build(&self, build: Option<Build>) -> Self {
         let mut new = self.clone();
@@ -127,7 +115,6 @@ impl Ident {
 
     pub fn new(name: PkgNameBuf) -> Self {
         Self {
-            repository_name: Default::default(),
             name,
             version: Default::default(),
             build: Default::default(),
@@ -168,7 +155,6 @@ impl Ident {
 
 impl DataPath for Ident {
     fn data_path(&self) -> RelativePathBuf {
-        // The data path *does not* include the repository name.
         let path = RelativePathBuf::from(self.name.as_str());
         if let Some(vb) = self.version_and_build() {
             path.join(vb.as_str())
@@ -181,6 +167,32 @@ impl DataPath for Ident {
 impl From<PkgNameBuf> for Ident {
     fn from(n: PkgNameBuf) -> Self {
         Self::new(n)
+    }
+}
+
+impl TryFrom<RangeIdent> for Ident {
+    type Error = crate::Error;
+
+    fn try_from(ri: RangeIdent) -> Result<Self> {
+        let name = ri.name;
+        let build = ri.build;
+        ri.version.try_into_version().map(|version| Self {
+            name,
+            version,
+            build,
+        })
+    }
+}
+
+impl TryFrom<&RangeIdent> for Ident {
+    type Error = crate::Error;
+
+    fn try_from(ri: &RangeIdent) -> Result<Self> {
+        ri.version.clone().try_into_version().map(|version| Self {
+            name: ri.name.clone(),
+            version,
+            build: ri.build.clone(),
+        })
     }
 }
 
@@ -213,7 +225,7 @@ impl FromStr for Ident {
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> Result<Self> {
-        parsing::ident::<nom_supreme::error::ErrorTree<_>>(&KNOWN_REPOSITORY_NAMES, source)
+        parsing::ident::<nom_supreme::error::ErrorTree<_>>(source)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
                 nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
@@ -292,7 +304,6 @@ impl std::fmt::Display for BuildIdent {
 impl From<BuildIdent> for Ident {
     fn from(bi: BuildIdent) -> Self {
         Ident {
-            repository_name: Some(bi.repository_name),
             name: bi.name,
             version: bi.version,
             build: Some(bi.build),
@@ -303,7 +314,6 @@ impl From<BuildIdent> for Ident {
 impl From<&BuildIdent> for Ident {
     fn from(bi: &BuildIdent) -> Self {
         Ident {
-            repository_name: Some(bi.repository_name.clone()),
             name: bi.name.clone(),
             version: bi.version.clone(),
             build: Some(bi.build.clone()),

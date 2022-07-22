@@ -13,7 +13,7 @@ use super::{flags, CommandArgs, Run};
 #[derive(Clone)]
 pub enum PackageSpecifier {
     Plain(String),
-    WithSourceIdent((String, spk::api::Ident)),
+    WithSourceIdent((String, spk::api::RangeIdent)),
 }
 
 impl PackageSpecifier {

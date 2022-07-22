@@ -349,6 +349,15 @@ impl Version {
         }
         !self.parts.iter().any(|x| x > &0)
     }
+
+    #[cfg(test)]
+    pub(crate) fn into_compat_range(self) -> super::VersionFilter {
+        // Typically a `Version` is converted into a `DoubleEquals` but this
+        // converts to a `Compat` instead.
+        super::VersionFilter::single(super::VersionRange::Compat(super::CompatRange::new(
+            self, None,
+        )))
+    }
 }
 
 impl From<VersionParts> for Version {

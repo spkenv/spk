@@ -1202,6 +1202,28 @@ impl VersionFilter {
         }
         self.rules = rules_as_vec.into_iter().collect();
     }
+
+    /// Convert this version filter to a plain [`Version`], if possible.
+    ///
+    /// `1.2.3`, `=1.2.3`, `==1.2.3` can convert to `1.2.3`.
+    pub(crate) fn try_into_version(self) -> Result<Version> {
+        // dev note: this could be a method on `Ranged` but it wants to
+        // consume the `VersionFilter`.
+        if self.rules.len() != 1 {
+            return Err("VersionFilter must have only one rule".into());
+        }
+
+        // Safety: already checked that rules is not empty.
+        let rule = unsafe { self.rules.into_iter().next().unwrap_unchecked() };
+
+        Ok(match rule {
+            VersionRange::Compat(v) => v.base,
+            VersionRange::Equals(v) => v.version,
+            VersionRange::DoubleEquals(v) => v.version,
+            VersionRange::Filter(f) => return f.try_into_version(),
+            _ => return Err(format!("'{rule}' cannot be expressed as a `Version`").into()),
+        })
+    }
 }
 
 impl Ranged for VersionFilter {
@@ -1297,6 +1319,12 @@ impl Display for VersionFilter {
 
         let s = rules.join(VERSION_RANGE_SEP);
         f.write_str(&s)
+    }
+}
+
+impl From<Version> for VersionFilter {
+    fn from(version: Version) -> Self {
+        Self::single(VersionRange::DoubleEquals(DoubleEqualsVersion { version }))
     }
 }
 
