@@ -22,6 +22,7 @@ use nom::{
     IResult, InputLength, Parser,
 };
 
+pub(crate) use build::build;
 pub(crate) use ident::ident;
 pub use ident::{ident_parts, IdentParts};
 use nom_supreme::tag::TagError;

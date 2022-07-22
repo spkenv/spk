@@ -1,10 +1,8 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::convert::TryInto;
 use std::str::FromStr;
 
-use itertools::Itertools;
 use thiserror::Error;
 
 #[cfg(test)]
@@ -70,27 +68,16 @@ impl FromStr for Build {
     type Err = crate::Error;
 
     fn from_str(source: &str) -> crate::Result<Self> {
-        match source {
-            SRC => Ok(Build::Source),
-            EMBEDDED => Ok(Build::Embedded),
-            _ => {
-                if let Err(err) = data_encoding::BASE32.decode(source.as_bytes()) {
-                    return Err(InvalidBuildError::new_error(format!(
-                        "Invalid build digest '{}': {:?}",
-                        source, err
-                    )));
-                }
+        use nom::combinator::all_consuming;
 
-                match source.chars().collect_vec().try_into() {
-                    Ok(chars) => Ok(Build::Digest(chars)),
-
-                    Err(err) => Err(InvalidBuildError::new_error(format!(
-                        "Invalid build digest '{}': {:?}",
-                        source, err
-                    ))),
+        all_consuming(crate::parsing::build::<nom_supreme::error::ErrorTree<_>>)(source)
+            .map(|(_, build)| build)
+            .map_err(|err| match err {
+                nom::Err::Error(e) | nom::Err::Failure(e) => {
+                    InvalidBuildError::new_error(e.to_string())
                 }
-            }
-        }
+                nom::Err::Incomplete(_) => unreachable!(),
+            })
     }
 }
 

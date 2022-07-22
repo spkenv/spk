@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use nom::{
     character::complete::char,
-    combinator::{all_consuming, map, opt},
+    combinator::{all_consuming, map, opt, recognize},
     error::{ContextError, FromExternalError, ParseError},
     sequence::preceded,
     IResult,
@@ -16,7 +16,7 @@ use nom_supreme::tag::TagError;
 use crate::api::{Build, Ident, RepositoryName, Version};
 
 use super::{
-    build::{build, build_str},
+    build::build,
     name::package_name,
     repo_name_in_ident,
     version::{version, version_str},
@@ -82,7 +82,7 @@ where
     let (input, pkg_name) = package_name(input)?;
     let (input, version_and_build) = all_consuming(opt(preceded(
         char('/'),
-        version_and_optional_build(version_str, build_str),
+        version_and_optional_build(version_str, recognize(build)),
     )))(input)?;
     match version_and_build {
         Some(v_and_b) => Ok((
