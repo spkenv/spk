@@ -3,9 +3,13 @@
 // https://github.com/imageworks/spk
 use std::str::FromStr;
 
+use relative_path::RelativePathBuf;
 use thiserror::Error;
 
-use super::Ident;
+use super::{
+    ident::{MetadataPath, TagPath},
+    Ident,
+};
 
 #[cfg(test)]
 #[path = "./build_test.rs"]
@@ -32,6 +36,23 @@ impl InvalidBuildError {
 pub enum EmbeddedSource {
     Ident(Box<Ident>),
     Unknown,
+}
+
+impl MetadataPath for EmbeddedSource {
+    fn metadata_path(&self) -> RelativePathBuf {
+        match self {
+            EmbeddedSource::Ident(ident) => RelativePathBuf::from(format!(
+                "embedded-by-{}",
+                // Encode the parent ident into base32 to have a unique value
+                // per unique parent that is a valid filename. The trailing
+                // '=' are not allowed in tag names.
+                data_encoding::BASE32
+                    .encode(ident.to_string().as_bytes())
+                    .trim_end_matches('=')
+            )),
+            EmbeddedSource::Unknown => RelativePathBuf::from("embedded"),
+        }
+    }
 }
 
 impl std::fmt::Display for EmbeddedSource {
@@ -68,6 +89,21 @@ impl Build {
 
     pub fn is_embedded(&self) -> bool {
         matches!(self, Build::Embedded(_))
+    }
+}
+
+impl MetadataPath for Build {
+    fn metadata_path(&self) -> RelativePathBuf {
+        match self {
+            Build::Source | Build::Digest(_) => RelativePathBuf::from(self.digest()),
+            Build::Embedded(embedded) => embedded.metadata_path(),
+        }
+    }
+}
+
+impl TagPath for Build {
+    fn tag_path(&self) -> RelativePathBuf {
+        self.metadata_path()
     }
 }
 

@@ -21,7 +21,7 @@ use spfs::{storage::EntryType, tracking};
 use tokio::io::AsyncReadExt;
 
 use super::{CachePolicy, Repository};
-use crate::api::{self, Package};
+use crate::api::{self, ident::TagPath, Package};
 use crate::{prelude::*, with_cache_policy, Error, Result};
 
 #[cfg(test)]
@@ -763,10 +763,7 @@ impl SPFSRepository {
 
         let mut tag = RelativePathBuf::from("spk");
         tag.push("pkg");
-        // the "+" character is not a valid spfs tag character,
-        // so we 'encode' it with two dots, which is not a valid sequence
-        // for spk package names
-        tag.push(pkg.to_string().replace('+', ".."));
+        tag.push(pkg.tag_path());
 
         Ok(tag)
     }
@@ -775,9 +772,8 @@ impl SPFSRepository {
     fn build_spec_tag(&self, pkg: &api::Ident) -> RelativePathBuf {
         let mut tag = RelativePathBuf::from("spk");
         tag.push("spec");
-        // the "+" character is not a valid spfs tag character,
-        // see above ^
-        tag.push(pkg.to_string().replace('+', ".."));
+        tag.push(pkg.tag_path());
+
         tag
     }
 

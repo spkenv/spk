@@ -44,6 +44,11 @@ pub trait MetadataPath {
     fn metadata_path(&self) -> RelativePathBuf;
 }
 
+pub trait TagPath {
+    /// Return the relative path for the spfs tag for an ident.
+    fn tag_path(&self) -> RelativePathBuf;
+}
+
 /// Ident represents a package identifier.
 ///
 /// The identifier is either a specific package or
@@ -156,10 +161,33 @@ impl Ident {
 impl MetadataPath for Ident {
     fn metadata_path(&self) -> RelativePathBuf {
         let path = RelativePathBuf::from(self.name.as_str());
-        if let Some(vb) = self.version_and_build() {
-            path.join(vb.as_str())
-        } else {
-            path
+        match &self.build {
+            Some(build) => path
+                .join(self.version.metadata_path())
+                .join(build.metadata_path()),
+            None => {
+                if self.version.is_zero() {
+                    path
+                } else {
+                    path.join(self.version.metadata_path())
+                }
+            }
+        }
+    }
+}
+
+impl TagPath for Ident {
+    fn tag_path(&self) -> RelativePathBuf {
+        let path = RelativePathBuf::from(self.name.as_str());
+        match &self.build {
+            Some(build) => path.join(self.version.tag_path()).join(build.tag_path()),
+            None => {
+                if self.version.is_zero() {
+                    path
+                } else {
+                    path.join(self.version.tag_path())
+                }
+            }
         }
     }
 }
@@ -285,8 +313,17 @@ impl MetadataPath for BuildIdent {
     fn metadata_path(&self) -> RelativePathBuf {
         // The data path *does not* include the repository name.
         RelativePathBuf::from(self.name.as_str())
-            .join(self.version.to_string())
-            .join(self.build.to_string())
+            .join(self.version.metadata_path())
+            .join(self.build.metadata_path())
+    }
+}
+
+impl TagPath for BuildIdent {
+    fn tag_path(&self) -> RelativePathBuf {
+        // The data path *does not* include the repository name.
+        RelativePathBuf::from(self.name.as_str())
+            .join(self.version.tag_path())
+            .join(self.build.tag_path())
     }
 }
 

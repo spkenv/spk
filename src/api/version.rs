@@ -9,10 +9,14 @@ use std::{
     str::FromStr,
 };
 
+use relative_path::RelativePathBuf;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
-use super::validate_tag_name;
+use super::{
+    ident::{MetadataPath, TagPath},
+    validate_tag_name,
+};
 use crate::Error;
 
 #[cfg(test)]
@@ -357,6 +361,21 @@ impl Version {
         super::VersionFilter::single(super::VersionRange::Compat(super::CompatRange::new(
             self, None,
         )))
+    }
+}
+
+impl MetadataPath for Version {
+    fn metadata_path(&self) -> RelativePathBuf {
+        RelativePathBuf::from(self.to_string())
+    }
+}
+
+impl TagPath for Version {
+    fn tag_path(&self) -> RelativePathBuf {
+        // the "+" character is not a valid spfs tag character,
+        // so we 'encode' it with two dots, which is not a valid sequence
+        // for spk package names
+        RelativePathBuf::from(self.to_string().replace('+', ".."))
     }
 }
 
