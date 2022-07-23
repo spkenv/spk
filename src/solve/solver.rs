@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::{
     borrow::Cow,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     mem::take,
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -16,7 +16,7 @@ use futures::{Stream, TryStreamExt};
 use priority_queue::priority_queue::PriorityQueue;
 
 use crate::{
-    api::{self, Build, OptionMap, PkgName, Request},
+    api::{self, Build, OptionMap, PkgName, PkgRequest, Request},
     prelude::*,
     solve::graph::StepBack,
     storage, Error, Result,
@@ -199,6 +199,42 @@ impl Solver {
         let request = if let Some(request) = node.state.get_next_request()? {
             request
         } else {
+            // May have a valid solution, but verify that all embedded packages
+            // that are part of the solve also have their source packages
+            // present in the solve.
+            let mut non_embeds = HashSet::new();
+            let mut embeds = HashMap::new();
+            for (spec, _) in node.state.get_resolved_packages().values() {
+                match &spec.ident().build {
+                    Some(api::Build::Embedded(api::EmbeddedSource::Ident(ident))) => {
+                        embeds.insert(*ident.clone(), spec.ident().clone());
+                    }
+                    _ => {
+                        non_embeds.insert(spec.ident().clone());
+                    }
+                }
+            }
+            let embeds_set: HashSet<api::Ident> = embeds.keys().cloned().collect();
+            let mut difference = embeds_set.difference(&non_embeds);
+            if let Some(missing_embed_provider) = difference.next() {
+                // This is an invalid solve!
+                // Safety: All members of `difference` must also exist in `embeds`.
+                let unprovided_embedded =
+                    unsafe { embeds.get(missing_embed_provider).unwrap_unchecked() };
+
+                notes.push(Note::Other(format!(
+                    "Embedded package {} missing its provider {}",
+                    unprovided_embedded, missing_embed_provider
+                )));
+                return Err(errors::Error::OutOfOptions(errors::OutOfOptions {
+                    request: PkgRequest::new(
+                        missing_embed_provider.clone().into(),
+                        api::RequestedBy::PackageBuild(unprovided_embedded.clone()),
+                    ),
+                    notes,
+                })
+                .into());
+            }
             return Ok(None);
         };
 

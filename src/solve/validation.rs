@@ -281,6 +281,10 @@ impl<P: Package> ValidatorT<P> for ComponentsValidator {
             // (and provide a better error message)
             return Ok(Compatible);
         }
+        if matches!(spec.ident().build, Some(api::Build::Embedded(_))) {
+            // Allow embedded stubs to validate.
+            return Ok(Compatible);
+        }
         let available_components: std::collections::HashSet<_> = match source {
             PackageSource::Repository { components, .. } => components.keys().collect(),
             PackageSource::BuildFromSource { .. } => spec.components().names(),
