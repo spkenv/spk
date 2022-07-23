@@ -17,12 +17,15 @@ use itertools::Itertools;
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 use spfs::{storage::EntryType, tracking};
-use spk_schema::foundation::ident_build::{parse_build, Build, InvalidBuildError};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::Ident;
+use spk_schema::{
+    foundation::ident_build::{parse_build, Build, InvalidBuildError},
+    ident_ops::TagPath,
+};
 use spk_schema::{Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
@@ -742,10 +745,7 @@ impl SPFSRepository {
 
         let mut tag = RelativePathBuf::from("spk");
         tag.push("pkg");
-        // the "+" character is not a valid spfs tag character,
-        // so we 'encode' it with two dots, which is not a valid sequence
-        // for spk package names
-        tag.push(pkg.to_string().replace('+', ".."));
+        tag.push(pkg.tag_path());
 
         Ok(tag)
     }
@@ -754,9 +754,8 @@ impl SPFSRepository {
     fn build_spec_tag(&self, pkg: &Ident) -> RelativePathBuf {
         let mut tag = RelativePathBuf::from("spk");
         tag.push("spec");
-        // the "+" character is not a valid spfs tag character,
-        // see above ^
-        tag.push(pkg.to_string().replace('+', ".."));
+        tag.push(pkg.tag_path());
+
         tag
     }
 
