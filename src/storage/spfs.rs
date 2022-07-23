@@ -431,12 +431,6 @@ impl Repository for SPFSRepository {
     }
 
     async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        if let Some(api::Build::Embedded(_)) = spec.ident().build {
-            return Err(api::InvalidBuildError::new_error(format!(
-                "Cannot publish embedded package: {}",
-                spec.ident()
-            )));
-        }
         if spec.ident().build.is_some() {
             return Err(api::InvalidBuildError::new_error(format!(
                 "Cannot publish recipe with associated build: {}",
