@@ -131,7 +131,7 @@ impl<P: Package> ValidatorT<P> for EmbeddedPackageValidator {
         }
 
         for embedded in spec.embedded().iter() {
-            let compat = Self::validate_embedded_package_against_state(embedded, state)?;
+            let compat = Self::validate_embedded_package_against_state(spec, embedded, state)?;
             if !&compat {
                 return Ok(compat);
             }
@@ -142,11 +142,31 @@ impl<P: Package> ValidatorT<P> for EmbeddedPackageValidator {
 }
 
 impl EmbeddedPackageValidator {
-    fn validate_embedded_package_against_state(
+    fn validate_embedded_package_against_state<P: Package>(
+        spec: &P,
         embedded: &api::Spec,
         state: &graph::State,
     ) -> crate::Result<Compatibility> {
         use Compatibility::{Compatible, Incompatible};
+
+        // There may not be a "real" instance of the embedded package in the
+        // solve already.
+        if let Some((existing, _)) = state.get_resolved_packages().get(&embedded.ident().name) {
+            // If found, it must be the stub of the package now being embedded
+            // to be okay.
+            match &existing.ident().build {
+                Some(api::Build::Embedded(api::EmbeddedSource::Package { ident, .. }))
+                    if &**ident == spec.ident() => {}
+                _ => {
+                    return Ok(Incompatible(format!(
+                        "embedded package '{}' conflicts with existing package in solve: {}",
+                        embedded.ident(),
+                        existing.ident()
+                    )));
+                }
+            }
+        }
+
         let existing = match state.get_merged_request(embedded.name()) {
             Ok(request) => request,
             Err(errors::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
@@ -321,7 +341,7 @@ impl<P: Package> ValidatorT<P> for ComponentsValidator {
 
             for embedded in component.embedded.iter() {
                 let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
-                    embedded, state,
+                    spec, embedded, state,
                 )?;
                 if !&compat {
                     return Ok(compat);
@@ -422,7 +442,9 @@ impl PkgRequirementsValidator {
             }
             for embedded in component.embedded.iter() {
                 let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
-                    embedded, state,
+                    &**resolved,
+                    embedded,
+                    state,
                 )?;
                 if !&compat {
                     return Ok(Compatibility::Incompatible(format!(

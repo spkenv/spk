@@ -79,8 +79,14 @@ macro_rules! assert_resolved {
         ].into_iter().collect();
         assert_eq!(names, expected, "wrong set of packages was resolved");
     }};
+}
 
-
+/// Asserts that a package does not exist in the solution at any version.
+macro_rules! assert_not_resolved {
+    ($solution:ident, $pkg:literal) => {{
+        let pkg = $solution.get($pkg);
+        assert!(pkg.is_none());
+    }};
 }
 
 // Helper that wraps common solver_test boiler plate
@@ -1005,6 +1011,65 @@ async fn test_solver_embedded_package_unsolvable(mut solver: Solver) {
 
     let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(matches!(res, Err(Error::Solve(_))));
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_solver_embedded_package_replaces_real_package(mut solver: Solver) {
+    // test when there is an embedded package
+    // - the embedded package is added to the solution
+    // - any dependencies from the "real" package aren't part of the solution
+
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "unwanted-dep",
+            },
+            {
+                "pkg": "thing-needs-plugin",
+                "install": {"requirements": [{"pkg": "my-plugin"}]},
+            },
+            {
+                "pkg": "my-plugin",
+                "install": {"requirements": [
+                    // Try to resolve qt first -- this should find the "real"
+                    // package first.
+                    {"pkg": "qt/5.12.6"},
+                    {"pkg": "maya/2019"}
+                ]},
+            },
+            {
+                "pkg": "maya/2019.2",
+                "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
+            },
+            {
+                "pkg": "qt/5.12.6", // same version as embedded
+                "install": {"requirements": [{"pkg": "unwanted-dep"}]},
+            },
+        ]
+    );
+
+    solver.add_repository(Arc::new(repo));
+    // Add qt to the request so "unwanted-dep" becomes part of the solution
+    // temporarily.
+    solver.add_request(request!("qt"));
+    // Can't directly request "my-plugin" or it gets resolved before
+    // "unwanted-dep" is added to solution.
+    solver.add_request(request!("thing-needs-plugin"));
+
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
+
+    // At time of writing, this is a point where "unwanted-dep" is part of the
+    // solution:
+    //    State Resolved: qt/5.12.6/3I42H3S6, thing-needs-plugin/0/3I42H3S6, unwanted-dep/0/3I42H3S6
+
+    assert_resolved!(solution, "qt", "5.12.6");
+    assert_resolved!(
+        solution,
+        "qt",
+        build = Some(api::Build::Embedded(EmbeddedSource::Unknown))
+    );
+    assert_not_resolved!(solution, "unwanted-dep");
 }
 
 #[rstest]
