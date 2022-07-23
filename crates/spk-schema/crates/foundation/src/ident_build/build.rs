@@ -42,10 +42,8 @@ impl MetadataPath for EmbeddedSource {
                 "embedded-by-{}",
                 // Encode the parent ident into base32 to have a unique value
                 // per unique parent that is a valid filename. The trailing
-                // '=' are not allowed in tag names.
-                data_encoding::BASE32
-                    .encode(ident.to_string().as_bytes())
-                    .trim_end_matches('=')
+                // '=' are not allowed in tag names (use NOPAD).
+                data_encoding::BASE32_NOPAD.encode(ident.to_string().as_bytes())
             )),
             EmbeddedSource::Unknown => RelativePathBuf::from("embedded"),
         }

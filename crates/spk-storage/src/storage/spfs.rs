@@ -17,7 +17,6 @@ use itertools::Itertools;
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 use spfs::{storage::EntryType, tracking};
-use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_schema::foundation::version::{parse_version, Version};
@@ -26,6 +25,7 @@ use spk_schema::{
     foundation::ident_build::{parse_build, Build, InvalidBuildError},
     ident_ops::TagPath,
 };
+use spk_schema::{foundation::ident_component::Component, ident_build::EmbeddedSource};
 use spk_schema::{Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
@@ -283,6 +283,9 @@ impl Storage for SPFSRepository {
         &self,
         pkg: &Ident,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
+        if matches!(pkg.build, Some(Build::Embedded(_))) {
+            return Ok(HashMap::new());
+        }
         let package = self.lookup_package(pkg).await?;
         let component_tags = package.into_components();
         let mut components = HashMap::with_capacity(component_tags.len());
@@ -387,36 +390,77 @@ impl Repository for SPFSRepository {
     }
 
     async fn list_package_builds(&self, pkg: &Ident) -> Result<Vec<Ident>> {
-        let pkg = pkg.with_build(Some(Build::Source));
-        let mut base = self.build_package_tag(&pkg)?;
-        // the package tag contains the name and build, but we need to
-        // remove the trailing build in order to list the containing 'folder'
-        // eg: pkg/1.0.0/src => pkg/1.0.0
-        base.pop();
+        let normal_builds = async {
+            let pkg = pkg.with_build(Some(Build::Source));
+            let mut base = self.build_package_tag(&pkg)?;
+            // the package tag contains the name and build, but we need to
+            // remove the trailing build in order to list the containing 'folder'
+            // eg: pkg/1.0.0/src => pkg/1.0.0
+            base.pop();
 
-        let builds: HashSet<_> = self
-            .ls_tags(&base)
-            .await
-            .into_iter()
-            .filter_map(|entry| match entry {
-                Ok(EntryType::Tag(name)) => Some(name),
-                Ok(EntryType::Folder(name)) => Some(name),
-                Err(_) => None,
-            })
-            .filter_map(|b| match parse_build(&b) {
-                Ok(v) => Some(v),
-                Err(_) => {
-                    tracing::warn!("Invalid build found in spfs tags: {}", b);
-                    None
-                }
-            })
-            .map(|b| pkg.with_build(Some(b)))
-            .collect();
-        // XXX: infallible vs return type
-        Ok(builds.into_iter().collect_vec())
+            let builds: HashSet<_> = self
+                .ls_tags(&base)
+                .await
+                .into_iter()
+                .filter_map(|entry| match entry {
+                    Ok(EntryType::Tag(name)) => Some(name),
+                    Ok(EntryType::Folder(name)) => Some(name),
+                    Err(_) => None,
+                })
+                .filter_map(|b| match parse_build(&b) {
+                    Ok(v) => Some(v),
+                    Err(_) => {
+                        tracing::warn!("Invalid build found in spfs tags: {}", b);
+                        None
+                    }
+                })
+                .map(|b| pkg.with_build(Some(b)))
+                .collect();
+
+            Ok::<_, crate::Error>(builds)
+        };
+        let embedded_builds = async {
+            let pkg = pkg.with_build(Some(Build::Source));
+            let mut base = self.build_spec_tag(&pkg);
+            // the package tag contains the name and build, but we need to
+            // remove the trailing build in order to list the containing 'folder'
+            // eg: pkg/1.0.0/src => pkg/1.0.0
+            base.pop();
+
+            let builds: HashSet<_> = self
+                .ls_tags(&base)
+                .await
+                .into_iter()
+                .filter_map(|entry| match entry {
+                    Ok(EntryType::Tag(name)) => Some(name),
+                    Ok(EntryType::Folder(_)) => None,
+                    Err(_) => None,
+                })
+                .filter_map(|b| {
+                    b.strip_prefix("embedded-by-")
+                        .and_then(|encoded_ident| {
+                            data_encoding::BASE32_NOPAD
+                                .decode(encoded_ident.as_bytes())
+                                .ok()
+                        })
+                        .and_then(|bytes| String::from_utf8(bytes).ok())
+                        .and_then(|ident_str| Ident::from_str(ident_str.as_str()).ok())
+                        .map(|ident| Build::Embedded(EmbeddedSource::Ident(ident.to_string())))
+                })
+                .map(|b| pkg.with_build(Some(b)))
+                .collect();
+
+            Ok::<_, crate::Error>(builds)
+        };
+        let (mut normal, embedded) = tokio::try_join!(normal_builds, embedded_builds)?;
+        normal.extend(embedded.into_iter());
+        Ok(normal.into_iter().collect_vec())
     }
 
     async fn list_build_components(&self, pkg: &Ident) -> Result<Vec<Component>> {
+        if matches!(pkg.build, Some(Build::Embedded(_))) {
+            return Ok(Vec::new());
+        }
         match self.lookup_package(pkg).await {
             Ok(p) => Ok(p.into_components().into_keys().collect()),
             Err(Error::SpkValidatorsError(

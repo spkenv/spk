@@ -8,6 +8,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, VarRequest};
+use spk_schema::ident_build::Build;
 use spk_schema::{Ident, Package, Recipe, Spec};
 use spk_solve_graph::{CachedHash, GetMergedRequestError, State};
 use spk_solve_solution::PackageSource;
@@ -330,13 +331,20 @@ pub struct ComponentsValidator {}
 
 impl ValidatorT for ComponentsValidator {
     #[allow(clippy::nonminimal_bool)]
-    fn validate_package<P: Package>(
+    fn validate_package<P>(
         &self,
         state: &State,
         spec: &P,
         source: &PackageSource,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::Result<Compatibility>
+    where
+        P: Package<Ident = Ident>,
+    {
         use Compatibility::Compatible;
+        if matches!(spec.ident().build, Some(Build::Embedded(_))) {
+            // Allow embedded stubs to validate.
+            return Ok(Compatible);
+        }
         let available_components: std::collections::HashSet<_> = match source {
             PackageSource::Repository { components, .. } => components.keys().collect(),
             PackageSource::BuildFromSource { .. } => spec.components().names(),
