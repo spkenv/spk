@@ -4,7 +4,7 @@
 use super::Repository;
 use crate::api;
 
-type Handle = dyn Repository<Recipe = api::SpecRecipe>;
+type Handle = dyn Repository<Recipe = api::SpecRecipe, Package = api::Spec>;
 
 #[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[allow(clippy::large_enum_variant)]

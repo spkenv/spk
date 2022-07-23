@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use super::Repository;
+use super::repository::Storage;
 use crate::{api, prelude::*, Error, Result};
 
 type ComponentMap = HashMap<api::Component, spfs::encoding::Digest>;
@@ -16,7 +16,7 @@ type VersionMap<T> = HashMap<api::Version, T>;
 type BuildMap<Package> = HashMap<api::Build, (Arc<Package>, ComponentMap)>;
 
 #[derive(Clone, Debug)]
-pub struct MemRepository<Recipe = api::SpecRecipe>
+pub struct MemRepository<Recipe = api::SpecRecipe, Package = api::Spec>
 where
     Recipe: api::Recipe + Sync + Send,
     Recipe::Output: Sync + Send,
@@ -25,6 +25,7 @@ where
     name: api::RepositoryNameBuf,
     specs: Arc<RwLock<PackageMap<Arc<Recipe>>>>,
     packages: Arc<RwLock<PackageMap<BuildMap<Recipe::Output>>>>,
+    _marker: std::marker::PhantomData<Package>,
 }
 
 impl<Recipe, Package> MemRepository<Recipe>
@@ -43,6 +44,7 @@ where
             name: "mem".try_into().expect("valid repository name"),
             specs,
             packages: Arc::default(),
+            _marker: std::marker::PhantomData::default(),
         }
     }
 }
@@ -89,21 +91,47 @@ where
     }
 }
 
-impl<Recipe> Eq for MemRepository<Recipe>
+impl<Recipe> Eq for MemRepository<Recipe> where Recipe: api::Recipe + Send + Sync {}
+
+#[async_trait::async_trait]
+impl<Recipe, Package> Storage for MemRepository<Recipe, Package>
 where
-    Recipe: api::Recipe + Send + Sync,
-    Recipe::Output: Send + Sync,
+    Recipe: api::Recipe<Output = Package, Recipe = Recipe> + Send + Sync,
+    Package: api::Package<Input = Recipe> + Send + Sync,
 {
+    type Recipe = Recipe;
+    type Package = Package;
+
+    async fn publish_package_to_storage(
+        &self,
+        package: &<Self::Recipe as api::Recipe>::Output,
+        components: &ComponentMap,
+    ) -> Result<()> {
+        let build = match &package.ident().build {
+            Some(b) => b.to_owned(),
+            None => {
+                return Err(Error::String(format!(
+                    "Package must include a build in order to be published: {}",
+                    package.ident()
+                )))
+            }
+        };
+
+        let mut packages = self.packages.write().await;
+        let versions = packages.entry(package.name().to_owned()).or_default();
+        let builds = versions.entry(package.version().clone()).or_default();
+
+        builds.insert(build, (Arc::new(package.clone()), components.clone()));
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
-impl<Recipe> Repository for MemRepository<Recipe>
+impl<Recipe, Package> Repository for MemRepository<Recipe, Package>
 where
-    Recipe: api::Recipe + Clone + Send + Sync,
-    Recipe::Output: Clone + Send + Sync,
+    Recipe: api::Recipe<Output = Package, Recipe = Recipe> + Send + Sync,
+    Package: api::Package<Input = Recipe> + Send + Sync,
 {
-    type Recipe = Recipe;
-
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -251,29 +279,6 @@ where
             .get(build)
             .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))
             .map(|found| Arc::clone(&found.0))
-    }
-
-    async fn publish_package(
-        &self,
-        spec: &<Self::Recipe as api::Recipe>::Output,
-        components: &ComponentMap,
-    ) -> Result<()> {
-        let build = match &spec.ident().build {
-            Some(b) => b.to_owned(),
-            None => {
-                return Err(Error::String(format!(
-                    "Package must include a build in order to be published: {}",
-                    spec.ident()
-                )))
-            }
-        };
-
-        let mut packages = self.packages.write().await;
-        let versions = packages.entry(spec.name().to_owned()).or_default();
-        let builds = versions.entry(spec.version().clone()).or_default();
-
-        builds.insert(build, (Arc::new(spec.clone()), components.clone()));
-        Ok(())
     }
 
     async fn remove_package(&self, pkg: &api::Ident) -> Result<()> {

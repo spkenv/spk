@@ -9,7 +9,7 @@ use std::{
 
 use spfs::prelude::*;
 
-use super::Repository;
+use super::{repository::Storage, Repository};
 use crate::{api, Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -74,9 +74,23 @@ impl RuntimeRepository {
 }
 
 #[async_trait::async_trait]
-impl Repository for RuntimeRepository {
+impl Storage for RuntimeRepository {
     type Recipe = api::SpecRecipe;
+    type Package = api::Spec;
 
+    async fn publish_package_to_storage(
+        &self,
+        _package: &<Self::Recipe as api::Recipe>::Output,
+        _components: &HashMap<api::Component, spfs::encoding::Digest>,
+    ) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a runtime repository".into(),
+        ))
+    }
+}
+
+#[async_trait::async_trait]
+impl Repository for RuntimeRepository {
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -249,16 +263,6 @@ impl Repository for RuntimeRepository {
         serde_yaml::from_reader(&mut reader)
             .map(Arc::new)
             .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
-    }
-
-    async fn publish_package(
-        &self,
-        _spec: &<Self::Recipe as api::Recipe>::Output,
-        _components: &HashMap<api::Component, spfs::encoding::Digest>,
-    ) -> Result<()> {
-        Err(Error::String(
-            "Cannot publish to a runtime repository".into(),
-        ))
     }
 
     async fn remove_package(&self, _pkg: &api::Ident) -> Result<()> {

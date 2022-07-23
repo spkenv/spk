@@ -20,7 +20,7 @@ use serde_derive::{Deserialize, Serialize};
 use spfs::{storage::EntryType, tracking};
 use tokio::io::AsyncReadExt;
 
-use super::{CachePolicy, Repository};
+use super::{repository::Storage, CachePolicy, Repository};
 use crate::api::{self, ident::TagPath, Package};
 use crate::{prelude::*, with_cache_policy, Error, Result};
 
@@ -199,9 +199,75 @@ std::thread_local! {
 }
 
 #[async_trait::async_trait]
-impl Repository for SPFSRepository {
+impl Storage for SPFSRepository {
     type Recipe = api::SpecRecipe;
+    type Package = api::Spec;
 
+    async fn publish_package_to_storage(
+        &self,
+        package: &<Self::Recipe as api::Recipe>::Output,
+        components: &HashMap<api::Component, spfs::encoding::Digest>,
+    ) -> Result<()> {
+        #[cfg(test)]
+        if let Err(Error::PackageNotFoundError(pkg)) =
+            self.read_recipe(&package.ident().with_build(None)).await
+        {
+            return Err(Error::String(format!(
+                "[INTERNAL] recipe must be published before a specific build: {pkg}",
+            )));
+        }
+
+        let tag_path = self.build_package_tag(package.ident())?;
+
+        // We will also publish the 'run' component in the old style
+        // for compatibility with older versions of the spk command.
+        // It's not perfect but at least the package will be visible
+        let legacy_tag = spfs::tracking::TagSpec::parse(&tag_path)?;
+        let legacy_component = if let Some(api::Build::Source) = package.ident().build {
+            *components.get(&api::Component::Source).ok_or_else(|| {
+                Error::String("Package must have a source component to be published".to_string())
+            })?
+        } else {
+            *components.get(&api::Component::Run).ok_or_else(|| {
+                Error::String("Package must have a run component to be published".to_string())
+            })?
+        };
+
+        self.inner.push_tag(&legacy_tag, &legacy_component).await?;
+
+        let components: std::result::Result<Vec<_>, _> = components
+            .iter()
+            .map(|(name, digest)| {
+                spfs::tracking::TagSpec::parse(tag_path.join(name.as_str()))
+                    .map(|spec| (spec, digest))
+            })
+            .collect();
+        for (tag_spec, digest) in components?.into_iter() {
+            self.inner.push_tag(&tag_spec, digest).await?;
+        }
+
+        if let Some(api::Build::Embedded(_)) = package.ident().build {
+            return Err(api::InvalidBuildError::new_error(
+                "Cannot publish embedded package".to_string(),
+            ));
+        }
+
+        // TODO: dedupe this part with force_publish_recipe
+        let tag_path = self.build_spec_tag(package.ident());
+        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
+        let payload = serde_yaml::to_vec(&package).map_err(Error::SpecEncodingError)?;
+        let digest = self
+            .inner
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .await?;
+        self.inner.push_tag(&tag_spec, &digest).await?;
+        self.invalidate_caches();
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Repository for SPFSRepository {
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -486,68 +552,6 @@ impl Repository for SPFSRepository {
         let tag_path = self.build_spec_tag(&spec.ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
 
-        let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;
-        let digest = self
-            .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
-            .await?;
-        self.inner.push_tag(&tag_spec, &digest).await?;
-        self.invalidate_caches();
-        Ok(())
-    }
-
-    async fn publish_package(
-        &self,
-        spec: &api::Spec,
-        components: &HashMap<api::Component, spfs::encoding::Digest>,
-    ) -> Result<()> {
-        #[cfg(test)]
-        if let Err(Error::PackageNotFoundError(pkg)) =
-            self.read_recipe(&spec.ident().with_build(None)).await
-        {
-            return Err(Error::String(format!(
-                "[INTERNAL] recipe must be published before a specific build: {pkg}",
-            )));
-        }
-
-        let tag_path = self.build_package_tag(spec.ident())?;
-
-        // We will also publish the 'run' component in the old style
-        // for compatibility with older versions of the spk command.
-        // It's not perfect but at least the package will be visible
-        let legacy_tag = spfs::tracking::TagSpec::parse(&tag_path)?;
-        let legacy_component = if let Some(api::Build::Source) = spec.ident().build {
-            *components.get(&api::Component::Source).ok_or_else(|| {
-                Error::String("Package must have a source component to be published".to_string())
-            })?
-        } else {
-            *components.get(&api::Component::Run).ok_or_else(|| {
-                Error::String("Package must have a run component to be published".to_string())
-            })?
-        };
-
-        self.inner.push_tag(&legacy_tag, &legacy_component).await?;
-
-        let components: std::result::Result<Vec<_>, _> = components
-            .iter()
-            .map(|(name, digest)| {
-                spfs::tracking::TagSpec::parse(tag_path.join(name.as_str()))
-                    .map(|spec| (spec, digest))
-            })
-            .collect();
-        for (tag_spec, digest) in components?.into_iter() {
-            self.inner.push_tag(&tag_spec, digest).await?;
-        }
-
-        if let Some(api::Build::Embedded(_)) = spec.ident().build {
-            return Err(api::InvalidBuildError::new_error(
-                "Cannot publish embedded package".to_string(),
-            ));
-        }
-
-        // TODO: dedupe this part with force_publish_recipe
-        let tag_path = self.build_spec_tag(spec.ident());
-        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
         let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;
         let digest = self
             .inner

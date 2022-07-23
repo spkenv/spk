@@ -8,7 +8,11 @@ mod package_test;
 
 /// Can be resolved into an environment.
 #[enum_dispatch::enum_dispatch]
-pub trait Package: super::Named + super::Versioned + super::Deprecate + Sync + Send {
+pub trait Package:
+    super::Named + super::Versioned + super::Deprecate + Clone + Sync + Send
+{
+    type Input: super::Recipe;
+
     /// The full identifier for this package
     ///
     /// This includes the version and optional build
@@ -28,6 +32,9 @@ pub trait Package: super::Named + super::Versioned + super::Deprecate + Sync + S
 
     /// The packages that are embedded within this one
     fn embedded(&self) -> &super::EmbeddedPackagesList;
+
+    /// The packages that are embedded within this one
+    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str>;
 
     /// The components defined by this package
     fn components(&self) -> &super::ComponentSpecList;
@@ -76,6 +83,8 @@ pub trait Package: super::Named + super::Versioned + super::Deprecate + Sync + S
 }
 
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
+    type Input = T::Input;
+
     fn ident(&self) -> &super::Ident {
         (**self).ident()
     }
@@ -98,6 +107,10 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 
     fn embedded(&self) -> &super::EmbeddedPackagesList {
         (**self).embedded()
+    }
+
+    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str> {
+        (**self).embedded_as_recipes()
     }
 
     fn components(&self) -> &super::ComponentSpecList {
@@ -126,6 +139,8 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 }
 
 impl<T: Package + Send + Sync> Package for &T {
+    type Input = T::Input;
+
     // TODO: use or find a macro for this
     fn ident(&self) -> &super::Ident {
         (**self).ident()
@@ -149,6 +164,10 @@ impl<T: Package + Send + Sync> Package for &T {
 
     fn embedded(&self) -> &super::EmbeddedPackagesList {
         (**self).embedded()
+    }
+
+    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str> {
+        (**self).embedded_as_recipes()
     }
 
     fn components(&self) -> &super::ComponentSpecList {

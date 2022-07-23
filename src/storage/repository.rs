@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{api, prelude::*, Result};
+use crate::{api, prelude::*, Error, Result};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -22,10 +22,32 @@ impl CachePolicy {
     }
 }
 
+/// Low level storage operations.
+///
+/// These methods are expected to have different implementations for different
+/// storage types, but perform the same logical operation for any storage type.
 #[async_trait::async_trait]
-pub trait Repository: Sync {
-    type Recipe: api::Recipe;
+pub trait Storage: Sync {
+    type Recipe: api::Recipe<Output = Self::Package, Recipe = Self::Recipe>;
+    type Package: api::Package<Input = Self::Recipe>;
 
+    /// Publish a package to this repository.
+    ///
+    /// The provided component digests are expected to each identify an spfs
+    /// layer which contains properly constructed binary package files and metadata.
+    async fn publish_package_to_storage(
+        &self,
+        package: &<Self::Recipe as api::Recipe>::Output,
+        components: &HashMap<api::Component, spfs::encoding::Digest>,
+    ) -> Result<()>;
+}
+
+/// High level repository concepts.
+///
+/// An abstraction for interacting with different storage backends as a
+/// repository for spk packages.
+#[async_trait::async_trait]
+pub trait Repository: Storage + Sync {
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository
     /// share an address
@@ -96,7 +118,33 @@ pub trait Repository: Sync {
         &self,
         package: &<Self::Recipe as api::Recipe>::Output,
         components: &HashMap<api::Component, spfs::encoding::Digest>,
-    ) -> Result<()>;
+    ) -> Result<()>
+    where
+        <<<Self as Storage>::Recipe as Recipe>::Output as Package>::Input: Clone,
+    {
+        self.publish_package_to_storage(package, components).await?;
+
+        // After successfully publishing a package, also publish stubs for any
+        // embedded packages in this package.
+        if !package.ident().is_source() {
+            for embed in package.embedded_as_recipes()?.into_iter() {
+                // The "version spec" must exist for this package to be discoverable.
+                // One may already exist from "real" (non-embedded) publishes.
+                let version_spec = embed.with_build(None);
+                match self.publish_recipe(&version_spec).await {
+                    Ok(_) | Err(Error::VersionExistsError(_)) => {}
+                    Err(err) => return Err(err),
+                };
+
+                let embed = embed.with_build(Some(api::Build::Embedded(
+                    api::EmbeddedSource::Ident(Box::new(package.ident().clone())),
+                )));
+                self.force_publish_recipe(&embed).await?;
+            }
+        }
+
+        Ok(())
+    }
 
     /// Modify a package in this repository.
     ///

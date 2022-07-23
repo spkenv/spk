@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::collections::HashMap;
+use std::convert::TryInto;
 
 use serde::{Deserialize, Serialize};
 
@@ -163,6 +164,8 @@ impl api::DeprecateMut for Spec {
 }
 
 impl Package for Spec {
+    type Input = Self;
+
     fn ident(&self) -> &Ident {
         &self.pkg
     }
@@ -193,6 +196,15 @@ impl Package for Spec {
         &self.install.embedded
     }
 
+    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str> {
+        self.install
+            .embedded
+            .iter()
+            .cloned()
+            .map(TryInto::try_into)
+            .collect()
+    }
+
     fn components(&self) -> &api::ComponentSpecList {
         &self.install.components
     }
@@ -216,6 +228,7 @@ impl Package for Spec {
 
 impl Recipe for Spec {
     type Output = Self;
+    type Recipe = Self;
 
     fn default_variants(&self) -> &Vec<OptionMap> {
         &self.build.variants
@@ -362,6 +375,12 @@ impl Recipe for Spec {
         let digest = updated.resolve_options(options)?.digest();
         updated.pkg.set_build(Some(Build::Digest(digest)));
         Ok(updated)
+    }
+
+    fn with_build(&self, build: Option<api::Build>) -> Self {
+        let mut r = self.clone();
+        r.pkg.build = build;
+        r
     }
 }
 

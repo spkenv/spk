@@ -27,7 +27,8 @@ impl<T: Versioned> Versioned for &T {
 
 /// Can be used to build a package.
 #[enum_dispatch::enum_dispatch]
-pub trait Recipe: super::Named + Versioned + super::Deprecate + Sync + Send {
+pub trait Recipe: super::Named + Versioned + super::Deprecate + Clone + Sync + Send {
+    type Recipe;
     type Output: super::Package;
 
     /// Build an identifier to represent this recipe.
@@ -66,6 +67,9 @@ pub trait Recipe: super::Named + Versioned + super::Deprecate + Sync + Send {
         options: &super::OptionMap,
         build_env: &crate::solve::Solution,
     ) -> Result<Self::Output>;
+
+    /// Return a copy of this recipe with the given build.
+    fn with_build(&self, build: Option<super::Build>) -> Self::Recipe;
 }
 
 impl<T> Recipe for std::sync::Arc<T>
@@ -73,6 +77,7 @@ where
     T: Recipe,
 {
     type Output = T::Output;
+    type Recipe = T::Recipe;
 
     fn ident(&self) -> super::Ident {
         (**self).ident()
@@ -104,6 +109,10 @@ where
         build_env: &crate::solve::Solution,
     ) -> Result<Self::Output> {
         (**self).generate_binary_build(options, build_env)
+    }
+
+    fn with_build(&self, build: Option<super::Build>) -> Self::Recipe {
+        (**self).with_build(build)
     }
 }
 
@@ -112,6 +121,7 @@ where
     T: Recipe,
 {
     type Output = T::Output;
+    type Recipe = T::Recipe;
 
     fn ident(&self) -> super::Ident {
         (**self).ident()
@@ -143,5 +153,9 @@ where
         build_env: &crate::solve::Solution,
     ) -> Result<Self::Output> {
         (**self).generate_binary_build(options, build_env)
+    }
+
+    fn with_build(&self, build: Option<super::Build>) -> Self::Recipe {
+        (**self).with_build(build)
     }
 }
