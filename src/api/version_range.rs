@@ -1209,12 +1209,13 @@ impl VersionFilter {
     pub(crate) fn try_into_version(self) -> Result<Version> {
         // dev note: this could be a method on `Ranged` but it wants to
         // consume the `VersionFilter`.
-        if self.rules.len() != 1 {
-            return Err("VersionFilter must have only one rule".into());
+        let mut rules = self.rules.into_iter();
+        let rule = rules
+            .next()
+            .ok_or_else(|| Error::String("VersionFilter cannot be empty".to_owned()))?;
+        if rules.next().is_some() {
+            return Err("VersionFilter must have exactly one rule".into());
         }
-
-        // Safety: already checked that rules is not empty.
-        let rule = unsafe { self.rules.into_iter().next().unwrap_unchecked() };
 
         Ok(match rule {
             VersionRange::Compat(v) => v.base,
