@@ -96,6 +96,8 @@ pub enum BuildKey {
     /// reverse sort with binary builds, /src builds are always placed
     /// last among sorted builds.
     Src,
+    /// Sort embedded stubs second last.
+    Embed(Ident),
     /// A binary build key. These build's keys are an importance
     /// ordered list of key entry components.
     Binary(Vec<BuildKeyEntry>),
@@ -105,6 +107,7 @@ impl std::fmt::Display for BuildKey {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             BuildKey::Src => f.write_str("Src"),
+            BuildKey::Embed(ident) => write!(f, "{ident}"),
             BuildKey::Binary(v) => f.write_str(
                 &v.iter()
                     .map(ToString::to_string)
@@ -128,6 +131,11 @@ impl BuildKey {
         if pkg.is_source() {
             // All '/src' builds use the same simplified key
             return BuildKey::Src;
+        }
+        if let Some(super::Build::Embedded(super::EmbeddedSource::Ident(ident))) =
+            pkg.build.as_ref()
+        {
+            return BuildKey::Embed(*ident.clone());
         }
 
         // Binary builds (non-/src) use a compound key of option
