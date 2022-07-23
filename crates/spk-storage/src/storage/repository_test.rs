@@ -270,7 +270,7 @@ async fn test_repo_deprecate_spec_updates_embed_stubs(#[case] repo: RepoKind) {
 #[tokio::test]
 async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
-    let recipe = crate::recipe!({
+    let recipe = recipe!({
         "pkg": "my-pkg/1.0.0",
         "install": {
             "embedded": [
@@ -280,7 +280,7 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
         }
     });
     repo.publish_recipe(&recipe).await.unwrap();
-    let spec = crate::spec!({
+    let spec = spec!({
         "pkg": "my-pkg/1.0.0/7CI5R7Y4",
         "install": {
             "embedded": [
@@ -291,7 +291,7 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
     });
     repo.publish_package(
         &spec,
-        &vec![(api::Component::Run, empty_layer_digest())]
+        &vec![(Component::Run, empty_layer_digest())]
             .into_iter()
             .collect(),
     )
@@ -302,7 +302,7 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
     //
     // Remove one of the original specs and introduce a new spec, but leave
     // an existing one in place. This exercises a different code path.
-    let recipe = crate::recipe!({
+    let recipe = recipe!({
         "pkg": "my-pkg/1.0.0",
         "install": {
             "embedded": [
@@ -312,7 +312,7 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
         }
     });
     repo.force_publish_recipe(&recipe).await.unwrap();
-    let mut spec = crate::spec!({
+    let mut spec = spec!({
         "pkg": "my-pkg/1.0.0/7CI5R7Y4",
         "install": {
             "embedded": [
@@ -341,7 +341,7 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
             .any(|pkg| pkg == pkg_name));
         // The new stubs should be deprecated.
         let builds = repo
-            .list_package_builds(&api::Ident {
+            .list_package_builds(&Ident {
                 name: pkg_name.parse().unwrap(),
                 version: "1.0.0".parse().unwrap(),
                 build: None,

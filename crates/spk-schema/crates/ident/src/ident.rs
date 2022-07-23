@@ -175,6 +175,15 @@ impl MetadataPath for Ident {
     }
 }
 
+impl PartialEq<&Ident> for IdentPartsBuf {
+    fn eq(&self, other: &&Ident) -> bool {
+        self.repository_name.is_none()
+            && self.pkg_name == other.name.as_str()
+            && self.version_str == Some(other.version.to_string())
+            && self.build_str == other.build.as_ref().map(|b| b.to_string())
+    }
+}
+
 impl TagPath for Ident {
     fn tag_path(&self) -> RelativePathBuf {
         let path = RelativePathBuf::from(self.name.as_str());
