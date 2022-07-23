@@ -15,7 +15,7 @@ use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::Ident;
 use spk_schema::SpecRecipe;
 
-use super::Repository;
+use super::{repository::Storage, Repository};
 use crate::{Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -80,9 +80,22 @@ impl RuntimeRepository {
 }
 
 #[async_trait::async_trait]
-impl Repository for RuntimeRepository {
+impl Storage for RuntimeRepository {
     type Recipe = SpecRecipe;
 
+    async fn publish_package_to_storage(
+        &self,
+        _package: &<Self::Recipe as spk_schema::Recipe>::Output,
+        _components: &HashMap<Component, spfs::encoding::Digest>,
+    ) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a runtime repository".into(),
+        ))
+    }
+}
+
+#[async_trait::async_trait]
+impl Repository for RuntimeRepository {
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -260,16 +273,6 @@ impl Repository for RuntimeRepository {
         serde_yaml::from_reader(&mut reader)
             .map(Arc::new)
             .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
-    }
-
-    async fn publish_package(
-        &self,
-        _spec: &<Self::Recipe as spk_schema::Recipe>::Output,
-        _components: &HashMap<Component, spfs::encoding::Digest>,
-    ) -> Result<()> {
-        Err(Error::String(
-            "Cannot publish to a runtime repository".into(),
-        ))
     }
 
     async fn remove_package(&self, _pkg: &Ident) -> Result<()> {

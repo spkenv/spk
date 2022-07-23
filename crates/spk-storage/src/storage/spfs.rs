@@ -26,7 +26,7 @@ use spk_schema::Ident;
 use spk_schema::{Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
-use super::{CachePolicy, Repository};
+use super::{repository::Storage, CachePolicy, Repository};
 use crate::{with_cache_policy, Error, Result};
 
 #[cfg(test)]
@@ -194,9 +194,60 @@ std::thread_local! {
 }
 
 #[async_trait::async_trait]
-impl Repository for SPFSRepository {
+impl Storage for SPFSRepository {
     type Recipe = SpecRecipe;
 
+    async fn publish_package_to_storage(
+        &self,
+        package: &<Self::Recipe as spk_schema::Recipe>::Output,
+        components: &HashMap<Component, spfs::encoding::Digest>,
+    ) -> Result<()> {
+        let tag_path = self.build_package_tag(package.ident())?;
+
+        // We will also publish the 'run' component in the old style
+        // for compatibility with older versions of the spk command.
+        // It's not perfect but at least the package will be visible
+        let legacy_tag = spfs::tracking::TagSpec::parse(&tag_path)?;
+        let legacy_component = if let Some(Build::Source) = package.ident().build {
+            *components.get(&Component::Source).ok_or_else(|| {
+                Error::String("Package must have a source component to be published".to_string())
+            })?
+        } else {
+            *components.get(&Component::Run).ok_or_else(|| {
+                Error::String("Package must have a run component to be published".to_string())
+            })?
+        };
+
+        self.inner.push_tag(&legacy_tag, &legacy_component).await?;
+
+        let components: std::result::Result<Vec<_>, _> = components
+            .iter()
+            .map(|(name, digest)| {
+                spfs::tracking::TagSpec::parse(tag_path.join(name.as_str()))
+                    .map(|spec| (spec, digest))
+            })
+            .collect();
+        for (tag_spec, digest) in components?.into_iter() {
+            self.inner.push_tag(&tag_spec, digest).await?;
+        }
+
+        // TODO: dedupe this part with force_publish_recipe
+        let tag_path = self.build_spec_tag(package.ident());
+        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
+        let payload = serde_yaml::to_vec(&package)
+            .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
+        let digest = self
+            .inner
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .await?;
+        self.inner.push_tag(&tag_spec, &digest).await?;
+        self.invalidate_caches();
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Repository for SPFSRepository {
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -421,60 +472,6 @@ impl Repository for SPFSRepository {
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
 
         let payload = serde_yaml::to_vec(&spec).map_err(spk_schema::Error::SpecEncodingError)?;
-        let digest = self
-            .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
-            .await?;
-        self.inner.push_tag(&tag_spec, &digest).await?;
-        self.invalidate_caches();
-        Ok(())
-    }
-
-    async fn publish_package(
-        &self,
-        spec: &Spec,
-        components: &HashMap<Component, spfs::encoding::Digest>,
-    ) -> Result<()> {
-        let tag_path = self.build_package_tag(spec.ident())?;
-
-        // We will also publish the 'run' component in the old style
-        // for compatibility with older versions of the spk command.
-        // It's not perfect but at least the package will be visible
-        let legacy_tag = spfs::tracking::TagSpec::parse(&tag_path)?;
-        let legacy_component = if let Some(Build::Source) = spec.ident().build {
-            *components.get(&Component::Source).ok_or_else(|| {
-                Error::String("Package must have a source component to be published".to_string())
-            })?
-        } else {
-            *components.get(&Component::Run).ok_or_else(|| {
-                Error::String("Package must have a run component to be published".to_string())
-            })?
-        };
-
-        self.inner.push_tag(&legacy_tag, &legacy_component).await?;
-
-        let components: std::result::Result<Vec<_>, _> = components
-            .iter()
-            .map(|(name, digest)| {
-                spfs::tracking::TagSpec::parse(tag_path.join(name.as_str()))
-                    .map(|spec| (spec, digest))
-            })
-            .collect();
-        for (tag_spec, digest) in components?.into_iter() {
-            self.inner.push_tag(&tag_spec, digest).await?;
-        }
-
-        if let Some(Build::Embedded) = spec.ident().build {
-            return Err(Error::SpkIdentBuildError(InvalidBuildError::new_error(
-                "Cannot publish embedded package".to_string(),
-            )));
-        }
-
-        // TODO: dedupe this part with force_publish_recipe
-        let tag_path = self.build_spec_tag(spec.ident());
-        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
-        let payload = serde_yaml::to_vec(&spec)
-            .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
         let digest = self
             .inner
             .commit_blob(Box::pin(std::io::Cursor::new(payload)))

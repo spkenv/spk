@@ -14,6 +14,7 @@ use spk_schema::Ident;
 use spk_schema::SpecRecipe;
 use tokio::sync::RwLock;
 
+use super::repository::Storage;
 use super::Repository;
 use crate::{Error, Result};
 
@@ -104,13 +105,36 @@ where
 }
 
 #[async_trait::async_trait]
-impl<Recipe> Repository for MemRepository<Recipe>
+impl<Recipe> Storage for MemRepository<Recipe>
 where
     Recipe: spk_schema::Recipe<Ident = Ident> + Clone + Send + Sync,
     Recipe::Output: spk_schema::Package<Ident = Ident> + Clone + Send + Sync,
 {
     type Recipe = Recipe;
 
+    async fn publish_package_to_storage(
+        &self,
+        package: &<Self::Recipe as spk_schema::Recipe>::Output,
+        components: &ComponentMap,
+    ) -> Result<()> {
+        // Caller has already proven that build is `Some`.
+        let build = package.ident().build.as_ref().unwrap().clone();
+
+        let mut packages = self.packages.write().await;
+        let versions = packages.entry(package.name().to_owned()).or_default();
+        let builds = versions.entry(package.version().clone()).or_default();
+
+        builds.insert(build, (Arc::new(package.clone()), components.clone()));
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl<Recipe> Repository for MemRepository<Recipe>
+where
+    Recipe: spk_schema::Recipe<Ident = Ident> + Clone + Send + Sync,
+    Recipe::Output: spk_schema::Package<Ident = Ident> + Clone + Send + Sync,
+{
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -295,29 +319,6 @@ where
                 ))
             })
             .map(|found| Arc::clone(&found.0))
-    }
-
-    async fn publish_package(
-        &self,
-        spec: &<Self::Recipe as spk_schema::Recipe>::Output,
-        components: &ComponentMap,
-    ) -> Result<()> {
-        let build = match &spec.ident().build {
-            Some(b) => b.to_owned(),
-            None => {
-                return Err(Error::String(format!(
-                    "Package must include a build in order to be published: {}",
-                    spec.ident()
-                )))
-            }
-        };
-
-        let mut packages = self.packages.write().await;
-        let versions = packages.entry(spec.name().to_owned()).or_default();
-        let builds = versions.entry(spec.version().clone()).or_default();
-
-        builds.insert(build, (Arc::new(spec.clone()), components.clone()));
-        Ok(())
     }
 
     async fn remove_package(&self, pkg: &Ident) -> Result<()> {

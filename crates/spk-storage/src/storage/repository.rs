@@ -3,11 +3,12 @@
 // https://github.com/imageworks/spk
 use std::{collections::HashMap, sync::Arc};
 
-use crate::Result;
+use crate::{Error, Result};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Version;
+use spk_schema::ident_build::{Build, InvalidBuildError};
 use spk_schema::Ident;
 use spk_schema::Package;
 
@@ -28,10 +29,31 @@ impl CachePolicy {
     }
 }
 
+/// Low level storage operations.
+///
+/// These methods are expected to have different implementations for different
+/// storage types, but perform the same logical operation for any storage type.
 #[async_trait::async_trait]
-pub trait Repository: Sync {
+pub trait Storage: Sync {
     type Recipe: spk_schema::Recipe;
 
+    /// Publish a package to this repository.
+    ///
+    /// The provided component digests are expected to each identify an spfs
+    /// layer which contains properly constructed binary package files and metadata.
+    async fn publish_package_to_storage(
+        &self,
+        package: &<Self::Recipe as spk_schema::Recipe>::Output,
+        components: &HashMap<Component, spfs::encoding::Digest>,
+    ) -> Result<()>;
+}
+
+/// High level repository concepts.
+///
+/// An abstraction for interacting with different storage backends as a
+/// repository for spk packages.
+#[async_trait::async_trait]
+pub trait Repository: Storage + Sync {
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository
     /// share an address
@@ -97,9 +119,32 @@ pub trait Repository: Sync {
     /// layer which contains properly constructed binary package files and metadata.
     async fn publish_package(
         &self,
-        package: &<Self::Recipe as spk_schema::Recipe>::Output,
+        package: &<<Self as Storage>::Recipe as spk_schema::Recipe>::Output,
         components: &HashMap<Component, spfs::encoding::Digest>,
-    ) -> Result<()>;
+    ) -> Result<()>
+    where
+        <<Self as Storage>::Recipe as spk_schema::Recipe>::Output:
+            spk_schema::Package<Ident = Ident> + Send + Sync,
+    {
+        let build = match &package.ident().build {
+            Some(b) => b.to_owned(),
+            None => {
+                return Err(Error::String(format!(
+                    "Package must include a build in order to be published: {}",
+                    package.ident()
+                )))
+            }
+        };
+
+        if let Build::Embedded = build {
+            return Err(Error::SpkIdentBuildError(InvalidBuildError::new_error(
+                "Cannot publish embedded package".to_string(),
+            )));
+        }
+
+        self.publish_package_to_storage(package, components).await?;
+        Ok(())
+    }
 
     /// Modify a package in this repository.
     ///
