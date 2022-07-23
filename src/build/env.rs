@@ -16,7 +16,7 @@ mod env_test;
 /// should nearly always be assumed as relative to /spfs
 pub fn data_path<I>(pkg: &I) -> RelativePathBuf
 where
-    I: api::ident::DataPath,
+    I: api::ident::MetadataPath,
 {
-    RelativePathBuf::from("/spk/pkg").join(pkg.data_path())
+    RelativePathBuf::from("/spk/pkg").join(pkg.metadata_path())
 }

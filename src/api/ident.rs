@@ -49,9 +49,15 @@ impl std::fmt::Display for RepositoryName {
     }
 }
 
-pub trait DataPath {
+pub trait MetadataPath {
     /// Return the relative path for package metadata for an ident.
-    fn data_path(&self) -> RelativePathBuf;
+    ///
+    /// Package metadata is stored on disk within each package, for example:
+    ///     /spfs/spk/pkg/pkg-name/1.0.0/CU7ZWOIF
+    ///
+    /// This method should return only the ident part:
+    ///     pkg-name/1.0.0/CU7ZWOIF
+    fn metadata_path(&self) -> RelativePathBuf;
 }
 
 /// Ident represents a package identifier.
@@ -153,8 +159,8 @@ impl Ident {
     }
 }
 
-impl DataPath for Ident {
-    fn data_path(&self) -> RelativePathBuf {
+impl MetadataPath for Ident {
+    fn metadata_path(&self) -> RelativePathBuf {
         let path = RelativePathBuf::from(self.name.as_str());
         if let Some(vb) = self.version_and_build() {
             path.join(vb.as_str())
@@ -279,8 +285,8 @@ impl BuildIdent {
     }
 }
 
-impl DataPath for BuildIdent {
-    fn data_path(&self) -> RelativePathBuf {
+impl MetadataPath for BuildIdent {
+    fn metadata_path(&self) -> RelativePathBuf {
         // The data path *does not* include the repository name.
         RelativePathBuf::from(self.name.as_str())
             .join(self.version.to_string())
