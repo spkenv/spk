@@ -7,7 +7,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::pkg_name;
 use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps};
 use spk_schema::ident::parse_ident;
-use spk_schema::{recipe, spec, Spec};
+use spk_schema::{recipe, spec, Deprecate, DeprecateMut, Ident, Spec, SpecRecipe};
 
 use crate::{fixtures::*, Error};
 
@@ -160,7 +160,7 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
         .is_empty());
 }
 
-async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> Spec {
+async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> (SpecRecipe, Spec) {
     let recipe = recipe!({
         "pkg": "my-pkg/1.0.0",
         "install": {
@@ -186,7 +186,7 @@ async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> Spec {
     )
     .await
     .unwrap();
-    spec
+    (recipe, spec)
 }
 
 #[rstest]
@@ -199,7 +199,7 @@ async fn test_repo_publish_spec_updates_embed_stubs(#[case] repo: RepoKind) {
     // would exist at this point.
     //
     // Change the embedded package to a different name.
-    let recipe = crate::recipe!({
+    let recipe = recipe!({
         "pkg": "my-pkg/1.0.0",
         "install": {
             "embedded": [
@@ -208,7 +208,7 @@ async fn test_repo_publish_spec_updates_embed_stubs(#[case] repo: RepoKind) {
         }
     });
     repo.force_publish_recipe(&recipe).await.unwrap();
-    let spec = crate::spec!({
+    let spec = spec!({
         "pkg": "my-pkg/1.0.0/7CI5R7Y4",
         "install": {
             "embedded": [
@@ -236,6 +236,35 @@ async fn test_repo_publish_spec_updates_embed_stubs(#[case] repo: RepoKind) {
 #[rstest]
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
+async fn test_repo_deprecate_spec_updates_embed_stubs(#[case] repo: RepoKind) {
+    let repo = make_repo(repo).await;
+    let (_, mut package) = create_repo_for_embed_stubs_test(&repo).await;
+    // `test_repo_publish_package_creates_embed_stubs` proves that the stub
+    // would exist at this point.
+    //
+    // Deprecate the package.
+    package.deprecate().unwrap();
+    repo.update_package(&package).await.unwrap();
+    // The stub should be deprecated too.
+    let builds = repo
+        .list_package_builds(&Ident {
+            name: "my-embedded-pkg".parse().unwrap(),
+            version: "1.0.0".parse().unwrap(),
+            build: None,
+        })
+        .await
+        .unwrap();
+    assert!(!builds.is_empty());
+    assert!(repo
+        .read_embed_stub(&builds[0])
+        .await
+        .unwrap()
+        .is_deprecated())
+}
+
+#[rstest]
+#[case::spfs(RepoKind::Spfs)]
+#[tokio::test]
 async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
     let _ = create_repo_for_embed_stubs_test(&repo).await;
@@ -252,7 +281,7 @@ async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
 #[tokio::test]
 async fn test_repo_remove_package_removes_embed_stubs(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
-    let spec = create_repo_for_embed_stubs_test(&repo).await;
+    let (_, spec) = create_repo_for_embed_stubs_test(&repo).await;
     // `test_repo_publish_package_creates_embed_stubs` proves that the stub
     // would exist at this point.
     repo.remove_package(spec.ident()).await.unwrap();
