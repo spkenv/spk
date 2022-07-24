@@ -350,6 +350,31 @@ impl Storage for SPFSRepository {
         self.invalidate_caches();
         Ok(())
     }
+
+    async fn remove_package_from_storage(&self, pkg: &api::Ident) -> Result<()> {
+        for tag_spec in
+            with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
+                .await?
+                .tags()
+        {
+            match self.inner.remove_tag_stream(tag_spec).await {
+                Err(spfs::Error::UnknownReference(_)) => (),
+                res => res?,
+            }
+        }
+        // because we double-publish packages to be visible/compatible
+        // with the old repo tag structure, we must also try to remove
+        // the legacy version of the tag after removing the discovered
+        // as it may still be there and cause the removal to be ineffective
+        if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)?) {
+            match self.inner.remove_tag_stream(&legacy_tag).await {
+                Err(spfs::Error::UnknownReference(_)) => (),
+                res => res?,
+            }
+        }
+        self.invalidate_caches();
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
@@ -574,31 +599,6 @@ impl Repository for SPFSRepository {
             .commit_blob(Box::pin(std::io::Cursor::new(payload)))
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
-        self.invalidate_caches();
-        Ok(())
-    }
-
-    async fn remove_package(&self, pkg: &api::Ident) -> Result<()> {
-        for tag_spec in
-            with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
-                .await?
-                .tags()
-        {
-            match self.inner.remove_tag_stream(tag_spec).await {
-                Err(spfs::Error::UnknownReference(_)) => (),
-                res => res?,
-            }
-        }
-        // because we double-publish packages to be visible/compatible
-        // with the old repo tag structure, we must also try to remove
-        // the legacy version of the tag after removing the discovered
-        // as it may still be there and cause the removal to be ineffective
-        if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)?) {
-            match self.inner.remove_tag_stream(&legacy_tag).await {
-                Err(spfs::Error::UnknownReference(_)) => (),
-                res => res?,
-            }
-        }
         self.invalidate_caches();
         Ok(())
     }

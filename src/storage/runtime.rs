@@ -120,6 +120,10 @@ impl Storage for RuntimeRepository {
             "Cannot publish to a runtime repository".into(),
         ))
     }
+
+    async fn remove_package_from_storage(&self, _pkg: &api::Ident) -> Result<()> {
+        Err(Error::String("Cannot modify a runtime repository".into()))
+    }
 }
 
 #[async_trait::async_trait]
@@ -268,10 +272,6 @@ impl Repository for RuntimeRepository {
         serde_yaml::from_reader(&mut reader)
             .map(Arc::new)
             .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
-    }
-
-    async fn remove_package(&self, _pkg: &api::Ident) -> Result<()> {
-        Err(Error::String("Cannot modify a runtime repository".into()))
     }
 }
 

@@ -144,6 +144,35 @@ where
         builds.insert(build, (Arc::new(package.clone()), components.clone()));
         Ok(())
     }
+
+    async fn remove_package_from_storage(&self, pkg: &api::Ident) -> Result<()> {
+        let build = match &pkg.build {
+            Some(b) => b,
+            None => {
+                return Err(Error::String(format!(
+                    "Package must include a build in order to be removed: {}",
+                    pkg
+                )))
+            }
+        };
+
+        let mut packages = self.packages.write().await;
+        let versions = match packages.get_mut(&pkg.name) {
+            Some(v) => v,
+            None => return Err(Error::PackageNotFoundError(pkg.clone())),
+        };
+
+        let builds = match versions.get_mut(&pkg.version) {
+            Some(v) => v,
+            None => return Err(Error::PackageNotFoundError(pkg.clone())),
+        };
+
+        if builds.remove(build).is_none() {
+            Err(Error::PackageNotFoundError(pkg.clone()))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[async_trait::async_trait]

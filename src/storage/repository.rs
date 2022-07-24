@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     sync::Arc,
 };
 
@@ -53,14 +53,53 @@ pub trait Storage: Sync {
     ///
     /// This method should only return embedded package stub builds.
     async fn get_embedded_package_builds(&self, pkg: &api::Ident) -> Result<HashSet<api::Ident>>;
+
+    /// Remove a package from this repository.
+    ///
+    /// The given package identifier must identify a full package build.
+    async fn remove_package_from_storage(&self, pkg: &api::Ident) -> Result<()>;
 }
+
+mod internal {
+    use std::collections::{BTreeSet, HashMap};
+
+    use crate::api::Package;
+    use crate::Result;
+
+    use super::api;
+
+    /// Reusable methods for [`super::Repository`] that are not intended to be
+    /// part of its public interface.
+    pub trait Repository: super::Storage {
+        /// Get all the embedded packages described by a [`api::Package`] and
+        /// return what [`api::Component`]s are providing each one.
+        fn get_embedded_providers(
+            &self,
+            package: &<Self::Recipe as api::Recipe>::Output,
+        ) -> Result<HashMap<<Self as super::Storage>::Recipe, BTreeSet<api::Component>>> {
+            let mut embedded_providers = HashMap::new();
+            for (embed, component) in package.embedded_as_recipes()?.into_iter() {
+                // "top level" embedded as assumed to be provided by the "run"
+                // component.
+                (*embedded_providers
+                    .entry(embed)
+                    .or_insert_with(BTreeSet::new))
+                .insert(component.unwrap_or(api::Component::Run));
+            }
+            Ok(embedded_providers)
+        }
+    }
+}
+
+/// Blanket implementation.
+impl<T: Storage> internal::Repository for T {}
 
 /// High level repository concepts.
 ///
 /// An abstraction for interacting with different storage backends as a
 /// repository for spk packages.
 #[async_trait::async_trait]
-pub trait Repository: Storage + Sync {
+pub trait Repository: internal::Repository + Storage + Sync {
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository
     /// share an address
@@ -146,17 +185,7 @@ pub trait Repository: Storage + Sync {
         // After successfully publishing a package, also publish stubs for any
         // embedded packages in this package.
         if !package.ident().is_source() {
-            // Take inventory of all the embedded specs and which components
-            // of the parent spec provide them.
-            let mut embedded_providers = HashMap::new();
-            for (embed, component) in package.embedded_as_recipes()?.into_iter() {
-                // "top level" embedded as assumed to be provided by the "run"
-                // component.
-                (*embedded_providers
-                    .entry(embed)
-                    .or_insert_with(BTreeSet::new))
-                .insert(component.unwrap_or(api::Component::Run));
-            }
+            let embedded_providers = self.get_embedded_providers(package)?;
 
             for (embed, components) in embedded_providers.into_iter() {
                 // The "version spec" must exist for this package to be discoverable.
@@ -197,7 +226,26 @@ pub trait Repository: Storage + Sync {
         &self,
         // TODO: use an ident type that must have a build
         pkg: &api::Ident,
-    ) -> Result<()>;
+    ) -> Result<()> {
+        // Attempt to find and remove any related embedded package stubs.
+        if let Ok(spec) = self.read_package(pkg).await {
+            if !spec.ident().is_source() {
+                let embedded_providers = self.get_embedded_providers(&*spec)?;
+
+                for (embed, components) in embedded_providers.into_iter() {
+                    let embed = embed.ident().with_build(Some(api::Build::Embedded(
+                        api::EmbeddedSource::Package {
+                            ident: Box::new(spec.ident().clone()),
+                            components,
+                        },
+                    )));
+                    self.remove_recipe(&embed).await?;
+                }
+            }
+        }
+
+        self.remove_package_from_storage(pkg).await
+    }
 
     /// Identify the payloads for the identified package's components.
     async fn read_components(
