@@ -20,7 +20,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::{ComponentOps, PackageOps};
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
-use spk_schema::{ComponentSpecList, Ident, Package};
+use spk_schema::{ComponentSpecList, DeprecateMut, Ident, Package};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
@@ -224,6 +224,7 @@ where
     where
         R: std::ops::Deref<Target = T>,
         T: storage::Repository<Recipe = Recipe> + ?Sized,
+        Recipe: DeprecateMut,
     {
         let (package, components) = self.build().await?;
         repo.publish_package(&package, &components).await?;

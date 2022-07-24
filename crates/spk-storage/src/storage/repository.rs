@@ -13,7 +13,9 @@ use spk_schema::foundation::version::Version;
 use spk_schema::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage, InvalidBuildError};
 use spk_schema::Ident;
 use spk_schema::{foundation::ident_component::Component, spec_ops::RecipeOps};
-use spk_schema::{Deprecate, DeprecateMut, Package, Recipe};
+use spk_schema::{Deprecate, DeprecateMut, Package};
+
+use self::internal::RepositoryExt;
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -98,13 +100,53 @@ pub trait Storage: Sync {
 mod internal {
     use std::collections::{BTreeSet, HashMap};
 
-    use crate::Result;
-    use spk_schema::foundation::ident_component::Component;
-    use spk_schema::{Package, Recipe};
+    use spk_schema::foundation::{
+        ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage},
+        ident_component::Component,
+        spec_ops::PackageOps,
+    };
+    use spk_schema::{Deprecate, DeprecateMut, Package, Recipe};
+
+    use crate::{Error, Result};
 
     /// Reusable methods for [`super::Repository`] that are not intended to be
     /// part of its public interface.
-    pub trait Repository: super::Storage {
+    #[async_trait::async_trait]
+    pub trait RepositoryExt: super::Repository {
+        /// Add a [`Recipe`] to a repository to represent an embedded package.
+        ///
+        /// This spec is a link back to the package that embeds it, and allows
+        /// the repository to advertise its existence.
+        async fn create_embedded_stub_for_spec(
+            &self,
+            spec_for_parent: &Self::Package,
+            spec_for_embedded_pkg: &Self::Recipe,
+            components_that_embed_this_pkg: BTreeSet<Component>,
+        ) -> Result<()>
+        where
+            Self::Recipe: DeprecateMut,
+        {
+            // The "version spec" must exist for this package to be discoverable.
+            // One may already exist from "real" (non-embedded) publishes.
+            let version_spec = spec_for_embedded_pkg.with_build(None);
+            match self.publish_recipe(&version_spec).await {
+                Ok(_)
+                | Err(Error::SpkValidatorsError(
+                    spk_schema::validators::Error::VersionExistsError(_),
+                )) => {}
+                Err(err) => return Err(err),
+            };
+
+            let mut spec_for_embedded_pkg = spec_for_embedded_pkg.with_build(Some(
+                Build::Embedded(EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
+                    ident: spec_for_parent.ident().into(),
+                    components: components_that_embed_this_pkg,
+                }))),
+            ));
+            spec_for_embedded_pkg.set_deprecated(spec_for_parent.is_deprecated())?;
+            self.force_publish_recipe(&spec_for_embedded_pkg).await
+        }
+
         /// Get all the embedded packages described by a [`Package`] and
         /// return what [`Component`]s are providing each one.
         fn get_embedded_providers(
@@ -126,14 +168,14 @@ mod internal {
 }
 
 /// Blanket implementation.
-impl<T: Storage> internal::Repository for T {}
+impl<T> internal::RepositoryExt for T where T: Repository + ?Sized {}
 
 /// High level repository concepts.
 ///
 /// An abstraction for interacting with different storage backends as a
 /// repository for spk packages.
 #[async_trait::async_trait]
-pub trait Repository: internal::Repository + Storage + Sync {
+pub trait Repository: Storage + Sync {
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository
     /// share an address
@@ -216,6 +258,7 @@ pub trait Repository: internal::Repository + Storage + Sync {
     ) -> Result<()>
     where
         <<<Self as Storage>::Recipe as spk_schema::Recipe>::Output as Package>::Input: Clone,
+        Self::Recipe: DeprecateMut,
     {
         let build = match &package.ident().build {
             Some(b) => b.to_owned(),
@@ -241,24 +284,8 @@ pub trait Repository: internal::Repository + Storage + Sync {
             let embedded_providers = self.get_embedded_providers(package)?;
 
             for (embed, components) in embedded_providers.into_iter() {
-                // The "version spec" must exist for this package to be discoverable.
-                // One may already exist from "real" (non-embedded) publishes.
-                let version_spec = embed.with_build(None);
-                match self.publish_recipe(&version_spec).await {
-                    Ok(_)
-                    | Err(Error::SpkValidatorsError(
-                        spk_schema::validators::Error::VersionExistsError(_),
-                    )) => {}
-                    Err(err) => return Err(err),
-                };
-
-                let embed = embed.with_build(Some(Build::Embedded(EmbeddedSource::Package(
-                    Box::new(EmbeddedSourcePackage {
-                        ident: package.ident().into(),
-                        components,
-                    }),
-                ))));
-                self.force_publish_recipe(&embed).await?;
+                self.create_embedded_stub_for_spec(package, &embed, components)
+                    .await?;
             }
         }
 
@@ -311,14 +338,8 @@ pub trait Repository: internal::Repository + Storage + Sync {
             {
                 // Update all stubs to change their deprecation status too.
                 for (embed, components) in new_embedded_providers.into_iter() {
-                    let mut embed = embed.with_build(Some(Build::Embedded(
-                        EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
-                            ident: package.ident().into(),
-                            components,
-                        })),
-                    )));
-                    embed.set_deprecated(package.is_deprecated())?;
-                    self.force_publish_recipe(&embed).await?;
+                    self.create_embedded_stub_for_spec(package, &embed, components)
+                        .await?
                 }
             } else if embedded_providers_have_changed {
                 let original_keys: HashSet<&Self::Recipe> =
@@ -345,15 +366,12 @@ pub trait Repository: internal::Repository + Storage + Sync {
                         // This embed was added
                         if let Some(components) = new_embedded_providers.get(*added_or_removed_spec)
                         {
-                            let mut embed =
-                                (**added_or_removed_spec).with_build(Some(Build::Embedded(
-                                    EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
-                                        ident: package.ident().into(),
-                                        components: components.clone(),
-                                    })),
-                                )));
-                            embed.set_deprecated(package.is_deprecated())?;
-                            self.force_publish_recipe(&embed).await?;
+                            self.create_embedded_stub_for_spec(
+                                package,
+                                *added_or_removed_spec,
+                                components.clone(),
+                            )
+                            .await?
                         }
                     }
                 }
@@ -366,14 +384,12 @@ pub trait Repository: internal::Repository + Storage + Sync {
 
                 for returning_spec in original_keys.intersection(&new_keys) {
                     if let Some(components) = new_embedded_providers.get(*returning_spec) {
-                        let mut embed = (**returning_spec).with_build(Some(Build::Embedded(
-                            EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
-                                ident: package.ident().into(),
-                                components: components.clone(),
-                            })),
-                        )));
-                        embed.set_deprecated(package.is_deprecated())?;
-                        self.force_publish_recipe(&embed).await?;
+                        self.create_embedded_stub_for_spec(
+                            package,
+                            *returning_spec,
+                            components.clone(),
+                        )
+                        .await?
                     }
                 }
             }
