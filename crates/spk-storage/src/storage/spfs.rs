@@ -597,6 +597,11 @@ impl Repository for SPFSRepository {
             for version in self.list_package_versions(&name).await?.iter() {
                 pkg.version = (**version).clone();
                 for build in self.list_package_builds(&pkg).await? {
+                    if build.is_embedded() {
+                        // XXX `lookup_package` isn't able to read embed stubs.
+                        // Should it be able to?
+                        continue;
+                    }
                     let stored = with_cache_policy!(self, CachePolicy::BypassCache, {
                         self.lookup_package(&build)
                     })
