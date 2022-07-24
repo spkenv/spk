@@ -220,12 +220,19 @@ impl Package for Spec {
         &self.install.embedded
     }
 
-    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str> {
+    fn embedded_as_recipes(
+        &self,
+    ) -> std::result::Result<Vec<(Self::Input, Option<Component>)>, &str> {
         self.install
             .embedded
             .iter()
-            .cloned()
-            .map(TryInto::try_into)
+            .map(|embed| (embed.clone(), None))
+            .chain(self.install.components.iter().flat_map(|cs| {
+                cs.embedded
+                    .iter()
+                    .map(move |embed| (embed.clone(), Some(cs.name.clone())))
+            }))
+            .map(|(recipe, component)| recipe.try_into().map(|r| (r, component)))
             .collect()
     }
 

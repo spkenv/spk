@@ -26,8 +26,10 @@ use crate::{
 };
 
 mod ident;
+mod request;
 
-pub use ident::{ident_parts, IdentParts};
+pub use ident::{ident_parts, ident_parts_with_components, IdentParts, IdentPartsBuf};
+pub use request::range_ident_pkg_name;
 
 pub static KNOWN_REPOSITORY_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     let mut known_repositories = HashSet::from(["local"]);

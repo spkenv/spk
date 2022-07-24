@@ -4,4 +4,4 @@
 
 mod build;
 
-pub use build::build;
+pub use build::{build, embedded_source_package};

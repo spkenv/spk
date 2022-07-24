@@ -6,6 +6,7 @@ use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
 use relative_path::RelativePathBuf;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
 use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
 
 use crate::{parsing, RangeIdent, Result};
@@ -235,6 +236,35 @@ impl TryFrom<String> for Ident {
     }
 }
 
+impl TryFrom<&IdentPartsBuf> for Ident {
+    type Error = crate::Error;
+
+    fn try_from(parts: &IdentPartsBuf) -> Result<Self> {
+        if parts.repository_name.is_some() {
+            return Err("Ident may not have a repository name".into());
+        }
+
+        let name: PkgNameBuf = parts.pkg_name.parse()?;
+        let version = parts
+            .version_str
+            .as_ref()
+            .map(|v| v.parse::<Version>())
+            .transpose()?
+            .unwrap_or_default();
+        let build = parts
+            .build_str
+            .as_ref()
+            .map(|v| v.parse::<Build>())
+            .transpose()?;
+
+        Ok(Self {
+            name,
+            version,
+            build,
+        })
+    }
+}
+
 impl FromStr for Ident {
     type Err = crate::Error;
 
@@ -248,6 +278,17 @@ impl FromStr for Ident {
                 nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
                 nom::Err::Incomplete(_) => unreachable!(),
             })
+    }
+}
+
+impl From<&Ident> for IdentPartsBuf {
+    fn from(ident: &Ident) -> Self {
+        IdentPartsBuf {
+            repository_name: None,
+            pkg_name: ident.name.to_string(),
+            version_str: Some(ident.version.to_string()),
+            build_str: ident.build.as_ref().map(|b| b.to_string()),
+        }
     }
 }
 

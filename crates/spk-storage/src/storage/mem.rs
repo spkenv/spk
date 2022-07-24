@@ -1,7 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::sync::Arc;
 
@@ -108,6 +108,26 @@ where
 {
     type Recipe = Recipe;
     type Package = Package;
+
+    async fn get_concrete_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>> {
+        if let Some(versions) = self.packages.read().await.get(&pkg.name) {
+            if let Some(builds) = versions.get(&pkg.version) {
+                Ok(builds
+                    .keys()
+                    .map(|b| pkg.with_build(Some(b.clone())))
+                    .collect())
+            } else {
+                Ok(HashSet::new())
+            }
+        } else {
+            Ok(HashSet::new())
+        }
+    }
+
+    async fn get_embedded_package_builds(&self, _pkg: &Ident) -> Result<HashSet<Ident>> {
+        // TODO: no tests exercise this yet.
+        Ok(HashSet::default())
+    }
 
     async fn publish_package_to_storage(
         &self,
@@ -237,21 +257,6 @@ where
             ))
         } else {
             Ok(Arc::new(Vec::new()))
-        }
-    }
-
-    async fn list_package_builds(&self, pkg: &Ident) -> Result<Vec<Ident>> {
-        if let Some(versions) = self.packages.read().await.get(&pkg.name) {
-            if let Some(builds) = versions.get(&pkg.version) {
-                Ok(builds
-                    .keys()
-                    .map(|b| pkg.with_build(Some(b.clone())))
-                    .collect())
-            } else {
-                Ok(Vec::new())
-            }
-        } else {
-            Ok(Vec::new())
         }
     }
 

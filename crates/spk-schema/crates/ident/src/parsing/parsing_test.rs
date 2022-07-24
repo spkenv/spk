@@ -15,7 +15,7 @@ use proptest::{
     option::weighted,
     prelude::*,
 };
-use spk_schema_foundation::ident_build::{Build, EmbeddedSource};
+use spk_schema_foundation::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::name::{PkgNameBuf, RepositoryNameBuf};
 use spk_schema_foundation::version::{CompatRule, TagSet, Version};
@@ -379,8 +379,15 @@ prop_compose! {
 fn arb_embedded_build() -> impl Strategy<Value = Build> {
     prop_oneof![
         3 => Just(Build::Embedded(EmbeddedSource::Unknown)),
-        7 => arb_ident().prop_map(|ident| Build::Embedded(
-               EmbeddedSource::Ident(ident.to_string())
+        7 => (arb_ident(), arb_components()).prop_map(|(ident, components)| Build::Embedded(
+                EmbeddedSource::Package(
+                    Box::new(
+                        EmbeddedSourcePackage {
+                            ident: (&ident).into(),
+                            components,
+                        }
+                    )
+                )
              )),
     ]
 }

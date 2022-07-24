@@ -1,12 +1,15 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::str::FromStr;
+use std::{collections::BTreeSet, str::FromStr};
 
 use relative_path::RelativePathBuf;
 use thiserror::Error;
 
-use crate::ident_ops::{MetadataPath, TagPath};
+use crate::{
+    ident_component::{Component, Components},
+    ident_ops::{parsing::IdentPartsBuf, MetadataPath, TagPath},
+};
 
 #[cfg(test)]
 #[path = "./build_test.rs"]
@@ -28,22 +31,29 @@ impl InvalidBuildError {
     }
 }
 
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct EmbeddedSourcePackage {
+    pub ident: IdentPartsBuf,
+    pub components: BTreeSet<Component>,
+}
+
 /// An embedded package's source (if known).
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum EmbeddedSource {
-    Ident(String),
+    // Boxed to keep enum size down for enums that use this enum.
+    Package(Box<EmbeddedSourcePackage>),
     Unknown,
 }
 
 impl MetadataPath for EmbeddedSource {
     fn metadata_path(&self) -> RelativePathBuf {
         match self {
-            EmbeddedSource::Ident(ident) => RelativePathBuf::from(format!(
+            package @ EmbeddedSource::Package { .. } => RelativePathBuf::from(format!(
                 "embedded-by-{}",
                 // Encode the parent ident into base32 to have a unique value
                 // per unique parent that is a valid filename. The trailing
                 // '=' are not allowed in tag names (use NOPAD).
-                data_encoding::BASE32_NOPAD.encode(ident.to_string().as_bytes())
+                data_encoding::BASE32_NOPAD.encode(package.to_string().as_bytes())
             )),
             EmbeddedSource::Unknown => RelativePathBuf::from("embedded"),
         }
@@ -54,7 +64,21 @@ impl std::fmt::Display for EmbeddedSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{EMBEDDED}")?;
         match self {
-            EmbeddedSource::Ident(ident) => write!(f, "[{ident}]"),
+            EmbeddedSource::Package(package) => {
+                // XXX this is almost the same code as `RangeIdent::fmt()`.
+                write!(f, "[")?;
+                package.ident.pkg_name.fmt(f)?;
+                package.components.fmt_component_set(f)?;
+                if let Some(version) = &package.ident.version_str {
+                    write!(f, "/")?;
+                    version.fmt(f)?;
+                }
+                if let Some(build) = &package.ident.build_str {
+                    write!(f, "/")?;
+                    build.fmt(f)?;
+                }
+                write!(f, "]")
+            }
             EmbeddedSource::Unknown => Ok(()),
         }
     }

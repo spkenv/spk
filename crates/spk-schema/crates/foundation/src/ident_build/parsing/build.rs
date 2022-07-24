@@ -7,7 +7,7 @@ use std::convert::TryInto;
 use nom::{
     branch::alt,
     bytes::complete::take_while_m_n,
-    combinator::{cut, map, map_res, opt, recognize, verify},
+    combinator::{cut, map, map_res, opt, verify},
     error::{ContextError, FromExternalError, ParseError},
     sequence::{delimited, preceded},
     IResult,
@@ -15,8 +15,11 @@ use nom::{
 use nom_supreme::tag::{complete::tag, TagError};
 
 use crate::{
-    ident_build::{build::EmbeddedSource, Build, InvalidBuildError},
-    ident_ops::parsing::{ident_parts, KNOWN_REPOSITORY_NAMES},
+    ident_build::{
+        build::{EmbeddedSource, EmbeddedSourcePackage},
+        Build, InvalidBuildError,
+    },
+    ident_ops::parsing::ident_parts_with_components,
 };
 
 /// Parse a base32 build.
@@ -84,16 +87,27 @@ where
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {
+    map(opt(embedded_source_package), |ident_and_components| {
+        ident_and_components.unwrap_or(EmbeddedSource::Unknown)
+    })(input)
+}
+
+pub fn embedded_source_package<'b, E>(input: &'b str) -> IResult<&'b str, EmbeddedSource, E>
+where
+    E: ParseError<&'b str>
+        + ContextError<&'b str>
+        + FromExternalError<&'b str, crate::ident_build::Error>
+        + FromExternalError<&'b str, crate::version::Error>
+        + FromExternalError<&'b str, std::num::ParseIntError>
+        + TagError<&'b str, &'static str>,
+{
     map(
-        opt(delimited(
-            tag("["),
-            cut(recognize(ident_parts(&KNOWN_REPOSITORY_NAMES))),
-            cut(tag("]")),
-        )),
-        |ident| {
-            ident
-                .map(|ident| EmbeddedSource::Ident(ident.to_owned()))
-                .unwrap_or(EmbeddedSource::Unknown)
+        delimited(tag("["), cut(ident_parts_with_components), cut(tag("]"))),
+        |(ident, components)| {
+            EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
+                ident: ident.to_owned(),
+                components,
+            }))
         },
     )(input)
 }

@@ -8,6 +8,7 @@ use std::str::FromStr;
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::Build;
+use spk_schema_foundation::ident_component::Component;
 
 use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
@@ -514,11 +515,13 @@ impl Package for Spec {
         }
     }
 
-    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str> {
+    fn embedded_as_recipes(
+        &self,
+    ) -> std::result::Result<Vec<(Self::Input, Option<Component>)>, &str> {
         match self {
             Spec::V0Package(spec) => spec
                 .embedded_as_recipes()
-                .map(|vec| vec.into_iter().map(Into::into).collect()),
+                .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
         }
     }
 
