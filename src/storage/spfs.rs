@@ -291,6 +291,30 @@ impl Storage for SPFSRepository {
         Ok(builds)
     }
 
+    async fn read_components_from_storage(
+        &self,
+        pkg: &api::Ident,
+    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
+        if matches!(pkg.build, Some(api::Build::Embedded(_))) {
+            return Ok(HashMap::new());
+        }
+        let package = self.lookup_package(pkg).await?;
+        let component_tags = package.into_components();
+        let mut components = HashMap::with_capacity(component_tags.len());
+        for (name, tag_spec) in component_tags.into_iter() {
+            let tag = self
+                .inner
+                .resolve_tag(&tag_spec)
+                .await
+                .map_err(|err| match err {
+                    spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
+                    err => err.into(),
+                })?;
+            components.insert(name, tag.target);
+        }
+        Ok(components)
+    }
+
     async fn publish_package_to_storage(
         &self,
         package: &<Self::Recipe as api::Recipe>::Output,
@@ -520,30 +544,6 @@ impl Repository for SPFSRepository {
             hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
         });
         r
-    }
-
-    async fn read_components(
-        &self,
-        pkg: &api::Ident,
-    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
-        if matches!(pkg.build, Some(api::Build::Embedded(_))) {
-            return Ok(HashMap::new());
-        }
-        let package = self.lookup_package(pkg).await?;
-        let component_tags = package.into_components();
-        let mut components = HashMap::with_capacity(component_tags.len());
-        for (name, tag_spec) in component_tags.into_iter() {
-            let tag = self
-                .inner
-                .resolve_tag(&tag_spec)
-                .await
-                .map_err(|err| match err {
-                    spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
-                    err => err.into(),
-                })?;
-            components.insert(name, tag.target);
-        }
-        Ok(components)
     }
 
     async fn read_package(

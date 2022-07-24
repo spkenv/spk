@@ -67,6 +67,12 @@ pub trait Storage: Sync {
     /// This method should only return embedded package stub builds.
     async fn get_embedded_package_builds(&self, pkg: &api::Ident) -> Result<HashSet<api::Ident>>;
 
+    /// Identify the payloads for the identified package's components.
+    async fn read_components_from_storage(
+        &self,
+        pkg: &api::Ident,
+    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>;
+
     /// Remove a package from this repository.
     ///
     /// The given package identifier must identify a full package build.
@@ -414,12 +420,24 @@ pub trait Repository: Storage + Sync {
         self.remove_package_from_storage(pkg).await
     }
 
-    /// Identify the payloads for the identified package's components.
+    /// Identify the payloads for this identified package's components.
     async fn read_components(
         &self,
         // TODO: use an ident type that must have a build
         pkg: &api::Ident,
-    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>;
+    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
+        if let Some(api::Build::Embedded(api::EmbeddedSource::Package { ident, .. })) = &pkg.build {
+            let parent = self.read_components_from_storage(&**ident).await?;
+            // XXX Do embedded packages always/only have the Run component?
+            // XXX Supplying a "random" digest here.
+            if let Some((_, digest)) = parent.into_iter().next() {
+                return Ok(HashMap::from([(api::Component::Run, digest)]));
+            } else {
+                return Ok(HashMap::default());
+            }
+        }
+        self.read_components_from_storage(pkg).await
+    }
 
     /// Perform any upgrades that are pending on this repository.
     ///

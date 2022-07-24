@@ -122,6 +122,23 @@ where
         Ok(HashSet::default())
     }
 
+    async fn read_components_from_storage(&self, pkg: &api::Ident) -> Result<ComponentMap> {
+        match &pkg.build {
+            None => Err(Error::PackageNotFoundError(pkg.clone())),
+            Some(build) => self
+                .packages
+                .read()
+                .await
+                .get(&pkg.name)
+                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
+                .get(&pkg.version)
+                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
+                .get(build)
+                .map(|(_, d)| d.to_owned())
+                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone())),
+        }
+    }
+
     async fn publish_package_to_storage(
         &self,
         package: &<Self::Recipe as api::Recipe>::Output,
@@ -256,23 +273,6 @@ where
             .get(&pkg.version)
             .map(Arc::clone)
             .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))
-    }
-
-    async fn read_components(&self, pkg: &api::Ident) -> Result<ComponentMap> {
-        match &pkg.build {
-            None => Err(Error::PackageNotFoundError(pkg.clone())),
-            Some(build) => self
-                .packages
-                .read()
-                .await
-                .get(&pkg.name)
-                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
-                .get(&pkg.version)
-                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
-                .get(build)
-                .map(|(_, d)| d.to_owned())
-                .ok_or_else(|| Error::PackageNotFoundError(pkg.clone())),
-        }
     }
 
     async fn remove_recipe(&self, pkg: &api::Ident) -> Result<()> {

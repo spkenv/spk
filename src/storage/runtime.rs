@@ -111,6 +111,52 @@ impl Storage for RuntimeRepository {
         Ok(HashSet::default())
     }
 
+    async fn read_components_from_storage(
+        &self,
+        pkg: &api::Ident,
+    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
+        let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
+        let components: Vec<api::Component> = entries
+            .into_iter()
+            .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
+            .map(api::Component::parse)
+            .collect::<Result<_>>()?;
+
+        let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
+        path.push(pkg.to_string());
+
+        let mut mapped = HashMap::with_capacity(components.len());
+        for name in components.into_iter() {
+            let digest = find_layer_by_filename(path.join(format!("{}.cmpt", &name)))
+                .await
+                .map_err(|err| {
+                    if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
+                        Error::PackageNotFoundError(pkg.clone())
+                    } else {
+                        err
+                    }
+                })?;
+            mapped.insert(name, digest);
+        }
+
+        if mapped.is_empty() {
+            // This is package was published before component support
+            // was added. It does not have distinct components. So add
+            // default Build and Run components that point at the full
+            // package digest.
+            let digest = find_layer_by_filename(path).await.map_err(|err| {
+                if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
+                    Error::PackageNotFoundError(pkg.clone())
+                } else {
+                    err
+                }
+            })?;
+            mapped.insert(api::Component::Run, digest);
+            mapped.insert(api::Component::Build, digest);
+        }
+        Ok(mapped)
+    }
+
     async fn publish_package_to_storage(
         &self,
         _package: &<Self::Recipe as api::Recipe>::Output,
@@ -199,52 +245,6 @@ impl Repository for RuntimeRepository {
 
     async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
         Err(Error::PackageNotFoundError(pkg.clone()))
-    }
-
-    async fn read_components(
-        &self,
-        pkg: &api::Ident,
-    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
-        let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
-        let components: Vec<api::Component> = entries
-            .into_iter()
-            .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
-            .map(api::Component::parse)
-            .collect::<Result<_>>()?;
-
-        let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
-        path.push(pkg.to_string());
-
-        let mut mapped = HashMap::with_capacity(components.len());
-        for name in components.into_iter() {
-            let digest = find_layer_by_filename(path.join(format!("{}.cmpt", &name)))
-                .await
-                .map_err(|err| {
-                    if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                        Error::PackageNotFoundError(pkg.clone())
-                    } else {
-                        err
-                    }
-                })?;
-            mapped.insert(name, digest);
-        }
-
-        if mapped.is_empty() {
-            // This is package was published before component support
-            // was added. It does not have distinct components. So add
-            // default Build and Run components that point at the full
-            // package digest.
-            let digest = find_layer_by_filename(path).await.map_err(|err| {
-                if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                    Error::PackageNotFoundError(pkg.clone())
-                } else {
-                    err
-                }
-            })?;
-            mapped.insert(api::Component::Run, digest);
-            mapped.insert(api::Component::Build, digest);
-        }
-        Ok(mapped)
     }
 
     async fn remove_recipe(&self, _pkg: &api::Ident) -> Result<()> {
