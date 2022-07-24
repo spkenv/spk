@@ -93,6 +93,11 @@ impl Ident {
         matches!(self.build, Some(Build::Digest(_)))
     }
 
+    /// Return true if this identifier is for an embedded package.
+    pub fn is_embedded(&self) -> bool {
+        matches!(self.build, Some(Build::Embedded(_)))
+    }
+
     /// Return true if this identifier is for a source package.
     pub fn is_source(&self) -> bool {
         match &self.build {
