@@ -106,7 +106,7 @@ mod internal {
     /// part of its public interface.
     pub trait Repository: super::Storage {
         /// Get all the embedded packages described by a [`Package`] and
-        /// return what [`api::Component`]s are providing each one.
+        /// return what [`Component`]s are providing each one.
         fn get_embedded_providers(
             &self,
             package: &<Self::Recipe as Recipe>::Output,
@@ -320,8 +320,66 @@ pub trait Repository: internal::Repository + Storage + Sync {
                     embed.set_deprecated(package.is_deprecated())?;
                     self.force_publish_recipe(&embed).await?;
                 }
+            } else if embedded_providers_have_changed {
+                let original_keys: HashSet<&Self::Recipe> =
+                    original_embedded_providers.keys().collect();
+                let new_keys: HashSet<&Self::Recipe> = new_embedded_providers.keys().collect();
+
+                // First deal with embeds that appeared or disappeared.
+                for added_or_removed_spec in original_keys.symmetric_difference(&new_keys) {
+                    if original_keys.contains(added_or_removed_spec) {
+                        // This embed was removed
+                        if let Some(components) =
+                            original_embedded_providers.get(*added_or_removed_spec)
+                        {
+                            let embed = (**added_or_removed_spec).clone();
+                            let embed = embed.to_ident().with_build(Some(Build::Embedded(
+                                EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
+                                    ident: package.ident().into(),
+                                    components: components.clone(),
+                                })),
+                            )));
+                            self.remove_recipe(&embed).await?;
+                        }
+                    } else {
+                        // This embed was added
+                        if let Some(components) = new_embedded_providers.get(*added_or_removed_spec)
+                        {
+                            let mut embed =
+                                (**added_or_removed_spec).with_build(Some(Build::Embedded(
+                                    EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
+                                        ident: package.ident().into(),
+                                        components: components.clone(),
+                                    })),
+                                )));
+                            embed.set_deprecated(package.is_deprecated())?;
+                            self.force_publish_recipe(&embed).await?;
+                        }
+                    }
+                }
+
+                // For any embeds that are unchanged, update the deprecation
+                // status if it has changed.
+                if original_spec.is_deprecated() == package.is_deprecated() {
+                    return Ok(());
+                }
+
+                for returning_spec in original_keys.intersection(&new_keys) {
+                    if let Some(components) = new_embedded_providers.get(*returning_spec) {
+                        let mut embed = (**returning_spec).with_build(Some(Build::Embedded(
+                            EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
+                                ident: package.ident().into(),
+                                components: components.clone(),
+                            })),
+                        )));
+                        embed.set_deprecated(package.is_deprecated())?;
+                        self.force_publish_recipe(&embed).await?;
+                    }
+                }
             }
         }
+        // else if there was no original spec, assume there is nothing needed
+        // to do.
 
         Ok(())
     }
