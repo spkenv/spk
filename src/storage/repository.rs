@@ -77,9 +77,9 @@ pub(in crate::storage) mod internal {
     use std::collections::{BTreeSet, HashMap};
 
     use crate::api::{Deprecate, DeprecateMut, Package, Recipe};
-    use crate::{Error, Result};
+    use crate::{with_cache_policy, Error, Result};
 
-    use super::api;
+    use super::{api, CachePolicy};
 
     /// Reusable methods for [`super::Repository`] that are not intended to be
     /// part of its public interface.
@@ -153,7 +153,28 @@ pub(in crate::storage) mod internal {
                         ident: Box::new(spec_for_parent.ident().clone()),
                         components: components_that_embed_this_pkg,
                     })));
-            self.remove_recipe(&spec_for_embedded_pkg).await
+            self.remove_recipe(&spec_for_embedded_pkg).await?;
+
+            // If this was the last stub and there are no other builds, remove
+            // the "version spec".
+            if let Ok(builds) = with_cache_policy!(self, CachePolicy::BypassCache, {
+                self.list_package_builds(&spec_for_embedded_pkg)
+            })
+            .await
+            {
+                if builds.is_empty() {
+                    let version_spec = spec_for_embedded_pkg.with_build(None);
+                    if let Err(err) = self.remove_recipe(&version_spec).await {
+                        tracing::warn!(
+                            ?spec_for_embedded_pkg,
+                            ?err,
+                            "Failed to remove version spec after removing last embed stub"
+                        );
+                    }
+                }
+            }
+
+            Ok(())
         }
     }
 }
