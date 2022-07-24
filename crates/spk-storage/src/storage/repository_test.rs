@@ -7,7 +7,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::pkg_name;
 use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps};
 use spk_schema::ident::parse_ident;
-use spk_schema::{recipe, spec};
+use spk_schema::{recipe, spec, Spec};
 
 use crate::{fixtures::*, Error};
 
@@ -158,4 +158,64 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
         .await
         .unwrap()
         .is_empty());
+}
+
+async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> Spec {
+    let recipe = recipe!({
+        "pkg": "my-pkg/1.0.0",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg/1.0.0"}
+            ]
+        }
+    });
+    repo.publish_recipe(&recipe).await.unwrap();
+    let spec = spec!({
+        "pkg": "my-pkg/1.0.0/7CI5R7Y4",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg/1.0.0/embedded"}
+            ]
+        }
+    });
+    repo.publish_package(
+        &spec,
+        &vec![(Component::Run, empty_layer_digest())]
+            .into_iter()
+            .collect(),
+    )
+    .await
+    .unwrap();
+    spec
+}
+
+#[rstest]
+#[case::spfs(RepoKind::Spfs)]
+#[tokio::test]
+async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
+    let repo = make_repo(repo).await;
+    let _ = create_repo_for_embed_stubs_test(&repo).await;
+    assert!(repo
+        .list_packages()
+        .await
+        .unwrap()
+        .iter()
+        .any(|pkg| pkg == "my-embedded-pkg"));
+}
+
+#[rstest]
+#[case::spfs(RepoKind::Spfs)]
+#[tokio::test]
+async fn test_repo_remove_package_removes_embed_stubs(#[case] repo: RepoKind) {
+    let repo = make_repo(repo).await;
+    let spec = create_repo_for_embed_stubs_test(&repo).await;
+    // `test_repo_publish_package_creates_embed_stubs` proves that the stub
+    // would exist at this point.
+    repo.remove_package(spec.ident()).await.unwrap();
+    assert!(!repo
+        .list_packages()
+        .await
+        .unwrap()
+        .iter()
+        .any(|pkg| pkg == "my-embedded-pkg"));
 }
