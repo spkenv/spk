@@ -11,6 +11,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Version;
+use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::ident_build::{Build, InvalidBuildError};
 use spk_schema::Ident;
 use spk_schema::{Deprecate, DeprecateMut, Package};
@@ -474,12 +475,24 @@ pub trait Repository: Storage + Sync {
         self.remove_package_from_storage(pkg).await
     }
 
-    /// Identify the payloads for the identified package's components.
+    /// Identify the payloads for this identified package's components.
     async fn read_components(
         &self,
         // TODO: use an ident type that must have a build
         pkg: &Ident,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
+        if let Some(Build::Embedded(EmbeddedSource::Package(package))) = &pkg.build {
+            let parent = self
+                .read_components_from_storage(&(&package.ident).try_into()?)
+                .await?;
+            // XXX Do embedded packages always/only have the Run component?
+            // XXX Supplying a "random" digest here.
+            if let Some((_, digest)) = parent.into_iter().next() {
+                return Ok(HashMap::from([(Component::Run, digest)]));
+            } else {
+                return Ok(HashMap::default());
+            }
+        }
         self.read_components_from_storage(pkg).await
     }
 

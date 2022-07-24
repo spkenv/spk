@@ -22,6 +22,8 @@ pub enum Error {
     #[error(transparent)]
     SPFS(#[from] spfs::Error),
     #[error(transparent)]
+    SpkIdentError(#[from] spk_schema::ident::Error),
+    #[error(transparent)]
     SpkIdentBuildError(#[from] spk_schema::foundation::ident_build::Error),
     #[error(transparent)]
     SpkIdentComponentError(#[from] spk_schema::foundation::ident_component::Error),
