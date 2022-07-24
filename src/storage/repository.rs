@@ -73,7 +73,7 @@ pub trait Storage: Sync {
     async fn remove_package_from_storage(&self, pkg: &api::Ident) -> Result<()>;
 }
 
-mod internal {
+pub(in crate::storage) mod internal {
     use std::collections::{BTreeSet, HashMap};
 
     use crate::api::{Deprecate, DeprecateMut, Package, Recipe};
