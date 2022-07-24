@@ -6,5 +6,5 @@ mod component_spec;
 mod error;
 pub mod parsing;
 
-pub use component_spec::{Component, ComponentSet};
+pub use component_spec::{Component, ComponentSet, Components};
 pub use error::{Error, Result};

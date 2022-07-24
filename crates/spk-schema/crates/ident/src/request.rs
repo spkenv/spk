@@ -13,6 +13,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::{
     format::{FormatBuild, FormatComponents, FormatRequest},
+    ident_component::Components,
     ident_ops::parsing::KNOWN_REPOSITORY_NAMES,
 };
 
@@ -241,19 +242,7 @@ impl Display for RangeIdent {
             f.write_char('/')?;
         }
         self.name.fmt(f)?;
-        match self.components.len() {
-            0 => (),
-            1 => {
-                f.write_char(':')?;
-                self.components.iter().join(",").fmt(f)?;
-            }
-            _ => {
-                f.write_char(':')?;
-                f.write_char('{')?;
-                self.components.iter().join(",").fmt(f)?;
-                f.write_char('}')?;
-            }
-        }
+        self.components.fmt_component_set(f)?;
         if !self.version.is_empty() {
             f.write_char('/')?;
             self.version.fmt(f)?;

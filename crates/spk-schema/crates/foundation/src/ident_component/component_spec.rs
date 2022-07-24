@@ -1,9 +1,14 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{collections::HashSet, convert::TryFrom};
+use std::{
+    collections::{BTreeSet, HashSet},
+    convert::TryFrom,
+    fmt::{Display, Write},
+};
 
 use colored::Colorize;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::format::FormatComponents;
@@ -14,6 +19,15 @@ use super::{Error, Result};
 #[cfg(test)]
 #[path = "./component_spec_test.rs"]
 mod component_spec_test;
+
+pub trait Components {
+    /// Render a set of [`Component`].
+    ///
+    /// An empty set is an empty string.
+    /// A set with a single entry is formatted as `":name"`.
+    /// A set with multiple entries is formatted as `":{name1,name2}"`.
+    fn fmt_component_set(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result;
+}
 
 /// Identifies a component by name
 #[derive(Debug, Hash, Clone, Eq, PartialEq, PartialOrd, Ord)]
@@ -94,6 +108,25 @@ impl Component {
 
     pub fn is_named(&self) -> bool {
         matches!(self, Self::Named(_))
+    }
+}
+
+impl Components for BTreeSet<Component> {
+    fn fmt_component_set(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self.len() {
+            0 => (),
+            1 => {
+                f.write_char(':')?;
+                self.iter().join(",").fmt(f)?;
+            }
+            _ => {
+                f.write_char(':')?;
+                f.write_char('{')?;
+                self.iter().join(",").fmt(f)?;
+                f.write_char('}')?;
+            }
+        }
+        Ok(())
     }
 }
 
