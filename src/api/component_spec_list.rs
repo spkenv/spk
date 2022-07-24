@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -33,13 +33,13 @@ impl ComponentSpecList {
     pub fn resolve_uses<'a>(
         &self,
         requests: impl Iterator<Item = &'a Component>,
-    ) -> HashSet<Component> {
+    ) -> BTreeSet<Component> {
         let by_name = self
             .iter()
             .map(|c| (c.name.clone(), c))
             .collect::<HashMap<_, _>>();
         let mut to_visit = requests.collect::<Vec<_>>();
-        let mut visited = HashSet::new();
+        let mut visited = BTreeSet::new();
 
         while let Some(requested) = to_visit.pop() {
             if visited.contains(requested) {

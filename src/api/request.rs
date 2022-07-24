@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::{
     cmp::min,
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet},
     fmt::{Display, Write},
     str::FromStr,
 };
@@ -25,23 +25,13 @@ use crate::{storage::KNOWN_REPOSITORY_NAMES, Error, Result};
 mod request_test;
 
 /// Identifies a range of package versions and builds.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct RangeIdent {
     pub repository_name: Option<RepositoryNameBuf>,
     pub name: PkgNameBuf,
-    pub components: HashSet<Component>,
+    pub components: BTreeSet<Component>,
     pub version: VersionFilter,
     pub build: Option<Build>,
-}
-
-#[allow(clippy::derive_hash_xor_eq)]
-impl std::hash::Hash for RangeIdent {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-        self.components.iter().sorted().collect_vec().hash(state);
-        self.version.hash(state);
-        self.build.hash(state);
-    }
 }
 
 impl Ord for RangeIdent {
@@ -227,7 +217,7 @@ impl RangeIdent {
 
         if !self.components.is_empty() && self.build != Some(Build::Source) {
             let required_components = spec.components().resolve_uses(self.components.iter());
-            let available_components: HashSet<_> =
+            let available_components: BTreeSet<_> =
                 spec.components().iter().map(|c| c.name.clone()).collect();
             let missing_components = required_components
                 .difference(&available_components)
@@ -290,12 +280,12 @@ impl Display for RangeIdent {
             0 => (),
             1 => {
                 f.write_char(':')?;
-                self.components.iter().sorted().join(",").fmt(f)?;
+                self.components.iter().join(",").fmt(f)?;
             }
             _ => {
                 f.write_char(':')?;
                 f.write_char('{')?;
-                self.components.iter().sorted().join(",").fmt(f)?;
+                self.components.iter().join(",").fmt(f)?;
                 f.write_char('}')?;
             }
         }
@@ -317,7 +307,7 @@ impl From<BuildIdent> for RangeIdent {
             repository_name: Some(ident.repository_name),
             name: ident.name,
             version: ident.version.into(),
-            components: HashSet::default(),
+            components: BTreeSet::default(),
             build: Some(ident.build),
         }
     }
@@ -329,7 +319,7 @@ impl From<Ident> for RangeIdent {
             repository_name: None,
             name: ident.name,
             version: ident.version.into(),
-            components: HashSet::default(),
+            components: BTreeSet::default(),
             build: ident.build,
         }
     }

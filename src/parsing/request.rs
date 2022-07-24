@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use nom::{
     character::complete::char,
@@ -31,7 +31,7 @@ use super::{
 /// - `"package-name:{comp1,comp2}/"`
 fn range_ident_pkg_name<'a, E>(
     input: &'a str,
-) -> IResult<&'a str, (&PkgName, HashSet<Component>), E>
+) -> IResult<&'a str, (&PkgName, BTreeSet<Component>), E>
 where
     E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
 {

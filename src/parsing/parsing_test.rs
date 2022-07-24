@@ -2,12 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::HashSet, convert::TryFrom, str::FromStr};
+use std::{
+    collections::{BTreeSet, HashSet},
+    convert::TryFrom,
+    str::FromStr,
+};
 
 use itertools::Itertools;
 use nom::{combinator::all_consuming, error::ErrorKind};
 use proptest::{
-    collection::{btree_map, btree_set, hash_set, vec},
+    collection::{btree_map, btree_set, vec},
     option::weighted,
     prelude::*,
 };
@@ -64,7 +68,7 @@ prop_compose! {
 }
 
 prop_compose! {
-    fn arb_components()(components in hash_set(arb_component(), 0..10)) -> HashSet<Component> {
+    fn arb_components()(components in btree_set(arb_component(), 0..10)) -> BTreeSet<Component> {
         components
     }
 }
@@ -371,7 +375,9 @@ prop_compose! {
 fn arb_embedded_build() -> impl Strategy<Value = Build> {
     prop_oneof![
         3 => Just(Build::Embedded(EmbeddedSource::Unknown)),
-        7 => arb_ident().prop_map(|ident| Build::Embedded(EmbeddedSource::Ident(Box::new(ident)))),
+        7 => arb_ident().prop_map(|ident| Build::Embedded(
+               EmbeddedSource::Ident(Box::new(ident))
+             )),
     ]
 }
 
