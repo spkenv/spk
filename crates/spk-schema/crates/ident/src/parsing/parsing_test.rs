@@ -369,10 +369,9 @@ prop_compose! {
     fn arb_ident()(
         name in arb_pkg_legal_name(),
         version in arb_legal_version(),
+        build in weighted(0.9, arb_non_embedded_build()),
     ) -> Ident {
-        // TODO: mutually recursive strategy here Ident -> Build -> Ident.
-        // There is a "proptest-recurse" crate but it looks unmaintained.
-        Ident { name, version, build: None }
+        Ident { name, version, build }
     }
 }
 
@@ -392,17 +391,23 @@ fn arb_embedded_build() -> impl Strategy<Value = Build> {
     ]
 }
 
+fn arb_non_embedded_build() -> impl Strategy<Value = Build> {
+    prop_oneof![
+        1 => Just(Build::Source),
+        9 => "[2-7A-Z]{8}"
+            .prop_filter("valid BASE32 value", |s| data_encoding::BASE32
+                .decode(s.as_bytes())
+                .is_ok())
+            .prop_map(|digest| Build::from_str(digest.as_str()).unwrap())
+    ]
+}
+
 fn arb_build() -> impl Strategy<Value = Option<Build>> {
     weighted(
         0.9,
         prop_oneof![
-            1 => Just(Build::Source),
             2 => arb_embedded_build(),
-            8 => "[2-7A-Z]{8}"
-                .prop_filter("valid BASE32 value", |s| data_encoding::BASE32
-                    .decode(s.as_bytes())
-                    .is_ok())
-                .prop_map(|digest| Build::from_str(digest.as_str()).unwrap())
+            9 => arb_non_embedded_build(),
         ],
     )
 }
