@@ -461,12 +461,22 @@ impl PkgRequirementsValidator {
             .collect();
         if !missing_components.is_empty() {
             return Ok(Incompatible(format!(
-                "resolved package does not provide all required components: needed {}, have {}",
+                "resolved package {} does not provide all required components: needed {}, have {}",
+                request.pkg.name,
                 missing_components
                     .into_iter()
                     .map(api::Component::to_string)
                     .join("\n"),
-                request.pkg.name,
+                {
+                    if provided_components.is_empty() {
+                        "none".to_owned()
+                    } else {
+                        provided_components
+                            .into_iter()
+                            .map(api::Component::to_string)
+                            .join("\n")
+                    }
+                }
             )));
         }
 
