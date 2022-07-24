@@ -13,7 +13,7 @@ use spk_schema::foundation::version::Version;
 use spk_schema::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage, InvalidBuildError};
 use spk_schema::Ident;
 use spk_schema::{foundation::ident_component::Component, spec_ops::RecipeOps};
-use spk_schema::{Package, Recipe};
+use spk_schema::{Deprecate, DeprecateMut, Package, Recipe};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -276,10 +276,56 @@ pub trait Repository: internal::Repository + Storage + Sync {
         package: &<Self::Recipe as spk_schema::Recipe>::Output,
     ) -> Result<()>
     where
-        <Self::Recipe as spk_schema::Recipe>::Output: Package<Ident = Ident>,
+        <Self::Recipe as spk_schema::Recipe>::Output: Package<Ident = Ident> + Deprecate,
+        Self::Recipe: DeprecateMut,
     {
+        // Read the contents of the existing spec, if any, before it is
+        // overwritten.
+        let original_spec = if !package.ident().is_source() {
+            Some(self.read_package(package.ident()).await)
+        } else {
+            None
+        };
+
         let components = self.read_components(package.ident()).await?;
-        self.publish_package(package, &components).await
+        if let Err(err) = self.publish_package_to_storage(package, &components).await {
+            return Err(err);
+        }
+
+        // Changes that affect embedded stubs:
+        // - change in deprecation status
+        // - adding/removing embedded packages
+        if let Some(Ok(original_spec)) = original_spec {
+            let original_embedded_providers = self.get_embedded_providers(&*original_spec)?;
+            let new_embedded_providers = self.get_embedded_providers(package)?;
+            // No change case #1: no embedded packages involved.
+            if original_embedded_providers.is_empty() && new_embedded_providers.is_empty() {
+                return Ok(());
+            }
+            // No change case #2: no embedded packages changes and no deprecation
+            // status changes.
+            let embedded_providers_have_changed =
+                original_embedded_providers != new_embedded_providers;
+            if !embedded_providers_have_changed
+                && original_spec.is_deprecated() != package.is_deprecated()
+            {
+                // Update all stubs to change their deprecation status too.
+                for (embed, components) in new_embedded_providers.into_iter() {
+                    let mut embed = embed.with_build(Some(Build::Embedded(
+                        EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
+                            ident: package.ident().into(),
+                            components,
+                        })),
+                    )));
+                    embed.set_deprecated(package.is_deprecated())?;
+                    self.force_publish_recipe(&embed).await?;
+                }
+            }
+        }
+        // else if there was no original spec, assume there is nothing needed
+        // to do.
+
+        Ok(())
     }
 
     /// Remove a package from this repository.
