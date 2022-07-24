@@ -36,7 +36,7 @@ use super::{
     repository::{PublishPolicy, Storage},
     CachePolicy, Repository,
 };
-use crate::{with_cache_policy, Error, Result};
+use crate::{storage::repository::internal::RepositoryExt, with_cache_policy, Error, Result};
 
 #[cfg(test)]
 #[path = "./spfs_test.rs"]
@@ -592,7 +592,7 @@ impl Repository for SPFSRepository {
             return Ok("Nothing to do.".to_string());
         }
         for name in self.list_packages().await? {
-            tracing::info!("replicating old tags for {}...", name);
+            tracing::info!("Processing {name}...");
             let mut pkg = Ident::new(name.to_owned());
             for version in self.list_package_versions(&name).await?.iter() {
                 pkg.version = (**version).clone();
@@ -606,9 +606,24 @@ impl Repository for SPFSRepository {
                         self.lookup_package(&build)
                     })
                     .await?;
+
+                    // [Re-]create embedded stubs.
+                    if build.can_embed() {
+                        let spec = self.read_package(&build).await?;
+                        let providers = self.get_embedded_providers(&*spec)?;
+                        if !providers.is_empty() {
+                            tracing::info!("Creating embedded stubs for {name}...");
+                            for (embedded, components) in providers.into_iter() {
+                                self.create_embedded_stub_for_spec(&*spec, &embedded, components)
+                                    .await?
+                            }
+                        }
+                    }
+
                     if stored.has_components() {
                         continue;
                     }
+                    tracing::info!("Replicating old tags for {name}...");
                     let components = stored.into_components();
                     for (name, tag_spec) in components.into_iter() {
                         let tag = self.inner.resolve_tag(&tag_spec).await?;
@@ -635,7 +650,7 @@ impl Repository for SPFSRepository {
         meta.version = target_version;
         self.write_metadata(&meta).await?;
         // Note caches are already invalidated in `write_metadata`
-        Ok("All packages were re-tagged for components".to_string())
+        Ok("Repo up to date".to_string())
     }
 
     fn set_cache_policy(&self, cache_policy: CachePolicy) -> CachePolicy {
