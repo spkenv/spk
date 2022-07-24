@@ -14,9 +14,9 @@ use serde::{Deserialize, Serialize};
 use super::compat::{API_STR, BINARY_STR};
 use super::version_range::{self, Ranged};
 use super::{
-    Build, BuildIdent, CompatRule, Compatibility, Component, DoubleEqualsVersion, EqualsVersion,
-    Ident, Opt, OptName, OptNameBuf, Package, PkgName, PkgNameBuf, RepositoryNameBuf, Version,
-    VersionFilter,
+    component_spec::Components, Build, BuildIdent, CompatRule, Compatibility, Component,
+    DoubleEqualsVersion, EqualsVersion, Ident, Opt, OptName, OptNameBuf, Package, PkgName,
+    PkgNameBuf, RepositoryNameBuf, Version, VersionFilter,
 };
 use crate::{storage::KNOWN_REPOSITORY_NAMES, Error, Result};
 
@@ -276,19 +276,7 @@ impl Display for RangeIdent {
             f.write_char('/')?;
         }
         self.name.fmt(f)?;
-        match self.components.len() {
-            0 => (),
-            1 => {
-                f.write_char(':')?;
-                self.components.iter().join(",").fmt(f)?;
-            }
-            _ => {
-                f.write_char(':')?;
-                f.write_char('{')?;
-                self.components.iter().join(",").fmt(f)?;
-                f.write_char('}')?;
-            }
-        }
+        self.components.fmt_component_set(f)?;
         if !self.version.is_empty() {
             f.write_char('/')?;
             self.version.fmt(f)?;
