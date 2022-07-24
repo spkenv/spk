@@ -50,7 +50,10 @@ impl RepoCommand {
         let repo = match &self {
             Self::Upgrade { repo } => repo,
         };
-        let repo = spk::storage::remote_repository(repo).await?;
+        let repo = match repo.as_str() {
+            "local" => spk::storage::local_repository().await?,
+            _ => spk::storage::remote_repository(repo).await?,
+        };
         let status = repo.upgrade().await.context("Upgrade failed")?;
         tracing::info!("{}", status);
         Ok(1)
