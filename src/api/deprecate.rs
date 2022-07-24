@@ -16,6 +16,15 @@ pub trait DeprecateMut: Deprecate {
     /// Mark this instance as deprecated
     fn deprecate(&mut self) -> Result<()>;
 
+    /// Change the deprecation value of this instance
+    fn set_deprecated(&mut self, deprecated: bool) -> Result<()> {
+        if deprecated {
+            self.deprecate()
+        } else {
+            self.undeprecate()
+        }
+    }
+
     /// Mark this instance as no longer deprecated
     fn undeprecate(&mut self) -> Result<()>;
 }
