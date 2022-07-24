@@ -215,6 +215,7 @@ where
     where
         R: std::ops::Deref<Target = T>,
         T: storage::Repository<Recipe = Recipe> + ?Sized,
+        Recipe: api::DeprecateMut,
     {
         let (package, components) = self.build().await?;
         repo.publish_package(&package, &components).await?;
