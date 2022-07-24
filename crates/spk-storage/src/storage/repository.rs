@@ -7,12 +7,12 @@ use std::{
 };
 
 use crate::{Error, Result};
+use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Version;
-use spk_schema::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage, InvalidBuildError};
+use spk_schema::ident_build::{Build, InvalidBuildError};
 use spk_schema::Ident;
-use spk_schema::{foundation::ident_component::Component, spec_ops::RecipeOps};
 use spk_schema::{Deprecate, DeprecateMut, Package};
 
 use self::internal::RepositoryExt;
@@ -103,7 +103,7 @@ mod internal {
     use spk_schema::foundation::{
         ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage},
         ident_component::Component,
-        spec_ops::PackageOps,
+        spec_ops::{PackageOps, RecipeOps},
     };
     use spk_schema::{Deprecate, DeprecateMut, Package, Recipe};
 
@@ -163,6 +163,30 @@ mod internal {
                 .insert(component.unwrap_or(Component::Run));
             }
             Ok(embedded_providers)
+        }
+
+        /// Remove the [`Recipe`] from a repository that represents the
+        /// embedded package of some other package.
+        ///
+        /// The stub should be removed when the package that had been embedding
+        /// the package is removed or modified such that it no longer embeds
+        /// this package.
+        async fn remove_embedded_stub_for_spec(
+            &self,
+            spec_for_parent: &Self::Package,
+            spec_for_embedded_pkg: &Self::Recipe,
+            components_that_embed_this_pkg: BTreeSet<Component>,
+        ) -> Result<()> {
+            let spec_for_embedded_pkg =
+                spec_for_embedded_pkg
+                    .to_ident()
+                    .with_build(Some(Build::Embedded(EmbeddedSource::Package(Box::new(
+                        EmbeddedSourcePackage {
+                            ident: spec_for_parent.ident().into(),
+                            components: components_that_embed_this_pkg,
+                        },
+                    )))));
+            self.remove_recipe(&spec_for_embedded_pkg).await
         }
     }
 }
@@ -353,14 +377,12 @@ pub trait Repository: Storage + Sync {
                         if let Some(components) =
                             original_embedded_providers.get(*added_or_removed_spec)
                         {
-                            let embed = (**added_or_removed_spec).clone();
-                            let embed = embed.to_ident().with_build(Some(Build::Embedded(
-                                EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
-                                    ident: package.ident().into(),
-                                    components: components.clone(),
-                                })),
-                            )));
-                            self.remove_recipe(&embed).await?;
+                            self.remove_embedded_stub_for_spec(
+                                package,
+                                *added_or_removed_spec,
+                                components.clone(),
+                            )
+                            .await?
                         }
                     } else {
                         // This embed was added
@@ -421,13 +443,8 @@ pub trait Repository: Storage + Sync {
                 let embedded_providers = self.get_embedded_providers(&*spec)?;
 
                 for (embed, components) in embedded_providers.into_iter() {
-                    let embed = embed.to_ident().with_build(Some(Build::Embedded(
-                        EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
-                            ident: spec.ident().into(),
-                            components,
-                        })),
-                    )));
-                    self.remove_recipe(&embed).await?;
+                    self.remove_embedded_stub_for_spec(&*spec, &embed, components)
+                        .await?
                 }
             }
         }
