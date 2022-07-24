@@ -341,7 +341,12 @@ pub trait Repository: Storage + Sync {
         // Read the contents of the existing spec, if any, before it is
         // overwritten.
         let original_spec = if package.ident().can_embed() {
-            Some(self.read_package(package.ident()).await)
+            Some(
+                crate::with_cache_policy!(self, CachePolicy::BypassCache, {
+                    self.read_package(package.ident())
+                })
+                .await,
+            )
         } else {
             None
         };

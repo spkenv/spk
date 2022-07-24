@@ -189,6 +189,50 @@ async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> api::Spec {
 #[rstest]
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
+async fn test_repo_publish_spec_updates_embed_stubs(#[case] repo: RepoKind) {
+    let repo = make_repo(repo).await;
+    let _ = create_repo_for_embed_stubs_test(&repo).await;
+    // `test_repo_publish_package_creates_embed_stubs` proves that the stub
+    // would exist at this point.
+    //
+    // Change the embedded package to a different name.
+    let recipe = crate::recipe!({
+        "pkg": "my-pkg/1.0.0",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg2/1.0.0"}
+            ]
+        }
+    });
+    repo.force_publish_recipe(&recipe).await.unwrap();
+    let spec = crate::spec!({
+        "pkg": "my-pkg/1.0.0/7CI5R7Y4",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg2/1.0.0/embedded"}
+            ]
+        }
+    });
+    repo.update_package(&spec).await.unwrap();
+    // The original stub should be gone.
+    assert!(!repo
+        .list_packages()
+        .await
+        .unwrap()
+        .iter()
+        .any(|pkg| pkg == "my-embedded-pkg"));
+    // The new stub should exist.
+    assert!(repo
+        .list_packages()
+        .await
+        .unwrap()
+        .iter()
+        .any(|pkg| pkg == "my-embedded-pkg2"));
+}
+
+#[rstest]
+#[case::spfs(RepoKind::Spfs)]
+#[tokio::test]
 async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
     let _ = create_repo_for_embed_stubs_test(&repo).await;
