@@ -75,6 +75,12 @@ impl Ident {
         }
     }
 
+    /// Return if this identifier can possibly have embedded packages.
+    pub fn can_embed(&self) -> bool {
+        // Only builds can have embeds.
+        matches!(self.build, Some(Build::Digest(_)))
+    }
+
     /// Return true if this identifier is for a source package.
     pub fn is_source(&self) -> bool {
         match &self.build {

@@ -237,7 +237,7 @@ pub trait Repository: internal::Repository + Storage + Sync {
 
         // After successfully publishing a package, also publish stubs for any
         // embedded packages in this package.
-        if !package.ident().is_source() {
+        if package.ident().can_embed() {
             let embedded_providers = self.get_embedded_providers(package)?;
 
             for (embed, components) in embedded_providers.into_iter() {
@@ -281,7 +281,7 @@ pub trait Repository: internal::Repository + Storage + Sync {
     {
         // Read the contents of the existing spec, if any, before it is
         // overwritten.
-        let original_spec = if !package.ident().is_source() {
+        let original_spec = if package.ident().can_embed() {
             Some(self.read_package(package.ident()).await)
         } else {
             None
@@ -322,8 +322,6 @@ pub trait Repository: internal::Repository + Storage + Sync {
                 }
             }
         }
-        // else if there was no original spec, assume there is nothing needed
-        // to do.
 
         Ok(())
     }
@@ -345,7 +343,7 @@ pub trait Repository: internal::Repository + Storage + Sync {
 
         // Attempt to find and remove any related embedded package stubs.
         if let Ok(spec) = self.read_package(pkg).await {
-            if !spec.ident().is_source() {
+            if spec.ident().can_embed() {
                 let embedded_providers = self.get_embedded_providers(&*spec)?;
 
                 for (embed, components) in embedded_providers.into_iter() {
