@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 use nom::{
     branch::alt,
@@ -44,7 +44,7 @@ where
     )(input)
 }
 
-/// Parse a component group expression into a [`HashSet<Component>`].
+/// Parse a component group expression into a [`BTreeSet<Component>`].
 ///
 /// This may be either a bare component name or a set defined with
 /// `{}`.
@@ -52,7 +52,7 @@ where
 /// Examples:
 /// - `"comp-name"`
 /// - `"{comp1,comp2}"`
-pub fn components<'a, E>(input: &'a str) -> IResult<&'a str, HashSet<Component>, E>
+pub fn components<'a, E>(input: &'a str) -> IResult<&'a str, BTreeSet<Component>, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
 {
@@ -64,6 +64,6 @@ where
             })),
             cut(char('}')),
         ),
-        map(component, |comp| HashSet::from([comp])),
+        map(component, |comp| BTreeSet::from([comp])),
     ))(input)
 }

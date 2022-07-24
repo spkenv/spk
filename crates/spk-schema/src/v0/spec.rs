@@ -1,7 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::convert::TryInto;
 use std::path::Path;
 
@@ -439,7 +439,7 @@ impl RecipeOps for Spec {
             let required_components = self
                 .components()
                 .resolve_uses(range_ident.components.iter());
-            let available_components: HashSet<_> =
+            let available_components: BTreeSet<_> =
                 self.components_iter().map(|c| c.name.clone()).collect();
             let missing_components = required_components
                 .difference(&available_components)
