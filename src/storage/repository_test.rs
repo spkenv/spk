@@ -157,7 +157,7 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
         .is_empty());
 }
 
-async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> api::Spec {
+async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> (api::SpecRecipe, api::Spec) {
     let recipe = crate::recipe!({
         "pkg": "my-pkg/1.0.0",
         "install": {
@@ -183,7 +183,7 @@ async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> api::Spec {
     )
     .await
     .unwrap();
-    spec
+    (recipe, spec)
 }
 
 #[rstest]
@@ -233,6 +233,35 @@ async fn test_repo_publish_spec_updates_embed_stubs(#[case] repo: RepoKind) {
 #[rstest]
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
+async fn test_repo_deprecate_spec_updates_embed_stubs(#[case] repo: RepoKind) {
+    let repo = make_repo(repo).await;
+    let (_, mut package) = create_repo_for_embed_stubs_test(&repo).await;
+    // `test_repo_publish_package_creates_embed_stubs` proves that the stub
+    // would exist at this point.
+    //
+    // Deprecate the package.
+    package.deprecate().unwrap();
+    repo.update_package(&package).await.unwrap();
+    // The stub should be deprecated too.
+    let builds = repo
+        .list_package_builds(&api::Ident {
+            name: "my-embedded-pkg".parse().unwrap(),
+            version: "1.0.0".parse().unwrap(),
+            build: None,
+        })
+        .await
+        .unwrap();
+    assert!(!builds.is_empty());
+    assert!(repo
+        .read_embed_stub(&builds[0])
+        .await
+        .unwrap()
+        .is_deprecated())
+}
+
+#[rstest]
+#[case::spfs(RepoKind::Spfs)]
+#[tokio::test]
 async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
     let _ = create_repo_for_embed_stubs_test(&repo).await;
@@ -249,7 +278,7 @@ async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
 #[tokio::test]
 async fn test_repo_remove_package_removes_embed_stubs(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
-    let spec = create_repo_for_embed_stubs_test(&repo).await;
+    let (_, spec) = create_repo_for_embed_stubs_test(&repo).await;
     // `test_repo_publish_package_creates_embed_stubs` proves that the stub
     // would exist at this point.
     repo.remove_package(spec.ident()).await.unwrap();
