@@ -133,6 +133,28 @@ mod internal {
             }
             Ok(embedded_providers)
         }
+
+        /// Remove the [`api::Recipe`] from a repository that represents the
+        /// embedded package of some other package.
+        ///
+        /// The stub should be removed when the package that had been embedding
+        /// the package is removed or modified such that it no longer embeds
+        /// this package.
+        async fn remove_embedded_stub_for_spec(
+            &self,
+            spec_for_parent: &Self::Package,
+            spec_for_embedded_pkg: &Self::Recipe,
+            components_that_embed_this_pkg: BTreeSet<api::Component>,
+        ) -> Result<()> {
+            let spec_for_embedded_pkg =
+                spec_for_embedded_pkg
+                    .ident()
+                    .with_build(Some(api::Build::Embedded(api::EmbeddedSource::Package {
+                        ident: Box::new(spec_for_parent.ident().clone()),
+                        components: components_that_embed_this_pkg,
+                    })));
+            self.remove_recipe(&spec_for_embedded_pkg).await
+        }
     }
 }
 
@@ -303,14 +325,12 @@ pub trait Repository: Storage + Sync {
                         if let Some(components) =
                             original_embedded_providers.get(*added_or_removed_spec)
                         {
-                            let embed = (**added_or_removed_spec).clone();
-                            let embed = embed.ident().with_build(Some(api::Build::Embedded(
-                                api::EmbeddedSource::Package {
-                                    ident: Box::new(package.ident().clone()),
-                                    components: components.clone(),
-                                },
-                            )));
-                            self.remove_recipe(&embed).await?;
+                            self.remove_embedded_stub_for_spec(
+                                package,
+                                *added_or_removed_spec,
+                                components.clone(),
+                            )
+                            .await?
                         }
                     } else {
                         // This embed was added
@@ -364,13 +384,8 @@ pub trait Repository: Storage + Sync {
                 let embedded_providers = self.get_embedded_providers(&*spec)?;
 
                 for (embed, components) in embedded_providers.into_iter() {
-                    let embed = embed.ident().with_build(Some(api::Build::Embedded(
-                        api::EmbeddedSource::Package {
-                            ident: Box::new(spec.ident().clone()),
-                            components,
-                        },
-                    )));
-                    self.remove_recipe(&embed).await?;
+                    self.remove_embedded_stub_for_spec(&*spec, &embed, components)
+                        .await?
                 }
             }
         }
