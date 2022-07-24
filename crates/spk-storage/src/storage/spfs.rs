@@ -267,6 +267,20 @@ impl Storage for SPFSRepository {
         Ok(())
     }
 
+    async fn read_components_from_storage(
+        &self,
+        pkg: &Ident,
+    ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
+        let package = self.lookup_package(pkg).await?;
+        let component_tags = package.into_components();
+        let mut components = HashMap::with_capacity(component_tags.len());
+        for (name, tag_spec) in component_tags.into_iter() {
+            let tag = self.resolve_tag(pkg, &tag_spec).await?;
+            components.insert(name, tag.target);
+        }
+        Ok(components)
+    }
+
     async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()> {
         for tag_spec in
             with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
@@ -435,20 +449,6 @@ impl Repository for SPFSRepository {
             hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
         });
         r
-    }
-
-    async fn read_components(
-        &self,
-        pkg: &Ident,
-    ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
-        let package = self.lookup_package(pkg).await?;
-        let component_tags = package.into_components();
-        let mut components = HashMap::with_capacity(component_tags.len());
-        for (name, tag_spec) in component_tags.into_iter() {
-            let tag = self.resolve_tag(pkg, &tag_spec).await?;
-            components.insert(name, tag.target);
-        }
-        Ok(components)
     }
 
     async fn read_package(

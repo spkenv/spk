@@ -58,6 +58,12 @@ pub trait Storage: Sync {
     ///   `force` isn't true
     async fn publish_recipe_to_storage(&self, spec: &Self::Recipe, force: bool) -> Result<()>;
 
+    /// Identify the payloads for the identified package's components.
+    async fn read_components_from_storage(
+        &self,
+        pkg: &Ident,
+    ) -> Result<HashMap<Component, spfs::encoding::Digest>>;
+
     /// Remove a package from this repository.
     ///
     /// The given package identifier must identify a full package build.
@@ -206,7 +212,9 @@ pub trait Repository: Storage + Sync {
         &self,
         // TODO: use an ident type that must have a build
         pkg: &Ident,
-    ) -> Result<HashMap<Component, spfs::encoding::Digest>>;
+    ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
+        self.read_components_from_storage(pkg).await
+    }
 
     /// Perform any upgrades that are pending on this repository.
     ///

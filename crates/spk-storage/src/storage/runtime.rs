@@ -99,6 +99,56 @@ impl Storage for RuntimeRepository {
         ))
     }
 
+    async fn read_components_from_storage(
+        &self,
+        pkg: &Ident,
+    ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
+        let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
+        let components: Vec<Component> = entries
+            .into_iter()
+            .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
+            .map(Component::parse)
+            .collect::<spk_schema::foundation::ident_component::Result<_>>()?;
+
+        let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
+        path.push(pkg.to_string());
+
+        let mut mapped = HashMap::with_capacity(components.len());
+        for name in components.into_iter() {
+            let digest = find_layer_by_filename(path.join(format!("{}.cmpt", &name)))
+                .await
+                .map_err(|err| {
+                    if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
+                        Error::SpkValidatorsError(
+                            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                        )
+                    } else {
+                        err
+                    }
+                })?;
+            mapped.insert(name, digest);
+        }
+
+        if mapped.is_empty() {
+            // This is package was published before component support
+            // was added. It does not have distinct components. So add
+            // default Build and Run components that point at the full
+            // package digest.
+            let digest = find_layer_by_filename(path).await.map_err(|err| {
+                if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                        pkg.clone(),
+                    ))
+                } else {
+                    err
+                }
+            })?;
+            mapped.insert(Component::Run, digest);
+            mapped.insert(Component::Build, digest);
+        }
+        Ok(mapped)
+    }
+
     async fn remove_package_from_storage(&self, _pkg: &Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
@@ -198,56 +248,6 @@ impl Repository for RuntimeRepository {
         Err(Error::SpkValidatorsError(
             spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
         ))
-    }
-
-    async fn read_components(
-        &self,
-        pkg: &Ident,
-    ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
-        let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
-        let components: Vec<Component> = entries
-            .into_iter()
-            .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
-            .map(|c| Component::parse(c).map_err(|err| err.into()))
-            .collect::<Result<_>>()?;
-
-        let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
-        path.push(pkg.to_string());
-
-        let mut mapped = HashMap::with_capacity(components.len());
-        for name in components.into_iter() {
-            let digest = find_layer_by_filename(path.join(format!("{}.cmpt", &name)))
-                .await
-                .map_err(|err| {
-                    if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                        Error::SpkValidatorsError(
-                            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
-                        )
-                    } else {
-                        err
-                    }
-                })?;
-            mapped.insert(name, digest);
-        }
-
-        if mapped.is_empty() {
-            // This is package was published before component support
-            // was added. It does not have distinct components. So add
-            // default Build and Run components that point at the full
-            // package digest.
-            let digest = find_layer_by_filename(path).await.map_err(|err| {
-                if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.clone(),
-                    ))
-                } else {
-                    err
-                }
-            })?;
-            mapped.insert(Component::Run, digest);
-            mapped.insert(Component::Build, digest);
-        }
-        Ok(mapped)
     }
 
     async fn remove_recipe(&self, _pkg: &Ident) -> Result<()> {

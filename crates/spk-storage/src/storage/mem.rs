@@ -141,6 +141,37 @@ where
         }
     }
 
+    async fn read_components_from_storage(&self, pkg: &Ident) -> Result<ComponentMap> {
+        match &pkg.build {
+            None => Err(Error::SpkValidatorsError(
+                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+            )),
+            Some(build) => self
+                .packages
+                .read()
+                .await
+                .get(&pkg.name)
+                .ok_or_else(|| {
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                        pkg.clone(),
+                    ))
+                })?
+                .get(&pkg.version)
+                .ok_or_else(|| {
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                        pkg.clone(),
+                    ))
+                })?
+                .get(build)
+                .map(|(_, d)| d.to_owned())
+                .ok_or_else(|| {
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                        pkg.clone(),
+                    ))
+                }),
+        }
+    }
+
     async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()> {
         // Caller has already proven that build is `Some`.
         let build = pkg.build.as_ref().unwrap();
@@ -260,37 +291,6 @@ where
                     pkg.clone(),
                 ))
             })
-    }
-
-    async fn read_components(&self, pkg: &Ident) -> Result<ComponentMap> {
-        match &pkg.build {
-            None => Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
-            )),
-            Some(build) => self
-                .packages
-                .read()
-                .await
-                .get(&pkg.name)
-                .ok_or_else(|| {
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.clone(),
-                    ))
-                })?
-                .get(&pkg.version)
-                .ok_or_else(|| {
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.clone(),
-                    ))
-                })?
-                .get(build)
-                .map(|(_, d)| d.to_owned())
-                .ok_or_else(|| {
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.clone(),
-                    ))
-                }),
-        }
     }
 
     async fn remove_recipe(&self, pkg: &Ident) -> Result<()> {
