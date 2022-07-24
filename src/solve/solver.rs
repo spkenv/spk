@@ -206,7 +206,7 @@ impl Solver {
             let mut embeds = HashMap::new();
             for (spec, _) in node.state.get_resolved_packages().values() {
                 match &spec.ident().build {
-                    Some(api::Build::Embedded(api::EmbeddedSource::Ident(ident))) => {
+                    Some(api::Build::Embedded(api::EmbeddedSource::Package { ident, .. })) => {
                         embeds.insert(*ident.clone(), spec.ident().clone());
                     }
                     _ => {

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use nom::{
     character::complete::char,
@@ -13,12 +13,13 @@ use nom::{
 };
 use nom_supreme::tag::TagError;
 
-use crate::api::{Build, Ident, RepositoryName, Version};
+use crate::api::{Build, Component, Ident, RepositoryName, Version};
 
 use super::{
     build::build,
     name::package_name,
     repo_name_in_ident,
+    request::range_ident_pkg_name,
     version::{version, version_str},
     version_and_optional_build,
 };
@@ -46,6 +47,51 @@ where
             Ok((input, ident))
         }
         None => Ok((input, ident)),
+    }
+}
+
+/// Parse a package identity with components into an [`Ident`] and set of
+/// [`Component`].
+///
+/// Examples:
+/// - `"pkg-name:comp"`
+/// - `"pkg-name:comp/1.0"`
+/// - `"pkg-name:comp/1.0/CU7ZWOIF"`
+pub(crate) fn ident_with_components<'b, E>(
+    input: &'b str,
+) -> IResult<&'b str, (Ident, BTreeSet<Component>), E>
+where
+    E: ParseError<&'b str>
+        + ContextError<&'b str>
+        + FromExternalError<&'b str, crate::error::Error>
+        + FromExternalError<&'b str, std::num::ParseIntError>
+        + TagError<&'b str, &'static str>,
+{
+    let (input, (name, components)) = range_ident_pkg_name(input)?;
+    let (input, version_and_build) = opt(preceded(char('/'), version_and_build))(input)?;
+    match version_and_build {
+        Some((version, build)) => Ok((
+            input,
+            (
+                Ident {
+                    name: name.to_owned(),
+                    version,
+                    build,
+                },
+                components,
+            ),
+        )),
+        None => Ok((
+            input,
+            (
+                Ident {
+                    name: name.to_owned(),
+                    version: Version::default(),
+                    build: None,
+                },
+                components,
+            ),
+        )),
     }
 }
 

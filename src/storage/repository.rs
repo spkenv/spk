@@ -1,7 +1,10 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap, HashSet},
+    sync::Arc,
+};
 
 use crate::{api, prelude::*, Error, Result};
 
@@ -40,6 +43,16 @@ pub trait Storage: Sync {
         package: &<Self::Recipe as api::Recipe>::Output,
         components: &HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()>;
+
+    /// Return the set of concrete builds for the given package name and version.
+    ///
+    /// This method should not return any embedded package stub builds.
+    async fn get_concrete_package_builds(&self, pkg: &api::Ident) -> Result<HashSet<api::Ident>>;
+
+    /// Return the set of embedded stub builds for the given package name and version.
+    ///
+    /// This method should only return embedded package stub builds.
+    async fn get_embedded_package_builds(&self, pkg: &api::Ident) -> Result<HashSet<api::Ident>>;
 }
 
 /// High level repository concepts.
@@ -63,7 +76,13 @@ pub trait Repository: Storage + Sync {
     ) -> Result<Arc<Vec<Arc<api::Version>>>>;
 
     /// Return the set of builds for the given package name and version.
-    async fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>>;
+    async fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
+        let concrete_builds = self.get_concrete_package_builds(pkg);
+        let embedded_builds = self.get_embedded_package_builds(pkg);
+        let (mut concrete, embedded) = tokio::try_join!(concrete_builds, embedded_builds)?;
+        concrete.extend(embedded.into_iter());
+        Ok(concrete.into_iter().collect())
+    }
 
     /// Returns the set of components published for a package build
     async fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>>;
@@ -127,7 +146,19 @@ pub trait Repository: Storage + Sync {
         // After successfully publishing a package, also publish stubs for any
         // embedded packages in this package.
         if !package.ident().is_source() {
-            for embed in package.embedded_as_recipes()?.into_iter() {
+            // Take inventory of all the embedded specs and which components
+            // of the parent spec provide them.
+            let mut embedded_providers = HashMap::new();
+            for (embed, component) in package.embedded_as_recipes()?.into_iter() {
+                // "top level" embedded as assumed to be provided by the "run"
+                // component.
+                (*embedded_providers
+                    .entry(embed)
+                    .or_insert_with(BTreeSet::new))
+                .insert(component.unwrap_or(api::Component::Run));
+            }
+
+            for (embed, components) in embedded_providers.into_iter() {
                 // The "version spec" must exist for this package to be discoverable.
                 // One may already exist from "real" (non-embedded) publishes.
                 let version_spec = embed.with_build(None);
@@ -136,9 +167,11 @@ pub trait Repository: Storage + Sync {
                     Err(err) => return Err(err),
                 };
 
-                let embed = embed.with_build(Some(api::Build::Embedded(
-                    api::EmbeddedSource::Ident(Box::new(package.ident().clone())),
-                )));
+                let embed =
+                    embed.with_build(Some(api::Build::Embedded(api::EmbeddedSource::Package {
+                        ident: Box::new(package.ident().clone()),
+                        components,
+                    })));
                 self.force_publish_recipe(&embed).await?;
             }
         }

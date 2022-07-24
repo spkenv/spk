@@ -132,7 +132,7 @@ impl BuildKey {
             // All '/src' builds use the same simplified key
             return BuildKey::Src;
         }
-        if let Some(super::Build::Embedded(super::EmbeddedSource::Ident(ident))) =
+        if let Some(super::Build::Embedded(super::EmbeddedSource::Package { ident, .. })) =
             pkg.build.as_ref()
         {
             return BuildKey::Embed(*ident.clone());

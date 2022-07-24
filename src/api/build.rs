@@ -1,12 +1,13 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::str::FromStr;
+use std::{collections::BTreeSet, str::FromStr};
 
 use relative_path::RelativePathBuf;
 use thiserror::Error;
 
 use super::{
+    component_spec::Components,
     ident::{MetadataPath, TagPath},
     Ident,
 };
@@ -34,19 +35,22 @@ impl InvalidBuildError {
 /// An embedded package's source (if known).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum EmbeddedSource {
-    Ident(Box<Ident>),
+    Package {
+        ident: Box<Ident>,
+        components: BTreeSet<super::Component>,
+    },
     Unknown,
 }
 
 impl MetadataPath for EmbeddedSource {
     fn metadata_path(&self) -> RelativePathBuf {
         match self {
-            EmbeddedSource::Ident(ident) => RelativePathBuf::from(format!(
+            package @ EmbeddedSource::Package { .. } => RelativePathBuf::from(format!(
                 "embedded-by-{}",
                 // Encode the parent ident into base32 to have a unique value
                 // per unique parent that is a valid filename. The trailing
                 // '=' are not allowed in tag names (use NOPAD).
-                data_encoding::BASE32_NOPAD.encode(ident.to_string().as_bytes())
+                data_encoding::BASE32_NOPAD.encode(package.to_string().as_bytes())
             )),
             EmbeddedSource::Unknown => RelativePathBuf::from("embedded"),
         }
@@ -57,7 +61,19 @@ impl std::fmt::Display for EmbeddedSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{EMBEDDED}")?;
         match self {
-            EmbeddedSource::Ident(ident) => write!(f, "[{ident}]"),
+            EmbeddedSource::Package { ident, components } => {
+                // XXX this is almost the same code as `RangeIdent::fmt()`.
+                write!(f, "[")?;
+                ident.name.fmt(f)?;
+                components.fmt_component_set(f)?;
+                write!(f, "/")?;
+                ident.version.fmt(f)?;
+                if let Some(build) = &ident.build {
+                    write!(f, "/")?;
+                    build.fmt(f)?;
+                }
+                write!(f, "]")
+            }
             EmbeddedSource::Unknown => Ok(()),
         }
     }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     convert::{TryFrom, TryInto},
     sync::Arc,
 };
@@ -78,6 +78,39 @@ impl Storage for RuntimeRepository {
     type Recipe = api::SpecRecipe;
     type Package = api::Spec;
 
+    async fn get_concrete_package_builds(&self, pkg: &api::Ident) -> Result<HashSet<api::Ident>> {
+        let mut base = self.root.join(&pkg.name);
+        base.push(pkg.version.to_string());
+        Ok(get_all_filenames(&base)?
+            .into_iter()
+            .filter_map(|entry| {
+                if entry.ends_with('/') {
+                    Some(entry[0..entry.len() - 1].to_string())
+                } else {
+                    None
+                }
+            })
+            .filter(|entry| base.join(entry).join("spec.yaml").exists())
+            .filter_map(|candidate| match api::parse_build(&candidate) {
+                Ok(b) => Some(pkg.with_build(Some(b))),
+                Err(err) => {
+                    tracing::debug!(
+                        "Skipping invalid build in {:?}: [{}] {:?}",
+                        self.root,
+                        candidate,
+                        err
+                    );
+                    None
+                }
+            })
+            .collect())
+    }
+
+    async fn get_embedded_package_builds(&self, _pkg: &api::Ident) -> Result<HashSet<api::Ident>> {
+        // Can't publish packages to a runtime so there can't be any stubs
+        Ok(HashSet::default())
+    }
+
     async fn publish_package_to_storage(
         &self,
         _package: &<Self::Recipe as api::Recipe>::Output,
@@ -140,34 +173,6 @@ impl Repository for RuntimeRepository {
                 })
                 .collect(),
         ))
-    }
-
-    async fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        let mut base = self.root.join(&pkg.name);
-        base.push(pkg.version.to_string());
-        Ok(get_all_filenames(&base)?
-            .into_iter()
-            .filter_map(|entry| {
-                if entry.ends_with('/') {
-                    Some(entry[0..entry.len() - 1].to_string())
-                } else {
-                    None
-                }
-            })
-            .filter(|entry| base.join(entry).join("spec.yaml").exists())
-            .filter_map(|candidate| match api::parse_build(&candidate) {
-                Ok(b) => Some(pkg.with_build(Some(b))),
-                Err(err) => {
-                    tracing::debug!(
-                        "Skipping invalid build in {:?}: [{}] {:?}",
-                        self.root,
-                        candidate,
-                        err
-                    );
-                    None
-                }
-            })
-            .collect())
     }
 
     async fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {

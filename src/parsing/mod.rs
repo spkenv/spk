@@ -22,7 +22,7 @@ use nom::{
     IResult, InputLength, Parser,
 };
 
-pub(crate) use build::build;
+pub(crate) use build::{build, embedded_source_package};
 pub(crate) use ident::ident;
 pub use ident::{ident_parts, IdentParts};
 use nom_supreme::tag::{complete::tag, TagError};

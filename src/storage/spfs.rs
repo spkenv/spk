@@ -203,6 +203,92 @@ impl Storage for SPFSRepository {
     type Recipe = api::SpecRecipe;
     type Package = api::Spec;
 
+    async fn get_concrete_package_builds(&self, pkg: &api::Ident) -> Result<HashSet<api::Ident>> {
+        let pkg = pkg.with_build(Some(api::Build::Source));
+        let mut base = self.build_package_tag(&pkg)?;
+        // the package tag contains the name and build, but we need to
+        // remove the trailing build in order to list the containing 'folder'
+        // eg: pkg/1.0.0/src => pkg/1.0.0
+        base.pop();
+
+        let builds: HashSet<_> = self
+            .ls_tags(&base)
+            .await
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Ok(EntryType::Tag(name)) => Some(name),
+                Ok(EntryType::Folder(name)) => Some(name),
+                Err(_) => None,
+            })
+            .filter_map(|b| match api::parse_build(&b) {
+                Ok(v) => Some(v),
+                Err(_) => {
+                    tracing::warn!("Invalid build found in spfs tags: {}", b);
+                    None
+                }
+            })
+            .map(|b| pkg.with_build(Some(b)))
+            .collect();
+
+        Ok(builds)
+    }
+
+    async fn get_embedded_package_builds(&self, pkg: &api::Ident) -> Result<HashSet<api::Ident>> {
+        let pkg = pkg.with_build(Some(api::Build::Source));
+        let mut base = self.build_spec_tag(&pkg);
+        // the package tag contains the name and build, but we need to
+        // remove the trailing build in order to list the containing 'folder'
+        // eg: pkg/1.0.0/src => pkg/1.0.0
+        base.pop();
+
+        let builds: HashSet<_> = self
+            .ls_tags(&base)
+            .await
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Ok(EntryType::Tag(name)) => Some(name),
+                Ok(EntryType::Folder(_)) => None,
+                Err(_) => None,
+            })
+            .filter_map(|b| {
+                b.strip_prefix("embedded-by-")
+                    .and_then(|encoded_ident| {
+                        data_encoding::BASE32_NOPAD
+                            .decode(encoded_ident.as_bytes())
+                            .ok()
+                    })
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .and_then(|ident_str| {
+                        // The decoded BASE32 value will look something like this:
+                        //
+                        //     "embedded[embed-projection:run/1.0/3I42H3S6]"
+                        //
+                        // The `embedded_source_package` parser knows how to
+                        // parse the "[...]" part and return the type we want,
+                        // but we need to strip the "embedded" prefix.
+                        ident_str
+                            .strip_prefix("embedded")
+                            .and_then(|ident_str| {
+                                use nom::combinator::all_consuming;
+
+                                all_consuming(
+                                    crate::parsing::embedded_source_package::<(
+                                        _,
+                                        nom::error::ErrorKind,
+                                    )>,
+                                )(ident_str)
+                                .map(|(_, ident_with_components)| ident_with_components)
+                                .ok()
+                            })
+                            .map(api::Build::Embedded)
+                    })
+            })
+            .map(|b| pkg.with_build(Some(b)))
+            .collect();
+
+        Ok(builds)
+    }
+
     async fn publish_package_to_storage(
         &self,
         package: &<Self::Recipe as api::Recipe>::Output,
@@ -334,76 +420,6 @@ impl Repository for SPFSRepository {
             hm.insert(name.to_owned(), r.as_ref().map(|b| b.clone()).into())
         });
         r
-    }
-
-    async fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        let normal_builds = async {
-            let pkg = pkg.with_build(Some(api::Build::Source));
-            let mut base = self.build_package_tag(&pkg)?;
-            // the package tag contains the name and build, but we need to
-            // remove the trailing build in order to list the containing 'folder'
-            // eg: pkg/1.0.0/src => pkg/1.0.0
-            base.pop();
-
-            let builds: HashSet<_> = self
-                .ls_tags(&base)
-                .await
-                .into_iter()
-                .filter_map(|entry| match entry {
-                    Ok(EntryType::Tag(name)) => Some(name),
-                    Ok(EntryType::Folder(name)) => Some(name),
-                    Err(_) => None,
-                })
-                .filter_map(|b| match api::parse_build(&b) {
-                    Ok(v) => Some(v),
-                    Err(_) => {
-                        tracing::warn!("Invalid build found in spfs tags: {}", b);
-                        None
-                    }
-                })
-                .map(|b| pkg.with_build(Some(b)))
-                .collect();
-
-            Ok::<_, crate::Error>(builds)
-        };
-        let embedded_builds = async {
-            let pkg = pkg.with_build(Some(api::Build::Source));
-            let mut base = self.build_spec_tag(&pkg);
-            // the package tag contains the name and build, but we need to
-            // remove the trailing build in order to list the containing 'folder'
-            // eg: pkg/1.0.0/src => pkg/1.0.0
-            base.pop();
-
-            let builds: HashSet<_> = self
-                .ls_tags(&base)
-                .await
-                .into_iter()
-                .filter_map(|entry| match entry {
-                    Ok(EntryType::Tag(name)) => Some(name),
-                    Ok(EntryType::Folder(_)) => None,
-                    Err(_) => None,
-                })
-                .filter_map(|b| {
-                    b.strip_prefix("embedded-by-")
-                        .and_then(|encoded_ident| {
-                            data_encoding::BASE32_NOPAD
-                                .decode(encoded_ident.as_bytes())
-                                .ok()
-                        })
-                        .and_then(|bytes| String::from_utf8(bytes).ok())
-                        .and_then(|ident_str| api::Ident::from_str(ident_str.as_str()).ok())
-                        .map(|ident| {
-                            api::Build::Embedded(api::EmbeddedSource::Ident(Box::new(ident)))
-                        })
-                })
-                .map(|b| pkg.with_build(Some(b)))
-                .collect();
-
-            Ok::<_, crate::Error>(builds)
-        };
-        let (mut normal, embedded) = tokio::try_join!(normal_builds, embedded_builds)?;
-        normal.extend(embedded.into_iter());
-        Ok(normal.into_iter().collect_vec())
     }
 
     async fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {

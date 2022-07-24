@@ -33,8 +33,15 @@ pub trait Package:
     /// The packages that are embedded within this one
     fn embedded(&self) -> &super::EmbeddedPackagesList;
 
-    /// The packages that are embedded within this one
-    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str>;
+    /// The packages that are embedded within this one.
+    ///
+    /// Return both top-level embedded packages and packages that are
+    /// embedded inside a component. The returned list is a pair of the
+    /// embedded recipe and the component it came from, if any.
+    #[allow(clippy::type_complexity)]
+    fn embedded_as_recipes(
+        &self,
+    ) -> std::result::Result<Vec<(Self::Input, Option<super::Component>)>, &str>;
 
     /// The components defined by this package
     fn components(&self) -> &super::ComponentSpecList;
@@ -109,7 +116,9 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).embedded()
     }
 
-    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str> {
+    fn embedded_as_recipes(
+        &self,
+    ) -> std::result::Result<Vec<(Self::Input, Option<super::Component>)>, &str> {
         (**self).embedded_as_recipes()
     }
 
@@ -166,7 +175,9 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).embedded()
     }
 
-    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str> {
+    fn embedded_as_recipes(
+        &self,
+    ) -> std::result::Result<Vec<(Self::Input, Option<super::Component>)>, &str> {
         (**self).embedded_as_recipes()
     }
 

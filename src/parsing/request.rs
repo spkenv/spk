@@ -29,7 +29,7 @@ use super::{
 /// - `"package-name/"`
 /// - `"package-name:comp"`
 /// - `"package-name:{comp1,comp2}/"`
-fn range_ident_pkg_name<'a, E>(
+pub(crate) fn range_ident_pkg_name<'a, E>(
     input: &'a str,
 ) -> IResult<&'a str, (&PkgName, BTreeSet<Component>), E>
 where

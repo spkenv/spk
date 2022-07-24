@@ -375,8 +375,11 @@ prop_compose! {
 fn arb_embedded_build() -> impl Strategy<Value = Build> {
     prop_oneof![
         3 => Just(Build::Embedded(EmbeddedSource::Unknown)),
-        7 => arb_ident().prop_map(|ident| Build::Embedded(
-               EmbeddedSource::Ident(Box::new(ident))
+        7 => (arb_ident(), arb_components()).prop_map(|(ident, components)| Build::Embedded(
+               EmbeddedSource::Package {
+                 ident: Box::new(ident),
+                 components,
+               }
              )),
     ]
 }

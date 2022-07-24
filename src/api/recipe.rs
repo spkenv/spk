@@ -27,7 +27,9 @@ impl<T: Versioned> Versioned for &T {
 
 /// Can be used to build a package.
 #[enum_dispatch::enum_dispatch]
-pub trait Recipe: super::Named + Versioned + super::Deprecate + Clone + Sync + Send {
+pub trait Recipe:
+    super::Named + Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
+{
     type Recipe;
     type Output: super::Package;
 

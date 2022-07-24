@@ -16,7 +16,7 @@ use nom_supreme::tag::{complete::tag, TagError};
 
 use crate::api::{Build, EmbeddedSource, InvalidBuildError};
 
-use super::ident;
+use super::ident::ident_with_components;
 
 /// Parse a base32 build.
 ///
@@ -81,12 +81,24 @@ where
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {
+    map(opt(embedded_source_package), |ident_and_components| {
+        ident_and_components.unwrap_or(EmbeddedSource::Unknown)
+    })(input)
+}
+
+pub(crate) fn embedded_source_package<'b, E>(input: &'b str) -> IResult<&'b str, EmbeddedSource, E>
+where
+    E: ParseError<&'b str>
+        + ContextError<&'b str>
+        + FromExternalError<&'b str, crate::error::Error>
+        + FromExternalError<&'b str, std::num::ParseIntError>
+        + TagError<&'b str, &'static str>,
+{
     map(
-        opt(delimited(tag("["), cut(ident), cut(tag("]")))),
-        |ident| {
-            ident
-                .map(|ident| EmbeddedSource::Ident(Box::new(ident)))
-                .unwrap_or(EmbeddedSource::Unknown)
+        delimited(tag("["), cut(ident_with_components), cut(tag("]"))),
+        |(ident, components)| EmbeddedSource::Package {
+            ident: Box::new(ident),
+            components,
         },
     )(input)
 }

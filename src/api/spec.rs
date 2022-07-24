@@ -287,11 +287,13 @@ impl Package for Spec {
         }
     }
 
-    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str> {
+    fn embedded_as_recipes(
+        &self,
+    ) -> std::result::Result<Vec<(Self::Input, Option<super::Component>)>, &str> {
         match self {
             Spec::V0Package(spec) => spec
                 .embedded_as_recipes()
-                .map(|vec| vec.into_iter().map(Into::into).collect()),
+                .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
         }
     }
 
