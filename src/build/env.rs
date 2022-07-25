@@ -14,6 +14,9 @@ mod env_test;
 ///
 /// This directory is included as part of the package itself, and
 /// should nearly always be assumed as relative to /spfs
-pub fn data_path(pkg: &api::Ident) -> RelativePathBuf {
-    RelativePathBuf::from("/spk/pkg").join(pkg.to_string())
+pub fn data_path<I>(pkg: &I) -> RelativePathBuf
+where
+    I: api::ident::MetadataPath,
+{
+    RelativePathBuf::from("/spk/pkg").join(pkg.metadata_path())
 }

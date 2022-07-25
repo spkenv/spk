@@ -6,7 +6,7 @@ use std::io::Write;
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
-use spk::api;
+use spk::{api, io::Format};
 
 use super::{flags, CommandArgs, Run};
 
@@ -95,7 +95,7 @@ async fn remove_build(
     pkg: &spk::api::Ident,
 ) -> Result<()> {
     let repo_name = repo_name.bold();
-    let pretty_pkg = spk::io::format_ident(pkg);
+    let pretty_pkg = pkg.format_ident();
     let (spec, package) = tokio::join!(repo.remove_spec(pkg), repo.remove_package(pkg),);
     if spec.is_ok() {
         tracing::info!("removed build spec {pretty_pkg} from {repo_name}")
@@ -121,7 +121,7 @@ async fn remove_all(
     repo: &spk::storage::RepositoryHandle,
     pkg: &spk::api::Ident,
 ) -> Result<()> {
-    let pretty_pkg = spk::io::format_ident(pkg);
+    let pretty_pkg = pkg.format_ident();
     for build in repo.list_package_builds(pkg).await? {
         remove_build(repo_name, repo, &build).await?
     }

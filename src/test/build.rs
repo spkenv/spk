@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::{convert::TryInto, ffi::OsString};
 use thiserror::Error;
 
 use crate::{
@@ -42,7 +42,8 @@ pub struct PackageBuildTester<'a> {
 
 impl<'a> PackageBuildTester<'a> {
     pub fn new(spec: api::Spec, script: String) -> Self {
-        let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
+        let source =
+            BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)).into());
         Self {
             prefix: PathBuf::from("/spfs"),
             spec,
@@ -145,7 +146,7 @@ impl<'a> PackageBuildTester<'a> {
 
         let mut stack = Vec::new();
         if let BuildSource::SourcePackage(pkg) = self.source.clone() {
-            let solution = self.resolve_source_package(&pkg).await?;
+            let solution = self.resolve_source_package(&pkg.try_into()?).await?;
             stack.append(&mut exec::resolve_runtime_layers(&solution).await?);
         }
 
@@ -187,7 +188,7 @@ impl<'a> PackageBuildTester<'a> {
 
         let source_dir = match &self.source {
             BuildSource::SourcePackage(source) => {
-                build::source_package_path(source).to_path(&self.prefix)
+                build::source_package_path(&source.try_into()?).to_path(&self.prefix)
             }
             BuildSource::LocalPath(path) => path.clone(),
         };

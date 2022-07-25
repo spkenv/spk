@@ -183,7 +183,9 @@ impl Run for Test {
                                         .map(spk::build::BuildSource::LocalPath)
                                         .unwrap_or_else(|| {
                                             spk::build::BuildSource::SourcePackage(
-                                                spec.pkg.with_build(Some(spk::api::Build::Source)),
+                                                spec.pkg
+                                                    .with_build(Some(spk::api::Build::Source))
+                                                    .into(),
                                             )
                                         }),
                                 )

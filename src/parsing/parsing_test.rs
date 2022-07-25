@@ -394,14 +394,12 @@ prop_compose! {
 proptest! {
     #[test]
     fn prop_test_parse_ident(
-            repo in arb_repo(),
             (name, name_is_legal) in arb_pkg_name(),
             (version, version_is_legal) in arb_opt_version(),
             build in arb_build()) {
         // If specifying a build, a version must also be specified.
         prop_assume!(build.is_none() || version.is_some());
         let ident = [
-            repo.as_ref().map(|r| r.0.to_owned()),
             Some(name.clone()),
             version.as_ref().map(|v| {
                 v.to_string()
@@ -412,10 +410,6 @@ proptest! {
         if name_is_legal && version_is_legal {
             assert!(parsed.is_ok(), "parse '{}' failure:\n{}", ident, parsed.unwrap_err());
             let parsed = parsed.unwrap();
-            // XXX: This doesn't handle the ambiguous corner cases as checked
-            // by `test_parse_ident`; such inputs are very unlikely to be
-            // generated randomly here.
-            assert_eq!(parsed.repository_name, repo);
             assert_eq!(parsed.name.as_str(), name);
             assert_eq!(parsed.version, version.unwrap_or_default());
             assert_eq!(parsed.build, build);
@@ -486,15 +480,13 @@ fn parse_range_ident_with_basic_errors() {
 /// Invoke the `range_ident` parser without `VerboseError` for coverage.
 #[test]
 fn parse_ident_with_basic_errors() {
-    let empty = HashSet::new();
-    let r = crate::parsing::ident::<(_, ErrorKind)>(&empty, "pkg-name");
+    let r = crate::parsing::ident::<(_, ErrorKind)>("pkg-name");
     assert!(r.is_ok(), "{}", r.unwrap_err());
 }
 
 /// Fail if post-tags are specified before pre-tags.
 #[test]
 fn check_wrong_tag_order_is_a_parse_error() {
-    let empty = HashSet::new();
-    let r = crate::parsing::ident::<(_, ErrorKind)>(&empty, "pkg-name/1.0+a.0-b.0");
+    let r = crate::parsing::ident::<(_, ErrorKind)>("pkg-name/1.0+a.0-b.0");
     assert!(r.is_err(), "expected to fail; got {:?}", r);
 }

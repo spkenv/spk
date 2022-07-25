@@ -7,7 +7,7 @@ use spfs::{encoding::EMPTY_DIGEST, prelude::*};
 
 use super::{BinaryPackageBuilder, BuildSource};
 use crate::{
-    api,
+    api::{self},
     build::SourcePackageBuilder,
     fixtures::*,
     opt_name,

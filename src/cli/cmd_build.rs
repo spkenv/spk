@@ -78,7 +78,9 @@ impl Run for Build {
                 packages: packages
                     .into_iter()
                     .zip(idents.into_iter())
-                    .map(|(package, ident)| PackageSpecifier::WithSourceIdent((package, ident)))
+                    .map(|(package, ident)| {
+                        PackageSpecifier::WithSourceIdent((package, ident.into()))
+                    })
                     .collect(),
                 variant: self.variant,
                 formatter_settings: self.formatter_settings.clone(),
