@@ -111,7 +111,7 @@ impl Ident {
         }
     }
 
-    /// Convert into a [`BuildIdent`] with the given [`RepositoryName`].
+    /// Convert into a [`BuildIdent`] with the given [`RepositoryNameBuf`].
     ///
     /// A build must be assigned.
     pub fn try_into_build_ident(
@@ -252,7 +252,7 @@ impl<'de> Deserialize<'de> for Ident {
 
 /// BuildIdent represents a specific package build.
 ///
-/// Like [`Ident`], except a [`RepositoryName`] and [`Build`] are required.
+/// Like [`Ident`], except a [`RepositoryNameBuf`] and [`Build`] are required.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct BuildIdent {
     pub repository_name: RepositoryNameBuf,

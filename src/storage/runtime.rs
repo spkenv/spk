@@ -1,7 +1,11 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{collections::HashMap, convert::TryFrom, sync::Arc};
+use std::{
+    collections::HashMap,
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+};
 
 use spfs::prelude::*;
 
@@ -21,9 +25,7 @@ impl Default for RuntimeRepository {
         let address = Self::address_from_root(&root);
         Self {
             address,
-            name: api::RepositoryName::new("runtime")
-                .expect("valid repository name")
-                .to_owned(),
+            name: "runtime".try_into().expect("valid repository name"),
             root,
         }
     }
@@ -65,9 +67,7 @@ impl RuntimeRepository {
         let address = Self::address_from_root(&root);
         Self {
             address,
-            name: api::RepositoryName::new("runtime")
-                .expect("valid repository name")
-                .to_owned(),
+            name: "runtime".try_into().expect("valid repository name"),
             root,
         }
     }

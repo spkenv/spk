@@ -4,7 +4,7 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
     str::FromStr,
     sync::{
         atomic::{AtomicPtr, Ordering},
@@ -97,7 +97,7 @@ impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> TryFrom<(S, T)> fo
         let inner = name_and_repo.1.into();
         Ok(Self {
             address: inner.address(),
-            name: api::RepositoryName::new(name_and_repo.0.as_ref())?.to_owned(),
+            name: name_and_repo.0.as_ref().try_into()?,
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
         })
@@ -109,7 +109,7 @@ impl SPFSRepository {
         let inner = spfs::open_repository(address).await?;
         Ok(Self {
             address: inner.address(),
-            name: api::RepositoryName::new(name)?.to_owned(),
+            name: name.try_into()?,
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
         })
@@ -781,7 +781,7 @@ pub async fn local_repository() -> Result<SPFSRepository> {
     let inner: spfs::prelude::RepositoryHandle = repo.into();
     Ok(SPFSRepository {
         address: inner.address(),
-        name: api::RepositoryName::new("local")?.to_owned(),
+        name: "local".try_into()?,
         inner,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
     })
@@ -795,7 +795,7 @@ pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SPFSRepository>
     let repo = config.get_remote(&name).await?;
     Ok(SPFSRepository {
         address: repo.address(),
-        name: api::RepositoryName::new(name.as_ref())?.to_owned(),
+        name: name.as_ref().try_into()?,
         inner: repo,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
     })

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::sync::Arc;
 
 use super::Repository;
@@ -29,9 +30,7 @@ impl MemRepository {
             .expect("[INTERNAL ERROR] hex address should always create a valid url");
         Self {
             address,
-            name: api::RepositoryName::new("mem")
-                .expect("valid repository name")
-                .to_owned(),
+            name: "mem".try_into().expect("valid repository name"),
             specs,
             packages: Arc::default(),
         }
