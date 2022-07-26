@@ -87,7 +87,7 @@ impl SourcePackageBuilder {
             .spec
             .pkg
             .clone()
-            .try_into_build_ident(repo.name().clone())?;
+            .try_into_build_ident(repo.name().to_owned())?;
         let mut components = std::collections::HashMap::with_capacity(1);
         components.insert(api::Component::Source, layer.digest()?);
         repo.publish_package(&self.spec, components).await?;

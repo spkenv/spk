@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::path::Path;
+use std::{convert::TryFrom, path::Path};
 
 use futures::{TryFutureExt, TryStreamExt};
 
@@ -33,12 +33,12 @@ pub async fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Re
         super::local_repository(),
         super::remote_repository("origin"),
         async {
-            Ok(super::SPFSRepository::from((
-                filename.display().to_string(),
+            super::SPFSRepository::try_from((
+                "archive",
                 spfs::storage::RepositoryHandle::from(
                     spfs::storage::tar::TarRepository::create(&filename).await?,
                 ),
-            )))
+            ))
         },
     )?;
 

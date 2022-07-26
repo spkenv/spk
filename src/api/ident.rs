@@ -9,7 +9,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{parsing, Result};
 
-use super::{Build, PkgNameBuf, RangeIdent, Version};
+use super::{Build, PkgNameBuf, RangeIdent, RepositoryNameBuf, Version};
 
 #[cfg(test)]
 #[path = "./ident_test.rs"]
@@ -31,22 +31,6 @@ macro_rules! ident {
     ($ident:literal) => {
         $crate::api::parse_ident($ident).unwrap()
     };
-}
-
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct RepositoryName(pub String);
-
-impl RepositoryName {
-    /// Return if this RepositoryName names the "local" repository
-    pub fn is_local(&self) -> bool {
-        self.0 == "local"
-    }
-}
-
-impl std::fmt::Display for RepositoryName {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(self.0.as_str())
-    }
 }
 
 pub trait MetadataPath {
@@ -127,10 +111,13 @@ impl Ident {
         }
     }
 
-    /// Convert into a [`BuildIdent`] with the given [`RepositoryName`].
+    /// Convert into a [`BuildIdent`] with the given [`RepositoryNameBuf`].
     ///
     /// A build must be assigned.
-    pub fn try_into_build_ident(mut self, repository_name: RepositoryName) -> Result<BuildIdent> {
+    pub fn try_into_build_ident(
+        mut self,
+        repository_name: RepositoryNameBuf,
+    ) -> Result<BuildIdent> {
         self.build
             .take()
             .map(|build| BuildIdent {
@@ -265,10 +252,10 @@ impl<'de> Deserialize<'de> for Ident {
 
 /// BuildIdent represents a specific package build.
 ///
-/// Like [`Ident`], except a [`RepositoryName`] and [`Build`] are required.
+/// Like [`Ident`], except a [`RepositoryNameBuf`] and [`Build`] are required.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct BuildIdent {
-    pub repository_name: RepositoryName,
+    pub repository_name: RepositoryNameBuf,
     pub name: PkgNameBuf,
     pub version: Version,
     pub build: Build,
@@ -296,7 +283,7 @@ impl MetadataPath for BuildIdent {
 
 impl std::fmt::Display for BuildIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(self.repository_name.0.as_str())?;
+        f.write_str(self.repository_name.as_str())?;
         f.write_char('/')?;
         f.write_str(self.name.as_str())?;
         f.write_char('/')?;

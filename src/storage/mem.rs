@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::sync::Arc;
 
 use super::Repository;
@@ -15,7 +16,7 @@ type SpecByVersion = HashMap<api::Version, Arc<api::Spec>>;
 #[derive(Clone, Debug)]
 pub struct MemRepository {
     address: url::Url,
-    name: api::RepositoryName,
+    name: api::RepositoryNameBuf,
     specs: Arc<tokio::sync::RwLock<HashMap<PkgNameBuf, SpecByVersion>>>,
     packages: Arc<tokio::sync::RwLock<HashMap<PkgNameBuf, HashMap<api::Version, BuildMap>>>>,
 }
@@ -29,7 +30,7 @@ impl MemRepository {
             .expect("[INTERNAL ERROR] hex address should always create a valid url");
         Self {
             address,
-            name: api::RepositoryName("mem".to_string()),
+            name: "mem".try_into().expect("valid repository name"),
             specs,
             packages: Arc::default(),
         }
@@ -130,7 +131,7 @@ impl Repository for MemRepository {
     }
 
     fn name(&self) -> &api::RepositoryName {
-        &self.name
+        self.name.as_ref()
     }
 
     async fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {

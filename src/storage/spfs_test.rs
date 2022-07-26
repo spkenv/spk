@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::str::FromStr;
 
 use rstest::rstest;
@@ -25,12 +26,13 @@ fn test_repo_version_is_valid() {
 async fn test_metadata_io(tmpdir: tempdir::TempDir) {
     init_logging();
     let repo_root = tmpdir.path();
-    let repo = SPFSRepository::from((
-        "test_repo",
+    let repo = SPFSRepository::try_from((
+        "test-repo",
         spfs::storage::fs::FSRepository::create(repo_root)
             .await
             .unwrap(),
-    ));
+    ))
+    .unwrap();
 
     let meta = super::RepositoryMetadata::default();
     repo.write_metadata(&meta).await.unwrap();
@@ -44,12 +46,13 @@ async fn test_upgrade_sets_version(tmpdir: tempdir::TempDir) {
     init_logging();
     let current_version = crate::api::Version::from_str(super::REPO_VERSION).unwrap();
     let repo_root = tmpdir.path();
-    let repo = SPFSRepository::from((
-        "test_repo",
+    let repo = SPFSRepository::try_from((
+        "test-repo",
         spfs::storage::fs::FSRepository::create(repo_root)
             .await
             .unwrap(),
-    ));
+    ))
+    .unwrap();
 
     assert_eq!(
         repo.read_metadata().await.unwrap().version,
@@ -69,12 +72,9 @@ async fn test_upgrade_changes_tags(tmpdir: tempdir::TempDir) {
     let spfs_repo = spfs::storage::fs::FSRepository::create(repo_root)
         .await
         .unwrap();
-    let repo = SPFSRepository::new(
-        &repo_root.display().to_string(),
-        &format!("file://{}", repo_root.display()),
-    )
-    .await
-    .unwrap();
+    let repo = SPFSRepository::new("test-repo", &format!("file://{}", repo_root.display()))
+        .await
+        .unwrap();
 
     let ident = crate::api::Ident::from_str("mypkg/1.0.0/src").unwrap();
 

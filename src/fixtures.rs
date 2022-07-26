@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::ops::DerefMut;
 use std::sync::Arc;
+use std::{convert::TryInto, ops::DerefMut};
 
 use rstest::fixture;
 use spfs::prelude::*;
@@ -123,7 +123,7 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
                 .await
                 .expect("failed to save empty manifest to spfs repo");
             assert_eq!(written, spfs::encoding::EMPTY_DIGEST.into());
-            storage::RepositoryHandle::SPFS((tmpdir.path().display().to_string(), spfs_repo).into())
+            storage::RepositoryHandle::SPFS(("temp-repo", spfs_repo).try_into().unwrap())
         }
         RepoKind::Mem => storage::RepositoryHandle::new_mem(),
     };
