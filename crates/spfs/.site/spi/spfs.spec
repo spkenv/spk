@@ -8,6 +8,7 @@ Source0: https://gitlab.spimageworks.com/spi/dev/dev-ops/spfs/-/archive/v%{versi
 
 BuildRequires: gcc
 BuildRequires: openssl-devel
+BuildRequires: cmake
 # Minimum version with parallel component support and relocatable .spdev.yaml
 BuildRequires: spdev >= 0.25.5
 

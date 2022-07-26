@@ -145,23 +145,12 @@ impl Error {
             Error::StorageReadError(_, err) => handle_io_error(err),
             Error::StorageWriteError(_, err) => handle_io_error(err),
             Error::Errno(_, errno) => Some(*errno),
-            Error::Nix(err) => {
-                let errno = err.as_errno();
-                if let Some(e) = errno {
-                    return Some(e as i32);
-                }
-                None
-            }
+            Error::Nix(err) => Some(*err as i32),
             _ => None,
         }
     }
 }
 
-impl From<nix::errno::Errno> for Error {
-    fn from(errno: nix::errno::Errno) -> Error {
-        Error::Nix(nix::Error::from_errno(errno))
-    }
-}
 impl From<String> for Error {
     fn from(err: String) -> Self {
         Self::String(err)

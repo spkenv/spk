@@ -9,6 +9,7 @@ Source0: https://github.com/imageworks/spfs/archive/refs/tags/v%{version}.tar.gz
 
 BuildRequires: gcc
 BuildRequires: openssl-devel
+BuildRequires: cmake
 
 %define debug_package %{nil}
 

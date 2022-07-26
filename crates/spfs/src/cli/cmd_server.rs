@@ -4,8 +4,6 @@
 
 use clap::Args;
 
-use super::args;
-
 /// Start an spfs server
 ///
 /// The server can be used as a remote repository by

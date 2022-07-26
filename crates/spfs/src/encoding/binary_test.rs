@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use rand::Rng;
+use rand::{
+    distributions::{Alphanumeric, DistString},
+    Rng,
+};
 use std::io::{BufRead, Cursor, Read, Seek, SeekFrom, Write};
 
 use rstest::rstest;
@@ -51,10 +54,7 @@ fn test_read_write_int(value: i64) {
 }
 
 fn random_word(length: usize) -> String {
-    rand::thread_rng()
-        .sample_iter(&rand::distributions::Alphanumeric)
-        .take(length)
-        .collect()
+    Alphanumeric.sample_string(&mut rand::thread_rng(), length)
 }
 
 #[rstest(
@@ -72,8 +72,8 @@ fn random_word(length: usize) -> String {
 )]
 fn test_read_write_string(i: u64) {
     println!("running generated test #{i}");
-    let value = random_word(rand::thread_rng().gen_range(256, 1024));
-    let postfix = random_word(rand::thread_rng().gen_range(256, 1024));
+    let value = random_word(rand::thread_rng().gen_range(256..1024));
+    let postfix = random_word(rand::thread_rng().gen_range(256..1024));
 
     let mut stream = Cursor::new(Vec::<u8>::new());
     write_string(&mut stream, &value).unwrap();
