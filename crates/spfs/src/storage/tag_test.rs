@@ -108,7 +108,7 @@ async fn test_tag_no_duplication(
 
 #[rstest]
 #[tokio::test]
-async fn test_tag_permissions(tmpdir: tempdir::TempDir) {
+async fn test_tag_permissions(tmpdir: tempfile::TempDir) {
     let storage = FSRepository::create(tmpdir.path().join("repo"))
         .await
         .unwrap();

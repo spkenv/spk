@@ -23,7 +23,7 @@ async fn test_shell_initialization_startup_scripts(
     shell: &str,
     startup_script: &str,
     startup_cmd: &str,
-    tmpdir: tempdir::TempDir,
+    tmpdir: tempfile::TempDir,
 ) {
     init_logging();
     let shell_path = match which(shell) {
@@ -96,7 +96,7 @@ async fn test_shell_initialization_startup_scripts(
 #[rstest(shell, case("bash"), case("tcsh"))]
 #[tokio::test]
 #[serial_test::serial] // env and config manipulation must be reliable
-async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempdir::TempDir) {
+async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempfile::TempDir) {
     init_logging();
     let shell_path = match which(shell) {
         Some(path) => path,
@@ -150,7 +150,7 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempd
 #[rstest(shell, case("bash"), case("tcsh"))]
 #[tokio::test]
 #[serial_test::serial] // env manipulation must be reliable
-async fn test_find_alternate_bash(shell: &str, tmpdir: tempdir::TempDir) {
+async fn test_find_alternate_bash(shell: &str, tmpdir: tempfile::TempDir) {
     init_logging();
     let original_path = std::env::var("PATH").unwrap_or_default();
     let original_shell = std::env::var("SHELL").unwrap_or_default();

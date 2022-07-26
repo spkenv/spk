@@ -33,7 +33,7 @@ async fn test_stack_to_layers_dedupe(#[future] tmprepo: TempRepo) {
 /// that enough layers are merged together so the mount will succeed.
 #[rstest]
 #[tokio::test]
-async fn test_auto_merge_layers(tmpdir: tempdir::TempDir) {
+async fn test_auto_merge_layers(tmpdir: tempfile::TempDir) {
     // A number that is sure to be too many to fit.
     const NUM_LAYERS: usize = 50;
     // This test must use the "local" repository for spfs-render to succeed.

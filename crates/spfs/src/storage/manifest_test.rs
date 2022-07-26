@@ -19,7 +19,7 @@ async fn test_read_write_manifest(
     #[case]
     #[future]
     repo: TempRepo,
-    tmpdir: tempdir::TempDir,
+    tmpdir: tempfile::TempDir,
 ) {
     let dir = tmpdir.path();
     let repo = repo.await;
@@ -51,7 +51,7 @@ async fn test_manifest_parity(
     #[case]
     #[future]
     repo: TempRepo,
-    tmpdir: tempdir::TempDir,
+    tmpdir: tempfile::TempDir,
 ) {
     init_logging();
 

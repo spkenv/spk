@@ -24,7 +24,7 @@ fn test_config_serialization() {
 
 #[rstest]
 #[tokio::test]
-async fn test_storage_create_runtime(tmpdir: tempdir::TempDir) {
+async fn test_storage_create_runtime(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
         crate::storage::fs::FSRepository::create(root)
@@ -44,7 +44,7 @@ async fn test_storage_create_runtime(tmpdir: tempdir::TempDir) {
 
 #[rstest]
 #[tokio::test]
-async fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
+async fn test_storage_remove_runtime(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
         crate::storage::fs::FSRepository::create(root)
@@ -65,7 +65,7 @@ async fn test_storage_remove_runtime(tmpdir: tempdir::TempDir) {
 
 #[rstest]
 #[tokio::test]
-async fn test_storage_iter_runtimes(tmpdir: tempdir::TempDir) {
+async fn test_storage_iter_runtimes(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
         crate::storage::fs::FSRepository::create(root)
@@ -117,7 +117,7 @@ async fn test_storage_iter_runtimes(tmpdir: tempdir::TempDir) {
 
 #[rstest]
 #[tokio::test]
-async fn test_runtime_reset(tmpdir: tempdir::TempDir) {
+async fn test_runtime_reset(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
         crate::storage::fs::FSRepository::create(root)
@@ -163,7 +163,7 @@ async fn test_runtime_reset(tmpdir: tempdir::TempDir) {
 }
 
 #[rstest]
-fn test_makedirs_dont_change_existing(tmpdir: tempdir::TempDir) {
+fn test_makedirs_dont_change_existing(tmpdir: tempfile::TempDir) {
     let chkdir = tmpdir.path().join("my_dir");
     ensure(chkdir.join("file"), "data");
     std::fs::set_permissions(&chkdir, std::fs::Permissions::from_mode(0o755)).unwrap();

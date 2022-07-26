@@ -39,7 +39,7 @@ impl storage::FromUrl for Config {
 pub struct TarRepository {
     up_to_date: AtomicBool,
     archive: std::path::PathBuf,
-    repo_dir: tempdir::TempDir,
+    repo_dir: tempfile::TempDir,
     repo: crate::storage::fs::FSRepository,
 }
 
@@ -88,7 +88,9 @@ impl TarRepository {
             std::fs::File::open(&path).map_err(|err| Error::StorageReadError(path.clone(), err))?,
         );
         let mut archive = Archive::new(&mut file);
-        let tmpdir = tempdir::TempDir::new("spfs-tar-repo")
+        let tmpdir = tempfile::Builder::new()
+            .prefix("spfs-tar-repo")
+            .tempdir()
             .map_err(|err| Error::StorageWriteError("temp dir".into(), err))?;
         let repo_path = tmpdir.path().to_path_buf();
         archive

@@ -11,14 +11,16 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tempdir::TempDir;
 
 pub fn commit_benchmark(c: &mut Criterion) {
     const NUM_FILES: usize = 1024;
     const NUM_LINES: usize = 1024;
 
     // Populate a directory with contents to use to commit to spfs.
-    let tempdir = TempDir::new("spfs-test-").expect("create a temp directory for test files");
+    let tempdir = tempfile::Builder::new()
+        .prefix("spfs-test-")
+        .tempdir()
+        .expect("create a temp directory for test files");
     let mut content: usize = 0;
     for filename in 0..NUM_FILES {
         let mut f = BufWriter::new(
@@ -38,7 +40,10 @@ pub fn commit_benchmark(c: &mut Criterion) {
         .expect("create tokio runtime");
 
     // Create an spfs repo to commit this path to.
-    let repo_path = TempDir::new("spfs-test-repo-").expect("create a temp directory for spfs repo");
+    let repo_path = tempfile::Builder::new()
+        .prefix("spfs-test-repo-")
+        .tempdir()
+        .expect("create a temp directory for spfs repo");
     let repo: Arc<RepositoryHandle> = Arc::new(
         tokio_runtime
             .block_on(spfs::storage::fs::FSRepository::create(

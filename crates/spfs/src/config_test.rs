@@ -33,7 +33,10 @@ async fn test_config_get_remote_unknown() {
 #[rstest]
 #[tokio::test]
 async fn test_config_get_remote() {
-    let tmpdir = tempdir::TempDir::new("spfs-test").unwrap();
+    let tmpdir = tempfile::Builder::new()
+        .prefix("spfs-test")
+        .tempdir()
+        .unwrap();
     let remote = tmpdir.path().join("remote");
     let _ = crate::storage::fs::FSRepository::create(&remote)
         .await

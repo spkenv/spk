@@ -28,7 +28,7 @@ async fn test_compute_manifest() {
 
 #[rstest]
 #[tokio::test]
-async fn test_manifest_relative_paths(tmpdir: tempdir::TempDir) {
+async fn test_manifest_relative_paths(tmpdir: tempfile::TempDir) {
     let dir = tmpdir.path();
     ensure(dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
@@ -45,7 +45,7 @@ async fn test_manifest_relative_paths(tmpdir: tempdir::TempDir) {
 }
 #[rstest]
 #[tokio::test]
-async fn test_manifest_sorting(tmpdir: tempdir::TempDir) {
+async fn test_manifest_sorting(tmpdir: tempfile::TempDir) {
     let dir = tmpdir.path().join("data");
     ensure(dir.join("dir1.0/dir2.0/file.txt"), "somedata");
     ensure(dir.join("dir1.0/dir2.1/file.txt"), "someotherdata");
@@ -75,7 +75,7 @@ async fn test_manifest_sorting(tmpdir: tempdir::TempDir) {
 }
 #[rstest]
 #[tokio::test]
-async fn test_layer_manifests(tmpdir: tempdir::TempDir) {
+async fn test_layer_manifests(tmpdir: tempfile::TempDir) {
     let a_dir = tmpdir.path().join("a");
     ensure(a_dir.join("a.txt"), "a");
     ensure(a_dir.join("both.txt"), "a");

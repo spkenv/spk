@@ -17,7 +17,7 @@ use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]
-async fn test_render_manifest(tmpdir: tempdir::TempDir) {
+async fn test_render_manifest(tmpdir: tempfile::TempDir) {
     let storage = FSRepository::create(tmpdir.path().join("storage"))
         .await
         .unwrap();
@@ -50,7 +50,7 @@ async fn test_render_manifest(tmpdir: tempdir::TempDir) {
 
 #[rstest]
 #[tokio::test]
-async fn test_render_manifest_with_repo(tmpdir: tempdir::TempDir) {
+async fn test_render_manifest_with_repo(tmpdir: tempfile::TempDir) {
     let tmprepo = Arc::new(
         FSRepository::create(tmpdir.path().join("repo"))
             .await

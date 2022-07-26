@@ -60,7 +60,7 @@ async fn test_find_aliases(
 
 #[rstest]
 #[tokio::test]
-async fn test_commit_mode_fs(tmpdir: tempdir::TempDir) {
+async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
     init_logging();
     let dir = tmpdir.path();
     let tmprepo = Arc::new(
@@ -120,7 +120,7 @@ async fn test_commit_broken_link(
     #[case]
     #[future]
     tmprepo: TempRepo,
-    tmpdir: tempdir::TempDir,
+    tmpdir: tempfile::TempDir,
 ) {
     let tmprepo = tmprepo.await;
     let src_dir = tmpdir.path().join("source");
@@ -144,7 +144,7 @@ async fn test_commit_dir(
     #[case]
     #[future]
     tmprepo: TempRepo,
-    tmpdir: tempdir::TempDir,
+    tmpdir: tempfile::TempDir,
 ) {
     let tmprepo = tmprepo.await;
     let src_dir = tmpdir.path().join("source");
