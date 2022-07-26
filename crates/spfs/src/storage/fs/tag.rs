@@ -179,7 +179,9 @@ impl TagStorage for FSRepository {
         let lock = match TagLock::new(&filepath).await {
             Ok(lock) => lock,
             Err(err) => match err.raw_os_error() {
-                Some(libc::ENOENT) | Some(libc::ENOTDIR) => return Ok(()),
+                Some(libc::ENOENT) | Some(libc::ENOTDIR) => {
+                    return Err(Error::UnknownReference(tag.to_string()))
+                }
                 _ => return Err(err),
             },
         };

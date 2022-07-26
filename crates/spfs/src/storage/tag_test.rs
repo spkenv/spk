@@ -311,4 +311,13 @@ async fn test_rm_tags(
         vec![EntryType::Folder("latest".to_string())],
         "should remove empty tag folders during cleanup"
     );
+
+    let res = tmprepo
+        .remove_tag_stream(&tracking::TagSpec::parse("spi/stable/other_tag").unwrap())
+        .await;
+    assert!(
+        matches!(res, Err(crate::Error::UnknownReference(_))),
+        "should fail to remove a removed tag, got {:?}",
+        res
+    );
 }
