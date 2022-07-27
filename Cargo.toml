@@ -1,6 +1,6 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
-edition = "2018"
+edition = "2021"
 name = "spk"
 version = "0.32.0"
 
