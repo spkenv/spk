@@ -123,7 +123,16 @@ impl Run for MakeBinary {
             let mut built = std::collections::HashSet::new();
 
             let variants_to_build = match self.variant {
-                Some(index) => spec.build.variants.iter().skip(index).take(1),
+                Some(index) if index < spec.build.variants.len() => {
+                    spec.build.variants.iter().skip(index).take(1)
+                }
+                Some(index) => {
+                    anyhow::bail!(
+                        "--variant {index} is out of range; {} variant(s) found in {}",
+                        spec.build.variants.len(),
+                        spec.pkg.format_ident(),
+                    );
+                }
                 None => spec.build.variants.iter().skip(0).take(usize::MAX),
             };
 
