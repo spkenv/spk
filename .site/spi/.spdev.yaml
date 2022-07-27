@@ -65,4 +65,4 @@ components:
 ci_config:
   all:
     variables:
-      - SPDEV_CONFIG_FILE: .site/spi/.spdev.yaml
+      SPDEV_CONFIG_FILE: .site/spi/.spdev.yaml
