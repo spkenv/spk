@@ -52,6 +52,7 @@ impl CmdCheck {
             RepositoryHandle::Rpc(repo) => spfs::graph::check_database_integrity(repo).await,
             RepositoryHandle::Proxy(repo) => spfs::graph::check_database_integrity(&**repo).await,
         };
+        let mut repair_count = 0;
         for error in errors.iter() {
             tracing::error!("{error}");
 
@@ -67,6 +68,7 @@ impl CmdCheck {
                                 // Drop syncer to be able to see tracing message.
                                 drop(syncer);
                                 tracing::info!("Successfully repaired!");
+                                repair_count += 1;
                             }
                             Err(err) => {
                                 // Drop syncer to be able to see tracing message.
@@ -79,7 +81,7 @@ impl CmdCheck {
                 }
             }
         }
-        if !errors.is_empty() {
+        if !errors.is_empty() && repair_count < errors.len() {
             return Ok(1);
         }
         tracing::info!("repository OK");
