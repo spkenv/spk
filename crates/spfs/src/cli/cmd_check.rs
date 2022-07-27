@@ -53,7 +53,7 @@ impl CmdCheck {
             RepositoryHandle::Proxy(repo) => spfs::graph::check_database_integrity(&*repo).await,
         };
         for error in errors.iter() {
-            tracing::error!("{:?}", error);
+            tracing::error!("{error}");
         }
         if !errors.is_empty() {
             return Ok(1);
