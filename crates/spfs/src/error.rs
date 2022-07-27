@@ -43,6 +43,9 @@ pub enum Error {
     /// Denotes a missing object or one that is not present in the database.
     #[error("Unknown Object: {0}")]
     UnknownObject(encoding::Digest),
+    /// Denotes an object missing its payload.
+    #[error("Object {0} missing payload: {1}")]
+    ObjectMissingPayload(crate::graph::Object, encoding::Digest),
     /// Denotes a reference that is not present in the database
     #[error("Unknown Reference: {0}")]
     UnknownReference(String),
