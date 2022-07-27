@@ -12,7 +12,6 @@ use std::os::unix::{
     fs::symlink,
 };
 use std::path::{Path, PathBuf};
-use tempdir::TempDir;
 
 use spfs::encoding::Digest;
 use spfs::storage::RepositoryHandle;
@@ -111,7 +110,9 @@ impl<'a> Dynamic<'a> {
 
             let tag_as_dirname = tag.to_string().replace('/', "-");
 
-            let temp_dir = TempDir::new_in(self.install_path(), &tag_as_dirname)
+            let temp_dir = tempfile::Builder::new()
+                .prefix(&tag_as_dirname)
+                .tempdir_in(self.install_path())
                 .context("create temp working directory")?;
 
             let env_spec = EnvSpec::parse(tag).context("create env spec")?;

@@ -23,7 +23,7 @@ fn test_repo_version_is_valid() {
 
 #[rstest]
 #[tokio::test]
-async fn test_metadata_io(tmpdir: tempdir::TempDir) {
+async fn test_metadata_io(tmpdir: tempfile::TempDir) {
     init_logging();
     let repo_root = tmpdir.path();
     let repo = SPFSRepository::try_from((
@@ -42,7 +42,7 @@ async fn test_metadata_io(tmpdir: tempdir::TempDir) {
 
 #[rstest]
 #[tokio::test]
-async fn test_upgrade_sets_version(tmpdir: tempdir::TempDir) {
+async fn test_upgrade_sets_version(tmpdir: tempfile::TempDir) {
     init_logging();
     let current_version = crate::api::Version::from_str(super::REPO_VERSION).unwrap();
     let repo_root = tmpdir.path();
@@ -66,7 +66,7 @@ async fn test_upgrade_sets_version(tmpdir: tempdir::TempDir) {
 
 #[rstest]
 #[tokio::test]
-async fn test_upgrade_changes_tags(tmpdir: tempdir::TempDir) {
+async fn test_upgrade_changes_tags(tmpdir: tempfile::TempDir) {
     init_logging();
     let repo_root = tmpdir.path();
     let spfs_repo = spfs::storage::fs::FSRepository::create(repo_root)
