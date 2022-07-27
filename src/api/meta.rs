@@ -20,7 +20,7 @@ pub struct Meta {
         skip_serializing_if = "String::is_empty"
     )]
     pub license: String,
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub labels: BTreeMap<String, String>,
     pub creation_timestamp: i64,
 }

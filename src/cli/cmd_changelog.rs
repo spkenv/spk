@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::BTreeSet};
-use anyhow::{Context, Result};
+// use std::{collections::BTreeSet};
+use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
+use regex;
 
+use chrono::{NaiveDateTime, DateTime, Utc, Local};
 use super::{flags, CommandArgs, Run};
 
 #[derive(Args)]
@@ -15,7 +17,7 @@ pub struct ChangeLog {
     #[clap(flatten)]
     pub repos: flags::Repositories,
 
-    #[clap(name = "d|w|mo")]
+    #[clap(name = "D|W|M")]
     pub range: Option<String>,
 
     #[clap(name = "NAME[/VERSION]")]
@@ -25,8 +27,8 @@ pub struct ChangeLog {
 #[async_trait::async_trait]
 impl Run for ChangeLog {
     async fn run(&mut self) -> Result<i32> {
-        let mut repos = self.repos.get_repos(None).await?;
 
+        let mut repos = self.repos.get_repos(None).await?;
         if repos.is_empty() {
             let local = String::from("local");
             if !self.repos.disable_repo.contains(&local) {
@@ -41,24 +43,58 @@ impl Run for ChangeLog {
             }
         }
 
-        let mut results: Vec<String> = Vec::new();
-        let mut set: BTreeSet<String> = BTreeSet::new();  
-        for (_repo_name, repo) in repos {
-            set.extend(
-                repo.list_packages()
-                    .await?
-                    .into_iter()
-                    .map(spk::api::PkgNameBuf::into),
-            )
-        }
-        results = set.into_iter().collect();
-        for item in results {
-            let pkg: Option<String> = Some(item); 
-            let (_, spec) = flags::find_package_spec(&pkg)
-                .context("find package spec")?
-                .must_be_found();
+        // Seconds in day, week, month, and year for comparison when checking creation date.
+        let _day: i64 = 86400;
+        let _week: i64 = 604800;
+        let _month: i64 = 2592000;
+        let _year: i64 = 31104000;
 
-            println!("{:?}", spec.meta.creation_timestamp);
+        // Work in arguments
+        let mut res = i64::default();
+        match &self.range {
+            None => {
+                res = _month;
+                println!("{:?}", res);
+            }
+            Some(range) => {
+                println!("{:?}", range);
+            }
+        }
+
+        for (index, (_, repo)) in repos.iter().enumerate()  {
+            let packages = repo.list_packages().await?;
+            for package in packages {
+
+                let mut versions = Vec::new();
+                versions.extend(
+                    repo.list_package_versions(&package.clone())
+                        .await?
+                        .iter()
+                        .map(|v| ((**v).clone(), index)),
+                );
+                versions.sort_by_key(|v| v.0.clone());
+                versions.reverse();
+
+                for (version, repo_index) in versions {
+                    let (_repo_name, repo) = repos.get(repo_index).unwrap();
+                    let mut name = String::from(&package.to_string());
+                    name.push('/');
+                    name.push_str(&version.to_string());
+                    
+                    let ident = spk::api::parse_ident(name.clone())?;
+                    let spec = repo.read_spec(&ident).await?;
+
+                    
+                    let current_time = chrono::offset::Local::now().timestamp();
+                    let diff = current_time - spec.meta.creation_timestamp;
+                    if diff < res{
+                        let naive_date_time = NaiveDateTime::from_timestamp(spec.meta.creation_timestamp, 0);
+                        let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc).with_timezone(&Local);
+                        println!("Package {}: Created on {}", name, date_time);
+                    }
+                }
+            }
+
         }
         Ok(0)
 
@@ -69,7 +105,7 @@ impl CommandArgs for ChangeLog {
     fn get_positional_args(&self) -> Vec<String> {
         match &self.range {
             Some(range) => vec![range.clone()],
-            None => vec!["1mo".into()],
+            None => vec![],
         }
     }
 }
