@@ -22,7 +22,7 @@ pub async fn current_env() -> Result<solve::Solution> {
         for version in repo.list_package_versions(&name).await?.iter() {
             let pkg = api::parse_ident(format!("{name}/{version}"))?;
             for pkg in repo.list_package_builds(&pkg).await? {
-                let spec = repo.read_package(&pkg).await?; // TODO: might not work during build now...
+                let spec = repo.read_package(&pkg).await?;
                 let components = match repo.read_components(spec.ident()).await {
                     Ok(c) => c,
                     Err(Error::PackageNotFoundError(_)) => {
