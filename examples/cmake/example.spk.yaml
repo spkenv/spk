@@ -1,4 +1,5 @@
 pkg: cmake-example/0.1.0
+api: v0/package
 
 build:
 

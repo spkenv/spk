@@ -1,5 +1,6 @@
 pkg: openjpeg/2.4.0
-  # - name: openjpeg
+api: v0/package
+ # - name: openjpeg
   # - description: "Open source library for JPEG-2000"
   # - url: https://www.openjpeg.org
   # - license: bsd-2-clause

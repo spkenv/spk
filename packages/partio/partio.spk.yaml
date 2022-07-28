@@ -1,5 +1,6 @@
 pkg: partio/1.14.0
-  # - name: "partio"
+api: v0/package
+ # - name: "partio"
   # - description: "Read/write/manipulate common particle formats"
   # - license: BSD-3-clause
   # - url: https://partio.us
@@ -44,7 +45,7 @@ build:
     - ls -l
     - echo src
     - ls -l partio
-    - cmake -S partio -B build 
+    - cmake -S partio -B build
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=$PREFIX
         -DCMAKE_PREFIX_PATH=$PREFIX

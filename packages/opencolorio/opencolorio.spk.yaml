@@ -1,5 +1,6 @@
 pkg: opencolorio/2.0.1+r.1
-  # - name: OpenColorIO
+api: v0/package
+ # - name: OpenColorIO
   # - description: "Open source color management library"
   # - license: BSD-3-clause
   # - url: https://opencolorio.org

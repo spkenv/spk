@@ -1,4 +1,5 @@
 pkg: libheif/1.12.0
+api: v0/package
   # - name: "libheif"
   # - description: "HEIF/HEIC image file format library"
   # - license: LGPL-3

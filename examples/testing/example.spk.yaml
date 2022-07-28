@@ -1,5 +1,7 @@
 pkg: testing-example/1.0.0
-build:
+api: v0/package
+
+uild:
   options:
     - var: os
     - var: arch

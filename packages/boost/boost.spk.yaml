@@ -1,4 +1,5 @@
 pkg: boost/1.73.0
+api: v0/package
   # - name: Boost
   # - description: "Portable C++ libraries"
   # - url: https://www.boost.org
@@ -29,7 +30,7 @@ build:
     - cd boost
     - ./bootstrap.sh --prefix=$PREFIX
     - ./b2 --help
-    - ./b2 -q -j $(nproc) --prefix=$PREFIX 
+    - ./b2 -q -j $(nproc) --prefix=$PREFIX
           --without-python
           install
 

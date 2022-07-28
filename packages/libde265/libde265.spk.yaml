@@ -1,4 +1,5 @@
 pkg: libde265/1.0.7+r.1
+api: v0/package
   # - name: "libde265"
   # - description: "H.265 codec implementation"
   # - license: LGPL-3

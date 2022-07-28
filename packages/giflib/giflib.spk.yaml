@@ -1,4 +1,5 @@
 pkg: giflib/5.2.1
+api: v0/package
   # - description: "GIF file manipulation library"
   # - url: "https://giflib.sourceforge.net"
   # - license: "MIT"

@@ -1,4 +1,5 @@
 pkg: gcc/4.8.5
+api: v0/package
 
 sources:
   - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-4.8.5/gcc-4.8.5.tar.gz

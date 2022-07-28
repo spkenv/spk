@@ -1,5 +1,6 @@
 pkg: libtiff/4.3.0+r.2
-  # - name: LibTIFF
+api: v0/package
+ # - name: LibTIFF
   # - description: "Library for TIFF images"
   # - url: http://www.simplesystems.org/libtiff/
   # - license: MIT

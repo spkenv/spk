@@ -1,4 +1,5 @@
 pkg: libjpeg/9.4.0
+api: v0/package
   # - name: libJPEG
   # - description: "JPEG file manipulation library"
   # - url: https://www.ijg.org

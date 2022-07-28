@@ -1,5 +1,6 @@
 # use a low version and explicit bootstrap tag to be clear
 pkg: gcc/0.0.0+bootstrap.1
+api: v0/package
 
 build:
   # this is an empty package which just assumes that gcc is installed and

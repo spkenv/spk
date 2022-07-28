@@ -1,5 +1,6 @@
 pkg: opencolorio-apps/2.0.1+r.1
-  # - name: OpenColorIO-Apps
+api: v0/package
+ # - name: OpenColorIO-Apps
   # - description: "OpenColorIO command line tools"
   # - license: BSD-3-clause
   # - url: https://opencolorio.org

@@ -1,4 +1,5 @@
 pkg: autoconf/2.71
+api: v0/package
 
 sources:
   - tar: http://ftpmirror.gnu.org/gnu/autoconf/autoconf-2.71.tar.gz
