@@ -28,21 +28,21 @@ pub enum Validators {
     EmbeddedPackage(EmbeddedPackageValidator),
 }
 
-pub trait ValidatorT {
+pub trait ValidatorT<P: Package> {
     /// Check if the given package is appropriate for the provided state.
     fn validate(
         &self,
         state: &graph::State,
-        spec: &dyn api::Package,
+        spec: &P,
         source: &PackageSource,
     ) -> crate::Result<api::Compatibility>;
 }
 
-impl ValidatorT for Validators {
+impl<P: Package> ValidatorT<P> for Validators {
     fn validate(
         &self,
         state: &graph::State,
-        spec: &dyn api::Package,
+        spec: &P,
         source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         match self {
@@ -62,11 +62,11 @@ impl ValidatorT for Validators {
 #[derive(Clone, Copy)]
 pub struct DeprecationValidator {}
 
-impl ValidatorT for DeprecationValidator {
+impl<P: Package> ValidatorT<P> for DeprecationValidator {
     fn validate(
         &self,
         state: &graph::State,
-        spec: &dyn api::Package,
+        spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         if !spec.is_deprecated() {
@@ -91,11 +91,11 @@ impl ValidatorT for DeprecationValidator {
 #[derive(Clone, Copy)]
 pub struct BinaryOnlyValidator {}
 
-impl ValidatorT for BinaryOnlyValidator {
+impl<P: Package> ValidatorT<P> for BinaryOnlyValidator {
     fn validate(
         &self,
         state: &graph::State,
-        spec: &dyn api::Package,
+        spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         if spec.ident().build.is_none() {
@@ -118,11 +118,11 @@ impl ValidatorT for BinaryOnlyValidator {
 #[derive(Clone, Copy)]
 pub struct EmbeddedPackageValidator {}
 
-impl ValidatorT for EmbeddedPackageValidator {
+impl<P: Package> ValidatorT<P> for EmbeddedPackageValidator {
     fn validate(
         &self,
         state: &graph::State,
-        spec: &dyn api::Package,
+        spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         if spec.ident().is_source() {
@@ -168,11 +168,11 @@ impl EmbeddedPackageValidator {
 #[derive(Clone, Copy, Default)]
 pub struct OptionsValidator {}
 
-impl ValidatorT for OptionsValidator {
+impl<P: Package> ValidatorT<P> for OptionsValidator {
     fn validate(
         &self,
         state: &graph::State,
-        spec: &dyn api::Package,
+        spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         let requests = state.get_var_requests();
@@ -208,12 +208,12 @@ impl ValidatorT for OptionsValidator {
 #[derive(Clone, Copy)]
 pub struct PkgRequestValidator {}
 
-impl ValidatorT for PkgRequestValidator {
+impl<P: Package> ValidatorT<P> for PkgRequestValidator {
     #[allow(clippy::nonminimal_bool)]
     fn validate(
         &self,
         state: &graph::State,
-        spec: &dyn api::Package,
+        spec: &P,
         source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         let request = match state.get_merged_request(spec.name()) {
@@ -266,12 +266,12 @@ impl ValidatorT for PkgRequestValidator {
 #[derive(Clone, Copy)]
 pub struct ComponentsValidator {}
 
-impl ValidatorT for ComponentsValidator {
+impl<P: Package> ValidatorT<P> for ComponentsValidator {
     #[allow(clippy::nonminimal_bool)]
     fn validate(
         &self,
         state: &graph::State,
-        spec: &dyn api::Package,
+        spec: &P,
         source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         use Compatibility::Compatible;
@@ -332,11 +332,11 @@ impl ValidatorT for ComponentsValidator {
 #[derive(Clone, Copy)]
 pub struct PkgRequirementsValidator {}
 
-impl ValidatorT for PkgRequirementsValidator {
+impl<P: Package> ValidatorT<P> for PkgRequirementsValidator {
     fn validate(
         &self,
         state: &graph::State,
-        spec: &dyn api::Package,
+        spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         if spec.ident().is_source() {
@@ -474,11 +474,11 @@ impl PkgRequirementsValidator {
 #[derive(Clone, Copy, Default)]
 pub struct VarRequirementsValidator {}
 
-impl ValidatorT for VarRequirementsValidator {
+impl<P: Package> ValidatorT<P> for VarRequirementsValidator {
     fn validate(
         &self,
         state: &graph::State,
-        spec: &dyn api::Package,
+        spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         if spec.ident().is_source() {

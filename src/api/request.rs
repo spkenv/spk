@@ -220,7 +220,7 @@ impl RangeIdent {
     }
 
     /// Return true if the given package spec satisfies this request.
-    pub fn is_satisfied_by(&self, spec: &dyn Package, required: CompatRule) -> Compatibility {
+    pub fn is_satisfied_by<P: Package>(&self, spec: &P, required: CompatRule) -> Compatibility {
         if spec.name() != &self.name {
             return Compatibility::Incompatible("different package names".into());
         }
@@ -566,7 +566,7 @@ impl VarRequest {
     }
 
     /// Check if this package spec satisfies the given var request.
-    pub fn is_satisfied_by(&self, spec: &dyn Package) -> Compatibility {
+    pub fn is_satisfied_by<P: Package>(&self, spec: &P) -> Compatibility {
         let opt_required = self.var.namespace() == Some(spec.name());
         let mut opt: Option<&Opt> = None;
         let request_name = &self.var;
@@ -931,7 +931,7 @@ impl PkgRequest {
     }
 
     /// Return true if the given package spec satisfies this request.
-    pub fn is_satisfied_by(&self, spec: &dyn Package) -> Compatibility {
+    pub fn is_satisfied_by<P: Package>(&self, spec: &P) -> Compatibility {
         if spec.is_deprecated() {
             // deprecated builds are only okay if their build
             // was specifically requested

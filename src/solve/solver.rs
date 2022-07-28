@@ -353,10 +353,10 @@ impl Solver {
         Err(errors::Error::OutOfOptions(errors::OutOfOptions { request, notes }).into())
     }
 
-    fn validate(
+    fn validate<P: Package>(
         &self,
         node: &State,
-        spec: &dyn api::Package,
+        spec: &P,
         source: &PackageSource,
     ) -> Result<api::Compatibility> {
         for validator in self.validators.as_ref() {
