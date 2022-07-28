@@ -124,7 +124,7 @@ impl Run for MakeBinary {
             let ident = recipe.ident();
 
             tracing::info!("saving package recipe for {}", ident.format_ident());
-            local.publish_recipe(&recipe).await?;
+            local.force_publish_recipe(&recipe).await?;
 
             tracing::info!("building binary package(s) for {}", ident.format_ident());
             let mut built = std::collections::HashSet::new();

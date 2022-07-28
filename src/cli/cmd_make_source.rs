@@ -66,7 +66,7 @@ impl MakeSource {
             let ident = recipe.ident();
 
             tracing::info!("saving package recipe for {}", ident.format_ident());
-            local.publish_recipe(&recipe).await?;
+            local.force_publish_recipe(&recipe).await?;
 
             tracing::info!("collecting sources for {}", ident.format_ident());
             let (out, _components) = spk::build::SourcePackageBuilder::from_recipe(recipe)

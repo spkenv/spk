@@ -106,6 +106,16 @@ impl Template for SpecTemplate {
             pkg.split('/').next().unwrap_or(pkg),
         )?;
 
+        if inner
+            .get(&serde_yaml::Value::String("api".to_string()))
+            .is_none()
+        {
+            tracing::warn!(
+                "Spec file is missing the 'api' field, this may be an error in the future"
+            );
+            tracing::warn!(" > for specs in the original spk format, add 'api: v0/package'");
+        }
+
         Ok(Self { name, inner })
     }
 
