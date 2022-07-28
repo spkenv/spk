@@ -125,11 +125,6 @@ impl<P: Package> ValidatorT<P> for EmbeddedPackageValidator {
         spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        if spec.ident().is_source() {
-            // source packages are not being "installed" so requests don't matter
-            return Ok(api::Compatibility::Compatible);
-        }
-
         for embedded in spec.embedded().iter() {
             let compat = Self::validate_embedded_package_against_state(embedded, state)?;
             if !&compat {
@@ -339,11 +334,6 @@ impl<P: Package> ValidatorT<P> for PkgRequirementsValidator {
         spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        if spec.ident().is_source() {
-            // source packages are not being "installed" so requests don't matter
-            return Ok(api::Compatibility::Compatible);
-        }
-
         for request in spec.runtime_requirements().iter() {
             let compat = self.validate_request_against_existing_state(state, request)?;
             if !&compat {

@@ -172,12 +172,6 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 source,
             )))];
 
-            // installation options are not relevant for source packages
-            if spec.ident().is_source() {
-                // TODO: let the package itself determine this
-                return changes;
-            }
-
             let requested_by = api::RequestedBy::PackageBuild(spec.ident().clone());
             changes
                 .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
