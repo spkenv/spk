@@ -93,7 +93,7 @@ fn test_var_with_build_assigns_build() {
 
 #[rstest]
 #[tokio::test]
-async fn test_build_workdir(tmpdir: tempdir::TempDir) {
+async fn test_build_workdir(tmpdir: tempfile::TempDir) {
     let rt = spfs_runtime().await;
     let out_file = tmpdir.path().join("out.log");
     let recipe = recipe!({
@@ -551,7 +551,7 @@ async fn test_build_components_metadata() {
 
 #[rstest]
 #[tokio::test]
-async fn test_build_add_startup_files(tmpdir: tempdir::TempDir) {
+async fn test_build_add_startup_files(tmpdir: tempfile::TempDir) {
     let rt = spfs_runtime().await;
     let recipe = crate::recipe!(
         {

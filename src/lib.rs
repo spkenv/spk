@@ -10,7 +10,7 @@ mod env;
 mod error;
 pub mod exec;
 pub mod io;
-pub(crate) mod parsing;
+pub mod parsing;
 pub mod prelude;
 mod publish;
 pub mod solve;
