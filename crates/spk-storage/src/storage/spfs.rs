@@ -245,6 +245,28 @@ impl Storage for SPFSRepository {
         Ok(())
     }
 
+    async fn publish_recipe_to_storage(&self, spec: &Self::Recipe, force: bool) -> Result<()> {
+        let tag_path = self.build_spec_tag(&spec.to_ident());
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+        if !force && self.inner.has_tag(&tag_spec).await {
+            // BUG(rbottriell): this creates a race condition but is not super dangerous
+            // because of the non-destructive tag history
+            return Err(Error::SpkValidatorsError(
+                spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
+            ));
+        }
+
+        let payload = serde_yaml::to_vec(&spec)
+            .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
+        let digest = self
+            .inner
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .await?;
+        self.inner.push_tag(&tag_spec, &digest).await?;
+        self.invalidate_caches();
+        Ok(())
+    }
+
     async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()> {
         for tag_spec in
             with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
@@ -463,20 +485,6 @@ impl Repository for SPFSRepository {
         r
     }
 
-    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        let tag_path = self.build_spec_tag(&spec.to_ident());
-        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
-        if self.inner.has_tag(&tag_spec).await {
-            // BUG(rbottriell): this creates a race condition but is not super dangerous
-            // because of the non-destructive tag history
-            Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
-            ))
-        } else {
-            self.force_publish_recipe(spec).await
-        }
-    }
-
     async fn remove_recipe(&self, pkg: &Ident) -> Result<()> {
         let tag_path = self.build_spec_tag(pkg);
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
@@ -490,20 +498,6 @@ impl Repository for SPFSRepository {
                 Ok(())
             }
         }
-    }
-
-    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        let tag_path = self.build_spec_tag(&spec.to_ident());
-        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
-
-        let payload = serde_yaml::to_vec(&spec).map_err(spk_schema::Error::SpecEncodingError)?;
-        let digest = self
-            .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
-            .await?;
-        self.inner.push_tag(&tag_spec, &digest).await?;
-        self.invalidate_caches();
-        Ok(())
     }
 
     async fn upgrade(&self) -> Result<String> {

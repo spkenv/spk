@@ -47,6 +47,17 @@ pub trait Storage: Sync {
         components: &HashMap<Component, spfs::encoding::Digest>,
     ) -> Result<()>;
 
+    /// Publish a package spec to this repository.
+    ///
+    /// The published spec represents all builds of a single version.
+    /// The source package, or at least one binary package should be
+    /// published as well in order to make the spec usable in environments.
+    ///
+    /// # Errors:
+    /// - VersionExistsError: if the spec version is already present and
+    ///   `force` isn't true
+    async fn publish_recipe_to_storage(&self, spec: &Self::Recipe, force: bool) -> Result<()>;
+
     /// Remove a package from this repository.
     ///
     /// The given package identifier must identify a full package build.
@@ -93,7 +104,9 @@ pub trait Repository: Storage + Sync {
     ///
     /// # Errors:
     /// - VersionExistsError: if the recipe version is already present
-    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()>;
+    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
+        self.publish_recipe_to_storage(spec, false).await
+    }
 
     /// Remove a package recipe from this repository.
     ///
@@ -106,7 +119,9 @@ pub trait Repository: Storage + Sync {
     ///
     /// Same as [`Self::publish_recipe`] except that it clobbers any existing
     /// recipe with the same version.
-    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()>;
+    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
+        self.publish_recipe_to_storage(spec, true).await
+    }
 
     /// Read package information for a specific version and build.
     ///

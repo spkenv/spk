@@ -128,6 +128,19 @@ where
         Ok(())
     }
 
+    async fn publish_recipe_to_storage(&self, spec: &Self::Recipe, force: bool) -> Result<()> {
+        let mut specs = self.specs.write().await;
+        let versions = specs.entry(spec.name().to_owned()).or_default();
+        if !force && versions.contains_key(spec.version()) {
+            Err(Error::SpkValidatorsError(
+                spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
+            ))
+        } else {
+            versions.insert(spec.version().clone(), Arc::new(spec.clone()));
+            Ok(())
+        }
+    }
+
     async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()> {
         // Caller has already proven that build is `Some`.
         let build = pkg.build.as_ref().unwrap();
@@ -226,6 +239,7 @@ where
     fn name(&self) -> &RepositoryName {
         self.name.as_ref()
     }
+
     async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
         if pkg.build.is_some() {
             return Err(format!("cannot read a recipe for a package build: {pkg}").into());
@@ -276,27 +290,6 @@ where
                         pkg.clone(),
                     ))
                 }),
-        }
-    }
-
-    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        let mut specs = self.specs.write().await;
-        let versions = specs.entry(spec.name().to_owned()).or_default();
-        versions.remove(spec.version());
-        drop(specs); // this lock will be needed to publish
-        self.publish_recipe(spec).await
-    }
-
-    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        let mut specs = self.specs.write().await;
-        let versions = specs.entry(spec.name().to_owned()).or_default();
-        if versions.contains_key(spec.version()) {
-            Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
-            ))
-        } else {
-            versions.insert(spec.version().clone(), Arc::new(spec.clone()));
-            Ok(())
         }
     }
 
