@@ -413,13 +413,13 @@ impl Repository for SPFSRepository {
         spec: &api::Spec,
         components: HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
-        #[cfg(test)]
         if let Err(Error::PackageNotFoundError(pkg)) =
-            self.read_spec(&spec.pkg.with_build(None)).await
+            with_cache_policy!(self, CachePolicy::BypassCache, {
+                self.read_spec(&spec.pkg.with_build(None)).await
+            })
         {
             return Err(Error::String(format!(
-                "[INTERNAL] version spec must be published before a specific build: {:?}",
-                pkg
+                "Version spec must be published before a specific build; try `spk publish {pkg}`",
             )));
         }
 
