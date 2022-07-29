@@ -649,6 +649,7 @@ async fn test_solver_option_injection(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_build_from_source(mut solver: Solver) {
+    init_logging();
     // test when no appropriate build exists but the source is available
     // - the build is skipped
     // - the source package is checked for current options
@@ -659,7 +660,6 @@ async fn test_solver_build_from_source(mut solver: Solver) {
         [
             {
                 "pkg": "my-tool/1.2.0/src",
-                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
             {
                 "pkg": "my-tool/1.2.0",
@@ -701,6 +701,7 @@ async fn test_solver_build_from_source(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
+    init_logging();
     // test when no appropriate build exists but the source is available
     // - if the requested pkg cannot resolve a build environment
     // - this is flagged by the solver as impossible
@@ -756,13 +757,9 @@ async fn test_solver_build_from_source_dependency(mut solver: Solver) {
 
     let repo = make_repo!(
         [
-            // the source package pins the build environment package
+            // the source package needs to exist for the build to be possible
             {
                 "pkg": "my-tool/1.2.0/src",
-                "build": {"options": [{"pkg": "python"}]},
-                "install": {
-                    "requirements": [{"pkg": "python", "fromBuildEnv": "x.x.x"}]
-                },
             },
             // one existing build exists that used python 3.6.3
             build_with_py36,
@@ -770,6 +767,16 @@ async fn test_solver_build_from_source_dependency(mut solver: Solver) {
             {"pkg": "python/3.7.3", "compat": "x.a.b"},
         ]
     );
+    // the actual recipe pins from the build env and so can satisfy
+    // building against the newer build of python
+    let recipe = recipe!({
+        "pkg": "my-tool/1.2.0",
+        "build": {"options": [{"pkg": "python"}]},
+        "install": {
+            "requirements": [{"pkg": "python", "fromBuildEnv": "x.x.x"}]
+        },
+    });
+    repo.force_publish_recipe(&recipe).await.unwrap();
 
     // the new option value should disqualify the existing build
     // but a new one should be generated for this set of options

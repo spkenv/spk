@@ -53,9 +53,11 @@ macro_rules! make_package {
         let mut spec: $crate::api::v0::Spec =
             serde_json::from_value(json).expect("Invalid spec json");
         let build = spec.clone();
-        spec.pkg.set_build(None);
+        if !spec.pkg.is_source() {
+            spec.pkg.set_build(None);
+            $repo.force_publish_recipe(&spec.into()).await.unwrap();
+        }
         let build = $crate::api::Spec::V0Package(build);
-        $repo.force_publish_recipe(&spec.into()).await.unwrap();
         make_build_and_components!(build, [], $opts, [])
     }};
 }
@@ -122,14 +124,18 @@ macro_rules! make_build_and_components {
                     $crate::api::RequestedBy::SpkInternalTest,
                 ),
                 Arc::clone(&dep),
-                // TODO: this is much less appropriate than it was
+                // NOTE(rbottriell): this is not really appropriate, but
+                // is not usually used by the 'generate_binary_build' process.
+                // It might be necessary in the future to have a special enum
+                // value for manually injected packages, but it's preferable
+                // to avoid that.
                 $crate::solve::PackageSource::Embedded,
             );
             )*
             let mut resolved_opts = recipe.resolve_options(&build_opts).unwrap().into_iter();
             build_opts.extend(&mut resolved_opts);
             let spec = recipe.generate_binary_build(&build_opts, &solution)
-                .expect("Failed to render build spec");
+                .expect("Failed to generate build spec");
             let mut names = std::vec![$($component.to_string()),*];
             if names.is_empty() {
                 names = spec.components().iter().map(|c| c.name.to_string()).collect();

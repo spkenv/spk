@@ -1,10 +1,11 @@
+use enum_dispatch::enum_dispatch;
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use itertools::Itertools;
 use std::collections::HashSet;
 
-use crate::api::{self, prelude::*, Build, Compatibility};
+use crate::api::{self, prelude::*, Compatibility};
 
 use super::{
     errors,
@@ -17,6 +18,7 @@ use super::{
 mod validation_test;
 
 #[derive(Clone, Copy)]
+#[enum_dispatch(ValidatorT)]
 pub enum Validators {
     Deprecation(DeprecationValidator),
     BinaryOnly(BinaryOnlyValidator),
@@ -28,33 +30,28 @@ pub enum Validators {
     EmbeddedPackage(EmbeddedPackageValidator),
 }
 
-pub trait ValidatorT<P: Package> {
+#[enum_dispatch]
+pub trait ValidatorT {
     /// Check if the given package is appropriate for the provided state.
-    fn validate(
+    fn validate_package<P: Package>(
         &self,
         state: &graph::State,
         spec: &P,
         source: &PackageSource,
     ) -> crate::Result<api::Compatibility>;
-}
 
-impl<P: Package> ValidatorT<P> for Validators {
-    fn validate(
+    /// Check if the given recipe is appropriate as a source build for the provided state.
+    ///
+    /// Once the build has been deemed resolvable and a binary package spec has
+    /// been generated, the validate_package function will still be called and
+    /// must be valid for the resulting build.
+    fn validate_recipe<R: Recipe>(
         &self,
-        state: &graph::State,
-        spec: &P,
-        source: &PackageSource,
+        _state: &graph::State,
+        _recipe: &R,
     ) -> crate::Result<api::Compatibility> {
-        match self {
-            Validators::Deprecation(v) => v.validate(state, spec, source),
-            Validators::BinaryOnly(v) => v.validate(state, spec, source),
-            Validators::PackageRequest(v) => v.validate(state, spec, source),
-            Validators::Components(v) => v.validate(state, spec, source),
-            Validators::Options(v) => v.validate(state, spec, source),
-            Validators::VarRequirements(v) => v.validate(state, spec, source),
-            Validators::PkgRequirements(v) => v.validate(state, spec, source),
-            Validators::EmbeddedPackage(v) => v.validate(state, spec, source),
-        }
+        // defer to the later call to validate_package by default
+        Ok(api::Compatibility::Compatible)
     }
 }
 
@@ -62,8 +59,8 @@ impl<P: Package> ValidatorT<P> for Validators {
 #[derive(Clone, Copy)]
 pub struct DeprecationValidator {}
 
-impl<P: Package> ValidatorT<P> for DeprecationValidator {
-    fn validate(
+impl ValidatorT for DeprecationValidator {
+    fn validate_package<P: Package>(
         &self,
         state: &graph::State,
         spec: &P,
@@ -85,41 +82,52 @@ impl<P: Package> ValidatorT<P> for DeprecationValidator {
             "build is deprecated (and not requested exactly)".to_owned(),
         ))
     }
+
+    fn validate_recipe<R: Recipe>(
+        &self,
+        _state: &graph::State,
+        recipe: &R,
+    ) -> crate::Result<api::Compatibility> {
+        if recipe.is_deprecated() {
+            Ok(api::Compatibility::Incompatible(
+                "recipe is deprecated for this version".to_owned(),
+            ))
+        } else {
+            Ok(api::Compatibility::Compatible)
+        }
+    }
 }
 
 /// Enforces the resolution of binary packages only, denying new builds from source.
 #[derive(Clone, Copy)]
 pub struct BinaryOnlyValidator {}
 
-impl<P: Package> ValidatorT<P> for BinaryOnlyValidator {
-    fn validate(
+impl ValidatorT for BinaryOnlyValidator {
+    fn validate_package<P: Package>(
         &self,
-        state: &graph::State,
-        spec: &P,
+        _state: &graph::State,
+        _spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        if spec.ident().build.is_none() {
-            return Ok(api::Compatibility::Incompatible(format!(
-                "Skipping {}, it has no builds, and building from source is not enabled",
-                spec.ident()
-            )));
-        }
-        let request = state.get_merged_request(spec.name())?;
-        if spec.ident().build == Some(Build::Source) && request.pkg.build != spec.ident().build {
-            return Ok(api::Compatibility::Incompatible(format!(
-                "Skipping {} build, building from source is not enabled",
-                spec.ident()
-            )));
-        }
         Ok(api::Compatibility::Compatible)
+    }
+
+    fn validate_recipe<R: Recipe>(
+        &self,
+        _state: &graph::State,
+        _recipe: &R,
+    ) -> crate::Result<api::Compatibility> {
+        Ok(api::Compatibility::Incompatible(
+            "building from source is not enabled".into(),
+        ))
     }
 }
 
 #[derive(Clone, Copy)]
 pub struct EmbeddedPackageValidator {}
 
-impl<P: Package> ValidatorT<P> for EmbeddedPackageValidator {
-    fn validate(
+impl ValidatorT for EmbeddedPackageValidator {
+    fn validate_package<P: Package>(
         &self,
         state: &graph::State,
         spec: &P,
@@ -163,8 +171,8 @@ impl EmbeddedPackageValidator {
 #[derive(Clone, Copy, Default)]
 pub struct OptionsValidator {}
 
-impl<P: Package> ValidatorT<P> for OptionsValidator {
-    fn validate(
+impl ValidatorT for OptionsValidator {
+    fn validate_package<P: Package>(
         &self,
         state: &graph::State,
         spec: &P,
@@ -197,15 +205,27 @@ impl<P: Package> ValidatorT<P> for OptionsValidator {
         }
         Ok(api::Compatibility::Compatible)
     }
+
+    fn validate_recipe<R: Recipe>(
+        &self,
+        state: &graph::State,
+        recipe: &R,
+    ) -> crate::Result<api::Compatibility> {
+        if let Err(err) = recipe.resolve_options(state.get_option_map()) {
+            Ok(api::Compatibility::Incompatible(err.to_string()))
+        } else {
+            Ok(api::Compatibility::Compatible)
+        }
+    }
 }
 
 /// Ensures that a package meets all requested version criteria.
 #[derive(Clone, Copy)]
 pub struct PkgRequestValidator {}
 
-impl<P: Package> ValidatorT<P> for PkgRequestValidator {
+impl ValidatorT for PkgRequestValidator {
     #[allow(clippy::nonminimal_bool)]
-    fn validate(
+    fn validate_package<P: Package>(
         &self,
         state: &graph::State,
         spec: &P,
@@ -213,11 +233,16 @@ impl<P: Package> ValidatorT<P> for PkgRequestValidator {
     ) -> crate::Result<api::Compatibility> {
         let request = match state.get_merged_request(spec.name()) {
             Ok(request) => request,
-            // FIXME: This should only catch KeyError
-            Err(_) => {
-                return Ok(api::Compatibility::Incompatible(
-                    "package was not requested [INTERNAL ERROR]".to_owned(),
-                ))
+            Err(super::errors::GetMergedRequestError::NoRequestFor(name)) => {
+                return Ok(api::Compatibility::Incompatible(format!(
+                    "package '{name}' was not requested [INTERNAL ERROR]"
+                )))
+            }
+            Err(err) => {
+                return Ok(api::Compatibility::Incompatible(format!(
+                    "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
+                    spec.name()
+                )))
             }
         };
         if let Some(rn) = &request.pkg.repository_name {
@@ -255,15 +280,37 @@ impl<P: Package> ValidatorT<P> for PkgRequestValidator {
         }
         Ok(compat)
     }
+
+    fn validate_recipe<R: Recipe>(
+        &self,
+        state: &graph::State,
+        recipe: &R,
+    ) -> crate::Result<api::Compatibility> {
+        let request = match state.get_merged_request(recipe.name()) {
+            Ok(request) => request,
+            Err(super::errors::GetMergedRequestError::NoRequestFor(name)) => {
+                return Ok(api::Compatibility::Incompatible(format!(
+                    "package '{name}' was not requested [INTERNAL ERROR]"
+                )))
+            }
+            Err(err) => {
+                return Ok(api::Compatibility::Incompatible(format!(
+                    "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
+                    recipe.name()
+                )))
+            }
+        };
+        Ok(request.is_version_applicable(recipe.version()))
+    }
 }
 
 /// Ensures that all of the requested components are available.
 #[derive(Clone, Copy)]
 pub struct ComponentsValidator {}
 
-impl<P: Package> ValidatorT<P> for ComponentsValidator {
+impl ValidatorT for ComponentsValidator {
     #[allow(clippy::nonminimal_bool)]
-    fn validate(
+    fn validate_package<P: Package>(
         &self,
         state: &graph::State,
         spec: &P,
@@ -272,7 +319,7 @@ impl<P: Package> ValidatorT<P> for ComponentsValidator {
         use Compatibility::Compatible;
         if spec.ident().is_source() {
             // we are only concerned with published package components,
-            // source builds will validate against the spec separately
+            // source builds will validate_package against the spec separately
             // (and provide a better error message)
             return Ok(Compatible);
         }
@@ -327,8 +374,8 @@ impl<P: Package> ValidatorT<P> for ComponentsValidator {
 #[derive(Clone, Copy)]
 pub struct PkgRequirementsValidator {}
 
-impl<P: Package> ValidatorT<P> for PkgRequirementsValidator {
-    fn validate(
+impl ValidatorT for PkgRequirementsValidator {
+    fn validate_package<P: Package>(
         &self,
         state: &graph::State,
         spec: &P,
@@ -464,18 +511,13 @@ impl PkgRequirementsValidator {
 #[derive(Clone, Copy, Default)]
 pub struct VarRequirementsValidator {}
 
-impl<P: Package> ValidatorT<P> for VarRequirementsValidator {
-    fn validate(
+impl ValidatorT for VarRequirementsValidator {
+    fn validate_package<P: Package>(
         &self,
         state: &graph::State,
         spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        if spec.ident().is_source() {
-            // source packages are not being "installed" so requests don't matter
-            return Ok(api::Compatibility::Compatible);
-        }
-
         let options = state.get_option_map();
         for request in spec.runtime_requirements().iter() {
             if let api::Request::Var(request) = request {

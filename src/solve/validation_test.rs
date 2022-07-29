@@ -31,7 +31,10 @@ fn test_empty_options_can_match_anything() {
     let source = solve::PackageSource::Embedded;
 
     assert!(
-        validator.validate(&state, &*spec, &source).unwrap().is_ok(),
+        validator
+            .validate_package(&state, &*spec, &source)
+            .unwrap()
+            .is_ok(),
         "empty option should not invalidate requirement"
     );
 }
@@ -61,7 +64,7 @@ fn test_qualified_var_supersedes_unqualified() {
     ));
     let source = solve::PackageSource::Embedded;
 
-    let compat = validator.validate(&state, &*spec, &source).unwrap();
+    let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
         compat.is_ok(),
         "qualified var requests should superseded unqualified ones, got: {}",
@@ -78,7 +81,7 @@ fn test_qualified_var_supersedes_unqualified() {
         }
     ));
     let source = solve::PackageSource::Embedded;
-    let compat = validator.validate(&state, &*spec, &source).unwrap();
+    let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
         !compat.is_ok(),
         "qualified var requests should supercede unqualified ones, got: {compat}",
