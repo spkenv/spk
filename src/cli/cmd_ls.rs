@@ -271,8 +271,8 @@ impl Ls {
         // Based on the verbosity, display more details for the
         // package build.
         if self.verbose > 0 {
-            let spec = repo.read_recipe(&pkg.with_build(None)).await?;
-            let options = spec.resolve_options(&spk::api::OptionMap::default())?;
+            let spec = repo.read_package(pkg).await?;
+            let options = spec.option_values();
             item.push(' ');
             item.push_str(&spk::io::format_options(&options));
         }
