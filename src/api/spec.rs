@@ -85,8 +85,9 @@ impl Template for SpecTemplate {
     fn from_file(path: &std::path::Path) -> Result<Self> {
         let filepath = path.canonicalize()?;
         let file = std::fs::File::open(&filepath)?;
+        let reader = std::io::BufReader::new(file);
 
-        let inner: serde_yaml::Mapping = serde_yaml::from_reader(file).map_err(|err| {
+        let inner: serde_yaml::Mapping = serde_yaml::from_reader(reader).map_err(|err| {
             Error::String(format!("Invalid yaml in template file {path:?}: {err}"))
         })?;
 
