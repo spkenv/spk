@@ -351,6 +351,31 @@ impl Storage for SPFSRepository {
         Ok(())
     }
 
+    async fn publish_recipe_to_storage(&self, spec: &Self::Recipe, force: bool) -> Result<()> {
+        if spec.ident().build.is_some() {
+            return Err(api::InvalidBuildError::new_error(format!(
+                "Cannot publish recipe with associated build: {}",
+                spec.ident()
+            )));
+        }
+        let tag_path = self.build_spec_tag(&spec.ident());
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+        if !force && self.inner.has_tag(&tag_spec).await {
+            // BUG(rbottriell): this creates a race condition but is not super dangerous
+            // because of the non-destructive tag history
+            return Err(Error::VersionExistsError(spec.ident()));
+        }
+
+        let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;
+        let digest = self
+            .inner
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .await?;
+        self.inner.push_tag(&tag_spec, &digest).await?;
+        self.invalidate_caches();
+        Ok(())
+    }
+
     async fn remove_package_from_storage(&self, pkg: &api::Ident) -> Result<()> {
         for tag_spec in
             with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
@@ -553,23 +578,6 @@ impl Repository for SPFSRepository {
         r
     }
 
-    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        if spec.ident().build.is_some() {
-            return Err(api::InvalidBuildError::new_error(
-                "Spec must be published with no build".to_string(),
-            ));
-        }
-        let tag_path = self.build_spec_tag(&spec.ident());
-        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
-        if self.inner.has_tag(&tag_spec).await {
-            // BUG(rbottriell): this creates a race condition but is not super dangerous
-            // because of the non-destructive tag history
-            Err(Error::VersionExistsError(spec.ident()))
-        } else {
-            self.force_publish_recipe(spec).await
-        }
-    }
-
     async fn remove_recipe(&self, pkg: &api::Ident) -> Result<()> {
         let tag_path = self.build_spec_tag(pkg);
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
@@ -581,26 +589,6 @@ impl Repository for SPFSRepository {
                 Ok(())
             }
         }
-    }
-
-    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        if spec.ident().build.is_some() {
-            return Err(api::InvalidBuildError::new_error(format!(
-                "Cannot publish recipe with associated build: {}",
-                spec.ident()
-            )));
-        }
-        let tag_path = self.build_spec_tag(&spec.ident());
-        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
-
-        let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;
-        let digest = self
-            .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
-            .await?;
-        self.inner.push_tag(&tag_spec, &digest).await?;
-        self.invalidate_caches();
-        Ok(())
     }
 
     async fn upgrade(&self) -> Result<String> {

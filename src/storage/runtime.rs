@@ -121,6 +121,12 @@ impl Storage for RuntimeRepository {
         ))
     }
 
+    async fn publish_recipe_to_storage(&self, _spec: &Self::Recipe, _force: bool) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a runtime repository".into(),
+        ))
+    }
+
     async fn remove_package_from_storage(&self, _pkg: &api::Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
@@ -239,16 +245,6 @@ impl Repository for RuntimeRepository {
             mapped.insert(api::Component::Build, digest);
         }
         Ok(mapped)
-    }
-
-    async fn force_publish_recipe(&self, _spec: &Self::Recipe) -> Result<()> {
-        Err(Error::String("Cannot modify a runtime repository".into()))
-    }
-
-    async fn publish_recipe(&self, _spec: &Self::Recipe) -> Result<()> {
-        Err(Error::String(
-            "Cannot publish to a runtime repository".into(),
-        ))
     }
 
     async fn remove_recipe(&self, _pkg: &api::Ident) -> Result<()> {

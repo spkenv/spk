@@ -145,6 +145,24 @@ where
         Ok(())
     }
 
+    async fn publish_recipe_to_storage(&self, spec: &Self::Recipe, force: bool) -> Result<()> {
+        if !force && spec.ident().build.is_some() {
+            return Err(Error::String(format!(
+                "Spec must be published with no build, got {}",
+                spec.ident()
+            )));
+        }
+
+        let mut specs = self.specs.write().await;
+        let versions = specs.entry(spec.name().to_owned()).or_default();
+        if !force && versions.contains_key(spec.version()) {
+            Err(Error::VersionExistsError(spec.ident()))
+        } else {
+            versions.insert(spec.version().clone(), Arc::new(spec.clone()));
+            Ok(())
+        }
+    }
+
     async fn remove_package_from_storage(&self, pkg: &api::Ident) -> Result<()> {
         let build = match &pkg.build {
             Some(b) => b,
@@ -228,6 +246,7 @@ where
     fn name(&self) -> &api::RepositoryName {
         self.name.as_ref()
     }
+
     async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
         self.specs
             .read()
@@ -253,31 +272,6 @@ where
                 .get(build)
                 .map(|(_, d)| d.to_owned())
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone())),
-        }
-    }
-
-    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        let mut specs = self.specs.write().await;
-        let versions = specs.entry(spec.name().to_owned()).or_default();
-        versions.remove(spec.version());
-        drop(specs); // this lock will be needed to publish
-        self.publish_recipe(spec).await
-    }
-
-    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        if spec.ident().build.is_some() {
-            return Err(Error::String(format!(
-                "Spec must be published with no build, got {}",
-                spec.ident()
-            )));
-        }
-        let mut specs = self.specs.write().await;
-        let versions = specs.entry(spec.name().to_owned()).or_default();
-        if versions.contains_key(spec.version()) {
-            Err(Error::VersionExistsError(spec.ident()))
-        } else {
-            versions.insert(spec.version().clone(), Arc::new(spec.clone()));
-            Ok(())
         }
     }
 
