@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::convert::{TryFrom, TryInto};
+use std::ops::Not;
 
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
@@ -63,7 +64,8 @@ impl TryFrom<Option<super::Tag>> for tracking::Tag {
 impl TryFrom<super::Tag> for tracking::Tag {
     type Error = Error;
     fn try_from(source: super::Tag) -> Result<Self> {
-        let mut tag = Self::new(source.org, source.name, source.target.try_into()?)?;
+        let org = source.org.is_empty().not().then(|| source.org);
+        let mut tag = Self::new(org, source.name, source.target.try_into()?)?;
         tag.parent = source.parent.try_into()?;
         tag.user = source.user;
         tag.time = convert_to_datetime(source.time)?;
@@ -74,7 +76,7 @@ impl TryFrom<super::Tag> for tracking::Tag {
 impl From<&tracking::Tag> for super::Tag {
     fn from(source: &tracking::Tag) -> Self {
         Self {
-            org: source.org(),
+            org: source.org().unwrap_or_default(),
             name: source.name(),
             target: Some((&source.target).into()),
             parent: Some((&source.parent).into()),

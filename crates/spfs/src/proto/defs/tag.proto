@@ -9,118 +9,98 @@ import "types.proto";
 import "error.proto";
 
 message Tag {
-    optional string org = 1;
-    string name = 2;
-    Digest target = 3;
-    Digest parent = 4;
-    string user = 5;
-    DateTime time = 6;
+  string org = 1;
+  string name = 2;
+  Digest target = 3;
+  Digest parent = 4;
+  string user = 5;
+  DateTime time = 6;
 }
 
-message LsTagsRequest {
-    string path = 1;
-}
+message LsTagsRequest { string path = 1; }
 message LsTagsResponse {
-    message Entry {
-        oneof kind {
-            string folder = 1;
-            string tag = 2;
-        }
+  message Entry {
+    oneof kind {
+      string folder = 1;
+      string tag = 2;
     }
-    message EntryList {
-        reserved 1;
-        repeated Entry entries = 2;
-    }
-    oneof result {
-        Error error = 1;
-        EntryList ok = 2;
-    }
+  }
+  message EntryList {
+    reserved 1;
+    repeated Entry entries = 2;
+  }
+  oneof result {
+    Error error = 1;
+    EntryList ok = 2;
+  }
 }
 
-message ResolveTagRequest {
-    string tag_spec = 2;
-}
+message ResolveTagRequest { string tag_spec = 2; }
 message ResolveTagResponse {
-    oneof result {
-        Error error = 1;
-        Tag ok = 2;
-    }
+  oneof result {
+    Error error = 1;
+    Tag ok = 2;
+  }
 }
 
-message FindTagsRequest {
-    Digest digest = 1;
-}
+message FindTagsRequest { Digest digest = 1; }
 message FindTagsResponse {
-    message TagList {
-        repeated string tags = 1;
-    }
-    oneof result {
-        Error error = 1;
-        TagList ok = 2;
-    }
+  message TagList { repeated string tags = 1; }
+  oneof result {
+    Error error = 1;
+    TagList ok = 2;
+  }
 }
 
 message IterTagSpecsRequest {}
 message IterTagSpecsResponse {
-    message TagSpecList {
-        repeated string tag_specs = 1;
-    }
-    oneof result {
-        Error error = 1;
-        TagSpecList ok = 2;
-    }
+  message TagSpecList { repeated string tag_specs = 1; }
+  oneof result {
+    Error error = 1;
+    TagSpecList ok = 2;
+  }
 }
 
-message ReadTagRequest {
-    string tag_spec = 1;
-}
+message ReadTagRequest { string tag_spec = 1; }
 message ReadTagResponse {
-    message TagList {
-        repeated Tag tags = 1;
-    }
-    oneof result {
-        Error error = 1;
-        TagList ok = 2;
-    }
+  message TagList { repeated Tag tags = 1; }
+  oneof result {
+    Error error = 1;
+    TagList ok = 2;
+  }
 }
 
-message InsertTagRequest {
-    Tag tag = 1;
-}
+message InsertTagRequest { Tag tag = 1; }
 message InsertTagResponse {
-    oneof result {
-        Error error = 1;
-        Ok ok = 2;
-    }
+  oneof result {
+    Error error = 1;
+    Ok ok = 2;
+  }
 }
 
-message RemoveTagStreamRequest {
-    string tag_Spec = 1;
-}
+message RemoveTagStreamRequest { string tag_Spec = 1; }
 message RemoveTagStreamResponse {
-    oneof result {
-        Error error = 1;
-        Ok ok = 2;
-    }
+  oneof result {
+    Error error = 1;
+    Ok ok = 2;
+  }
 }
 
-message RemoveTagRequest {
-    Tag tag = 1;
-}
+message RemoveTagRequest { Tag tag = 1; }
 message RemoveTagResponse {
-    oneof result {
-        Error error = 1;
-        Ok ok = 2;
-    }
+  oneof result {
+    Error error = 1;
+    Ok ok = 2;
+  }
 }
 
 service TagService {
-    rpc LsTags(LsTagsRequest) returns (LsTagsResponse);
-    rpc ResolveTag(ResolveTagRequest) returns (ResolveTagResponse);
-    rpc FindTags(FindTagsRequest) returns (FindTagsResponse);
-    rpc IterTagSpecs(IterTagSpecsRequest) returns (IterTagSpecsResponse);
-    rpc ReadTag(ReadTagRequest) returns (ReadTagResponse);
-    rpc InsertTag(InsertTagRequest) returns (InsertTagResponse);
-    rpc RemoveTagStream(RemoveTagStreamRequest) returns (RemoveTagStreamResponse);
-    rpc RemoveTag(RemoveTagRequest) returns (RemoveTagResponse);
+  rpc LsTags(LsTagsRequest) returns (LsTagsResponse);
+  rpc ResolveTag(ResolveTagRequest) returns (ResolveTagResponse);
+  rpc FindTags(FindTagsRequest) returns (FindTagsResponse);
+  rpc IterTagSpecs(IterTagSpecsRequest) returns (IterTagSpecsResponse);
+  rpc ReadTag(ReadTagRequest) returns (ReadTagResponse);
+  rpc InsertTag(InsertTagRequest) returns (InsertTagResponse);
+  rpc RemoveTagStream(RemoveTagStreamRequest) returns (RemoveTagStreamResponse);
+  rpc RemoveTag(RemoveTagRequest) returns (RemoveTagResponse);
 }
