@@ -41,19 +41,24 @@ impl CmdJoin {
             .enable_all()
             .build()
             .map_err(|err| Error::ProcessSpawnError("new_current_thread()".into(), err))?;
-        let res = rt.block_on(async {
+        let spfs_runtime = rt.block_on(async {
             let storage = config.get_runtime_storage().await?;
-            let rt = storage.read_runtime(&self.runtime).await?;
-            spfs::env::join_runtime(&rt)?;
+            storage.read_runtime(&self.runtime).await
+        })?;
 
-            self.exec_runtime_command(&rt).await
-        });
-        // do not block forever on drop because of any stuck blocking tasks
+        // Shut down the tokio runtime (join threads) before attempting to
+        // join the spfs runtime. This is only allowed in a single-threaded
+        // program.
+
+        // Do not block forever on drop because of any stuck blocking tasks.
         rt.shutdown_timeout(std::time::Duration::from_millis(250));
-        res
+
+        spfs::env::join_runtime(&spfs_runtime)?;
+
+        self.exec_runtime_command(&spfs_runtime)
     }
 
-    async fn exec_runtime_command(&mut self, rt: &spfs::runtime::Runtime) -> Result<i32> {
+    fn exec_runtime_command(&mut self, rt: &spfs::runtime::Runtime) -> Result<i32> {
         let cmd = match self.command.take() {
             Some(exe) if !exe.is_empty() => {
                 tracing::debug!("executing runtime command");

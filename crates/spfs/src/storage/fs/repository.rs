@@ -80,18 +80,29 @@ impl FSRepository {
         let username = whoami::username();
         makedirs_with_perms(root.join("renders").join(username), 0o777)?;
         set_last_migration(&root, None).await?;
-        // Safety: we just changed the repo `VERSION` to our version, so it
-        // is compatible.
+        // Safety: we canonicalized `root` and we just changed the repo
+        // `VERSION` to our version, so it is compatible.
         // FIXME: No attempt to check if the repo already existed and is
         // actually incompatible.
-        unsafe { Self::open_unchecked(root).await.map(|(repo, _)| repo) }
+        unsafe { Self::open_unchecked(root).await }
     }
 
     // Open a repository over the given directory, which must already
     // exist and be a repository
     pub async fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
-        // Safety: we check the version compatibility in the next step.
-        let (repo, root) = unsafe { Self::open_unchecked(root).await? };
+        let root = match tokio::fs::canonicalize(&root).await {
+            Ok(r) => r,
+            Err(err) => {
+                return Err(crate::Error::FailedToOpenRepository {
+                    reason: root.as_ref().to_string_lossy().to_string(),
+                    source: Box::new(err),
+                })
+            }
+        };
+
+        // Safety: we canonicalized `root` and check the version compatibility
+        // in the next step.
+        let repo = unsafe { Self::open_unchecked(&root).await? };
 
         let current_version = semver::Version::parse(crate::VERSION).unwrap();
         let repo_version = repo.last_migration().await?;
@@ -116,33 +127,21 @@ impl FSRepository {
     /// Open a repository at the given directory, without reading or verifying
     /// the migration version of the repository.
     ///
-    /// Return a tuple of the `[FSRepository]` and canonicalized root.
-    ///
     /// # Safety
+    ///
+    /// The caller must ensure that `root` is canonicalized.
     ///
     /// The caller must ensure that the repository version is compatible with
     /// this version of spfs before using the repository.
-    async unsafe fn open_unchecked<P: AsRef<Path>>(root: P) -> Result<(Self, PathBuf)> {
-        let root = match tokio::fs::canonicalize(&root).await {
-            Ok(r) => r,
-            Err(err) => {
-                return Err(crate::Error::FailedToOpenRepository {
-                    reason: root.as_ref().to_string_lossy().to_string(),
-                    source: Box::new(err),
-                })
-            }
-        };
-
+    async unsafe fn open_unchecked<P: AsRef<Path>>(root: P) -> Result<Self> {
+        let root = root.as_ref();
         let username = whoami::username();
-        Ok((
-            Self {
-                objects: FSHashStore::open(root.join("objects"))?,
-                payloads: FSHashStore::open(root.join("payloads"))?,
-                renders: FSHashStore::open(root.join("renders").join(username)).ok(),
-                root: root.clone(),
-            },
-            root,
-        ))
+        Ok(Self {
+            objects: FSHashStore::open(root.join("objects"))?,
+            payloads: FSHashStore::open(root.join("payloads"))?,
+            renders: FSHashStore::open(root.join("renders").join(username)).ok(),
+            root: root.to_owned(),
+        })
     }
 
     pub fn root(&self) -> PathBuf {
