@@ -190,6 +190,7 @@ async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> (SpecRecipe, Spec)
 }
 
 #[rstest]
+#[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_publish_spec_updates_embed_stubs(#[case] repo: RepoKind) {
@@ -234,6 +235,7 @@ async fn test_repo_publish_spec_updates_embed_stubs(#[case] repo: RepoKind) {
 }
 
 #[rstest]
+#[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_deprecate_spec_updates_embed_stubs(#[case] repo: RepoKind) {
@@ -263,6 +265,7 @@ async fn test_repo_deprecate_spec_updates_embed_stubs(#[case] repo: RepoKind) {
 }
 
 #[rstest]
+#[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: RepoKind) {
@@ -355,6 +358,7 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
 }
 
 #[rstest]
+#[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
@@ -369,6 +373,7 @@ async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
 }
 
 #[rstest]
+#[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
 async fn test_repo_remove_package_removes_embed_stubs(#[case] repo: RepoKind) {
