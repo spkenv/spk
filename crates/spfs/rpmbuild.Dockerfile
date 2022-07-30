@@ -1,8 +1,11 @@
 FROM centos:7 as build_env
 
 RUN yum install -y \
+    epel-release \
+    && yum install -y \
     curl \
     rpm-build \
+    cmake3 \
     && yum clean all
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y
