@@ -82,6 +82,9 @@ impl CmdCheck {
             }
         }
         if !errors.is_empty() && repair_count < errors.len() {
+            if pull_from.is_none() {
+                tracing::info!("running with `--pull` may be able to resolve these issues")
+            }
             return Ok(1);
         }
         tracing::info!("repository OK");
