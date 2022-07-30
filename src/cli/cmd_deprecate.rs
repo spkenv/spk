@@ -92,7 +92,7 @@ impl Run for Deprecate {
     async fn run(&mut self) -> Result<i32> {
         change_deprecation_state(
             ChangeAction::Deprecate,
-            &self.repos.get_repos(None).await?,
+            &self.repos.get_repos_for_destructive_operation().await?,
             &self.packages,
             self.yes,
         )
