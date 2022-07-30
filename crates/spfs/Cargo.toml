@@ -3,7 +3,7 @@ authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
 default-run = "spfs"
 edition = "2021"
 name = "spfs"
-version = "0.34.5"
+version = "0.34.6"
 
 [lib]
 name = "spfs"
