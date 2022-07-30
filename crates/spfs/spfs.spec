@@ -8,8 +8,10 @@ Source0: https://github.com/imageworks/spfs/archive/refs/tags/v%{version}.tar.gz
 
 
 BuildRequires: gcc
+BuildRequires: gcc-c++
+BuildRequires: make
+BuildRequires: cmake3
 BuildRequires: openssl-devel
-BuildRequires: cmake
 
 %define debug_package %{nil}
 
@@ -20,7 +22,7 @@ Filesystem isolation, capture, and distribution.
 %setup -q
 
 %build
-cargo build --release --verbose --all --features=server
+cargo build --release --verbose --all --features=server,cli
 
 %install
 mkdir -p %{buildroot}/usr/bin
