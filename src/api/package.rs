@@ -9,9 +9,13 @@ mod package_test;
 /// Can be resolved into an environment.
 #[enum_dispatch::enum_dispatch]
 pub trait Package:
-    super::Named + super::Versioned + super::Deprecate + Clone + Sync + Send
+    super::Named + super::Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
 {
     type Input: super::Recipe;
+    type Package;
+
+    /// Return a copy of this package as a recipe.
+    fn as_recipe(&self) -> Self::Input;
 
     /// The full identifier for this package
     ///
@@ -37,11 +41,11 @@ pub trait Package:
     ///
     /// Return both top-level embedded packages and packages that are
     /// embedded inside a component. The returned list is a pair of the
-    /// embedded recipe and the component it came from, if any.
+    /// embedded package and the component it came from, if any.
     #[allow(clippy::type_complexity)]
-    fn embedded_as_recipes(
+    fn embedded_as_packages(
         &self,
-    ) -> std::result::Result<Vec<(Self::Input, Option<super::Component>)>, &str>;
+    ) -> std::result::Result<Vec<(Self::Package, Option<super::Component>)>, &str>;
 
     /// The components defined by this package
     fn components(&self) -> &super::ComponentSpecList;
@@ -87,10 +91,18 @@ pub trait Package:
 
         super::Compatibility::Compatible
     }
+
+    /// Return a copy of this package with the given build.
+    fn with_build(&self, build: super::Build) -> Self::Package;
 }
 
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
     type Input = T::Input;
+    type Package = T::Package;
+
+    fn as_recipe(&self) -> Self::Input {
+        (**self).as_recipe()
+    }
 
     fn ident(&self) -> &super::Ident {
         (**self).ident()
@@ -116,10 +128,10 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).embedded()
     }
 
-    fn embedded_as_recipes(
+    fn embedded_as_packages(
         &self,
-    ) -> std::result::Result<Vec<(Self::Input, Option<super::Component>)>, &str> {
-        (**self).embedded_as_recipes()
+    ) -> std::result::Result<Vec<(Self::Package, Option<super::Component>)>, &str> {
+        (**self).embedded_as_packages()
     }
 
     fn components(&self) -> &super::ComponentSpecList {
@@ -145,10 +157,19 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
     fn validate_options(&self, given_options: &super::OptionMap) -> super::Compatibility {
         (**self).validate_options(given_options)
     }
+
+    fn with_build(&self, build: super::Build) -> Self::Package {
+        (**self).with_build(build)
+    }
 }
 
 impl<T: Package + Send + Sync> Package for &T {
     type Input = T::Input;
+    type Package = T::Package;
+
+    fn as_recipe(&self) -> Self::Input {
+        (**self).as_recipe()
+    }
 
     // TODO: use or find a macro for this
     fn ident(&self) -> &super::Ident {
@@ -175,10 +196,10 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).embedded()
     }
 
-    fn embedded_as_recipes(
+    fn embedded_as_packages(
         &self,
-    ) -> std::result::Result<Vec<(Self::Input, Option<super::Component>)>, &str> {
-        (**self).embedded_as_recipes()
+    ) -> std::result::Result<Vec<(Self::Package, Option<super::Component>)>, &str> {
+        (**self).embedded_as_packages()
     }
 
     fn components(&self) -> &super::ComponentSpecList {
@@ -203,5 +224,9 @@ impl<T: Package + Send + Sync> Package for &T {
 
     fn validate_options(&self, given_options: &super::OptionMap) -> super::Compatibility {
         (**self).validate_options(given_options)
+    }
+
+    fn with_build(&self, build: super::Build) -> Self::Package {
+        (**self).with_build(build)
     }
 }

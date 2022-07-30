@@ -153,7 +153,6 @@ pub enum SpecRecipe {
 
 impl super::Recipe for SpecRecipe {
     type Output = Spec;
-    type Recipe = Self;
 
     fn default_variants(&self) -> &Vec<super::OptionMap> {
         match self {
@@ -194,12 +193,6 @@ impl super::Recipe for SpecRecipe {
             SpecRecipe::V0Package(r) => r
                 .generate_binary_build(options, build_env)
                 .map(Spec::V0Package),
-        }
-    }
-
-    fn with_build(&self, build: Option<super::Build>) -> Self {
-        match self {
-            SpecRecipe::V0Package(r) => SpecRecipe::V0Package(r.with_build(build)),
         }
     }
 }
@@ -250,6 +243,13 @@ pub enum Spec {
 // enum_dispatch does not support associated types.
 impl Package for Spec {
     type Input = SpecRecipe;
+    type Package = Self;
+
+    fn as_recipe(&self) -> Self::Input {
+        match self {
+            Spec::V0Package(spec) => SpecRecipe::V0Package(spec.as_recipe()),
+        }
+    }
 
     fn ident(&self) -> &super::Ident {
         match self {
@@ -287,12 +287,12 @@ impl Package for Spec {
         }
     }
 
-    fn embedded_as_recipes(
+    fn embedded_as_packages(
         &self,
-    ) -> std::result::Result<Vec<(Self::Input, Option<super::Component>)>, &str> {
+    ) -> std::result::Result<Vec<(Self::Package, Option<super::Component>)>, &str> {
         match self {
             Spec::V0Package(spec) => spec
-                .embedded_as_recipes()
+                .embedded_as_packages()
                 .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
         }
     }
@@ -324,6 +324,12 @@ impl Package for Spec {
     fn build_script(&self) -> String {
         match self {
             Spec::V0Package(spec) => spec.build_script(),
+        }
+    }
+
+    fn with_build(&self, build: super::Build) -> Self {
+        match self {
+            Spec::V0Package(spec) => Spec::V0Package(spec.with_build(build)),
         }
     }
 }

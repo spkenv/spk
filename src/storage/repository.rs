@@ -33,8 +33,8 @@ impl CachePolicy {
 /// storage types, but perform the same logical operation for any storage type.
 #[async_trait::async_trait]
 pub trait Storage: Sync {
-    type Recipe: api::Recipe<Output = Self::Package, Recipe = Self::Recipe>;
-    type Package: api::Package<Input = Self::Recipe>;
+    type Recipe: api::Recipe<Output = Self::Package>;
+    type Package: api::Package<Input = Self::Recipe, Package = Self::Package>;
 
     /// Publish a package to this repository.
     ///
@@ -45,6 +45,12 @@ pub trait Storage: Sync {
         package: &<Self::Recipe as api::Recipe>::Output,
         components: &HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()>;
+
+    /// Publish an embed stub to this repository.
+    ///
+    /// An embed stub represents an embedded portion of some other package.
+    /// The stub exists to advertise the existence of the embedded package.
+    async fn publish_embed_stub_to_storage(&self, spec: &Self::Package) -> Result<()>;
 
     /// Publish a package spec to this repository.
     ///
@@ -73,6 +79,21 @@ pub trait Storage: Sync {
         pkg: &api::Ident,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>;
 
+    /// Read package information for a specific version and build.
+    ///
+    /// # Errors:
+    /// - PackageNotFoundError: If the package, version, or build does not exist
+    async fn read_package_from_storage(
+        &self,
+        // TODO: use an ident type that must have a build
+        pkg: &api::Ident,
+    ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>>;
+
+    /// Remove an embed stub from this repository.
+    ///
+    /// The given package identifier must identify an [`api::Build::Embedded`].
+    async fn remove_embed_stub_from_storage(&self, pkg: &api::Ident) -> Result<()>;
+
     /// Remove a package from this repository.
     ///
     /// The given package identifier must identify a full package build.
@@ -82,7 +103,7 @@ pub trait Storage: Sync {
 pub(in crate::storage) mod internal {
     use std::collections::{BTreeSet, HashMap};
 
-    use crate::api::{Deprecate, DeprecateMut, Package, Recipe};
+    use crate::api::{Deprecate, DeprecateMut, Package};
     use crate::{with_cache_policy, Error, Result};
 
     use super::{api, CachePolicy};
@@ -91,35 +112,36 @@ pub(in crate::storage) mod internal {
     /// part of its public interface.
     #[async_trait::async_trait]
     pub trait RepositoryExt: super::Repository {
-        /// Add a [`api::Recipe`] to a repository to represent an embedded package.
+        /// Add a [`api::Package`] to a repository to represent an embedded package.
         ///
         /// This spec is a link back to the package that embeds it, and allows
         /// the repository to advertise its existence.
         async fn create_embedded_stub_for_spec(
             &self,
             spec_for_parent: &Self::Package,
-            spec_for_embedded_pkg: &Self::Recipe,
+            spec_for_embedded_pkg: &Self::Package,
             components_that_embed_this_pkg: BTreeSet<api::Component>,
         ) -> Result<()>
         where
-            Self::Recipe: api::DeprecateMut,
+            Self::Package: api::DeprecateMut,
         {
             // The "version spec" must exist for this package to be discoverable.
             // One may already exist from "real" (non-embedded) publishes.
-            let version_spec = spec_for_embedded_pkg.with_build(None);
+            let version_spec = spec_for_embedded_pkg.as_recipe();
             match self.publish_recipe(&version_spec).await {
                 Ok(_) | Err(Error::VersionExistsError(_)) => {}
                 Err(err) => return Err(err),
             };
 
-            let mut spec_for_embedded_pkg = spec_for_embedded_pkg.with_build(Some(
-                api::Build::Embedded(api::EmbeddedSource::Package {
+            let mut spec_for_embedded_pkg = spec_for_embedded_pkg.with_build(api::Build::Embedded(
+                api::EmbeddedSource::Package {
                     ident: Box::new(spec_for_parent.ident().clone()),
                     components: components_that_embed_this_pkg,
-                }),
+                },
             ));
             spec_for_embedded_pkg.set_deprecated(spec_for_parent.is_deprecated())?;
-            self.force_publish_recipe(&spec_for_embedded_pkg).await
+            self.publish_embed_stub_to_storage(&spec_for_embedded_pkg)
+                .await
         }
 
         /// Get all the embedded packages described by a [`api::Package`] and
@@ -127,9 +149,9 @@ pub(in crate::storage) mod internal {
         fn get_embedded_providers(
             &self,
             package: &<Self::Recipe as api::Recipe>::Output,
-        ) -> Result<HashMap<<Self as super::Storage>::Recipe, BTreeSet<api::Component>>> {
+        ) -> Result<HashMap<<Self as super::Storage>::Package, BTreeSet<api::Component>>> {
             let mut embedded_providers = HashMap::new();
-            for (embed, component) in package.embedded_as_recipes()?.into_iter() {
+            for (embed, component) in package.embedded_as_packages()?.into_iter() {
                 // "top level" embedded as assumed to be provided by the "run"
                 // component.
                 (*embedded_providers
@@ -140,7 +162,7 @@ pub(in crate::storage) mod internal {
             Ok(embedded_providers)
         }
 
-        /// Remove the [`api::Recipe`] from a repository that represents the
+        /// Remove the [`api::Package`] from a repository that represents the
         /// embedded package of some other package.
         ///
         /// The stub should be removed when the package that had been embedding
@@ -149,7 +171,7 @@ pub(in crate::storage) mod internal {
         async fn remove_embedded_stub_for_spec(
             &self,
             spec_for_parent: &Self::Package,
-            spec_for_embedded_pkg: &Self::Recipe,
+            spec_for_embedded_pkg: &Self::Package,
             components_that_embed_this_pkg: BTreeSet<api::Component>,
         ) -> Result<()> {
             let spec_for_embedded_pkg =
@@ -159,7 +181,8 @@ pub(in crate::storage) mod internal {
                         ident: Box::new(spec_for_parent.ident().clone()),
                         components: components_that_embed_this_pkg,
                     })));
-            self.remove_recipe(&spec_for_embedded_pkg).await?;
+            self.remove_embed_stub_from_storage(&spec_for_embedded_pkg)
+                .await?;
 
             // If this was the last stub and there are no other builds, remove
             // the "version spec".
@@ -223,6 +246,12 @@ pub trait Repository: Storage + Sync {
     /// Return the repository's name, as in "local" or its name in the config file.
     fn name(&self) -> &api::RepositoryName;
 
+    /// Read an embed stub.
+    ///
+    /// # Errors:
+    /// - PackageNotFoundError: If the package, or version does not exist
+    async fn read_embed_stub(&self, pkg: &api::Ident) -> Result<Arc<Self::Package>>;
+
     /// Read a package recipe for the given package, and version.
     ///
     /// # Errors:
@@ -264,7 +293,12 @@ pub trait Repository: Storage + Sync {
         &self,
         // TODO: use an ident type that must have a build
         pkg: &api::Ident,
-    ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>>;
+    ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>> {
+        match pkg.build.as_ref() {
+            Some(b) if b.is_embed_stub() => self.read_embed_stub(pkg).await,
+            _ => self.read_package_from_storage(pkg).await,
+        }
+    }
 
     /// Publish a package to this repository.
     ///
@@ -276,8 +310,7 @@ pub trait Repository: Storage + Sync {
         components: &HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()>
     where
-        <<<Self as Storage>::Recipe as Recipe>::Output as Package>::Input: Clone,
-        Self::Recipe: api::DeprecateMut,
+        Self::Package: api::DeprecateMut,
     {
         self.publish_package_to_storage(package, components).await?;
 
@@ -303,7 +336,7 @@ pub trait Repository: Storage + Sync {
     /// or deprecation status).
     async fn update_package(&self, package: &<Self::Recipe as api::Recipe>::Output) -> Result<()>
     where
-        Self::Recipe: api::DeprecateMut,
+        Self::Package: api::DeprecateMut,
     {
         // Read the contents of the existing spec, if any, before it is
         // overwritten.
@@ -341,9 +374,9 @@ pub trait Repository: Storage + Sync {
                         .await?
                 }
             } else if embedded_providers_have_changed {
-                let original_keys: HashSet<&Self::Recipe> =
+                let original_keys: HashSet<&Self::Package> =
                     original_embedded_providers.keys().collect();
-                let new_keys: HashSet<&Self::Recipe> = new_embedded_providers.keys().collect();
+                let new_keys: HashSet<&Self::Package> = new_embedded_providers.keys().collect();
 
                 // First deal with embeds that appeared or disappeared.
                 for added_or_removed_spec in original_keys.symmetric_difference(&new_keys) {

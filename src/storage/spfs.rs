@@ -315,6 +315,40 @@ impl Storage for SPFSRepository {
         Ok(components)
     }
 
+    async fn read_package_from_storage(
+        &self,
+        pkg: &api::Ident,
+    ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>> {
+        // TODO: reduce duplicate code with read_recipe
+        let address = self.address();
+        if self.cached_result_permitted() {
+            let r = PACKAGE_CACHE
+                .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
+            if let Some(r) = r {
+                return r.into();
+            }
+        }
+        let r: Result<Arc<api::Spec>> = async {
+            let tag_path = self.build_spec_tag(pkg);
+            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+            let tag = self.resolve_tag(pkg, &tag_spec).await?;
+
+            let mut reader = self.inner.open_payload(tag.target).await?;
+            let mut yaml = String::new();
+            reader.read_to_string(&mut yaml).await?;
+            serde_yaml::from_str(&yaml)
+                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+                .map(Arc::new)
+        }
+        .await;
+        PACKAGE_CACHE.with(|hm| {
+            let mut hm = hm.borrow_mut();
+            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
+            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
+        });
+        r
+    }
+
     async fn publish_package_to_storage(
         &self,
         package: &<Self::Recipe as api::Recipe>::Output,
@@ -377,19 +411,29 @@ impl Storage for SPFSRepository {
         Ok(())
     }
 
+    async fn publish_embed_stub_to_storage(&self, spec: &Self::Package) -> Result<()> {
+        let ident = spec.ident();
+        let tag_path = self.build_spec_tag(ident);
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+
+        let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;
+        let digest = self
+            .inner
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .await?;
+        self.inner.push_tag(&tag_spec, &digest).await?;
+        self.invalidate_caches();
+        Ok(())
+    }
+
     async fn publish_recipe_to_storage(&self, spec: &Self::Recipe, force: bool) -> Result<()> {
-        if spec.ident().build.is_some() {
-            return Err(api::InvalidBuildError::new_error(format!(
-                "Cannot publish recipe with associated build: {}",
-                spec.ident()
-            )));
-        }
-        let tag_path = self.build_spec_tag(&spec.ident());
+        let ident = spec.ident();
+        let tag_path = self.build_spec_tag(&ident);
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
         if !force && self.inner.has_tag(&tag_spec).await {
             // BUG(rbottriell): this creates a race condition but is not super dangerous
             // because of the non-destructive tag history
-            return Err(Error::VersionExistsError(spec.ident()));
+            return Err(Error::VersionExistsError(ident));
         }
 
         let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;
@@ -400,6 +444,11 @@ impl Storage for SPFSRepository {
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
         Ok(())
+    }
+
+    async fn remove_embed_stub_from_storage(&self, pkg: &api::Ident) -> Result<()> {
+        // Same as removing a recipe for now...
+        self.remove_recipe(pkg).await
     }
 
     async fn remove_package_from_storage(&self, pkg: &api::Ident) -> Result<()> {
@@ -513,45 +562,18 @@ impl Repository for SPFSRepository {
         &self.name
     }
 
-    async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
+    async fn read_embed_stub(&self, pkg: &api::Ident) -> Result<Arc<Self::Package>> {
+        // This is similar to read_recipe but it returns a package and uses the
+        // package cache.
         let address = self.address();
-        if pkg.build.is_some() {
-            return Err(format!("cannot read a recipe for a package build: {pkg}").into());
-        }
-        if self.cached_result_permitted() {
-            let r = RECIPE_CACHE
-                .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
-            if let Some(r) = r {
-                return r.into();
+        match pkg.build {
+            Some(api::Build::Embedded(api::EmbeddedSource::Package { .. })) => {
+                // Allow embedded stubs to be read as a "package"
             }
-        }
-        let r: Result<Arc<api::SpecRecipe>> = async {
-            let tag_path = self.build_spec_tag(pkg);
-            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
-            let tag = self.resolve_tag(pkg, &tag_spec).await?;
-
-            let mut reader = self.inner.open_payload(tag.target).await?;
-            let mut yaml = String::new();
-            reader.read_to_string(&mut yaml).await?;
-            serde_yaml::from_str(&yaml)
-                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
-                .map(Arc::new)
-        }
-        .await;
-        RECIPE_CACHE.with(|hm| {
-            let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
-        });
-        r
-    }
-
-    async fn read_package(
-        &self,
-        pkg: &api::Ident,
-    ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>> {
-        // TODO: reduce duplicate code with read_recipe
-        let address = self.address();
+            _ => {
+                return Err(format!("Cannot read this ident as an embed stub: {pkg}").into());
+            }
+        };
         if self.cached_result_permitted() {
             let r = PACKAGE_CACHE
                 .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
@@ -573,6 +595,42 @@ impl Repository for SPFSRepository {
         }
         .await;
         PACKAGE_CACHE.with(|hm| {
+            let mut hm = hm.borrow_mut();
+            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
+            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
+        });
+        r
+    }
+
+    async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
+        let address = self.address();
+        match pkg.build {
+            Some(_) => {
+                return Err(format!("cannot read a recipe for a package build: {pkg}").into());
+            }
+            None => {}
+        };
+        if self.cached_result_permitted() {
+            let r = RECIPE_CACHE
+                .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
+            if let Some(r) = r {
+                return r.into();
+            }
+        }
+        let r: Result<Arc<api::SpecRecipe>> = async {
+            let tag_path = self.build_spec_tag(pkg);
+            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+            let tag = self.resolve_tag(pkg, &tag_spec).await?;
+
+            let mut reader = self.inner.open_payload(tag.target).await?;
+            let mut yaml = String::new();
+            reader.read_to_string(&mut yaml).await?;
+            serde_yaml::from_str(&yaml)
+                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+                .map(Arc::new)
+        }
+        .await;
+        RECIPE_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
             let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
             hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());

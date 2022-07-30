@@ -111,6 +111,25 @@ impl Storage for RuntimeRepository {
         Ok(HashSet::default())
     }
 
+    async fn read_package_from_storage(
+        &self,
+        pkg: &api::Ident,
+    ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>> {
+        let mut path = self.root.join(pkg.to_string());
+        path.push("spec.yaml");
+
+        let mut reader = std::fs::File::open(&path).map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                Error::PackageNotFoundError(pkg.clone())
+            } else {
+                err.into()
+            }
+        })?;
+        serde_yaml::from_reader(&mut reader)
+            .map(Arc::new)
+            .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+    }
+
     async fn read_components_from_storage(
         &self,
         pkg: &api::Ident,
@@ -167,10 +186,20 @@ impl Storage for RuntimeRepository {
         ))
     }
 
+    async fn publish_embed_stub_to_storage(&self, _spec: &Self::Package) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a runtime repository".into(),
+        ))
+    }
+
     async fn publish_recipe_to_storage(&self, _spec: &Self::Recipe, _force: bool) -> Result<()> {
         Err(Error::String(
             "Cannot publish to a runtime repository".into(),
         ))
+    }
+
+    async fn remove_embed_stub_from_storage(&self, _pkg: &api::Ident) -> Result<()> {
+        Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
     async fn remove_package_from_storage(&self, _pkg: &api::Ident) -> Result<()> {
@@ -243,31 +272,16 @@ impl Repository for RuntimeRepository {
             .collect()
     }
 
+    async fn read_embed_stub(&self, pkg: &api::Ident) -> Result<Arc<Self::Package>> {
+        Err(Error::PackageNotFoundError(pkg.clone()))
+    }
+
     async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
         Err(Error::PackageNotFoundError(pkg.clone()))
     }
 
     async fn remove_recipe(&self, _pkg: &api::Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
-    }
-
-    async fn read_package(
-        &self,
-        pkg: &api::Ident,
-    ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>> {
-        let mut path = self.root.join(pkg.to_string());
-        path.push("spec.yaml");
-
-        let mut reader = std::fs::File::open(&path).map_err(|err| {
-            if err.kind() == std::io::ErrorKind::NotFound {
-                Error::PackageNotFoundError(pkg.clone())
-            } else {
-                err.into()
-            }
-        })?;
-        serde_yaml::from_reader(&mut reader)
-            .map(Arc::new)
-            .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
     }
 }
 
