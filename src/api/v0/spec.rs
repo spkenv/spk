@@ -164,14 +164,7 @@ impl api::DeprecateMut for Spec {
 }
 
 impl Package for Spec {
-    type Input = Self;
     type Package = Self;
-
-    fn as_recipe(&self) -> Self::Input {
-        let mut n = self.clone();
-        n.pkg.set_build(None);
-        n
-    }
 
     fn ident(&self) -> &Ident {
         &self.pkg
@@ -205,7 +198,7 @@ impl Package for Spec {
 
     fn embedded_as_packages(
         &self,
-    ) -> std::result::Result<Vec<(Self::Input, Option<api::Component>)>, &str> {
+    ) -> std::result::Result<Vec<(Self::Package, Option<api::Component>)>, &str> {
         self.install
             .embedded
             .iter()

@@ -11,11 +11,7 @@ mod package_test;
 pub trait Package:
     super::Named + super::Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
 {
-    type Input: super::Recipe;
     type Package;
-
-    /// Return a copy of this package as a recipe.
-    fn as_recipe(&self) -> Self::Input;
 
     /// The full identifier for this package
     ///
@@ -97,12 +93,7 @@ pub trait Package:
 }
 
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
-    type Input = T::Input;
     type Package = T::Package;
-
-    fn as_recipe(&self) -> Self::Input {
-        (**self).as_recipe()
-    }
 
     fn ident(&self) -> &super::Ident {
         (**self).ident()
@@ -164,12 +155,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 }
 
 impl<T: Package + Send + Sync> Package for &T {
-    type Input = T::Input;
     type Package = T::Package;
-
-    fn as_recipe(&self) -> Self::Input {
-        (**self).as_recipe()
-    }
 
     // TODO: use or find a macro for this
     fn ident(&self) -> &super::Ident {

@@ -34,7 +34,7 @@ impl CachePolicy {
 #[async_trait::async_trait]
 pub trait Storage: Sync {
     type Recipe: api::Recipe<Output = Self::Package>;
-    type Package: api::Package<Input = Self::Recipe, Package = Self::Package>;
+    type Package: api::Package<Package = Self::Package>;
 
     /// Publish a package to this repository.
     ///
@@ -103,10 +103,9 @@ pub trait Storage: Sync {
 pub(in crate::storage) mod internal {
     use std::collections::{BTreeSet, HashMap};
 
-    use crate::api::{Deprecate, DeprecateMut, Package};
-    use crate::{with_cache_policy, Error, Result};
-
-    use super::{api, CachePolicy};
+    use super::api;
+    use crate::api::prelude::*;
+    use crate::Result;
 
     /// Reusable methods for [`super::Repository`] that are not intended to be
     /// part of its public interface.
@@ -125,14 +124,6 @@ pub(in crate::storage) mod internal {
         where
             Self::Package: api::DeprecateMut,
         {
-            // The "version spec" must exist for this package to be discoverable.
-            // One may already exist from "real" (non-embedded) publishes.
-            let version_spec = spec_for_embedded_pkg.as_recipe();
-            match self.publish_recipe(&version_spec).await {
-                Ok(_) | Err(Error::VersionExistsError(_)) => {}
-                Err(err) => return Err(err),
-            };
-
             let mut spec_for_embedded_pkg = spec_for_embedded_pkg.with_build(api::Build::Embedded(
                 api::EmbeddedSource::Package {
                     ident: Box::new(spec_for_parent.ident().clone()),
@@ -183,26 +174,6 @@ pub(in crate::storage) mod internal {
                     })));
             self.remove_embed_stub_from_storage(&spec_for_embedded_pkg)
                 .await?;
-
-            // If this was the last stub and there are no other builds, remove
-            // the "version spec".
-            if let Ok(builds) = with_cache_policy!(self, CachePolicy::BypassCache, {
-                self.list_package_builds(&spec_for_embedded_pkg)
-            })
-            .await
-            {
-                if builds.is_empty() {
-                    let version_spec = spec_for_embedded_pkg.with_build(None);
-                    if let Err(err) = self.remove_recipe(&version_spec).await {
-                        tracing::warn!(
-                            ?spec_for_embedded_pkg,
-                            ?err,
-                            "Failed to remove version spec after removing last embed stub"
-                        );
-                    }
-                }
-            }
-
             Ok(())
         }
     }

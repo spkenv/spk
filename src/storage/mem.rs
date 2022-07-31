@@ -100,7 +100,7 @@ impl<Recipe> Eq for MemRepository<Recipe> where Recipe: api::Recipe + Send + Syn
 impl<Recipe, Package> Storage for MemRepository<Recipe, Package>
 where
     Recipe: api::Recipe<Output = Package> + Send + Sync,
-    Package: api::Package<Input = Recipe, Package = Package> + Send + Sync,
+    Package: api::Package<Package = Package> + Send + Sync,
 {
     type Recipe = Recipe;
     type Package = Package;
@@ -170,7 +170,6 @@ where
         let mut packages = self.packages.write().await;
         let versions = packages.entry(package.name().to_owned()).or_default();
         let builds = versions.entry(package.version().clone()).or_default();
-
         builds.insert(build, (Arc::new(package.clone()), components.clone()));
         Ok(())
     }
@@ -294,33 +293,45 @@ where
 impl<Recipe, Package> Repository for MemRepository<Recipe, Package>
 where
     Recipe: api::Recipe<Output = Package> + Send + Sync,
-    Package: api::Package<Input = Recipe, Package = Package> + Send + Sync,
+    Package: api::Package<Package = Package> + Send + Sync,
 {
     fn address(&self) -> &url::Url {
         &self.address
     }
 
     async fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>> {
-        Ok(self
-            .specs
-            .read()
-            .await
-            .keys()
-            .map(|s| s.to_owned())
-            .collect())
+        let (specs, packages, embedded) = tokio::join!(
+            self.specs.read(),
+            self.packages.read(),
+            self.embedded_stubs.read()
+        );
+        let mut names: HashSet<_> = specs.keys().map(|s| s.to_owned()).collect();
+        names.extend(packages.keys().map(|s| s.to_owned()));
+        names.extend(embedded.keys().map(|s| s.to_owned()));
+        Ok(names.into_iter().collect())
     }
 
     async fn list_package_versions(
         &self,
         name: &api::PkgName,
     ) -> Result<Arc<Vec<Arc<api::Version>>>> {
-        if let Some(specs) = self.specs.read().await.get(name) {
-            Ok(Arc::new(
-                specs.keys().map(|v| Arc::new(v.to_owned())).collect(),
-            ))
-        } else {
-            Ok(Arc::new(Vec::new()))
+        let (specs, packages, embedded) = tokio::join!(
+            self.specs.read(),
+            self.packages.read(),
+            self.embedded_stubs.read(),
+        );
+        let mut versions = HashSet::new();
+        if let Some(v) = specs.get(name) {
+            versions.extend(v.keys().map(|s| s.to_owned()));
         }
+        if let Some(v) = packages.get(name) {
+            versions.extend(v.keys().map(|s| s.to_owned()));
+        }
+        if let Some(v) = embedded.get(name) {
+            versions.extend(v.keys().map(|s| s.to_owned()));
+        }
+
+        Ok(Arc::new(versions.into_iter().map(Arc::new).collect()))
     }
 
     async fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
