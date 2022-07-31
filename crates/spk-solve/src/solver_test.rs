@@ -113,7 +113,7 @@ async fn test_solver_no_requests(mut solver: Solver) {
 
 #[rstest]
 #[tokio::test]
-async fn test_solver_package_with_no_spec(mut solver: Solver) {
+async fn test_solver_package_with_no_recipe(mut solver: Solver) {
     let repo = RepositoryHandle::new_mem();
 
     let options = option_map! {};
@@ -132,23 +132,17 @@ async fn test_solver_package_with_no_spec(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-pkg"));
 
-    let res = run_and_print_resolve_for_tests(&solver).await;
-    assert!(matches!(
-        res,
-        Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(
-            _
-        )))
-    ));
+    run_and_print_resolve_for_tests(&solver).await.unwrap();
 }
 
 #[rstest]
 #[tokio::test]
-async fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
+async fn test_solver_package_with_no_recipe_from_cmd_line(mut solver: Solver) {
     let repo = RepositoryHandle::new_mem();
 
     let spec = spec!({"pkg": "my-pkg/1.0.0/4OYMIQUY"});
 
-    // publish package without publishing spec
+    // publish package without publishing recipe
     let components = vec![(Component::Run, EMPTY_DIGEST.into())]
         .into_iter()
         .collect();
@@ -162,13 +156,7 @@ async fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
     ));
     solver.add_request(req);
 
-    let res = run_and_print_resolve_for_tests(&solver).await;
-    assert!(matches!(
-        res,
-        Err(Error::GraphError(
-            spk_solve_graph::Error::PackageNotFoundDuringSolve(_)
-        ))
-    ));
+    run_and_print_resolve_for_tests(&solver).await.unwrap();
 }
 
 #[rstest]

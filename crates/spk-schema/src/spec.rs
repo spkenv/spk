@@ -469,14 +469,7 @@ impl Versioned for Spec {
 
 // enum_dispatch does not support associated types.
 impl Package for Spec {
-    type Input = SpecRecipe;
     type Package = Self;
-
-    fn as_recipe(&self) -> Self::Input {
-        match self {
-            Spec::V0Package(spec) => SpecRecipe::V0Package(spec.as_recipe()),
-        }
-    }
 
     fn compat(&self) -> &Compat {
         match self {

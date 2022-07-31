@@ -49,7 +49,7 @@ pub enum PublishPolicy {
 #[async_trait::async_trait]
 pub trait Storage: Sync {
     type Recipe: spk_schema::Recipe<Output = Self::Package, Ident = Ident>;
-    type Package: Package<Input = Self::Recipe, Ident = Ident, Package = Self::Package>;
+    type Package: Package<Ident = Ident, Package = Self::Package>;
 
     /// Return the set of concrete builds for the given package name and version.
     ///
@@ -129,7 +129,7 @@ pub(in crate::storage) mod internal {
     };
     use spk_schema::{Deprecate, DeprecateMut, Package, Recipe};
 
-    use crate::{with_cache_policy, CachePolicy, Error, Result};
+    use crate::{with_cache_policy, CachePolicy, Result};
 
     /// Reusable methods for [`super::Repository`] that are not intended to be
     /// part of its public interface.
@@ -148,17 +148,6 @@ pub(in crate::storage) mod internal {
         where
             Self::Package: DeprecateMut,
         {
-            // The "version spec" must exist for this package to be discoverable.
-            // One may already exist from "real" (non-embedded) publishes.
-            let version_spec = spec_for_embedded_pkg.as_recipe();
-            match self.publish_recipe(&version_spec).await {
-                Ok(_)
-                | Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::VersionExistsError(_),
-                )) => {}
-                Err(err) => return Err(err),
-            };
-
             let mut spec_for_embedded_pkg = spec_for_embedded_pkg.with_build(Build::Embedded(
                 EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
                     ident: spec_for_parent.ident().into(),
