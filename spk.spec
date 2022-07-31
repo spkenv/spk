@@ -13,6 +13,8 @@ BuildRequires: libcap-devel
 BuildRequires: openssl-devel
 BuildRequires: python3-devel
 BuildRequires: python3-pip
+BuildRequires: cmake3
+BuildRequires: make
 Requires: bash
 Requires: spfs == 0.34.6
 
