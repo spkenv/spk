@@ -94,7 +94,7 @@ impl Run for MakeBinary {
         let (_runtime, local, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(),
             spk::storage::local_repository().map_ok(spk::storage::RepositoryHandle::from).map_err(anyhow::Error::from),
-            async { self.repos.get_repos(&["origin".to_string()]).await }
+            async { self.repos.get_repos_for_non_destructive_operation().await }
         )?;
         let repos = repos
             .into_iter()
@@ -130,7 +130,16 @@ impl Run for MakeBinary {
             let mut built = std::collections::HashSet::new();
 
             let variants_to_build = match self.variant {
-                Some(index) => recipe.default_variants().iter().skip(index).take(1),
+                Some(index) if index < recipe.default_variants().len() => {
+                    recipe.default_variants().iter().skip(index).take(1)
+                }
+                Some(index) => {
+                    anyhow::bail!(
+                        "--variant {index} is out of range; {} variant(s) found in {}",
+                        recipe.default_variants().len(),
+                        recipe.ident().format_ident(),
+                    );
+                }
                 None => recipe.default_variants().iter().skip(0).take(usize::MAX),
             };
 
@@ -194,7 +203,7 @@ impl Run for MakeBinary {
                         spk::api::RequestedBy::CommandLine,
                     );
                     let mut cmd = std::process::Command::new(crate::env::spk_exe());
-                    cmd.args(&["env", "--local-repo"])
+                    cmd.args(&["env", "--enable-repo", "local"])
                         .arg(request.pkg.to_string());
                     tracing::info!("entering environment with new package...");
                     tracing::debug!("{:?}", cmd);

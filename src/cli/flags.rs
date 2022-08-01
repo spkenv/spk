@@ -77,9 +77,10 @@ impl Solver {
         let option_map = options.get_options()?;
         let mut solver = spk::Solver::default();
         solver.update_options(option_map);
-        self.repos
-            .configure_solver(&mut solver, &["origin".to_string()])
-            .await?;
+        for (name, repo) in self.repos.get_repos_for_non_destructive_operation().await? {
+            tracing::debug!(repo=%name, "using repository");
+            solver.add_repository(repo);
+        }
         solver.set_binary_only(!self.allow_builds);
         for r in options.get_var_requests()? {
             solver.add_request(r.into());
@@ -442,68 +443,117 @@ where
 
 #[derive(Args, Clone)]
 pub struct Repositories {
-    /// Resolve packages from the local repository (DEPRECATED)
+    /// Enable the local repository (DEPRECATED)
     ///
     /// This option is ignored and the local repository is enabled by default.
     /// Use `--no-local-repo` to disable the local repository.
     #[clap(short, long, value_parser = warn_local_flag_deprecated)]
     pub local_repo: bool,
 
-    /// Disable resolving packages from the local repository
-    #[clap(long)]
+    /// Disable the local repository
+    #[clap(long, hide = true)]
     pub no_local_repo: bool,
 
-    /// Repositories to include in the resolve
+    /// Repositories to enable for the command
     ///
-    /// Any configured spfs repository can be named here as well as a path
-    /// on disk or a full remote repository url.
+    /// Any configured spfs repository can be named here as well as "local" or
+    /// a path on disk or a full remote repository url.
     #[clap(long, short = 'r')]
     pub enable_repo: Vec<String>,
 
-    /// Repositories to exclude in the resolve
+    /// Repositories to exclude from the command
     ///
-    /// Any configured spfs repository can be named here
+    /// Any configured spfs repository can be named here as well as "local"
     #[clap(long)]
     pub disable_repo: Vec<String>,
 }
 
 impl Repositories {
-    /// Configure a solver with the repositories requested on the command line.
+    /// Get the repositories to use based on command-line options.
     ///
-    /// The provided defaults are used if nothing was specified.
-    pub async fn configure_solver<'a, 'b: 'a, I>(
-        &'b self,
-        solver: &mut spk::solve::Solver,
-        defaults: I,
-    ) -> Result<()>
-    where
-        I: IntoIterator<Item = &'a String>,
-    {
-        for (name, repo) in self.get_repos(defaults).await?.into_iter() {
-            tracing::debug!(repo=%name, "using repository");
-            solver.add_repository(repo);
-        }
-        Ok(())
-    }
-
-    /// Get the repositories specified on the command line.
-    ///
-    /// The provided defaults are used if nothing was specified.
-    pub async fn get_repos<'a, 'b: 'a, I: IntoIterator<Item = &'a String>>(
-        &'b self,
-        defaults: I,
+    /// This method enables the local repository by default, except if any
+    /// repositories have been enabled with `--enable-repo`, or if
+    /// `--no-local-repo` is used.
+    pub async fn get_repos_for_destructive_operation(
+        &self,
     ) -> Result<Vec<(String, spk::storage::RepositoryHandle)>> {
         let mut repos = Vec::new();
-        if !self.no_local_repo {
+        if !self.no_local_repo
+            && self.enable_repo.is_empty()
+            // Interpret `--disable-repo local` as a request to not use the
+            // local repo.
+            && !self.disable_repo.iter().any(|s| s == "local")
+        {
             let repo = spk::storage::local_repository().await?;
             repos.push(("local".into(), repo.into()));
         }
-        let enabled = self.enable_repo.iter().chain(defaults.into_iter());
-        for name in enabled {
-            if !self.disable_repo.contains(name) {
-                let repo = spk::storage::remote_repository(name).await?;
-                repos.push((name.into(), repo.into()));
+        for name in self.enable_repo.iter() {
+            if self.disable_repo.contains(name) {
+                continue;
             }
+            if repos.iter().any(|(s, _)| s == name) {
+                // Already added
+                continue;
+            }
+
+            let repo = match name.as_str() {
+                // Allow `--enable-repo local` to work to enable the local repo.
+                "local" => spk::storage::local_repository().await,
+                name => spk::storage::remote_repository(name).await,
+            }?;
+            repos.push((name.into(), repo.into()));
+        }
+        Ok(repos)
+    }
+
+    /// Get the repositories to use based on command-line options.
+    ///
+    /// This method enables the "local" and "origin" repositories by default.
+    /// This behavior can be altered with the `--enable-repo`, `--disable-repo`,
+    /// and `--no-local-repo` flags.
+    ///
+    /// For backwards compatibility purposes, if the deprecated `--local-repo`
+    /// flag is used, then only the local repo is enabled.
+    ///
+    /// The `--enable-repo` is considered additive instead of exclusive.
+    ///
+    /// Remote repos enabled with `--enable-repo` are added to the list before
+    /// "origin".
+    pub async fn get_repos_for_non_destructive_operation(
+        &self,
+    ) -> Result<Vec<(String, spk::storage::RepositoryHandle)>> {
+        let mut repos = Vec::new();
+        if !self.no_local_repo
+            // Interpret `--disable-repo local` as a request to not use the
+            // local repo.
+            && !self.disable_repo.iter().any(|s| s == "local")
+        {
+            let repo = spk::storage::local_repository().await?;
+            repos.push(("local".into(), repo.into()));
+        }
+        if self.local_repo {
+            return Ok(repos);
+        }
+        for name in self
+            .enable_repo
+            .iter()
+            .map(|s| s.as_ref())
+            .chain(std::iter::once("origin"))
+        {
+            if self.disable_repo.iter().any(|s| s == name) {
+                continue;
+            }
+            if repos.iter().any(|(s, _)| s == name) {
+                // Already added
+                continue;
+            }
+
+            let repo = match name {
+                // Allow `--enable-repo local` to work to enable the local repo.
+                "local" => spk::storage::local_repository().await,
+                name => spk::storage::remote_repository(name).await,
+            }?;
+            repos.push((name.into(), repo.into()));
         }
         Ok(repos)
     }
@@ -577,6 +627,8 @@ fn warn_local_flag_deprecated(arg: &str) -> Result<bool> {
         eprintln!(
             "{warning}: The -l (--local-repo) is deprecated, please remove it from your command line!",
             warning = "WARNING".yellow());
+        Ok(true)
+    } else {
+        Ok(false)
     }
-    Ok(true)
 }

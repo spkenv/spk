@@ -6,6 +6,7 @@ use std::io::Write;
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
+use itertools::Itertools;
 use spk::{api, io::Format};
 
 use super::{flags, CommandArgs, Run};
@@ -28,12 +29,11 @@ pub struct Remove {
 #[async_trait::async_trait]
 impl Run for Remove {
     async fn run(&mut self) -> Result<i32> {
-        let repos = self.repos.get_repos(None).await?;
+        let repos = self.repos.get_repos_for_destructive_operation().await?;
         if repos.is_empty() {
             eprintln!(
                 "{}",
-                "No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r)"
-                    .yellow()
+                "No repositories selected, specify --enable-repo (-r)".yellow()
             );
             return Ok(1);
         }
@@ -43,8 +43,11 @@ impl Run for Remove {
                 let mut input = String::new();
                 print!(
                     "{}",
-                    format!("Are you sure that you want to remove all versions of {name}? [y/N]: ")
-                        .yellow()
+                    format!(
+                        "Are you sure that you want to remove all versions of {name} from {repos}? [y/N]: ",
+                        repos = repos.iter().map(|(name, _)| name).join(", ")
+                    )
+                    .yellow()
                 );
                 let _ = std::io::stdout().flush();
                 std::io::stdin().read_line(&mut input)?;

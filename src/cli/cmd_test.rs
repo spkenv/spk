@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Args;
+use spk::io::Format;
 use spk::prelude::*;
 
 use super::{flags, CommandArgs, Run};
@@ -51,10 +52,9 @@ pub struct Test {
 impl Run for Test {
     async fn run(&mut self) -> Result<i32> {
         let options = self.options.get_options()?;
-        let default_repos = ["origin".to_string()];
         let (_runtime, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(),
-            self.repos.get_repos(&default_repos)
+            self.repos.get_repos_for_non_destructive_operation()
         )?;
         let repos = repos
             .into_iter()
@@ -107,7 +107,16 @@ impl Run for Test {
                 let mut tested = std::collections::HashSet::new();
 
                 let variants_to_test = match self.variant {
-                    Some(index) => recipe.default_variants().iter().skip(index).take(1),
+                    Some(index) if index < recipe.default_variants().len() => {
+                        recipe.default_variants().iter().skip(index).take(1)
+                    }
+                    Some(index) => {
+                        anyhow::bail!(
+                            "--variant {index} is out of range; {} variant(s) found in {}",
+                            recipe.default_variants().len(),
+                            recipe.ident().format_ident(),
+                        );
+                    }
                     None => recipe.default_variants().iter().skip(0).take(usize::MAX),
                 };
 
