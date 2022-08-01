@@ -132,6 +132,11 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         }
     }
 
+    /// Create a new decision to build a package from a recipe.
+    ///
+    /// The returned decision describes building the given recipe
+    /// into the package described by the given spec so that it
+    /// can be included in the final solution.
     pub fn build_package(
         self,
         recipe: &Arc<api::SpecRecipe>,
