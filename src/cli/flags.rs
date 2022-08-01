@@ -594,6 +594,11 @@ pub struct DecisionFormatterSettings {
     ///
     #[clap(long, env = "SPK_LONG_SOLVE_THRESHOLD", default_value_t = 15)]
     pub long_solves: u64,
+
+    /// Display a visualization of the solver progress if the solve takes longer
+    /// than a few seconds.
+    #[clap(long)]
+    pub status_bar: bool,
 }
 
 impl DecisionFormatterSettings {
@@ -608,14 +613,16 @@ impl DecisionFormatterSettings {
     /// case some extra configuration might be needed before calling
     /// build.
     pub fn get_formatter_builder(&self, verbosity: u32) -> spk::io::DecisionFormatterBuilder {
-        spk::io::DecisionFormatterBuilder::new()
+        let mut builder = spk::io::DecisionFormatterBuilder::new();
+        builder
             .with_verbosity(verbosity)
             .with_time_and_stats(self.time)
             .with_verbosity_increase_every(self.increase_verbosity)
             .with_timeout(self.timeout)
             .with_solution(self.show_solution)
             .with_long_solves_threshold(self.long_solves)
-            .clone()
+            .with_status_bar(self.status_bar);
+        builder
     }
 }
 

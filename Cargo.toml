@@ -25,7 +25,7 @@ async-stream = "0.3"
 async-trait = "0.1"
 clap = { version = "3.2", features = ["derive", "env"] }
 colored = "2.0"
-ctrlc = "3.2"
+console = "0.15"
 data-encoding = "2.3"
 dyn-clone = "1.0"
 enum_dispatch = "0.3.8"
@@ -52,6 +52,7 @@ serde_yaml = "0.8.17"
 sentry = { version = "0.27.0", optional = true }
 sentry-anyhow = { version = "0.27.0", optional = true }
 sentry-tracing = { version = "0.27.0", optional = true }
+signal-hook = "0.3"
 spfs = { git = 'https://github.com/imageworks/spfs', tag = 'v0.34.4' }
 sys-info = "0.9.0"
 tar = "0.4.30"

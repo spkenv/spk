@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+mod status_line;
+
 use std::{
     collections::VecDeque,
     fmt::Write,
@@ -14,26 +16,34 @@ use std::{
 };
 
 use async_stream::stream;
+use console::Term;
 use futures::{Stream, StreamExt};
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 
 use colored::Colorize;
 
 use crate::{api, option_map, solve, Error, Result};
 
-static USER_CANCELLED: Lazy<AtomicBool> = Lazy::new(|| {
+use self::status_line::StatusLine;
+
+static USER_CANCELLED: Lazy<Arc<AtomicBool>> = Lazy::new(|| {
+    // Initialise the USER_CANCELLED value
+    let b = Arc::new(AtomicBool::new(false));
+
     // Set up a ctrl-c handler to allow a solve to be interrupted
     // gracefully by the user from the FormatterDecisionIter below
-    if let Err(err) = ctrlc::set_handler(|| {
-        USER_CANCELLED.store(true, Ordering::Relaxed);
-    }) {
-        eprintln!(
-            "Unable to setup ctrl-c handler for USER_CANCELLED because: {}",
-            err.to_string().red()
-        );
+    match signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&b)) {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!(
+                "Unable to setup ctrl-c handler for USER_CANCELLED because: {}",
+                err.to_string().red()
+            )
+        }
     };
-    // Initialise the USER_CANCELLED value
-    AtomicBool::new(false)
+
+    b
 });
 
 // Show request fields that are non-default values at v > 1
@@ -375,6 +385,15 @@ pub fn format_change(
     }
 }
 
+/// How long to wait before showing the solver status bar.
+const STATUS_BAR_DELAY: Duration = Duration::from_secs(5);
+
+enum StatusBarStatus {
+    Inactive,
+    Active(StatusLine),
+    Disabled,
+}
+
 pub struct FormattedDecisionsIter<I>
 where
     I: Stream<Item = Result<(Arc<solve::graph::Node>, Arc<solve::graph::Decision>)>>,
@@ -387,6 +406,8 @@ where
     start: Instant,
     too_long_counter: u64,
     settings: DecisionFormatterSettings,
+    status_bar: StatusBarStatus,
+    status_line_rendered_hash: u64,
 }
 
 impl<I> FormattedDecisionsIter<I>
@@ -404,7 +425,13 @@ where
             verbosity: settings.verbosity,
             start: Instant::now(),
             too_long_counter: 0,
+            status_bar: if settings.status_bar {
+                StatusBarStatus::Inactive
+            } else {
+                StatusBarStatus::Disabled
+            },
             settings,
+            status_line_rendered_hash: 0,
         }
     }
 
@@ -481,6 +508,53 @@ where
                             continue 'outer;
                         }
                     };
+
+                    if let StatusBarStatus::Active(status_line) = &mut self.status_bar {
+                        let resolved_packages_hash = node.state.get_resolved_packages_hash();
+                        if resolved_packages_hash != self.status_line_rendered_hash {
+                            let packages = node.state.get_ordered_resolved_packages();
+                            let mut renders = Vec::with_capacity(packages.len());
+                            for package in packages.iter() {
+                                let name = package.pkg.name.as_str();
+                                let version = package.pkg.version.to_string();
+                                let build = package.pkg.build.as_ref().unwrap().to_string();
+                                let max_len = name.len().max(version.len()).max(build.len());
+                                renders.push((name, version, build, max_len));
+                            }
+                            for row in 0..3 {
+                                status_line.set_status(
+                                    row,
+                                    renders
+                                        .iter()
+                                        .map(|item| {
+                                            format!(
+                                                "{:width$}",
+                                                match row {
+                                                    0 => item.0,
+                                                    1 => &item.1,
+                                                    2 => &item.2,
+                                                    _ => unreachable!(),
+                                                },
+                                                width = item.3
+                                            )
+                                        })
+                                        .join(" |"),
+                                );
+                            }
+                            status_line.flush();
+                            self.status_line_rendered_hash = resolved_packages_hash
+                        }
+                    } else if !matches!(self.status_bar, StatusBarStatus::Disabled)
+                        && self.start.elapsed() >= STATUS_BAR_DELAY
+                    {
+                        // Don't create the status bar if the terminal is unattended.
+                        let term = Term::buffered_stdout();
+                        self.status_bar = if term.features().is_attended() {
+                            StatusBarStatus::Active(StatusLine::new(term, 3))
+                        } else {
+                            StatusBarStatus::Disabled
+                        };
+                    }
 
                     if self.verbosity > 5 {
                         // Show the state's package requests and resolved
@@ -708,6 +782,7 @@ pub struct DecisionFormatterBuilder {
     show_solution: bool,
     heading_prefix: String,
     long_solves_threshold: u64,
+    status_bar: bool,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -726,6 +801,7 @@ impl DecisionFormatterBuilder {
             show_solution: false,
             heading_prefix: String::from(""),
             long_solves_threshold: 0,
+            status_bar: false,
         }
     }
 
@@ -764,6 +840,11 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_status_bar(&mut self, enable: bool) -> &mut Self {
+        self.status_bar = enable;
+        self
+    }
+
     pub fn build(&self) -> DecisionFormatter {
         let too_long_seconds = if self.verbosity_increase_seconds == 0
             || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
@@ -798,6 +879,7 @@ impl DecisionFormatterBuilder {
                 show_solution: self.show_solution || self.verbosity > 0,
                 heading_prefix: String::from(""),
                 long_solves_threshold: self.long_solves_threshold,
+                status_bar: self.status_bar,
             },
         }
     }
@@ -813,6 +895,7 @@ pub(crate) struct DecisionFormatterSettings {
     /// This is followed immediately by "Installed Packages"
     pub(crate) heading_prefix: String,
     pub(crate) long_solves_threshold: u64,
+    pub(crate) status_bar: bool,
 }
 
 #[derive(Debug, Clone)]
