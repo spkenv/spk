@@ -225,7 +225,8 @@ impl RangeIdent {
             return Compatibility::Incompatible("different package names".into());
         }
 
-        let is_source_build = self.build != Some(Build::Source) && spec.ident().is_source();
+        let source_package_requested = self.build == Some(Build::Source);
+        let is_source_build = spec.ident().is_source() && !source_package_requested;
         if !self.components.is_empty() && !is_source_build {
             let required_components = spec.components().resolve_uses(self.components.iter());
             let available_components: HashSet<_> =
