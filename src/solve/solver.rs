@@ -169,6 +169,14 @@ impl Solver {
         )))
     }
 
+    /// Resolve the build environment, and generate a build for
+    /// the given recipe and state.
+    ///
+    /// The returned spec describes the package that should be built
+    /// in order to satisfy the set of requests in the provided state.
+    /// The build environment for the package is resolved in order to
+    /// validate that a build is possible and to generate the resulting
+    /// spec.
     #[async_recursion::async_recursion]
     async fn resolve_new_build(
         &self,
