@@ -1,7 +1,8 @@
-use enum_dispatch::enum_dispatch;
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
+use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
 use std::collections::HashSet;
 
@@ -49,10 +50,7 @@ pub trait ValidatorT {
         &self,
         _state: &graph::State,
         _recipe: &R,
-    ) -> crate::Result<api::Compatibility> {
-        // defer to the later call to validate_package by default
-        Ok(api::Compatibility::Compatible)
-    }
+    ) -> crate::Result<api::Compatibility>;
 }
 
 /// Ensures that deprecated packages are not included unless specifically requested.
@@ -140,6 +138,14 @@ impl ValidatorT for EmbeddedPackageValidator {
             }
         }
 
+        Ok(api::Compatibility::Compatible)
+    }
+
+    fn validate_recipe<R: Recipe>(
+        &self,
+        _state: &graph::State,
+        _recipe: &R,
+    ) -> crate::Result<api::Compatibility> {
         Ok(api::Compatibility::Compatible)
     }
 }
@@ -368,6 +374,14 @@ impl ValidatorT for ComponentsValidator {
         }
         Ok(Compatible)
     }
+
+    fn validate_recipe<R: Recipe>(
+        &self,
+        _state: &graph::State,
+        _recipe: &R,
+    ) -> crate::Result<api::Compatibility> {
+        Ok(api::Compatibility::Compatible)
+    }
 }
 
 /// Validates that the pkg install requirements do not conflict with the existing resolve.
@@ -389,6 +403,16 @@ impl ValidatorT for PkgRequirementsValidator {
         }
 
         Ok(Compatibility::Compatible)
+    }
+
+    fn validate_recipe<R: Recipe>(
+        &self,
+        _state: &graph::State,
+        _recipe: &R,
+    ) -> crate::Result<api::Compatibility> {
+        // the recipe cannot tell us what the
+        // runtime requirements will be
+        Ok(api::Compatibility::Compatible)
     }
 }
 
@@ -540,6 +564,16 @@ impl ValidatorT for VarRequirementsValidator {
                 }
             }
         }
+        Ok(api::Compatibility::Compatible)
+    }
+
+    fn validate_recipe<R: Recipe>(
+        &self,
+        _state: &graph::State,
+        _recipe: &R,
+    ) -> crate::Result<api::Compatibility> {
+        // the recipe cannot tell us what the
+        // runtime requirements will be
         Ok(api::Compatibility::Compatible)
     }
 }
