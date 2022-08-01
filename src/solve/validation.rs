@@ -323,12 +323,6 @@ impl ValidatorT for ComponentsValidator {
         source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
         use Compatibility::Compatible;
-        if spec.ident().is_source() {
-            // we are only concerned with published package components,
-            // source builds will validate_package against the spec separately
-            // (and provide a better error message)
-            return Ok(Compatible);
-        }
         let available_components: std::collections::HashSet<_> = match source {
             PackageSource::Repository { components, .. } => components.keys().collect(),
             PackageSource::BuildFromSource { .. } => spec.components().names(),
