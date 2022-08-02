@@ -413,16 +413,6 @@ impl Repository for SPFSRepository {
         spec: &api::Spec,
         components: HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
-        #[cfg(test)]
-        if let Err(Error::PackageNotFoundError(pkg)) =
-            self.read_spec(&spec.pkg.with_build(None)).await
-        {
-            return Err(Error::String(format!(
-                "[INTERNAL] version spec must be published before a specific build: {:?}",
-                pkg
-            )));
-        }
-
         let tag_path = self.build_package_tag(&spec.pkg)?;
 
         // We will also publish the 'run' component in the old style
