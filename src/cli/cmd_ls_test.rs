@@ -331,3 +331,40 @@ async fn test_ls_dash_dash_disable_repo_shows_local_packages_only() {
     assert_eq!(opt.ls.output.vec.len(), 1);
     assert_eq!(opt.ls.output.vec.get(0).unwrap(), "my-local-pkg");
 }
+
+#[tokio::test]
+async fn test_ls_succeeds_for_package_with_no_version_spec() {
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
+
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    // Publish a package (with a build) but no "version spec"
+    let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
+    rt.tmprepo
+        .publish_package(
+            &spec,
+            vec![(api::Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    let mut opt = Opt::try_parse_from(["ls", "my-pkg"]).unwrap();
+    opt.ls.run().await.unwrap();
+    assert_eq!(
+        opt.ls.output.warnings.len(),
+        0,
+        "expected no warnings; got: {}",
+        opt.ls.output.warnings[0]
+    );
+    assert_eq!(opt.ls.output.vec.len(), 1);
+    assert_eq!(opt.ls.output.vec.get(0).unwrap(), "1.0.0");
+}
