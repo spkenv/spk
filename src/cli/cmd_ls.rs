@@ -17,6 +17,9 @@ mod cmd_ls_test;
 pub trait Output: Default + Send + Sync {
     /// A line of output to display.
     fn println(&mut self, line: String);
+
+    /// A line of output to display as a warning.
+    fn warn(&mut self, line: String);
 }
 
 #[derive(Default)]
@@ -25,6 +28,10 @@ pub struct Console {}
 impl Output for Console {
     fn println(&mut self, line: String) {
         println!("{line}");
+    }
+
+    fn warn(&mut self, line: String) {
+        tracing::warn!("{line}");
     }
 }
 
@@ -117,7 +124,7 @@ impl<T: Output> Run for Ls<T> {
                     let spec = match repo.read_spec(&ident).await {
                         Ok(spec) => spec,
                         Err(err) => {
-                            tracing::warn!("Skipping {ident}: {err}");
+                            self.output.warn(format!("Skipping {ident}: {err}"));
                             continue;
                         }
                     };
@@ -156,7 +163,7 @@ impl<T: Output> Run for Ls<T> {
                         let spec = match repo.read_spec(&build).await {
                             Ok(spec) => spec,
                             Err(err) => {
-                                tracing::warn!("Skipping {build}: {err}");
+                                self.output.warn(format!("Skipping {build}: {err}"));
                                 continue;
                             }
                         };
@@ -273,7 +280,7 @@ impl<T: Output> Ls<T> {
                     let spec = match repo.read_spec(&build).await {
                         Ok(spec) => spec,
                         Err(err) => {
-                            tracing::warn!("Skipping {build}: {err}");
+                            self.output.warn(format!("Skipping {build}: {err}"));
                             continue;
                         }
                     };

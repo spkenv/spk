@@ -12,11 +12,16 @@ use super::{Ls, Output, Run};
 #[derive(Default)]
 struct OutputToVec {
     vec: Vec<String>,
+    warnings: Vec<String>,
 }
 
 impl Output for OutputToVec {
     fn println(&mut self, line: String) {
         self.vec.push(line);
+    }
+
+    fn warn(&mut self, line: String) {
+        self.warnings.push(line);
     }
 }
 
