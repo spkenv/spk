@@ -423,3 +423,70 @@ async fn test_ls_hides_deprecated_version() {
     assert!(opt.ls.output.vec.get(0).unwrap().contains("1.0.0"));
     assert!(opt.ls.output.vec.get(0).unwrap().contains("DEPRECATED"));
 }
+
+#[tokio::test]
+async fn test_ls_shows_partially_deprecated_version() {
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
+
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    // Publish two specs; one deprecated and one not.
+
+    let mut spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
+    spec.deprecated = true;
+    rt.tmprepo
+        .publish_package(
+            &spec,
+            vec![(api::Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    let spec = spec!({"pkg": "my-pkg/1.0.0/CU7ZWOIF"});
+    rt.tmprepo
+        .publish_package(
+            &spec,
+            vec![(api::Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    // `ls` without showing deprecated
+    let mut opt = Opt::try_parse_from(["ls", "my-pkg"]).unwrap();
+    opt.ls.run().await.unwrap();
+    assert_eq!(
+        opt.ls.output.warnings.len(),
+        0,
+        "expected no warnings; got: {}",
+        opt.ls.output.warnings[0]
+    );
+    // There is at least one non-deprecated build, so the version should be
+    // listed.
+    assert_eq!(opt.ls.output.vec.len(), 1);
+    assert_eq!(opt.ls.output.vec.get(0).unwrap(), "1.0.0");
+
+    // `ls` with showing deprecated
+    let mut opt = Opt::try_parse_from(["ls", "--deprecated", "my-pkg"]).unwrap();
+    opt.ls.run().await.unwrap();
+    assert_eq!(
+        opt.ls.output.warnings.len(),
+        0,
+        "expected no warnings; got: {}",
+        opt.ls.output.warnings[0]
+    );
+    assert_eq!(opt.ls.output.vec.len(), 1);
+    assert!(opt.ls.output.vec.get(0).unwrap().contains("1.0.0"));
+    assert!(opt.ls.output.vec.get(0).unwrap().contains("partially"));
+    assert!(opt.ls.output.vec.get(0).unwrap().contains("DEPRECATED"));
+}
