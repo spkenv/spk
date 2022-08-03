@@ -52,7 +52,7 @@ pub struct SPFSRepository {
 
 impl std::hash::Hash for SPFSRepository {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.inner.address().hash(state);
+        self.address.hash(state);
     }
 }
 
@@ -70,7 +70,7 @@ impl PartialOrd for SPFSRepository {
 
 impl PartialEq for SPFSRepository {
     fn eq(&self, other: &Self) -> bool {
-        self.inner.address() == other.inner.address()
+        self.address == other.address
     }
 }
 
