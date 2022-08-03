@@ -329,44 +329,26 @@ fn is_cnproc_disabled() -> bool {
 ///
 /// Return None if the pid is not found.
 async fn identify_mount_namespace_of_process(pid: u32) -> Result<Option<std::path::PathBuf>> {
-    const INITIAL_NS_READ_RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(5);
-    const INITIAL_NS_READ_RETRY_COUNT: usize = 50;
-
     let ns_path = std::path::Path::new(PROC_DIR)
         .join(pid.to_string())
         .join("ns/mnt");
 
     tracing::debug!(?ns_path, "Getting process namespace");
-    let interval = tokio::time::interval(INITIAL_NS_READ_RETRY_DELAY);
-    let mut retries = IntervalStream::new(interval).take(INITIAL_NS_READ_RETRY_COUNT);
-    while retries.next().await.is_some() {
-        match tokio::fs::read_link(&ns_path).await {
-            Ok(ns) => return Ok(Some(ns)),
-            Err(err) => match err.kind() {
-                std::io::ErrorKind::PermissionDenied => {
-                    // NOTE(rbottriell): it's possible for the kernel to return
-                    // permission issues when the process has not yet fully been
-                    // established (maybe). It seems that when the monitor
-                    // process is too fast this can happen, but that trying again
-                    // a short time later succeeds just fine.
-                    continue;
-                }
-                std::io::ErrorKind::NotFound => {
-                    // it's possible that the runtime process already exited
-                    // or was never started
-                    tracing::debug!(
-                        ?ns_path,
-                        "runtime process appears to no longer exists or was never started"
-                    );
-                    return Ok(None);
-                }
-                _ => return Err(Error::RuntimeReadError(ns_path, err)),
-            },
-        };
+    match tokio::fs::read_link(&ns_path).await {
+        Ok(ns) => Ok(Some(ns)),
+        Err(err) => match err.kind() {
+            std::io::ErrorKind::NotFound => {
+                // it's possible that the runtime process already exited
+                // or was never started
+                tracing::debug!(
+                    ?ns_path,
+                    "runtime process appears to no longer exists or was never started"
+                );
+                Ok(None)
+            }
+            _ => Err(Error::RuntimeReadError(ns_path, err)),
+        },
     }
-    Err(Error::String(
-        "Could not read runtime owner's namespace after several attempts".into(),
-    ))
 }
 
 /// Provided the namespace symlink content from /proc fs,
