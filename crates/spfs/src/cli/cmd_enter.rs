@@ -6,7 +6,10 @@ use std::ffi::OsString;
 
 use clap::Parser;
 use spfs::Error;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::{
+    io::AsyncWriteExt,
+    signal::unix::{signal, SignalKind},
+};
 
 #[macro_use]
 mod args;
@@ -86,18 +89,44 @@ impl CmdEnter {
                 .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
             let owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
 
-            if let Err(err) = spfs::env::spawn_monitor_for_runtime(&owned) {
-                if let Err(err) = owned.delete().await {
-                    tracing::error!(
-                        ?err,
-                        "failed to cleanup runtime data after failure to start monitor"
-                    );
+            // At this point, our pid is owned by root and has not moved into
+            // the proper mount namespace; spfs-monitor will not be able to
+            // read the namespace because it runs as a normal user, and would
+            // read the incorrect namespace if it were to read it right now.
+
+            let mut monitor_stdin = match spfs::env::spawn_monitor_for_runtime(&owned) {
+                Err(err) => {
+                    if let Err(err) = owned.delete().await {
+                        tracing::error!(
+                            ?err,
+                            "failed to cleanup runtime data after failure to start monitor"
+                        );
+                    }
+                    return Err(err);
                 }
-                return Err(err);
-            }
+                Ok(mut child) => child.stdin.take().ok_or_else(|| {
+                    spfs::Error::from("monitor was spawned without stdin attached")
+                })?,
+            };
 
             tracing::debug!("initializing runtime");
             spfs::initialize_runtime(&owned).await?;
+
+            // Now we have dropped privileges and are running as the invoking
+            // user (same uid as spfs-monitor) and have entered the mount
+            // namespace that spfs-monitor should be monitoring. Inform it to
+            // proceed.
+            tracing::debug!("informing spfs-monitor to proceed");
+            monitor_stdin
+                .write_all("go".as_bytes())
+                .await
+                .map_err(|err| {
+                    spfs::Error::String(format!("Failed to write to spfs-monitor: {err}"))
+                })?;
+            monitor_stdin.flush().await.map_err(|err| {
+                spfs::Error::String(format!("Failed to flush write to spfs-monitor: {err}"))
+            })?;
+            drop(monitor_stdin);
 
             owned.ensure_startup_scripts()?;
             std::env::set_var("SPFS_RUNTIME", owned.name());

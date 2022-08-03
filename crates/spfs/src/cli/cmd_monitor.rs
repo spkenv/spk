@@ -2,9 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::time::Duration;
+
 use clap::Parser;
 use spfs::Error;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::{
+    io::AsyncReadExt,
+    signal::unix::{signal, SignalKind},
+    time::timeout,
+};
 
 #[macro_use]
 mod args;
@@ -42,6 +48,28 @@ impl CmdMonitor {
         let runtime = storage.read_runtime(&self.runtime).await?;
 
         let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_monitor(runtime).await?;
+
+        // Wait to be informed that it is now safe to read the mount namespace
+        // of the pid we are meant to be monitoring.
+        let mut stdin = tokio::io::stdin();
+        let mut buffer = [0; 64];
+        let wait_for_ok = stdin.read(&mut buffer);
+        match timeout(Duration::from_secs(10), wait_for_ok).await {
+            Ok(Ok(bytes_read)) if bytes_read > 0 => {
+                tracing::debug!(
+                    ?bytes_read,
+                    "Read from parent process: {:?}",
+                    &buffer[..bytes_read]
+                );
+            }
+            Ok(_) => {
+                tracing::warn!("Parent process quit before sending us anything!");
+            }
+            Err(_) => {
+                tracing::warn!("Timeout waiting for parent process!");
+            }
+        }
+
         let fut = spfs::env::wait_for_empty_runtime(&owned);
         let res = tokio::select! {
             res = fut => res,
