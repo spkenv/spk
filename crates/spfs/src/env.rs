@@ -134,7 +134,10 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
     // terminal. Otherwise, using spfs run under output-capturing circumstances
     // can cause the command to hang forever. Eg: output=$(spfs run - -- echo "hello")
     cmd.stdout(std::process::Stdio::null());
-    cmd.stdin(std::process::Stdio::null());
+    // however, we need to communicate with the monitor process to tell it when
+    // it is able to read our mount namespace, once we've established it and
+    // dropped privs.
+    cmd.stdin(std::process::Stdio::piped());
     // However, being able to see the logs is valuable when debugging, and so
     // we add a switch to enable this if desired
     if std::env::var(SPFS_MONITOR_FOREGROUND_LOGGING_VAR).is_err() {
