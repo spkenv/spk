@@ -9,6 +9,10 @@ use crate::cmd_make_binary::PackageSpecifier;
 
 use super::{flags, CommandArgs, Run};
 
+#[cfg(test)]
+#[path = "./cmd_build_test.rs"]
+mod cmd_build_test;
+
 /// Build a binary package from a spec file or source package.
 #[derive(Args, Clone)]
 #[clap(visible_aliases = &["make", "mk"])]

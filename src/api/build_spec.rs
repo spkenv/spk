@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -52,20 +52,47 @@ impl BuildSpec {
         package_name: Option<&PkgName>,
         given: &OptionMap,
     ) -> OptionMap {
+        // Track which of the given options are used (e.g., also appear in
+        // `self.options`).
+        let mut unused_given: BTreeMap<&super::OptName, &String> =
+            given.iter().map(|(k, v)| (k.as_ref(), v)).collect();
+
         let mut resolved = OptionMap::default();
         for opt in self.options.iter() {
             let name = opt.full_name();
             let mut given_value: Option<&String> = None;
 
             if let Some(package_name) = package_name {
-                given_value = given.get(&name.with_default_namespace(package_name))
+                let given_key = name.with_default_namespace(package_name);
+                given_value = given.get(&given_key);
+                if given_value.is_some() {
+                    unused_given.remove(AsRef::<super::OptName>::as_ref(&given_key));
+                    // If a namespaced option was used, consider its non-
+                    // namespaced counterpart (if any) used too, so it doesn't
+                    // mess up the precedence mechanism.
+                    let _ = opt
+                        .base_name()
+                        .try_into()
+                        .map(|base_name: super::OptNameBuf| {
+                            unused_given.remove(AsRef::<super::OptName>::as_ref(&base_name))
+                        });
+                }
             }
             if given_value.is_none() {
-                given_value = given.get(name)
+                given_value = given.get(name);
+                if given_value.is_some() {
+                    unused_given.remove(&name);
+                }
             }
 
             let value = opt.get_value(given_value.map(String::as_ref));
             resolved.insert(name.to_owned(), value);
+        }
+
+        // Tack on any unused given options so that they become part of the
+        // build digest.
+        for (key, value) in unused_given.into_iter() {
+            resolved.insert(key.to_owned(), value.to_owned());
         }
 
         resolved
