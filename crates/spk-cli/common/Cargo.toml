@@ -40,4 +40,4 @@ whoami = { workspace = true }
 nix = { workspace = true }
 
 [dev-dependencies]
-rstest = "0.15.0"
+rstest = { workspace = true }

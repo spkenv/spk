@@ -21,4 +21,4 @@ tokio = "1.20"
 [dev-dependencies]
 tar = "0.4.3"
 spk-build = { path = '../../spk-build' }
-rstest = "0.15.0"
+rstest = { workspace = true }
