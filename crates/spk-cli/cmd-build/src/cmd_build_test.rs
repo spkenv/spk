@@ -49,7 +49,15 @@ build:
 
     let filename_str = filename.as_os_str().to_str().unwrap();
 
-    let mut opt = Opt::try_parse_from(["build", "--disable-repo=origin", filename_str]).unwrap();
+    let mut opt = Opt::try_parse_from([
+        "build",
+        // Don't exec a new process to move into a new runtime, this confuses
+        // coverage testing.
+        "--no-runtime",
+        "--disable-repo=origin",
+        filename_str,
+    ])
+    .unwrap();
     opt.build.run().await.unwrap();
 
     let ident = version_ident!("three-variants/1.0.0");
