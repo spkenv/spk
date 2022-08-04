@@ -52,7 +52,7 @@ pub struct SPFSRepository {
 
 impl std::hash::Hash for SPFSRepository {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.inner.address().hash(state);
+        self.address.hash(state);
     }
 }
 
@@ -70,7 +70,7 @@ impl PartialOrd for SPFSRepository {
 
 impl PartialEq for SPFSRepository {
     fn eq(&self, other: &Self) -> bool {
-        self.inner.address() == other.inner.address()
+        self.address == other.address
     }
 }
 
@@ -342,14 +342,7 @@ impl Repository for SPFSRepository {
         let component_tags = package.into_components();
         let mut components = HashMap::with_capacity(component_tags.len());
         for (name, tag_spec) in component_tags.into_iter() {
-            let tag = self
-                .inner
-                .resolve_tag(&tag_spec)
-                .await
-                .map_err(|err| match err {
-                    spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
-                    err => err.into(),
-                })?;
+            let tag = self.resolve_tag(pkg, &tag_spec).await?;
             components.insert(name, tag.target);
         }
         Ok(components)
