@@ -35,6 +35,10 @@ use crate::{
     TemplateExt,
 };
 
+#[cfg(test)]
+#[path = "./spec_test.rs"]
+mod spec_test;
+
 /// Create a spec recipe from a json structure.
 ///
 /// This will panic if the given struct

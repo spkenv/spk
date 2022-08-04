@@ -14,6 +14,10 @@ use spk_schema::ident::{PkgRequest, RangeIdent, RequestedBy};
 use spk_schema::prelude::*;
 use spk_storage as storage;
 
+#[cfg(test)]
+#[path = "./cmd_make_binary_test.rs"]
+mod cmd_make_binary_test;
+
 #[derive(Clone, Debug)]
 pub enum PackageSpecifier {
     Plain(String),

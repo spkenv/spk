@@ -46,12 +46,13 @@ pub use spk_schema_foundation::{
     ident_component,
     ident_ops,
     name,
+    opt_name,
     spec_ops,
     version,
     version_range,
     FromYaml,
 };
-pub use spk_schema_ident::{self as ident, AnyIdent, BuildIdent, VersionIdent};
+pub use spk_schema_ident::{self as ident, AnyIdent, BuildIdent, Request, VersionIdent};
 pub use template::{Template, TemplateExt};
 pub use test_spec::TestStage;
 pub use validation::{default_validators, ValidationSpec, Validator};

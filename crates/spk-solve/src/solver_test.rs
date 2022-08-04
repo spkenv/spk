@@ -678,10 +678,12 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
     let py371 = make_build!({"pkg": "python/3.7.1"});
     let py37 = make_build!({"pkg": "python/3.7.3"});
 
-    let for_py27 = make_build!(spec, [py27]);
-    let for_py26 = make_build!(spec, [py26]);
-    let for_py371 = make_build!(spec, [py371]);
-    let for_py37 = make_build!(spec, [py37]);
+    // Is it cheating to also specify the python version as an option? This
+    // is needed so these four builds receive unique build digests.
+    let for_py27 = make_build!(spec, [py27], { "python" => "2.7.5" });
+    let for_py26 = make_build!(spec, [py26], { "python" => "2.6" });
+    let for_py371 = make_build!(spec, [py371], { "python" => "3.7.1" });
+    let for_py37 = make_build!(spec, [py37], { "python" => "3.7.3" });
     let repo = make_repo!([for_py27, for_py26, for_py37, for_py371]);
     repo.publish_recipe(&spec).await.unwrap();
     let repo = Arc::new(repo);

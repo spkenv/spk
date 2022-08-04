@@ -11,3 +11,10 @@ clap = { workspace = true }
 spk-cli-common = { path = '../common' }
 spk-cmd-make-binary = { path = '../cmd-make-binary' }
 spk-cmd-make-source = { path = '../cmd-make-source' }
+
+[dev-dependencies]
+rstest = { workspace = true }
+spk-schema = { path = '../../spk-schema' }
+spk-storage = { path = '../../spk-storage' }
+tempfile = { workspace = true }
+tokio = { workspace = true }

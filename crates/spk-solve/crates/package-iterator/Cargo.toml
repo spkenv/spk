@@ -18,5 +18,5 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 itertools = "0.10"
-rstest = "0.15.0"
+rstest = { workspace = true }
 spk-solve = { path = "../.." }

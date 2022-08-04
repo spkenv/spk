@@ -3136,9 +3136,14 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap 3.2.11",
+ "rstest",
  "spk-cli-common",
  "spk-cmd-make-binary",
  "spk-cmd-make-source",
+ "spk-schema",
+ "spk-storage",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -3201,10 +3206,12 @@ dependencies = [
  "async-trait",
  "clap 3.2.11",
  "futures",
+ "rstest",
  "spk-build",
  "spk-cli-common",
  "spk-schema",
  "spk-storage",
+ "tempfile",
  "tokio",
  "tracing",
 ]
