@@ -211,6 +211,16 @@ where
         self
     }
 
+    /// Set the variant of the recipe to build.
+    ///
+    /// The selected variant (or default) will be used to assign the starting
+    /// options values, which are then modified by any other specified
+    /// options, via [`Self::with_option`] or [`Self::with_options`].
+    pub fn with_build_variant(&mut self, build_variant: BuildVariant) -> &mut Self {
+        self.build_variant = build_variant;
+        self
+    }
+
     /// Interactive builds stop just before running the build
     /// script and attempt to spawn an interactive shell process
     /// for the user to inspect and debug the build
@@ -227,6 +237,17 @@ where
     /// If the builder has not run, return an incomplete graph.
     pub fn get_solve_graph(&self) -> Arc<tokio::sync::RwLock<Graph>> {
         self.last_solve_graph.clone()
+    }
+
+    /// Produce the full set of build options given the inputs.
+    ///
+    /// The returned option map will include any values from the inputs
+    /// that are relevant to this recipe with the addition of any missing
+    /// default values. Any issues or invalid inputs results in an error.
+    pub fn resolve_options(&self) -> Result<OptionMap> {
+        Ok(self
+            .recipe
+            .resolve_options(&self.build_variant, &self.inputs)?)
     }
 
     pub async fn build_and_publish<R, T>(

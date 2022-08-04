@@ -42,7 +42,7 @@ pub trait Recipe:
     fn ident(&self) -> &VersionIdent;
 
     /// Return the default variants to be built for this recipe
-    fn default_variants(&self) -> &[OptionMap];
+    fn default_variants(&self) -> Vec<BuildVariant>;
 
     /// Produce the full set of build options given the inputs.
     ///
@@ -86,7 +86,7 @@ where
         (**self).ident()
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
+    fn default_variants(&self) -> Vec<BuildVariant> {
         (**self).default_variants()
     }
 
@@ -134,7 +134,7 @@ where
         (**self).ident()
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
+    fn default_variants(&self) -> Vec<BuildVariant> {
         (**self).default_variants()
     }
 

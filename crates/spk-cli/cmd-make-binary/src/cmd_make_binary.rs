@@ -12,7 +12,7 @@ use spk_cli_common::{flags, spk_exe, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::option_map::{host_options, OptionMap};
 use spk_schema::ident::{PkgRequest, RangeIdent, RequestedBy};
-use spk_schema::{Package, Recipe};
+use spk_schema::{BuildVariant, Package, Recipe};
 use spk_storage::{self as storage};
 
 #[derive(Clone, Debug)]
@@ -125,34 +125,16 @@ impl Run for MakeBinary {
             let mut built = std::collections::HashSet::new();
 
             let variants_to_build = match self.variant {
-                Some(index) if index < recipe.default_variants().len() => {
-                    recipe.default_variants().iter().skip(index).take(1)
-                }
-                Some(index) => {
-                    anyhow::bail!(
-                        "--variant {index} is out of range; {} variant(s) found in {}",
-                        recipe.default_variants().len(),
-                        recipe.ident().format_ident(),
-                    );
-                }
-                None => recipe.default_variants().iter().skip(0).take(usize::MAX),
+                Some(index) => vec![BuildVariant::Variant(index)],
+                None => recipe.default_variants(),
             };
 
-            for variant in variants_to_build {
-                let mut opts = if !self.options.no_host {
+            for variant in variants_to_build.into_iter() {
+                let opts = if !self.options.no_host {
                     host_options()?
                 } else {
                     OptionMap::default()
                 };
-
-                opts.extend(variant.clone());
-                opts.extend(options.clone());
-                let digest = opts.digest_str();
-                if !built.insert(digest) {
-                    continue;
-                }
-
-                tracing::info!("building variant {}", opts.format_option_map());
 
                 // Always show the solution packages for the solves
                 let mut fmt_builder = self.formatter_settings.get_formatter_builder(self.verbose);
@@ -167,11 +149,20 @@ impl Run for MakeBinary {
 
                 let mut builder = BinaryPackageBuilder::from_recipe((*recipe).clone());
                 builder
+                    .with_build_variant(variant)
                     .with_options(opts.clone())
                     .with_repositories(repos.iter().cloned())
                     .set_interactive(self.interactive)
                     .with_source_resolver(&src_formatter)
                     .with_build_resolver(&build_formatter);
+
+                let resolved_options = builder.resolve_options()?;
+                let digest = resolved_options.digest_str();
+                if !built.insert(digest) {
+                    continue;
+                }
+
+                tracing::info!("building variant {}", resolved_options.format_option_map());
 
                 if self.here {
                     let here =

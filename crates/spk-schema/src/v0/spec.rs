@@ -262,8 +262,18 @@ impl Recipe for Spec<VersionIdent> {
         &self.pkg
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
-        self.build.variants.as_slice()
+    fn default_variants(&self) -> Vec<BuildVariant> {
+        // Detect if the recipe didn't specify any variants.
+        if self.build.variants.len() == 1 && self.build.variants[0].is_empty() {
+            vec![BuildVariant::Default]
+        } else {
+            self.build
+                .variants
+                .iter()
+                .enumerate()
+                .map(|(index, _)| BuildVariant::Variant(index))
+                .collect()
+        }
     }
 
     fn resolve_options(

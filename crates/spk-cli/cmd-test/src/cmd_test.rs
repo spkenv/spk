@@ -8,10 +8,10 @@ use anyhow::Result;
 use clap::Args;
 use spk_build::BuildSource;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
+use spk_schema::foundation::format::FormatOptionMap;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::option_map::{host_options, OptionMap};
-use spk_schema::{Recipe, TestStage};
+use spk_schema::{BuildVariant, Recipe, TestStage};
 
 use crate::test::{PackageBuildTester, PackageInstallTester, PackageSourceTester, Tester};
 
@@ -96,31 +96,15 @@ impl Run for Test {
                 let mut tested = std::collections::HashSet::new();
 
                 let variants_to_test = match self.variant {
-                    Some(index) if index < recipe.default_variants().len() => {
-                        recipe.default_variants().iter().skip(index).take(1)
-                    }
-                    Some(index) => {
-                        anyhow::bail!(
-                            "--variant {index} is out of range; {} variant(s) found in {}",
-                            recipe.default_variants().len(),
-                            recipe.ident().format_ident(),
-                        );
-                    }
-                    None => recipe.default_variants().iter().skip(0).take(usize::MAX),
+                    Some(index) => vec![BuildVariant::Variant(index)],
+                    None => recipe.default_variants(),
                 };
 
-                for variant in variants_to_test {
-                    let mut opts = match self.options.no_host {
+                for variant in variants_to_test.into_iter() {
+                    let opts = match self.options.no_host {
                         true => OptionMap::default(),
                         false => host_options()?,
                     };
-
-                    opts.extend(variant.clone());
-                    opts.extend(options.clone());
-                    let digest = opts.digest();
-                    if !tested.insert(digest) {
-                        continue;
-                    }
 
                     for (index, test) in recipe.get_tests(&opts)?.into_iter().enumerate() {
                         if test.stage != stage {
@@ -144,6 +128,7 @@ impl Run for Test {
                                 );
 
                                 tester
+                                    .with_build_variant(variant.clone())
                                     .with_options(opts.clone())
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(test.requirements.clone())
@@ -160,6 +145,7 @@ impl Run for Test {
                                 );
 
                                 tester
+                                    .with_build_variant(variant.clone())
                                     .with_options(opts.clone())
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(test.requirements.clone())
@@ -188,6 +174,7 @@ impl Run for Test {
                                 );
 
                                 tester
+                                    .with_build_variant(variant.clone())
                                     .with_options(opts.clone())
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(test.requirements.clone())
@@ -198,9 +185,15 @@ impl Run for Test {
                             }
                         };
 
+                        let resolved_options = tester.resolve_options()?;
+                        let digest = resolved_options.digest();
+                        if !tested.insert(digest) {
+                            continue;
+                        }
+
                         let mut selected = false;
                         for selector in test.selectors.iter() {
-                            let mut selected_opts = opts.clone();
+                            let mut selected_opts = resolved_options.clone();
                             selected_opts.extend(selector.clone());
                             if selected_opts.digest() == digest {
                                 selected = true;
@@ -209,14 +202,14 @@ impl Run for Test {
                         if !selected && !test.selectors.is_empty() {
                             tracing::info!(
                                 "SKIP #{index}: variant not selected: {}",
-                                opts.format_option_map()
+                                resolved_options.format_option_map()
                             );
                             continue;
                         }
 
                         tracing::info!(
                             "Running test #{index} variant={}",
-                            opts.format_option_map()
+                            resolved_options.format_option_map()
                         );
 
                         tester.test().await?

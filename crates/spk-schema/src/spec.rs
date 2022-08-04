@@ -200,7 +200,7 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
+    fn default_variants(&self) -> Vec<super::BuildVariant> {
         match self {
             SpecRecipe::V0Package(r) => r.default_variants(),
         }

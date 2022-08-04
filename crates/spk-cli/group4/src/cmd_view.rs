@@ -131,8 +131,10 @@ impl View {
             .must_be_found();
         let recipe = template.render(options)?;
 
+        let given = OptionMap::default();
         for (index, variant) in recipe.default_variants().iter().enumerate() {
-            println!("{}: {}", index, variant);
+            let options = recipe.resolve_options(variant, &given)?;
+            println!("{}: {}", index, options);
         }
 
         Ok(0)

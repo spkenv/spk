@@ -10,7 +10,7 @@ use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
-use spk_schema::{Recipe, SpecRecipe};
+use spk_schema::{BuildVariant, Recipe, SpecRecipe};
 use spk_solve::graph::Graph;
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_storage::{self as storage};
@@ -27,6 +27,7 @@ pub struct PackageInstallTester<'a> {
     source: Option<PathBuf>,
     env_resolver: BoxedResolverCallback<'a>,
     last_solve_graph: Arc<tokio::sync::RwLock<Graph>>,
+    build_variant: BuildVariant,
 }
 
 impl<'a> PackageInstallTester<'a> {
@@ -41,6 +42,7 @@ impl<'a> PackageInstallTester<'a> {
             source: None,
             env_resolver: Box::new(DefaultResolver {}),
             last_solve_graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
+            build_variant: BuildVariant::Default,
         }
     }
 
@@ -69,6 +71,16 @@ impl<'a> PackageInstallTester<'a> {
         self
     }
 
+    /// Set the variant of the recipe to build.
+    ///
+    /// The selected variant (or default) will be used to assign the starting
+    /// options values, which are then modified by any other specified
+    /// options, via [`Self::with_option`] or [`Self::with_options`].
+    pub fn with_build_variant(&mut self, build_variant: BuildVariant) -> &mut Self {
+        self.build_variant = build_variant;
+        self
+    }
+
     /// Provide a function that will be called when resolving the test environment.
     ///
     /// This function should run the provided solver runtime to
@@ -83,6 +95,12 @@ impl<'a> PackageInstallTester<'a> {
         self
     }
 
+    pub fn resolve_options(&self) -> Result<OptionMap> {
+        Ok(self
+            .recipe
+            .resolve_options(&self.build_variant, &self.options)?)
+    }
+
     pub async fn test(&mut self) -> Result<()> {
         let mut rt = spfs::active_runtime().await?;
         rt.reset_all()?;
@@ -91,7 +109,7 @@ impl<'a> PackageInstallTester<'a> {
 
         let mut solver = Solver::default();
         solver.set_binary_only(true);
-        solver.update_options(self.options.clone());
+        solver.update_options(self.resolve_options()?);
         for repo in self.repos.iter().cloned() {
             solver.add_repository(repo);
         }
@@ -130,6 +148,9 @@ impl<'a> PackageInstallTester<'a> {
 
 #[async_trait::async_trait]
 impl<'a> Tester for PackageInstallTester<'a> {
+    fn resolve_options(&self) -> spk_cli_common::Result<OptionMap> {
+        self.resolve_options()
+    }
     async fn test(&mut self) -> Result<()> {
         self.test().await
     }

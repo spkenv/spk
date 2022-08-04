@@ -9,6 +9,7 @@ use std::path::Path;
 
 use spfs::runtime::Runtime;
 use spk_cli_common::{Error, Result, TestError};
+use spk_schema::OptionMap;
 
 /// Common code and logic for all test flavors.
 #[async_trait::async_trait]
@@ -16,6 +17,8 @@ pub trait Tester: Send {
     /// Create the runtime environment for the defined test and then execute
     /// the test.
     async fn test(&mut self) -> Result<()>;
+
+    fn resolve_options(&self) -> spk_cli_common::Result<OptionMap>;
 
     /// Generate and invoke the test script defined in the recipe.
     fn execute_test_script(
