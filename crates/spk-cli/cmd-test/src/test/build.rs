@@ -13,7 +13,7 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
-use spk_schema::{AnyIdent, Recipe, SpecRecipe};
+use spk_schema::{AnyIdent, BuildVariant, Recipe, SpecRecipe};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
@@ -139,9 +139,9 @@ impl<'a> PackageBuildTester<'a> {
         spfs::remount_runtime(&rt).await?;
 
         self.options.extend(solution.options());
-        let _spec = self
-            .recipe
-            .generate_binary_build(&self.options, &solution)?;
+        let _spec =
+            self.recipe
+                .generate_binary_build(&BuildVariant::Default, &self.options, &solution)?;
 
         let env = solution.to_environment(Some(std::env::vars()));
 

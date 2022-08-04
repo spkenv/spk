@@ -206,9 +206,13 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap> {
+    fn resolve_options(
+        &self,
+        build_variant: &super::BuildVariant,
+        inputs: &OptionMap,
+    ) -> Result<OptionMap> {
         match self {
-            SpecRecipe::V0Package(r) => r.resolve_options(inputs),
+            SpecRecipe::V0Package(r) => r.resolve_options(build_variant, inputs),
         }
     }
 
@@ -232,6 +236,7 @@ impl Recipe for SpecRecipe {
 
     fn generate_binary_build<E, P>(
         &self,
+        build_variant: &super::BuildVariant,
         options: &OptionMap,
         build_env: &E,
     ) -> Result<Self::Output>
@@ -241,7 +246,7 @@ impl Recipe for SpecRecipe {
     {
         match self {
             SpecRecipe::V0Package(r) => r
-                .generate_binary_build(options, build_env)
+                .generate_binary_build(build_variant, options, build_env)
                 .map(Spec::V0Package),
         }
     }

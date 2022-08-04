@@ -140,10 +140,10 @@ macro_rules! make_build_and_components {
                     $crate::PackageSource::Embedded,
                 );
                 )*
-                let mut resolved_opts = recipe.resolve_options(&build_opts).unwrap().into_iter();
+                let mut resolved_opts = recipe.resolve_options(&$crate::BuildVariant::Default, &build_opts).unwrap().into_iter();
                 build_opts.extend(&mut resolved_opts);
                 tracing::trace!(%build_opts, "generating build");
-                let build = recipe.generate_binary_build(&build_opts, &solution)
+                let build = recipe.generate_binary_build(&$crate::BuildVariant::Default, &build_opts, &solution)
                     .expect("Failed to generate build spec");
                 let mut names = std::vec![$($component.to_string()),*];
                 if names.is_empty() {

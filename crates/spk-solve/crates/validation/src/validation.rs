@@ -11,7 +11,7 @@ use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, Satisfy, VarRequest};
 use spk_schema::ident_build::{Build, EmbeddedSource};
-use spk_schema::{Package, Recipe, Spec};
+use spk_schema::{BuildVariant, Package, Recipe, Spec};
 use spk_solve_graph::{CachedHash, GetMergedRequestError, State};
 use spk_solve_solution::PackageSource;
 
@@ -247,7 +247,7 @@ impl ValidatorT for OptionsValidator {
         state: &State,
         recipe: &R,
     ) -> crate::Result<Compatibility> {
-        if let Err(err) = recipe.resolve_options(state.get_option_map()) {
+        if let Err(err) = recipe.resolve_options(&BuildVariant::Default, state.get_option_map()) {
             Ok(Compatibility::Incompatible(err.to_string()))
         } else {
             Ok(Compatibility::Compatible)

@@ -19,7 +19,14 @@ use spk_schema::foundation::name::OptNameBuf;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy, VersionIdent};
-use spk_schema::{BuildIdent, ComponentFileMatchMode, ComponentSpecList, Package, PackageMut};
+use spk_schema::{
+    BuildIdent,
+    BuildVariant,
+    ComponentFileMatchMode,
+    ComponentSpecList,
+    Package,
+    PackageMut,
+};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, ResolverCallback, Solver};
@@ -88,6 +95,7 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
     last_solve_graph: Arc<tokio::sync::RwLock<Graph>>,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     interactive: bool,
+    build_variant: BuildVariant,
 }
 
 impl<'a, Recipe> BinaryPackageBuilder<'a, Recipe>
@@ -116,6 +124,7 @@ where
             last_solve_graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
             repos: Default::default(),
             interactive: false,
+            build_variant: BuildVariant::Default,
         }
     }
 
@@ -249,7 +258,9 @@ where
         runtime.status.stack.clear();
 
         tracing::debug!("input options: {}", self.inputs);
-        let build_options = self.recipe.resolve_options(&self.inputs)?;
+        let build_options = self
+            .recipe
+            .resolve_options(&self.build_variant, &self.inputs)?;
         tracing::debug!("build options: {build_options}");
         let mut all_options = self.inputs.clone();
         all_options.extend(build_options.into_iter());
@@ -284,7 +295,9 @@ where
         runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
 
-        let package = self.recipe.generate_binary_build(&all_options, &solution)?;
+        let package =
+            self.recipe
+                .generate_binary_build(&self.build_variant, &all_options, &solution)?;
         let components = self
             .build_and_commit_artifacts(&package, &all_options)
             .await?;

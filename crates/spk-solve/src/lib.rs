@@ -23,7 +23,7 @@ pub use spk_schema::ident::{
     Request,
     RequestedBy,
 };
-pub use spk_schema::{recipe, spec, v0, Package, Recipe, Spec, SpecRecipe};
+pub use spk_schema::{recipe, spec, v0, BuildVariant, Package, Recipe, Spec, SpecRecipe};
 pub use spk_solve_solution::{PackageSource, Solution};
 pub use spk_storage::RepositoryHandle;
 pub(crate) use status_line::StatusLine;

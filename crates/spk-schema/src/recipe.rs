@@ -19,6 +19,16 @@ pub trait BuildEnv {
     fn build_env(&self) -> Vec<Self::Package>;
 }
 
+/// Identifies which variant (or the default build) is to be
+/// built.
+#[derive(Clone, Debug, Hash)]
+pub enum BuildVariant {
+    /// Build with the defaults rather than a variant.
+    Default,
+    /// Build a particular variant by index.
+    Variant(usize),
+}
+
 /// Can be used to build a package.
 #[enum_dispatch::enum_dispatch]
 pub trait Recipe:
@@ -39,7 +49,11 @@ pub trait Recipe:
     /// The returned option map will include any values from the inputs
     /// that are relevant to this recipe with the addition of any missing
     /// default values. Any issues or invalid inputs results in an error.
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap>;
+    fn resolve_options(
+        &self,
+        build_variant: &BuildVariant,
+        inputs: &OptionMap,
+    ) -> Result<OptionMap>;
 
     /// Identify the requirements for a build of this recipe.
     fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>>;
@@ -53,6 +67,7 @@ pub trait Recipe:
     /// Create a new binary package from this recipe and the given parameters.
     fn generate_binary_build<E, P>(
         &self,
+        build_variant: &BuildVariant,
         options: &OptionMap,
         build_env: &E,
     ) -> Result<Self::Output>
@@ -75,8 +90,12 @@ where
         (**self).default_variants()
     }
 
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap> {
-        (**self).resolve_options(inputs)
+    fn resolve_options(
+        &self,
+        build_variant: &BuildVariant,
+        inputs: &OptionMap,
+    ) -> Result<OptionMap> {
+        (**self).resolve_options(build_variant, inputs)
     }
 
     fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
@@ -93,6 +112,7 @@ where
 
     fn generate_binary_build<E, P>(
         &self,
+        build_variant: &BuildVariant,
         options: &OptionMap,
         build_env: &E,
     ) -> Result<Self::Output>
@@ -100,7 +120,7 @@ where
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        (**self).generate_binary_build(options, build_env)
+        (**self).generate_binary_build(build_variant, options, build_env)
     }
 }
 
@@ -118,8 +138,12 @@ where
         (**self).default_variants()
     }
 
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap> {
-        (**self).resolve_options(inputs)
+    fn resolve_options(
+        &self,
+        build_variant: &BuildVariant,
+        inputs: &OptionMap,
+    ) -> Result<OptionMap> {
+        (**self).resolve_options(build_variant, inputs)
     }
 
     fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
@@ -136,6 +160,7 @@ where
 
     fn generate_binary_build<E, P>(
         &self,
+        build_variant: &BuildVariant,
         options: &OptionMap,
         build_env: &E,
     ) -> Result<Self::Output>
@@ -143,6 +168,6 @@ where
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        (**self).generate_binary_build(options, build_env)
+        (**self).generate_binary_build(build_variant, options, build_env)
     }
 }

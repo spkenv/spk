@@ -33,7 +33,7 @@ pub use error::{Error, Result};
 pub use install_spec::InstallSpec;
 pub use option::{Inheritance, Opt};
 pub use package::{Package, PackageMut};
-pub use recipe::{BuildEnv, Recipe};
+pub use recipe::{BuildEnv, BuildVariant, Recipe};
 pub use requirements_list::RequirementsList;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::{Spec, SpecRecipe, SpecTemplate};

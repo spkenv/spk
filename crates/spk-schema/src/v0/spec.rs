@@ -33,6 +33,7 @@ use crate::test_spec::TestSpec;
 use crate::{
     BuildEnv,
     BuildSpec,
+    BuildVariant,
     ComponentSpec,
     ComponentSpecList,
     Deprecate,
@@ -265,7 +266,11 @@ impl Recipe for Spec<VersionIdent> {
         self.build.variants.as_slice()
     }
 
-    fn resolve_options(&self, given: &OptionMap) -> Result<OptionMap> {
+    fn resolve_options(
+        &self,
+        _build_variant: &BuildVariant,
+        given: &OptionMap,
+    ) -> Result<OptionMap> {
         let mut resolved = OptionMap::default();
         for opt in self.build.options.iter() {
             let given_value = match opt.full_name().namespace() {
@@ -336,6 +341,7 @@ impl Recipe for Spec<VersionIdent> {
 
     fn generate_binary_build<E, P>(
         &self,
+        build_variant: &BuildVariant,
         options: &OptionMap,
         build_env: &E,
     ) -> Result<Spec<BuildIdent>>
@@ -411,7 +417,7 @@ impl Recipe for Spec<VersionIdent> {
         updated
             .install
             .render_all_pins(options, specs.values().map(|p| p.ident()))?;
-        let digest = updated.resolve_options(options)?.digest();
+        let digest = updated.resolve_options(build_variant, options)?.digest();
         Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
     }
 }

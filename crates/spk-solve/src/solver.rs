@@ -16,7 +16,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
-use spk_schema::{BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
+use spk_schema::{BuildIdent, BuildVariant, Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
     Change,
     Decision,
@@ -320,7 +320,7 @@ impl Solver {
         solver.update_options(opts.clone());
         let solution = solver.solve_build_environment(recipe).await?;
         recipe
-            .generate_binary_build(&opts, &solution)
+            .generate_binary_build(&BuildVariant::Default, &opts, &solution)
             .map_err(|err| err.into())
             .map(Arc::new)
     }
@@ -639,7 +639,8 @@ impl Solver {
     pub fn configure_for_build_environment<T: Recipe>(&mut self, recipe: &T) -> Result<()> {
         let state = self.get_initial_state();
 
-        let build_options = recipe.resolve_options(state.get_option_map())?;
+        let build_options =
+            recipe.resolve_options(&BuildVariant::Default, state.get_option_map())?;
         for req in recipe.get_build_requirements(&build_options)? {
             self.add_request(req)
         }

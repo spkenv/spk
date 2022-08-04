@@ -7,6 +7,7 @@ use rstest::rstest;
 use crate::foundation::{opt_name, option_map};
 use crate::prelude::*;
 use crate::spec::SpecRecipe;
+use crate::BuildVariant;
 
 #[rstest]
 fn test_resolve_options_package_option() {
@@ -31,7 +32,9 @@ fn test_resolve_options_package_option() {
         "my-pkg.my-opt" => "override",
         "debug" => "on",
     };
-    let resolved = recipe.resolve_options(&options).unwrap();
+    let resolved = recipe
+        .resolve_options(&BuildVariant::Default, &options)
+        .unwrap();
     assert_eq!(
         resolved.get(opt_name!("my-opt")),
         Some(&"override".to_string()),

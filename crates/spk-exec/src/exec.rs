@@ -5,7 +5,7 @@
 use spfs::encoding::Digest;
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::{Package, Recipe};
+use spk_schema::{BuildVariant, Package, Recipe};
 use spk_solve::solution::{PackageSource, Solution};
 use spk_storage::{self as storage};
 
@@ -25,7 +25,7 @@ pub async fn resolve_runtime_layers(solution: &Solution) -> Result<Vec<Digest>> 
                 // to be built with specific options because such a
                 // build doesn't exist in a repo.
                 let spec_options = recipe
-                    .resolve_options(&solution.options())
+                    .resolve_options(&BuildVariant::Default, &solution.options())
                     .unwrap_or_default();
                 return Err(Error::String(format!(
                     "Solution includes package that needs building from source: {} with these options: {}",
