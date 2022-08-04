@@ -29,7 +29,9 @@ chrono = { version = "0.4.19", features = ["serde"] }
 clap = { version = "3.2", features = ["derive", "env"] }
 colored = "2.0.0"
 procfs = "0.13.2"
+rstest = "0.15.0"
 sentry = { version = "0.27.0" }
 sentry-anyhow = { version = "0.27.0" }
+tempfile = "3.3"
 tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"

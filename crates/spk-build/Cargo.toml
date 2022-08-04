@@ -22,7 +22,7 @@ tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-rstest = "0.15.0"
+rstest = { workspace = true }
 serde_yaml = "0.8.17"
 tar = "0.4.30"
-tempfile = "3.3"
+tempfile = { workspace = true }

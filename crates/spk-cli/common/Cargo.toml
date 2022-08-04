@@ -38,4 +38,4 @@ whoami = "1.2"
 nix = "0.24.1"
 
 [dev-dependencies]
-rstest = "0.15.0"
+rstest = { workspace = true }
