@@ -29,6 +29,7 @@ use crate::ident::{
     VarRequest,
 };
 use crate::meta::Meta;
+use crate::option::VarOpt;
 use crate::test_spec::TestSpec;
 use crate::{
     BuildEnv,
@@ -107,6 +108,34 @@ impl<Ident> Spec<Ident> {
             tests: self.tests,
             install: self.install,
         }
+    }
+
+    /// Return all the options described by the recipe when evaluating it for
+    /// the specified variant.
+    fn options_for_variant(&self, build_variant: &BuildVariant) -> Result<Vec<Opt>> {
+        let mut options = Vec::new();
+        for opt in self.build.options.iter() {
+            options.push(opt.clone());
+        }
+
+        match build_variant {
+            BuildVariant::Default => {}
+            BuildVariant::Variant(index) => {
+                let variant = self.build.variants.get(*index).ok_or_else(|| {
+                    crate::Error::String(format!("Variant index {index} out of range!"))
+                })?;
+
+                for (name, value) in variant.iter() {
+                    // XXX: Treating these all like vars but we'll want to
+                    // treat some like pkgs instead.
+                    let mut var_opt = VarOpt::new(name)?;
+                    var_opt.set_value(value.clone())?;
+                    options.push(Opt::Var(var_opt));
+                }
+            }
+        }
+
+        Ok(options)
     }
 
     /// Remove requirements and other package data that
@@ -278,11 +307,12 @@ impl Recipe for Spec<VersionIdent> {
 
     fn resolve_options(
         &self,
-        _build_variant: &BuildVariant,
+        build_variant: &BuildVariant,
         given: &OptionMap,
     ) -> Result<OptionMap> {
         let mut resolved = OptionMap::default();
-        for opt in self.build.options.iter() {
+
+        for opt in self.options_for_variant(build_variant)?.iter() {
             let given_value = match opt.full_name().namespace() {
                 Some(_) => given
                     .get(opt.full_name())
