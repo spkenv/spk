@@ -15,6 +15,8 @@ use spk_schema::foundation::spec_ops::RecipeOps;
 use spk_schema::ident::parse_ident;
 use spk_schema::{Recipe, Template, TestStage};
 
+use crate::test::{PackageBuildTester, PackageInstallTester, PackageSourceTester, Tester};
+
 #[cfg(test)]
 #[path = "./cmd_test_test.rs"]
 mod cmd_test_test;
@@ -146,6 +148,77 @@ impl Run for Test {
                             continue;
                         }
 
+                        let mut builder =
+                            self.formatter_settings.get_formatter_builder(self.verbose);
+                        let src_formatter = builder.with_header("Source Resolver ").build();
+                        let build_src_formatter =
+                            builder.with_header("Build Source Resolver ").build();
+                        let build_formatter = builder.with_header("Build Resolver ").build();
+                        let install_formatter =
+                            builder.with_header("Install Env Resolver ").build();
+
+                        let mut tester: Box<dyn Tester> = match stage {
+                            TestStage::Sources => {
+                                let mut tester = PackageSourceTester::new(
+                                    (*recipe).clone(),
+                                    test.script.join("\n"),
+                                );
+
+                                tester
+                                    .with_options(opts.clone())
+                                    .with_repositories(repos.iter().cloned())
+                                    .with_requirements(test.requirements.clone())
+                                    .with_source(source.clone())
+                                    .watch_environment_resolve(&src_formatter);
+
+                                Box::new(tester)
+                            }
+
+                            TestStage::Build => {
+                                let mut tester = PackageBuildTester::new(
+                                    (*recipe).clone(),
+                                    test.script.join("\n"),
+                                );
+
+                                tester
+                                    .with_options(opts.clone())
+                                    .with_repositories(repos.iter().cloned())
+                                    .with_requirements(test.requirements.clone())
+                                    .with_source(
+                                        source.clone().map(BuildSource::LocalPath).unwrap_or_else(
+                                            || {
+                                                BuildSource::SourcePackage(
+                                                    recipe
+                                                        .to_ident()
+                                                        .into_build(Build::Source)
+                                                        .into(),
+                                                )
+                                            },
+                                        ),
+                                    )
+                                    .with_source_resolver(&build_src_formatter)
+                                    .with_build_resolver(&build_formatter);
+
+                                Box::new(tester)
+                            }
+
+                            TestStage::Install => {
+                                let mut tester = PackageInstallTester::new(
+                                    (*recipe).clone(),
+                                    test.script.join("\n"),
+                                );
+
+                                tester
+                                    .with_options(opts.clone())
+                                    .with_repositories(repos.iter().cloned())
+                                    .with_requirements(test.requirements.clone())
+                                    .with_source(source.clone())
+                                    .watch_environment_resolve(&install_formatter);
+
+                                Box::new(tester)
+                            }
+                        };
+
                         let mut selected = false;
                         for selector in test.selectors.iter() {
                             let mut selected_opts = opts.clone();
@@ -161,72 +234,13 @@ impl Run for Test {
                             );
                             continue;
                         }
+
                         tracing::info!(
                             "Running test #{index} variant={}",
                             opts.format_option_map()
                         );
 
-                        let mut builder =
-                            self.formatter_settings.get_formatter_builder(self.verbose);
-                        let src_formatter = builder.with_header("Source Resolver ").build();
-                        let build_src_formatter =
-                            builder.with_header("Build Source Resolver ").build();
-                        let build_formatter = builder.with_header("Build Resolver ").build();
-                        let install_formatter =
-                            builder.with_header("Install Env Resolver ").build();
-
-                        match stage {
-                            TestStage::Sources => {
-                                super::test::PackageSourceTester::new(
-                                    (*recipe).clone(),
-                                    test.script.join("\n"),
-                                )
-                                .with_options(opts.clone())
-                                .with_repositories(repos.iter().cloned())
-                                .with_requirements(test.requirements.clone())
-                                .with_source(source.clone())
-                                .watch_environment_resolve(&src_formatter)
-                                .test()
-                                .await?
-                            }
-
-                            TestStage::Build => {
-                                super::test::PackageBuildTester::new(
-                                    (*recipe).clone(),
-                                    test.script.join("\n"),
-                                )
-                                .with_options(opts.clone())
-                                .with_repositories(repos.iter().cloned())
-                                .with_requirements(test.requirements.clone())
-                                .with_source(
-                                    source.clone().map(BuildSource::LocalPath).unwrap_or_else(
-                                        || {
-                                            BuildSource::SourcePackage(
-                                                recipe.to_ident().into_build(Build::Source).into(),
-                                            )
-                                        },
-                                    ),
-                                )
-                                .with_source_resolver(&build_src_formatter)
-                                .with_build_resolver(&build_formatter)
-                                .test()
-                                .await?
-                            }
-
-                            TestStage::Install => {
-                                super::test::PackageInstallTester::new(
-                                    (*recipe).clone(),
-                                    test.script.join("\n"),
-                                )
-                                .with_options(opts.clone())
-                                .with_repositories(repos.iter().cloned())
-                                .with_requirements(test.requirements.clone())
-                                .with_source(source.clone())
-                                .watch_environment_resolve(&install_formatter)
-                                .test()
-                                .await?
-                            }
-                        }
+                        tester.test().await?
                     }
                 }
             }
