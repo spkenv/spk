@@ -22,7 +22,7 @@ Filesystem isolation, capture, and distribution.
 %setup -q
 
 %build
-cargo build --release --verbose --all --features=server,cli
+cargo build --release -p spfs --verbose --all --features=server,cli
 
 %install
 mkdir -p %{buildroot}/usr/bin

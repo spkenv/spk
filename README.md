@@ -82,7 +82,7 @@ In order to properly build the rpm, you will need to provide your github usernam
 
 ```sh
 # build the rpm package via docker and copy into ./dist/rpm
-make rpm
+make rpms
 ```
 
 ### Testing
