@@ -10,6 +10,10 @@ use spk::io::Format;
 
 use super::{flags, CommandArgs, Run};
 
+#[cfg(test)]
+#[path = "./cmd_test_test.rs"]
+mod cmd_test_test;
+
 /// Run package tests
 ///
 /// In order to run install tests the package must have been built already
