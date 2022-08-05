@@ -17,6 +17,9 @@ mod cmd_ls_test;
 pub trait Output: Default + Send + Sync {
     /// A line of output to display.
     fn println(&mut self, line: String);
+
+    /// A line of output to display as a warning.
+    fn warn(&mut self, line: String);
 }
 
 #[derive(Default)]
@@ -25,6 +28,10 @@ pub struct Console {}
 impl Output for Console {
     fn println(&mut self, line: String) {
         println!("{line}");
+    }
+
+    fn warn(&mut self, line: String) {
+        tracing::warn!("{line}");
     }
 }
 
@@ -114,13 +121,37 @@ impl<T: Output> Run for Ls<T> {
                     name.push_str(&version.to_string());
 
                     let ident = spk::api::parse_ident(name.clone())?;
-                    let spec = match repo.read_spec(&ident).await {
-                        Ok(spec) => spec,
-                        Err(err) => {
-                            tracing::warn!("Skipping {ident}: {err}");
-                            continue;
+
+                    // In order to honor showing or hiding deprecated builds,
+                    // inventory the builds of this version (do not depend on
+                    // the existence of a "version spec").
+
+                    let mut builds = repo.list_package_builds(&ident).await?;
+                    if builds.is_empty() {
+                        // Does a version with no builds really exist?
+                        continue;
+                    }
+
+                    let mut any_deprecated = false;
+                    let mut any_not_deprecated = false;
+                    while let Some(build) = builds.pop() {
+                        match repo.read_spec(&build).await {
+                            Ok(spec) if !spec.deprecated => {
+                                any_not_deprecated = true;
+                            }
+                            Ok(_) => {
+                                any_deprecated = true;
+                            }
+                            Err(err) => {
+                                self.output
+                                    .warn(format!("Error reading spec for {build}: {err}"));
+                            }
                         }
-                    };
+                        if any_not_deprecated && any_deprecated {
+                            break;
+                        }
+                    }
+                    let all_deprecated = any_deprecated && !any_not_deprecated;
 
                     // TODO: tempted to swap this over to call
                     // format_build, which would add the package name
@@ -128,13 +159,16 @@ impl<T: Output> Run for Ls<T> {
                     // closer to the next Some(package) clause?
                     if self.deprecated {
                         // show deprecated versions
-                        if spec.deprecated {
+                        if all_deprecated {
                             results.push(format!("{version} {}", "DEPRECATED".red()));
+                            continue;
+                        } else if any_deprecated {
+                            results.push(format!("{version} {}", "(partially) DEPRECATED".red()));
                             continue;
                         }
                     } else {
                         // don't show deprecated versions
-                        if spec.deprecated {
+                        if all_deprecated {
                             continue;
                         }
                     }
@@ -156,7 +190,7 @@ impl<T: Output> Run for Ls<T> {
                         let spec = match repo.read_spec(&build).await {
                             Ok(spec) => spec,
                             Err(err) => {
-                                tracing::warn!("Skipping {build}: {err}");
+                                self.output.warn(format!("Skipping {build}: {err}"));
                                 continue;
                             }
                         };
@@ -273,7 +307,7 @@ impl<T: Output> Ls<T> {
                     let spec = match repo.read_spec(&build).await {
                         Ok(spec) => spec,
                         Err(err) => {
-                            tracing::warn!("Skipping {build}: {err}");
+                            self.output.warn(format!("Skipping {build}: {err}"));
                             continue;
                         }
                     };
