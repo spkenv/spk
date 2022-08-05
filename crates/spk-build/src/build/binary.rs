@@ -392,7 +392,10 @@ where
             self.solver.add_repository(repo);
         }
 
-        for request in self.recipe.get_build_requirements(options)? {
+        for request in self
+            .recipe
+            .get_build_requirements(&self.build_variant, options)?
+        {
             self.solver.add_request(request);
         }
 

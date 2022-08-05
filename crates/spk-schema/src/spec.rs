@@ -216,9 +216,13 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
+    fn get_build_requirements(
+        &self,
+        build_variant: &super::BuildVariant,
+        options: &OptionMap,
+    ) -> Result<Vec<Request>> {
         match self {
-            SpecRecipe::V0Package(r) => r.get_build_requirements(options),
+            SpecRecipe::V0Package(r) => r.get_build_requirements(build_variant, options),
         }
     }
 

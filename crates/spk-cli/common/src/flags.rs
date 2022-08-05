@@ -18,7 +18,15 @@ use spk_schema::foundation::option_map::{host_options, OptionMap};
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{parse_ident, AnyIdent, PkgRequest, Request, RequestedBy, VarRequest};
-use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage};
+use spk_schema::{
+    BuildVariant,
+    Recipe,
+    SpecRecipe,
+    SpecTemplate,
+    Template,
+    TemplateExt,
+    TestStage,
+};
 use spk_solve::{self as solve};
 use spk_storage::{self as storage};
 
@@ -318,7 +326,12 @@ impl Requests {
                     }
 
                     TestStage::Build => {
-                        let requirements = recipe.get_build_requirements(&options)?;
+                        let requirements = recipe.get_build_requirements(
+                            // TODO: Need a syntax for asking for a specific
+                            // variant
+                            &BuildVariant::Default,
+                            &options,
+                        )?;
                         out.extend(requirements);
                     }
                     TestStage::Install => out.push(

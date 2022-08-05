@@ -332,10 +332,14 @@ impl Recipe for Spec<VersionIdent> {
         Ok(resolved)
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
+    fn get_build_requirements(
+        &self,
+        build_variant: &BuildVariant,
+        options: &OptionMap,
+    ) -> Result<Vec<Request>> {
         let build = Build::Digest(options.digest());
         let mut requests = Vec::new();
-        for opt in self.build.options.iter() {
+        for opt in self.options_for_variant(build_variant)?.iter() {
             match opt {
                 Opt::Pkg(opt) => {
                     let given_value = options.get(opt.pkg.as_opt_name()).map(String::to_owned);

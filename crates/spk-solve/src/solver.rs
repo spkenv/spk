@@ -641,7 +641,7 @@ impl Solver {
 
         let build_options =
             recipe.resolve_options(&BuildVariant::Default, state.get_option_map())?;
-        for req in recipe.get_build_requirements(&build_options)? {
+        for req in recipe.get_build_requirements(&BuildVariant::Default, &build_options)? {
             self.add_request(req)
         }
 

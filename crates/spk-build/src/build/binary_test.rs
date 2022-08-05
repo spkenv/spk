@@ -68,7 +68,9 @@ async fn test_empty_var_option_is_not_a_request() {
         }"#,
     )
     .unwrap();
-    let requirements = recipe.get_build_requirements(&Default::default()).unwrap();
+    let requirements = recipe
+        .get_build_requirements(&BuildVariant::Default, &Default::default())
+        .unwrap();
     assert!(
         requirements.is_empty(),
         "a var option with empty value should not create a solver request"
@@ -90,7 +92,10 @@ fn test_var_with_build_assigns_build() {
     .unwrap();
     // Assuming there is a request for a version with a specific build...
     let requirements = recipe
-        .get_build_requirements(&option_map! {"my-dep" => "1.0.0/QYB6QLCN"})
+        .get_build_requirements(
+            &BuildVariant::Default,
+            &option_map! {"my-dep" => "1.0.0/QYB6QLCN"},
+        )
         .unwrap();
     assert!(!requirements.is_empty());
     // ... a requirement is generated for that specific build.
@@ -603,7 +608,9 @@ async fn test_default_build_component() {
             },
         }
     );
-    let requirements = spec.get_build_requirements(&Default::default()).unwrap();
+    let requirements = spec
+        .get_build_requirements(&BuildVariant::Default, &Default::default())
+        .unwrap();
     assert_eq!(requirements.len(), 1, "should have one build requirement");
     let req = requirements.get(0).unwrap();
     match req {

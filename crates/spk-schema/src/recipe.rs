@@ -56,7 +56,11 @@ pub trait Recipe:
     ) -> Result<OptionMap>;
 
     /// Identify the requirements for a build of this recipe.
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>>;
+    fn get_build_requirements(
+        &self,
+        build_variant: &BuildVariant,
+        options: &OptionMap,
+    ) -> Result<Vec<Request>>;
 
     /// Return the tests defined for this package.
     fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>>;
@@ -98,8 +102,12 @@ where
         (**self).resolve_options(build_variant, inputs)
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
-        (**self).get_build_requirements(options)
+    fn get_build_requirements(
+        &self,
+        build_variant: &BuildVariant,
+        options: &OptionMap,
+    ) -> Result<Vec<Request>> {
+        (**self).get_build_requirements(build_variant, options)
     }
 
     fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
@@ -146,8 +154,12 @@ where
         (**self).resolve_options(build_variant, inputs)
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
-        (**self).get_build_requirements(options)
+    fn get_build_requirements(
+        &self,
+        build_variant: &BuildVariant,
+        options: &OptionMap,
+    ) -> Result<Vec<Request>> {
+        (**self).get_build_requirements(build_variant, options)
     }
 
     fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
