@@ -142,14 +142,14 @@ impl<Ident> Spec<Ident> {
                         Opt::Var(var) => var.var == *name,
                     }) {
                         let mut var_opt = VarOpt::new(name)?;
-                        var_opt.set_value(value.clone())?;
+                        var_opt.default = value.clone();
                         options.push(Opt::Var(var_opt));
                     } else {
                         // It is a valid package name and the value is a legal
                         // version range expression, and it doesn't match any
                         // declared vars. Treat as a pkg.
                         let mut pkg_opt = PkgOpt::new(PkgNameBuf::from_str(name.as_str())?)?;
-                        pkg_opt.set_value(value.clone())?;
+                        pkg_opt.default = value.clone();
                         options.push(Opt::Pkg(pkg_opt));
                     }
                 }

@@ -211,6 +211,18 @@ macro_rules! parsed {
             }
         }
 
+        impl std::cmp::PartialEq<&str> for $type_name {
+            fn eq(&self, other: &&str) -> bool {
+                self.as_str() == *other
+            }
+        }
+
+        impl std::cmp::PartialEq<&str> for $owned_type_name {
+            fn eq(&self, other: &&str) -> bool {
+                &**self == other
+            }
+        }
+
         impl std::convert::From<&$type_name> for $owned_type_name {
             fn from(name: &$type_name) -> Self {
                 name.to_owned()
