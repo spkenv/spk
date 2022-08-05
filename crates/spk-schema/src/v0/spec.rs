@@ -479,10 +479,52 @@ impl Recipe for Spec<VersionIdent> {
             }
         }
 
+        // Similar to above, but "upsert" all the options from the variant that
+        // was used into the options list. Therefore, the "default" variant
+        // of the build spec will match the variant used.
+        for opt in updated.options_for_variant(build_variant)?.into_iter() {
+            match opt {
+                Opt::Var(mut opt) => {
+                    opt.set_value(
+                        options
+                            .get(&opt.var)
+                            .or_else(|| options.get(opt.var.without_namespace()))
+                            .map(String::to_owned)
+                            .or_else(|| opt.get_value(None))
+                            .unwrap_or_default(),
+                    )?;
+                    updated.build.upsert_opt(Opt::Var(opt));
+                    continue;
+                }
+                Opt::Pkg(mut opt) => {
+                    let spec = specs.get(&opt.pkg);
+                    match spec {
+                        None => {
+                            return Err(Error::String(format!(
+                                "PkgOpt missing in resolved: {}",
+                                opt.pkg
+                            )));
+                        }
+                        Some(spec) => {
+                            let rendered = spec.compat().render(spec.version());
+                            opt.set_value(rendered)?;
+                            updated.build.upsert_opt(Opt::Pkg(opt));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Remove variants now that the variant used has been baked into the
+        // top-level options.
+        updated.build.variants = Vec::default();
+
         updated
             .install
             .render_all_pins(options, specs.values().map(|p| p.ident()))?;
-        let digest = updated.resolve_options(build_variant, options)?.digest();
+        let digest = updated
+            .resolve_options(&BuildVariant::Default, options)?
+            .digest();
         Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
     }
 }
