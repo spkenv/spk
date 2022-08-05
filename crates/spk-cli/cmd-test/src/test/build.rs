@@ -141,7 +141,7 @@ impl<'a> PackageBuildTester<'a> {
         for repo in self.repos.iter().cloned() {
             solver.add_repository(repo);
         }
-        solver.configure_for_build_environment(&self.recipe)?;
+        solver.configure_for_build_environment(&self.build_variant, &self.recipe)?;
         for request in self.additional_requirements.drain(..) {
             solver.add_request(request)
         }

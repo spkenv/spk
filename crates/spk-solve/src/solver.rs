@@ -636,12 +636,15 @@ impl Solver {
     }
 
     /// Adds requests for all build requirements
-    pub fn configure_for_build_environment<T: Recipe>(&mut self, recipe: &T) -> Result<()> {
+    pub fn configure_for_build_environment<T: Recipe>(
+        &mut self,
+        build_variant: &BuildVariant,
+        recipe: &T,
+    ) -> Result<()> {
         let state = self.get_initial_state();
 
-        let build_options =
-            recipe.resolve_options(&BuildVariant::Default, state.get_option_map())?;
-        for req in recipe.get_build_requirements(&BuildVariant::Default, &build_options)? {
+        let build_options = recipe.resolve_options(build_variant, state.get_option_map())?;
+        for req in recipe.get_build_requirements(build_variant, &build_options)? {
             self.add_request(req)
         }
 
@@ -650,7 +653,7 @@ impl Solver {
 
     /// Adds requests for all build requirements and solves
     pub async fn solve_build_environment(&mut self, recipe: &SpecRecipe) -> Result<Solution> {
-        self.configure_for_build_environment(recipe)?;
+        self.configure_for_build_environment(&BuildVariant::Default, recipe)?;
         self.solve().await
     }
 
