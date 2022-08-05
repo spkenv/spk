@@ -2,7 +2,7 @@
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
 edition = "2021"
 name = "spk"
-version = "0.34.0"
+version = "0.36.0"
 
 [lib]
 name = "spk"
