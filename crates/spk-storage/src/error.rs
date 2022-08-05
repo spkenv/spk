@@ -9,12 +9,16 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("Failed to create directory {0}")]
+    DirectoryCreateError(std::path::PathBuf, #[source] std::io::Error),
+    #[error("Failed to open file {0}")]
+    FileOpenError(std::path::PathBuf, #[source] std::io::Error),
+    #[error("Failed to read file {0}")]
+    FileReadError(std::path::PathBuf, #[source] std::io::Error),
     #[error("Invalid package spec for {0}: {1}")]
     InvalidPackageSpec(Ident, #[source] serde_yaml::Error),
     #[error("Invalid repository metadata: {0}")]
     InvalidRepositoryMetadata(#[source] serde_yaml::Error),
-    #[error(transparent)]
-    IO(#[from] std::io::Error),
     #[error(transparent)]
     SPFS(#[from] spfs::Error),
     #[error(transparent)]

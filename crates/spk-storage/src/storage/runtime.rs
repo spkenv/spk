@@ -274,7 +274,7 @@ impl Repository for RuntimeRepository {
                     pkg.clone(),
                 ))
             } else {
-                err.into()
+                Error::FileOpenError(path.to_owned(), err)
             }
         })?;
         serde_yaml::from_reader(&mut reader)
@@ -286,16 +286,17 @@ impl Repository for RuntimeRepository {
 /// Works like ls_tags, returning strings that end with '/' for directories
 /// and not for regular files
 fn get_all_filenames<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<String>> {
-    let entries = match std::fs::read_dir(path) {
+    let entries = match std::fs::read_dir(&path) {
         Err(err) => {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Ok(Default::default()),
-                _ => Err(err.into()),
+                _ => Err(Error::FileOpenError(path.as_ref().to_owned(), err)),
             }
         }
         Ok(e) => e.collect::<std::io::Result<Vec<_>>>(),
     };
-    Ok(entries?
+    Ok(entries
+        .map_err(|err| Error::FileOpenError(path.as_ref().to_owned(), err))?
         .into_iter()
         .map(|entry| {
             let mut name = entry.file_name().to_string_lossy().to_string();

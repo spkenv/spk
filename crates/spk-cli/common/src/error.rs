@@ -11,8 +11,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
-    IO(#[from] std::io::Error),
-    #[error(transparent)]
     SPFS(#[from] spfs::Error),
     #[error("Error: {0}")]
     String(String),
@@ -33,6 +31,14 @@ pub enum Error {
     // Bake Errors
     #[error("Skip embedded")]
     SkipEmbedded,
+
+    // IO Errors
+    #[error("Failed to write file {0}")]
+    FileWriteError(std::path::PathBuf, #[source] std::io::Error),
+    #[error("Failed to spawn {0} process")]
+    ProcessSpawnError(String, #[source] std::io::Error),
+    #[error("Failed to create temp dir: {0}")]
+    TempDirError(#[source] std::io::Error),
 
     // Test Errors
     #[error(transparent)]

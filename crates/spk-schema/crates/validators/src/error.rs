@@ -10,8 +10,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
-    IO(#[from] std::io::Error),
-    #[error(transparent)]
     Serde(#[from] serde_yaml::Error),
     #[error("Error: {0}")]
     String(String),

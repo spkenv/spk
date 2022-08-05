@@ -408,7 +408,8 @@ where
     };
 
     match SpecTemplate::from_file(package.as_ref().as_ref()) {
-        Err(spk_schema::Error::IO(err)) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(spk_schema::Error::FileOpenError(_, err))
+            if err.kind() == std::io::ErrorKind::NotFound => {}
         res => {
             return Ok(Found {
                 path: package.as_ref().into(),

@@ -8,12 +8,20 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("Failed to open file {0}")]
+    FileOpenError(std::path::PathBuf, #[source] std::io::Error),
+    #[error("Failed to write file {0}")]
+    FileWriteError(std::path::PathBuf, #[source] std::io::Error),
     #[error("Invalid inheritance: {0}")]
     InvalidInheritance(#[source] serde_yaml::Error),
     #[error("Invalid package spec file {0}: {1}")]
     InvalidPackageSpecFile(std::path::PathBuf, #[source] serde_yaml::Error),
-    #[error(transparent)]
-    IO(#[from] std::io::Error),
+    #[error("Invalid path {0}")]
+    InvalidPath(std::path::PathBuf, #[source] std::io::Error),
+    #[error("Failed to spawn {0} process")]
+    ProcessSpawnError(String, #[source] std::io::Error),
+    #[error("Failed to wait for process: {0}")]
+    ProcessWaitError(#[source] std::io::Error),
     #[error("Failed to encode spec: {0}")]
     SpecEncodingError(#[source] serde_yaml::Error),
     #[error(transparent)]
@@ -28,6 +36,8 @@ pub enum Error {
     SpkNameError(#[from] crate::foundation::name::Error),
     #[error("Error: {0}")]
     String(String),
+    #[error("Failed to create temp dir: {0}")]
+    TempDirError(#[source] std::io::Error),
 }
 
 impl Error {

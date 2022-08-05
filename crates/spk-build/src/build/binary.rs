@@ -410,29 +410,40 @@ where
         let build_options = build_options_path(pkg).to_path(&self.prefix);
         let build_script = build_script_path(pkg).to_path(&self.prefix);
 
-        std::fs::create_dir_all(&metadata_dir)?;
+        std::fs::create_dir_all(&metadata_dir)
+            .map_err(|err| Error::DirectoryCreateError(metadata_dir.to_owned(), err))?;
         {
-            let mut writer = std::fs::File::create(&build_spec)?;
+            let mut writer = std::fs::File::create(&build_spec)
+                .map_err(|err| Error::FileOpenError(build_spec.to_owned(), err))?;
             serde_yaml::to_writer(&mut writer, package)
                 .map_err(|err| Error::String(format!("Failed to save build spec: {err}")))?;
-            writer.sync_data()?;
+            writer
+                .sync_data()
+                .map_err(|err| Error::FileWriteError(build_spec.to_owned(), err))?;
         }
         {
-            let mut writer = std::fs::File::create(&build_script)?;
+            let mut writer = std::fs::File::create(&build_script)
+                .map_err(|err| Error::FileOpenError(build_script.to_owned(), err))?;
             writer
                 .write_all(package.build_script().as_bytes())
                 .map_err(|err| Error::String(format!("Failed to save build script: {}", err)))?;
-            writer.sync_data()?;
+            writer
+                .sync_data()
+                .map_err(|err| Error::FileWriteError(build_script.to_owned(), err))?;
         }
         {
-            let mut writer = std::fs::File::create(&build_options)?;
+            let mut writer = std::fs::File::create(&build_options)
+                .map_err(|err| Error::FileOpenError(build_options.to_owned(), err))?;
             serde_json::to_writer_pretty(&mut writer, &options)
                 .map_err(|err| Error::String(format!("Failed to save build options: {}", err)))?;
-            writer.sync_data()?;
+            writer
+                .sync_data()
+                .map_err(|err| Error::FileWriteError(build_options.to_owned(), err))?;
         }
         for cmpt in package.components().iter() {
             let marker_path = component_marker_path(pkg, &cmpt.name).to_path(&self.prefix);
-            std::fs::File::create(marker_path)?;
+            std::fs::File::create(&marker_path)
+                .map_err(|err| Error::FileWriteError(marker_path, err))?;
         }
 
         let source_dir = match &self.source {
@@ -475,7 +486,11 @@ where
         cmd.env("PREFIX", &self.prefix);
         cmd.current_dir(&source_dir);
 
-        match cmd.status()?.code() {
+        match cmd
+            .status()
+            .map_err(|err| Error::ProcessSpawnError("build script".to_owned(), err))?
+            .code()
+        {
             Some(0) => (),
             Some(code) => {
                 return Err(BuildError::new_error(format_args!(
@@ -502,17 +517,23 @@ where
         if let Err(err) = std::fs::create_dir_all(&startup_dir) {
             match err.kind() {
                 std::io::ErrorKind::AlreadyExists => (),
-                _ => return Err(err.into()),
+                _ => return Err(Error::DirectoryCreateError(startup_dir, err)),
             }
         }
 
         let startup_file_csh = startup_dir.join(format!("spk_{}.csh", package.name()));
         let startup_file_sh = startup_dir.join(format!("spk_{}.sh", package.name()));
-        let mut csh_file = std::fs::File::create(startup_file_csh)?;
-        let mut sh_file = std::fs::File::create(startup_file_sh)?;
+        let mut csh_file = std::fs::File::create(&startup_file_csh)
+            .map_err(|err| Error::FileOpenError(startup_file_csh.to_owned(), err))?;
+        let mut sh_file = std::fs::File::create(&startup_file_sh)
+            .map_err(|err| Error::FileOpenError(startup_file_sh.to_owned(), err))?;
         for op in ops {
-            csh_file.write_fmt(format_args!("{}\n", op.tcsh_source()))?;
-            sh_file.write_fmt(format_args!("{}\n", op.bash_source()))?;
+            csh_file
+                .write_fmt(format_args!("{}\n", op.tcsh_source()))
+                .map_err(|err| Error::FileWriteError(startup_file_csh.to_owned(), err))?;
+            sh_file
+                .write_fmt(format_args!("{}\n", op.bash_source()))
+                .map_err(|err| Error::FileWriteError(startup_file_sh.to_owned(), err))?;
         }
         Ok(())
     }

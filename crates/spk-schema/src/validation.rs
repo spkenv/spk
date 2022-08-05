@@ -13,7 +13,7 @@ use crate::foundation::spec_ops::{ComponentOps, PackageOps};
 use crate::validators::{
     must_collect_all_files, must_install_something, must_not_alter_existing_files,
 };
-use crate::Result;
+use crate::{Error, Result};
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]
@@ -143,11 +143,11 @@ pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
                 }
                 if mode_change != 0 {
                     let perms = std::fs::Permissions::from_mode(a.mode);
-                    std::fs::set_permissions(
-                        diff.path
-                            .to_path(PathBuf::from(prefix.as_ref().to_string())),
-                        perms,
-                    )?;
+                    let filename = diff
+                        .path
+                        .to_path(PathBuf::from(prefix.as_ref().to_string()));
+                    std::fs::set_permissions(&filename, perms)
+                        .map_err(|err| Error::FileWriteError(filename, err))?;
                 }
                 diff.mode = DiffMode::Unchanged(a.clone());
             }
