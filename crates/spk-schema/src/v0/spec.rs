@@ -4,17 +4,18 @@
 use std::collections::{BTreeSet, HashMap};
 use std::convert::TryInto;
 use std::path::Path;
+use std::str::FromStr;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::name::PkgNameBuf;
+use spk_schema_foundation::name::{validate_pkg_name, PkgName, PkgNameBuf};
 use spk_schema_foundation::option_map::Stringified;
+use spk_schema_foundation::version_range::VersionRange;
 use spk_schema_ident::{AnyIdent, BuildIdent, Ident, VersionIdent};
 
 use crate::build_spec::UncheckedBuildSpec;
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
-use crate::foundation::name::PkgName;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
@@ -29,7 +30,7 @@ use crate::ident::{
     VarRequest,
 };
 use crate::meta::Meta;
-use crate::option::VarOpt;
+use crate::option::{PkgOpt, VarOpt};
 use crate::test_spec::TestSpec;
 use crate::{
     BuildEnv,
@@ -126,11 +127,31 @@ impl<Ident> Spec<Ident> {
                 })?;
 
                 for (name, value) in variant.iter() {
-                    // XXX: Treating these all like vars but we'll want to
-                    // treat some like pkgs instead.
-                    let mut var_opt = VarOpt::new(name)?;
-                    var_opt.set_value(value.clone())?;
-                    options.push(Opt::Var(var_opt));
+                    // Some heuristics to decide if the variant entry is
+                    // a var or a pkg...
+                    //
+                    // If it is not a valid package name, assume it is a var.
+                    if validate_pkg_name(name).is_err() ||
+                    // If the value is not a legal version range, assume it is
+                    // a var.
+                    VersionRange::from_str(value).is_err() ||
+                    // If the name matches a declared var in options, assume
+                    // it is a var.
+                    self.build.options.iter().any(|opt| match opt {
+                        Opt::Pkg(_) => false,
+                        Opt::Var(var) => var.var == *name,
+                    }) {
+                        let mut var_opt = VarOpt::new(name)?;
+                        var_opt.set_value(value.clone())?;
+                        options.push(Opt::Var(var_opt));
+                    } else {
+                        // It is a valid package name and the value is a legal
+                        // version range expression, and it doesn't match any
+                        // declared vars. Treat as a pkg.
+                        let mut pkg_opt = PkgOpt::new(PkgNameBuf::from_str(name.as_str())?)?;
+                        pkg_opt.set_value(value.clone())?;
+                        options.push(Opt::Pkg(pkg_opt));
+                    }
                 }
             }
         }

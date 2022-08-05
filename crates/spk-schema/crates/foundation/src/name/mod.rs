@@ -105,7 +105,7 @@ impl AsRef<OptName> for PkgName {
 }
 
 /// Ensure that the provided string is a valid package name
-fn validate_pkg_name<S: AsRef<str>>(name: S) -> Result<()> {
+pub fn validate_pkg_name<S: AsRef<str>>(name: S) -> Result<()> {
     if name.as_ref().len() < PkgName::MIN_LEN {
         return Err(InvalidNameError::new_error(format!(
             "Invalid package name, must be at least {} characters, got {} [{}]",
