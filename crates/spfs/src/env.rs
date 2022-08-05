@@ -161,7 +161,7 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
     }
 
     cmd.spawn()
-        .map_err(|err| Error::ProcessSpawnError("spfs-monitor".to_owned(), err))
+        .map_err(|err| Error::process_spawn_error("spfs-monitor".to_owned(), err, None))
 }
 
 /// When provided an active runtime, wait until all contained processes exit
@@ -677,7 +677,7 @@ pub(crate) fn mount_env<P: AsRef<Path>>(
     cmd.arg("none");
     cmd.arg(SPFS_DIR);
     match cmd.status() {
-        Err(err) => Err(Error::ProcessSpawnError("mount".to_owned(), err)),
+        Err(err) => Err(Error::process_spawn_error("mount".to_owned(), err, None)),
         Ok(status) => match status.code() {
             Some(0) => Ok(()),
             _ => Err("Failed to mount overlayfs".into()),

@@ -488,7 +488,13 @@ where
 
         match cmd
             .status()
-            .map_err(|err| Error::ProcessSpawnError("build script".to_owned(), err))?
+            .map_err(|err| {
+                Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                    "build script".to_owned(),
+                    err,
+                    Some(source_dir.to_owned()),
+                ))
+            })?
             .code()
         {
             Some(0) => (),

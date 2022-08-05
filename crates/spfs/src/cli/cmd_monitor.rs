@@ -38,11 +38,11 @@ pub struct CmdMonitor {
 impl CmdMonitor {
     pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
         let mut interrupt = signal(SignalKind::interrupt())
-            .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
+            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
         let mut quit = signal(SignalKind::quit())
-            .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
+            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
         let mut terminate = signal(SignalKind::terminate())
-            .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
+            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
         let repo = spfs::open_repository(&self.runtime_storage).await?;
         let storage = spfs::runtime::Storage::new(repo);
         let runtime = storage.read_runtime(&self.runtime).await?;

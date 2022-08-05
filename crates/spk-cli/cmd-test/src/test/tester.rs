@@ -56,7 +56,13 @@ pub trait Tester: Send {
             .envs(env)
             .current_dir(source_dir)
             .status()
-            .map_err(|err| Error::ProcessSpawnError("bash".to_owned(), err))?;
+            .map_err(|err| {
+                Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                    "bash".to_owned(),
+                    err,
+                    Some(source_dir.to_owned()),
+                ))
+            })?;
         if !status.success() {
             Err(TestError::new_error(format!(
                 "Test script returned non-zero exit status: {}",

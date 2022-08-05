@@ -143,7 +143,7 @@ async fn run_external_subcommand(args: Vec<String>) -> spfs::Result<i32> {
             Some(cmd) => cmd,
             None => {
                 let mut p = std::env::current_exe()
-                    .map_err(|err| Error::ProcessSpawnError("current_exe()".into(), err))?;
+                    .map_err(|err| Error::process_spawn_error("current_exe()".into(), err, None))?;
                 p.set_file_name(&command);
                 p
             }

@@ -18,8 +18,8 @@ pub enum Error {
     InvalidPackageSpecFile(std::path::PathBuf, #[source] serde_yaml::Error),
     #[error("Invalid path {0}")]
     InvalidPath(std::path::PathBuf, #[source] std::io::Error),
-    #[error("Failed to spawn {0} process")]
-    ProcessSpawnError(String, #[source] std::io::Error),
+    #[error(transparent)]
+    ProcessSpawnError(spfs::Error),
     #[error("Failed to wait for process: {0}")]
     ProcessWaitError(#[source] std::io::Error),
     #[error("Failed to encode spec: {0}")]

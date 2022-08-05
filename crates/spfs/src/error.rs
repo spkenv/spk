@@ -37,7 +37,7 @@ pub enum Error {
     Tonic(#[from] tonic::Status),
     #[error(transparent)]
     TokioJoinError(#[from] tokio::task::JoinError),
-    #[error("Failed to spawn {0} process")]
+    #[error("Failed to spawn {0}")]
     ProcessSpawnError(String, #[source] io::Error),
 
     /// Denotes a missing object or one that is not present in the database.
@@ -151,6 +151,29 @@ impl Error {
             Error::Nix(err) => Some(*err as i32),
             _ => None,
         }
+    }
+
+    /// Create an `Error:ProcessSpawnError` with context.
+    pub fn process_spawn_error(
+        process_description: String,
+        err: std::io::Error,
+        current_dir: Option<std::path::PathBuf>,
+    ) -> Error {
+        // A common problem with launching a sub-process is that the specified
+        // current working directory doesn't exist.
+        match (err.kind(), current_dir) {
+            (std::io::ErrorKind::NotFound, Some(current_dir)) if !current_dir.exists() => {
+                return Error::ProcessSpawnError(
+                    format!(
+                        "{process_description}: specified current_dir({current_dir}) doesn't exist",
+                        current_dir = current_dir.display()
+                    ),
+                    err,
+                );
+            }
+            _ => {}
+        }
+        Error::ProcessSpawnError(process_description, err)
     }
 }
 

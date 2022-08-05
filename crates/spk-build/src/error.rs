@@ -18,8 +18,8 @@ pub enum Error {
     FileOpenError(std::path::PathBuf, #[source] std::io::Error),
     #[error("Failed to write file {0}")]
     FileWriteError(std::path::PathBuf, #[source] std::io::Error),
-    #[error("Failed to spawn {0} process")]
-    ProcessSpawnError(String, #[source] std::io::Error),
+    #[error(transparent)]
+    ProcessSpawnError(spfs::Error),
     #[error(transparent)]
     SPFS(#[from] spfs::Error),
     #[error(transparent)]

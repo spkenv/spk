@@ -35,8 +35,8 @@ pub enum Error {
     // IO Errors
     #[error("Failed to write file {0}")]
     FileWriteError(std::path::PathBuf, #[source] std::io::Error),
-    #[error("Failed to spawn {0} process")]
-    ProcessSpawnError(String, #[source] std::io::Error),
+    #[error(transparent)]
+    ProcessSpawnError(spfs::Error),
     #[error("Failed to create temp dir: {0}")]
     TempDirError(#[source] std::io::Error),
 

@@ -33,7 +33,7 @@ pub async fn render(spec: tracking::EnvSpec) -> Result<std::path::PathBuf> {
     let output = cmd
         .output()
         .await
-        .map_err(|err| Error::ProcessSpawnError("spfs-render".to_owned(), err))?;
+        .map_err(|err| Error::process_spawn_error("spfs-render".to_owned(), err, None))?;
     eprint!("{}", String::from_utf8_lossy(output.stderr.as_slice()));
     let mut bytes = output.stdout.as_slice();
     while let Some(b) = bytes.strip_suffix(&[b'\n']) {

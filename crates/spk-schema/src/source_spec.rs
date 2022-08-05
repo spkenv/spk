@@ -128,7 +128,13 @@ impl LocalSource {
         rsync.current_dir(&dirname);
         match rsync
             .status()
-            .map_err(|err| Error::ProcessSpawnError("rsync".to_owned(), err))?
+            .map_err(|err| {
+                Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                    "rsync".to_owned(),
+                    err,
+                    Some(dirname.to_owned()),
+                ))
+            })?
             .code()
         {
             Some(0) => Ok(()),
@@ -189,7 +195,13 @@ impl GitSource {
             cmd.current_dir(&dirname);
             match cmd
                 .status()
-                .map_err(|err| Error::ProcessSpawnError("git".to_owned(), err))?
+                .map_err(|err| {
+                    Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                        "git".to_owned(),
+                        err,
+                        Some(dirname.to_owned()),
+                    ))
+                })?
                 .code()
             {
                 Some(0) => (),
@@ -231,7 +243,13 @@ impl TarSource {
             tracing::debug!(cmd=?wget, "running");
             match wget
                 .status()
-                .map_err(|err| Error::ProcessSpawnError("wget".to_owned(), err))?
+                .map_err(|err| {
+                    Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                        "wget".to_owned(),
+                        err,
+                        Some(tmpdir.path().to_owned()),
+                    ))
+                })?
                 .code()
             {
                 Some(0) => (),
@@ -256,7 +274,13 @@ impl TarSource {
         tracing::debug!(?cmd, "running");
         match cmd
             .status()
-            .map_err(|err| Error::ProcessSpawnError("tar".to_owned(), err))?
+            .map_err(|err| {
+                Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                    "tar".to_owned(),
+                    err,
+                    Some(dirname.to_owned()),
+                ))
+            })?
             .code()
         {
             Some(0) => Ok(()),
@@ -306,9 +330,13 @@ impl ScriptSource {
         bash.current_dir(dirname);
 
         tracing::debug!("running sources script");
-        let mut child = bash
-            .spawn()
-            .map_err(|err| Error::ProcessSpawnError("bash".to_owned(), err))?;
+        let mut child = bash.spawn().map_err(|err| {
+            Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                "bash".to_owned(),
+                err,
+                Some(dirname.to_owned()),
+            ))
+        })?;
         let stdin = match child.stdin.as_mut() {
             Some(s) => s,
             None => {
