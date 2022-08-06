@@ -81,6 +81,19 @@ impl Spec {
     pub fn resolve_all_options(&self, given: &OptionMap) -> OptionMap {
         self.build.resolve_all_options(Some(&self.pkg.name), given)
     }
+
+    /// Return the build digest to use for this `BuildSpec` if built with the
+    /// given options.
+    ///
+    /// This is similar to calling `resolve_all_options(...).digest()` but the
+    /// digest will include options from `given` that were not formally
+    /// declared in the spec, such as vars that only appear in the variants
+    /// list.
+    pub fn get_build_digest_from_options(&self, given: &OptionMap) -> super::option_map::Digest {
+        self.build
+            .get_build_digest_from_options(Some(&self.pkg.name), given)
+    }
+
     /// Check if this package spec satisfies the given request.
     pub fn satisfies_request(&self, request: Request) -> Compatibility {
         match request {
@@ -236,7 +249,7 @@ impl Spec {
 
         self.install
             .render_all_pins(options, specs.iter().map(|(_, s)| &s.as_ref().pkg))?;
-        let digest = self.resolve_all_options(options).digest();
+        let digest = self.get_build_digest_from_options(options);
         self.pkg.set_build(Some(Build::Digest(digest)));
         Ok(())
     }

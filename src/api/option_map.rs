@@ -22,7 +22,7 @@ mod option_map_test;
 // a nice way to handle validation / and 16 is a lot
 pub const DIGEST_SIZE: usize = 8;
 
-type Digest = [char; DIGEST_SIZE];
+pub(crate) type Digest = [char; DIGEST_SIZE];
 
 /// Create a set of options from a simple mapping.
 ///

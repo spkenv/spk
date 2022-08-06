@@ -52,9 +52,45 @@ impl BuildSpec {
         package_name: Option<&PkgName>,
         given: &OptionMap,
     ) -> OptionMap {
+        let (resolved, _) = self.resolve_all_options_and_unused_given(package_name, given);
+        resolved
+    }
+
+    /// Return the build digest to use for this `BuildSpec` if built with the
+    /// given options.
+    ///
+    /// This is similar to calling `resolve_all_options(...).digest()` but the
+    /// digest will include options from `given` that were not formally
+    /// declared in the spec, such as vars that only appear in the variants
+    /// list.
+    pub fn get_build_digest_from_options(
+        &self,
+        package_name: Option<&PkgName>,
+        given: &OptionMap,
+    ) -> super::option_map::Digest {
+        let (mut resolved, unused_given) =
+            self.resolve_all_options_and_unused_given(package_name, given);
+
+        // Tack on any unused given options so that they become part of the
+        // build digest.
+        for (key, value) in unused_given.into_iter() {
+            resolved.insert(key.to_owned(), value.to_owned());
+        }
+
+        resolved.digest()
+    }
+
+    fn resolve_all_options_and_unused_given<'a, 'b>(
+        &'a self,
+        package_name: Option<&PkgName>,
+        given: &'b OptionMap,
+    ) -> (OptionMap, BTreeMap<&'b super::OptName, &'b String>)
+    where
+        'a: 'b,
+    {
         // Track which of the given options are used (e.g., also appear in
         // `self.options`).
-        let mut unused_given: BTreeMap<&super::OptName, &String> =
+        let mut unused_given: BTreeMap<&'b super::OptName, &'b String> =
             given.iter().map(|(k, v)| (k.as_ref(), v)).collect();
 
         let mut resolved = OptionMap::default();
@@ -89,13 +125,7 @@ impl BuildSpec {
             resolved.insert(name.to_owned(), value);
         }
 
-        // Tack on any unused given options so that they become part of the
-        // build digest.
-        for (key, value) in unused_given.into_iter() {
-            resolved.insert(key.to_owned(), value.to_owned());
-        }
-
-        resolved
+        (resolved, unused_given)
     }
 
     /// Validate the given options against the options in this spec.
