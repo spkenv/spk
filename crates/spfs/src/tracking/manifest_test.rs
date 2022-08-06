@@ -21,9 +21,15 @@ async fn test_compute_manifest_determinism() {
 #[tokio::test]
 async fn test_compute_manifest() {
     let root = std::fs::canonicalize("./src").unwrap();
-    let this = file!().to_string().replace("./", "").replace("src/", "");
-    let manifest = compute_manifest(root).await.unwrap();
-    assert!(manifest.get_path(&this).is_some());
+    let this = file!()
+        .to_string()
+        .replace("./", "")
+        .replace("crates/spfs/src/", "");
+    let manifest = compute_manifest(&root).await.unwrap();
+    assert!(
+        manifest.get_path(&this).is_some(),
+        "expect {this} to be gathered under {root:?}"
+    );
 }
 
 #[rstest]

@@ -42,19 +42,19 @@ format:
 .PHONY: build
 build: debug
 
-debug: FEATURES ?= cli
+debug: FEATURES ?= spfs/cli
 debug:
 	cd $(SOURCE_ROOT)
-	cargo build --all $(cargo_features_arg)
+	cargo build --workspace $(cargo_features_arg)
 
-release: FEATURES ?= cli
+release: FEATURES ?= spfs/cli
 release:
 	cd $(SOURCE_ROOT)
-	cargo build --all --release $(cargo_features_arg)
+	cargo build --workspace --release $(cargo_features_arg)
 
 .PHONY: test
 test:
-	spfs run - -- cargo test --workspace --all $(cargo_features_arg)
+	spfs run - -- cargo test --workspace $(cargo_features_arg)
 
 .PHONY: converters
 converters:
@@ -102,11 +102,11 @@ install: copy-release setcap
 
 copy-debug: debug
 	cd $(SOURCE_ROOT)
-	sudo cp -f target/debug/spfs* /usr/bin/
+	sudo cp -f target/debug/spk target/debug/spfs* /usr/bin/
 
 copy-release: release
 	cd $(SOURCE_ROOT)
-	sudo cp -f target/release/spfs* /usr/bin/
+	sudo cp -f target/release/spk target/release/spfs* /usr/bin/
 
 setcap:
 	sudo setcap 'cap_net_admin+ep' /usr/bin/spfs-monitor
