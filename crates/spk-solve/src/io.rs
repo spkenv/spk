@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use async_stream::stream;
 use colored::Colorize;
-use console::Term;
+use crossterm::tty::IsTty;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -235,18 +235,18 @@ where
                                             )
                                         })
                                         .join(" |"),
-                                );
+                                )?;
                             }
-                            status_line.flush();
+                            status_line.flush()?;
                             self.status_line_rendered_hash = resolved_packages_hash
                         }
                     } else if !matches!(self.status_bar, StatusBarStatus::Disabled)
                         && self.start.elapsed() >= STATUS_BAR_DELAY
                     {
                         // Don't create the status bar if the terminal is unattended.
-                        let term = Term::buffered_stdout();
-                        self.status_bar = if term.features().is_attended() {
-                            StatusBarStatus::Active(StatusLine::new(term, 3))
+                        let stdout = std::io::stdout();
+                        self.status_bar = if stdout.is_tty() {
+                            StatusBarStatus::Active(StatusLine::new(stdout, 3)?)
                         } else {
                             StatusBarStatus::Disabled
                         };
