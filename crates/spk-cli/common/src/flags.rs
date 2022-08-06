@@ -671,7 +671,16 @@ impl DecisionFormatterSettings {
         builder
             .with_verbosity(verbosity)
             .with_time_and_stats(self.time)
-            .with_verbosity_increase_every(self.increase_verbosity)
+            .with_verbosity_increase_every({
+                // If using the status bar, don't automatically increase
+                // verbosity. The extra verbosity decreases the solver speed
+                // significantly.
+                if self.status_bar {
+                    0
+                } else {
+                    self.increase_verbosity
+                }
+            })
             .with_timeout(self.timeout)
             .with_solution(self.show_solution)
             .with_long_solves_threshold(self.long_solves)
