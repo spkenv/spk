@@ -45,6 +45,7 @@ pub use spk_schema_foundation::{
     ident_component,
     ident_ops,
     name,
+    opt_name,
     spec_ops,
     version,
     version_range,
