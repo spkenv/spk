@@ -122,9 +122,14 @@ impl<Ident> Spec<Ident> {
         match build_variant {
             BuildVariant::Default => {}
             BuildVariant::Variant(index) => {
-                let variant = self.build.variants.get(*index).ok_or_else(|| {
-                    crate::Error::String(format!("Variant index {index} out of range!"))
-                })?;
+                let variant = self
+                    .build
+                    .variants
+                    .as_ref()
+                    .and_then(|v| v.get(*index))
+                    .ok_or_else(|| {
+                        crate::Error::String(format!("Variant index {index} out of range!"))
+                    })?;
 
                 for (name, value) in variant.iter() {
                     // Some heuristics to decide if the variant entry is
@@ -314,15 +319,17 @@ impl Recipe for Spec<VersionIdent> {
 
     fn default_variants(&self) -> Vec<BuildVariant> {
         // Detect if the recipe didn't specify any variants.
-        if self.build.variants.len() == 1 && self.build.variants[0].is_empty() {
-            vec![BuildVariant::Default]
-        } else {
-            self.build
-                .variants
-                .iter()
-                .enumerate()
-                .map(|(index, _)| BuildVariant::Variant(index))
-                .collect()
+        match self.build.variants.as_ref() {
+            Some(variants)
+                if variants.len() > 1 || (variants.len() == 1 && !variants[0].is_empty()) =>
+            {
+                variants
+                    .iter()
+                    .enumerate()
+                    .map(|(index, _)| BuildVariant::Variant(index))
+                    .collect()
+            }
+            _ => vec![BuildVariant::Default],
         }
     }
 
@@ -517,7 +524,7 @@ impl Recipe for Spec<VersionIdent> {
 
         // Remove variants now that the variant used has been baked into the
         // top-level options.
-        updated.build.variants = Vec::default();
+        updated.build.variants = None;
 
         updated
             .install

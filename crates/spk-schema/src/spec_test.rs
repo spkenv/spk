@@ -3,7 +3,8 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spk_schema_foundation::{option_map, option_map::OptionMap};
+use spk_schema_foundation::option_map;
+use spk_schema_foundation::option_map::OptionMap;
 
 use crate::{recipe, BuildVariant, Recipe};
 
@@ -18,6 +19,20 @@ fn test_resolve_options_empty_options() {
         .unwrap();
     // No options were specified and none has magically appeared.
     assert!(resolved_options.is_empty());
+}
+
+#[rstest]
+#[case::index_0(0)]
+#[case::index_1(1)]
+fn test_resolve_options_variant_out_of_range(#[case] index: usize) {
+    let spec = recipe!({
+        "pkg": "test/1.0.0",
+    });
+
+    // Grabbing a non-existent variant should fail.
+    assert!(spec
+        .resolve_options(&BuildVariant::Variant(index), &OptionMap::default())
+        .is_err());
 }
 
 #[rstest]

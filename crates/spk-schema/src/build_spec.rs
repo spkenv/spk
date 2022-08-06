@@ -21,7 +21,7 @@ pub struct BuildSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<Opt>,
     #[serde(default, skip_serializing_if = "BuildSpec::is_default_variants")]
-    pub variants: Vec<OptionMap>,
+    pub variants: Option<Vec<OptionMap>>,
     #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
     pub validation: ValidationSpec,
 }
@@ -31,7 +31,7 @@ impl Default for BuildSpec {
         Self {
             script: Script(vec!["sh ./build.sh".into()]),
             options: Vec::new(),
-            variants: vec![OptionMap::default()],
+            variants: None,
             validation: ValidationSpec::default(),
         }
     }
@@ -42,11 +42,13 @@ impl BuildSpec {
         self == &Self::default()
     }
 
-    fn is_default_variants(variants: &[OptionMap]) -> bool {
-        if variants.len() != 1 {
-            return false;
+    fn is_default_variants(variants: &Option<Vec<OptionMap>>) -> bool {
+        match variants {
+            None => true,
+            Some(v) if v.is_empty() => true,
+            Some(v) if v.len() > 1 => false,
+            Some(v) => v[0] == OptionMap::default(),
         }
-        variants.get(0) == Some(&OptionMap::default())
     }
 
     /// Add or update an option in this build spec.
@@ -74,23 +76,25 @@ impl TryFrom<UncheckedBuildSpec> for BuildSpec {
             bs.into_inner()
         };
 
-        let mut variant_builds = Vec::new();
-        let mut unique_variants = HashSet::new();
-        for variant in bs.variants.iter() {
-            let digest = variant.digest();
-            variant_builds.push((digest, variant.clone()));
-            unique_variants.insert(digest);
-        }
-        if unique_variants.len() < variant_builds.len() {
-            let details = variant_builds
-                .iter()
-                .map(|(h, o)| format!("  - {} ({})", o, h.iter().join("")))
-                .collect::<Vec<_>>()
-                .join("\n");
-            return Err(crate::Error::String(format!(
-                "Multiple variants would produce the same build:\n{}",
-                details
-            )));
+        if let Some(variants) = bs.variants.as_ref() {
+            let mut variant_builds = Vec::new();
+            let mut unique_variants = HashSet::new();
+            for variant in variants.iter() {
+                let digest = variant.digest();
+                variant_builds.push((digest, variant.clone()));
+                unique_variants.insert(digest);
+            }
+            if unique_variants.len() < variant_builds.len() {
+                let details = variant_builds
+                    .iter()
+                    .map(|(h, o)| format!("  - {} ({})", o, h.iter().join("")))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                return Err(crate::Error::String(format!(
+                    "Multiple variants would produce the same build:\n{}",
+                    details
+                )));
+            }
         }
 
         Ok(bs)
@@ -165,7 +169,9 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                                 unique_options.insert(full_name);
                             }
                         }
-                        "variants" => unchecked.variants = map.next_value::<Vec<OptionMap>>()?,
+                        "variants" => {
+                            unchecked.variants = Some(map.next_value::<Vec<OptionMap>>()?)
+                        }
                         "validation" => {
                             unchecked.validation = map.next_value::<ValidationSpec>()?
                         }
