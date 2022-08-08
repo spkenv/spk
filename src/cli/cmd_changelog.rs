@@ -7,7 +7,6 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
-use regex;
 
 use chrono::{NaiveDateTime, DateTime, Utc, Local};
 use super::{flags, CommandArgs, Run};
@@ -84,10 +83,9 @@ impl Run for ChangeLog {
                     let ident = spk::api::parse_ident(name.clone())?;
                     let spec = repo.read_spec(&ident).await?;
 
-                    
                     let current_time = chrono::offset::Local::now().timestamp();
                     let diff = current_time - spec.meta.creation_timestamp;
-                    if diff < res{
+                    if diff < changelog_range{
                         let naive_date_time = NaiveDateTime::from_timestamp(spec.meta.creation_timestamp, 0);
                         let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc).with_timezone(&Local);
                         println!("Package {}: Created on {}", name, date_time);
