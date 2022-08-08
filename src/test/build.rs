@@ -145,10 +145,11 @@ impl<'a> PackageBuildTester<'a> {
         rt.status.editable = true;
         rt.status.stack.clear();
 
-        let mut stack = Vec::new();
         if let BuildSource::SourcePackage(pkg) = self.source.clone() {
             let solution = self.resolve_source_package(&pkg.try_into()?).await?;
-            stack.append(&mut exec::resolve_runtime_layers(&solution).await?);
+            for layer in exec::resolve_runtime_layers(&solution).await? {
+                rt.push_digest(layer);
+            }
         }
 
         let mut solver = solve::Solver::default();
