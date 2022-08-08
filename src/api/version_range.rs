@@ -53,13 +53,11 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// this cannot be fully determined without a complete package spec.
     fn is_applicable(&self, other: &Version) -> Compatibility {
         if let Some(gt) = self.greater_or_equal_to() {
-            println!("{gt}");
             if other < &gt {
                 return Compatibility::Incompatible(format!("version too low for >= {gt}"));
             }
         }
         if let Some(lt) = self.less_than() {
-            println!("{lt}");
             if other >= &lt {
                 return Compatibility::Incompatible(format!("version too high for < {lt}"));
             }
