@@ -7,7 +7,6 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
-use regex;
 
 use chrono::{NaiveDateTime, DateTime, Utc, Local};
 use super::{flags, CommandArgs, Run};
@@ -45,23 +44,22 @@ impl Run for ChangeLog {
         }
 
         // Seconds in day, week, month, and year for comparison when checking creation date.
-        let _day: i64 = 86400;
-        let _week: i64 = 604800;
-        let _month: i64 = 2592000;
-        let _year: i64 = 31104000;
-
-        // Work in arguments
-        let mut res = i64::default();
-        match &self.range {
-            None => {
-                res = _month;
-                println!("{:?}", res);
-            }
+        let range_in_seconds: HashMap<&str, i64> = HashMap::from([
+            ("d", 86400), // day
+            ("w", 604800), // week
+            ("m", 2592000), // month
+            ("y", 31104000), // year
+        ]);
+        
+        let changelog_range: i64 = match &self.range {
+            None => *range_in_seconds.get("m").unwrap(),
             Some(range) => {
-                println!("{:?}", range);
+                let range_vec = range.split_terminator("").skip(1).collect::<Vec<&str>>();
+                let range_multiplier = atoi::<i64>(range).unwrap();
+                let range_type = *range_in_seconds.get(range_vec.last().unwrap()).unwrap();
+                range_multiplier * range_type  
             }
-        }
-
+        };
         for (index, (_, repo)) in repos.iter().enumerate()  {
             let packages = repo.list_packages().await?;
             for package in packages {
@@ -85,10 +83,9 @@ impl Run for ChangeLog {
                     let ident = spk::api::parse_ident(name.clone())?;
                     let spec = repo.read_spec(&ident).await?;
 
-                    
                     let current_time = chrono::offset::Local::now().timestamp();
                     let diff = current_time - spec.meta.creation_timestamp;
-                    if diff < res{
+                    if diff < changelog_range{
                         let naive_date_time = NaiveDateTime::from_timestamp(spec.meta.creation_timestamp, 0);
                         let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc).with_timezone(&Local);
                         println!("Package {}: Created on {}", name, date_time);

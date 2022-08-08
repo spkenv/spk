@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::{io::Write, sync::Arc};
+use chrono::offset::Local;
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
@@ -283,6 +284,7 @@ pub(crate) async fn change_deprecation_state(
             action.as_present_tense(),
             spec.pkg.format_ident(),
         );
+<<<<<<< HEAD
         
         println!("1 recent modified time: {:?}", Arc::make_mut(&mut spec).meta.get_recent_modified_time());
         Arc::make_mut(&mut spec).meta.update_modified_time(action.as_str());
@@ -292,6 +294,22 @@ pub(crate) async fn change_deprecation_state(
         };
         
         println!("2 recent modified time: {:?}", Arc::make_mut(&mut spec).meta.get_recent_modified_time());
+=======
+
+        println!("{:?}", comment);
+        if !spec.meta.modified_stack.contains_key("deprecate") {
+            let mut data: Vec<i64> = Vec::new();
+            let timestamp = Local::now().timestamp();
+            data.push(timestamp);
+            Arc::make_mut(&mut spec).meta.modified_stack.insert("deprecate".into(), data);
+            println!("{:?}", spec.meta.modified_stack);
+        } else {
+            let timestamp = Local::now().timestamp();
+            Arc::make_mut(&mut spec).meta.modified_stack.get("deprecate").unwrap().push(timestamp);
+            println!("{:?}", spec.meta.modified_stack);
+        };
+
+>>>>>>> 2810bd90 (Implemented creation timestamp. WIP: modification timestamp)
         Arc::make_mut(&mut spec).deprecated = new_status;
         repo.force_publish_spec(&spec).await?;
         tracing::info!(repo=%repo_name, "{} {fmt}", action.as_past_tense());

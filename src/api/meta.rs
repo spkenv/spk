@@ -24,6 +24,10 @@ pub struct Meta {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub labels: BTreeMap<String, String>,
     pub creation_timestamp: i64,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub modified_stack: BTreeMap<String, Vec<i64>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub comments: BTreeMap<String, Vec<String>>,
 }
 
 impl Default for Meta {
@@ -34,6 +38,8 @@ impl Default for Meta {
             license: Self::default_license(),
             labels: Default::default(),
             creation_timestamp: i64::default(),
+            modified_stack: Default::default(),
+            comments: Default::default(),
         }
     }
 }
