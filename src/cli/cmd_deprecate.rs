@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::{io::Write, sync::Arc};
-
+use chrono::offset::Local;
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
@@ -76,6 +76,10 @@ pub struct Deprecate {
     #[clap(long, short)]
     pub yes: bool,
 
+    /// Add a comment when deprecating a package
+    #[clap(long, short)]
+    pub comment: Vec<String>,
+    
     /// The package version or build to deprecate
     ///
     /// By deprecating a package version, as opposed to an individual
@@ -95,6 +99,7 @@ impl Run for Deprecate {
             &self.repos.get_repos(None).await?,
             &self.packages,
             self.yes,
+            &self.comment,
         )
         .await
     }
@@ -130,6 +135,7 @@ pub(crate) async fn change_deprecation_state(
     repositories: &[(String, spk::storage::RepositoryHandle)],
     packages: &[String],
     yes: bool,
+    comment: &[String],
 ) -> Result<i32> {
     let repos: Vec<_> = repositories
         .iter()
@@ -278,6 +284,19 @@ pub(crate) async fn change_deprecation_state(
             action.as_present_tense(),
             io::format_ident(&spec.pkg),
         );
+
+        println!("{:?}", comment);
+        if !spec.meta.modified_stack.contains_key("deprecate") {
+            let mut data: Vec<i64> = Vec::new();
+            let timestamp = Local::now().timestamp();
+            data.push(timestamp);
+            Arc::make_mut(&mut spec).meta.modified_stack.insert("deprecate".into(), data);
+            println!("{:?}", spec.meta.modified_stack);
+        } else {
+            let timestamp = Local::now().timestamp();
+            Arc::make_mut(&mut spec).meta.modified_stack.get("deprecate").unwrap().push(timestamp);
+            println!("{:?}", spec.meta.modified_stack);
+        };
 
         Arc::make_mut(&mut spec).deprecated = new_status;
         repo.force_publish_spec(&spec).await?;
