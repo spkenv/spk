@@ -7,6 +7,7 @@ RUN yum install -y \
     automake \
     bison \
     coreutils \
+    file \
     flex \
     gcc \
     gcc-c++ \
