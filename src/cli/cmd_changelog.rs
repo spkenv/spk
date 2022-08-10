@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 // use std::{collections::BTreeSet};
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
@@ -79,17 +79,18 @@ impl Run for ChangeLog {
                     let mut name = String::from(&package.to_string());
                     name.push('/');
                     name.push_str(&version.to_string());
-                    
-                    let ident = spk::api::parse_ident(name.clone())?;
-                    let spec = repo.read_spec(&ident).await?;
 
-                    let current_time = chrono::offset::Local::now().timestamp();
-                    let diff = current_time - spec.meta.creation_timestamp;
-                    if diff < changelog_range{
-                        let naive_date_time = NaiveDateTime::from_timestamp(spec.meta.creation_timestamp, 0);
-                        let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc).with_timezone(&Local);
-                        println!("Package {}: Created on {}", name, date_time);
-                    }
+                    let ident = spk::api::parse_ident(name.clone())?;
+                    let mut spec = repo.read_spec(&ident).await?;
+                    println!("recent modified time: {:?}", Arc::make_mut(&mut spec).meta.get_recent_modified_time());
+
+                    // let current_time = chrono::offset::Local::now().timestamp();
+                    // let diff = current_time - spec.meta.creation_timestamp;
+                    // if diff < changelog_range{
+                    //     let naive_date_time = NaiveDateTime::from_timestamp(spec.meta.creation_timestamp, 0);
+                    //     let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc).with_timezone(&Local);
+                    //     println!("Package {}: Created on {}", name, date_time);
+                    // }
                 }
             }
 
