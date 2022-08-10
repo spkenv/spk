@@ -81,8 +81,15 @@ impl Run for ChangeLog {
                     name.push_str(&version.to_string());
 
                     let ident = spk::api::parse_ident(name.clone())?;
-                    let mut spec = repo.read_spec(&ident).await?;
-                    println!("recent modified time: {:?}", Arc::make_mut(&mut spec).meta.get_recent_modified_time());
+                    let spec = repo.read_spec(&ident).await;
+                    let mut spec = match spec {
+                        Ok(spec) => spec,
+                        Err(error) => {
+                            println!("WARN: {}", error);
+                            break
+                        }
+                    };
+                    println!("package {:?} recent modified time: {:?}", ident.name, Arc::make_mut(&mut spec).meta.get_recent_modified_time());
 
                     // let current_time = chrono::offset::Local::now().timestamp();
                     // let diff = current_time - spec.meta.creation_timestamp;
