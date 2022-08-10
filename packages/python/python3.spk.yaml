@@ -87,17 +87,20 @@ install:
     - set: PYTHONDONTWRITEBYTECODE
       value: 1
   requirements:
+    - pkg: binutils
+      fromBuildEnv: Binary
     - pkg: gcc
-      fromBuildEnv: x.x
+      fromBuildEnv: Binary
       include: IfAlreadyPresent
     - pkg: stdfs
     - pkg: libffi
     - pkg: ncurses
     - pkg: bzip2
+      fromBuildEnv: Binary
     - pkg: zlib
+      fromBuildEnv: Binary
     - pkg: openssl
-    - pkg: binutils
-      fromBuildEnv: x.x
+      fromBuildEnv: Binary
   components:
     - name: run
       files:
