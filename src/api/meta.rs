@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use chrono::offset::Local;
 
 #[cfg(test)]
 #[path = "./meta_test.rs"]
@@ -49,5 +50,62 @@ impl Meta {
     }
     fn default_license() -> String {
         "Unlicensed".into()
+    }
+
+    pub fn update_comments(&mut self, comment: &[String], action: &str) {
+
+        match self.comments.remove(action) {
+            None => self.comments.insert(action.into(), comment.to_owned()),
+            Some(mut existing_data) => {
+                existing_data.extend(comment.to_owned());
+                self.comments.insert(action.into(), existing_data.to_vec())
+            }
+        };
+    }
+
+    pub fn update_modified_time(&mut self, action: &str) {
+
+        let timestamp = Local::now().timestamp();
+        let data: Vec<i64> = vec![timestamp];
+
+        match self.modified_stack.remove(action) {
+            None => self.modified_stack.insert(action.into(), data),
+            Some(mut existing_data) => {
+                existing_data.extend(&data);
+                self.modified_stack.insert(action.into(), existing_data.to_vec())
+            }
+        };
+    }
+
+    pub fn get_recent_modified_time(&mut self) -> (String, i64) {
+        
+        let mut recent_modified_time: i64 = 0;
+        let mut result: (String, i64) = ("".to_string(), 0);
+
+        match self.modified_stack.is_empty() {
+            true => result = ("build".to_string(), self.creation_timestamp),
+            false => {
+                for (command, timestamps) in &self.modified_stack {
+                    for timestamp in timestamps {
+                        if timestamp > &recent_modified_time {
+                            recent_modified_time = *timestamp;
+                            result = (command.to_owned(), recent_modified_time);
+                        };
+                    };
+                };
+            }
+        };
+
+        result
+        // match self.modified_stack.is_empty() {
+        //     true => match self.comments.is_empty() {
+        //         true => return ("Created on".to_string(), "".to_string(), self.creation_timestamp),
+        //         false => return ("Created on".to_string(), self.comments.last().unwrap(), self.creation_timestamp)
+        //     },
+        //     false => match self.comments.is_empty() {
+        //         true => return ("Last Modified".to_string(), "".to_string(), self.modified_stack.last().unwrap()),
+        //         false => return ("Last Modified".to_string(), self.comments.last().unwrap(), self.modified_stack.last().unwrap())
+        //     },
+        // }
     }
 }
