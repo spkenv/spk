@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashSet;
+use std::convert::TryInto;
 use std::str::FromStr;
 
 use rstest::rstest;
 
-use super::{parse_ident, Ident, RepositoryName};
-use crate::api::{parse_version, Build, Version};
+use super::{parse_ident, Ident};
+use crate::api::{parse_version, Build, RangeIdent, VersionFilter};
 
 #[rstest]
 #[case("package")]
@@ -29,79 +31,81 @@ fn test_ident_to_yaml() {
 #[rstest]
 #[case(
     "local/hello/1.0.0/src",
-    Ident{repository_name: Some(RepositoryName("local".to_string())), name: "hello".parse().unwrap(), version: parse_version("1.0.0").unwrap(), build: Some(Build::Source)}
+    RangeIdent{repository_name: Some("local".try_into().unwrap()), name: "hello".parse().unwrap(), version: parse_version("1.0.0").unwrap().into_compat_range(), components: HashSet::default(), build: Some(Build::Source)}
 )]
 #[case(
     "local/hello",
-    Ident{repository_name: Some(RepositoryName("local".to_string())), name: "hello".parse().unwrap(), version: Version::default(), build: None}
+    RangeIdent{repository_name: Some("local".try_into().unwrap()), name: "hello".parse().unwrap(), version: VersionFilter::default(), components: HashSet::default(), build: None}
 )]
 #[case(
     "hello/1.0.0/src",
-    Ident{
+    RangeIdent{
         repository_name: None,
         name: "hello".parse().unwrap(),
-        version: parse_version("1.0.0").unwrap(),
+        version: parse_version("1.0.0").unwrap().into_compat_range(),
+        components: HashSet::default(),
         build: Some(Build::Source)
     }
 )]
 #[case(
     "python/2.7",
-    Ident{
+    RangeIdent{
         repository_name: None,
         name: "python".parse().unwrap(),
-        version: parse_version("2.7").unwrap(),
+        version: parse_version("2.7").unwrap().into_compat_range(),
+        components: HashSet::default(),
         build: None
     }
 )]
 #[case(
     "python/2.7-r.1",
-    Ident{repository_name: None, name: "python".parse().unwrap(), version: parse_version("2.7-r.1").unwrap(), build: None}
+    RangeIdent{repository_name: None, name: "python".parse().unwrap(), version: parse_version("2.7-r.1").unwrap().into_compat_range(), components: HashSet::default(), build: None}
 )]
 #[case(
     "python/2.7+r.1",
-    Ident{repository_name: None, name: "python".parse().unwrap(), version: parse_version("2.7+r.1").unwrap(), build: None}
+    RangeIdent{repository_name: None, name: "python".parse().unwrap(), version: parse_version("2.7+r.1").unwrap().into_compat_range(), components: HashSet::default(), build: None}
 )]
 #[case(
     "python/2.7-r.1+r.1",
-    Ident{repository_name: None, name: "python".parse().unwrap(), version: parse_version("2.7-r.1+r.1").unwrap(), build: None}
+    RangeIdent{repository_name: None, name: "python".parse().unwrap(), version: parse_version("2.7-r.1+r.1").unwrap().into_compat_range(), components: HashSet::default(), build: None}
 )]
 // pathological cases: package named "local"
 #[case(
     "local/1.0.0/src",
-    Ident{repository_name: None, name: "local".parse().unwrap(), version: parse_version("1.0.0").unwrap(), build: Some(Build::Source)}
+    RangeIdent{repository_name: None, name: "local".parse().unwrap(), version: parse_version("1.0.0").unwrap().into_compat_range(), components: HashSet::default(), build: Some(Build::Source)}
 )]
 #[case(
     "local/1.0.0/DEADBEEF",
-    Ident{repository_name: None, name: "local".parse().unwrap(), version: parse_version("1.0.0").unwrap(), build: Some(Build::from_str("DEADBEEF").unwrap())}
+    RangeIdent{repository_name: None, name: "local".parse().unwrap(), version: parse_version("1.0.0").unwrap().into_compat_range(), components: HashSet::default(), build: Some(Build::from_str("DEADBEEF").unwrap())}
 )]
 #[case(
     "local/1.0.0",
-    Ident{repository_name: None, name: "local".parse().unwrap(), version: parse_version("1.0.0").unwrap(), build: None}
+    RangeIdent{repository_name: None, name: "local".parse().unwrap(), version: parse_version("1.0.0").unwrap().into_compat_range(), components: HashSet::default(), build: None}
 )]
 // pathological cases: names that could be version numbers
 #[case(
     "111/222/333",
-    Ident{repository_name: Some(RepositoryName("111".to_string())), name: "222".parse().unwrap(), version: parse_version("333").unwrap(), build: None}
+    RangeIdent{repository_name: Some("111".try_into().unwrap()), name: "222".parse().unwrap(), version: parse_version("333").unwrap().into_compat_range(), components: HashSet::default(), build: None}
 )]
 #[case(
     "222/333",
-    Ident{repository_name: None, name: "222".parse().unwrap(), version: parse_version("333").unwrap(), build: None}
+    RangeIdent{repository_name: None, name: "222".parse().unwrap(), version: parse_version("333").unwrap().into_compat_range(), components: HashSet::default(), build: None}
 )]
 #[case(
     "222/333/44444444",
-    Ident{repository_name: None, name: "222".parse().unwrap(), version: parse_version("333").unwrap(), build: Some(Build::from_str("44444444").unwrap())}
+    RangeIdent{repository_name: None, name: "222".parse().unwrap(), version: parse_version("333").unwrap().into_compat_range(), components: HashSet::default(), build: Some(Build::from_str("44444444").unwrap())}
 )]
 #[case(
     "local/222",
-    Ident{repository_name: Some(RepositoryName("local".to_string())), name: "222".parse().unwrap(), version: Version::default(), build: None}
+    RangeIdent{repository_name: Some("local".try_into().unwrap()), name: "222".parse().unwrap(), version: VersionFilter::default(), components: HashSet::default(), build: None}
 )]
 #[case(
     // like the "222/333" case but with a package name that
     // starts with a known repository name.
     "localx/333",
-    Ident{repository_name: None, name: "localx".parse().unwrap(), version: parse_version("333").unwrap(), build: None}
+    RangeIdent{repository_name: None, name: "localx".parse().unwrap(), version: parse_version("333").unwrap().into_compat_range(), components: HashSet::default(), build: None}
 )]
-fn test_parse_ident(#[case] input: &str, #[case] expected: Ident) {
-    let actual = parse_ident(input).unwrap();
+fn test_parse_range_ident(#[case] input: &str, #[case] expected: RangeIdent) {
+    let actual = RangeIdent::from_str(input).unwrap();
     assert_eq!(actual, expected);
 }

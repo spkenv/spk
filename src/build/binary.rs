@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::collections::{HashMap, HashSet};
+use std::convert::TryInto;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
@@ -13,6 +14,7 @@ use spfs::prelude::*;
 use thiserror::Error;
 
 use super::env::data_path;
+use crate::api::RangeIdent;
 use crate::solve::Solution;
 use crate::{
     api, exec, solve,
@@ -44,7 +46,7 @@ impl BuildError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildSource {
     /// Identifies an existing source package to be resolved
-    SourcePackage(api::Ident),
+    SourcePackage(RangeIdent),
     /// Specifies that the binary package should be built
     /// against a set of local files.
     ///
@@ -85,7 +87,8 @@ pub struct BinaryPackageBuilder<'a> {
 impl<'a> BinaryPackageBuilder<'a> {
     /// Create a new builder that builds a binary package from the given spec
     pub fn from_spec(spec: api::Spec) -> Self {
-        let source = BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)));
+        let source =
+            BuildSource::SourcePackage(spec.pkg.with_build(Some(api::Build::Source)).into());
 
         Self {
             spec,
@@ -223,7 +226,7 @@ impl<'a> BinaryPackageBuilder<'a> {
         let mut stack = Vec::new();
         if let BuildSource::SourcePackage(ident) = self.source.clone() {
             tracing::debug!("Resolving source package for build");
-            let solution = self.resolve_source_package(&ident).await?;
+            let solution = self.resolve_source_package(ident).await?;
             stack.extend(exec::resolve_runtime_layers(&solution).await?)
         };
         tracing::debug!("Resolving build environment");
@@ -247,7 +250,7 @@ impl<'a> BinaryPackageBuilder<'a> {
         Ok(self.spec.clone())
     }
 
-    async fn resolve_source_package(&mut self, package: &api::Ident) -> Result<Solution> {
+    async fn resolve_source_package(&mut self, package: RangeIdent) -> Result<Solution> {
         self.solver.reset();
         self.solver.update_options(self.all_options.clone());
 
@@ -256,7 +259,7 @@ impl<'a> BinaryPackageBuilder<'a> {
 
         // If `package` specifies a repository name, only add the
         // repository that matches.
-        if let Some(repo_name) = &package.repository_name() {
+        if let Some(repo_name) = &package.repository_name {
             if repo_name.is_local() {
                 self.solver.add_repository(local_repo.await?);
             } else {
@@ -287,12 +290,12 @@ impl<'a> BinaryPackageBuilder<'a> {
             }
         }
 
-        let ident_range = api::RangeIdent::double_equals(package, [api::Component::Source]);
-        let request: api::PkgRequest =
-            api::PkgRequest::new(ident_range, api::RequestedBy::SourceBuild(package.clone()))
-                .with_prerelease(api::PreReleasePolicy::IncludeAll)
-                .with_pin(None)
-                .with_compat(None);
+        let source_build = api::RequestedBy::SourceBuild(package.clone().try_into()?);
+        let ident_range = package.with_components([api::Component::Source]);
+        let request: api::PkgRequest = api::PkgRequest::new(ident_range, source_build)
+            .with_prerelease(api::PreReleasePolicy::IncludeAll)
+            .with_pin(None)
+            .with_compat(None);
 
         self.solver.add_request(request.into());
 
@@ -421,7 +424,9 @@ impl<'a> BinaryPackageBuilder<'a> {
         }
 
         let source_dir = match &self.source {
-            BuildSource::SourcePackage(source) => source_package_path(source).to_path(&self.prefix),
+            BuildSource::SourcePackage(source) => {
+                source_package_path(&source.try_into()?).to_path(&self.prefix)
+            }
             BuildSource::LocalPath(path) => path.clone(),
         };
 

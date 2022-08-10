@@ -11,14 +11,14 @@ mod error;
 pub mod exec;
 mod global;
 pub mod io;
-pub(crate) mod parsing;
+pub mod parsing;
 mod publish;
 pub mod solve;
 pub mod storage;
 pub mod test;
 
-#[cfg(test)]
-mod fixtures;
+#[cfg(feature = "fixtures")]
+pub mod fixtures;
 #[cfg(feature = "test-macros")]
 pub mod macros;
 

@@ -6,8 +6,13 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Args;
+use spk::io::Format;
 
 use super::{flags, CommandArgs, Run};
+
+#[cfg(test)]
+#[path = "./cmd_test_test.rs"]
+mod cmd_test_test;
 
 /// Run package tests
 ///
@@ -50,10 +55,9 @@ pub struct Test {
 impl Run for Test {
     async fn run(&mut self) -> Result<i32> {
         let options = self.options.get_options()?;
-        let default_repos = ["origin".to_string()];
         let (_runtime, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(),
-            self.repos.get_repos(&default_repos)
+            self.repos.get_repos_for_non_destructive_operation()
         )?;
         let repos = repos
             .into_iter()
@@ -103,7 +107,16 @@ impl Run for Test {
                 let mut tested = std::collections::HashSet::new();
 
                 let variants_to_test = match self.variant {
-                    Some(index) => spec.build.variants.iter().skip(index).take(1),
+                    Some(index) if index < spec.build.variants.len() => {
+                        spec.build.variants.iter().skip(index).take(1)
+                    }
+                    Some(index) => {
+                        anyhow::bail!(
+                            "--variant {index} is out of range; {} variant(s) found in {}",
+                            spec.build.variants.len(),
+                            spec.pkg.format_ident(),
+                        );
+                    }
                     None => spec.build.variants.iter().skip(0).take(usize::MAX),
                 };
 
@@ -183,7 +196,9 @@ impl Run for Test {
                                         .map(spk::build::BuildSource::LocalPath)
                                         .unwrap_or_else(|| {
                                             spk::build::BuildSource::SourcePackage(
-                                                spec.pkg.with_build(Some(spk::api::Build::Source)),
+                                                spec.pkg
+                                                    .with_build(Some(spk::api::Build::Source))
+                                                    .into(),
                                             )
                                         }),
                                 )

@@ -1,7 +1,11 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{collections::HashMap, convert::TryFrom, sync::Arc};
+use std::{
+    collections::HashMap,
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+};
 
 use spfs::prelude::*;
 
@@ -11,7 +15,7 @@ use crate::{api, Error, Result};
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {
     address: url::Url,
-    name: api::RepositoryName,
+    name: api::RepositoryNameBuf,
     root: std::path::PathBuf,
 }
 
@@ -21,7 +25,7 @@ impl Default for RuntimeRepository {
         let address = Self::address_from_root(&root);
         Self {
             address,
-            name: api::RepositoryName(root.display().to_string()),
+            name: "runtime".try_into().expect("valid repository name"),
             root,
         }
     }
@@ -63,7 +67,7 @@ impl RuntimeRepository {
         let address = Self::address_from_root(&root);
         Self {
             address,
-            name: api::RepositoryName(root.display().to_string()),
+            name: "runtime".try_into().expect("valid repository name"),
             root,
         }
     }

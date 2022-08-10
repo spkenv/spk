@@ -15,8 +15,8 @@ use super::{
     compat::API_STR,
     compat::BINARY_STR,
     version_range::{self, Ranged},
-    Build, CompatRule, Compatibility, Component, EqualsVersion, Ident, OptName, OptNameBuf,
-    PkgName, PkgNameBuf, RepositoryName, Spec, Version, VersionFilter,
+    Build, BuildIdent, CompatRule, Compatibility, Component, EqualsVersion, Ident, OptName,
+    OptNameBuf, PkgName, PkgNameBuf, RepositoryNameBuf, Spec, Version, VersionFilter,
 };
 use crate::{storage::KNOWN_REPOSITORY_NAMES, Error, Result};
 
@@ -27,7 +27,7 @@ mod request_test;
 /// Identifies a range of package versions and builds.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RangeIdent {
-    pub repository_name: Option<RepositoryName>,
+    pub repository_name: Option<RepositoryNameBuf>,
     pub name: PkgNameBuf,
     pub components: HashSet<Component>,
     pub version: VersionFilter,
@@ -79,7 +79,7 @@ impl RangeIdent {
         I: IntoIterator<Item = Component>,
     {
         Self {
-            repository_name: ident.repository_name().clone(),
+            repository_name: None,
             name: ident.name.clone(),
             version: super::VersionFilter::single(version_range),
             components: components.into_iter().collect(),
@@ -267,6 +267,19 @@ impl RangeIdent {
 
         Compatibility::Compatible
     }
+
+    pub(crate) fn with_components<I>(self, components: I) -> Self
+    where
+        I: IntoIterator<Item = Component>,
+    {
+        Self {
+            repository_name: self.repository_name,
+            name: self.name,
+            version: self.version,
+            components: components.into_iter().collect(),
+            build: self.build,
+        }
+    }
 }
 
 impl Display for RangeIdent {
@@ -298,6 +311,30 @@ impl Display for RangeIdent {
             build.fmt(f)?;
         }
         Ok(())
+    }
+}
+
+impl From<BuildIdent> for RangeIdent {
+    fn from(ident: BuildIdent) -> Self {
+        Self {
+            repository_name: Some(ident.repository_name),
+            name: ident.name,
+            version: ident.version.into(),
+            components: HashSet::default(),
+            build: Some(ident.build),
+        }
+    }
+}
+
+impl From<Ident> for RangeIdent {
+    fn from(ident: Ident) -> Self {
+        Self {
+            repository_name: None,
+            name: ident.name,
+            version: ident.version.into(),
+            components: HashSet::default(),
+            build: ident.build,
+        }
     }
 }
 
@@ -754,7 +791,7 @@ impl PkgRequest {
     // TODO: change parameter to `pkg: Ident`
     pub fn from_ident(pkg: Ident, requester: RequestedBy) -> Self {
         let ri = RangeIdent {
-            repository_name: pkg.repository_name().clone(),
+            repository_name: None,
             name: pkg.name,
             components: Default::default(),
             version: VersionFilter::single(EqualsVersion::version_range(pkg.version.clone())),

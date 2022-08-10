@@ -1505,6 +1505,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "paste"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c520e05135d6e763148b6426a837e239041653ba7becd2e538c076c738025fc"
+
+[[package]]
 name = "pathdiff"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2483,7 +2489,7 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "spk"
-version = "0.32.0"
+version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -2506,6 +2512,7 @@ dependencies = [
  "nom 7.1.1",
  "nom-supreme",
  "once_cell",
+ "paste",
  "priority-queue",
  "proptest",
  "rand 0.8.5",
@@ -2524,7 +2531,7 @@ dependencies = [
  "spk",
  "sys-info",
  "tar",
- "tempdir",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
@@ -2540,7 +2547,7 @@ dependencies = [
  "anyhow",
  "nix 0.24.1",
  "spfs",
- "tempdir",
+ "tempfile",
  "tokio",
 ]
 

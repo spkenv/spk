@@ -4,6 +4,7 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    convert::{TryFrom, TryInto},
     str::FromStr,
     sync::{
         atomic::{AtomicPtr, Ordering},
@@ -29,7 +30,7 @@ mod spfs_test;
 const REPO_METADATA_TAG: &str = "spk/repo";
 const REPO_VERSION: &str = "1.0.0";
 
-pub(crate) static KNOWN_REPOSITORY_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+pub static KNOWN_REPOSITORY_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     let mut known_repositories = HashSet::from(["local"]);
     if let Ok(config) = spfs::get_config() {
         for name in config.list_remote_names() {
@@ -44,14 +45,14 @@ pub(crate) static KNOWN_REPOSITORY_NAMES: Lazy<HashSet<&'static str>> = Lazy::ne
 #[derive(Debug)]
 pub struct SPFSRepository {
     address: url::Url,
-    name: api::RepositoryName,
+    name: api::RepositoryNameBuf,
     inner: spfs::storage::RepositoryHandle,
     cache_policy: AtomicPtr<CachePolicy>,
 }
 
 impl std::hash::Hash for SPFSRepository {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.inner.address().hash(state);
+        self.address.hash(state);
     }
 }
 
@@ -69,7 +70,7 @@ impl PartialOrd for SPFSRepository {
 
 impl PartialEq for SPFSRepository {
     fn eq(&self, other: &Self) -> bool {
-        self.inner.address() == other.inner.address()
+        self.address == other.address
     }
 }
 
@@ -89,15 +90,17 @@ impl std::ops::DerefMut for SPFSRepository {
     }
 }
 
-impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> From<(S, T)> for SPFSRepository {
-    fn from(name_and_repo: (S, T)) -> Self {
+impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> TryFrom<(S, T)> for SPFSRepository {
+    type Error = crate::Error;
+
+    fn try_from(name_and_repo: (S, T)) -> Result<Self> {
         let inner = name_and_repo.1.into();
-        Self {
+        Ok(Self {
             address: inner.address(),
-            name: api::RepositoryName(name_and_repo.0.as_ref().to_owned()),
+            name: name_and_repo.0.as_ref().try_into()?,
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
-        }
+        })
     }
 }
 
@@ -106,7 +109,7 @@ impl SPFSRepository {
         let inner = spfs::open_repository(address).await?;
         Ok(Self {
             address: inner.address(),
-            name: api::RepositoryName(name.to_owned()),
+            name: name.try_into()?,
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
         })
@@ -339,14 +342,7 @@ impl Repository for SPFSRepository {
         let component_tags = package.into_components();
         let mut components = HashMap::with_capacity(component_tags.len());
         for (name, tag_spec) in component_tags.into_iter() {
-            let tag = self
-                .inner
-                .resolve_tag(&tag_spec)
-                .await
-                .map_err(|err| match err {
-                    spfs::Error::UnknownReference(_) => Error::PackageNotFoundError(pkg.clone()),
-                    err => err.into(),
-                })?;
+            let tag = self.resolve_tag(pkg, &tag_spec).await?;
             components.insert(name, tag.target);
         }
         Ok(components)
@@ -410,16 +406,6 @@ impl Repository for SPFSRepository {
         spec: &api::Spec,
         components: HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
-        #[cfg(test)]
-        if let Err(Error::PackageNotFoundError(pkg)) =
-            self.read_spec(&spec.pkg.with_build(None)).await
-        {
-            return Err(Error::String(format!(
-                "[INTERNAL] version spec must be published before a specific build: {:?}",
-                pkg
-            )));
-        }
-
         let tag_path = self.build_package_tag(&spec.pkg)?;
 
         // We will also publish the 'run' component in the old style
@@ -778,7 +764,7 @@ pub async fn local_repository() -> Result<SPFSRepository> {
     let inner: spfs::prelude::RepositoryHandle = repo.into();
     Ok(SPFSRepository {
         address: inner.address(),
-        name: api::RepositoryName("local".to_owned()),
+        name: "local".try_into()?,
         inner,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
     })
@@ -792,7 +778,7 @@ pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SPFSRepository>
     let repo = config.get_remote(&name).await?;
     Ok(SPFSRepository {
         address: repo.address(),
-        name: api::RepositoryName(name.as_ref().to_owned()),
+        name: name.as_ref().try_into()?,
         inner: repo,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
     })

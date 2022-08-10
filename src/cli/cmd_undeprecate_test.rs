@@ -5,7 +5,7 @@
 use rstest::rstest;
 
 use super::{change_deprecation_state, ChangeAction};
-use spk::{make_package, make_repo};
+use spk::make_repo;
 
 #[rstest]
 #[tokio::test]

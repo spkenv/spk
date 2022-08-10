@@ -44,15 +44,38 @@ pub const SHOW_INITIAL_REQUESTS_FULL_VALUES: u32 = 5;
 // The level/depth for initial requests
 pub const INITIAL_REQUESTS_LEVEL: u64 = 0;
 
-pub fn format_ident(pkg: &api::Ident) -> String {
-    let mut out = pkg.name.as_str().bold().to_string();
-    if !pkg.version.is_zero() || pkg.build.is_some() {
-        out = format!("{}/{}", out, pkg.version.to_string().bright_blue());
+pub trait Format {
+    fn format_ident(&self) -> String;
+}
+
+impl Format for api::Ident {
+    fn format_ident(&self) -> String {
+        match (!self.version.is_zero(), self.build.as_ref()) {
+            (false, None) => format!("{}", self.name.as_str().bold()),
+            (true, None) => format!(
+                "{}/{}",
+                self.name.as_str().bold(),
+                self.version.to_string().bright_blue()
+            ),
+            (_, Some(build)) => format!(
+                "{}/{}/{}",
+                self.name.as_str().bold(),
+                self.version.to_string().bright_blue(),
+                format_build(build)
+            ),
+        }
     }
-    if let Some(ref b) = pkg.build {
-        out = format!("{}/{}", out, format_build(b));
+}
+
+impl Format for api::BuildIdent {
+    fn format_ident(&self) -> String {
+        format!(
+            "{}/{}/{}",
+            self.name.as_str().bold(),
+            self.version.to_string().bright_blue(),
+            format_build(&self.build)
+        )
     }
-    out
 }
 
 pub fn format_build(build: &api::Build) -> String {
@@ -88,6 +111,7 @@ impl Default for FormatChangeOptions {
 
 /// Create a canonical string to describe the combined request for a package.
 pub fn format_request<'a, R>(
+    repository_name: &Option<api::RepositoryNameBuf>,
     name: &api::PkgName,
     requests: R,
     format_settings: FormatChangeOptions,
@@ -95,7 +119,10 @@ pub fn format_request<'a, R>(
 where
     R: IntoIterator<Item = &'a api::PkgRequest>,
 {
-    let mut out = name.as_str().bold().to_string();
+    let mut out = match repository_name {
+        Some(repository_name) => format!("{repository_name}/{}", name.as_str().bold()),
+        None => name.as_str().bold().to_string(),
+    };
     let mut versions = Vec::new();
     let mut components = std::collections::HashSet::new();
     for req in requests.into_iter() {
@@ -199,6 +226,7 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
             out,
             "  {}",
             format_request(
+                &None,
                 &req.spec.pkg.name,
                 &[installed],
                 FormatChangeOptions::default()
@@ -234,7 +262,7 @@ pub fn format_note(note: &solve::graph::Note) -> String {
             format!(
                 "{} {} - {}",
                 "TRY".magenta(),
-                format_ident(&n.pkg),
+                n.pkg.format_ident(),
                 n.reason
             )
         }
@@ -274,7 +302,12 @@ pub fn format_change(
             format!(
                 "{} {}",
                 get_request_change_label(format_settings.level).blue(),
-                format_request(&c.request.pkg.name, [&c.request], format_settings)
+                format_request(
+                    &c.request.pkg.repository_name,
+                    &c.request.pkg.name,
+                    [&c.request],
+                    format_settings
+                )
             )
         }
         RequestVar(c) => {
@@ -290,7 +323,7 @@ pub fn format_change(
             )
         }
         SetPackageBuild(c) => {
-            format!("{} {}", "BUILD".yellow(), format_ident(&c.spec.pkg))
+            format!("{} {}", "BUILD".yellow(), c.spec.pkg.format_ident())
         }
         SetPackage(c) => {
             if format_settings.verbosity > 0 {
@@ -325,12 +358,12 @@ pub fn format_change(
                 format!(
                     "{} {}  (requested by {})",
                     "RESOLVE".green(),
-                    format_ident(&c.spec.pkg),
+                    c.spec.pkg.format_ident(),
                     requested_by.join(", ")
                 )
             } else {
                 // Just show the resolved package, don't show the requester(s)
-                format!("{} {}", "RESOLVE".green(), format_ident(&c.spec.pkg))
+                format!("{} {}", "RESOLVE".green(), c.spec.pkg.format_ident())
             }
         }
         SetOptions(c) => {
@@ -461,6 +494,7 @@ where
                                 .get_pkg_requests()
                                 .iter()
                                 .map(|r| format_request(
+                                    &r.pkg.repository_name,
                                     &r.pkg.name,
                                     [&***r],
                                     FormatChangeOptions {
@@ -477,7 +511,7 @@ where
                             node.state
                                 .get_resolved_packages()
                                 .values()
-                                .map(|p| format_ident(&(*p).0.pkg))
+                                .map(|p| (*p).0.pkg.format_ident())
                                 .collect::<Vec<String>>()
                                 .join(", ")
                         ));
@@ -585,7 +619,7 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
     match err {
         Error::PackageNotFoundError(pkg) => {
             msg.push_str("Package not found: ");
-            msg.push_str(&format_ident(pkg));
+            msg.push_str(&pkg.format_ident());
             msg.push('\n');
             msg.push_str(
                 &" * check the spelling of the name\n"

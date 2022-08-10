@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Args;
+use spk::io::Format;
 
 use super::{flags, CommandArgs, Run};
 
@@ -32,7 +33,7 @@ impl Run for MakeSource {
 }
 
 impl MakeSource {
-    pub(crate) async fn make_source(&mut self) -> Result<Vec<spk::api::Ident>> {
+    pub(crate) async fn make_source(&mut self) -> Result<Vec<spk::api::BuildIdent>> {
         let _runtime = self.runtime.ensure_active_runtime().await?;
 
         let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();
@@ -50,21 +51,18 @@ impl MakeSource {
                 }
                 res => {
                     let (_, spec) = res.must_be_found();
-                    tracing::info!("saving spec file {}", spk::io::format_ident(&spec.pkg));
+                    tracing::info!("saving spec file {}", spec.pkg.format_ident());
                     spk::save_spec(&spec).await?;
                     spec
                 }
             };
 
-            tracing::info!(
-                "collecting sources for {}",
-                spk::io::format_ident(&spec.pkg)
-            );
+            tracing::info!("collecting sources for {}", spec.pkg.format_ident());
             let out = spk::build::SourcePackageBuilder::from_spec((*spec).clone())
                 .build()
                 .await
                 .context("Failed to collect sources")?;
-            tracing::info!("created {}", spk::io::format_ident(&out));
+            tracing::info!("created {}", out.format_ident());
             idents.push(out)
         }
         Ok(idents)

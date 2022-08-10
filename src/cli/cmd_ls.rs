@@ -3,17 +3,42 @@
 // https://github.com/imageworks/spk
 use std::{collections::BTreeSet, fmt::Write};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::Args;
 use colored::Colorize;
-use spk::api::PkgName;
+use spk::{api::PkgName, io::Format};
 
 use super::{flags, CommandArgs, Run};
+
+#[cfg(test)]
+#[path = "./cmd_ls_test.rs"]
+mod cmd_ls_test;
+
+pub trait Output: Default + Send + Sync {
+    /// A line of output to display.
+    fn println(&mut self, line: String);
+
+    /// A line of output to display as a warning.
+    fn warn(&mut self, line: String);
+}
+
+#[derive(Default)]
+pub struct Console {}
+
+impl Output for Console {
+    fn println(&mut self, line: String) {
+        println!("{line}");
+    }
+
+    fn warn(&mut self, line: String) {
+        tracing::warn!("{line}");
+    }
+}
 
 /// List packages in one or more repositories
 #[derive(Args)]
 #[clap(visible_alias = "list")]
-pub struct Ls {
+pub struct Ls<Output: Default = Console> {
     #[clap(flatten)]
     pub repos: flags::Repositories,
 
@@ -37,26 +62,15 @@ pub struct Ls {
     /// If nothing is provided, list all available packages.
     #[clap(name = "NAME[/VERSION]")]
     package: Option<String>,
+
+    #[clap(skip)]
+    pub(crate) output: Output,
 }
 
 #[async_trait::async_trait]
-impl Run for Ls {
+impl<T: Output> Run for Ls<T> {
     async fn run(&mut self) -> Result<i32> {
-        let mut repos = self.repos.get_repos(None).await?;
-
-        if repos.is_empty() {
-            let local = String::from("local");
-            if !self.repos.disable_repo.contains(&local) {
-                repos = self.repos.get_repos(None).await?;
-            } else {
-                eprintln!(
-                    "{}",
-                    "No repositories selected, specify --local-repo (-l) and/or --enable-repo (-r)"
-                        .yellow()
-                );
-                return Ok(1);
-            }
-        }
+        let repos = self.repos.get_repos_for_non_destructive_operation().await?;
 
         if self.recursive {
             return self.list_recursively(repos).await;
@@ -107,7 +121,37 @@ impl Run for Ls {
                     name.push_str(&version.to_string());
 
                     let ident = spk::api::parse_ident(name.clone())?;
-                    let spec = repo.read_spec(&ident).await?;
+
+                    // In order to honor showing or hiding deprecated builds,
+                    // inventory the builds of this version (do not depend on
+                    // the existence of a "version spec").
+
+                    let mut builds = repo.list_package_builds(&ident).await?;
+                    if builds.is_empty() {
+                        // Does a version with no builds really exist?
+                        continue;
+                    }
+
+                    let mut any_deprecated = false;
+                    let mut any_not_deprecated = false;
+                    while let Some(build) = builds.pop() {
+                        match repo.read_spec(&build).await {
+                            Ok(spec) if !spec.deprecated => {
+                                any_not_deprecated = true;
+                            }
+                            Ok(_) => {
+                                any_deprecated = true;
+                            }
+                            Err(err) => {
+                                self.output
+                                    .warn(format!("Error reading spec for {build}: {err}"));
+                            }
+                        }
+                        if any_not_deprecated && any_deprecated {
+                            break;
+                        }
+                    }
+                    let all_deprecated = any_deprecated && !any_not_deprecated;
 
                     // TODO: tempted to swap this over to call
                     // format_build, which would add the package name
@@ -115,13 +159,16 @@ impl Run for Ls {
                     // closer to the next Some(package) clause?
                     if self.deprecated {
                         // show deprecated versions
-                        if spec.deprecated {
+                        if all_deprecated {
                             results.push(format!("{version} {}", "DEPRECATED".red()));
+                            continue;
+                        } else if any_deprecated {
+                            results.push(format!("{version} {}", "(partially) DEPRECATED".red()));
                             continue;
                         }
                     } else {
                         // don't show deprecated versions
-                        if spec.deprecated {
+                        if all_deprecated {
                             continue;
                         }
                     }
@@ -140,7 +187,13 @@ impl Run for Ls {
                         // Doing this here slows the listing down, but
                         // the spec file is the only place that holds
                         // the deprecation status.
-                        let spec = repo.read_spec(&build).await?;
+                        let spec = match repo.read_spec(&build).await {
+                            Ok(spec) => spec,
+                            Err(err) => {
+                                self.output.warn(format!("Skipping {build}: {err}"));
+                                continue;
+                            }
+                        };
                         if spec.deprecated && !self.deprecated {
                             // Hide deprecated packages by default
                             continue;
@@ -153,13 +206,13 @@ impl Run for Ls {
         }
 
         for item in results {
-            println!("{}", item);
+            self.output.println(item.to_string());
         }
         Ok(0)
     }
 }
 
-impl CommandArgs for Ls {
+impl<T: Output> CommandArgs for Ls<T> {
     fn get_positional_args(&self) -> Vec<String> {
         // The important positional args for a ls are the packages
         match &self.package {
@@ -169,21 +222,43 @@ impl CommandArgs for Ls {
     }
 }
 
-impl Ls {
+impl<T: Output> Ls<T> {
     async fn list_recursively(
-        &self,
+        &mut self,
         repos: Vec<(String, spk::storage::RepositoryHandle)>,
     ) -> Result<i32> {
+        let search_term = self
+            .package
+            .as_ref()
+            .map(|ident| {
+                spk::parsing::ident_parts::<nom_supreme::error::ErrorTree<_>>(
+                    &spk::storage::KNOWN_REPOSITORY_NAMES,
+                    ident,
+                )
+                .map(|(_, parts)| parts)
+                .map_err(|err| match err {
+                    nom::Err::Error(e) | nom::Err::Failure(e) => {
+                        anyhow!(e.to_string())
+                    }
+                    nom::Err::Incomplete(_) => unreachable!(),
+                })
+            })
+            .transpose()?;
+
         let mut packages = Vec::new();
         let mut max_repo_name_len = 0;
         for (index, (repo_name, repo)) in repos.iter().enumerate() {
             let num_packages = packages.len();
-            match &self.package {
+            match &search_term {
                 None => {
                     packages.extend(repo.list_packages().await?.into_iter().map(|p| (p, index)));
                 }
-                Some(package) => {
-                    packages.push((package.parse()?, index));
+                Some(spk::parsing::IdentParts {
+                    repository_name: Some(name),
+                    ..
+                }) if name != repo_name => continue,
+                Some(spk::parsing::IdentParts { pkg_name, .. }) => {
+                    packages.push((pkg_name.parse()?, index));
                 }
             };
             // Ignore this repo name if it didn't contribute any packages.
@@ -194,15 +269,19 @@ impl Ls {
         packages.sort();
         for (package, index) in packages {
             let (repo_name, repo) = repos.get(index).unwrap();
-            let mut versions = if package.as_str().contains('/') {
-                vec![spk::api::parse_ident(&package)?]
-            } else {
+            let mut versions = {
                 let base = spk::api::Ident::from(package);
                 repo.list_package_versions(&base.name)
                     .await?
                     .iter()
-                    .map(|v| base.with_version((**v).clone()))
-                    .collect()
+                    .filter_map(|v| match search_term {
+                        Some(spk::parsing::IdentParts {
+                            version_str: Some(version),
+                            ..
+                        }) if version != v.to_string() => None,
+                        _ => Some(base.with_version((**v).clone())),
+                    })
+                    .collect::<Vec<_>>()
             };
             versions.sort();
             versions.reverse();
@@ -210,10 +289,28 @@ impl Ls {
                 let mut builds = repo.list_package_builds(&pkg).await?;
                 builds.sort();
                 for build in builds {
+                    if let Some(spk::parsing::IdentParts {
+                        build_str: Some(search_build),
+                        ..
+                    }) = search_term
+                    {
+                        if let Some(this_build) = &build.build {
+                            if search_build != this_build.to_string() {
+                                continue;
+                            }
+                        }
+                    }
+
                     // Doing this here slows the listing down, but
                     // the spec file is the only place that holds
                     // the deprecation status.
-                    let spec = repo.read_spec(&build).await?;
+                    let spec = match repo.read_spec(&build).await {
+                        Ok(spec) => spec,
+                        Err(err) => {
+                            self.output.warn(format!("Skipping {build}: {err}"));
+                            continue;
+                        }
+                    };
                     if spec.deprecated && !self.deprecated {
                         // Hide deprecated packages by default
                         continue;
@@ -226,7 +323,8 @@ impl Ls {
                             width = max_repo_name_len + 2
                         );
                     }
-                    println!("{}", self.format_build(&build, &spec, repo).await?);
+                    self.output
+                        .println((self.format_build(&build, &spec, repo).await?).to_string());
                 }
             }
         }
@@ -239,7 +337,7 @@ impl Ls {
         spec: &spk::api::Spec,
         repo: &spk::storage::RepositoryHandle,
     ) -> Result<String> {
-        let mut item = spk::io::format_ident(pkg);
+        let mut item = pkg.format_ident();
         if spec.deprecated {
             let _ = write!(item, " {}", "DEPRECATED".red());
         }

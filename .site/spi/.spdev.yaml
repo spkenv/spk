@@ -1,4 +1,4 @@
-version: 0.32.0
+version: 0.36.0
 release_notes: |
   - convert api module to rust
   - update to latest spfs
@@ -65,4 +65,4 @@ components:
 ci_config:
   all:
     variables:
-      - SPDEV_CONFIG_FILE: .site/spi/.spdev.yaml
+      SPDEV_CONFIG_FILE: .site/spi/.spdev.yaml

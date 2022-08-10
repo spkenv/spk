@@ -4,7 +4,8 @@
 use std::sync::Arc;
 
 use crate::{
-    api, io,
+    api,
+    io::{self, Format},
     storage::{self, CachePolicy},
     with_cache_policy, Error, Result,
 };
@@ -69,21 +70,40 @@ impl Publisher {
 
     /// Publish the identified package as configured.
     pub async fn publish(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        let builds = if pkg.build.is_none() {
-            tracing::info!("loading spec: {}", io::format_ident(pkg));
-            match self.from.read_spec(pkg).await {
-                Err(Error::PackageNotFoundError(_)) => (),
-                Err(err) => return Err(err),
-                Ok(spec) => {
-                    tracing::info!("publishing spec: {}", io::format_ident(&spec.pkg));
-                    if self.force {
-                        self.to.force_publish_spec(&spec).await?;
-                    } else {
-                        self.to.publish_spec(&spec).await?;
+        let spec_ident = pkg.with_build(None);
+        tracing::info!("loading spec: {}", spec_ident.format_ident());
+        match with_cache_policy!(self.from, CachePolicy::BypassCache, {
+            self.from.read_spec(&spec_ident).await
+        }) {
+            Err(err @ Error::PackageNotFoundError(_)) if self.force => {
+                return Err(
+                    format!("Can't force publish; missing package spec locally: {err}").into(),
+                );
+            }
+            Err(Error::PackageNotFoundError(_)) => {
+                // If it was not found locally, allow the publish to proceed;
+                // if it is also missing on the remote, that will be caught
+                // and the publish will be rejected by the storage.
+            }
+            Err(err) => return Err(err),
+            Ok(spec) => {
+                tracing::info!("publishing spec: {}", spec.pkg.format_ident());
+                if self.force {
+                    self.to.force_publish_spec(&spec).await?;
+                } else {
+                    match self.to.publish_spec(&spec).await {
+                        Ok(_) | Err(Error::VersionExistsError(_)) => {
+                            // It's cool if the version already exists
+                        }
+                        Err(err) => {
+                            return Err(format!("Failed to publish spec {}: {err}", spec.pkg).into())
+                        }
                     }
                 }
             }
+        }
 
+        let builds = if pkg.build.is_none() {
             with_cache_policy!(self.from, CachePolicy::BypassCache, {
                 self.from.list_package_builds(pkg)
             })
@@ -96,14 +116,14 @@ impl Publisher {
             use crate::storage::RepositoryHandle::SPFS;
 
             if build.is_source() && self.skip_source_packages {
-                tracing::info!("skipping source package: {}", io::format_ident(build));
+                tracing::info!("skipping source package: {}", build.format_ident());
                 continue;
             }
 
-            tracing::debug!("   loading package: {}", io::format_ident(build));
+            tracing::debug!("   loading package: {}", build.format_ident());
             let spec = self.from.read_spec(build).await?;
             let components = self.from.get_package(build).await?;
-            tracing::info!("publishing package: {}", io::format_ident(&spec.pkg));
+            tracing::info!("publishing package: {}", spec.pkg.format_ident());
             let env_spec = components.values().cloned().collect();
             match (&*self.from, &*self.to) {
                 (SPFS(src), SPFS(dest)) => {

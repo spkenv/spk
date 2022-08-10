@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Args;
+use spk::io::Format;
 use chrono;
 
 use super::{flags, CommandArgs, Run};
@@ -13,7 +14,7 @@ use super::{flags, CommandArgs, Run};
 #[derive(Clone)]
 pub enum PackageSpecifier {
     Plain(String),
-    WithSourceIdent((String, spk::api::Ident)),
+    WithSourceIdent((String, spk::api::RangeIdent)),
 }
 
 impl PackageSpecifier {
@@ -91,7 +92,7 @@ impl Run for MakeBinary {
         #[rustfmt::skip]
         let (_runtime, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(),
-            async { self.repos.get_repos(&["origin".to_string()]).await }
+            async { self.repos.get_repos_for_non_destructive_operation().await }
         )?;
         let repos = repos
             .into_iter()
@@ -115,20 +116,26 @@ impl Run for MakeBinary {
                 res => {
                     let (_, mut spec) = res.must_be_found();
                     Arc::make_mut(&mut spec).meta.creation_timestamp = chrono::offset::Local::now().timestamp();
-                    tracing::info!("saving spec file {}", spk::io::format_ident(&spec.pkg));
+                    tracing::info!("saving spec file {}", format_ident(&spec.pkg));
                     spk::save_spec(&spec).await?;
                     spec
                 }
             };
 
-            tracing::info!(
-                "building binary package {}",
-                spk::io::format_ident(&spec.pkg)
-            );
+            tracing::info!("building binary package {}", spec.pkg.format_ident());
             let mut built = std::collections::HashSet::new();
 
             let variants_to_build = match self.variant {
-                Some(index) => spec.build.variants.iter().skip(index).take(1),
+                Some(index) if index < spec.build.variants.len() => {
+                    spec.build.variants.iter().skip(index).take(1)
+                }
+                Some(index) => {
+                    anyhow::bail!(
+                        "--variant {index} is out of range; {} variant(s) found in {}",
+                        spec.build.variants.len(),
+                        spec.pkg.format_ident(),
+                    );
+                }
                 None => spec.build.variants.iter().skip(0).take(usize::MAX),
             };
 
@@ -184,7 +191,7 @@ impl Run for MakeBinary {
                     Ok(out) => out,
                     Err(err) => return Err(err.into()),
                 };
-                tracing::info!("created {}", spk::io::format_ident(&out.pkg));
+                tracing::info!("created {}", out.pkg.format_ident());
 
                 if self.env {
                     let request = spk::api::PkgRequest::from_ident(
@@ -192,7 +199,7 @@ impl Run for MakeBinary {
                         spk::api::RequestedBy::CommandLine,
                     );
                     let mut cmd = std::process::Command::new(crate::env::spk_exe());
-                    cmd.args(&["env", "--local-repo"])
+                    cmd.args(&["env", "--enable-repo", "local"])
                         .arg(request.pkg.to_string());
                     tracing::info!("entering environment with new package...");
                     tracing::debug!("{:?}", cmd);

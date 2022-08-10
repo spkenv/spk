@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 use clap::Args;
 use colored::Colorize;
 use futures::TryFutureExt;
+use spk::io::Format;
 
 use super::{flags, CommandArgs, Run};
 
@@ -80,7 +81,7 @@ impl Run for Install {
             if spec.pkg.build.is_none() {
                 end = " [build from source]".magenta().to_string();
             }
-            println!("    {}{end}", spk::io::format_ident(&spec.pkg));
+            println!("    {}{end}", spec.pkg.format_ident());
         }
         if !tertiary.is_empty() {
             println!("\n  Dependencies:");
@@ -90,7 +91,7 @@ impl Run for Install {
             if spec.pkg.build.is_none() {
                 end = " [build from source]".magenta().to_string();
             }
-            println!("    {}{end}", spk::io::format_ident(&spec.pkg))
+            println!("    {}{end}", spec.pkg.format_ident())
         }
 
         println!();

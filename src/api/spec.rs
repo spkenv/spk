@@ -274,7 +274,7 @@ impl<'de> Deserialize<'de> for Spec {
             BuildSpec::deserialize_unsafe(serde_yaml::Value::Mapping(unchecked.build))
         };
         let build_spec = build_spec_result
-            .map_err(|err| serde::de::Error::custom(format!("spec.build: {:?}", err)))?;
+            .map_err(|err| serde::de::Error::custom(format!("spec.build: {err}")))?;
 
         Ok(Spec {
             pkg: unchecked.pkg,

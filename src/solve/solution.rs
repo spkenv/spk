@@ -180,7 +180,6 @@ impl Solution {
     where
         V: IntoIterator<Item = (String, String)>,
     {
-        use std::iter::FromIterator;
         let mut out = base
             .map(IntoIterator::into_iter)
             .map(HashMap::from_iter)

@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::ops::DerefMut;
 use std::sync::Arc;
+use std::{convert::TryInto, ops::DerefMut};
 
 use rstest::fixture;
-use spfs::prelude::*;
+use spfs::{config::Remote, prelude::*, Result};
 use tokio::sync::{Mutex, MutexGuard};
 
 use crate::storage;
@@ -16,11 +16,21 @@ lazy_static::lazy_static! {
 }
 
 pub struct RuntimeLock {
+    config: Arc<spfs::Config>,
     original_config: spfs::Config,
     _guard: MutexGuard<'static, ()>,
     pub runtime: spfs::runtime::Runtime,
     pub tmprepo: Arc<storage::RepositoryHandle>,
-    pub tmpdir: tempdir::TempDir,
+    pub tmpdir: tempfile::TempDir,
+}
+
+impl RuntimeLock {
+    pub fn add_remote_repo<S: ToString>(&mut self, name: S, repo: Remote) -> Result<()> {
+        let mut config = (*self.config).clone();
+        config.remote.insert(name.to_string(), repo);
+        self.config = config.make_current()?;
+        Ok(())
+    }
 }
 
 impl Drop for RuntimeLock {
@@ -43,7 +53,7 @@ pub enum RepoKind {
 /// A temporary repository of some type for use in testing
 pub struct TempRepo {
     pub repo: Arc<storage::RepositoryHandle>,
-    pub tmpdir: tempdir::TempDir,
+    pub tmpdir: tempfile::TempDir,
 }
 
 impl std::ops::Deref for TempRepo {
@@ -78,8 +88,11 @@ pub fn empty_layer_digest() -> spfs::Digest {
 }
 
 #[fixture]
-pub fn tmpdir() -> tempdir::TempDir {
-    tempdir::TempDir::new("spk-test-").expect("Failed to establish temporary directory for testing")
+pub fn tmpdir() -> tempfile::TempDir {
+    tempfile::Builder::new()
+        .prefix("spk-test-")
+        .tempdir()
+        .expect("Failed to establish temporary directory for testing")
 }
 
 #[fixture]
@@ -100,7 +113,9 @@ pub async fn spfsrepo() -> TempRepo {
 pub async fn make_repo(kind: RepoKind) -> TempRepo {
     tracing::trace!(?kind, "creating repo for test...");
 
-    let tmpdir = tempdir::TempDir::new("spk-test-spfs-repo")
+    let tmpdir = tempfile::Builder::new()
+        .prefix("spk-test-spfs-repo")
+        .tempdir()
         .expect("failed to establish tmpdir for spfs runtime");
     let repo = match kind {
         RepoKind::Spfs => {
@@ -123,7 +138,7 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
                 .await
                 .expect("failed to save empty manifest to spfs repo");
             assert_eq!(written, spfs::encoding::EMPTY_DIGEST.into());
-            storage::RepositoryHandle::SPFS((tmpdir.path().display().to_string(), spfs_repo).into())
+            storage::RepositoryHandle::SPFS(("temp-repo", spfs_repo).try_into().unwrap())
         }
         RepoKind::Mem => storage::RepositoryHandle::new_mem(),
     };
@@ -156,6 +171,11 @@ pub async fn spfs_runtime() -> RuntimeLock {
     let storage_root = tmprepo.tmpdir.path().join("repo");
 
     let mut new_config = original_config.clone();
+
+    // Remove all configured remote repositories so this isolated runtime
+    // is completely isolated.
+    new_config.remote.clear();
+
     // update the config to use our temp dir for local storage
     std::env::set_var("SPFS_STORAGE_ROOT", &storage_root);
     new_config.storage.root = storage_root;
@@ -191,6 +211,7 @@ pub async fn spfs_runtime() -> RuntimeLock {
         .expect("failed to reset runtime for test");
 
     RuntimeLock {
+        config,
         original_config,
         _guard,
         runtime: replica,
