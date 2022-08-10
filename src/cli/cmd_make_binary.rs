@@ -116,7 +116,7 @@ impl Run for MakeBinary {
                 res => {
                     let (_, mut spec) = res.must_be_found();
                     Arc::make_mut(&mut spec).meta.creation_timestamp = chrono::offset::Local::now().timestamp();
-                    tracing::info!("saving spec file {}", format_ident(&spec.pkg));
+                    tracing::info!("saving spec file {}", Format::format_ident(&spec.pkg));
                     spk::save_spec(&spec).await?;
                     spec
                 }
