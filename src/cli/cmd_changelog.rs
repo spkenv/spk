@@ -89,21 +89,29 @@ impl Run for ChangeLog {
                             break
                         }
                     };
-                    println!("package {:?} recent modified time: {:?}", ident.name, Arc::make_mut(&mut spec).meta.get_recent_modified_time());
 
-                    // let current_time = chrono::offset::Local::now().timestamp();
-                    // let diff = current_time - spec.meta.creation_timestamp;
-                    // if diff < changelog_range{
-                    //     let naive_date_time = NaiveDateTime::from_timestamp(spec.meta.creation_timestamp, 0);
-                    //     let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc).with_timezone(&Local);
-                    //     println!("Package {}: Created on {}", name, date_time);
-                    // }
+                    let recent_change = Arc::make_mut(&mut spec).meta.get_recent_modified_time();
+                    let current_time = chrono::offset::Local::now().timestamp();
+                    let diff = current_time - recent_change.timestamp;
+
+                    if diff < changelog_range{
+                        let naive_date_time = NaiveDateTime::from_timestamp(recent_change.timestamp, 0);
+                        let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc).with_timezone(&Local);
+                        println!("Package: {}, Modified on {}", 
+                            name.yellow(), 
+                            date_time.to_string().yellow()
+                        );
+                        println!("Author: {}, Action: {}, Comment: {}",
+                            recent_change.author.yellow(),
+                            recent_change.action.yellow(), 
+                            recent_change.comment.yellow(), 
+                        );
+                    }
                 }
+                println!();
             }
-
         }
         Ok(0)
-
     }
 }
 

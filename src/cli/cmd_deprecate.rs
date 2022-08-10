@@ -284,20 +284,12 @@ pub(crate) async fn change_deprecation_state(
             action.as_present_tense(),
             spec.pkg.format_ident(),
         );
-
-        println!("{:?}", comment);
-        if !spec.meta.modified_stack.contains_key("deprecate") {
-            let mut data: Vec<i64> = Vec::new();
-            let timestamp = Local::now().timestamp();
-            data.push(timestamp);
-            Arc::make_mut(&mut spec).meta.modified_stack.insert("deprecate".into(), data);
-            println!("{:?}", spec.meta.modified_stack);
-        } else {
-            let timestamp = Local::now().timestamp();
-            Arc::make_mut(&mut spec).meta.modified_stack.get("deprecate").unwrap().push(timestamp);
-            println!("{:?}", spec.meta.modified_stack);
+        
+        match comment.is_empty() {
+            true => Arc::make_mut(&mut spec).meta.update_modified_time(action.as_str(), "None".to_string()),
+            false => Arc::make_mut(&mut spec).meta.update_modified_time(action.as_str(), comment.first().unwrap().to_string())
         };
-
+        
         Arc::make_mut(&mut spec).deprecated = new_status;
         repo.force_publish_spec(&spec).await?;
         tracing::info!(repo=%repo_name, "{} {fmt}", action.as_past_tense());
