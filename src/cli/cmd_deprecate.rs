@@ -284,17 +284,6 @@ pub(crate) async fn change_deprecation_state(
             action.as_present_tense(),
             spec.pkg.format_ident(),
         );
-<<<<<<< HEAD
-        
-        println!("1 recent modified time: {:?}", Arc::make_mut(&mut spec).meta.get_recent_modified_time());
-        Arc::make_mut(&mut spec).meta.update_modified_time(action.as_str());
-        match comment.is_empty() {
-            true => Arc::make_mut(&mut spec).meta.update_comments(&["".to_string()], action.as_str()),
-            false => Arc::make_mut(&mut spec).meta.update_comments(comment, action.as_str())
-        };
-        
-        println!("2 recent modified time: {:?}", Arc::make_mut(&mut spec).meta.get_recent_modified_time());
-=======
 
         println!("{:?}", comment);
         if !spec.meta.modified_stack.contains_key("deprecate") {
@@ -309,7 +298,6 @@ pub(crate) async fn change_deprecation_state(
             println!("{:?}", spec.meta.modified_stack);
         };
 
->>>>>>> 2810bd90 (Implemented creation timestamp. WIP: modification timestamp)
         Arc::make_mut(&mut spec).deprecated = new_status;
         repo.force_publish_spec(&spec).await?;
         tracing::info!(repo=%repo_name, "{} {fmt}", action.as_past_tense());
