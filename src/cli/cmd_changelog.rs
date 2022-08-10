@@ -28,11 +28,11 @@ pub struct ChangeLog {
 impl Run for ChangeLog {
     async fn run(&mut self) -> Result<i32> {
 
-        let mut repos = self.repos.get_repos(None).await?;
+        let mut repos = self.repos.get_repos_for_non_destructive_operation().await?;
         if repos.is_empty() {
             let local = String::from("local");
             if !self.repos.disable_repo.contains(&local) {
-                repos = self.repos.get_repos(None).await?;
+                repos = self.repos.get_repos_for_non_destructive_operation().await?;
             } else {
                 eprintln!(
                     "{}",
