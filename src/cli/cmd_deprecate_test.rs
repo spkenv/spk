@@ -28,7 +28,8 @@ async fn test_deprecate_without_prompt() {
     // with the '--yes' flag to prevent it prompting.
     let packages = vec![name1.to_string(), name2.to_string(), name3.to_string()];
     let yes = true;
-    let result = change_deprecation_state(ChangeAction::Deprecate, &repos, &packages, yes).await;
+    let comment = vec![("test".to_string())];
+    let result = change_deprecation_state(ChangeAction::Deprecate, &repos, &packages, yes, &comment).await;
 
     match result {
         Ok(r) => assert_eq!(r, 0),
