@@ -29,7 +29,8 @@ async fn test_undeprecate_without_prompt() {
     let packages = vec![name1.to_string(), name2.to_string(), name3.to_string()];
     let yes = true;
     let comment = vec![("test".to_string())];
-    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
+    let result =
+        change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
 
     match result {
         Ok(r) => assert_eq!(r, 0),
@@ -68,7 +69,8 @@ async fn test_undeprecate_no_repos() {
     let packages = vec![name.to_string()];
     let yes = true;
     let comment = vec![("test".to_string())];
-    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
+    let result =
+        change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
 
     match result {
         Ok(r) => assert_eq!(r, 1),
@@ -95,7 +97,8 @@ async fn test_undeprecate_no_version() {
     let packages = vec![name.to_string()];
     let yes = true;
     let comment = vec![("test".to_string())];
-    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
+    let result =
+        change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
 
     match result {
         Ok(r) => assert_eq!(r, 2),
@@ -122,7 +125,8 @@ async fn test_undeprecate_no_version_but_trailing_slash() {
     let packages = vec![format!("{}/", name)];
     let yes = true;
     let comment = vec![("test".to_string())];
-    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
+    let result =
+        change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
 
     match result {
         Ok(r) => assert_eq!(r, 3),
@@ -153,7 +157,8 @@ async fn test_undeprecate_with_no_package_found() {
     let packages = vec![missing_pkg.to_string()];
     let yes = true;
     let comment = vec![("test".to_string())];
-    let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
+    let result =
+        change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
 
     match result {
         Ok(r) => assert_eq!(r, 4),

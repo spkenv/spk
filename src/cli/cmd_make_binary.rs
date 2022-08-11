@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use chrono::offset::Local;
 use clap::Args;
 use spk::io::Format;
-use chrono::offset::Local;
 
 use super::{flags, CommandArgs, Run};
 
@@ -119,7 +119,10 @@ impl Run for MakeBinary {
                     modified_data.comment = "New package creation".to_string();
                     modified_data.action = "build".to_string();
                     modified_data.timestamp = Local::now().timestamp();
-                    Arc::make_mut(&mut spec).meta.modified_stack.push(modified_data);
+                    Arc::make_mut(&mut spec)
+                        .meta
+                        .modified_stack
+                        .push(modified_data);
                     tracing::info!("saving spec file {}", Format::format_ident(&spec.pkg));
                     spk::save_spec(&spec).await?;
                     spec
