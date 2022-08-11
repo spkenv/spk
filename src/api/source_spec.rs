@@ -235,12 +235,10 @@ impl TarSource {
         tracing::debug!(?cmd, "running");
         match cmd.status()?.code() {
             Some(0) => Ok(()),
-            code => {
-                return Err(Error::String(format!(
-                    "tar command failed with exit code {:?}",
-                    code
-                )))
-            }
+            code => Err(Error::String(format!(
+                "tar command failed with exit code {:?}",
+                code
+            ))),
         }
     }
 }
