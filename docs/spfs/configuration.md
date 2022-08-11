@@ -1,3 +1,7 @@
+---
+title: Configuration
+---
+
 # Configuring SpFS
 
 ## Config File

@@ -1,3 +1,7 @@
+---
+title: Design and Architecture
+---
+
 # Design and Architecture
 
 General concepts and codebase layout.

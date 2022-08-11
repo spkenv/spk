@@ -1,16 +1,8 @@
-
-# python
-__pycache__/
-*.pyc
-*.egg-info/
-.mypy_cache/
 .coverage
 coverage.xml
 .benchmarks
 .coverage
 .coverage.*
-*.so
-.eggs/
 
 # spdev
 /build/
@@ -37,3 +29,4 @@ target/
 # END spdev:Rust
 .devcontainer/
 .cache/
+.hugo_build.lock

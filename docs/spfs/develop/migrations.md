@@ -1,3 +1,7 @@
+---
+title: Mogrations
+---
+
 # Repository Migrations
 
 Mechanisms for changing filesystem repository formats.

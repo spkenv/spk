@@ -1,12 +1,17 @@
-# SpFS
+---
+title: SPFS
+chapter: true
+---
 
-SpFS is a file system isolation, capture and distribution system for software runtime management. In many ways, it's like docker-lite, providing some of the benefits of a container runtime while not creating too much isolation from the host environment.
+## SPFS
+
+SPFS is a file system isolation, capture and distribution system for software runtime management. In many ways, it's like a lightweight docker combined with git - providing some of the benefits of a container runtime while not creating too much isolation from the host environment.
 
 ### Key Concepts
 
 #### File System
 
-SpFS manages all files under the `/spfs` directory on your system. It has the ability to capture the exact state of this folder and reproduce it on any other spfs-enabled system.
+SPFS manages all files under the `/spfs` directory on your system. It has the ability to capture the exact state of this folder and reproduce it on any other spfs-enabled system.
 
 #### Isolation
 
@@ -26,12 +31,15 @@ ls /spfs
 ```
 
 In a separate shell, we can see that the files are not visible.
+
 ```bash
 ls /spfs
 # <nothing>
 ```
-:warning: | **Any files that you create, or changes that you make under /spfs are lost when the shell or program exits**. Make sure that you commit any changes that you want to keep or reuse (see below).
-:---: | :---
+
+{{% notice warning %}}
+**Any files that you create, or changes that you make under /spfs are lost when the shell or program exits**. Make sure that you commit any changes that you want to keep or reuse (see below).
+{{% /notice %}}
 
 ### Storage & Persistence
 
@@ -116,8 +124,9 @@ By default, when you run a command or enter into a shell with an existing spfs i
 
 In edit mode, the spfs system stores changes that you make in a new area, layered on top of the existing files. This means that you are never actually modifying any files previously committed to spfs. There is no way to change a committed layer or platform, only update the tag to point to a newly committed set of files that are different (just like a git branch).
 
-:point_right: | In edit mode, all changes are stored in memory and are lost when you exit the runtime. The only way to save these changes is to commit them as a layer or platform before exiting.
-:---: | :---
+{{% notice tip %}}
+In edit mode, all changes are stored in memory and are lost when you exit the runtime. The only way to save these changes is to commit them as a layer or platform before exiting.
+{{% /notice %}}
 
 ### Sharing References
 
@@ -138,14 +147,15 @@ In order to share your layers and/platforms with others, you simply need to _pus
 spfs push my-platform
 ```
 
-SpFS will automatically push all of the required layers for our platform, but it won't include the tags that we have for the layers by default. We can push those separately, if desired.
+SPFS will automatically push all of the required layers for our platform, but it won't include the tags that we have for the layers by default. We can push those separately, if desired.
 
 ```bash
 spfs push my-layer
 ```
 
-:point_right: | Notice that spfs is very efficient with its storage, and knows instantly that the layer already exists in the remote storage, so only creates the tag.
-:---: | :---
+{{% notice tip %}}
+Notice that spfs is very efficient with its storage, and knows instantly that the layer already exists in the remote storage, so only creates the tag.
+{{% /notice %}}
 
 ### Further Reading
 
