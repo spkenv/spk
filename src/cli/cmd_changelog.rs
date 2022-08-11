@@ -2,18 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-// use std::{collections::BTreeSet};
-use std::{collections::HashMap, str::FromStr, sync::Arc};
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
-use chrono::{NaiveDateTime, DateTime, Utc, Local};
 use super::{flags, CommandArgs, Run};
 
+use chrono::{DateTime, Local, NaiveDateTime, Utc};
 #[derive(Args)]
 pub struct ChangeLog {
-
     #[clap(flatten)]
     pub repos: flags::Repositories,
 
@@ -27,7 +25,6 @@ pub struct ChangeLog {
 #[async_trait::async_trait]
 impl Run for ChangeLog {
     async fn run(&mut self) -> Result<i32> {
-
         let mut repos = self.repos.get_repos_for_non_destructive_operation().await?;
         if repos.is_empty() {
             let local = String::from("local");
@@ -45,25 +42,23 @@ impl Run for ChangeLog {
 
         // Seconds in day, week, month, and year for comparison when checking creation date.
         let range_in_seconds: HashMap<&str, i64> = HashMap::from([
-            ("d", 86400), // day
-            ("w", 604800), // week
-            ("m", 2592000), // month
+            ("d", 86400),    // day
+            ("w", 604800),   // week
+            ("m", 2592000),  // month
             ("y", 31104000), // year
         ]);
-        
         let changelog_range: i64 = match &self.range {
             None => *range_in_seconds.get("m").unwrap(),
             Some(range) => {
                 let range_vec = range.split_terminator("").skip(1).collect::<Vec<&str>>();
                 let range_multiplier = atoi::<i64>(range).unwrap();
                 let range_type = *range_in_seconds.get(range_vec.last().unwrap()).unwrap();
-                range_multiplier * range_type  
+                range_multiplier * range_type
             }
         };
-        for (index, (_, repo)) in repos.iter().enumerate()  {
+        for (index, (_, repo)) in repos.iter().enumerate() {
             let packages = repo.list_packages().await?;
             for package in packages {
-
                 let mut versions = Vec::new();
                 versions.extend(
                     repo.list_package_versions(&package.clone())
@@ -86,7 +81,7 @@ impl Run for ChangeLog {
                         Ok(spec) => spec,
                         Err(error) => {
                             println!("WARN: {}", error);
-                            break
+                            break;
                         }
                     };
 
@@ -94,17 +89,22 @@ impl Run for ChangeLog {
                     let current_time = chrono::offset::Local::now().timestamp();
                     let diff = current_time - recent_change.timestamp;
 
-                    if diff < changelog_range{
-                        let naive_date_time = NaiveDateTime::from_timestamp(recent_change.timestamp, 0);
-                        let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc).with_timezone(&Local);
-                        println!("Package: {}, Modified on {}", 
-                            name.yellow(), 
+                    if diff < changelog_range {
+                        let naive_date_time =
+                            NaiveDateTime::from_timestamp(recent_change.timestamp, 0);
+                        let date_time =
+                            DateTime::<Utc>::from_utc(naive_date_time, Utc).with_timezone(&Local);
+
+                        println!(
+                            "Package: {}, Modified on {}",
+                            name.yellow(),
                             date_time.to_string().yellow()
                         );
-                        println!("Author: {}, Action: {}, Comment: {}",
+                        println!(
+                            "Author: {}, Action: {}, Comment: {}",
                             recent_change.author.yellow(),
-                            recent_change.action.yellow(), 
-                            recent_change.comment.yellow(), 
+                            recent_change.action.yellow(),
+                            recent_change.comment.yellow(),
                         );
                     }
                 }
@@ -117,7 +117,9 @@ impl Run for ChangeLog {
 
 // https://stackoverflow.com/questions/65601579/parse-an-integer-ignoring-any-non-numeric-suffix
 fn atoi<F: FromStr>(input: &str) -> Result<F, <F as FromStr>::Err> {
-    let i = input.find(|c: char| !c.is_numeric()).unwrap_or_else(|| input.len());
+    let i = input
+        .find(|c: char| !c.is_numeric())
+        .unwrap_or_else(|| input.len());
     input[..i].parse::<F>()
 }
 

@@ -1,10 +1,9 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-
+use chrono::offset::Local;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use chrono::offset::Local;
 use whoami::username;
 
 #[cfg(test)]
@@ -53,20 +52,17 @@ impl Meta {
     }
 
     pub fn update_modified_time(&mut self, action: &str, comment: String) {
-
         let timestamp = Local::now().timestamp();
         let data = ModifiedMetaData {
             author: username(),
             action: action.to_owned(),
             comment,
             timestamp,
-
         };
         self.modified_stack.push(data)
     }
 
     pub fn get_recent_modified_time(&mut self) -> ModifiedMetaData {
-        
         let mut recent_modified_time: i64 = 0;
         let mut result: ModifiedMetaData = ModifiedMetaData::default();
 
@@ -75,7 +71,7 @@ impl Meta {
                 recent_modified_time = data.timestamp;
                 result = data.to_owned();
             };
-        };
+        }
 
         result
     }
@@ -95,10 +91,10 @@ pub struct ModifiedMetaData {
 impl Default for ModifiedMetaData {
     fn default() -> Self {
         ModifiedMetaData {
-            author: username(), 
+            author: username(),
             action: String::default(),
-            comment: String::default(), 
-            timestamp: i64::default() 
+            comment: String::default(),
+            timestamp: i64::default(),
         }
     }
 }
