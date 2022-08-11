@@ -1,0 +1,131 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+default-run = "spfs"
+edition = "2021"
+name = "spfs"
+version = "0.34.6"
+
+[lib]
+name = "spfs"
+path = "src/lib.rs"
+
+[[bin]]
+name = "spfs"
+path = "src/cli/bin.rs"
+required-features = ["cli"]
+[[bin]]
+name = "spfs-enter"
+path = "src/cli/cmd_enter.rs"
+required-features = ["cli"]
+[[bin]]
+name = "spfs-join"
+path = "src/cli/cmd_join.rs"
+required-features = ["cli"]
+[[bin]]
+name = "spfs-render"
+path = "src/cli/cmd_render.rs"
+required-features = ["cli"]
+[[bin]]
+name = "spfs-monitor"
+path = "src/cli/cmd_monitor.rs"
+required-features = ["cli"]
+
+[features]
+default = []
+
+# If enabled, will create the "local" repository in a subdirectory
+# of the standard storage root, named "ci/pipeline_${CI_PIPELINE_ID}".
+gitlab-ci-local-repo-isolation = []
+sentry = ["dep:sentry"]
+cli = [
+    "dep:clap",
+    "dep:tracing-subscriber",
+    "dep:strum",
+    "dep:question",
+]
+server = [
+    "hyper/server",
+    "tokio-util/codec",
+    "tokio-util/io",
+    "tokio-util/io-util",
+]
+"runtime-compat-0.33" = []
+
+[dependencies]
+async-trait = "0.1.52"
+async-recursion = "1.0"
+async-stream = "0.3"
+caps = "0.5.3"
+chrono = { version = "0.4.19", features = ["serde"] }
+clap = { version = "3.2", features = ["derive", "env"], optional = true }
+close-err = "1.0"
+cnproc = { git = "https://github.com/rydrman/cnproc-rs", branch = "act-like-iterator" }
+colored = "2.0"
+config = "0.13.1"
+data-encoding = "2.3"
+expanduser = "1.2"
+faccess = "0.2.3"
+futures = "0.3.9"
+gitignore = "1.0"
+glob = "0.3.0"
+hyper = { version = "0.14.16", features = ["client"] }
+indicatif = "0.16.2"
+itertools = "0.10.3"
+lazy_static = "1.4"
+libc = "0.2.80"
+nix = "0.24.1"
+once_cell = "1.8"
+procfs = "0.13.2"
+prost = "0.10.4"
+question = { version = "0.2.2", optional = true }
+rand = "0.8.5"
+relative-path = "1.3"
+ring = "0.16.15"
+semver = "1.0"
+sentry = { version = "0.27.0", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_derive = "1.0"
+serde_json = "1.0"
+serde_qs = "0.10.1"
+strum = { version = "0.24.1", optional = true }
+strum_macros = "0.24.2"
+tar = "0.4.30"
+tempfile = "3.3"
+tokio = { version = "1.20", features = [
+    "fs",
+    "io-util",
+    "io-std",
+    "rt",
+    "rt-multi-thread",
+    "macros",
+    "sync",
+    "process",
+    "signal"
+] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tokio-util = { version = "0.7.3", features = ["compat"] }
+tonic = "0.7.2"
+tracing = "0.1.22"
+tracing-subscriber = { version = "0.3.14", features = ["env-filter"], optional = true }
+url = { version = "2.2", features = ["serde"] }
+uuid = { version = "1.1", features = ["v4"] }
+walkdir = "2.3"
+whoami = "1.2"
+thiserror = "1.0"
+
+[build-dependencies]
+tonic-build = "0.7.2"
+
+[dev-dependencies]
+criterion = { version = "0.3", features = ["async_tokio", "html_reports"] }
+rstest = { version = "0.15.0", default_features = false }
+serial_test = "0.8.0"
+tracing-subscriber = { version = "0.3.14", features = ["env-filter"] }
+
+[[bench]]
+name = "spfs_bench"
+harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1

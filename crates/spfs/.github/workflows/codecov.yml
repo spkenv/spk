@@ -1,0 +1,38 @@
+name: Code Coverage
+
+on:
+  push:
+    paths:
+      # Only run coverage report if the sources have changed
+      - "src/**.rs"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  codecov:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: xd009642/tarpaulin
+      options: --security-opt seccomp=unconfined --privileged
+      env:
+        # Disable cnproc because we're in a container
+        SPFS_MONITOR_DISABLE_CNPROC: "1"
+        FEATURES: "server,cli"
+    steps:
+      - uses: actions/checkout@v2
+      - name: Prepare Container
+        run: |
+          apt-get update
+          # nodejs is needed for rust-cache (when using `act`)
+          apt-get install -y libcap2-bin sudo nodejs cmake
+          rustup component add clippy rustfmt
+      - uses: Swatinem/rust-cache@v1
+      - name: Generate code coverage
+        run: |
+          cargo tarpaulin --verbose --features "$FEATURES" --timeout 120 --out Xml --lib
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

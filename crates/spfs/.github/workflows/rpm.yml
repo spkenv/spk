@@ -1,0 +1,64 @@
+name: RPM Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'release-*'
+  pull_request:
+    branches:
+      - 'release-*'
+
+jobs:
+  build-rpm:
+    runs-on: ubuntu-latest
+    # Release build takes a long time!
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache docker build environment
+        id: cache-docker-build-env
+        uses: actions/cache@v3
+        env:
+          cache-name: docker-build-env
+        with:
+          path: ~/.images
+          key: build_env-${{ hashFiles('rpmbuild.Dockerfile') }}
+      # If there is a cached docker image, import it so
+      # the cached layers can be reused.
+      - if: steps.cache-docker-build-env.outputs.cache-hit == 'true'
+        name: Import docker build env cache
+        continue-on-error: true
+        # Don't bother to compress the tar because the caching mechanism
+        # includes compression.
+        run: docker load -i ~/.images/build_env.tar
+      # Capture what ends up in /root/.cargo/registry (inside
+      # the rpmbuild container) to reduce what needs to be
+      # re-downloaded between builds.
+      - name: Cache cargo registry
+        id: cache-cargo-registry
+        uses: actions/cache@v3
+        env:
+          cache-name: cargo-registry
+        with:
+          path: .cache/cargo-registry
+          key: ${{ hashFiles('Cargo.lock') }}
+      - run: echo RPM_NAME=$(rpmspec -q spfs.spec | head -n1) >> $GITHUB_ENV
+      - run: echo Building ${{ env.RPM_NAME }}.rpm
+      - name: build RPM package
+        run: |
+          make rpm
+          sudo chown -R $(whoami) .cache
+      # Export the build_env to be cached for the next run.
+      # Even if it was found in the cache, this run might have
+      # rebuilt it.
+      - name: Export docker build env cache
+        continue-on-error: true
+        run: |
+          mkdir -p ~/.images
+          docker save build_env $(docker history -q build_env | tr '\n' ' ' | tr -d '<missing>') > ~/.images/build_env.tar
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: Binary RPM
+          path: dist/rpm/RPMS/x86_64/${{ env.RPM_NAME }}.rpm

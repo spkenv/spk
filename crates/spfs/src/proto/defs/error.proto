@@ -1,0 +1,31 @@
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+syntax = "proto3";
+
+package spfs;
+
+message Ok {}
+
+message UnknownObjectError {
+    string message = 1;
+}
+message UnknownReferenceError {
+    string message = 1;
+}
+message AmbiguousReferenceError {
+    string message = 1;
+}
+message InvalidReferenceError {
+    string message = 1;
+}
+
+message Error {
+    oneof kind {
+        string other = 1;
+        UnknownObjectError UnknownObject = 2;
+        UnknownReferenceError UnknownReference = 3;
+        AmbiguousReferenceError AmbiguousReference = 4;
+        InvalidReferenceError InvalidReference = 5;
+    }
+}
