@@ -15,8 +15,9 @@ pub struct ChangeLog {
     #[clap(flatten)]
     pub repos: flags::Repositories,
 
-    #[clap(name = "D|W|M")]
-    pub range: Option<String>,
+    /// The range in d(day), w(week), m(month), or y(year) you want to check changes
+    #[clap(name = "time", short)]
+    pub time: Option<String>,
 
     #[clap(name = "NAME[/VERSION]")]
     package: Option<String>,
@@ -47,68 +48,121 @@ impl Run for ChangeLog {
             ("m", 2592000),  // month
             ("y", 31104000), // year
         ]);
-        let changelog_range: i64 = match &self.range {
+        let changelog_range: i64 = match &self.time {
             None => *range_in_seconds.get("m").unwrap(),
-            Some(range) => {
-                let range_vec = range.split_terminator("").skip(1).collect::<Vec<&str>>();
-                let range_multiplier = atoi::<i64>(range).unwrap();
+            Some(time) => {
+                let range_vec = time.split_terminator("").skip(1).collect::<Vec<&str>>();
+                let range_multiplier = atoi::<i64>(time).unwrap();
                 let range_type = *range_in_seconds.get(range_vec.last().unwrap()).unwrap();
                 range_multiplier * range_type
             }
         };
-        for (index, (_, repo)) in repos.iter().enumerate() {
-            let packages = repo.list_packages().await?;
-            for package in packages {
-                let mut versions = Vec::new();
-                versions.extend(
-                    repo.list_package_versions(&package.clone())
-                        .await?
-                        .iter()
-                        .map(|v| ((**v).clone(), index)),
-                );
-                versions.sort_by_key(|v| v.0.clone());
-                versions.reverse();
 
-                for (version, repo_index) in versions {
-                    let (_repo_name, repo) = repos.get(repo_index).unwrap();
-                    let mut name = String::from(&package.to_string());
-                    name.push('/');
-                    name.push_str(&version.to_string());
+        match &self.package {
+            None => {
+                for (index, (_, repo)) in repos.iter().enumerate() {
+                    let packages = repo.list_packages().await?;
+                    for package in packages {
+                        let mut versions = Vec::new();
+                        versions.extend(
+                            repo.list_package_versions(&package.clone())
+                                .await?
+                                .iter()
+                                .map(|v| ((**v).clone(), index)),
+                        );
+                        versions.sort_by_key(|v| v.0.clone());
+                        versions.reverse();
 
-                    let ident = spk::api::parse_ident(name.clone())?;
-                    let spec = repo.read_spec(&ident).await;
-                    let mut spec = match spec {
-                        Ok(spec) => spec,
-                        Err(error) => {
-                            println!("WARN: {}", error);
-                            break;
+                        for (version, repo_index) in versions {
+                            let (_repo_name, repo) = repos.get(repo_index).unwrap();
+                            let mut name = String::from(&package.to_string());
+                            name.push('/');
+                            name.push_str(&version.to_string());
+
+                            let ident = spk::api::parse_ident(name.clone())?;
+                            let mut spec = match repo.read_spec(&ident).await {
+                                Ok(s) => s,
+                                Err(err) => {
+                                    tracing::debug!(
+                                        "Unable to read {ident} spec from {_repo_name}: {err}"
+                                    );
+                                    continue;
+                                }
+                            };
+
+                            let recent_change =
+                                Arc::make_mut(&mut spec).meta.get_recent_modified_time();
+                            let current_time = chrono::offset::Local::now().timestamp();
+                            let diff = current_time - recent_change.timestamp;
+
+                            if diff < changelog_range {
+                                let naive_date_time =
+                                    NaiveDateTime::from_timestamp(recent_change.timestamp, 0);
+                                let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc)
+                                    .with_timezone(&Local);
+                                println!(
+                                    "Package: {}, Modified on {}",
+                                    name.yellow(),
+                                    date_time.to_string().yellow()
+                                );
+                                println!(
+                                    "Author: {}, Action: {}, Comment: {}",
+                                    recent_change.author.yellow(),
+                                    recent_change.action.yellow(),
+                                    recent_change.comment.yellow(),
+                                );
+                            }
+                            println!();
+                        }
+                    }
+                }
+            }
+            Some(package) => {
+                if !package.contains('/') {
+                    tracing::error!("Must provide a version number: {package}/<VERSION NUMBER>");
+                    tracing::error!(
+                        " > use 'spk ls {package}' or 'spk ls {package} -r <REPO_NAME>' to view available versions"
+                    );
+                    return Ok(2);
+                }
+                if package.ends_with('/') {
+                    tracing::error!("A trailing '/' isn't a valid version number or build digest in '{package}'. Please remove the trailing '/', or specify a version number or build digest after it.");
+                    return Ok(3);
+                }
+                let ident = spk::api::parse_ident(package)?;
+                for (repo_name, repo) in repos.iter() {
+                    let mut spec = match repo.read_spec(&ident).await {
+                        Ok(s) => s,
+                        Err(err) => {
+                            tracing::debug!("Unable to read {ident} spec from {repo_name}: {err}");
+                            continue;
                         }
                     };
 
-                    let recent_change = Arc::make_mut(&mut spec).meta.get_recent_modified_time();
-                    let current_time = chrono::offset::Local::now().timestamp();
-                    let diff = current_time - recent_change.timestamp;
+                    for change in &Arc::make_mut(&mut spec).meta.modified_stack {
+                        let current_time = chrono::offset::Local::now().timestamp();
+                        let diff = current_time - change.timestamp;
 
-                    if diff < changelog_range {
-                        let naive_date_time =
-                            NaiveDateTime::from_timestamp(recent_change.timestamp, 0);
-                        let date_time =
-                            DateTime::<Utc>::from_utc(naive_date_time, Utc).with_timezone(&Local);
-
-                        println!(
-                            "Package: {}, Modified on {}",
-                            name.yellow(),
-                            date_time.to_string().yellow()
-                        );
-                        println!(
-                            "Author: {}, Action: {}, Comment: {}",
-                            recent_change.author.yellow(),
-                            recent_change.action.yellow(),
-                            recent_change.comment.yellow(),
-                        );
+                        if diff < changelog_range {
+                            let naive_date_time =
+                                NaiveDateTime::from_timestamp(change.timestamp, 0);
+                            let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc)
+                                .with_timezone(&Local);
+                            println!(
+                                "Package: {}, Modified on {}",
+                                ident.to_string().yellow(),
+                                date_time.to_string().yellow()
+                            );
+                            println!(
+                                "Author: {}, Action: {}, Comment: {}",
+                                change.author.yellow(),
+                                change.action.yellow(),
+                                change.comment.yellow(),
+                            );
+                        }
+                        println!();
                     }
                 }
-                println!();
             }
         }
         Ok(0)
@@ -117,16 +171,14 @@ impl Run for ChangeLog {
 
 // https://stackoverflow.com/questions/65601579/parse-an-integer-ignoring-any-non-numeric-suffix
 fn atoi<F: FromStr>(input: &str) -> Result<F, <F as FromStr>::Err> {
-    let i = input
-        .find(|c: char| !c.is_numeric())
-        .unwrap_or_else(|| input.len());
+    let i = input.find(|c: char| !c.is_numeric()).unwrap_or(input.len());
     input[..i].parse::<F>()
 }
 
 impl CommandArgs for ChangeLog {
     fn get_positional_args(&self) -> Vec<String> {
-        match &self.range {
-            Some(range) => vec![range.clone()],
+        match &self.time {
+            Some(time) => vec![time.clone()],
             None => vec![],
         }
     }
