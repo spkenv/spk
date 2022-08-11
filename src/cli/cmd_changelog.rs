@@ -90,6 +90,11 @@ impl Run for ChangeLog {
                                 }
                             };
 
+                            if Arc::make_mut(&mut spec).meta.modified_stack.is_empty() {
+                                tracing::debug!("Package {ident} does not have modified meta data");
+                                continue;
+                            }
+
                             let recent_change =
                                 Arc::make_mut(&mut spec).meta.get_recent_modified_time();
                             let current_time = chrono::offset::Local::now().timestamp();
