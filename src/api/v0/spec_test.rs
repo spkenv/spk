@@ -8,7 +8,7 @@ use rstest::rstest;
 
 use super::Spec;
 use crate::{
-    api::{self, OptionMap, SpecTemplate, Template},
+    api::{self, OptionMap, Recipe, SpecTemplate, Template},
     fixtures::*,
 };
 
@@ -32,9 +32,11 @@ fn test_sources_relative_to_spec_file(tmpdir: tempfile::TempDir) {
     file.write_all(b"{pkg: test-pkg}").unwrap();
     drop(file);
 
-    let api::SpecRecipe::V0Package(spec) = SpecTemplate::from_file(&spec_file)
+    let api::Spec::V0Package(spec) = SpecTemplate::from_file(&spec_file)
         .unwrap()
         .render(&OptionMap::default())
+        .unwrap()
+        .generate_source_build(&spec_dir)
         .unwrap();
     if let Some(super::SourceSpec::Local(local)) = spec.sources.get(0) {
         assert_eq!(local.path, spec_dir);

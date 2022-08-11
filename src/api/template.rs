@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use super::{Spec, SpecRecipe};
 use crate::Result;
@@ -31,13 +31,11 @@ impl<T: Named> Named for &T {
 pub trait Template: Named + Sized {
     type Output: super::Recipe;
 
-    /// Load this template from a file on disk
-    fn from_file(path: &std::path::Path) -> Result<Self>;
+    /// Identify the location of this template on disk
+    fn file_path(&self) -> &Path;
 
-    /// Save this template to a file on disk
-    ///
-    /// If this file already exists, it will be overwritten
-    fn to_file(&self, path: &std::path::Path) -> Result<()>;
+    /// Load this template from a file on disk
+    fn from_file(path: &Path) -> Result<Self>;
 
     /// Render this template with the provided values.
     fn render(&self, options: &super::OptionMap) -> Result<Self::Output>;

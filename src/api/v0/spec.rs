@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::collections::HashMap;
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -278,11 +279,16 @@ impl Recipe for Spec {
         Ok(self.tests.clone())
     }
 
-    fn generate_source_build(&self) -> Result<Self> {
+    fn generate_source_build(&self, root: &Path) -> Result<Self> {
         // TODO: remove all things that would cause this to not resolve
         //       after solver no longer treats source packages differently
         let mut source = self.clone();
         source.pkg.set_build(Some(Build::Source));
+        for source in source.sources.iter_mut() {
+            if let api::SourceSpec::Local(source) = source {
+                source.path = root.join(&source.path);
+            }
+        }
         Ok(source)
     }
 

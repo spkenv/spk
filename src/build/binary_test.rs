@@ -367,7 +367,7 @@ async fn test_build_package_source_cleanup() {
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
     let (src_pkg, _) = SourcePackageBuilder::from_recipe(spec.clone())
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(".", &*rt.tmprepo)
         .await
         .unwrap();
 
@@ -423,7 +423,7 @@ async fn test_build_package_requirement_propagation() {
     rt.tmprepo.publish_recipe(&top_spec).await.unwrap();
 
     SourcePackageBuilder::from_recipe(base_spec.clone())
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(".", &*rt.tmprepo)
         .await
         .unwrap();
     let _base_pkg = BinaryPackageBuilder::from_recipe(base_spec)
@@ -433,7 +433,7 @@ async fn test_build_package_requirement_propagation() {
         .unwrap();
 
     SourcePackageBuilder::from_recipe(top_spec.clone())
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(".", &*rt.tmprepo)
         .await
         .unwrap();
     let (top_pkg, _) = BinaryPackageBuilder::from_recipe(top_spec)
