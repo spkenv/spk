@@ -59,7 +59,11 @@ impl Meta {
             comment,
             timestamp,
         };
-        self.modified_stack.push(data)
+
+        match self.modified_stack.is_empty() {
+            true => self.modified_stack = vec![data],
+            false => self.modified_stack.push(data),
+        }
     }
 
     pub fn get_recent_modified_time(&mut self) -> ModifiedMetaData {
