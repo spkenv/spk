@@ -1,6 +1,0 @@
-*
-!benches/
-!src/
-!Cargo.*
-!spfs.spec
-!*.rs

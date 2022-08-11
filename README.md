@@ -2,9 +2,12 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- https://github.com/imageworks/spk -->
 
-# SPK
+# SPK and SPFS
 
-Package Manager for SPFS.
+**SPK** - A Package Manager for high velocity software environments, built on spfs.
+**SPFS** - Filesystem isolation, capture, and distribution.
+
+[![Generic badge](https://img.shields.io/badge/docs-passing-green.svg)](https://getspk.io)
 
 ## Motivation
 
@@ -21,8 +24,7 @@ All Rights Reserved.
 
 SPK/SPFS/spawn are distributed using the [Apache-2.0 license](LICENSE.txt).
 
-
-## Structure of the spk project
+## Structure of this project
 
 `spfs` is the per-process layered file system.
 
@@ -30,55 +32,47 @@ SPK/SPFS/spawn are distributed using the [Apache-2.0 license](LICENSE.txt).
 
 `spawn` is the application launcher for spk packages.
 
-These are spread over three code bases at the moment, but will probably
+These are spread over two code bases at the moment, but may
 be merged into a single project, [spk](https://github.com/imageworks/spk).
 Please refer to [spk](https://github.com/imageworks/spk) for almost all
 information about staging the open source project, that's where the
 developer documentation and communication will live, including
 [Contributing to SPK](https://github.com/imageworks/spk/CONTRIBUTING.md).
 
-
 ## Contributing
 
 Please read [Contributing to SPK](https://github.com/imageworks/spk/CONTRIBUTING.md).
-
 
 ## Development plan
 
 Please read [SPK open source development plan](https://github.com/imageworks/spk/OPEN_SOURCE_PLAN.md).
 
-
 ## Development
 
-SPK is mostly written in python, with a Rust extension that integrates with the spfs API.
+Both spk and spfs are written in Rust and use cargo. The best way to get started with rust development is to install the latest stable rust toolchain using [rustup](https://rustup.sh).
 
 For details on architecture and design of the codebase, see the [developer docs](docs/develop).
 
-Python dependencies are tracked with [Pipenv](https://github.com/pypa/pipenv#installation), which will need to be installed. You will also need access to the rust toolchain, which can be installed with [rustup](https://rustup.sh).
-
-Once you have access to the pipenv command, jump into a development environment using:
-
 ```sh
-pipenv sync --dev
-pipenv shell
+# once cargo is installed, you can build and install both projects with
+make build
 ```
 
-The easiest way to work with spk is to install a local development version into the pipenv virtaul environment. Once in a pipenv shell, this can be achieved by running the commands below.
+### Binaries and Capabilities
+
+Spfs builds into a number of separate binaries, all of which can be run through the main `spfs` binary. Some of these binaries require special capabilities to be set in order to function properly. The `setcaps_debug.sh` script can be used to set these capabilities on your locally-compiled debug binaries.
 
 ```sh
-# install the local sources into the virtualenv
-python setup.py develop
-which spk # now points to local dev version
-spk --help
-```
+# assign the necessary capabilities to the debug binaries
+sudo setcaps_debug.sh
 
-**NOTE** In order to run spk you will need [spfs](https://github.com/imageworks/spfs) to already be installed on the local system. The easiest way to do this is to download the rpm file attached to the latest release in the spfs repo.
+# alternatively, assign the capabilities and install the debug binaries
+make install
+```
 
 ### RPM Package
 
-The spk codebase is setup to produce a centos7-compatible rpm package by building spfs in a docker container. To create the rpm package, you will need docker installed. These packages are also built and made available in this repository's CI.
-
-In order to properly build the rpm, you will need to provide your github username and an access token so that the container can pull the spfs sources to build against. The Makefile is setup to prompt you for and fill in these values automatically. If you don't wish to fill these in each time, you can also set the `SPFS_PULL_USERNAME` and `SPFS_PULL_PASSWORD` environment variables before calling make.
+The codebase is setup to produce a centos7-compatible rpm package for both spfs and spk by building them in a docker container. To create the rpm package, you will need docker installed. These packages are also built and made available in this repository's CI.
 
 ```sh
 # build the rpm package via docker and copy into ./dist/rpm
@@ -87,19 +81,7 @@ make rpms
 
 ### Testing
 
-Spfs has a number of unit and integration tests as well as testable examples that can all be executed with `pytest`. The tests themselves need to be executed under an spfs runtime in order to properly execute.
-
-```sh
-spfs run - -- pytest
-```
-
-Additionally, there are some rust unit tests that can be executed using `cargo`.
-
-```sh
-make cargo-test
-```
-
-From this shell, you can run the local build of the `spk` command as well as all tests with pytest. **NOTE**: running the local development version of spk, and running the unit tests will require that `spfs` is installed on the local machine. The pytest test suite must also be run from within an spfs environment in order to work properly.
+Both projecs have a number of unit and integration tests as well as testable examples that can all be executed with `make test`. The tests for spk need to be executed under an spfs runtime in order to properly execute.
 
 ```sh
 # run the unit test suite
@@ -183,4 +165,41 @@ sudo yum install -y \
     texinfo \
     zip \
     zlib
+```
+Spfs has a number of unit tests written in rust that can be run using the `cargo` command.
+
+```sh
+cargo test
+```
+
+Additionally, there are a number of integration tests that validate the fully installed state of spfs. These are generally a series of spfs command line calls that validate the creation and usage of the `/spfs` filesystem.
+
+```sh
+cargo build
+./setcaps_debug.sh
+tests/integration/run_all.sh
+```
+
+### Benchmarks
+
+Benchmark tests can be found in `benches/`. All benchmark tests can be run with `cargo bench`, but in order to successfully pass `criterion`-specific options to the `criterion`-based benchmarks, those types of benchmarks need to be filtered for.
+
+```sh
+cargo bench --bench spfs_bench
+```
+
+A common workflow as described [here](https://bheisler.github.io/criterion.rs/book/user_guide/command_line_options.html#baselines) is to record a baseline measurement to use as a reference to compare future measurements to.
+
+```sh
+git checkout master
+# Record baseline with name "master"
+cargo bench --bench spfs_bench -- --save-baseline master
+
+git checkout topic-branch
+# While iterating, this creates a new baseline called "new", and
+# will report on the change since the most recent "new".
+cargo bench --bench spfs_bench
+
+# Compare to "master"
+cargo bench --bench spfs_bench -- --load-baseline new --baseline master
 ```
