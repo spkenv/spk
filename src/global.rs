@@ -28,7 +28,10 @@ pub async fn load_spec<S: TryInto<api::Ident, Error = crate::Error>>(
             Err(err) => return Err(err),
         },
         Err(Error::SPFS(spfs::Error::FailedToOpenRepository { source, .. }))
-            if matches!(*source, spfs::Error::UnknownRemoteName(_)) => {}
+            if source
+                .downcast_ref::<spfs::Error>()
+                .map(|e| matches!(*e, spfs::Error::UnknownRemoteName(_)))
+                .unwrap_or_default() => {}
         Err(err) => return Err(err),
     }
 

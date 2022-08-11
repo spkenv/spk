@@ -472,9 +472,9 @@ dependencies = [
 
 [[package]]
 name = "config"
-version = "0.13.2"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11f1667b8320afa80d69d8bbe40830df2c8a06003d86f73d8e003b2c48df416d"
+checksum = "3ea917b74b6edfb5024e3b55d3c8f710b5f4ed92646429601a42e96f0812b31b"
 dependencies = [
  "async-trait",
  "json5",
@@ -1959,9 +1959,9 @@ checksum = "eb9f9e6e233e5c4a35559a617bf40a4ec447db2e84c20b55a6f83167b7e57872"
 
 [[package]]
 name = "prettyplease"
-version = "0.1.18"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "697ae720ee02011f439e0701db107ffe2916d83f718342d65d7f8bf7b8a5fee9"
+checksum = "fffbe84bf1905c007253d1f10ffb85fbc8ca8624a40cff8f2ded6f36920e38e0"
 dependencies = [
  "proc-macro2",
  "syn",
@@ -2571,9 +2571,9 @@ dependencies = [
 
 [[package]]
 name = "rustversion"
-version = "1.0.9"
+version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97477e48b4cf8603ad5f7aaf897467cf42ab4218a38ef76fb14c2d6773a6d6a8"
+checksum = "24c8ad4f0c00e1eb5bc7614d236a7f1300e3dbd76b68cac8e06fb00b015ad8d8"
 
 [[package]]
 name = "rusty-fork"
@@ -3019,7 +3019,7 @@ dependencies = [
  "close-err",
  "cnproc",
  "colored",
- "config 0.13.2",
+ "config 0.13.1",
  "criterion",
  "data-encoding",
  "expanduser",
