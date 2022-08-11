@@ -61,9 +61,6 @@ pub async fn current_env() -> crate::Result<Solution> {
 
 #[cfg(feature = "sentry")]
 pub fn configure_sentry() -> sentry::ClientInitGuard {
-    use serde_json::json;
-    use std::collections::BTreeMap;
-
     // Call this before `sentry::init` to avoid potential `SIGSEGV`.
     let username = whoami::username();
 
@@ -94,19 +91,7 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
         },
     ));
 
-    let args: Vec<_> = std::env::args().collect();
-    let program = args[0].clone();
-    let command = args[1].clone();
-    let cwd = match std::env::current_dir() {
-        Ok(p) => Some(p),
-        Err(_) => None,
-    };
-
-    let mut data = BTreeMap::new();
-    data.insert(String::from("program"), json!(program));
-    data.insert(String::from("command"), json!(command));
-    data.insert(String::from("args"), json!(args));
-    data.insert(String::from("cwd"), json!(cwd));
+    let (command, data) = get_spk_context();
 
     sentry::configure_scope(|scope| {
         scope.set_user(Some(sentry::User {
@@ -125,6 +110,31 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
     });
 
     guard
+}
+
+#[cfg(feature = "sentry")]
+fn get_spk_context() -> (
+    String,
+    std::collections::BTreeMap<String, serde_json::Value>,
+) {
+    use serde_json::json;
+
+    let args: Vec<_> = std::env::args().collect();
+    let program = args[0].clone();
+    let command = args[1].clone();
+    let cwd = std::env::current_dir().ok();
+
+    let mut data = std::collections::BTreeMap::new();
+    data.insert(String::from("program"), json!(program));
+    data.insert(String::from("command"), json!(command));
+    data.insert(String::from("args"), json!(args.join(" ")));
+    data.insert(String::from("cwd"), json!(cwd));
+
+    if let Ok(spk_bin_tag) = std::env::var("SPK_BIN_TAG") {
+        data.insert(String::from("SPK_BIN_TAG"), json!(spk_bin_tag));
+    }
+
+    (command, data)
 }
 
 #[cfg(feature = "sentry")]
