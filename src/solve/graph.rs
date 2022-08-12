@@ -146,7 +146,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
 
             changes.push(Change::SetPackageBuild(Box::new(SetPackageBuild::new(
                 Arc::clone(&spec),
-                Arc::clone(&*recipe),
+                Arc::clone(recipe),
             ))));
 
             let requested_by = api::RequestedBy::PackageBuild(spec.ident().clone());
@@ -706,7 +706,7 @@ impl RequestVar {
             Arc::make_mut(&mut new_requests).insert(self.request.clone());
         }
         let options = SetOptions::compute_new_options(
-            &*base,
+            base,
             vec![(&self.request.var, &self.request.value)].into_iter(),
             true,
         );
@@ -725,7 +725,7 @@ impl SetOptions {
     }
 
     pub fn apply(&self, parent: &Arc<State>, base: &Arc<State>) -> Arc<State> {
-        let new_options = Self::compute_new_options(&*base, self.options.iter(), false);
+        let new_options = Self::compute_new_options(base, self.options.iter(), false);
         Arc::new(base.with_options(parent, new_options))
     }
 
@@ -1012,7 +1012,7 @@ impl State {
             let req = self
                 .get_merged_request(spec.name())
                 .map_err(GraphError::RequestError)?;
-            solution.add(&req, Arc::clone(&*spec), source.clone());
+            solution.add(&req, Arc::clone(spec), source.clone());
         }
         Ok(solution)
     }

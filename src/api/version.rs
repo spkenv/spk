@@ -273,7 +273,7 @@ impl Version {
 
     /// The major version number (first component)
     pub fn major(&self) -> u32 {
-        self.parts.get(0).copied().unwrap_or_default()
+        self.parts.first().copied().unwrap_or_default()
     }
 
     /// The minor version number (second component)

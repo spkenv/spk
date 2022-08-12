@@ -147,7 +147,7 @@ pub enum Command {
     MakeBinary(cmd_make_binary::MakeBinary),
     MakeSource(cmd_make_source::MakeSource),
     New(cmd_new::New),
-    #[clap(hide = true)]
+    #[clap(alias = "variant-count", hide = true)]
     NumVariants(cmd_num_variants::NumVariants),
     Publish(cmd_publish::Publish),
     Remove(cmd_remove::Remove),

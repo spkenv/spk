@@ -97,7 +97,11 @@ impl Publisher {
                             // It's cool if the version already exists
                         }
                         Err(err) => {
-                            return Err(format!("Failed to publish recipe {}: {err}", recipe.ident()).into())
+                            return Err(format!(
+                                "Failed to publish recipe {}: {err}",
+                                recipe.ident()
+                            )
+                            .into())
                         }
                     }
                 }

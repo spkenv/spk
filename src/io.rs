@@ -624,17 +624,11 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
             msg.push_str("Package not found: ");
             msg.push_str(&pkg.format_ident());
             msg.push('\n');
-            msg.push_str(
-                &" * check the spelling of the name\n"
-                    .yellow()
-                    .dimmed()
-                    .to_string(),
-            );
+            msg.push_str(&" * check the spelling of the name\n".yellow().dimmed());
             msg.push_str(
                 &" * ensure that you have enabled the right repositories"
                     .yellow()
-                    .dimmed()
-                    .to_string(),
+                    .dimmed(),
             )
         }
         Error::Solve(err) => {
@@ -670,28 +664,13 @@ pub fn format_error(err: &Error, verbosity: u32) -> String {
             }
             match verbosity {
                 0 => {
-                    msg.push_str(
-                        &"\n * try '--verbose/-v' for more info"
-                            .dimmed()
-                            .yellow()
-                            .to_string(),
-                    );
+                    msg.push_str(&"\n * try '--verbose/-v' for more info".dimmed().yellow());
                 }
                 1 => {
-                    msg.push_str(
-                        &"\n * try '-vv' for even more info"
-                            .dimmed()
-                            .yellow()
-                            .to_string(),
-                    );
+                    msg.push_str(&"\n * try '-vv' for even more info".dimmed().yellow());
                 }
                 2 => {
-                    msg.push_str(
-                        &"\n * try '-vvv' for even more info"
-                            .dimmed()
-                            .yellow()
-                            .to_string(),
-                    );
+                    msg.push_str(&"\n * try '-vvv' for even more info".dimmed().yellow());
                 }
                 3.. => (),
             }
