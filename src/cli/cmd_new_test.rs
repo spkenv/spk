@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use spk::api::Template;
+use spk::api::TemplateExt;
 
 #[rstest]
 fn test_template_is_valid() {

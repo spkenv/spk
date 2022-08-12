@@ -34,9 +34,11 @@ pub trait Template: Named + Sized {
     /// Identify the location of this template on disk
     fn file_path(&self) -> &Path;
 
-    /// Load this template from a file on disk
-    fn from_file(path: &Path) -> Result<Self>;
-
     /// Render this template with the provided values.
     fn render(&self, options: &super::OptionMap) -> Result<Self::Output>;
+}
+
+pub trait TemplateExt: Template {
+    /// Load this template from a file on disk
+    fn from_file(path: &Path) -> Result<Self>;
 }

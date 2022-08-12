@@ -8,7 +8,7 @@ use rstest::rstest;
 
 use super::Spec;
 use crate::{
-    api::{self, OptionMap, Recipe, SpecTemplate, Template},
+    api::{self, OptionMap, Recipe, SpecTemplate, Template, TemplateExt},
     fixtures::*,
 };
 

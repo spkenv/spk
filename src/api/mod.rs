@@ -61,7 +61,7 @@ pub use request::{
 pub use requirements_list::RequirementsList;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::{Spec, SpecRecipe, SpecTemplate};
-pub use template::{Named, Template};
+pub use template::{Named, Template, TemplateExt};
 
 pub use test_spec::{TestSpec, TestStage};
 pub use validation::{default_validators, ValidationSpec, Validator};

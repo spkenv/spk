@@ -7,6 +7,7 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
+use spk::api::TemplateExt;
 use spk::prelude::*;
 
 #[cfg(test)]

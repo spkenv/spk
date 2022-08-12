@@ -7,7 +7,7 @@ use std::{path::Path, str::FromStr};
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 
-use super::{Deprecate, DeprecateMut, Named, Package, Template, Versioned};
+use super::{Deprecate, DeprecateMut, Named, Package, Template, TemplateExt, Versioned};
 use crate::{Error, Result};
 
 /// Create a spec recipe from a json structure.
@@ -87,6 +87,17 @@ impl Template for SpecTemplate {
         &self.file_path
     }
 
+    fn render(&self, _options: &super::OptionMap) -> Result<Self::Output> {
+        serde_yaml::from_value(self.inner.clone().into()).map_err(|err| {
+            Error::String(format!(
+                "failed to parse rendered template for {}: {err}",
+                self.file_path.display()
+            ))
+        })
+    }
+}
+
+impl TemplateExt for SpecTemplate {
     fn from_file(path: &Path) -> Result<Self> {
         let file_path = path.canonicalize()?;
         let file = std::fs::File::open(&file_path)?;
@@ -126,15 +137,6 @@ impl Template for SpecTemplate {
             file_path,
             name,
             inner,
-        })
-    }
-
-    fn render(&self, _options: &super::OptionMap) -> Result<Self::Output> {
-        serde_yaml::from_value(self.inner.clone().into()).map_err(|err| {
-            Error::String(format!(
-                "failed to parse rendered template for {}: {err}",
-                self.file_path.display()
-            ))
         })
     }
 }

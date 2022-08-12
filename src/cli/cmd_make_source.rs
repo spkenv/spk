@@ -6,6 +6,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
 use clap::Args;
+use spk::api::TemplateExt;
 use spk::io::Format;
 use spk::prelude::*;
 
