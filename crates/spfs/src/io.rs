@@ -64,7 +64,7 @@ pub async fn format_digest(digest: encoding::Digest, format: DigestFormat<'_>) -
         all.append(&mut aliases);
     }
 
-    Ok(all.join(&" -> ".cyan().to_string()))
+    Ok(all.join(&" -> ".cyan()))
 }
 
 /// Return a human readable string rendering of the given diffs.
