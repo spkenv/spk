@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use crate::Result;
 
@@ -58,7 +58,7 @@ pub trait Recipe: super::Named + Versioned + super::Deprecate + Sync + Send {
     fn get_tests(&self, options: &super::OptionMap) -> Result<Vec<super::TestSpec>>;
 
     /// Create a new source package from this recipe and the given parameters.
-    fn generate_source_build(&self) -> Result<Self::Output>;
+    fn generate_source_build(&self, root: &Path) -> Result<Self::Output>;
 
     /// Create a new binary package from this recipe and the given parameters.
     fn generate_binary_build(
@@ -94,8 +94,8 @@ where
         (**self).get_tests(options)
     }
 
-    fn generate_source_build(&self) -> Result<Self::Output> {
-        (**self).generate_source_build()
+    fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
+        (**self).generate_source_build(root)
     }
 
     fn generate_binary_build(
@@ -133,8 +133,8 @@ where
         (**self).get_tests(options)
     }
 
-    fn generate_source_build(&self) -> Result<Self::Output> {
-        (**self).generate_source_build()
+    fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
+        (**self).generate_source_build(root)
     }
 
     fn generate_binary_build(

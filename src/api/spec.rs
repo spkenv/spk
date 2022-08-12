@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
@@ -70,6 +70,7 @@ macro_rules! spec {
 /// when provided with the necessary option values
 pub struct SpecTemplate {
     name: super::PkgNameBuf,
+    file_path: std::path::PathBuf,
     inner: serde_yaml::Mapping,
 }
 
@@ -82,9 +83,13 @@ impl Named for SpecTemplate {
 impl Template for SpecTemplate {
     type Output = SpecRecipe;
 
-    fn from_file(path: &std::path::Path) -> Result<Self> {
-        let filepath = path.canonicalize()?;
-        let file = std::fs::File::open(&filepath)?;
+    fn file_path(&self) -> &Path {
+        &self.file_path
+    }
+
+    fn from_file(path: &Path) -> Result<Self> {
+        let file_path = path.canonicalize()?;
+        let file = std::fs::File::open(&file_path)?;
         let reader = std::io::BufReader::new(file);
 
         let inner: serde_yaml::Mapping = serde_yaml::from_reader(reader).map_err(|err| {
@@ -94,11 +99,11 @@ impl Template for SpecTemplate {
         let pkg = inner
             .get(&serde_yaml::Value::String("pkg".to_string()))
             .ok_or_else(|| {
-                crate::Error::String(format!("Missing pkg field in spec file: {filepath:?}"))
+                crate::Error::String(format!("Missing pkg field in spec file: {file_path:?}"))
             })?;
         let pkg = pkg.as_str().ok_or_else(|| {
             crate::Error::String(format!(
-                "Invalid value for 'pkg' field: expected string, got {pkg:?} in {filepath:?}"
+                "Invalid value for 'pkg' field: expected string, got {pkg:?} in {file_path:?}"
             ))
         })?;
         let name = super::PkgNameBuf::from_str(
@@ -117,24 +122,20 @@ impl Template for SpecTemplate {
             tracing::warn!(" > for specs in the original spk format, add 'api: v0/package'");
         }
 
-        Ok(Self { name, inner })
-    }
-
-    /// Save this template to a file on disk
-    ///
-    /// If this file already exists, it will be overwritten
-    fn to_file(&self, path: &std::path::Path) -> Result<()> {
-        let file = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(&path)?;
-        serde_yaml::to_writer(file, &self.inner)
-            .map_err(|err| Error::String(format!("Failed to save spec to file {path:?}: {err}")))
+        Ok(Self {
+            file_path,
+            name,
+            inner,
+        })
     }
 
     fn render(&self, _options: &super::OptionMap) -> Result<Self::Output> {
-        serde_yaml::from_value(self.inner.clone().into())
-            .map_err(|err| Error::String(format!("failed to parse rendered template: {err}")))
+        serde_yaml::from_value(self.inner.clone().into()).map_err(|err| {
+            Error::String(format!(
+                "failed to parse rendered template for {}: {err}",
+                self.file_path.display()
+            ))
+        })
     }
 }
 
@@ -178,9 +179,9 @@ impl super::Recipe for SpecRecipe {
         }
     }
 
-    fn generate_source_build(&self) -> Result<Self::Output> {
+    fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
         match self {
-            SpecRecipe::V0Package(r) => r.generate_source_build().map(Spec::V0Package),
+            SpecRecipe::V0Package(r) => r.generate_source_build(root).map(Spec::V0Package),
         }
     }
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
 use clap::Args;
@@ -60,6 +60,11 @@ impl MakeSource {
                     template
                 }
             };
+            let root = template
+                .file_path()
+                .parent()
+                .map(ToOwned::to_owned)
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
             tracing::info!("rendering template for {}", template.name());
             let recipe = template.render(&options)?;
@@ -70,7 +75,7 @@ impl MakeSource {
 
             tracing::info!("collecting sources for {}", ident.format_ident());
             let (out, _components) = spk::build::SourcePackageBuilder::from_recipe(recipe)
-                .build_and_publish(&local)
+                .build_and_publish(root, &local)
                 .await
                 .context("Failed to collect sources")?;
             tracing::info!("created {}", out.ident().format_ident());

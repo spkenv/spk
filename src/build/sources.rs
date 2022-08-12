@@ -40,7 +40,7 @@ impl CollectionError {
 /// spk::build::SourcePackageBuilder::from_recipe(spk::recipe!({
 ///        "pkg": "my-pkg",
 ///     }))
-///    .build()
+///    .build(".")
 ///    .await
 ///    .unwrap();
 /// # }
@@ -58,30 +58,33 @@ impl<Recipe: api::Recipe> SourcePackageBuilder<Recipe> {
         }
     }
 
-    pub async fn build_and_publish<R, T>(
+    pub async fn build_and_publish<P, R, T>(
         &mut self,
+        root: P,
         repo: &R,
     ) -> Result<(
         Recipe::Output,
         HashMap<api::Component, spfs::encoding::Digest>,
     )>
     where
+        P: AsRef<Path>,
         R: std::ops::Deref<Target = T>,
         T: storage::Repository<Recipe = Recipe> + ?Sized,
     {
-        let (package, components) = self.build().await?;
+        let (package, components) = self.build(root).await?;
         repo.publish_package(&package, &components).await?;
         Ok((package, components))
     }
 
     /// Build the requested source package.
-    pub async fn build(
+    pub async fn build<P: AsRef<Path>>(
         &self,
+        root: P,
     ) -> Result<(
         Recipe::Output,
         HashMap<api::Component, spfs::encoding::Digest>,
     )> {
-        let package = self.recipe.generate_source_build()?;
+        let package = self.recipe.generate_source_build(root.as_ref())?;
         let layer = self.collect_and_commit_sources(&package).await?;
         if !package.ident().is_source() {
             return Err(Error::String(format!(
