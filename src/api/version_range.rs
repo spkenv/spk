@@ -38,7 +38,9 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// The upper bound for this range
     fn less_than(&self) -> Option<Version>;
     /// Return true if the given package spec satisfies this version range with the given compatibility.
-    fn is_satisfied_by<P: Package>(&self, spec: &P, required: CompatRule) -> Compatibility;
+    fn is_satisfied_by<P: Package>(&self, spec: &P, required: CompatRule) -> Compatibility {
+        self.is_applicable(spec.version())
+    }
 
     /// If applicable, return the broken down set of rules for this range
     fn rules(&self) -> BTreeSet<VersionRange> {
@@ -365,10 +367,6 @@ impl Ranged for SemverRange {
         }
         Some(Version::from(parts))
     }
-
-    fn is_satisfied_by<P: Package>(&self, spec: &P, _required: CompatRule) -> Compatibility {
-        self.is_applicable(spec.version())
-    }
 }
 
 impl Display for SemverRange {
@@ -503,10 +501,6 @@ impl Ranged for WildcardRange {
 
         Compatibility::Compatible
     }
-
-    fn is_satisfied_by<P: Package>(&self, spec: &P, _required: CompatRule) -> Compatibility {
-        self.is_applicable(spec.version())
-    }
 }
 
 impl Display for WildcardRange {
@@ -562,10 +556,6 @@ impl Ranged for LowestSpecifiedRange {
         }
         Some(Version::from_parts(parts.clone()))
     }
-
-    fn is_satisfied_by<P: Package>(&self, spec: &P, _required: CompatRule) -> Compatibility {
-        self.is_applicable(spec.version())
-    }
 }
 
 impl Display for LowestSpecifiedRange {
@@ -608,10 +598,6 @@ impl Ranged for GreaterThanRange {
 
     fn less_than(&self) -> Option<Version> {
         None
-    }
-
-    fn is_satisfied_by<P: Package>(&self, spec: &P, _required: CompatRule) -> Compatibility {
-        self.is_applicable(spec.version())
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
@@ -658,10 +644,6 @@ impl Ranged for LessThanRange {
         Some(self.bound.clone())
     }
 
-    fn is_satisfied_by<P: Package>(&self, spec: &P, _required: CompatRule) -> Compatibility {
-        self.is_applicable(spec.version())
-    }
-
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version >= &self.bound {
             return Compatibility::Incompatible(format!("Not {} [too high]", self));
@@ -704,10 +686,6 @@ impl Ranged for GreaterThanOrEqualToRange {
 
     fn less_than(&self) -> Option<Version> {
         None
-    }
-
-    fn is_satisfied_by<P: Package>(&self, spec: &P, _required: CompatRule) -> Compatibility {
-        self.is_applicable(spec.version())
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
@@ -754,10 +732,6 @@ impl Ranged for LessThanOrEqualToRange {
         Some(self.bound.clone().plus_epsilon())
     }
 
-    fn is_satisfied_by<P: Package>(&self, spec: &P, _required: CompatRule) -> Compatibility {
-        self.is_applicable(spec.version())
-    }
-
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version > &self.bound {
             return Compatibility::Incompatible(format!("Not {} [too high]", self));
@@ -802,10 +776,6 @@ impl Ranged for EqualsVersion {
 
     fn less_than(&self) -> Option<Version> {
         Some(self.version.clone().plus_epsilon())
-    }
-
-    fn is_satisfied_by<P: Package>(&self, other: &P, _required: CompatRule) -> Compatibility {
-        self.is_applicable(other.version())
     }
 
     fn is_applicable(&self, other: &Version) -> Compatibility {
@@ -882,10 +852,6 @@ impl Ranged for NotEqualsVersion {
 
         Compatibility::Incompatible(format!("excluded [{}]", self))
     }
-
-    fn is_satisfied_by<P: Package>(&self, spec: &P, _required: CompatRule) -> Compatibility {
-        self.is_applicable(spec.version())
-    }
 }
 
 impl Display for NotEqualsVersion {
@@ -933,10 +899,6 @@ impl Ranged for DoubleEqualsVersion {
 
     fn less_than(&self) -> Option<Version> {
         Some(self.version.clone().plus_epsilon())
-    }
-
-    fn is_satisfied_by<P: Package>(&self, other: &P, _required: CompatRule) -> Compatibility {
-        self.is_applicable(other.version())
     }
 
     fn is_applicable(&self, other: &Version) -> Compatibility {
@@ -1009,10 +971,6 @@ impl Ranged for DoubleNotEqualsVersion {
         }
 
         Compatibility::Incompatible(format!("excluded precisely [{}]", self))
-    }
-
-    fn is_satisfied_by<P: Package>(&self, spec: &P, _required: CompatRule) -> Compatibility {
-        self.is_applicable(spec.version())
     }
 }
 
