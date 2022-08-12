@@ -117,7 +117,7 @@ impl Run for MakeBinary {
                     let (_, mut spec) = res.must_be_found();
                     let mut modified_data = spk::api::Meta::new_modified_meta_data();
                     modified_data.comment = "New package creation".to_string();
-                    modified_data.action = "build".to_string();
+                    modified_data.action = "make binary".to_string();
                     modified_data.timestamp = Local::now().timestamp();
                     Arc::make_mut(&mut spec)
                         .meta
