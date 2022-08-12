@@ -35,10 +35,12 @@ pub const VERSION_RANGE_SEP: &str = ",";
 pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// The lower, inclusive bound for this range
     fn greater_or_equal_to(&self) -> Option<Version>;
+
     /// The upper bound for this range
     fn less_than(&self) -> Option<Version>;
+
     /// Return true if the given package spec satisfies this version range with the given compatibility.
-    fn is_satisfied_by<P: Package>(&self, spec: &P, required: CompatRule) -> Compatibility {
+    fn is_satisfied_by<P: Package>(&self, spec: &P, _required: CompatRule) -> Compatibility {
         self.is_applicable(spec.version())
     }
 

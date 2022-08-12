@@ -6,7 +6,7 @@ use std::{path::Path, sync::Arc};
 
 use crate::Result;
 
-/// Some item that has an associated package name
+/// Some item that has an associated version
 #[enum_dispatch::enum_dispatch]
 pub trait Versioned {
     /// The associated version number
@@ -33,7 +33,7 @@ pub trait Recipe: super::Named + Versioned + super::Deprecate + Sync + Send {
     /// Build an identifier to represent this recipe.
     ///
     /// The returned identifier will not have an associated build.
-    fn ident(&self) -> super::Ident {
+    fn to_ident(&self) -> super::Ident {
         super::Ident {
             name: self.name().to_owned(),
             version: self.version().clone(),
@@ -74,8 +74,8 @@ where
 {
     type Output = T::Output;
 
-    fn ident(&self) -> super::Ident {
-        (**self).ident()
+    fn to_ident(&self) -> super::Ident {
+        (**self).to_ident()
     }
 
     fn default_variants(&self) -> &Vec<super::OptionMap> {
@@ -113,8 +113,8 @@ where
 {
     type Output = T::Output;
 
-    fn ident(&self) -> super::Ident {
-        (**self).ident()
+    fn to_ident(&self) -> super::Ident {
+        (**self).to_ident()
     }
 
     fn default_variants(&self) -> &Vec<super::OptionMap> {

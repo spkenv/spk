@@ -88,7 +88,7 @@ where
     /// Create a new builder that builds a binary package from the given recipe
     pub fn from_recipe(recipe: Recipe) -> Self {
         let source =
-            BuildSource::SourcePackage(recipe.ident().into_build(api::Build::Source).into());
+            BuildSource::SourcePackage(recipe.to_ident().into_build(api::Build::Source).into());
         Self {
             recipe,
             source,

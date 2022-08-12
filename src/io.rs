@@ -340,7 +340,8 @@ pub fn format_change(
                             // display what requested them.
                             match &c.source {
                                 solve::PackageSource::BuildFromSource { recipe } => {
-                                    vec![api::RequestedBy::PackageBuild(recipe.ident()).to_string()]
+                                    vec![api::RequestedBy::PackageBuild(recipe.to_ident())
+                                        .to_string()]
                                 }
                                 solve::PackageSource::Embedded => {
                                     vec![api::RequestedBy::Embedded.to_string()]

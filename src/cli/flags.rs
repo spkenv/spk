@@ -176,7 +176,7 @@ impl Requests {
 
                 match stage {
                     spk::api::TestStage::Sources => {
-                        let ident = recipe.ident().into_build(spk::api::Build::Source);
+                        let ident = recipe.to_ident().into_build(spk::api::Build::Source);
                         idents.push(ident);
                         continue;
                     }
@@ -192,7 +192,7 @@ impl Requests {
             if path.is_file() {
                 let (_, template) = find_package_template(&Some(package))?.must_be_found();
                 let recipe = template.render(options)?;
-                idents.push(recipe.ident());
+                idents.push(recipe.to_ident());
             } else {
                 idents.push(spk::api::parse_ident(package)?)
             }
@@ -250,7 +250,7 @@ impl Requests {
 
                 match stage {
                     spk::api::TestStage::Sources => {
-                        let ident = recipe.ident().into_build(spk::api::Build::Source);
+                        let ident = recipe.to_ident().into_build(spk::api::Build::Source);
                         out.push(
                             spk::api::PkgRequest::from_ident(
                                 ident,
@@ -266,7 +266,7 @@ impl Requests {
                     }
                     spk::api::TestStage::Install => out.push(
                         spk::api::PkgRequest::from_ident_exact(
-                            recipe.ident(),
+                            recipe.to_ident(),
                             spk::api::RequestedBy::CommandLine,
                         )
                         .into(),

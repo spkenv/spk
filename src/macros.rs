@@ -40,7 +40,6 @@ macro_rules! make_package {
         ($build_spec, $components)
     }};
     ($repo:ident, $build_spec:ident, $opts:expr) => {{
-        use $crate::prelude::*;
         let s = $build_spec.clone();
         let cmpts: std::collections::HashMap<_, spfs::encoding::Digest> = s
             .components()
@@ -119,7 +118,7 @@ macro_rules! make_build_and_components {
             let dep = Arc::new($dep.clone());
             solution.add(
                 &$crate::api::PkgRequest::from_ident(
-                    recipe.ident(),
+                    recipe.to_ident(),
                     $crate::api::RequestedBy::SpkInternalTest,
                 ),
                 Arc::clone(&dep),

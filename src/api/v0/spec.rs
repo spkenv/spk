@@ -252,7 +252,7 @@ impl Recipe for Spec {
                     let given_value = options.get(opt.pkg.as_opt_name()).map(String::to_owned);
                     let mut req = opt.to_request(
                         given_value,
-                        api::RequestedBy::BinaryBuild(Recipe::ident(self)),
+                        api::RequestedBy::BinaryBuild(Recipe::to_ident(self)),
                     )?;
                     if req.pkg.components.is_empty() {
                         // inject the default component for this context if needed

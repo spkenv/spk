@@ -88,7 +88,7 @@ impl Publisher {
             }
             Err(err) => return Err(err),
             Ok(recipe) => {
-                tracing::info!("publishing recipe: {}", recipe.ident().format_ident());
+                tracing::info!("publishing recipe: {}", recipe.to_ident().format_ident());
                 if self.force {
                     self.to.force_publish_recipe(&recipe).await?;
                 } else {
@@ -99,7 +99,7 @@ impl Publisher {
                         Err(err) => {
                             return Err(format!(
                                 "Failed to publish recipe {}: {err}",
-                                recipe.ident()
+                                recipe.to_ident()
                             )
                             .into())
                         }

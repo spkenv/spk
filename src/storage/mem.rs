@@ -203,16 +203,10 @@ where
     }
 
     async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        if spec.ident().build.is_some() {
-            return Err(Error::String(format!(
-                "Spec must be published with no build, got {}",
-                spec.ident()
-            )));
-        }
         let mut specs = self.specs.write().await;
         let versions = specs.entry(spec.name().to_owned()).or_default();
         if versions.contains_key(spec.version()) {
-            Err(Error::VersionExistsError(spec.ident()))
+            Err(Error::VersionExistsError(spec.to_ident()))
         } else {
             versions.insert(spec.version().clone(), Arc::new(spec.clone()));
             Ok(())

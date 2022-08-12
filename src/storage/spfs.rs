@@ -394,17 +394,12 @@ impl Repository for SPFSRepository {
     }
 
     async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        if spec.ident().build.is_some() {
-            return Err(api::InvalidBuildError::new_error(
-                "Spec must be published with no build".to_string(),
-            ));
-        }
-        let tag_path = self.build_spec_tag(&spec.ident());
+        let tag_path = self.build_spec_tag(&spec.to_ident());
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
         if self.inner.has_tag(&tag_spec).await {
             // BUG(rbottriell): this creates a race condition but is not super dangerous
             // because of the non-destructive tag history
-            Err(Error::VersionExistsError(spec.ident()))
+            Err(Error::VersionExistsError(spec.to_ident()))
         } else {
             self.force_publish_recipe(spec).await
         }
@@ -424,19 +419,7 @@ impl Repository for SPFSRepository {
     }
 
     async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        if let Some(api::Build::Embedded) = spec.ident().build {
-            return Err(api::InvalidBuildError::new_error(format!(
-                "Cannot publish embedded package: {}",
-                spec.ident()
-            )));
-        }
-        if spec.ident().build.is_some() {
-            return Err(api::InvalidBuildError::new_error(format!(
-                "Cannot publish recipe with associated build: {}",
-                spec.ident()
-            )));
-        }
-        let tag_path = self.build_spec_tag(&spec.ident());
+        let tag_path = self.build_spec_tag(&spec.to_ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
 
         let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;

@@ -69,7 +69,7 @@ impl MakeSource {
 
             tracing::info!("rendering template for {}", template.name());
             let recipe = template.render(&options)?;
-            let ident = recipe.ident();
+            let ident = recipe.to_ident();
 
             tracing::info!("saving package recipe for {}", ident.format_ident());
             local.force_publish_recipe(&recipe).await?;
