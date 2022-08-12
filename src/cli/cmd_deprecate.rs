@@ -78,6 +78,7 @@ pub struct Deprecate {
     /// Add a comment when deprecating a package
     #[clap(long, short)]
     pub comment: Vec<String>,
+
     /// The package version or build to deprecate
     ///
     /// By deprecating a package version, as opposed to an individual

@@ -142,7 +142,7 @@ pub enum Command {
     Bake(cmd_bake::Bake),
     Build(cmd_build::Build),
     Convert(cmd_convert::Convert),
-    ChangeLog(cmd_changelog::ChangeLog),
+    Changelog(cmd_changelog::Changelog),
     Deprecate(cmd_deprecate::Deprecate),
     Env(cmd_env::Env),
     Explain(cmd_explain::Explain),
