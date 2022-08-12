@@ -35,8 +35,8 @@ jobs:
       - name: Install prerequisites
         run: |
           apt-get update
-          apt-get install --yes libcap2-bin tcsh expect rsync sudo
-          # spfs "custom build command" needs rustfmt?
+          apt-get install --yes libcap2-bin tcsh expect rsync sudo protobuf-compiler
+          # spfs "custom build command" needs rustfmt? (protobufs?)
           rustup component add rustfmt
       - uses: actions/checkout@v3
       - uses: Swatinem/rust-cache@v1
