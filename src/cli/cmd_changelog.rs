@@ -10,9 +10,9 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use super::{flags, CommandArgs, Run};
 
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
-// Returns the packages that has been modified within a 1 month time span
+/// Returns meta data of packages changed within a time frame
 #[derive(Args)]
-pub struct ChangeLog {
+pub struct Changelog {
     #[clap(flatten)]
     pub repos: flags::Repositories,
 
@@ -25,7 +25,7 @@ pub struct ChangeLog {
 }
 
 #[async_trait::async_trait]
-impl Run for ChangeLog {
+impl Run for Changelog {
     async fn run(&mut self) -> Result<i32> {
         let mut repos = self.repos.get_repos_for_non_destructive_operation().await?;
         if repos.is_empty() {
@@ -186,7 +186,7 @@ fn atoi<F: FromStr>(input: &str) -> Result<F, <F as FromStr>::Err> {
     input[..i].parse::<F>()
 }
 
-impl CommandArgs for ChangeLog {
+impl CommandArgs for Changelog {
     fn get_positional_args(&self) -> Vec<String> {
         match &self.time {
             Some(time) => vec![time.clone()],
