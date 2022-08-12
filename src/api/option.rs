@@ -287,10 +287,10 @@ impl VarOpt {
             }
             (Some(value), _) => {
                 if !self.choices.is_empty() && !self.choices.contains(value) {
-                    return Compatibility::Incompatible(format!(
+                    Compatibility::Incompatible(format!(
                         "invalid value '{}', must be one of {:?}",
                         value, self.choices
-                    ));
+                    ))
                 } else {
                     Compatibility::Compatible
                 }
