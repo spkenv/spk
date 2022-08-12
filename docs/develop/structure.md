@@ -1,12 +1,38 @@
 ---
-title: Codebase Structure
-summary: Overview of the codebase and implementation strucutre
+title: Codebase Overview
+summary: Overview of the codebase and implementation structure
 weight: 20
 ---
 
 ## General Concepts and Structure
 
-The most core concept of spk is the package. Each package is made up of two pieces which are important to differentiate: the package `payload` and `specification (spec)`. The package payload is the set of files on disk that package 'contains'. When you install a package, the payload is the files that you actually see in `/spfs`. The package specification (or metadata) is information about the package: how it was built, what it's dependencies are, and everything else that's important for both spk and developers to know.
+### Package Lifecycle
+
+The most core concept of spk is the package. In order to take a package yaml file and turn it into a resolvable binary or source package, we move the package through the pipeline below. There are multiple data types (traits) that are used to represent a package at these different stages.
+
+{{< mermaid >}}
+graph LR;
+
+template[Template] ==> render([render])
+vars{{variables}} -.-> render([render])
+root{{root path}} -.-> generate_s
+render ==> recipe[Recipe]
+recipe ==> generate_s([generate source package])
+recipe ==> generate_b([generate binary package])
+options{{options}} -.-> generate_b
+build_env{{build environment}} -.-> generate_b
+generate_s ==> sp[Package]
+generate_b ==> bp[Package]
+
+classDef input fill:#DDD,stroke:#888;
+classDef process fill:#CEF,stroke:#6BF;
+class vars,root,options,build_env input;
+class render,generate_b,generate_s process;
+{{< /mermaid >}}
+
+### Metadata vs Payloads
+
+Each package is made up of two pieces which are important to differentiate: the package `payload` and `specification (spec)`. The package payload is the set of files on disk that package 'contains'. When you install a package, the payload is the files that you actually see in `/spfs`. The package specification (or metadata) is information about the package: how it was built, what it's dependencies are, and everything else that's important for both spk and developers to know.
 
 {{< mermaid >}}
 graph LR;
