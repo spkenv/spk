@@ -1,5 +1,7 @@
-<!-- Partial intended to be overwritten with tags loaded at the end of the page loading (usually for Javascript) 
+{{ $mermaid := resources.Get "static/mermaid/mermaid.js" }}
+<script src="{{ $mermaid.RelPermalink }}"></script>
 <script>
-    console.log("running some javascript");
+    window.onload = function() {
+        mermaid.init(undefined, ".language-mermaid");
+    };
 </script>
--->
