@@ -10,6 +10,7 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use super::{flags, CommandArgs, Run};
 
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
+// Returns the packages that has been modified within a 1 month time span
 #[derive(Args)]
 pub struct ChangeLog {
     #[clap(flatten)]
@@ -116,8 +117,8 @@ impl Run for ChangeLog {
                                     recent_change.action.yellow(),
                                     recent_change.comment.yellow(),
                                 );
+                                println!();
                             }
-                            println!();
                         }
                     }
                 }
@@ -144,6 +145,11 @@ impl Run for ChangeLog {
                         }
                     };
 
+                    if Arc::make_mut(&mut spec).meta.modified_stack.is_empty() {
+                        tracing::debug!("Package {ident} does not have modified meta data");
+                        continue;
+                    }
+
                     for change in &Arc::make_mut(&mut spec).meta.modified_stack {
                         let current_time = chrono::offset::Local::now().timestamp();
                         let diff = current_time - change.timestamp;
@@ -164,8 +170,8 @@ impl Run for ChangeLog {
                                 change.action.yellow(),
                                 change.comment.yellow(),
                             );
+                            println!();
                         }
-                        println!();
                     }
                 }
             }
