@@ -13,6 +13,11 @@ pub trait Versioned {
     fn version(&self) -> &super::Version;
 }
 
+pub trait VersionedMut {
+    /// Modify the version associated with this item
+    fn set_version(&mut self, version: super::Version);
+}
+
 impl<T: Versioned> Versioned for Arc<T> {
     fn version(&self) -> &super::Version {
         (**self).version()
@@ -34,11 +39,11 @@ pub trait Recipe: super::Named + Versioned + super::Deprecate + Sync + Send {
     ///
     /// The returned identifier will not have an associated build.
     fn to_ident(&self) -> super::Ident {
-        super::Ident {
+        super::Ident::new(super::BuildIdent {
             name: self.name().to_owned(),
             version: self.version().clone(),
             build: None,
-        }
+        })
     }
 
     /// Return the default variants to be built for this recipe

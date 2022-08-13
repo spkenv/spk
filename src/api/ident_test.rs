@@ -23,7 +23,7 @@ fn test_ident_to_str(#[case] input: &str) {
 
 #[rstest]
 fn test_ident_to_yaml() {
-    let ident = Ident::from_str("package").unwrap();
+    let ident: Ident = Ident::from_str("package").unwrap();
     let out = serde_yaml::to_string(&ident).unwrap();
     assert_eq!(&out, "---\npackage\n");
 }

@@ -5,6 +5,7 @@
 mod build;
 mod build_key;
 mod build_spec;
+mod builded;
 mod compat;
 mod component_spec;
 mod component_spec_list;
@@ -36,13 +37,14 @@ pub use build::{parse_build, Build, InvalidBuildError};
 pub(crate) use build::{EMBEDDED, SRC};
 pub use build_key::BuildKey;
 pub use build_spec::BuildSpec;
+pub use builded::{Builded, BuildedExt};
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
 pub use component_spec::{Component, ComponentSpec, FileMatcher};
 pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};
 pub use embedded_packages_list::EmbeddedPackagesList;
 pub use environ::{AppendEnv, EnvOp, PrependEnv, SetEnv};
-pub use ident::{parse_ident, Ident, PlacedBuildIdent};
+pub use ident::{parse_ident, BuildIdent, Ident, PlacedBuildIdent};
 pub use install_spec::InstallSpec;
 pub use meta::Meta;
 pub use name::{
@@ -53,7 +55,7 @@ pub use option::{Inheritance, Opt, PkgOpt, VarOpt};
 pub(crate) use option_map::DIGEST_SIZE;
 pub use option_map::{host_options, OptionMap};
 pub use package::Package;
-pub use recipe::{Recipe, Versioned};
+pub use recipe::{Recipe, Versioned, VersionedMut};
 pub use request::{
     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,
     RequestedBy, VarRequest,

@@ -182,8 +182,11 @@ impl PackageIterator for RepositoryPackageIterator {
                     "version not found in version_map".to_owned(),
                 ));
             };
-            let mut pkg = api::Ident::new(self.package_name.clone());
-            pkg.version = (**version).clone();
+            let pkg = api::Ident::new(api::BuildIdent {
+                name: self.package_name.clone(),
+                version: (**version).clone(),
+                build: None,
+            });
             if !self.builds_map.contains_key(version) {
                 match RepositoryBuildIterator::new(pkg.clone(), repos.clone()).await {
                     Ok(iter) => {

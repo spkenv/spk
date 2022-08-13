@@ -10,7 +10,7 @@ use crate::api::{
     request::is_false, Build, BuildSpec, Compat, Compatibility, Ident, Inheritance, InstallSpec,
     Meta, Opt, OptionMap, Package, PkgRequest, Recipe, Request, SourceSpec, TestSpec, VarRequest,
 };
-use crate::api::{Named, Versioned};
+use crate::api::{Builded, Named, Versioned, VersionedMut};
 use crate::{api, Error, Result};
 
 #[cfg(test)]
@@ -142,6 +142,12 @@ impl Named for Spec {
 impl Versioned for Spec {
     fn version(&self) -> &api::Version {
         &self.pkg.version
+    }
+}
+
+impl VersionedMut for Spec {
+    fn set_version(&mut self, version: api::Version) {
+        self.pkg.set_version(version)
     }
 }
 

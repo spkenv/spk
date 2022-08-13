@@ -365,11 +365,11 @@ where
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
         self.build_artifacts(package, options).await?;
 
-        let source_ident = api::Ident {
+        let source_ident = api::Ident::new(api::BuildIdent {
             name: self.recipe.name().to_owned(),
             version: self.recipe.version().clone(),
             build: Some(api::Build::Source),
-        };
+        });
         let sources_dir = data_path(&source_ident);
 
         let mut runtime = spfs::active_runtime().await?;

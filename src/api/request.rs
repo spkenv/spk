@@ -325,6 +325,7 @@ impl From<PlacedBuildIdent> for RangeIdent {
 
 impl From<Ident> for RangeIdent {
     fn from(ident: Ident) -> Self {
+        let ident = ident.into_inner();
         Self {
             repository_name: None,
             name: ident.name,
@@ -832,6 +833,7 @@ impl PkgRequest {
     }
 
     pub fn from_ident(pkg: Ident, requester: RequestedBy) -> Self {
+        let pkg = pkg.into_inner();
         let ri = RangeIdent {
             repository_name: None,
             name: pkg.name,
@@ -843,6 +845,7 @@ impl PkgRequest {
     }
 
     pub fn from_ident_exact(pkg: Ident, requester: RequestedBy) -> Self {
+        let pkg = pkg.into_inner();
         let ri = RangeIdent {
             repository_name: None,
             name: pkg.name,

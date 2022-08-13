@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use serde::{Deserialize, Serialize};
 
-use super::{Build, BuildSpec, InstallSpec, Spec};
+use super::{Build, BuildSpec, Builded, InstallSpec, Spec};
 
 #[cfg(test)]
 #[path = "./embedded_packages_list_test.rs"]
@@ -49,7 +49,7 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
                     "embedded packages can only specify install.components",
                 ));
             }
-            match &mut embedded.pkg.build {
+            match embedded.pkg.build() {
                 Some(Build::Embedded) => continue,
                 None => embedded.pkg.set_build(Some(Build::Embedded)),
                 Some(_) => {

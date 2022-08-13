@@ -2,4 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-pub use super::{Deprecate, DeprecateMut, Named, Package, Recipe, Template, Versioned};
+pub use super::{Builded, Deprecate, DeprecateMut, Named, Package, Recipe, Template, Versioned};

@@ -13,7 +13,7 @@ use nom::{
 };
 use nom_supreme::tag::TagError;
 
-use crate::api::{Build, Ident, RepositoryName, Version};
+use crate::api::{Build, BuildIdent, RepositoryName, Version};
 
 use super::{
     build::{build, build_str},
@@ -23,13 +23,13 @@ use super::{
     version_and_optional_build,
 };
 
-/// Parse a package identity into an [`Ident`].
+/// Parse a package identity into a [`BuildIdent`].
 ///
 /// Examples:
 /// - `"pkg-name"`
 /// - `"pkg-name/1.0"`
 /// - `"pkg-name/1.0/CU7ZWOIF"`
-pub(crate) fn ident<'b, E>(input: &'b str) -> IResult<&'b str, Ident, E>
+pub(crate) fn ident<'b, E>(input: &'b str) -> IResult<&'b str, BuildIdent, E>
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>
@@ -106,18 +106,18 @@ where
     }
 }
 
-/// Parse a package name in the context of an identity string into an [`Ident`].
+/// Parse a package name in the context of an identity string into a [`BuildIdent`].
 ///
 /// The package name must either be followed by a `/` or the end of input.
 ///
 /// Examples:
 /// - `"package-name"`
 /// - `"package-name/"`
-fn package_ident<'a, E>(input: &'a str) -> IResult<&'a str, Ident, E>
+fn package_ident<'a, E>(input: &'a str) -> IResult<&'a str, BuildIdent, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
-    map(package_name, |name| Ident::new(name.to_owned()))(input)
+    map(package_name, |name| BuildIdent::from(name.to_owned()))(input)
 }
 
 /// Parse a version and optional build in the context of an identity string.

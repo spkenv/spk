@@ -21,7 +21,7 @@ use spfs::{storage::EntryType, tracking};
 use tokio::io::AsyncReadExt;
 
 use super::{CachePolicy, Repository};
-use crate::api::{self, Package};
+use crate::api::{self, Package, VersionedMut};
 use crate::{prelude::*, with_cache_policy, Error, Result};
 
 #[cfg(test)]
@@ -522,9 +522,9 @@ impl Repository for SPFSRepository {
         }
         for name in self.list_packages().await? {
             tracing::info!("replicating old tags for {}...", name);
-            let mut pkg = api::Ident::new(name.to_owned());
+            let mut pkg = api::Ident::<api::BuildIdent>::from(name.to_owned());
             for version in self.list_package_versions(&name).await?.iter() {
-                pkg.version = (**version).clone();
+                pkg.set_version((**version).clone());
                 for build in self.list_package_builds(&pkg).await? {
                     let stored = with_cache_policy!(self, CachePolicy::BypassCache, {
                         self.lookup_package(&build)

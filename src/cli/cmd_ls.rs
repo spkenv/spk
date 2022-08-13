@@ -272,8 +272,8 @@ impl<T: Output> Ls<T> {
         for (package, index) in packages {
             let (repo_name, repo) = repos.get(index).unwrap();
             let mut versions = {
-                let base = spk::api::Ident::from(package);
-                repo.list_package_versions(&base.name)
+                let base = spk::api::Ident::new(spk::api::BuildIdent::from(package));
+                repo.list_package_versions(base.name())
                     .await?
                     .iter()
                     .filter_map(|v| match search_term {

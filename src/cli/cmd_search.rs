@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use anyhow::Result;
 use clap::Args;
-use spk::io::Format;
+use spk::{api::VersionedMut, io::Format};
 
 use super::{flags, CommandArgs, Run};
 
@@ -40,7 +40,7 @@ impl Run for Search {
                 let mut ident = spk::api::parse_ident(&name)?;
                 let versions = repo.list_package_versions(&name).await?;
                 for v in versions.iter() {
-                    ident.version = (**v).clone();
+                    ident.set_version((**v).clone());
                     exit = 0;
                     println!("{repo_name: <width$} {}", ident.format_ident());
                 }

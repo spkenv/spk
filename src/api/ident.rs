@@ -9,7 +9,10 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{parsing, Result};
 
-use super::{Build, PkgNameBuf, RangeIdent, RepositoryNameBuf, Version};
+use super::{
+    recipe::VersionedMut, Build, Builded, Named, PkgNameBuf, RangeIdent, RepositoryNameBuf,
+    Version, Versioned,
+};
 
 #[cfg(test)]
 #[path = "./ident_test.rs"]
@@ -49,20 +52,274 @@ pub trait MetadataPath {
 /// The identifier is either a specific package or
 /// range of package versions/releases depending on the
 /// syntax and context
-#[derive(Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
-pub struct Ident {
+pub struct Ident<Id = BuildIdent>(Id)
+where
+    Id: Named + Versioned;
+
+impl<Id> Ident<Id>
+where
+    Id: Named + Versioned,
+{
+    pub fn new(id: Id) -> Self {
+        Self(id)
+    }
+
+    /// Turn this identifier into one for the given build.
+    pub fn into_build(self, build: Build) -> Ident {
+        // TODO: use a trait to allow breaking down and not cloning data
+        // TODO: return a non-null build identifier type
+        Ident(BuildIdent {
+            name: self.name().to_owned(),
+            version: self.version().clone(),
+            build: Some(build),
+        })
+    }
+
+    /// Deconstruct this ident, returning the inner identifier
+    pub fn into_inner(self) -> Id {
+        self.0
+    }
+}
+
+impl<Id> Named for Ident<Id>
+where
+    Id: Named + Versioned,
+{
+    fn name(&self) -> &super::PkgName {
+        self.0.name()
+    }
+}
+
+impl<Id> Versioned for Ident<Id>
+where
+    Id: Named + Versioned,
+{
+    fn version(&self) -> &super::Version {
+        self.0.version()
+    }
+}
+
+impl<Id> VersionedMut for Ident<Id>
+where
+    Id: Named + Versioned + VersionedMut,
+{
+    fn set_version(&mut self, version: super::Version) {
+        self.0.set_version(version)
+    }
+}
+
+impl<Id> Builded for Ident<Id>
+where
+    Id: Named + Versioned + Builded,
+{
+    fn build(&self) -> Option<&Build> {
+        self.0.build()
+    }
+
+    fn set_build(&mut self, build: Option<Build>) {
+        self.0.set_build(build)
+    }
+}
+
+impl<Id> std::ops::Deref for Ident<Id>
+where
+    Id: Named + Versioned,
+{
+    type Target = Id;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<Id> std::fmt::Display for Ident<Id>
+where
+    Id: Named + Versioned + std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<Id> std::fmt::Debug for Ident<Id>
+where
+    Id: Named + Versioned + ToString,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("BuildIdent")
+            .field(&self.to_string())
+            .finish()
+    }
+}
+
+impl<Id> MetadataPath for Ident<Id>
+where
+    Id: Named + Versioned + MetadataPath,
+{
+    fn metadata_path(&self) -> RelativePathBuf {
+        self.0.metadata_path()
+    }
+}
+
+impl TryFrom<RangeIdent> for Ident {
+    type Error = crate::Error;
+
+    fn try_from(ri: RangeIdent) -> Result<Self> {
+        let name = ri.name;
+        let build = ri.build;
+        ri.version.try_into_version().map(|version| {
+            Self(BuildIdent {
+                name,
+                version,
+                build,
+            })
+        })
+    }
+}
+
+impl TryFrom<&RangeIdent> for Ident {
+    type Error = crate::Error;
+
+    fn try_from(ri: &RangeIdent) -> Result<Self> {
+        ri.version.clone().try_into_version().map(|version| {
+            Self(BuildIdent {
+                name: ri.name.clone(),
+                version,
+                build: ri.build.clone(),
+            })
+        })
+    }
+}
+
+impl<Id> FromStr for Ident<Id>
+where
+    Id: Named + Versioned + FromStr,
+{
+    type Err = <Id as FromStr>::Err;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Id::from_str(s).map(Self)
+    }
+}
+
+impl<Id> From<PkgNameBuf> for Ident<Id>
+where
+    Id: Named + Versioned + From<PkgNameBuf>,
+{
+    fn from(source: PkgNameBuf) -> Self {
+        Self(source.into())
+    }
+}
+
+impl<Id> Serialize for Ident<Id>
+where
+    Id: Named + Versioned + ToString,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.0.to_string())
+    }
+}
+
+impl<'de, Id> Deserialize<'de> for Ident<Id>
+where
+    Id: Named + Versioned + FromStr,
+    <Id as FromStr>::Err: std::fmt::Display,
+{
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Id::from_str(&s).map_err(de::Error::custom).map(Self)
+    }
+}
+
+impl<Id> std::clone::Clone for Ident<Id>
+where
+    Id: Named + Versioned + std::clone::Clone,
+{
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<Id> std::hash::Hash for Ident<Id>
+where
+    Id: Named + Versioned + std::hash::Hash,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl<Id> std::cmp::PartialEq for Ident<Id>
+where
+    Id: Named + Versioned + std::cmp::PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<Id> std::cmp::Eq for Ident<Id> where Id: Named + Versioned + std::cmp::Eq {}
+
+impl<Id> std::cmp::Ord for Ident<Id>
+where
+    Id: Named + Versioned + std::cmp::Ord,
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl<Id> std::cmp::PartialOrd for Ident<Id>
+where
+    Id: Named + Versioned + std::cmp::PartialOrd,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Ord, PartialOrd)]
+pub struct BuildIdent {
     pub name: PkgNameBuf,
     pub version: Version,
     pub build: Option<Build>,
 }
 
-impl std::fmt::Debug for Ident {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Ident").field(&self.to_string()).finish()
+impl Named for BuildIdent {
+    fn name(&self) -> &super::PkgName {
+        &self.name
     }
 }
 
-impl std::fmt::Display for Ident {
+impl Versioned for BuildIdent {
+    fn version(&self) -> &super::Version {
+        &self.version
+    }
+}
+
+impl VersionedMut for BuildIdent {
+    fn set_version(&mut self, version: super::Version) {
+        self.version = version
+    }
+}
+
+impl Builded for BuildIdent {
+    fn build(&self) -> Option<&Build> {
+        self.build.as_ref()
+    }
+
+    fn set_build(&mut self, build: Option<Build>) {
+        self.build = build
+    }
+}
+
+impl std::fmt::Display for BuildIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str(self.name.as_str())?;
         if let Some(vb) = self.version_and_build() {
@@ -73,7 +330,7 @@ impl std::fmt::Display for Ident {
     }
 }
 
-impl Ident {
+impl BuildIdent {
     pub fn new(name: PkgNameBuf) -> Self {
         Self {
             name,
@@ -92,30 +349,18 @@ impl Ident {
 
     /// Return a copy of this identifier with the given version number instead
     pub fn with_version(&self, version: Version) -> Ident {
-        Self {
+        Ident::new(Self {
             name: self.name.clone(),
             version,
             build: self.build.clone(),
-        }
-    }
-
-    /// Set the build component of this package identifier.
-    pub fn set_build(&mut self, build: Option<Build>) {
-        self.build = build;
+        })
     }
 
     /// Return a copy of this identifier with the given build replaced.
-    pub fn with_build(&self, build: Option<Build>) -> Self {
+    pub fn with_build(&self, build: Option<Build>) -> Ident {
         let mut new = self.clone();
         new.build = build;
-        new
-    }
-
-    /// Turn this identifier into one for the given build.
-    pub fn into_build(mut self, build: Build) -> Self {
-        // TODO: return a non-null build identifier type
-        self.build = Some(build);
-        self
+        Ident::new(new)
     }
 
     /// Convert into a [`BuildIdent`] with the given [`RepositoryNameBuf`].
@@ -133,7 +378,7 @@ impl Ident {
                 version: self.version,
                 build,
             })
-            .ok_or_else(|| "Ident must contain a build to become a BuildIdent".into())
+            .ok_or_else(|| "BuildIdent must contain a build to become a BuildIdent".into())
     }
 
     /// A string containing the properly formatted name and version number
@@ -153,7 +398,7 @@ impl Ident {
     }
 }
 
-impl MetadataPath for Ident {
+impl MetadataPath for BuildIdent {
     fn metadata_path(&self) -> RelativePathBuf {
         let path = RelativePathBuf::from(self.name.as_str());
         if let Some(vb) = self.version_and_build() {
@@ -164,39 +409,13 @@ impl MetadataPath for Ident {
     }
 }
 
-impl From<PkgNameBuf> for Ident {
+impl From<PkgNameBuf> for BuildIdent {
     fn from(n: PkgNameBuf) -> Self {
         Self::new(n)
     }
 }
 
-impl TryFrom<RangeIdent> for Ident {
-    type Error = crate::Error;
-
-    fn try_from(ri: RangeIdent) -> Result<Self> {
-        let name = ri.name;
-        let build = ri.build;
-        ri.version.try_into_version().map(|version| Self {
-            name,
-            version,
-            build,
-        })
-    }
-}
-
-impl TryFrom<&RangeIdent> for Ident {
-    type Error = crate::Error;
-
-    fn try_from(ri: &RangeIdent) -> Result<Self> {
-        ri.version.clone().try_into_version().map(|version| Self {
-            name: ri.name.clone(),
-            version,
-            build: ri.build.clone(),
-        })
-    }
-}
-
-impl TryFrom<&str> for Ident {
+impl TryFrom<&str> for BuildIdent {
     type Error = crate::Error;
 
     fn try_from(value: &str) -> Result<Self> {
@@ -204,7 +423,7 @@ impl TryFrom<&str> for Ident {
     }
 }
 
-impl TryFrom<&String> for Ident {
+impl TryFrom<&String> for BuildIdent {
     type Error = crate::Error;
 
     fn try_from(value: &String) -> Result<Self> {
@@ -212,7 +431,7 @@ impl TryFrom<&String> for Ident {
     }
 }
 
-impl TryFrom<String> for Ident {
+impl TryFrom<String> for BuildIdent {
     type Error = crate::Error;
 
     fn try_from(value: String) -> Result<Self> {
@@ -220,7 +439,7 @@ impl TryFrom<String> for Ident {
     }
 }
 
-impl FromStr for Ident {
+impl FromStr for BuildIdent {
     type Err = crate::Error;
 
     /// Parse the given identifier string into this instance.
@@ -236,30 +455,12 @@ impl FromStr for Ident {
 
 /// Parse a package identifier string.
 pub fn parse_ident<S: AsRef<str>>(source: S) -> Result<Ident> {
-    Ident::from_str(source.as_ref())
-}
-
-impl Serialize for Ident {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-impl<'de> Deserialize<'de> for Ident {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Self::from_str(&s).map_err(de::Error::custom)
-    }
+    BuildIdent::from_str(source.as_ref()).map(Ident::new)
 }
 
 /// BuildIdent represents a specific package build.
 ///
-/// Like [`Ident`], except a [`RepositoryNameBuf`] and [`Build`] are required.
+/// Like [`BuildIdent`], except a [`RepositoryNameBuf`] and [`Build`] are required.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PlacedBuildIdent {
     pub repository_name: RepositoryNameBuf,
@@ -301,9 +502,9 @@ impl std::fmt::Display for PlacedBuildIdent {
     }
 }
 
-impl From<PlacedBuildIdent> for Ident {
+impl From<PlacedBuildIdent> for BuildIdent {
     fn from(bi: PlacedBuildIdent) -> Self {
-        Ident {
+        BuildIdent {
             name: bi.name,
             version: bi.version,
             build: Some(bi.build),
@@ -311,9 +512,9 @@ impl From<PlacedBuildIdent> for Ident {
     }
 }
 
-impl From<&PlacedBuildIdent> for Ident {
+impl From<&PlacedBuildIdent> for BuildIdent {
     fn from(bi: &PlacedBuildIdent) -> Self {
-        Ident {
+        BuildIdent {
             name: bi.name.clone(),
             version: bi.version.clone(),
             build: Some(bi.build.clone()),
