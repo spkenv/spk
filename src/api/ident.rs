@@ -124,10 +124,10 @@ impl Ident {
     pub fn try_into_build_ident(
         mut self,
         repository_name: RepositoryNameBuf,
-    ) -> Result<BuildIdent> {
+    ) -> Result<PlacedBuildIdent> {
         self.build
             .take()
-            .map(|build| BuildIdent {
+            .map(|build| PlacedBuildIdent {
                 repository_name,
                 name: self.name,
                 version: self.version,
@@ -261,14 +261,14 @@ impl<'de> Deserialize<'de> for Ident {
 ///
 /// Like [`Ident`], except a [`RepositoryNameBuf`] and [`Build`] are required.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct BuildIdent {
+pub struct PlacedBuildIdent {
     pub repository_name: RepositoryNameBuf,
     pub name: PkgNameBuf,
     pub version: Version,
     pub build: Build,
 }
 
-impl BuildIdent {
+impl PlacedBuildIdent {
     /// Return true if this identifier is for a source package.
     pub fn is_source(&self) -> bool {
         self.build.is_source()
@@ -279,7 +279,7 @@ impl BuildIdent {
     }
 }
 
-impl MetadataPath for BuildIdent {
+impl MetadataPath for PlacedBuildIdent {
     fn metadata_path(&self) -> RelativePathBuf {
         // The data path *does not* include the repository name.
         RelativePathBuf::from(self.name.as_str())
@@ -288,7 +288,7 @@ impl MetadataPath for BuildIdent {
     }
 }
 
-impl std::fmt::Display for BuildIdent {
+impl std::fmt::Display for PlacedBuildIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str(self.repository_name.as_str())?;
         f.write_char('/')?;
@@ -301,8 +301,8 @@ impl std::fmt::Display for BuildIdent {
     }
 }
 
-impl From<BuildIdent> for Ident {
-    fn from(bi: BuildIdent) -> Self {
+impl From<PlacedBuildIdent> for Ident {
+    fn from(bi: PlacedBuildIdent) -> Self {
         Ident {
             name: bi.name,
             version: bi.version,
@@ -311,8 +311,8 @@ impl From<BuildIdent> for Ident {
     }
 }
 
-impl From<&BuildIdent> for Ident {
-    fn from(bi: &BuildIdent) -> Self {
+impl From<&PlacedBuildIdent> for Ident {
+    fn from(bi: &PlacedBuildIdent) -> Self {
         Ident {
             name: bi.name.clone(),
             version: bi.version.clone(),

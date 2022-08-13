@@ -38,7 +38,7 @@ impl Run for MakeSource {
 }
 
 impl MakeSource {
-    pub(crate) async fn make_source(&mut self) -> Result<Vec<spk::api::BuildIdent>> {
+    pub(crate) async fn make_source(&mut self) -> Result<Vec<spk::api::PlacedBuildIdent>> {
         let _runtime = self.runtime.ensure_active_runtime().await?;
         let local: spk::storage::RepositoryHandle = spk::storage::local_repository().await?.into();
         let options = self.options.get_options()?;
