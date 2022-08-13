@@ -124,7 +124,6 @@ fn test_qualified_var_supersedes_unqualified() {
     let compat = validator.validate(&state, &*spec, &source).unwrap();
     assert!(
         !compat.is_ok(),
-        "qualified var requests should supercede unqualified ones, got: {}",
-        compat
+        "qualified var requests should supercede unqualified ones, got: {compat}",
     );
 }

@@ -223,7 +223,7 @@ where
 
     /// Build the requested binary package.
     ///
-    /// Returns the unpublished package defintion and set of component
+    /// Returns the unpublished package definition and set of components
     /// layers collected in the local spfs repository.
     pub async fn build(
         &mut self,
@@ -239,7 +239,7 @@ where
 
         tracing::debug!("input options: {}", self.inputs);
         let build_options = self.recipe.resolve_options(&self.inputs)?;
-        tracing::debug!("build options: {}", build_options);
+        tracing::debug!("build options: {build_options}");
         let mut all_options = self.inputs.clone();
         all_options.extend(build_options.into_iter());
 
@@ -408,7 +408,7 @@ where
         {
             let mut writer = std::fs::File::create(&build_spec)?;
             serde_yaml::to_writer(&mut writer, package)
-                .map_err(|err| Error::String(format!("Failed to save build spec: {}", err)))?;
+                .map_err(|err| Error::String(format!("Failed to save build spec: {err}")))?;
             writer.sync_data()?;
         }
         {

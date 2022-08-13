@@ -186,7 +186,7 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
             let options = b.option_values();
 
             for (n, v) in options.iter() {
-                println!("{} {} {}={}", i, b.ident(), n, v);
+                println!("{i} {} {n}={v}", b.ident());
                 let expected = &expected_order_by_options[i];
                 let expected_v = match expected.get(&(*n)[..]) {
                     Some(value) => {

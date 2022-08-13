@@ -55,9 +55,8 @@ pub trait Package: super::Named + super::Versioned + super::Deprecate + Sync + S
             let compat = option.validate(value);
             if !compat.is_ok() {
                 return super::Compatibility::Incompatible(format!(
-                    "invalid value for {}: {}",
+                    "invalid value for {}: {compat}",
                     option.full_name(),
-                    compat
                 ));
             }
 

@@ -897,7 +897,7 @@ async fn test_solver_build_from_source_deprecated(mut solver: Solver) {
     let res = run_and_print_resolve_for_tests(&solver).await;
     match res {
         Err(Error::Solve(_)) => {}
-        Err(err) => panic!("expected solve error, got {}", err),
+        Err(err) => panic!("expected solve error, got {err}"),
         _ => panic!("expected solve error, got successful solution"),
     }
 }
