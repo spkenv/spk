@@ -67,7 +67,7 @@ impl Format for api::Ident {
     }
 }
 
-impl Format for api::PlacedBuildIdent {
+impl Format for api::PlacedBuildId {
     fn format_ident(&self) -> String {
         format!(
             "{}/{}/{}",

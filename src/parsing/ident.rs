@@ -13,7 +13,7 @@ use nom::{
 };
 use nom_supreme::tag::TagError;
 
-use crate::api::{Build, BuildIdent, RepositoryName, Version};
+use crate::api::{Build, BuildId, RepositoryName, Version};
 
 use super::{
     build::{build, build_str},
@@ -29,7 +29,7 @@ use super::{
 /// - `"pkg-name"`
 /// - `"pkg-name/1.0"`
 /// - `"pkg-name/1.0/CU7ZWOIF"`
-pub(crate) fn ident<'b, E>(input: &'b str) -> IResult<&'b str, BuildIdent, E>
+pub(crate) fn ident<'b, E>(input: &'b str) -> IResult<&'b str, BuildId, E>
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>
@@ -113,11 +113,11 @@ where
 /// Examples:
 /// - `"package-name"`
 /// - `"package-name/"`
-fn package_ident<'a, E>(input: &'a str) -> IResult<&'a str, BuildIdent, E>
+fn package_ident<'a, E>(input: &'a str) -> IResult<&'a str, BuildId, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
-    map(package_name, |name| BuildIdent::from(name.to_owned()))(input)
+    map(package_name, |name| BuildId::from(name.to_owned()))(input)
 }
 
 /// Parse a version and optional build in the context of an identity string.

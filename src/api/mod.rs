@@ -44,7 +44,7 @@ pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};
 pub use embedded_packages_list::EmbeddedPackagesList;
 pub use environ::{AppendEnv, EnvOp, PrependEnv, SetEnv};
-pub use ident::{parse_ident, BuildIdent, Ident, PlacedBuildIdent};
+pub use ident::{parse_ident, BuildId, Ident, PlacedBuildId};
 pub use install_spec::InstallSpec;
 pub use meta::Meta;
 pub use name::{

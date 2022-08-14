@@ -365,7 +365,7 @@ where
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
         self.build_artifacts(package, options).await?;
 
-        let source_ident = api::Ident::new(api::BuildIdent {
+        let source_ident = api::Ident::new(api::BuildId {
             name: self.recipe.name().to_owned(),
             version: self.recipe.version().clone(),
             build: Some(api::Build::Source),

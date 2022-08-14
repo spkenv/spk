@@ -15,8 +15,8 @@ use super::compat::{API_STR, BINARY_STR};
 use super::version_range::{self, Ranged};
 use super::{
     Build, CompatRule, Compatibility, Component, DoubleEqualsVersion, EqualsVersion, Ident, Opt,
-    OptName, OptNameBuf, Package, PkgName, PkgNameBuf, PlacedBuildIdent, RepositoryNameBuf,
-    Version, VersionFilter,
+    OptName, OptNameBuf, Package, PkgName, PkgNameBuf, PlacedBuildId, RepositoryNameBuf, Version,
+    VersionFilter,
 };
 use crate::{storage::KNOWN_REPOSITORY_NAMES, Error, Result};
 
@@ -311,8 +311,8 @@ impl Display for RangeIdent {
     }
 }
 
-impl From<PlacedBuildIdent> for RangeIdent {
-    fn from(ident: PlacedBuildIdent) -> Self {
+impl From<PlacedBuildId> for RangeIdent {
+    fn from(ident: PlacedBuildId) -> Self {
         Self {
             repository_name: Some(ident.repository_name),
             name: ident.name,

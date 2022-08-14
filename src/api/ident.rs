@@ -52,7 +52,7 @@ pub trait MetadataPath {
 /// The identifier is either a specific package or
 /// range of package versions/releases depending on the
 /// syntax and context
-pub struct Ident<Id = BuildIdent>(Id)
+pub struct Ident<Id = BuildId>(Id)
 where
     Id: Named + Versioned;
 
@@ -68,7 +68,7 @@ where
     pub fn into_build(self, build: Build) -> Ident {
         // TODO: use a trait to allow breaking down and not cloning data
         // TODO: return a non-null build identifier type
-        Ident(BuildIdent {
+        Ident(BuildId {
             name: self.name().to_owned(),
             version: self.version().clone(),
             build: Some(build),
@@ -168,7 +168,7 @@ impl TryFrom<RangeIdent> for Ident {
         let name = ri.name;
         let build = ri.build;
         ri.version.try_into_version().map(|version| {
-            Self(BuildIdent {
+            Self(BuildId {
                 name,
                 version,
                 build,
@@ -182,7 +182,7 @@ impl TryFrom<&RangeIdent> for Ident {
 
     fn try_from(ri: &RangeIdent) -> Result<Self> {
         ri.version.clone().try_into_version().map(|version| {
-            Self(BuildIdent {
+            Self(BuildId {
                 name: ri.name.clone(),
                 version,
                 build: ri.build.clone(),
@@ -285,31 +285,31 @@ where
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Ord, PartialOrd)]
-pub struct BuildIdent {
+pub struct BuildId {
     pub name: PkgNameBuf,
     pub version: Version,
     pub build: Option<Build>,
 }
 
-impl Named for BuildIdent {
+impl Named for BuildId {
     fn name(&self) -> &super::PkgName {
         &self.name
     }
 }
 
-impl Versioned for BuildIdent {
+impl Versioned for BuildId {
     fn version(&self) -> &super::Version {
         &self.version
     }
 }
 
-impl VersionedMut for BuildIdent {
+impl VersionedMut for BuildId {
     fn set_version(&mut self, version: super::Version) {
         self.version = version
     }
 }
 
-impl Builded for BuildIdent {
+impl Builded for BuildId {
     fn build(&self) -> Option<&Build> {
         self.build.as_ref()
     }
@@ -319,7 +319,7 @@ impl Builded for BuildIdent {
     }
 }
 
-impl std::fmt::Display for BuildIdent {
+impl std::fmt::Display for BuildId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str(self.name.as_str())?;
         if let Some(vb) = self.version_and_build() {
@@ -330,7 +330,7 @@ impl std::fmt::Display for BuildIdent {
     }
 }
 
-impl BuildIdent {
+impl BuildId {
     pub fn new(name: PkgNameBuf) -> Self {
         Self {
             name,
@@ -363,16 +363,16 @@ impl BuildIdent {
         Ident::new(new)
     }
 
-    /// Convert into a [`BuildIdent`] with the given [`RepositoryNameBuf`].
+    /// Convert into a [`BuildId`] with the given [`RepositoryNameBuf`].
     ///
     /// A build must be assigned.
     pub fn try_into_build_ident(
         mut self,
         repository_name: RepositoryNameBuf,
-    ) -> Result<PlacedBuildIdent> {
+    ) -> Result<PlacedBuildId> {
         self.build
             .take()
-            .map(|build| PlacedBuildIdent {
+            .map(|build| PlacedBuildId {
                 repository_name,
                 name: self.name,
                 version: self.version,
@@ -398,7 +398,7 @@ impl BuildIdent {
     }
 }
 
-impl MetadataPath for BuildIdent {
+impl MetadataPath for BuildId {
     fn metadata_path(&self) -> RelativePathBuf {
         let path = RelativePathBuf::from(self.name.as_str());
         if let Some(vb) = self.version_and_build() {
@@ -409,13 +409,13 @@ impl MetadataPath for BuildIdent {
     }
 }
 
-impl From<PkgNameBuf> for BuildIdent {
+impl From<PkgNameBuf> for BuildId {
     fn from(n: PkgNameBuf) -> Self {
         Self::new(n)
     }
 }
 
-impl TryFrom<&str> for BuildIdent {
+impl TryFrom<&str> for BuildId {
     type Error = crate::Error;
 
     fn try_from(value: &str) -> Result<Self> {
@@ -423,7 +423,7 @@ impl TryFrom<&str> for BuildIdent {
     }
 }
 
-impl TryFrom<&String> for BuildIdent {
+impl TryFrom<&String> for BuildId {
     type Error = crate::Error;
 
     fn try_from(value: &String) -> Result<Self> {
@@ -431,7 +431,7 @@ impl TryFrom<&String> for BuildIdent {
     }
 }
 
-impl TryFrom<String> for BuildIdent {
+impl TryFrom<String> for BuildId {
     type Error = crate::Error;
 
     fn try_from(value: String) -> Result<Self> {
@@ -439,7 +439,7 @@ impl TryFrom<String> for BuildIdent {
     }
 }
 
-impl FromStr for BuildIdent {
+impl FromStr for BuildId {
     type Err = crate::Error;
 
     /// Parse the given identifier string into this instance.
@@ -455,21 +455,21 @@ impl FromStr for BuildIdent {
 
 /// Parse a package identifier string.
 pub fn parse_ident<S: AsRef<str>>(source: S) -> Result<Ident> {
-    BuildIdent::from_str(source.as_ref()).map(Ident::new)
+    BuildId::from_str(source.as_ref()).map(Ident::new)
 }
 
 /// BuildIdent represents a specific package build.
 ///
-/// Like [`BuildIdent`], except a [`RepositoryNameBuf`] and [`Build`] are required.
+/// Like [`BuildId`], except a [`RepositoryNameBuf`] and [`Build`] are required.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct PlacedBuildIdent {
+pub struct PlacedBuildId {
     pub repository_name: RepositoryNameBuf,
     pub name: PkgNameBuf,
     pub version: Version,
     pub build: Build,
 }
 
-impl PlacedBuildIdent {
+impl PlacedBuildId {
     /// Return true if this identifier is for a source package.
     pub fn is_source(&self) -> bool {
         self.build.is_source()
@@ -480,7 +480,7 @@ impl PlacedBuildIdent {
     }
 }
 
-impl MetadataPath for PlacedBuildIdent {
+impl MetadataPath for PlacedBuildId {
     fn metadata_path(&self) -> RelativePathBuf {
         // The data path *does not* include the repository name.
         RelativePathBuf::from(self.name.as_str())
@@ -489,7 +489,7 @@ impl MetadataPath for PlacedBuildIdent {
     }
 }
 
-impl std::fmt::Display for PlacedBuildIdent {
+impl std::fmt::Display for PlacedBuildId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str(self.repository_name.as_str())?;
         f.write_char('/')?;
@@ -502,9 +502,9 @@ impl std::fmt::Display for PlacedBuildIdent {
     }
 }
 
-impl From<PlacedBuildIdent> for BuildIdent {
-    fn from(bi: PlacedBuildIdent) -> Self {
-        BuildIdent {
+impl From<PlacedBuildId> for BuildId {
+    fn from(bi: PlacedBuildId) -> Self {
+        BuildId {
             name: bi.name,
             version: bi.version,
             build: Some(bi.build),
@@ -512,9 +512,9 @@ impl From<PlacedBuildIdent> for BuildIdent {
     }
 }
 
-impl From<&PlacedBuildIdent> for BuildIdent {
-    fn from(bi: &PlacedBuildIdent) -> Self {
-        BuildIdent {
+impl From<&PlacedBuildId> for BuildId {
+    fn from(bi: &PlacedBuildId) -> Self {
+        BuildId {
             name: bi.name.clone(),
             version: bi.version.clone(),
             build: Some(bi.build.clone()),

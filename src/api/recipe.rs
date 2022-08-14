@@ -39,7 +39,7 @@ pub trait Recipe: super::Named + Versioned + super::Deprecate + Sync + Send {
     ///
     /// The returned identifier will not have an associated build.
     fn to_ident(&self) -> super::Ident {
-        super::Ident::new(super::BuildIdent {
+        super::Ident::new(super::BuildId {
             name: self.name().to_owned(),
             version: self.version().clone(),
             build: None,

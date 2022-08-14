@@ -522,7 +522,7 @@ impl Repository for SPFSRepository {
         }
         for name in self.list_packages().await? {
             tracing::info!("replicating old tags for {}...", name);
-            let mut pkg = api::Ident::<api::BuildIdent>::from(name.to_owned());
+            let mut pkg = api::Ident::<api::BuildId>::from(name.to_owned());
             for version in self.list_package_versions(&name).await?.iter() {
                 pkg.set_version((**version).clone());
                 for build in self.list_package_builds(&pkg).await? {
