@@ -48,22 +48,37 @@ pub trait Format {
     fn format_ident(&self) -> String;
 }
 
-impl Format for api::Ident {
+impl Format for api::AnyId {
     fn format_ident(&self) -> String {
-        match (!self.version.is_zero(), self.build.as_ref()) {
-            (false, None) => format!("{}", self.name.as_str().bold()),
-            (true, None) => format!(
-                "{}/{}",
-                self.name.as_str().bold(),
-                self.version.to_string().bright_blue()
-            ),
-            (_, Some(build)) => format!(
-                "{}/{}/{}",
-                self.name.as_str().bold(),
-                self.version.to_string().bright_blue(),
-                format_build(build)
-            ),
+        match self {
+            api::AnyId::Build(b) => b.format_ident(),
+            api::AnyId::Version(v) => v.format_ident(),
         }
+    }
+}
+
+impl Format for api::VersionId {
+    fn format_ident(&self) -> String {
+        if self.version().is_zero() {
+            format!("{}", self.name().as_str().bold())
+        } else {
+            format!(
+                "{}/{}",
+                self.name().as_str().bold(),
+                self.version().to_string().bright_blue()
+            )
+        }
+    }
+}
+
+impl Format for api::BuildId {
+    fn format_ident(&self) -> String {
+        format!(
+            "{}/{}/{}",
+            self.name.as_str().bold(),
+            self.version.to_string().bright_blue(),
+            format_build(&self.build)
+        )
     }
 }
 
@@ -554,7 +569,7 @@ where
                         use solve::graph::Change::*;
                         match change {
                             SetPackage(change) => {
-                                if change.spec.ident().build == Some(api::Build::Embedded) {
+                                if change.spec.ident().build() == Some(&api::Build::Embedded) {
                                     fill = ".";
                                 } else {
                                     fill = ">";

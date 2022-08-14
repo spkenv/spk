@@ -47,7 +47,7 @@ macro_rules! assert_resolved {
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
-        assert_eq!(pkg.spec.ident().build, $build, $message);
+        assert_eq!(pkg.spec.ident().build(), $build, $message);
     }};
 
     ($solution:ident, $pkg:literal, components = [$($component:literal),+ $(,)?]) => {{
@@ -172,8 +172,8 @@ async fn test_solver_single_package_no_deps(mut solver: Solver) {
     assert_eq!(packages.len(), 1, "expected one resolved package");
     let resolved = packages.get("my-pkg").unwrap();
     assert_eq!(&resolved.spec.version().to_string(), "1.0.0");
-    assert!(resolved.spec.ident().build.is_some());
-    assert_ne!(resolved.spec.ident().build, Some(api::Build::Source));
+    assert!(resolved.spec.ident().build().is_some());
+    assert_ne!(resolved.spec.ident().build(), Some(&api::Build::Source));
 }
 
 #[rstest]
@@ -924,9 +924,9 @@ async fn test_solver_embedded_package_adds_request(mut solver: Solver) {
 
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
-    assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
+    assert_resolved!(solution, "qt", build = Some(&api::Build::Embedded));
     assert_resolved!(solution, "qt", "5.12.6");
-    assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
+    assert_resolved!(solution, "qt", build = Some(&api::Build::Embedded));
 }
 
 #[rstest]
@@ -958,7 +958,7 @@ async fn test_solver_embedded_package_solvable(mut solver: Solver) {
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     assert_resolved!(solution, "qt", "5.12.6");
-    assert_resolved!(solution, "qt", build = Some(api::Build::Embedded));
+    assert_resolved!(solution, "qt", build = Some(&api::Build::Embedded));
 }
 
 #[rstest]
@@ -1566,7 +1566,7 @@ async fn test_solver_component_embedded(mut solver: Solver) {
 
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
-    assert_resolved!(solution, "dep-e1", build = Some(api::Build::Embedded));
+    assert_resolved!(solution, "dep-e1", build = Some(&api::Build::Embedded));
 
     solver.reset();
     solver.add_repository(repo);

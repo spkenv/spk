@@ -132,8 +132,8 @@ where
     }
 
     async fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        if let Some(versions) = self.packages.read().await.get(&pkg.name) {
-            if let Some(builds) = versions.get(&pkg.version) {
+        if let Some(versions) = self.packages.read().await.get(pkg.name()) {
+            if let Some(builds) = versions.get(pkg.version()) {
                 Ok(builds
                     .keys()
                     .map(|b| pkg.with_build(Some(b.clone())))
@@ -147,7 +147,7 @@ where
     }
 
     async fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
-        let build = match pkg.build.as_ref() {
+        let build = match pkg.build() {
             Some(b) => b,
             None => return Ok(Vec::new()),
         };
@@ -155,8 +155,8 @@ where
             .packages
             .read()
             .await
-            .get(&pkg.name)
-            .and_then(|versions| versions.get(&pkg.version))
+            .get(pkg.name())
+            .and_then(|versions| versions.get(pkg.version()))
             .and_then(|builds| builds.get(build))
             .map(|(_, build_map)| build_map)
             .map(|cmpts| cmpts.keys().cloned().collect::<Vec<_>>())
@@ -170,23 +170,23 @@ where
         self.specs
             .read()
             .await
-            .get(&pkg.name)
+            .get(pkg.name())
             .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
-            .get(&pkg.version)
+            .get(pkg.version())
             .map(Arc::clone)
             .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))
     }
 
     async fn read_components(&self, pkg: &api::Ident) -> Result<ComponentMap> {
-        match &pkg.build {
+        match pkg.build() {
             None => Err(Error::PackageNotFoundError(pkg.clone())),
             Some(build) => self
                 .packages
                 .read()
                 .await
-                .get(&pkg.name)
+                .get(pkg.name())
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
-                .get(&pkg.version)
+                .get(pkg.version())
                 .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
                 .get(build)
                 .map(|(_, d)| d.to_owned())
@@ -215,11 +215,11 @@ where
 
     async fn remove_recipe(&self, pkg: &api::Ident) -> Result<()> {
         let mut specs = self.specs.write().await;
-        let versions = match specs.get_mut(&pkg.name) {
+        let versions = match specs.get_mut(pkg.name()) {
             Some(v) => v,
             None => return Err(Error::PackageNotFoundError(pkg.clone())),
         };
-        if versions.remove(&pkg.version).is_none() {
+        if versions.remove(pkg.version()).is_none() {
             Err(Error::PackageNotFoundError(pkg.clone()))
         } else {
             Ok(())
@@ -232,15 +232,14 @@ where
         pkg: &api::Ident,
     ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>> {
         let build = pkg
-            .build
-            .as_ref()
+            .build()
             .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?;
         self.packages
             .read()
             .await
-            .get(&pkg.name)
+            .get(pkg.name())
             .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
-            .get(&pkg.version)
+            .get(pkg.version())
             .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))?
             .get(build)
             .ok_or_else(|| Error::PackageNotFoundError(pkg.clone()))
@@ -252,7 +251,7 @@ where
         spec: &<Self::Recipe as api::Recipe>::Output,
         components: &ComponentMap,
     ) -> Result<()> {
-        let build = match &spec.ident().build {
+        let build = match spec.ident().build() {
             Some(b) => b.to_owned(),
             None => {
                 return Err(Error::String(format!(
@@ -271,7 +270,7 @@ where
     }
 
     async fn remove_package(&self, pkg: &api::Ident) -> Result<()> {
-        let build = match &pkg.build {
+        let build = match pkg.build() {
             Some(b) => b,
             None => {
                 return Err(Error::String(format!(
@@ -282,12 +281,12 @@ where
         };
 
         let mut packages = self.packages.write().await;
-        let versions = match packages.get_mut(&pkg.name) {
+        let versions = match packages.get_mut(pkg.name()) {
             Some(v) => v,
             None => return Err(Error::PackageNotFoundError(pkg.clone())),
         };
 
-        let builds = match versions.get_mut(&pkg.version) {
+        let builds = match versions.get_mut(pkg.version()) {
             Some(v) => v,
             None => return Err(Error::PackageNotFoundError(pkg.clone())),
         };

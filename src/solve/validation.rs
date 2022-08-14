@@ -72,13 +72,13 @@ impl<P: Package> ValidatorT<P> for DeprecationValidator {
         if !spec.is_deprecated() {
             return Ok(api::Compatibility::Compatible);
         }
-        if spec.ident().build.is_none() {
+        if spec.ident().build().is_none() {
             return Ok(api::Compatibility::Incompatible(
                 "package version is deprecated".to_owned(),
             ));
         }
         let request = state.get_merged_request(spec.name())?;
-        if request.pkg.build == spec.ident().build {
+        if request.pkg.build.as_ref() == spec.ident().build() {
             return Ok(api::Compatibility::Compatible);
         }
         Ok(api::Compatibility::Incompatible(
@@ -98,14 +98,16 @@ impl<P: Package> ValidatorT<P> for BinaryOnlyValidator {
         spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<api::Compatibility> {
-        if spec.ident().build.is_none() {
+        if spec.ident().build().is_none() {
             return Ok(api::Compatibility::Incompatible(format!(
                 "Skipping {}, it has no builds, and building from source is not enabled",
                 spec.ident()
             )));
         }
         let request = state.get_merged_request(spec.name())?;
-        if spec.ident().build == Some(Build::Source) && request.pkg.build != spec.ident().build {
+        if spec.ident().build() == Some(&Build::Source)
+            && request.pkg.build.as_ref() != spec.ident().build()
+        {
             return Ok(api::Compatibility::Incompatible(format!(
                 "Skipping {} build, building from source is not enabled",
                 spec.ident()

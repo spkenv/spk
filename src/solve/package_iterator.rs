@@ -182,11 +182,10 @@ impl PackageIterator for RepositoryPackageIterator {
                     "version not found in version_map".to_owned(),
                 ));
             };
-            let pkg = api::Ident::new(api::BuildId {
+            let pkg = api::Ident::new(api::AnyId::Version(api::VersionId {
                 name: self.package_name.clone(),
                 version: (**version).clone(),
-                build: None,
-            });
+            }));
             if !self.builds_map.contains_key(version) {
                 match RepositoryBuildIterator::new(pkg.clone(), repos.clone()).await {
                     Ok(iter) => {
@@ -312,7 +311,7 @@ impl BuildIterator for RepositoryBuildIterator {
                 Err(err) => return Err(err),
             };
 
-            if spec.ident().build.is_none() {
+            if spec.ident().build().is_none() {
                 tracing::warn!("Published spec is corrupt (has no associated build), pkg={build}",);
                 return self.next().await;
             }
@@ -508,7 +507,7 @@ impl SortedBuildIterator {
             // won't use the build option values in their key, they
             // don't need to be looked at. They have a type of key
             // that always puts them last in the build order.
-            if let Some(b) = &build.ident().build {
+            if let Some(b) = &build.ident().build() {
                 if b.is_source() {
                     continue;
                 }

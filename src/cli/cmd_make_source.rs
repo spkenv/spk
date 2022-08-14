@@ -84,7 +84,7 @@ impl MakeSource {
                 out.ident()
                     .clone()
                     .into_inner()
-                    .try_into_build_ident(local.name().to_owned())?,
+                    .try_into_placed(local.name().to_owned())?,
             );
         }
         Ok(idents)

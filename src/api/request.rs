@@ -11,8 +11,11 @@ use std::{
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use super::compat::{API_STR, BINARY_STR};
 use super::version_range::{self, Ranged};
+use super::{
+    compat::{API_STR, BINARY_STR},
+    Named, Versioned,
+};
 use super::{
     Build, CompatRule, Compatibility, Component, DoubleEqualsVersion, EqualsVersion, Ident, Opt,
     OptName, OptNameBuf, Package, PkgName, PkgNameBuf, PlacedBuildId, RepositoryNameBuf, Version,
@@ -80,10 +83,10 @@ impl RangeIdent {
     {
         Self {
             repository_name: None,
-            name: ident.name.clone(),
+            name: ident.name().to_owned(),
             version: super::VersionFilter::single(version_range),
             components: components.into_iter().collect(),
-            build: ident.build.clone(),
+            build: ident.build().cloned(),
         }
     }
 
@@ -96,7 +99,7 @@ impl RangeIdent {
     {
         Self::new(
             ident,
-            super::DoubleEqualsVersion::from(ident.version.clone()).into(),
+            super::DoubleEqualsVersion::from(ident.version().clone()).into(),
             components,
         )
     }
@@ -110,7 +113,7 @@ impl RangeIdent {
     {
         Self::new(
             ident,
-            super::EqualsVersion::from(ident.version.clone()).into(),
+            super::EqualsVersion::from(ident.version().clone()).into(),
             components,
         )
     }
@@ -133,15 +136,15 @@ impl RangeIdent {
     /// Versions that are applicable are not necessarily satisfactory, but
     /// this cannot be fully determined without a complete package spec.
     pub fn is_applicable(&self, pkg: &Ident) -> bool {
-        if pkg.name != self.name {
+        if pkg.name() != &self.name {
             return false;
         }
 
-        if !self.version.is_applicable(&pkg.version).is_ok() {
+        if !self.version.is_applicable(pkg.version()).is_ok() {
             return false;
         }
 
-        if self.build.is_some() && self.build != pkg.build {
+        if self.build.is_some() && self.build.as_ref() != pkg.build() {
             return false;
         }
 
@@ -254,11 +257,11 @@ impl RangeIdent {
             return c;
         }
 
-        if self.build.is_some() && self.build != spec.ident().build {
+        if self.build.is_some() && self.build.as_ref() != spec.ident().build() {
             return Compatibility::Incompatible(format!(
                 "requested build {:?} != {:?}",
                 self.build,
-                spec.ident().build
+                spec.ident().build()
             ));
         }
 
@@ -325,13 +328,13 @@ impl From<PlacedBuildId> for RangeIdent {
 
 impl From<Ident> for RangeIdent {
     fn from(ident: Ident) -> Self {
-        let ident = ident.into_inner();
+        let (name, version, build) = ident.into_inner().into_parts();
         Self {
             repository_name: None,
-            name: ident.name,
-            version: ident.version.into(),
+            name,
+            version: version.into(),
             components: HashSet::default(),
-            build: ident.build,
+            build,
         }
     }
 }
@@ -833,25 +836,25 @@ impl PkgRequest {
     }
 
     pub fn from_ident(pkg: Ident, requester: RequestedBy) -> Self {
-        let pkg = pkg.into_inner();
+        let (name, version, build) = pkg.into_inner().into_parts();
         let ri = RangeIdent {
             repository_name: None,
-            name: pkg.name,
+            name,
             components: Default::default(),
-            version: VersionFilter::single(EqualsVersion::version_range(pkg.version)),
-            build: pkg.build,
+            version: VersionFilter::single(EqualsVersion::version_range(version)),
+            build,
         };
         Self::new(ri, requester)
     }
 
     pub fn from_ident_exact(pkg: Ident, requester: RequestedBy) -> Self {
-        let pkg = pkg.into_inner();
+        let (name, version, build) = pkg.into_inner().into_parts();
         let ri = RangeIdent {
             repository_name: None,
-            name: pkg.name,
+            name,
             components: Default::default(),
-            version: VersionFilter::single(DoubleEqualsVersion::version_range(pkg.version)),
-            build: pkg.build,
+            version: VersionFilter::single(DoubleEqualsVersion::version_range(version)),
+            build,
         };
         Self::new(ri, requester)
     }
@@ -891,7 +894,7 @@ impl PkgRequest {
             )),
             Some(pin) if pin == API_STR || pin == BINARY_STR => {
                 // Supply the full base (digit-only) part of the version
-                let base = pkg.version.base();
+                let base = pkg.version().base();
                 let mut rendered: Vec<char> = Vec::with_capacity(
                     pin.len()
                         // ':'
@@ -905,7 +908,7 @@ impl PkgRequest {
                 self.rendered_to_pkgrequest(rendered)
             }
             Some(pin) => {
-                let mut digits = pkg.version.parts.iter().chain(std::iter::repeat(&0));
+                let mut digits = pkg.version().parts.iter().chain(std::iter::repeat(&0));
                 let mut rendered = Vec::with_capacity(pin.len());
                 for char in pin.chars() {
                     if char == 'x' {
@@ -938,7 +941,7 @@ impl PkgRequest {
         if spec.is_deprecated() {
             // deprecated builds are only okay if their build
             // was specifically requested
-            if self.pkg.build.is_none() || self.pkg.build != spec.ident().build {
+            if self.pkg.build.is_none() || self.pkg.build.as_ref() != spec.ident().build() {
                 return Compatibility::Incompatible(
                     "Build is deprecated and was not specifically requested".to_string(),
                 );

@@ -15,9 +15,9 @@ use proptest::{
 use crate::api::{
     parse_ident, Build, CompatRange, CompatRule, Component, DoubleEqualsVersion,
     DoubleNotEqualsVersion, EqualsVersion, GreaterThanOrEqualToRange, GreaterThanRange,
-    LessThanOrEqualToRange, LessThanRange, LowestSpecifiedRange, NotEqualsVersion, PkgNameBuf,
-    RangeIdent, RepositoryNameBuf, SemverRange, TagSet, Version, VersionFilter, VersionRange,
-    WildcardRange,
+    LessThanOrEqualToRange, LessThanRange, LowestSpecifiedRange, Named, NotEqualsVersion,
+    PkgNameBuf, RangeIdent, RepositoryNameBuf, SemverRange, TagSet, Version, VersionFilter,
+    VersionRange, Versioned, WildcardRange,
 };
 
 macro_rules! arb_version_range_struct {
@@ -411,9 +411,9 @@ proptest! {
         if name_is_legal && version_is_legal {
             assert!(parsed.is_ok(), "parse '{}' failure:\n{}", ident, parsed.unwrap_err());
             let parsed = parsed.unwrap();
-            assert_eq!(parsed.name.as_str(), name);
-            assert_eq!(parsed.version, version.unwrap_or_default());
-            assert_eq!(parsed.build, build);
+            assert_eq!(parsed.name().as_str(), name);
+            assert_eq!(parsed.version(), &version.unwrap_or_default());
+            assert_eq!(parsed.build(), build.as_ref());
         }
         else {
             assert!(parsed.is_err(), "expected '{}' to fail to parse", ident);
@@ -478,16 +478,16 @@ fn parse_range_ident_with_basic_errors() {
     assert!(r.is_ok(), "{}", r.unwrap_err());
 }
 
-/// Invoke the `range_ident` parser without `VerboseError` for coverage.
+/// Invoke the `any_id` parser without `VerboseError` for coverage.
 #[test]
 fn parse_ident_with_basic_errors() {
-    let r = crate::parsing::ident::<(_, ErrorKind)>("pkg-name");
+    let r = crate::parsing::any_id::<(_, ErrorKind)>("pkg-name");
     assert!(r.is_ok(), "{}", r.unwrap_err());
 }
 
 /// Fail if post-tags are specified before pre-tags.
 #[test]
 fn check_wrong_tag_order_is_a_parse_error() {
-    let r = crate::parsing::ident::<(_, ErrorKind)>("pkg-name/1.0+a.0-b.0");
+    let r = crate::parsing::build_id::<(_, ErrorKind)>("pkg-name/1.0+a.0-b.0");
     assert!(r.is_err(), "expected to fail; got {:?}", r);
 }

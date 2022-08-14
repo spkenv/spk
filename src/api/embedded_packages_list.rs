@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use serde::{Deserialize, Serialize};
 
-use super::{Build, BuildSpec, Builded, InstallSpec, Spec};
+use super::{Build, BuildSpec, InstallSpec, Spec};
 
 #[cfg(test)]
 #[path = "./embedded_packages_list_test.rs"]

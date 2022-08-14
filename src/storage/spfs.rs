@@ -314,7 +314,7 @@ impl Repository for SPFSRepository {
 
     async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
         let address = self.address();
-        if pkg.build.is_some() {
+        if pkg.build().is_some() {
             return Err(format!("cannot read a recipe for a package build: {pkg}").into());
         }
         if self.cached_result_permitted() {
@@ -443,7 +443,7 @@ impl Repository for SPFSRepository {
         // for compatibility with older versions of the spk command.
         // It's not perfect but at least the package will be visible
         let legacy_tag = spfs::tracking::TagSpec::parse(&tag_path)?;
-        let legacy_component = if let Some(api::Build::Source) = spec.ident().build {
+        let legacy_component = if let Some(api::Build::Source) = spec.ident().build() {
             *components.get(&api::Component::Source).ok_or_else(|| {
                 Error::String("Package must have a source component to be published".to_string())
             })?
@@ -466,7 +466,7 @@ impl Repository for SPFSRepository {
             self.inner.push_tag(&tag_spec, digest).await?;
         }
 
-        if let Some(api::Build::Embedded) = spec.ident().build {
+        if let Some(api::Build::Embedded) = spec.ident().build() {
             return Err(api::InvalidBuildError::new_error(
                 "Cannot publish embedded package".to_string(),
             ));
@@ -522,7 +522,7 @@ impl Repository for SPFSRepository {
         }
         for name in self.list_packages().await? {
             tracing::info!("replicating old tags for {}...", name);
-            let mut pkg = api::Ident::<api::BuildId>::from(name.to_owned());
+            let mut pkg = api::Ident::<api::AnyId>::from(name.to_owned());
             for version in self.list_package_versions(&name).await?.iter() {
                 pkg.set_version((**version).clone());
                 for build in self.list_package_builds(&pkg).await? {
@@ -722,7 +722,7 @@ impl SPFSRepository {
 
     /// Construct an spfs tag string to represent a binary package layer.
     fn build_package_tag(&self, pkg: &api::Ident) -> Result<RelativePathBuf> {
-        if pkg.build.is_none() {
+        if pkg.build().is_none() {
             return Err(api::InvalidBuildError::new_error(
                 "Package must have associated build digest".to_string(),
             ));

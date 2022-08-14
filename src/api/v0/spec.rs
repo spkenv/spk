@@ -10,7 +10,7 @@ use crate::api::{
     request::is_false, Build, BuildSpec, Compat, Compatibility, Ident, Inheritance, InstallSpec,
     Meta, Opt, OptionMap, Package, PkgRequest, Recipe, Request, SourceSpec, TestSpec, VarRequest,
 };
-use crate::api::{Builded, Named, Versioned, VersionedMut};
+use crate::api::{Named, Versioned, VersionedMut};
 use crate::{api, Error, Result};
 
 #[cfg(test)]
@@ -61,7 +61,7 @@ impl Spec {
 
     /// Check if this package spec satisfies the given var request.
     pub fn satisfies_var_request(&self, request: &VarRequest) -> Compatibility {
-        let opt_required = request.var.namespace() == Some(&self.pkg.name);
+        let opt_required = request.var.namespace() == Some(self.pkg.name());
         let mut opt: Option<&Opt> = None;
         for o in self.build.options.iter() {
             let is_same_base_name = request.var.base_name() == o.base_name();
@@ -70,7 +70,7 @@ impl Spec {
             }
 
             let is_global = request.var.namespace().is_none();
-            let is_this_namespace = request.var.namespace() == Some(&*self.pkg.name);
+            let is_this_namespace = request.var.namespace() == Some(self.pkg.name());
             if is_this_namespace || is_global {
                 opt = Some(o);
                 break;
@@ -106,10 +106,11 @@ impl Spec {
 
     /// Check if this package spec satisfies the given pkg request.
     pub fn satisfies_pkg_request(&self, request: &PkgRequest) -> Compatibility {
-        if request.pkg.name != self.pkg.name {
+        if self.pkg.name() != &request.pkg.name {
             return Compatibility::Incompatible(format!(
                 "different package name: {} != {}",
-                request.pkg.name, self.pkg.name
+                request.pkg.name,
+                self.pkg.name()
             ));
         }
 
@@ -122,26 +123,27 @@ impl Spec {
             return Compatibility::Compatible;
         }
 
-        if request.pkg.build == self.pkg.build {
+        if request.pkg.build.as_ref() == self.pkg.build() {
             return Compatibility::Compatible;
         }
 
         Compatibility::Incompatible(format!(
             "Package and request differ in builds: requested {:?}, got {:?}",
-            request.pkg.build, self.pkg.build
+            request.pkg.build,
+            self.pkg.build()
         ))
     }
 }
 
 impl Named for Spec {
     fn name(&self) -> &api::PkgName {
-        &self.pkg.name
+        self.pkg.name()
     }
 }
 
 impl Versioned for Spec {
     fn version(&self) -> &api::Version {
-        &self.pkg.version
+        self.pkg.version()
     }
 }
 
@@ -401,7 +403,7 @@ impl<'de> Deserialize<'de> for Spec {
             install: InstallSpec,
         }
         let unchecked = SpecSchema::deserialize(deserializer)?;
-        let build_spec_result = if unchecked.pkg.build.is_none() {
+        let build_spec_result = if unchecked.pkg.build().is_none() {
             BuildSpec::deserialize(serde_yaml::Value::Mapping(unchecked.build))
         } else {
             // if the build is set, we assume that this is a rendered spec

@@ -10,7 +10,7 @@ use std::{
 use spfs::prelude::*;
 
 use super::Repository;
-use crate::{api, Error, Result};
+use crate::{api, prelude::*, Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {
@@ -129,8 +129,8 @@ impl Repository for RuntimeRepository {
     }
 
     async fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        let mut base = self.root.join(&pkg.name);
-        base.push(pkg.version.to_string());
+        let mut base = self.root.join(pkg.name());
+        base.push(pkg.version().to_string());
         Ok(get_all_filenames(&base)?
             .into_iter()
             .filter_map(|entry| {
@@ -157,7 +157,7 @@ impl Repository for RuntimeRepository {
     }
 
     async fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>> {
-        if pkg.build.is_none() {
+        if pkg.build().is_none() {
             return Ok(Vec::new());
         }
         let entries = get_all_filenames(self.root.join(pkg.to_string()))?;

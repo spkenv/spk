@@ -4,6 +4,7 @@
 
 use std::{path::Path, sync::Arc};
 
+use super::AnyId;
 use crate::Result;
 
 /// Some item that has an associated version
@@ -13,6 +14,7 @@ pub trait Versioned {
     fn version(&self) -> &super::Version;
 }
 
+#[enum_dispatch::enum_dispatch]
 pub trait VersionedMut {
     /// Modify the version associated with this item
     fn set_version(&mut self, version: super::Version);
@@ -39,11 +41,10 @@ pub trait Recipe: super::Named + Versioned + super::Deprecate + Sync + Send {
     ///
     /// The returned identifier will not have an associated build.
     fn to_ident(&self) -> super::Ident {
-        super::Ident::new(super::BuildId {
+        super::Ident::new(AnyId::Version(super::VersionId {
             name: self.name().to_owned(),
             version: self.version().clone(),
-            build: None,
-        })
+        }))
     }
 
     /// Return the default variants to be built for this recipe

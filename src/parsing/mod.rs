@@ -22,7 +22,7 @@ use nom::{
     IResult, InputLength, Parser,
 };
 
-pub(crate) use ident::ident;
+pub(crate) use ident::{any_id, build_id, version_id};
 pub use ident::{ident_parts, IdentParts};
 use nom_supreme::tag::TagError;
 pub(crate) use request::{range_ident, version_filter_and_build};

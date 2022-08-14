@@ -7,7 +7,7 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 use itertools::Itertools;
-use spk::{api, io::Format};
+use spk::{api, io::Format, prelude::Named};
 
 use super::{flags, CommandArgs, Run};
 
@@ -65,7 +65,7 @@ impl Run for Remove {
                 let versions = if name.contains('/') {
                     vec![pkg]
                 } else {
-                    repo.list_package_versions(&pkg.name)
+                    repo.list_package_versions(pkg.name())
                         .await?
                         .iter()
                         .map(|v| pkg.with_version((**v).clone()))
@@ -73,7 +73,7 @@ impl Run for Remove {
                 };
 
                 for version in versions {
-                    if version.build.is_some() {
+                    if version.build().is_some() {
                         remove_build(repo_name, repo, &version).await?;
                     } else {
                         remove_all(repo_name, repo, &version).await?;

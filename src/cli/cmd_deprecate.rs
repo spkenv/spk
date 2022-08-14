@@ -165,7 +165,7 @@ pub(crate) async fn change_deprecation_state(
 
         let ident = spk::api::parse_ident(name)?;
         for (repo_name, repo) in repos.iter() {
-            if ident.build.is_none() {
+            if ident.build().is_none() {
                 match repo.read_recipe(&ident).await {
                     Ok(recipe) => {
                         to_action.push((

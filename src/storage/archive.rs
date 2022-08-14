@@ -46,7 +46,7 @@ pub async fn export_package<P: AsRef<Path>>(pkg: &api::Ident, filename: P) -> Re
     // before any build - it's only an error in testing, but still best practice
     let mut to_transfer = std::collections::BTreeSet::new();
     to_transfer.insert(pkg.clone());
-    if pkg.build.is_none() {
+    if pkg.build().is_none() {
         to_transfer.extend(local_repo.list_package_builds(pkg).await?);
         if remote_repo.is_err() {
             return remote_repo.map(|_| ());
@@ -118,7 +118,7 @@ async fn copy_package(
     src_repo: &SPFSRepository,
     dst_repo: &SPFSRepository,
 ) -> Result<()> {
-    if pkg.build.is_none() {
+    if pkg.build().is_none() {
         let spec = src_repo.read_recipe(pkg).await?;
         tracing::info!(%pkg, "exporting");
         dst_repo.publish_recipe(&spec).await?;

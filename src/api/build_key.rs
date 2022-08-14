@@ -175,7 +175,7 @@ impl BuildKey {
         // selection of builds is difficult to reason about and debug.
         // This avoids it.
         //
-        let digest = match pkg.build.clone() {
+        let digest = match pkg.build() {
             Some(build) => build.digest(),
             None => {
                 // This should not happen, but if it does use a

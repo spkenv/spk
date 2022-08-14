@@ -36,6 +36,7 @@ macro_rules! ident {
     };
 }
 
+#[enum_dispatch::enum_dispatch]
 pub trait MetadataPath {
     /// Return the relative path for package metadata for an ident.
     ///
@@ -52,7 +53,7 @@ pub trait MetadataPath {
 /// The identifier is either a specific package or
 /// range of package versions/releases depending on the
 /// syntax and context
-pub struct Ident<Id = BuildId>(Id)
+pub struct Ident<Id = AnyId>(Id)
 where
     Id: Named + Versioned;
 
@@ -68,11 +69,11 @@ where
     pub fn into_build(self, build: Build) -> Ident {
         // TODO: use a trait to allow breaking down and not cloning data
         // TODO: return a non-null build identifier type
-        Ident(BuildId {
+        Ident(AnyId::Build(BuildId {
             name: self.name().to_owned(),
             version: self.version().clone(),
-            build: Some(build),
-        })
+            build,
+        }))
     }
 
     /// Deconstruct this ident, returning the inner identifier
@@ -112,11 +113,11 @@ impl<Id> Builded for Ident<Id>
 where
     Id: Named + Versioned + Builded,
 {
-    fn build(&self) -> Option<&Build> {
+    fn build(&self) -> &Build {
         self.0.build()
     }
 
-    fn set_build(&mut self, build: Option<Build>) {
+    fn set_build(&mut self, build: Build) {
         self.0.set_build(build)
     }
 }
@@ -129,6 +130,15 @@ where
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl<Id> std::ops::DerefMut for Ident<Id>
+where
+    Id: Named + Versioned,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -167,12 +177,13 @@ impl TryFrom<RangeIdent> for Ident {
     fn try_from(ri: RangeIdent) -> Result<Self> {
         let name = ri.name;
         let build = ri.build;
-        ri.version.try_into_version().map(|version| {
-            Self(BuildId {
+        ri.version.try_into_version().map(|version| match build {
+            Some(build) => Self(AnyId::Build(BuildId {
                 name,
                 version,
                 build,
-            })
+            })),
+            None => Self(AnyId::Version(VersionId { name, version })),
         })
     }
 }
@@ -181,13 +192,20 @@ impl TryFrom<&RangeIdent> for Ident {
     type Error = crate::Error;
 
     fn try_from(ri: &RangeIdent) -> Result<Self> {
-        ri.version.clone().try_into_version().map(|version| {
-            Self(BuildId {
-                name: ri.name.clone(),
-                version,
-                build: ri.build.clone(),
+        ri.version
+            .clone()
+            .try_into_version()
+            .map(|version| match &ri.build {
+                Some(build) => Self(AnyId::Build(BuildId {
+                    name: ri.name.clone(),
+                    version,
+                    build: build.clone(),
+                })),
+                None => Self(AnyId::Version(VersionId {
+                    name: ri.name.clone(),
+                    version,
+                })),
             })
-        })
     }
 }
 
@@ -284,11 +302,268 @@ where
     }
 }
 
+/// Identifies a package with variable amounts of specificity.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Ord, PartialOrd)]
+#[enum_dispatch::enum_dispatch(Named, Versioned, VersionedMut, MetadataPath)]
+pub enum AnyId {
+    Version(VersionId),
+    Build(BuildId),
+    // TODO:
+    // if there value in having this be an option here? or are there too
+    // many places that would just end up needing to reject this variant?
+    // PlacedBuild(PlacedBuildId),
+}
+
+impl AnyId {
+    pub fn new(name: PkgNameBuf) -> Self {
+        Self::Version(VersionId::new(name))
+    }
+
+    /// Return true if this identifier is for a source package.
+    pub fn is_source(&self) -> bool {
+        match self.build() {
+            Some(build) => build.is_source(),
+            None => false,
+        }
+    }
+
+    /// Return a copy of this identifier with the given version number instead
+    pub fn with_version(&self, version: Version) -> Ident<Self> {
+        match self {
+            AnyId::Version(v) => Ident::new(v.with_version(version).into_inner().into()),
+            AnyId::Build(b) => Ident::new(b.with_version(version).into_inner().into()),
+        }
+    }
+
+    pub fn build(&self) -> Option<&Build> {
+        match self {
+            AnyId::Version(_) => None,
+            AnyId::Build(BuildId { ref build, .. }) => Some(build),
+        }
+    }
+
+    pub fn set_build(&mut self, build: Option<Build>) {
+        match (self, build) {
+            (AnyId::Version(_), None) => {}
+            (AnyId::Build(b), Some(build)) => b.set_build(build),
+            (id @ AnyId::Version(_), build @ Some(_)) | (id @ AnyId::Build(_), build @ None) => {
+                // NOTE(rbottriell): The underlying cloning here is unfortunate, but
+                // these cases requires changing the variant and self is &mut. We could
+                // do efficient swapping with a little bit of unsafe code by replacing
+                // self with an uninitialized value, but that feels like it could properly
+                // break async access - TBD if this method could be removed in favor of a
+                // better signature or if a little unsafe code is acceptable
+                let new = id.with_build(build).into_inner();
+                let _ = std::mem::replace(id, new);
+            }
+        }
+    }
+
+    /// Return an identifier for this id with the given build replaced.
+    pub fn with_build(&self, build: Option<Build>) -> Ident<AnyId> {
+        match (self, build) {
+            (AnyId::Version(_), None) => Ident::new(self.clone()),
+            (_, Some(build)) => {
+                let id = BuildId {
+                    name: self.name().to_owned(),
+                    version: self.version().clone(),
+                    build,
+                };
+                Ident::new(id.into())
+            }
+            (_, None) => {
+                let id = VersionId {
+                    name: self.name().to_owned(),
+                    version: self.version().clone(),
+                };
+                Ident::new(id.into())
+            }
+        }
+    }
+
+    pub fn into_parts(self) -> (PkgNameBuf, Version, Option<Build>) {
+        match self {
+            Self::Build(BuildId {
+                name,
+                version,
+                build,
+            }) => (name, version, Some(build)),
+            Self::Version(VersionId { name, version }) => (name, version, None),
+        }
+    }
+
+    /// Convert into a [`PlacedBuildId`] with the given [`RepositoryNameBuf`].
+    ///
+    /// A build must be assigned.
+    pub fn try_into_placed(self, repository_name: RepositoryNameBuf) -> Result<PlacedBuildId> {
+        match self {
+            AnyId::Version(_) => Err("Ident must contain a build to become a BuildIdent".into()),
+            AnyId::Build(b) => Ok(b.into_placed(repository_name)),
+        }
+    }
+}
+
+impl std::fmt::Display for AnyId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AnyId::Version(inner) => inner.fmt(f),
+            AnyId::Build(inner) => inner.fmt(f),
+        }
+    }
+}
+
+impl From<PkgNameBuf> for AnyId {
+    fn from(n: PkgNameBuf) -> Self {
+        Self::new(n)
+    }
+}
+
+impl TryFrom<&str> for AnyId {
+    type Error = crate::Error;
+
+    fn try_from(value: &str) -> Result<Self> {
+        Self::from_str(value)
+    }
+}
+
+impl TryFrom<&String> for AnyId {
+    type Error = crate::Error;
+
+    fn try_from(value: &String) -> Result<Self> {
+        Self::from_str(value.as_str())
+    }
+}
+
+impl TryFrom<String> for AnyId {
+    type Error = crate::Error;
+
+    fn try_from(value: String) -> Result<Self> {
+        Self::from_str(value.as_str())
+    }
+}
+
+impl FromStr for AnyId {
+    type Err = crate::Error;
+
+    /// Parse the given identifier string into this instance.
+    fn from_str(source: &str) -> Result<Self> {
+        parsing::any_id::<nom_supreme::error::ErrorTree<_>>(source)
+            .map(|(_, ident)| ident)
+            .map_err(|err| match err {
+                nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
+                nom::Err::Incomplete(_) => unreachable!(),
+            })
+    }
+}
+
+/// Identifies a package version as a whole, or a recipe.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Ord, PartialOrd)]
+pub struct VersionId {
+    pub name: PkgNameBuf,
+    pub version: Version,
+}
+
+impl Named for VersionId {
+    fn name(&self) -> &super::PkgName {
+        &self.name
+    }
+}
+
+impl Versioned for VersionId {
+    fn version(&self) -> &super::Version {
+        &self.version
+    }
+}
+
+impl VersionedMut for VersionId {
+    fn set_version(&mut self, version: super::Version) {
+        self.version = version
+    }
+}
+
+impl std::fmt::Display for VersionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.name.fmt(f)?;
+        if !self.version.is_zero() {
+            f.write_char('/')?;
+            self.version.fmt(f)?;
+        }
+        Ok(())
+    }
+}
+
+impl VersionId {
+    pub fn new(name: PkgNameBuf) -> Self {
+        Self {
+            name,
+            version: Default::default(),
+        }
+    }
+
+    /// Return a copy of this identifier with the given version number instead
+    pub fn with_version(&self, version: Version) -> Ident<Self> {
+        Ident::new(Self {
+            name: self.name.clone(),
+            version,
+        })
+    }
+}
+
+impl MetadataPath for VersionId {
+    fn metadata_path(&self) -> RelativePathBuf {
+        RelativePathBuf::from(format!("{}/{}", self.name, self.version))
+    }
+}
+
+impl From<PkgNameBuf> for VersionId {
+    fn from(n: PkgNameBuf) -> Self {
+        Self::new(n)
+    }
+}
+
+impl TryFrom<&str> for VersionId {
+    type Error = crate::Error;
+
+    fn try_from(value: &str) -> Result<Self> {
+        Self::from_str(value)
+    }
+}
+
+impl TryFrom<&String> for VersionId {
+    type Error = crate::Error;
+
+    fn try_from(value: &String) -> Result<Self> {
+        Self::from_str(value.as_str())
+    }
+}
+
+impl TryFrom<String> for VersionId {
+    type Error = crate::Error;
+
+    fn try_from(value: String) -> Result<Self> {
+        Self::from_str(value.as_str())
+    }
+}
+
+impl FromStr for VersionId {
+    type Err = crate::Error;
+
+    /// Parse the given identifier string into this instance.
+    fn from_str(source: &str) -> Result<Self> {
+        parsing::version_id::<nom_supreme::error::ErrorTree<_>>(source)
+            .map(|(_, ident)| ident)
+            .map_err(|err| match err {
+                nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
+                nom::Err::Incomplete(_) => unreachable!(),
+            })
+    }
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub struct BuildId {
     pub name: PkgNameBuf,
     pub version: Version,
-    pub build: Option<Build>,
+    pub build: Build,
 }
 
 impl Named for BuildId {
@@ -310,45 +585,33 @@ impl VersionedMut for BuildId {
 }
 
 impl Builded for BuildId {
-    fn build(&self) -> Option<&Build> {
-        self.build.as_ref()
+    fn build(&self) -> &Build {
+        &self.build
     }
 
-    fn set_build(&mut self, build: Option<Build>) {
+    fn set_build(&mut self, build: Build) {
         self.build = build
     }
 }
 
 impl std::fmt::Display for BuildId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(self.name.as_str())?;
-        if let Some(vb) = self.version_and_build() {
-            f.write_char('/')?;
-            f.write_str(vb.as_str())?;
-        }
-        Ok(())
+        self.name.fmt(f)?;
+        f.write_char('/')?;
+        self.version.fmt(f)?;
+        f.write_char('/')?;
+        self.build.fmt(f)
     }
 }
 
 impl BuildId {
-    pub fn new(name: PkgNameBuf) -> Self {
-        Self {
-            name,
-            version: Default::default(),
-            build: Default::default(),
-        }
-    }
-
     /// Return true if this identifier is for a source package.
     pub fn is_source(&self) -> bool {
-        match &self.build {
-            Some(build) => build.is_source(),
-            None => false,
-        }
+        self.build.is_source()
     }
 
     /// Return a copy of this identifier with the given version number instead
-    pub fn with_version(&self, version: Version) -> Ident {
+    pub fn with_version(&self, version: Version) -> Ident<Self> {
         Ident::new(Self {
             name: self.name.clone(),
             version,
@@ -357,7 +620,7 @@ impl BuildId {
     }
 
     /// Return a copy of this identifier with the given build replaced.
-    pub fn with_build(&self, build: Option<Build>) -> Ident {
+    pub fn with_build(&self, build: Build) -> Ident<Self> {
         let mut new = self.clone();
         new.build = build;
         Ident::new(new)
@@ -366,52 +629,24 @@ impl BuildId {
     /// Convert into a [`BuildId`] with the given [`RepositoryNameBuf`].
     ///
     /// A build must be assigned.
-    pub fn try_into_build_ident(
-        mut self,
-        repository_name: RepositoryNameBuf,
-    ) -> Result<PlacedBuildId> {
-        self.build
-            .take()
-            .map(|build| PlacedBuildId {
-                repository_name,
-                name: self.name,
-                version: self.version,
-                build,
-            })
-            .ok_or_else(|| "BuildIdent must contain a build to become a BuildIdent".into())
-    }
-
-    /// A string containing the properly formatted name and version number
-    ///
-    /// This is the same as [`ToString::to_string`] when the build is None.
-    pub fn version_and_build(&self) -> Option<String> {
-        match &self.build {
-            Some(build) => Some(format!("{}/{}", self.version, build.digest())),
-            None => {
-                if self.version.is_zero() {
-                    None
-                } else {
-                    Some(self.version.to_string())
-                }
-            }
+    pub fn into_placed(self, repository_name: RepositoryNameBuf) -> PlacedBuildId {
+        let Self {
+            name,
+            version,
+            build,
+        } = self;
+        PlacedBuildId {
+            repository_name,
+            name,
+            version,
+            build,
         }
     }
 }
 
 impl MetadataPath for BuildId {
     fn metadata_path(&self) -> RelativePathBuf {
-        let path = RelativePathBuf::from(self.name.as_str());
-        if let Some(vb) = self.version_and_build() {
-            path.join(vb.as_str())
-        } else {
-            path
-        }
-    }
-}
-
-impl From<PkgNameBuf> for BuildId {
-    fn from(n: PkgNameBuf) -> Self {
-        Self::new(n)
+        RelativePathBuf::from(self.to_string())
     }
 }
 
@@ -444,7 +679,7 @@ impl FromStr for BuildId {
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> Result<Self> {
-        parsing::ident::<nom_supreme::error::ErrorTree<_>>(source)
+        parsing::build_id::<nom_supreme::error::ErrorTree<_>>(source)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
                 nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
@@ -455,7 +690,7 @@ impl FromStr for BuildId {
 
 /// Parse a package identifier string.
 pub fn parse_ident<S: AsRef<str>>(source: S) -> Result<Ident> {
-    BuildId::from_str(source.as_ref()).map(Ident::new)
+    AnyId::from_str(source.as_ref()).map(Ident::new)
 }
 
 /// BuildIdent represents a specific package build.
@@ -507,7 +742,7 @@ impl From<PlacedBuildId> for BuildId {
         BuildId {
             name: bi.name,
             version: bi.version,
-            build: Some(bi.build),
+            build: bi.build,
         }
     }
 }
@@ -517,7 +752,7 @@ impl From<&PlacedBuildId> for BuildId {
         BuildId {
             name: bi.name.clone(),
             version: bi.version.clone(),
-            build: Some(bi.build.clone()),
+            build: bi.build.clone(),
         }
     }
 }

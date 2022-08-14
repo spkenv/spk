@@ -4,7 +4,7 @@
 
 use std::{path::Path, sync::Arc};
 
-use super::{Spec, SpecRecipe};
+use super::{AnyId, Spec, SpecRecipe};
 use crate::Result;
 
 /// Some item that has an associated package name

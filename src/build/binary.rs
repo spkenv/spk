@@ -365,11 +365,11 @@ where
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
         self.build_artifacts(package, options).await?;
 
-        let source_ident = api::Ident::new(api::BuildId {
+        let source_ident = api::Ident::new(api::AnyId::Build(api::BuildId {
             name: self.recipe.name().to_owned(),
             version: self.recipe.version().clone(),
-            build: Some(api::Build::Source),
-        });
+            build: api::Build::Source,
+        }));
         let sources_dir = data_path(&source_ident);
 
         let mut runtime = spfs::active_runtime().await?;
@@ -521,8 +521,7 @@ pub fn get_package_build_env(spec: &impl Package) -> HashMap<String, String> {
     env.insert(
         "SPK_PKG_BUILD".to_string(),
         spec.ident()
-            .build
-            .as_ref()
+            .build()
             .map(api::Build::to_string)
             .unwrap_or_default(),
     );
@@ -611,7 +610,12 @@ fn split_manifest_by_component(
         }
         for node in manifest.walk() {
             if relevant_paths.contains(&node.path) {
-                tracing::debug!("{}:{} collecting {:?}", pkg.name, component.name, node.path);
+                tracing::debug!(
+                    "{}:{} collecting {:?}",
+                    pkg.name(),
+                    component.name,
+                    node.path
+                );
                 let mut entry = node.entry.clone();
                 if entry.is_dir() {
                     // we will be building back up any directory with

@@ -272,7 +272,7 @@ impl<T: Output> Ls<T> {
         for (package, index) in packages {
             let (repo_name, repo) = repos.get(index).unwrap();
             let mut versions = {
-                let base = spk::api::Ident::new(spk::api::BuildId::from(package));
+                let base = spk::api::Ident::new(spk::api::AnyId::from(package));
                 repo.list_package_versions(base.name())
                     .await?
                     .iter()
@@ -296,7 +296,7 @@ impl<T: Output> Ls<T> {
                         ..
                     }) = search_term
                     {
-                        if let Some(this_build) = &build.build {
+                        if let Some(this_build) = build.build() {
                             if search_build != this_build.to_string() {
                                 continue;
                             }
@@ -346,7 +346,7 @@ impl<T: Output> Ls<T> {
 
         // Packages without builds, or /src packages have no further
         // info to display
-        if pkg.build.is_none() || pkg.is_source() {
+        if pkg.build().is_none() || pkg.is_source() {
             return Ok(item);
         }
 

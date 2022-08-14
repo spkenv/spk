@@ -108,7 +108,7 @@ impl Publisher {
             }
         }
 
-        let builds = if pkg.build.is_none() {
+        let builds = if pkg.build().is_none() {
             with_cache_policy!(self.from, CachePolicy::BypassCache, {
                 self.from.list_package_builds(pkg)
             })

@@ -5,6 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
+use spk::prelude::*;
 
 use super::{flags, CommandArgs, Run};
 
@@ -39,11 +40,11 @@ impl Run for Export {
             .unwrap();
 
         let mut build = String::new();
-        if let Some(b) = &pkg.build {
+        if let Some(b) = pkg.build() {
             build = format!("_{b}");
         }
         let filename = self.filename.clone().unwrap_or_else(|| {
-            std::path::PathBuf::from(format!("{}_{}{build}.spk", pkg.name, pkg.version))
+            std::path::PathBuf::from(format!("{}_{}{build}.spk", pkg.name(), pkg.version()))
         });
         let res = spk::storage::export_package(&pkg, &filename).await;
         if let Err(spk::Error::PackageNotFoundError(_)) = res {

@@ -206,8 +206,7 @@ impl Solution {
             out.insert(
                 format!("SPK_PKG_{}_BUILD", spec.name()),
                 spec.ident()
-                    .build
-                    .as_ref()
+                    .build()
                     .map(|b| b.to_string())
                     .unwrap_or_else(|| "None".to_owned()),
             );

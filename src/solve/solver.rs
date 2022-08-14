@@ -222,7 +222,7 @@ impl Solver {
                 Err(e) => return Err(e),
             };
 
-            let mut compat = request.is_version_applicable(&pkg.version);
+            let mut compat = request.is_version_applicable(pkg.version());
             if !&compat {
                 // Count this version and its builds as incompatible
                 self.number_incompat_versions += 1;
@@ -230,7 +230,7 @@ impl Solver {
 
                 // Skip this version and move on the to next one
                 iterator_lock.set_builds(
-                    &pkg.version,
+                    pkg.version(),
                     Arc::new(tokio::sync::Mutex::new(EmptyBuildIterator::new())),
                 );
                 notes.push(Note::SkipPackageNote(SkipPackageNote::new(
@@ -245,7 +245,7 @@ impl Solver {
                     SortedBuildIterator::new(node.state.get_option_map().clone(), builds.clone())
                         .await?,
                 ));
-                iterator_lock.set_builds(&pkg.version, builds.clone());
+                iterator_lock.set_builds(pkg.version(), builds.clone());
                 builds
             } else {
                 builds
@@ -687,7 +687,7 @@ impl SolverRuntime {
                         for req in &requested_by {
                             if let api::RequestedBy::PackageBuild(problem_package) = req {
                                 self.solver
-                                    .increment_problem_package_count(problem_package.name.to_string())
+                                    .increment_problem_package_count(problem_package.name().to_string())
                             }
                         }
 
@@ -732,7 +732,7 @@ impl SolverRuntime {
                             // made the request for the blocked package.
                             if let api::RequestedBy::PackageBuild(problem_package) = req {
                                 self.solver
-                                    .increment_problem_package_count(problem_package.name.to_string())
+                                    .increment_problem_package_count(problem_package.name().to_string())
                             };
                         }
 

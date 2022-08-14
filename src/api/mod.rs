@@ -37,14 +37,14 @@ pub use build::{parse_build, Build, InvalidBuildError};
 pub(crate) use build::{EMBEDDED, SRC};
 pub use build_key::BuildKey;
 pub use build_spec::BuildSpec;
-pub use builded::{Builded, BuildedExt};
+pub use builded::Builded;
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
 pub use component_spec::{Component, ComponentSpec, FileMatcher};
 pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};
 pub use embedded_packages_list::EmbeddedPackagesList;
 pub use environ::{AppendEnv, EnvOp, PrependEnv, SetEnv};
-pub use ident::{parse_ident, BuildId, Ident, PlacedBuildId};
+pub use ident::{parse_ident, AnyId, BuildId, Ident, PlacedBuildId, VersionId};
 pub use install_spec::InstallSpec;
 pub use meta::Meta;
 pub use name::{
