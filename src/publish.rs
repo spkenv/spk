@@ -1,6 +1,6 @@
 // Copyright (c) 2022 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
-// https://github.com/imageworks/spk
+// https://github.com/imageworks/sp&k
 use std::sync::Arc;
 
 use crate::{
@@ -71,7 +71,7 @@ impl Publisher {
 
     /// Publish the identified package as configured.
     pub async fn publish(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        let recipe_ident = pkg.with_build(None);
+        let recipe_ident = pkg.clone().into_inner().into_version();
         tracing::info!("loading recipe: {}", recipe_ident.format_ident());
         match with_cache_policy!(self.from, CachePolicy::BypassCache, {
             self.from.read_recipe(&recipe_ident).await
@@ -88,7 +88,7 @@ impl Publisher {
             }
             Err(err) => return Err(err),
             Ok(recipe) => {
-                tracing::info!("publishing recipe: {}", recipe.to_ident().format_ident());
+                tracing::info!("publishing recipe: {}", recipe.ident().format_ident());
                 if self.force {
                     self.to.force_publish_recipe(&recipe).await?;
                 } else {
@@ -99,7 +99,7 @@ impl Publisher {
                         Err(err) => {
                             return Err(format!(
                                 "Failed to publish recipe {}: {err}",
-                                recipe.to_ident()
+                                recipe.ident()
                             )
                             .into())
                         }
@@ -108,13 +108,14 @@ impl Publisher {
             }
         }
 
-        let builds = if pkg.build().is_none() {
-            with_cache_policy!(self.from, CachePolicy::BypassCache, {
-                self.from.list_package_builds(pkg)
-            })
-            .await?
-        } else {
-            vec![pkg.to_owned()]
+        let builds = match pkg.clone().try_into_build() {
+            Ok(build_ident) => vec![build_ident],
+            Err(_) => {
+                with_cache_policy!(self.from, CachePolicy::BypassCache, {
+                    self.from.list_package_builds(&recipe_ident)
+                })
+                .await?
+            }
         };
 
         for build in builds.iter() {
@@ -149,6 +150,6 @@ impl Publisher {
             self.to.publish_package(&spec, &components).await?;
         }
 
-        Ok(builds)
+        Ok(builds.into_iter().map(|i| i.into_any()).collect())
     }
 }

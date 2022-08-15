@@ -151,11 +151,17 @@ impl TemplateExt for SpecTemplate {
 #[enum_dispatch(Named, Versioned, Deprecate, DeprecateMut)]
 pub enum SpecRecipe {
     #[serde(rename = "v0/package")]
-    V0Package(super::v0::Spec),
+    V0Package(super::v0::Spec<super::VersionId>),
 }
 
 impl super::Recipe for SpecRecipe {
     type Output = Spec;
+
+    fn ident(&self) -> &super::VersionIdent {
+        match self {
+            SpecRecipe::V0Package(r) => r.ident(),
+        }
+    }
 
     fn default_variants(&self) -> &Vec<super::OptionMap> {
         match self {
@@ -240,7 +246,7 @@ impl<'de> Deserialize<'de> for SpecRecipe {
 #[enum_dispatch(Named, Versioned, Deprecate, DeprecateMut, Package)]
 pub enum Spec {
     #[serde(rename = "v0/package")]
-    V0Package(super::v0::Spec),
+    V0Package(super::v0::Spec<super::BuildId>),
 }
 
 impl<'de> Deserialize<'de> for Spec {

@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    api::{self, Ident},
+    api::{self, VersionIdent},
     prelude::*,
     storage, Error, Result,
 };
@@ -34,7 +34,7 @@ impl PackageSource {
         matches!(self, Self::BuildFromSource { .. })
     }
 
-    pub async fn read_recipe(&self, ident: &Ident) -> Result<Arc<api::SpecRecipe>> {
+    pub async fn read_recipe(&self, ident: &VersionIdent) -> Result<Arc<api::SpecRecipe>> {
         match self {
             PackageSource::BuildFromSource { recipe } => Ok(Arc::clone(recipe)),
             PackageSource::Repository { repo, .. } => repo.read_recipe(ident).await,

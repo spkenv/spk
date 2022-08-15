@@ -234,7 +234,7 @@ impl Solver {
                     Arc::new(tokio::sync::Mutex::new(EmptyBuildIterator::new())),
                 );
                 notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                    pkg.clone(),
+                    pkg.clone().into_any(),
                     compat,
                 )));
                 continue;
@@ -266,7 +266,7 @@ impl Solver {
                     if build_from_source {
                         if let PackageSource::Embedded = source {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.ident().clone(),
+                                spec.ident().clone().into_any(),
                                 &compat,
                             )));
                             self.number_builds_skipped += 1;
@@ -277,7 +277,7 @@ impl Solver {
                     compat = self.validate(&node.state, &spec, source)?;
                     if !&compat {
                         notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                            spec.ident().clone(),
+                            spec.ident().clone().into_any(),
                             compat.clone(),
                         )));
                         self.number_builds_skipped += 1;
@@ -285,11 +285,11 @@ impl Solver {
                     }
 
                     let mut decision = if build_from_source {
-                        let recipe = match source.read_recipe(spec.ident()).await {
+                        let recipe = match source.read_recipe(&spec.ident().without_build()).await {
                             Ok(r) if r.is_deprecated() => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
-                                        pkg.clone(),
+                                        pkg.clone().into_any(),
                                         "cannot build from source, version is deprecated",
                                     ),
                                 ));
@@ -317,7 +317,7 @@ impl Solver {
                                     Err(err) => {
                                         notes.push(Note::SkipPackageNote(
                                             SkipPackageNote::new_from_message(
-                                                spec.ident().clone(),
+                                                spec.ident().clone().into_any(),
                                                 &format!("cannot build package: {err}"),
                                             ),
                                         ));
@@ -331,7 +331,7 @@ impl Solver {
                             Err(err) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
-                                        spec.ident().clone(),
+                                        spec.ident().clone().into_any(),
                                         &format!("cannot resolve build env: {err}"),
                                     ),
                                 ));

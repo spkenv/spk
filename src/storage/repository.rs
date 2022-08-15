@@ -41,10 +41,10 @@ pub trait Repository: Sync {
     ) -> Result<Arc<Vec<Arc<api::Version>>>>;
 
     /// Return the set of builds for the given package name and version.
-    async fn list_package_builds(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>>;
+    async fn list_package_builds(&self, pkg: &api::VersionIdent) -> Result<Vec<api::BuildIdent>>;
 
     /// Returns the set of components published for a package build
-    async fn list_build_components(&self, pkg: &api::Ident) -> Result<Vec<api::Component>>;
+    async fn list_build_components(&self, pkg: &api::BuildIdent) -> Result<Vec<api::Component>>;
 
     /// Return the repository's name, as in "local" or its name in the config file.
     fn name(&self) -> &api::RepositoryName;
@@ -53,7 +53,7 @@ pub trait Repository: Sync {
     ///
     /// # Errors:
     /// - PackageNotFoundError: If the package, or version does not exist
-    async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>>;
+    async fn read_recipe(&self, pkg: &api::VersionIdent) -> Result<Arc<Self::Recipe>>;
 
     /// Publish a package spec to this repository.
     ///
@@ -70,7 +70,7 @@ pub trait Repository: Sync {
     /// This will not remove builds for this package, but will make it unresolvable
     /// and unsearchable. It's recommended that you remove all existing builds
     /// before removing the recipe in order to keep the repository clean.
-    async fn remove_recipe(&self, pkg: &api::Ident) -> Result<()>;
+    async fn remove_recipe(&self, pkg: &api::VersionIdent) -> Result<()>;
 
     /// Publish a package recipe to this repository.
     ///
@@ -84,8 +84,7 @@ pub trait Repository: Sync {
     /// - PackageNotFoundError: If the package, version, or build does not exist
     async fn read_package(
         &self,
-        // TODO: use an ident type that must have a build
-        pkg: &api::Ident,
+        pkg: &api::BuildIdent,
     ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>>;
 
     /// Publish a package to this repository.
@@ -112,17 +111,12 @@ pub trait Repository: Sync {
     /// Remove a package from this repository.
     ///
     /// The given package identifier must identify a full package build.
-    async fn remove_package(
-        &self,
-        // TODO: use an ident type that must have a build
-        pkg: &api::Ident,
-    ) -> Result<()>;
+    async fn remove_package(&self, pkg: &api::BuildIdent) -> Result<()>;
 
     /// Identify the payloads for the identified package's components.
     async fn read_components(
         &self,
-        // TODO: use an ident type that must have a build
-        pkg: &api::Ident,
+        pkg: &api::BuildIdent,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>;
 
     /// Perform any upgrades that are pending on this repository.

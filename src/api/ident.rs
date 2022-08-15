@@ -18,6 +18,9 @@ use super::{
 #[path = "./ident_test.rs"]
 mod ident_test;
 
+pub type BuildIdent = Ident<BuildId>;
+pub type VersionIdent = Ident<VersionId>;
+
 /// Parse an identifier from a string.
 ///
 /// This will panic if the identifier is wrong,
@@ -63,17 +66,6 @@ where
 {
     pub fn new(id: Id) -> Self {
         Self(id)
-    }
-
-    /// Turn this identifier into one for the given build.
-    pub fn into_build(self, build: Build) -> Ident {
-        // TODO: use a trait to allow breaking down and not cloning data
-        // TODO: return a non-null build identifier type
-        Ident(AnyId::Build(BuildId {
-            name: self.name().to_owned(),
-            version: self.version().clone(),
-            build,
-        }))
     }
 
     /// Deconstruct this ident, returning the inner identifier
@@ -302,6 +294,15 @@ where
     }
 }
 
+impl<Id> Ident<Id>
+where
+    Id: Named + Versioned + Into<AnyId>,
+{
+    pub fn into_any(self) -> Ident<AnyId> {
+        Ident(self.into_inner().into())
+    }
+}
+
 /// Identifies a package with variable amounts of specificity.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Ord, PartialOrd)]
 #[enum_dispatch::enum_dispatch(Named, Versioned, VersionedMut, MetadataPath)]
@@ -392,12 +393,31 @@ impl AnyId {
         }
     }
 
+    pub fn into_version(self) -> Ident<VersionId> {
+        match self {
+            AnyId::Version(v) => Ident::new(v),
+            AnyId::Build(b) => b.into_version(),
+        }
+    }
+
+    /// Convert into a [`BuildIdent`], if possible.
+    ///
+    /// A build must be assigned.
+    pub fn try_into_build(self) -> Result<Ident<BuildId>> {
+        match self {
+            AnyId::Version(v) => Err("Ident must contain a build to become a BuildIdent".into()),
+            AnyId::Build(b) => Ok(Ident::new(b)),
+        }
+    }
+
     /// Convert into a [`PlacedBuildId`] with the given [`RepositoryNameBuf`].
     ///
     /// A build must be assigned.
     pub fn try_into_placed(self, repository_name: RepositoryNameBuf) -> Result<PlacedBuildId> {
         match self {
-            AnyId::Version(_) => Err("Ident must contain a build to become a BuildIdent".into()),
+            AnyId::Version(_) => {
+                Err("Ident must contain a build to become a PlacedBuildIdent".into())
+            }
             AnyId::Build(b) => Ok(b.into_placed(repository_name)),
         }
     }
@@ -626,6 +646,22 @@ impl BuildId {
         Ident::new(new)
     }
 
+    /// Return a copy of this identifier but with no associated build
+    pub fn without_build(&self) -> Ident<VersionId> {
+        Ident::new(VersionId {
+            name: self.name.clone(),
+            version: self.version.clone(),
+        })
+    }
+
+    /// Drop the build associated to this identifier
+    pub fn into_version(self) -> Ident<VersionId> {
+        Ident::new(VersionId {
+            name: self.name,
+            version: self.version,
+        })
+    }
+
     /// Convert into a [`BuildId`] with the given [`RepositoryNameBuf`].
     ///
     /// A build must be assigned.
@@ -691,6 +727,16 @@ impl FromStr for BuildId {
 /// Parse a package identifier string.
 pub fn parse_ident<S: AsRef<str>>(source: S) -> Result<Ident> {
     AnyId::from_str(source.as_ref()).map(Ident::new)
+}
+
+/// Parse a version identifier string.
+pub fn parse_version_ident<S: AsRef<str>>(source: S) -> Result<VersionIdent> {
+    VersionId::from_str(source.as_ref()).map(Ident::new)
+}
+
+/// Parse a full build identifier string.
+pub fn parse_build_ident<S: AsRef<str>>(source: S) -> Result<BuildIdent> {
+    BuildId::from_str(source.as_ref()).map(Ident::new)
 }
 
 /// BuildIdent represents a specific package build.

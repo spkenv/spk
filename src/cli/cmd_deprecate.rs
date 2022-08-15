@@ -355,8 +355,8 @@ impl DeprecateMut for DeprecationTarget {
 impl DeprecationTarget {
     fn ident(&self) -> spk::api::Ident {
         match self {
-            DeprecationTarget::Recipe(r) => r.to_ident(),
-            DeprecationTarget::Package(r) => r.ident().clone(),
+            DeprecationTarget::Recipe(r) => r.ident().clone().into(),
+            DeprecationTarget::Package(r) => r.ident().clone().into(),
         }
     }
 }

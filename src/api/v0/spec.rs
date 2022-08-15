@@ -10,7 +10,7 @@ use crate::api::{
     request::is_false, Build, BuildSpec, Compat, Compatibility, Ident, Inheritance, InstallSpec,
     Meta, Opt, OptionMap, Package, PkgRequest, Recipe, Request, SourceSpec, TestSpec, VarRequest,
 };
-use crate::api::{Named, Versioned, VersionedMut};
+use crate::api::{BuildIdent, Named, Versioned, VersionedMut};
 use crate::{api, Error, Result};
 
 #[cfg(test)]
@@ -18,8 +18,11 @@ use crate::{api, Error, Result};
 mod spec_test;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize)]
-pub struct Spec {
-    pub pkg: Ident,
+pub struct Spec<Id>
+where
+    Id: Named + Versioned,
+{
+    pub pkg: Ident<Id>,
     #[serde(default, skip_serializing_if = "Meta::is_default")]
     pub meta: Meta,
     #[serde(default, skip_serializing_if = "Compat::is_default")]
@@ -36,9 +39,12 @@ pub struct Spec {
     pub install: InstallSpec,
 }
 
-impl Spec {
+impl<Id> Spec<Id>
+where
+    Id: Named + Versioned,
+{
     /// Create an empty spec for the identified package
-    pub fn new(ident: Ident) -> Self {
+    pub fn new(ident: Ident<Id>) -> Self {
         Self {
             pkg: ident,
             meta: Meta::default(),
@@ -135,31 +141,46 @@ impl Spec {
     }
 }
 
-impl Named for Spec {
+impl<Id> Named for Spec<Id>
+where
+    Id: Named + Versioned,
+{
     fn name(&self) -> &api::PkgName {
         self.pkg.name()
     }
 }
 
-impl Versioned for Spec {
+impl<Id> Versioned for Spec<Id>
+where
+    Id: Named + Versioned,
+{
     fn version(&self) -> &api::Version {
         self.pkg.version()
     }
 }
 
-impl VersionedMut for Spec {
+impl<Id> VersionedMut for Spec<Id>
+where
+    Id: Named + Versioned,
+{
     fn set_version(&mut self, version: api::Version) {
         self.pkg.set_version(version)
     }
 }
 
-impl api::Deprecate for Spec {
+impl<Id> api::Deprecate for Spec<Id>
+where
+    Id: Named + Versioned,
+{
     fn is_deprecated(&self) -> bool {
         self.deprecated
     }
 }
 
-impl api::DeprecateMut for Spec {
+impl<Id> api::DeprecateMut for Spec<Id>
+where
+    Id: Named + Versioned,
+{
     fn deprecate(&mut self) -> Result<()> {
         self.deprecated = true;
         Ok(())
@@ -171,8 +192,8 @@ impl api::DeprecateMut for Spec {
     }
 }
 
-impl Package for Spec {
-    fn ident(&self) -> &Ident {
+impl Package for Spec<api::BuildId> {
+    fn ident(&self) -> &BuildIdent {
         &self.pkg
     }
 
@@ -223,8 +244,12 @@ impl Package for Spec {
     }
 }
 
-impl Recipe for Spec {
-    type Output = Self;
+impl Recipe for Spec<api::VersionId> {
+    type Output = Spec<api::BuildId>;
+
+    fn ident(&self) -> &api::VersionIdent {
+        &self.pkg
+    }
 
     fn default_variants(&self) -> &Vec<OptionMap> {
         &self.build.variants
@@ -260,7 +285,7 @@ impl Recipe for Spec {
                     let given_value = options.get(opt.pkg.as_opt_name()).map(String::to_owned);
                     let mut req = opt.to_request(
                         given_value,
-                        api::RequestedBy::BinaryBuild(Recipe::to_ident(self)),
+                        api::RequestedBy::BinaryBuild(Recipe::ident(self)),
                     )?;
                     if req.pkg.components.is_empty() {
                         // inject the default component for this context if needed
@@ -287,7 +312,7 @@ impl Recipe for Spec {
         Ok(self.tests.clone())
     }
 
-    fn generate_source_build(&self, root: &Path) -> Result<Self> {
+    fn generate_source_build(&self, root: &Path) -> Result<Spec<api::BuildId>> {
         // TODO: remove all things that would cause this to not resolve
         //       after solver no longer treats source packages differently
         let mut source = self.clone();
@@ -297,14 +322,23 @@ impl Recipe for Spec {
                 source.path = root.join(&source.path);
             }
         }
-        Ok(source)
+        Ok(Spec {
+            pkg: source.pkg.into_build(Build::Source),
+            meta: source.meta,
+            compat: source.compat,
+            deprecated: source.deprecated,
+            sources: source.sources,
+            build: source.build,
+            tests: source.tests,
+            install: source.install,
+        })
     }
 
     fn generate_binary_build(
         &self,
         options: &OptionMap,
         build_env: &crate::solve::Solution,
-    ) -> Result<Self> {
+    ) -> Result<Spec<api::BuildId>> {
         let mut updated = self.clone();
         let specs: HashMap<_, _> = build_env
             .items()
@@ -374,12 +408,23 @@ impl Recipe for Spec {
             .install
             .render_all_pins(options, specs.iter().map(|(_, s)| s.as_ref().ident()))?;
         let digest = updated.resolve_options(options)?.digest();
-        updated.pkg.set_build(Some(Build::Digest(digest)));
-        Ok(updated)
+        Ok(Spec {
+            pkg: updated.pkg.into_build(Build::Digest(digest)),
+            meta: updated.meta,
+            compat: updated.compat,
+            deprecated: updated.deprecated,
+            sources: updated.sources,
+            build: updated.build,
+            tests: updated.tests,
+            install: updated.install,
+        })
     }
 }
 
-impl<'de> Deserialize<'de> for Spec {
+impl<'de, Id> Deserialize<'de> for Spec<Id>
+where
+    Id: Named + Versioned + TryFrom<api::AnyId>,
+{
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::de::Deserializer<'de>,
@@ -414,7 +459,7 @@ impl<'de> Deserialize<'de> for Spec {
             .map_err(|err| serde::de::Error::custom(format!("spec.build: {err}")))?;
 
         Ok(Spec {
-            pkg: unchecked.pkg,
+            pkg: unchecked.pkg.try_into()?,
             meta: unchecked.meta,
             compat: unchecked.compat,
             deprecated: unchecked.deprecated,

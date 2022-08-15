@@ -9,10 +9,8 @@ mod package_test;
 /// Can be resolved into an environment.
 #[enum_dispatch::enum_dispatch]
 pub trait Package: super::Named + super::Versioned + super::Deprecate + Sync + Send {
-    /// The full identifier for this package
-    ///
-    /// This includes the version and optional build
-    fn ident(&self) -> &super::Ident;
+    /// The full identifier for this package.
+    fn ident(&self) -> &super::BuildIdent;
 
     /// The compatibility guaranteed by this package's version
     fn compat(&self) -> &super::Compat;
@@ -76,7 +74,7 @@ pub trait Package: super::Named + super::Versioned + super::Deprecate + Sync + S
 }
 
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
-    fn ident(&self) -> &super::Ident {
+    fn ident(&self) -> &super::BuildIdent {
         (**self).ident()
     }
 
@@ -126,8 +124,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 }
 
 impl<T: Package + Send + Sync> Package for &T {
-    // TODO: use or find a macro for this
-    fn ident(&self) -> &super::Ident {
+    fn ident(&self) -> &super::BuildIdent {
         (**self).ident()
     }
 

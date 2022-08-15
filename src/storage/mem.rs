@@ -206,7 +206,7 @@ where
         let mut specs = self.specs.write().await;
         let versions = specs.entry(spec.name().to_owned()).or_default();
         if versions.contains_key(spec.version()) {
-            Err(Error::VersionExistsError(spec.to_ident()))
+            Err(Error::VersionExistsError(spec.ident()))
         } else {
             versions.insert(spec.version().clone(), Arc::new(spec.clone()));
             Ok(())

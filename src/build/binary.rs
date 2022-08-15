@@ -88,7 +88,7 @@ where
     /// Create a new builder that builds a binary package from the given recipe
     pub fn from_recipe(recipe: Recipe) -> Self {
         let source =
-            BuildSource::SourcePackage(recipe.to_ident().into_build(api::Build::Source).into());
+            BuildSource::SourcePackage(recipe.ident().into_build(api::Build::Source).into());
         Self {
             recipe,
             source,
@@ -576,7 +576,7 @@ pub async fn commit_component_layers(
 }
 
 fn split_manifest_by_component(
-    pkg: &api::Ident,
+    pkg: &api::BuildIdent,
     manifest: &spfs::tracking::Manifest,
     components: &api::ComponentSpecList,
 ) -> Result<HashMap<api::Component, spfs::tracking::Manifest>> {
@@ -683,7 +683,7 @@ pub fn source_package_path(pkg: &api::Ident) -> RelativePathBuf {
 ///
 /// This file is created during a build and stores the full
 /// package spec of what was built.
-pub fn build_spec_path(pkg: &api::Ident) -> RelativePathBuf {
+pub fn build_spec_path(pkg: &api::BuildIdent) -> RelativePathBuf {
     data_path(pkg).join("spec.yaml")
 }
 
@@ -691,7 +691,7 @@ pub fn build_spec_path(pkg: &api::Ident) -> RelativePathBuf {
 ///
 /// This file is created during a build and stores the set
 /// of build options used when creating the package
-pub fn build_options_path(pkg: &api::Ident) -> RelativePathBuf {
+pub fn build_options_path(pkg: &api::BuildIdent) -> RelativePathBuf {
     data_path(pkg).join("options.json")
 }
 
@@ -699,7 +699,7 @@ pub fn build_options_path(pkg: &api::Ident) -> RelativePathBuf {
 ///
 /// This file is created during a build and stores the bash
 /// script used to build the package contents
-pub fn build_script_path(pkg: &api::Ident) -> RelativePathBuf {
+pub fn build_script_path(pkg: &api::BuildIdent) -> RelativePathBuf {
     data_path(pkg).join("build.sh")
 }
 
@@ -707,7 +707,7 @@ pub fn build_script_path(pkg: &api::Ident) -> RelativePathBuf {
 ///
 /// This file is created during a build and stores the bash
 /// script used to build the package contents
-pub fn component_marker_path(pkg: &api::Ident, name: &api::Component) -> RelativePathBuf {
+pub fn component_marker_path(pkg: &api::BuildIdent, name: &api::Component) -> RelativePathBuf {
     data_path(pkg).join(format!("{}.cmpt", name))
 }
 

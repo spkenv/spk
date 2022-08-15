@@ -20,7 +20,7 @@ pub async fn current_env() -> Result<solve::Solution> {
     let mut solution = solve::Solution::new(None);
     for name in repo.list_packages().await? {
         for version in repo.list_package_versions(&name).await?.iter() {
-            let pkg = api::parse_ident(format!("{name}/{version}"))?;
+            let pkg = api::parse_version_ident(format!("{name}/{version}"))?;
             for pkg in repo.list_package_builds(&pkg).await? {
                 let spec = repo.read_package(&pkg).await?;
                 let components = match repo.read_components(spec.ident()).await {
@@ -31,7 +31,10 @@ pub async fn current_env() -> Result<solve::Solution> {
                     }
                     Err(err) => return Err(err),
                 };
-                let range_ident = api::RangeIdent::equals(spec.ident(), components.keys().cloned());
+                let range_ident = api::RangeIdent::equals(
+                    spec.ident().clone().into_any(),
+                    components.keys().cloned(),
+                );
                 let mut request =
                     api::PkgRequest::new(range_ident, api::RequestedBy::CurrentEnvironment);
                 request.prerelease_policy = api::PreReleasePolicy::IncludeAll;

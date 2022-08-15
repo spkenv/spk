@@ -37,15 +37,8 @@ impl<T: Versioned> Versioned for &T {
 pub trait Recipe: super::Named + Versioned + super::Deprecate + Sync + Send {
     type Output: super::Package;
 
-    /// Build an identifier to represent this recipe.
-    ///
-    /// The returned identifier will not have an associated build.
-    fn to_ident(&self) -> super::Ident {
-        super::Ident::new(AnyId::Version(super::VersionId {
-            name: self.name().to_owned(),
-            version: self.version().clone(),
-        }))
-    }
+    /// The identifier for this recipe.
+    fn ident(&self) -> &super::VersionIdent;
 
     /// Return the default variants to be built for this recipe
     fn default_variants(&self) -> &Vec<super::OptionMap>;
@@ -80,8 +73,8 @@ where
 {
     type Output = T::Output;
 
-    fn to_ident(&self) -> super::Ident {
-        (**self).to_ident()
+    fn ident(&self) -> &super::VersionIdent {
+        (**self).ident()
     }
 
     fn default_variants(&self) -> &Vec<super::OptionMap> {
@@ -119,8 +112,8 @@ where
 {
     type Output = T::Output;
 
-    fn to_ident(&self) -> super::Ident {
-        (**self).to_ident()
+    fn ident(&self) -> &super::Ident<super::VersionId> {
+        (**self).ident()
     }
 
     fn default_variants(&self) -> &Vec<super::OptionMap> {

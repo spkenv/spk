@@ -394,12 +394,12 @@ impl Repository for SPFSRepository {
     }
 
     async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        let tag_path = self.build_spec_tag(&spec.to_ident());
+        let tag_path = self.build_spec_tag(spec.ident());
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
         if self.inner.has_tag(&tag_spec).await {
             // BUG(rbottriell): this creates a race condition but is not super dangerous
             // because of the non-destructive tag history
-            Err(Error::VersionExistsError(spec.to_ident()))
+            Err(Error::VersionExistsError(spec.ident().clone()))
         } else {
             self.force_publish_recipe(spec).await
         }
@@ -419,7 +419,7 @@ impl Repository for SPFSRepository {
     }
 
     async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        let tag_path = self.build_spec_tag(&spec.to_ident());
+        let tag_path = self.build_spec_tag(spec.ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
 
         let payload = serde_yaml::to_vec(&spec).map_err(Error::SpecEncodingError)?;

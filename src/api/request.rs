@@ -11,10 +11,13 @@ use std::{
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use super::version_range::{self, Ranged};
 use super::{
     compat::{API_STR, BINARY_STR},
     Named, Versioned,
+};
+use super::{
+    version_range::{self, Ranged},
+    BuildIdent,
 };
 use super::{
     Build, CompatRule, Compatibility, Component, DoubleEqualsVersion, EqualsVersion, Ident, Opt,
@@ -77,16 +80,16 @@ impl PartialOrd for RangeIdent {
 }
 
 impl RangeIdent {
-    fn new<I>(ident: &super::Ident, version_range: super::VersionRange, components: I) -> Self
+    fn new<I>(name: super::PkgNameBuf, version_range: super::VersionRange, components: I) -> Self
     where
         I: IntoIterator<Item = Component>,
     {
         Self {
             repository_name: None,
-            name: ident.name().to_owned(),
+            name,
             version: super::VersionFilter::single(version_range),
             components: components.into_iter().collect(),
-            build: ident.build().cloned(),
+            build: None,
         }
     }
 
@@ -97,25 +100,27 @@ impl RangeIdent {
     where
         I: IntoIterator<Item = Component>,
     {
-        Self::new(
-            ident,
-            super::DoubleEqualsVersion::from(ident.version().clone()).into(),
+        let (name, version, build) = ident.into_inner().into_parts();
+        let mut range = Self::new(
+            name,
+            super::DoubleEqualsVersion::from(version).into(),
             components,
-        )
+        );
+        range.build = build;
+        range
     }
 
     /// Create a range ident that requests the identified package using `=` semantics.
     ///
     /// The returned range will request the identified components of the given package.
-    pub fn equals<I>(ident: &super::Ident, components: I) -> Self
+    pub fn equals<I>(ident: super::Ident, components: I) -> Self
     where
         I: IntoIterator<Item = Component>,
     {
-        Self::new(
-            ident,
-            super::EqualsVersion::from(ident.version().clone()).into(),
-            components,
-        )
+        let (name, version, build) = ident.into_inner().into_parts();
+        let mut range = Self::new(name, super::EqualsVersion::from(version).into(), components);
+        range.build = build;
+        range
     }
 
     pub fn name(&self) -> &PkgName {
@@ -680,15 +685,15 @@ pub enum RequestedBy {
     /// Embedded in another package
     Embedded,
     /// A source package that made the request during a source build resolve
-    SourceBuild(Ident),
+    SourceBuild(BuildIdent),
     /// A package that made the request as part of a binary build env setup
-    BinaryBuild(Ident),
+    BinaryBuild(BuildIdent),
     /// A source package that a made the request during a source test
-    SourceTest(Ident),
+    SourceTest(BuildIdent),
     /// The source package that made the request during a build test
-    BuildTest(Ident),
+    BuildTest(BuildIdent),
     /// The package that made the request to set up an install test
-    InstallTest(Ident),
+    InstallTest(BuildIdent),
     /// The request was made for the current environment, so from a
     /// previous spk solve which does not keep past requester data,
     /// and there isn't anymore information
@@ -710,7 +715,7 @@ pub enum RequestedBy {
     #[cfg(test)]
     SpkInternalTest,
     /// A package build that made the request, usually during a solve
-    PackageBuild(Ident),
+    PackageBuild(BuildIdent),
 }
 
 impl std::fmt::Display for RequestedBy {

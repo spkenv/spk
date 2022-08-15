@@ -64,7 +64,7 @@ const BUILD_SORT_TARGET: &str = "build_sort";
 dyn_clone::clone_trait_object!(BuildIterator);
 
 type PackageIteratorItem = (
-    api::Ident,
+    api::VersionIdent,
     Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>,
 );
 
@@ -273,7 +273,7 @@ impl RepositoryPackageIterator {
 #[derive(Clone, Debug)]
 pub struct RepositoryBuildIterator {
     builds: VecDeque<(
-        api::Ident,
+        api::BuildIdent,
         HashMap<api::RepositoryNameBuf, Arc<storage::RepositoryHandle>>,
     )>,
     recipe: Option<Arc<api::SpecRecipe>>,
@@ -311,11 +311,6 @@ impl BuildIterator for RepositoryBuildIterator {
                 Err(err) => return Err(err),
             };
 
-            if spec.ident().build().is_none() {
-                tracing::warn!("Published spec is corrupt (has no associated build), pkg={build}",);
-                return self.next().await;
-            }
-
             result.insert(
                 repo_name.clone(),
                 (
@@ -342,11 +337,11 @@ impl BuildIterator for RepositoryBuildIterator {
 
 impl RepositoryBuildIterator {
     async fn new(
-        pkg: api::Ident,
+        pkg: api::VersionIdent,
         repos: HashMap<api::RepositoryNameBuf, Arc<storage::RepositoryHandle>>,
     ) -> Result<Self> {
         let mut builds_and_repos: HashMap<
-            api::Ident,
+            api::BuildIdent,
             HashMap<api::RepositoryNameBuf, Arc<storage::RepositoryHandle>>,
         > = HashMap::new();
 

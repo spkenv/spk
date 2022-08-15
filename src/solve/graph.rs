@@ -284,7 +284,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             .flat_map(|embedded| {
                 [
                     Change::RequestPackage(RequestPackage::new(api::PkgRequest::from_ident(
-                        embedded.ident().clone(),
+                        embedded.ident().clone().into_any(),
                         api::RequestedBy::Embedded,
                     ))),
                     Change::SetPackage(Box::new(SetPackage::new(

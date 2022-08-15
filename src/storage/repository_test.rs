@@ -133,7 +133,7 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
         repo.list_package_builds(spec.ident()).await.unwrap(),
         [spec.ident().clone()]
     );
-    assert_eq!(*repo.read_recipe(&recipe.to_ident()).await.unwrap(), recipe);
+    assert_eq!(*repo.read_recipe(recipe.ident()).await.unwrap(), recipe);
     repo.publish_package(
         &spec,
         &vec![(api::Component::Run, empty_layer_digest())]
@@ -146,7 +146,7 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
         repo.list_package_builds(spec.ident()).await.unwrap(),
         vec![spec.ident().clone()]
     );
-    assert_eq!(*repo.read_recipe(&recipe.to_ident()).await.unwrap(), recipe);
+    assert_eq!(*repo.read_recipe(&recipe.ident()).await.unwrap(), recipe);
     repo.remove_package(api::Package::ident(&spec))
         .await
         .unwrap();

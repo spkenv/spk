@@ -122,7 +122,7 @@ impl Run for MakeBinary {
 
             tracing::info!("rendering template for {}", template.name());
             let recipe = template.render(&options)?;
-            let ident = recipe.to_ident();
+            let ident = recipe.ident();
 
             tracing::info!("saving package recipe for {}", ident.format_ident());
             local.force_publish_recipe(&recipe).await?;
@@ -138,7 +138,7 @@ impl Run for MakeBinary {
                     anyhow::bail!(
                         "--variant {index} is out of range; {} variant(s) found in {}",
                         recipe.default_variants().len(),
-                        recipe.to_ident().format_ident(),
+                        recipe.ident().format_ident(),
                     );
                 }
                 None => recipe.default_variants().iter().skip(0).take(usize::MAX),

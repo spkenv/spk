@@ -355,7 +355,7 @@ pub fn format_change(
                             // display what requested them.
                             match &c.source {
                                 solve::PackageSource::BuildFromSource { recipe } => {
-                                    vec![api::RequestedBy::PackageBuild(recipe.to_ident())
+                                    vec![api::RequestedBy::PackageBuild(recipe.ident().clone())
                                         .to_string()]
                                 }
                                 solve::PackageSource::Embedded => {
@@ -569,7 +569,7 @@ where
                         use solve::graph::Change::*;
                         match change {
                             SetPackage(change) => {
-                                if change.spec.ident().build() == Some(&api::Build::Embedded) {
+                                if change.spec.ident().build().is_embedded() {
                                     fill = ".";
                                 } else {
                                     fill = ">";
