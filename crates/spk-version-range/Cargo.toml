@@ -1,0 +1,23 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spk-version-range"
+version = "0.36.0"
+
+[lib]
+name = "spk_version_range"
+path = "src/lib.rs"
+
+[dependencies]
+enum_dispatch = "0.3.8"
+itertools = "0.10"
+nom = "7.1"
+nom-supreme = "0.8"
+spk-spec-ops = { path = "../spk-spec-ops" }
+spk-version = { path = "../spk-version" }
+thiserror = "1.0"
+
+[dev-dependencies]
+proptest = "1.0.0"
+rstest = "0.15.0"
+spk-spec = { path = "../spk-spec" }
