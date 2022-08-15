@@ -1,4 +1,5 @@
 pkg: mpc/1.1.0
+api: v0/package
 
 sources:
   - tar: http://ftpmirror.gnu.org/gnu/mpc/mpc-1.1.0.tar.gz

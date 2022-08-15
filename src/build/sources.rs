@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 use thiserror::Error;
 
@@ -11,7 +11,7 @@ use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
 
 use super::env::data_path;
-use crate::{api, storage, Result};
+use crate::{api, prelude::*, storage, Error, Result};
 
 #[cfg(test)]
 #[path = "./sources_test.rs"]
@@ -37,76 +37,81 @@ impl CollectionError {
 /// ```no_run
 /// # #[macro_use] extern crate spk;
 /// # async fn demo() {
-/// spk::build::SourcePackageBuilder::from_spec(spk::spec!({
+/// spk::build::SourcePackageBuilder::from_recipe(spk::recipe!({
 ///        "pkg": "my-pkg",
 ///     }))
-///    .build()
+///    .build(".")
 ///    .await
 ///    .unwrap();
 /// # }
 /// ```
-pub struct SourcePackageBuilder {
-    spec: api::Spec,
-    repo: Option<Arc<storage::RepositoryHandle>>,
+pub struct SourcePackageBuilder<Recipe: api::Recipe> {
+    recipe: Recipe,
     prefix: PathBuf,
 }
 
-impl SourcePackageBuilder {
-    pub fn from_spec(mut spec: api::Spec) -> Self {
-        spec.pkg = spec.pkg.with_build(Some(api::Build::Source));
+impl<Recipe: api::Recipe> SourcePackageBuilder<Recipe> {
+    pub fn from_recipe(recipe: Recipe) -> Self {
         Self {
-            spec,
-            repo: None,
+            recipe,
             prefix: PathBuf::from("/spfs"),
         }
     }
 
-    /// Set the repository that the created package should be published to.
-    pub fn with_target_repository(
+    pub async fn build_and_publish<P, R, T>(
         &mut self,
-        repo: impl Into<Arc<storage::RepositoryHandle>>,
-    ) -> &mut Self {
-        self.repo = Some(repo.into());
-        self
+        root: P,
+        repo: &R,
+    ) -> Result<(
+        Recipe::Output,
+        HashMap<api::Component, spfs::encoding::Digest>,
+    )>
+    where
+        P: AsRef<Path>,
+        R: std::ops::Deref<Target = T>,
+        T: storage::Repository<Recipe = Recipe> + ?Sized,
+    {
+        let (package, components) = self.build(root).await?;
+        repo.publish_package(&package, &components).await?;
+        Ok((package, components))
     }
 
     /// Build the requested source package.
-    pub async fn build(&mut self) -> Result<api::BuildIdent> {
-        let layer = self.collect_and_commit_sources().await?;
-        let repo = match &mut self.repo {
-            Some(r) => r,
-            None => {
-                let repo = storage::local_repository().await?;
-                self.repo.insert(Arc::new(repo.into()))
-            }
-        };
-        // Capture the repository name we published the source package to into
-        // the BuildIdent so it will be resolved later from the same repo and not
-        // unexpectedly from some other repo.
-        let pkg = self
-            .spec
-            .pkg
-            .clone()
-            .try_into_build_ident(repo.name().to_owned())?;
+    pub async fn build<P: AsRef<Path>>(
+        &self,
+        root: P,
+    ) -> Result<(
+        Recipe::Output,
+        HashMap<api::Component, spfs::encoding::Digest>,
+    )> {
+        let package = self.recipe.generate_source_build(root.as_ref())?;
+        let layer = self.collect_and_commit_sources(&package).await?;
+        if !package.ident().is_source() {
+            return Err(Error::String(format!(
+                "Recipe generate source package with non-source identifier {}",
+                package.ident()
+            )));
+        }
         let mut components = std::collections::HashMap::with_capacity(1);
         components.insert(api::Component::Source, layer.digest()?);
-        repo.publish_package(&self.spec, components).await?;
-        Ok(pkg)
+        Ok((package, components))
     }
 
     /// Collect sources for the given spec and commit them into an spfs layer.
-    async fn collect_and_commit_sources(&self) -> Result<spfs::graph::Layer> {
+    async fn collect_and_commit_sources(
+        &self,
+        package: &Recipe::Output,
+    ) -> Result<spfs::graph::Layer> {
+        let repo = spfs::get_config()?.get_local_repository_handle().await?;
         let mut runtime = spfs::active_runtime().await?;
-        let config = spfs::get_config()?;
-        let repo = config.get_local_repository_handle().await?;
         runtime.reset_all()?;
         runtime.status.editable = true;
         runtime.status.stack.clear();
         runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
 
-        let source_dir = data_path(&self.spec.pkg).to_path(&self.prefix);
-        collect_sources(&self.spec, &source_dir)?;
+        let source_dir = data_path(package.ident()).to_path(&self.prefix);
+        collect_sources(package, &source_dir)?;
 
         tracing::info!("Validating source package contents...");
         let diffs = spfs::diff(None, None).await?;
@@ -121,12 +126,12 @@ impl SourcePackageBuilder {
 }
 
 /// Collect the sources for a spec in the given directory.
-pub(super) fn collect_sources<P: AsRef<Path>>(spec: &api::Spec, source_dir: P) -> Result<()> {
+pub(super) fn collect_sources<P: AsRef<Path>>(spec: &impl Package, source_dir: P) -> Result<()> {
     let source_dir = source_dir.as_ref();
     std::fs::create_dir_all(&source_dir)?;
 
     let env = super::binary::get_package_build_env(spec);
-    for source in spec.sources.iter() {
+    for source in spec.sources().iter() {
         let target_dir = match source.subdir() {
             Some(subdir) => subdir.to_path(source_dir),
             None => source_dir.into(),

@@ -1,5 +1,6 @@
 pkg: libraw/0.20.0+r.1
-  # - name: LibRaw
+api: v0/package
+ # - name: LibRaw
   # - description: "Library for reading DSLR raw images"
   # - url: https://www.libraw.org/
   # - license: [ "LGPL-2.1", "CDDL-1.0" ]

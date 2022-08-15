@@ -1,5 +1,6 @@
 pkg: python/3.7.3
-sources:
+api: v0/package
+ources:
   - git: https://github.com/python/cpython
     ref: v3.7.3
 build:

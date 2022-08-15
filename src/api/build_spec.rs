@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use super::{Compatibility, Opt, OptionMap, PkgName, ValidationSpec};
+use super::{Opt, OptionMap, ValidationSpec};
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
@@ -47,61 +47,6 @@ impl BuildSpec {
         variants.get(0) == Some(&OptionMap::default())
     }
 
-    pub fn resolve_all_options(
-        &self,
-        package_name: Option<&PkgName>,
-        given: &OptionMap,
-    ) -> OptionMap {
-        let mut resolved = OptionMap::default();
-        for opt in self.options.iter() {
-            let name = opt.full_name();
-            let mut given_value: Option<&String> = None;
-
-            if let Some(package_name) = package_name {
-                given_value = given.get(&name.with_default_namespace(package_name))
-            }
-            if given_value.is_none() {
-                given_value = given.get(name)
-            }
-
-            let value = opt.get_value(given_value.map(String::as_ref));
-            resolved.insert(name.to_owned(), value);
-        }
-
-        resolved
-    }
-
-    /// Validate the given options against the options in this spec.
-    pub fn validate_options(
-        &self,
-        package_name: &PkgName,
-        given_options: &OptionMap,
-    ) -> Compatibility {
-        let mut must_exist = given_options.package_options_without_global(&package_name);
-        let given_options = given_options.package_options(&package_name);
-        for option in self.options.iter() {
-            let full_name = option.full_name();
-            let value = given_options.get(full_name).map(String::as_str);
-            let compat = option.validate(value);
-            if !compat.is_ok() {
-                return Compatibility::Incompatible(format!(
-                    "invalid value for {full_name}: {compat}",
-                ));
-            }
-
-            must_exist.remove(full_name);
-        }
-
-        if !must_exist.is_empty() {
-            let missing = must_exist;
-            return Compatibility::Incompatible(format!(
-                "Package does not define requested build options: {missing:?}",
-            ));
-        }
-
-        Compatibility::Compatible
-    }
-
     /// Add or update an option in this build spec.
     ///
     /// An option is replaced if it shares a name with the given option,
@@ -127,9 +72,7 @@ impl<'de> Deserialize<'de> for BuildSpec {
         let mut variant_builds = Vec::new();
         let mut unique_variants = HashSet::new();
         for variant in bs.variants.iter() {
-            let mut build_opts = variant.clone();
-            build_opts.append(&mut bs.resolve_all_options(None, variant));
-            let digest = build_opts.digest();
+            let digest = variant.digest();
             variant_builds.push((digest, variant.clone()));
             unique_variants.insert(digest);
         }

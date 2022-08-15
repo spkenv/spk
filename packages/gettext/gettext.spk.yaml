@@ -1,4 +1,5 @@
 pkg: gettext/0.21
+api: v0/package
 
 sources:
   - tar: https://ftpmirror.gnu.org/pub/gnu/gettext/gettext-0.21.tar.gz

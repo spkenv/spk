@@ -1,5 +1,6 @@
 pkg: llvm/12.0.1+r.1
-  # - name: "LLVM+Clang"
+api: v0/package
+ # - name: "LLVM+Clang"
   # - description: "LLVM compiler infrastructure and Clang compiler and tools"
   # - license: "Apache-2.0 WITH LLVM-exception"
   # - url: https://llvm.org

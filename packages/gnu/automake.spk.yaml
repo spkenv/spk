@@ -1,4 +1,5 @@
 pkg: automake/1.16
+api: v0/package
 
 sources:
   - tar: http://ftpmirror.gnu.org/gnu/automake/automake-1.16.tar.gz

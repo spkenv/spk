@@ -13,3 +13,8 @@ home = [ "HTML", "RSS", "JSON"]
 
 [markup.goldmark.renderer]
 unsafe = true # for raw html
+
+[module]
+[[module.mounts]]
+source = 'static'
+target = 'assets/static'

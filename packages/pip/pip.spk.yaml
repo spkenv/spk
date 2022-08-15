@@ -1,5 +1,5 @@
 pkg: python-pip/22.0.4
-
+api: v0/package
 build:
   options:
     - pkg: python

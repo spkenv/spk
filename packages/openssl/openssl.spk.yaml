@@ -1,5 +1,5 @@
 pkg: openssl/1.1.1+r.13 # m=13
-
+api: v0/package
 sources:
   - tar: https://www.openssl.org/source/openssl-1.1.1m.tar.gz
 

@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
 use clap::Args;
+use spk::api::TemplateExt;
 use spk::io::Format;
+use spk::prelude::*;
 
 use super::{flags, CommandArgs, Run};
 
@@ -16,6 +18,9 @@ use super::{flags, CommandArgs, Run};
 pub struct MakeSource {
     #[clap(flatten)]
     pub runtime: flags::Runtime,
+
+    #[clap(flatten)]
+    pub options: flags::Options,
 
     #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u32,
@@ -35,6 +40,8 @@ impl Run for MakeSource {
 impl MakeSource {
     pub(crate) async fn make_source(&mut self) -> Result<Vec<spk::api::BuildIdent>> {
         let _runtime = self.runtime.ensure_active_runtime().await?;
+        let local: spk::storage::RepositoryHandle = spk::storage::local_repository().await?.into();
+        let options = self.options.get_options()?;
 
         let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();
         if packages.is_empty() {
@@ -44,26 +51,40 @@ impl MakeSource {
         let mut idents = Vec::new();
 
         for package in packages.into_iter() {
-            let spec = match flags::find_package_spec(&package)? {
-                flags::FindPackageSpecResult::NotFound(name) => {
+            let template = match flags::find_package_template(&package)? {
+                flags::FindPackageTemplateResult::NotFound(name) => {
                     // TODO:: load from given repos
-                    Arc::new(spk::api::read_spec_file(name)?)
+                    Arc::new(spk::api::SpecTemplate::from_file(name.as_ref())?)
                 }
                 res => {
-                    let (_, spec) = res.must_be_found();
-                    tracing::info!("saving spec file {}", spec.pkg.format_ident());
-                    spk::save_spec(&spec).await?;
-                    spec
+                    let (_, template) = res.must_be_found();
+                    template
                 }
             };
+            let root = template
+                .file_path()
+                .parent()
+                .map(ToOwned::to_owned)
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-            tracing::info!("collecting sources for {}", spec.pkg.format_ident());
-            let out = spk::build::SourcePackageBuilder::from_spec((*spec).clone())
-                .build()
+            tracing::info!("rendering template for {}", template.name());
+            let recipe = template.render(&options)?;
+            let ident = recipe.to_ident();
+
+            tracing::info!("saving package recipe for {}", ident.format_ident());
+            local.force_publish_recipe(&recipe).await?;
+
+            tracing::info!("collecting sources for {}", ident.format_ident());
+            let (out, _components) = spk::build::SourcePackageBuilder::from_recipe(recipe)
+                .build_and_publish(root, &local)
                 .await
                 .context("Failed to collect sources")?;
-            tracing::info!("created {}", out.format_ident());
-            idents.push(out)
+            tracing::info!("created {}", out.ident().format_ident());
+            idents.push(
+                out.ident()
+                    .clone()
+                    .try_into_build_ident(local.name().to_owned())?,
+            );
         }
         Ok(idents)
     }

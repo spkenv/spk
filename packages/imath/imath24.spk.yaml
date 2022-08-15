@@ -1,4 +1,5 @@
 pkg: imath/2.4.0+r.1
+api: v0/package
   # - name: "Imath"
   # - description: "Basic vector, matrix, and math for 3D graphics"
   # - license: BSD-3-clause
@@ -26,4 +27,3 @@ install:
     - pkg: stdfs
     - pkg: openexr
       fromBuildEnv: x.x
-

@@ -8,7 +8,8 @@ use std::{
 
 use crate::{
     api::{self, Ident},
-    storage, Result,
+    prelude::*,
+    storage, Error, Result,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -19,33 +20,46 @@ pub enum PackageSource {
         /// the components that can be used for this package from the repository
         components: HashMap<api::Component, spfs::encoding::Digest>,
     },
-    // A package comes from another spec if it is either an embedded
-    // package or represents a package to be built from source. In the
-    // latter case, this spec is the original source spec that should
-    // be used as the basis for the package build.
-    Spec(Arc<api::Spec>),
+    /// The package needs to be build from the given recipe.
+    BuildFromSource {
+        /// The recipe that this package is to be built from.
+        recipe: Arc<api::SpecRecipe>,
+    },
+    /// The package was embedded in another.
+    Embedded, // TODO: should this reference the source? (it makes the graph code uglier)
 }
 
 impl PackageSource {
-    pub async fn read_spec(&self, ident: &Ident) -> Result<Arc<api::Spec>> {
+    pub fn is_build_from_source(&self) -> bool {
+        matches!(self, Self::BuildFromSource { .. })
+    }
+
+    pub async fn read_recipe(&self, ident: &Ident) -> Result<Arc<api::SpecRecipe>> {
         match self {
-            PackageSource::Spec(s) => Ok(Arc::clone(s)),
-            PackageSource::Repository { repo, .. } => repo.read_spec(ident).await,
+            PackageSource::BuildFromSource { recipe } => Ok(Arc::clone(recipe)),
+            PackageSource::Repository { repo, .. } => repo.read_recipe(ident).await,
+            PackageSource::Embedded => {
+                // TODO: what are the implications of this?
+                Err(Error::String("Embedded package has no recipe".into()))
+            }
         }
     }
 }
 
 impl Ord for PackageSource {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        use PackageSource::*;
         match (self, other) {
-            (this @ PackageSource::Repository { .. }, other @ PackageSource::Repository { .. }) => {
+            (this @ Repository { .. }, other @ Repository { .. }) => this.cmp(other),
+            (Repository { .. }, BuildFromSource { .. } | Embedded) => Ordering::Less,
+            (BuildFromSource { .. } | Embedded, Repository { .. }) => Ordering::Greater,
+            (Embedded, Embedded) => Ordering::Equal,
+            (Embedded, BuildFromSource { .. }) => Ordering::Less,
+            (BuildFromSource { .. }, Embedded) => Ordering::Greater,
+            (BuildFromSource { recipe: this }, BuildFromSource { recipe: other }) => {
                 this.cmp(other)
             }
-            (PackageSource::Repository { .. }, PackageSource::Spec(_)) => std::cmp::Ordering::Less,
-            (PackageSource::Spec(_), PackageSource::Repository { .. }) => {
-                std::cmp::Ordering::Greater
-            }
-            (PackageSource::Spec(this), PackageSource::Spec(other)) => this.cmp(other),
         }
     }
 }
@@ -65,15 +79,12 @@ pub struct SolvedRequest {
 
 impl SolvedRequest {
     pub fn is_source_build(&self) -> bool {
-        match &self.source {
-            PackageSource::Repository { .. } => false,
-            PackageSource::Spec(spec) => spec.pkg == self.spec.pkg.with_build(None),
-        }
+        matches!(self.source, PackageSource::BuildFromSource { .. })
     }
 }
 
 /// Represents a set of resolved packages.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Solution {
     options: api::OptionMap,
     resolved: HashMap<api::PkgRequest, (Arc<api::Spec>, PackageSource)>,
@@ -123,9 +134,7 @@ impl Solution {
     pub fn options(&self) -> api::OptionMap {
         self.options.clone()
     }
-}
 
-impl Solution {
     /// The number of packages in this solution
     #[inline]
     pub fn len(&self) -> usize {
@@ -163,7 +172,7 @@ impl Solution {
         for (_, source) in self.resolved.values() {
             if let PackageSource::Repository { repo, .. } = source {
                 let addr = repo.address();
-                if seen.contains(&addr) {
+                if seen.contains(addr) {
                     continue;
                 }
                 repos.push(repo.clone());
@@ -189,35 +198,34 @@ impl Solution {
 
         out.insert("SPK_ACTIVE_PREFIX".to_owned(), "/spfs".to_owned());
         for (_request, (spec, _source)) in self.resolved.iter() {
-            out.insert(format!("SPK_PKG_{}", spec.pkg.name), spec.pkg.to_string());
+            out.insert(format!("SPK_PKG_{}", spec.name()), spec.ident().to_string());
             out.insert(
-                format!("SPK_PKG_{}_VERSION", spec.pkg.name),
-                spec.pkg.version.to_string(),
+                format!("SPK_PKG_{}_VERSION", spec.name()),
+                spec.version().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_BUILD", spec.pkg.name),
-                spec.pkg
+                format!("SPK_PKG_{}_BUILD", spec.name()),
+                spec.ident()
                     .build
                     .as_ref()
                     .map(|b| b.to_string())
                     .unwrap_or_else(|| "None".to_owned()),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_MAJOR", spec.pkg.name),
-                spec.pkg.version.major().to_string(),
+                format!("SPK_PKG_{}_VERSION_MAJOR", spec.name()),
+                spec.version().major().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_MINOR", spec.pkg.name),
-                spec.pkg.version.minor().to_string(),
+                format!("SPK_PKG_{}_VERSION_MINOR", spec.name()),
+                spec.version().minor().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_PATCH", spec.pkg.name),
-                spec.pkg.version.patch().to_string(),
+                format!("SPK_PKG_{}_VERSION_PATCH", spec.name()),
+                spec.version().patch().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_BASE", spec.pkg.name),
-                spec.pkg
-                    .version
+                format!("SPK_PKG_{}_VERSION_BASE", spec.name()),
+                spec.version()
                     .parts
                     .iter()
                     .map(|v| v.to_string())

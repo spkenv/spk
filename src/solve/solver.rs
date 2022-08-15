@@ -16,7 +16,8 @@ use futures::{Stream, TryStreamExt};
 use priority_queue::priority_queue::PriorityQueue;
 
 use crate::{
-    api::{self, Build, Component, OptionMap, PkgName, Request},
+    api::{self, Build, OptionMap, PkgName, Request},
+    prelude::*,
     solve::graph::StepBack,
     storage, Error, Result,
 };
@@ -169,7 +170,7 @@ impl Solver {
     }
 
     #[async_recursion::async_recursion]
-    async fn resolve_new_build(&self, spec: &api::Spec, state: &State) -> Result<Solution> {
+    async fn resolve_new_build(&self, recipe: &api::SpecRecipe, state: &State) -> Result<Solution> {
         let mut opts = state.get_option_map().clone();
         for pkg_request in state.get_pkg_requests() {
             if !opts.contains_key(pkg_request.pkg.name.as_opt_name()) {
@@ -190,7 +191,7 @@ impl Solver {
             ..Default::default()
         };
         solver.update_options(opts.clone());
-        solver.solve_build_environment(spec).await
+        solver.solve_build_environment(recipe).await
     }
 
     async fn step_state(&mut self, node: &mut Arc<Node>) -> Result<Option<Decision>> {
@@ -257,65 +258,67 @@ impl Solver {
                 self.number_total_builds += 1;
 
                 // Try all the hash map values to check all repos.
-                for (spec, repo) in hm.values() {
-                    let mut spec = Arc::clone(spec);
+                for (spec, source) in hm.values() {
+                    let spec = Arc::clone(spec);
 
-                    let build_from_source = spec.pkg.build == Some(Build::Source)
-                        && request.pkg.build != Some(Build::Source);
+                    let build_from_source =
+                        spec.ident().is_source() && request.pkg.build != Some(Build::Source);
                     if build_from_source {
-                        if let PackageSource::Spec(spec) = repo {
+                        if let PackageSource::Embedded = source {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.pkg.clone(),
-                                "cannot build embedded source package",
+                                spec.ident().clone(),
+                                &compat,
                             )));
                             self.number_builds_skipped += 1;
                             continue;
                         }
-
-                        match repo.read_spec(&spec.pkg.with_build(None)).await {
-                            Ok(s) => spec = s,
-                            Err(Error::PackageNotFoundError(pkg)) => {
-                                notes.push(Note::SkipPackageNote(
-                                    SkipPackageNote::new_from_message(
-                                        pkg,
-                                        "cannot build from source, version spec not available",
-                                    ),
-                                ));
-                                continue;
-                            }
-                            Err(err) => return Err(err),
-                        }
                     }
 
-                    compat = self.validate(
-                        &node.state,
-                        &spec,
-                        // Go home, clippy, you're drunk.
-                        #[allow(clippy::needless_borrow)]
-                        &repo,
-                    )?;
+                    compat = self.validate(&node.state, &spec, source)?;
                     if !&compat {
                         notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                            spec.pkg.clone(),
-                            compat,
+                            spec.ident().clone(),
+                            compat.clone(),
                         )));
                         self.number_builds_skipped += 1;
                         continue;
                     }
 
                     let mut decision = if build_from_source {
-                        match self.resolve_new_build(&spec, &node.state).await {
+                        let recipe = match source.read_recipe(spec.ident()).await {
+                            Ok(r) if r.is_deprecated() => {
+                                notes.push(Note::SkipPackageNote(
+                                    SkipPackageNote::new_from_message(
+                                        pkg.clone(),
+                                        "cannot build from source, version is deprecated",
+                                    ),
+                                ));
+                                continue;
+                            }
+                            Ok(r) => r,
+                            Err(Error::PackageNotFoundError(pkg)) => {
+                                notes.push(Note::SkipPackageNote(
+                                    SkipPackageNote::new_from_message(
+                                        pkg,
+                                        "cannot build from source, recipe not available",
+                                    ),
+                                ));
+                                continue;
+                            }
+                            Err(err) => return Err(err),
+                        };
+                        match self.resolve_new_build(&*recipe, &node.state).await {
                             Ok(build_env) => {
-                                match Decision::builder(spec.clone(), &node.state)
+                                match Decision::builder(&node.state)
                                     .with_components(&request.pkg.components)
-                                    .build_package(&build_env)
+                                    .build_package(&recipe, &build_env)
                                 {
                                     Ok(decision) => decision,
                                     Err(err) => {
                                         notes.push(Note::SkipPackageNote(
                                             SkipPackageNote::new_from_message(
-                                                spec.pkg.clone(),
-                                                format!("cannot build package: {err:?}"),
+                                                spec.ident().clone(),
+                                                &format!("cannot build package: {err}"),
                                             ),
                                         ));
                                         self.number_builds_skipped += 1;
@@ -328,8 +331,8 @@ impl Solver {
                             Err(err) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
-                                        spec.pkg.clone(),
-                                        format!("cannot resolve build env: {err:?}"),
+                                        spec.ident().clone(),
+                                        &format!("cannot resolve build env: {err}"),
                                     ),
                                 ));
                                 self.number_builds_skipped += 1;
@@ -337,9 +340,9 @@ impl Solver {
                             }
                         }
                     } else {
-                        Decision::builder(spec, &node.state)
+                        Decision::builder(&node.state)
                             .with_components(&request.pkg.components)
-                            .resolve_package(repo.clone())
+                            .resolve_package(&spec, source.clone())
                     };
                     decision.add_notes(notes.iter().cloned());
                     return Ok(Some(decision));
@@ -350,10 +353,10 @@ impl Solver {
         Err(errors::Error::OutOfOptions(errors::OutOfOptions { request, notes }).into())
     }
 
-    fn validate(
+    fn validate<P: Package>(
         &self,
         node: &State,
-        spec: &api::Spec,
+        spec: &P,
         source: &PackageSource,
     ) -> Result<api::Compatibility> {
         for validator in self.validators.as_ref() {
@@ -429,36 +432,20 @@ impl Solver {
     }
 
     /// Adds requests for all build requirements
-    pub fn configure_for_build_environment(&mut self, spec: &api::Spec) -> Result<()> {
+    pub fn configure_for_build_environment<T: api::Recipe>(&mut self, recipe: &T) -> Result<()> {
         let state = self.get_initial_state();
 
-        let build_options = spec.resolve_all_options(state.get_option_map());
-        for option in &spec.build.options {
-            if let api::Opt::Pkg(option) = option {
-                let given = build_options.get(option.pkg.as_opt_name());
-
-                let mut request = option.to_request(
-                    given.cloned(),
-                    api::RequestedBy::PackageBuild(spec.pkg.clone()),
-                )?;
-                // if no components were explicitly requested in a build option,
-                // then we inject the default for this context
-                if request.pkg.components.is_empty() {
-                    request
-                        .pkg
-                        .components
-                        .insert(Component::default_for_build());
-                }
-                self.add_request(request.into())
-            }
+        let build_options = recipe.resolve_options(state.get_option_map())?;
+        for req in recipe.get_build_requirements(&build_options)? {
+            self.add_request(req)
         }
 
         Ok(())
     }
 
     /// Adds requests for all build requirements and solves
-    pub async fn solve_build_environment(&mut self, spec: &api::Spec) -> Result<Solution> {
-        self.configure_for_build_environment(spec)?;
+    pub async fn solve_build_environment(&mut self, recipe: &api::SpecRecipe) -> Result<Solution> {
+        self.configure_for_build_environment(recipe)?;
         self.solve().await
     }
 

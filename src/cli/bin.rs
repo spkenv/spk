@@ -46,8 +46,6 @@ pub struct Opt {
 
 impl Opt {
     pub async fn run(&mut self) -> Result<i32> {
-        let _guard = spk::HANDLE.enter();
-
         #[cfg(feature = "sentry")]
         let _sentry_guard = env::configure_sentry();
 
@@ -139,7 +137,7 @@ pub enum Command {
     Bake(cmd_bake::Bake),
     Build(cmd_build::Build),
     Convert(cmd_convert::Convert),
-    Deprecate(cmd_deprecate::Deprecate),
+    Deprecate(cmd_deprecate::DeprecateCmd),
     Env(cmd_env::Env),
     Explain(cmd_explain::Explain),
     Export(cmd_export::Export),
@@ -149,7 +147,7 @@ pub enum Command {
     MakeBinary(cmd_make_binary::MakeBinary),
     MakeSource(cmd_make_source::MakeSource),
     New(cmd_new::New),
-    #[clap(hide = true)]
+    #[clap(alias = "variant-count", hide = true)]
     NumVariants(cmd_num_variants::NumVariants),
     Publish(cmd_publish::Publish),
     Remove(cmd_remove::Remove),

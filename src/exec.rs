@@ -7,6 +7,7 @@ use std::sync::Arc;
 use crate::{
     api, build,
     io::{self, Format},
+    prelude::*,
     solve, storage, Error, Result,
 };
 use spfs::encoding::Digest;
@@ -17,23 +18,22 @@ pub async fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Di
     let mut stack = Vec::new();
     let mut to_sync = Vec::new();
     for resolved in solution.items() {
-        if let solve::PackageSource::Spec(ref source) = resolved.source {
-            if source.pkg == resolved.spec.pkg.with_build(None) {
+        let (repo, components) = match resolved.source {
+            solve::PackageSource::Repository { repo, components } => (repo, components),
+            solve::PackageSource::Embedded => continue,
+            solve::PackageSource::BuildFromSource { recipe } => {
                 // The resolved solution includes a package that needs
                 // to be built with specific options because such a
                 // build doesn't exist in a repo.
-                let spec_options = resolved.spec.resolve_all_options(&solution.options());
+                let spec_options = recipe
+                    .resolve_options(&solution.options())
+                    .unwrap_or_default();
                 return Err(Error::String(format!(
-                        "Solution includes package that needs building from source: {} with these options: {}",
-                        resolved.spec.pkg,
-                        io::format_options(&spec_options)
-                    )));
+                    "Solution includes package that needs building from source: {} with these options: {}",
+                    resolved.spec.ident(),
+                    io::format_options(&spec_options)
+                )));
             }
-        }
-
-        let (repo, components) = match resolved.source {
-            solve::PackageSource::Repository { repo, components } => (repo, components),
-            solve::PackageSource::Spec(_) => continue,
         };
 
         if resolved.request.pkg.components.is_empty() {
@@ -52,8 +52,7 @@ pub async fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Di
         }
         desired_components = resolved
             .spec
-            .install
-            .components
+            .components()
             .resolve_uses(desired_components.iter());
 
         for name in desired_components.into_iter() {
@@ -83,7 +82,7 @@ pub async fn resolve_runtime_layers(solution: &solve::Solution) -> Result<Vec<Di
                 "collecting {} of {} {}",
                 i + 1,
                 to_sync_count,
-                spec.pkg.format_ident(),
+                spec.ident().format_ident(),
             );
             let syncer = spfs::Syncer::new(repo, &local_repo)
                 .with_reporter(spfs::sync::ConsoleSyncReporter::default());
@@ -121,8 +120,8 @@ pub async fn build_required_packages(solution: &solve::Solution) -> Result<solve
     let options = solution.options();
     let mut compiled_solution = solve::Solution::new(Some(options.clone()));
     for item in solution.items() {
-        let source_spec = match item.source {
-            solve::PackageSource::Spec(spec) if item.is_source_build() => spec,
+        let recipe = match item.source {
+            solve::PackageSource::BuildFromSource { recipe } => recipe,
             source => {
                 compiled_solution.add(&item.request, item.spec, source);
                 continue;
@@ -131,20 +130,19 @@ pub async fn build_required_packages(solution: &solve::Solution) -> Result<solve
 
         tracing::info!(
             "Building: {} for {}",
-            item.spec.pkg.format_ident(),
+            item.spec.ident().format_ident(),
             io::format_options(&options)
         );
-        let spec = build::BinaryPackageBuilder::from_spec((*source_spec).clone())
+        let (package, components) = build::BinaryPackageBuilder::from_recipe((*recipe).clone())
             .with_repositories(repos.clone())
             .with_options(options.clone())
-            .build()
+            .build_and_publish(&*local_repo)
             .await?;
-        let components = local_repo.get_package(&spec.pkg).await?;
         let source = solve::PackageSource::Repository {
             repo: local_repo.clone(),
             components,
         };
-        compiled_solution.add(&item.request, Arc::new(spec), source);
+        compiled_solution.add(&item.request, Arc::new(package), source);
     }
     Ok(compiled_solution)
 }

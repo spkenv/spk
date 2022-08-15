@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{api, Result};
+use crate::{api, prelude::*, Result};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -24,6 +24,8 @@ impl CachePolicy {
 
 #[async_trait::async_trait]
 pub trait Repository: Sync {
+    type Recipe: api::Recipe;
+
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository
     /// share an address
@@ -47,40 +49,44 @@ pub trait Repository: Sync {
     /// Return the repository's name, as in "local" or its name in the config file.
     fn name(&self) -> &api::RepositoryName;
 
-    /// Read a package spec file for the given package, version and optional build.
+    /// Read a package recipe for the given package, and version.
+    ///
+    /// # Errors:
+    /// - PackageNotFoundError: If the package, or version does not exist
+    async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>>;
+
+    /// Publish a package spec to this repository.
+    ///
+    /// The published recipe represents all builds of a single version.
+    /// The source package, or at least one binary package should be
+    /// published as well in order to make the package useful.
+    ///
+    /// # Errors:
+    /// - VersionExistsError: if the recipe version is already present
+    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()>;
+
+    /// Remove a package recipe from this repository.
+    ///
+    /// This will not remove builds for this package, but will make it unresolvable
+    /// and unsearchable. It's recommended that you remove all existing builds
+    /// before removing the recipe in order to keep the repository clean.
+    async fn remove_recipe(&self, pkg: &api::Ident) -> Result<()>;
+
+    /// Publish a package recipe to this repository.
+    ///
+    /// Same as [`Self::publish_recipe`] except that it clobbers any existing
+    /// recipe with the same version.
+    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()>;
+
+    /// Read package information for a specific version and build.
     ///
     /// # Errors:
     /// - PackageNotFoundError: If the package, version, or build does not exist
-    async fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>>;
-
-    /// Identify the payloads for the identified package's components.
-    async fn get_package(
+    async fn read_package(
         &self,
+        // TODO: use an ident type that must have a build
         pkg: &api::Ident,
-    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>;
-
-    /// Publish a package spec to this repository.
-    ///
-    /// The published spec represents all builds of a single version.
-    /// The source package, or at least one binary package should be
-    /// published as well in order to make the spec usable in environments.
-    ///
-    /// # Errors:
-    /// - VersionExistsError: if the spec version is already present
-    async fn publish_spec(&self, spec: &api::Spec) -> Result<()>;
-
-    /// Remove a package version from this repository.
-    ///
-    /// This will not untag builds for this package, but make it unresolvable
-    /// and unsearchable. It's recommended that you remove all existing builds
-    /// before removing the spec in order to keep the repository clean.
-    async fn remove_spec(&self, pkg: &api::Ident) -> Result<()>;
-
-    /// Publish a package spec to this repository.
-    ///
-    /// Same as 'publish_spec' except that it clobbers any existing
-    /// spec at this version
-    async fn force_publish_spec(&self, spec: &api::Spec) -> Result<()>;
+    ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>>;
 
     /// Publish a package to this repository.
     ///
@@ -88,21 +94,43 @@ pub trait Repository: Sync {
     /// layer which contains properly constructed binary package files and metadata.
     async fn publish_package(
         &self,
-        spec: &api::Spec,
-        components: HashMap<api::Component, spfs::encoding::Digest>,
+        package: &<Self::Recipe as api::Recipe>::Output,
+        components: &HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()>;
+
+    /// Modify a package in this repository.
+    ///
+    /// The provided package must already exist. This method is unsafe
+    /// and generally should only be used to modify components that
+    /// do not change the structure of the package (such as metadata
+    /// or deprecation status).
+    async fn update_package(&self, package: &<Self::Recipe as api::Recipe>::Output) -> Result<()> {
+        let components = self.read_components(package.ident()).await?;
+        self.publish_package(package, &components).await
+    }
 
     /// Remove a package from this repository.
     ///
     /// The given package identifier must identify a full package build.
-    async fn remove_package(&self, pkg: &api::Ident) -> Result<()>;
+    async fn remove_package(
+        &self,
+        // TODO: use an ident type that must have a build
+        pkg: &api::Ident,
+    ) -> Result<()>;
+
+    /// Identify the payloads for the identified package's components.
+    async fn read_components(
+        &self,
+        // TODO: use an ident type that must have a build
+        pkg: &api::Ident,
+    ) -> Result<HashMap<api::Component, spfs::encoding::Digest>>;
 
     /// Perform any upgrades that are pending on this repository.
     ///
     /// This will bring the repository up-to-date for the current
     /// spk library version, but may also make it incompatible with
     /// older ones. Upgrades can also take time depending on their
-    /// nature and the size of the repository so. Please, take time to
+    /// nature and the size of the repository. Please, take time to
     /// read any release and upgrade notes before invoking this.
     async fn upgrade(&self) -> Result<String> {
         Ok("Nothing to do.".to_string())

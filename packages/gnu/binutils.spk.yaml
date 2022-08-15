@@ -1,4 +1,5 @@
 pkg: binutils/2.36
+api: v0/package
 
 sources:
   - tar: http://ftpmirror.gnu.org/gnu/binutils/binutils-2.36.tar.gz

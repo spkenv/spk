@@ -7,7 +7,7 @@ weight: 30
 
 The solver, and solve process are made up of a combination of core pieces, each responsible from some portion of the solve
 
-{{< mermaid >}}
+```mermaid
 graph LR;
 
 solution --> solver
@@ -16,7 +16,7 @@ solver --> graf[graph]
 graf --> state
 graf --> decision
 solver --> package_iterator
-{{< /mermaid >}}
+```
 
 ### Graph Structure
 

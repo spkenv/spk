@@ -1,5 +1,6 @@
 pkg: openvdb/8.0.0+r.1
-  # - name: openvdb
+api: v0/package
+ # - name: openvdb
   # - description: Hierarchical data structure for volumes
   # - license: MPL-2.0
   # - url: https://openvdb.org

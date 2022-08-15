@@ -1,4 +1,5 @@
 pkg: make/4.3
+api: v0/package
 
 sources:
   - tar: https://ftpmirror.gnu.org/gnu/make/make-4.3.tar.gz

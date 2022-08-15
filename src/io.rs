@@ -19,7 +19,7 @@ use once_cell::sync::Lazy;
 
 use colored::Colorize;
 
-use crate::{api, option_map, solve, Error, Result};
+use crate::{api, option_map, prelude::*, solve, Error, Result};
 
 static USER_CANCELLED: Lazy<AtomicBool> = Lazy::new(|| {
     // Set up a ctrl-c handler to allow a solve to be interrupted
@@ -210,7 +210,7 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
     let number_of_packages = required_items.len();
     for req in required_items {
         let mut installed =
-            api::PkgRequest::from_ident(req.spec.pkg.clone(), api::RequestedBy::DoesNotMatter);
+            api::PkgRequest::from_ident(req.spec.ident().clone(), api::RequestedBy::DoesNotMatter);
 
         if let solve::PackageSource::Repository { components, .. } = req.source {
             let mut installed_components = req.request.pkg.components.clone();
@@ -227,7 +227,7 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
             "  {}",
             format_request(
                 &None,
-                &req.spec.pkg.name,
+                req.spec.name(),
                 &[installed],
                 FormatChangeOptions::default()
             )
@@ -244,7 +244,7 @@ pub fn format_solution(solution: &solve::Solution, verbosity: u32) -> String {
 
             if verbosity > 1 {
                 // Show the options for this request (build)
-                let options = req.spec.resolve_all_options(&api::OptionMap::default());
+                let options = req.spec.option_values();
                 out.push(' ');
                 out.push_str(&format_options(&options));
             }
@@ -323,14 +323,14 @@ pub fn format_change(
             )
         }
         SetPackageBuild(c) => {
-            format!("{} {}", "BUILD".yellow(), c.spec.pkg.format_ident())
+            format!("{} {}", "BUILD".yellow(), c.spec.ident().format_ident())
         }
         SetPackage(c) => {
             if format_settings.verbosity > 0 {
                 // Work out who the requesters were, so this can show
                 // the resolved package and its requester(s)
                 let requested_by: Vec<String> = match state {
-                    Some(s) => match s.get_merged_request(&c.spec.pkg.name) {
+                    Some(s) => match s.get_merged_request(c.spec.name()) {
                         Ok(r) => r.get_requesters().iter().map(ToString::to_string).collect(),
                         Err(_) => {
                             // This happens with embedded requests
@@ -339,8 +339,12 @@ pub fn format_change(
                             // their PackageSource::Spec data to
                             // display what requested them.
                             match &c.source {
-                                solve::PackageSource::Spec(rb) => {
-                                    vec![api::RequestedBy::PackageBuild(rb.pkg.clone()).to_string()]
+                                solve::PackageSource::BuildFromSource { recipe } => {
+                                    vec![api::RequestedBy::PackageBuild(recipe.to_ident())
+                                        .to_string()]
+                                }
+                                solve::PackageSource::Embedded => {
+                                    vec![api::RequestedBy::Embedded.to_string()]
                                 }
                                 _ => {
                                     // Don't think this should happen
@@ -358,12 +362,12 @@ pub fn format_change(
                 format!(
                     "{} {}  (requested by {})",
                     "RESOLVE".green(),
-                    c.spec.pkg.format_ident(),
+                    c.spec.ident().format_ident(),
                     requested_by.join(", ")
                 )
             } else {
                 // Just show the resolved package, don't show the requester(s)
-                format!("{} {}", "RESOLVE".green(), c.spec.pkg.format_ident())
+                format!("{} {}", "RESOLVE".green(), c.spec.ident().format_ident())
             }
         }
         SetOptions(c) => {
@@ -511,7 +515,7 @@ where
                             node.state
                                 .get_resolved_packages()
                                 .values()
-                                .map(|p| (*p).0.pkg.format_ident())
+                                .map(|p| (*p).0.ident().format_ident())
                                 .collect::<Vec<String>>()
                                 .join(", ")
                         ));
@@ -550,7 +554,7 @@ where
                         use solve::graph::Change::*;
                         match change {
                             SetPackage(change) => {
-                                if change.spec.pkg.build == Some(api::Build::Embedded) {
+                                if change.spec.ident().build == Some(api::Build::Embedded) {
                                     fill = ".";
                                 } else {
                                     fill = ">";

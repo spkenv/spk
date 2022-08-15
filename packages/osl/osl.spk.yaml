@@ -1,5 +1,6 @@
 pkg: osl/1.11.15.0
-  # - name: "Open Shading Language"
+api: v0/package
+ # - name: "Open Shading Language"
   # - description: "Shading language for modern physically based renderers"
   # - url: https://github.com/AcademySoftwareFoundation/OpenShadingLanguage
   # - author: "Larry Gritz <lg@larrygritz.com>"

@@ -5,7 +5,7 @@
 use clap::Parser;
 
 use spfs::{config::Remote, RemoteAddress};
-use spk::{api, fixtures::*, spec};
+use spk::{api, fixtures::*, recipe, spec};
 
 use super::{Ls, Output, Run};
 
@@ -67,13 +67,13 @@ async fn test_ls_shows_remote_packages() {
     )
     .unwrap();
 
-    let spec = spec!({"pkg": "my-pkg/1.0.0"});
-    remote_repo.publish_spec(&spec).await.unwrap();
+    let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
     remote_repo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
@@ -103,26 +103,26 @@ async fn test_ls_shows_local_and_remote_packages() {
     )
     .unwrap();
 
-    let spec = spec!({"pkg": "my-remote-pkg/1.0.0"});
-    remote_repo.publish_spec(&spec).await.unwrap();
+    let recipe = recipe!({"pkg": "my-remote-pkg/1.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({"pkg": "my-remote-pkg/1.0.0/BGSHW3CN"});
     remote_repo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
         .await
         .unwrap();
 
-    let spec = spec!({"pkg": "my-local-pkg/1.0.0"});
-    rt.tmprepo.publish_spec(&spec).await.unwrap();
+    let recipe = recipe!({"pkg": "my-local-pkg/1.0.0"});
+    rt.tmprepo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({"pkg": "my-local-pkg/1.0.0/BGSHW3CN"});
     rt.tmprepo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
@@ -151,26 +151,26 @@ async fn test_ls_dash_l_shows_local_packages_only() {
     )
     .unwrap();
 
-    let spec = spec!({"pkg": "my-remote-pkg/1.0.0"});
-    remote_repo.publish_spec(&spec).await.unwrap();
+    let recipe = recipe!({"pkg": "my-remote-pkg/1.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({"pkg": "my-remote-pkg/1.0.0/BGSHW3CN"});
     remote_repo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
         .await
         .unwrap();
 
-    let spec = spec!({"pkg": "my-local-pkg/1.0.0"});
-    rt.tmprepo.publish_spec(&spec).await.unwrap();
+    let recipe = recipe!({"pkg": "my-local-pkg/1.0.0"});
+    rt.tmprepo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({"pkg": "my-local-pkg/1.0.0/BGSHW3CN"});
     rt.tmprepo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
@@ -201,26 +201,26 @@ async fn test_ls_dash_r_shows_local_and_remote_packages() {
     )
     .unwrap();
 
-    let spec = spec!({"pkg": "my-remote-pkg/1.0.0"});
-    remote_repo.publish_spec(&spec).await.unwrap();
+    let recipe = recipe!({"pkg": "my-remote-pkg/1.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({"pkg": "my-remote-pkg/1.0.0/BGSHW3CN"});
     remote_repo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
         .await
         .unwrap();
 
-    let spec = spec!({"pkg": "my-local-pkg/1.0.0"});
-    rt.tmprepo.publish_spec(&spec).await.unwrap();
+    let recipe = recipe!({"pkg": "my-local-pkg/1.0.0"});
+    rt.tmprepo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({"pkg": "my-local-pkg/1.0.0/BGSHW3CN"});
     rt.tmprepo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
@@ -250,26 +250,26 @@ async fn test_ls_dash_dash_no_local_repo_shows_remote_packages_only() {
     )
     .unwrap();
 
-    let spec = spec!({"pkg": "my-remote-pkg/1.0.0"});
-    remote_repo.publish_spec(&spec).await.unwrap();
+    let recipe = recipe!({"pkg": "my-remote-pkg/1.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({"pkg": "my-remote-pkg/1.0.0/BGSHW3CN"});
     remote_repo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
         .await
         .unwrap();
 
-    let spec = spec!({"pkg": "my-local-pkg/1.0.0"});
-    rt.tmprepo.publish_spec(&spec).await.unwrap();
+    let recipe = recipe!({"pkg": "my-local-pkg/1.0.0"});
+    rt.tmprepo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({"pkg": "my-local-pkg/1.0.0/BGSHW3CN"});
     rt.tmprepo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
@@ -300,26 +300,26 @@ async fn test_ls_dash_dash_disable_repo_shows_local_packages_only() {
     )
     .unwrap();
 
-    let spec = spec!({"pkg": "my-remote-pkg/1.0.0"});
-    remote_repo.publish_spec(&spec).await.unwrap();
+    let recipe = recipe!({"pkg": "my-remote-pkg/1.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({"pkg": "my-remote-pkg/1.0.0/BGSHW3CN"});
     remote_repo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
         .await
         .unwrap();
 
-    let spec = spec!({"pkg": "my-local-pkg/1.0.0"});
-    rt.tmprepo.publish_spec(&spec).await.unwrap();
+    let recipe = recipe!({"pkg": "my-local-pkg/1.0.0"});
+    rt.tmprepo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({"pkg": "my-local-pkg/1.0.0/BGSHW3CN"});
     rt.tmprepo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
@@ -350,7 +350,7 @@ async fn test_ls_succeeds_for_package_with_no_version_spec() {
     rt.tmprepo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
@@ -382,12 +382,14 @@ async fn test_ls_hides_deprecated_version() {
     )
     .unwrap();
 
-    let mut spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
-    spec.deprecated = true;
+    let spec = spec!({
+        "pkg": "my-pkg/1.0.0/BGSHW3CN",
+        "deprecated": true,
+    });
     rt.tmprepo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
@@ -439,12 +441,14 @@ async fn test_ls_shows_partially_deprecated_version() {
 
     // Publish two specs; one deprecated and one not.
 
-    let mut spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
-    spec.deprecated = true;
+    let spec = spec!({
+        "pkg": "my-pkg/1.0.0/BGSHW3CN",
+        "deprecated": true,
+    });
     rt.tmprepo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )
@@ -455,7 +459,7 @@ async fn test_ls_shows_partially_deprecated_version() {
     rt.tmprepo
         .publish_package(
             &spec,
-            vec![(api::Component::Run, empty_layer_digest())]
+            &vec![(api::Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
         )

@@ -6,7 +6,7 @@ use std::path::Path;
 use itertools::Itertools;
 use spfs::tracking::{Diff, DiffMode};
 
-use super::Spec;
+use super::Package;
 
 #[cfg(test)]
 #[path = "./validators_test.rs"]
@@ -14,13 +14,13 @@ mod validators_test;
 
 /// Validates that all remaining build files are collected into at least one component
 pub fn must_collect_all_files<P: AsRef<Path>>(
-    spec: &Spec,
+    spec: &impl Package,
     diffs: &[Diff],
     _prefix: P,
 ) -> Option<String> {
     let mut diffs: Vec<_> = diffs.iter().filter(|d| d.mode.is_added()).collect();
-    let data_path = crate::build::data_path(&spec.pkg).to_path("/");
-    for component in spec.install.components.iter() {
+    let data_path = crate::build::data_path(spec.ident()).to_path("/");
+    for component in spec.components().iter() {
         diffs = diffs
             .into_iter()
             .filter(|d| {
@@ -50,7 +50,7 @@ pub fn must_collect_all_files<P: AsRef<Path>>(
 
 /// Validates that something was installed for the package
 pub fn must_install_something<P: AsRef<Path>>(
-    _spec: &Spec,
+    _spec: &impl Package,
     diffs: &[Diff],
     prefix: P,
 ) -> Option<String> {
@@ -72,7 +72,7 @@ pub fn must_install_something<P: AsRef<Path>>(
 /// Validates that the install process did not change
 /// a file that belonged to a build dependency
 pub fn must_not_alter_existing_files<P: AsRef<Path>>(
-    _spec: &Spec,
+    _spec: &impl Package,
     diffs: &[Diff],
     _prefix: P,
 ) -> Option<String> {

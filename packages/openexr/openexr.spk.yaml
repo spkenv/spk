@@ -1,5 +1,6 @@
 pkg: openexr/3.1.1
-  # - name: "OpenEXR"
+api: v0/package
+ # - name: "OpenEXR"
   # - description: "Image storage format for HDR imagery"
   # - license: BSD-3-clause
   # - url: https://www.openexr.com

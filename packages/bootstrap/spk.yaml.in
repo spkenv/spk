@@ -1,5 +1,6 @@
 # use a low version and explicit bootstrap tag to be clear
 pkg: NAME/0.0.0+bootstrap.1
+api: v0/package
 
 sources: [] # no source package files
 

@@ -99,7 +99,7 @@ async fn remove_build(
 ) -> Result<()> {
     let repo_name = repo_name.bold();
     let pretty_pkg = pkg.format_ident();
-    let (spec, package) = tokio::join!(repo.remove_spec(pkg), repo.remove_package(pkg),);
+    let (spec, package) = tokio::join!(repo.remove_recipe(pkg), repo.remove_package(pkg),);
     if spec.is_ok() {
         tracing::info!("removed build spec {pretty_pkg} from {repo_name}")
     } else if let Err(spk::Error::PackageNotFoundError(_)) = spec {
@@ -129,7 +129,7 @@ async fn remove_all(
         remove_build(repo_name, repo, &build).await?
     }
     let repo_name = repo_name.bold();
-    match repo.remove_spec(pkg).await {
+    match repo.remove_recipe(pkg).await {
         Ok(()) => tracing::info!("removed spec       {pretty_pkg} from {repo_name}"),
         Err(spk::Error::PackageNotFoundError(_)) => {
             tracing::warn!("spec {pretty_pkg} not found in {repo_name}")

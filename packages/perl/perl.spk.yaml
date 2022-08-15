@@ -1,5 +1,5 @@
 pkg: perl/5.32.1
-
+api: v0/package
 sources:
   - tar: https://www.cpan.org/src/5.0/perl-5.32.1.tar.gz
 

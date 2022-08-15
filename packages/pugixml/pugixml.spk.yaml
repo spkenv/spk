@@ -1,5 +1,6 @@
 pkg: pugixml/1.11.4
-  # - name: "PugiXML"
+api: v0/package
+ # - name: "PugiXML"
   # - description: "XML parser for C++"
   # - license: MIT
   # - url: https://pugixml.org
@@ -29,7 +30,7 @@ build:
     - { gcc: 9.3 }
 
   script:
-    - cmake -S pugixml -B build 
+    - cmake -S pugixml -B build
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=${PREFIX}
         -DBUILD_SHARED_LIBS=${SPK_OPT_sharedlibs}

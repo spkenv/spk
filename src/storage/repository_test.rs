@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use crate::{api, fixtures::*, storage::CachePolicy, Error};
+use crate::{api, fixtures::*, pkg_name, prelude::*, Error};
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
@@ -25,7 +25,7 @@ async fn test_repo_list_empty(#[case] repo: RepoKind) {
 async fn test_repo_list_package_versions_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
     assert!(
-        repo.list_package_versions(api::PkgName::new("nothing").unwrap())
+        repo.list_package_versions(pkg_name!("nothing"))
             .await
             .unwrap()
             .is_empty(),
@@ -50,10 +50,10 @@ async fn test_repo_list_package_builds_empty(#[case] repo: RepoKind) {
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
-async fn test_repo_read_spec_empty(#[case] repo: RepoKind) {
+async fn test_repo_read_recipe_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
     let nothing = api::parse_ident("nothing").unwrap();
-    match repo.read_spec(&nothing).await {
+    match repo.read_recipe(&nothing).await {
         Err(Error::PackageNotFoundError(_)) => (),
         _ => panic!("expected package not found error"),
     }
@@ -63,12 +63,12 @@ async fn test_repo_read_spec_empty(#[case] repo: RepoKind) {
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
-async fn test_repo_get_package_empty(#[case] repo: RepoKind) {
+async fn test_repo_read_package_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
     let nothing = api::parse_ident("nothing/1.0.0/src").unwrap();
-    match repo.read_spec(&nothing).await {
+    match repo.read_package(&nothing).await {
         Err(Error::PackageNotFoundError(_)) => (),
-        _ => panic!("expected package not found error"),
+        res => panic!("expected package not found error, got {:?}", res),
     }
 }
 
@@ -76,29 +76,38 @@ async fn test_repo_get_package_empty(#[case] repo: RepoKind) {
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
 #[tokio::test]
-async fn test_repo_publish_spec(#[case] repo: RepoKind) {
+async fn test_repo_publish_recipe(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
-    let spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
-    repo.publish_spec(&spec).await.unwrap();
+    let spec = crate::recipe!({"pkg": "my-pkg/1.0.0"});
+    repo.publish_recipe(&spec).await.unwrap();
     assert_eq!(
         repo.list_packages().await.unwrap(),
-        vec![spec.pkg.name.clone()]
+        vec![spec.name().to_owned()]
     );
     assert_eq!(
-        repo.list_package_versions(&spec.pkg.name)
+        repo.list_packages()
             .await
             .unwrap()
             .iter()
-            .map(|v| (**v).clone())
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
+        vec![spec.name().to_string()]
+    );
+    assert_eq!(
+        repo.list_package_versions(spec.name())
+            .await
+            .unwrap()
+            .iter()
+            .map(ToString::to_string)
             .collect::<Vec<_>>(),
         vec!["1.0.0"]
     );
 
-    match repo.publish_spec(&spec).await {
+    match repo.publish_recipe(&spec).await {
         Err(Error::VersionExistsError(_)) => (),
         _ => panic!("expected version exists error"),
     }
-    repo.force_publish_spec(&spec)
+    repo.force_publish_recipe(&spec)
         .await
         .expect("force publish should ignore existing version");
 }
@@ -109,53 +118,41 @@ async fn test_repo_publish_spec(#[case] repo: RepoKind) {
 #[tokio::test]
 async fn test_repo_publish_package(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
-    let mut spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
-    repo.publish_spec(&spec).await.unwrap();
-    spec.pkg
-        .set_build(Some(api::parse_build("7CI5R7Y4").unwrap()));
+    let recipe = crate::recipe!({"pkg": "my-pkg/1.0.0"});
+    repo.publish_recipe(&recipe).await.unwrap();
+    let spec = crate::spec!({"pkg": "my-pkg/1.0.0/7CI5R7Y4"});
     repo.publish_package(
         &spec,
-        vec![(api::Component::Run, empty_layer_digest())]
+        &vec![(api::Component::Run, empty_layer_digest())]
             .into_iter()
             .collect(),
     )
     .await
     .unwrap();
     assert_eq!(
-        repo.list_package_builds(&spec.pkg).await.unwrap(),
-        [spec.pkg.clone()]
+        repo.list_package_builds(spec.ident()).await.unwrap(),
+        [spec.ident().clone()]
     );
-    assert_eq!(*repo.read_spec(&spec.pkg).await.unwrap(), spec);
-}
-
-#[rstest]
-#[case::mem(RepoKind::Mem)]
-#[case::spfs(RepoKind::Spfs)]
-#[tokio::test]
-async fn test_repo_remove_package(#[case] repo: RepoKind) {
-    let repo = make_repo(repo).await;
-    let mut spec = crate::spec!({"pkg": "my-pkg/1.0.0"});
-    repo.publish_spec(&spec).await.unwrap();
-    spec.pkg
-        .set_build(Some(api::parse_build("7CI5R7Y4").unwrap()));
+    assert_eq!(*repo.read_recipe(&recipe.to_ident()).await.unwrap(), recipe);
     repo.publish_package(
         &spec,
-        vec![(api::Component::Run, empty_layer_digest())]
+        &vec![(api::Component::Run, empty_layer_digest())]
             .into_iter()
             .collect(),
     )
     .await
     .unwrap();
     assert_eq!(
-        repo.list_package_builds(&spec.pkg).await.unwrap(),
-        vec![spec.pkg.clone()]
+        repo.list_package_builds(spec.ident()).await.unwrap(),
+        vec![spec.ident().clone()]
     );
-    assert_eq!(*repo.read_spec(&spec.pkg).await.unwrap(), spec);
-    repo.remove_package(&spec.pkg).await.unwrap();
-    assert!(crate::with_cache_policy!(repo, CachePolicy::BypassCache, {
-        repo.list_package_builds(&spec.pkg)
-    })
-    .await
-    .unwrap()
-    .is_empty());
+    assert_eq!(*repo.read_recipe(&recipe.to_ident()).await.unwrap(), recipe);
+    repo.remove_package(api::Package::ident(&spec))
+        .await
+        .unwrap();
+    assert!(repo
+        .list_package_builds(api::Package::ident(&spec))
+        .await
+        .unwrap()
+        .is_empty());
 }

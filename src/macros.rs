@@ -28,7 +28,7 @@ macro_rules! make_repo {
         let _opts = $options;
         $(
             let (s, cmpts) = $crate::make_package!(repo, $spec, &_opts);
-            repo.publish_package(&s, cmpts).await.unwrap();
+            repo.publish_package(&s, &cmpts).await.unwrap();
         )*
         repo
     }};
@@ -42,8 +42,7 @@ macro_rules! make_package {
     ($repo:ident, $build_spec:ident, $opts:expr) => {{
         let s = $build_spec.clone();
         let cmpts: std::collections::HashMap<_, spfs::encoding::Digest> = s
-            .install
-            .components
+            .components()
             .iter()
             .map(|c| (c.name.clone(), spfs::encoding::EMPTY_DIGEST.into()))
             .collect();
@@ -51,10 +50,12 @@ macro_rules! make_package {
     }};
     ($repo:ident, $spec:tt, $opts:expr) => {{
         let json = serde_json::json!($spec);
-        let mut spec: $crate::api::Spec = serde_json::from_value(json).expect("Invalid spec json");
+        let mut spec: $crate::api::v0::Spec =
+            serde_json::from_value(json).expect("Invalid spec json");
         let build = spec.clone();
         spec.pkg.set_build(None);
-        $repo.force_publish_spec(&spec).await.unwrap();
+        let build = $crate::api::Spec::V0Package(build);
+        $repo.force_publish_recipe(&spec.into()).await.unwrap();
         make_build_and_components!(build, [], $opts, [])
     }};
 }
@@ -102,21 +103,36 @@ macro_rules! make_build_and_components {
         make_build_and_components!($spec, [$($dep),*], opts, [$($component),*])
     }};
     ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
-        let mut spec = make_spec!($spec);
+        use $crate::prelude::*;
+        let spec = spec!($spec);
         let mut components = std::collections::HashMap::<$crate::api::Component, spfs::encoding::Digest>::new();
-        let deps: Vec<&$crate::api::Spec> = std::vec![$(&$dep),*];
-        if spec.pkg.is_source() {
+        if spec.ident().is_source() {
             components.insert($crate::api::Component::Source, spfs::encoding::EMPTY_DIGEST.into());
             (spec, components)
         } else {
+            let recipe = recipe!($spec);
             let mut build_opts = $opts.clone();
-            let mut resolved_opts = spec.resolve_all_options(&build_opts).into_iter();
+            #[allow(unused_mut)]
+            let mut solution = $crate::solve::Solution::new(Some(build_opts.clone()));
+            $(
+            let dep = Arc::new($dep.clone());
+            solution.add(
+                &$crate::api::PkgRequest::from_ident(
+                    recipe.to_ident(),
+                    $crate::api::RequestedBy::SpkInternalTest,
+                ),
+                Arc::clone(&dep),
+                // TODO: this is much less appropriate than it was
+                $crate::solve::PackageSource::Embedded,
+            );
+            )*
+            let mut resolved_opts = recipe.resolve_options(&build_opts).unwrap().into_iter();
             build_opts.extend(&mut resolved_opts);
-            spec.update_for_build(&build_opts, deps)
+            let spec = recipe.generate_binary_build(&build_opts, &solution)
                 .expect("Failed to render build spec");
             let mut names = std::vec![$($component.to_string()),*];
             if names.is_empty() {
-                names = spec.install.components.iter().map(|c| c.name.to_string()).collect();
+                names = spec.components().iter().map(|c| c.name.to_string()).collect();
             }
             for name in names {
                 let name = $crate::api::Component::parse(name).expect("invalid component name");
@@ -135,6 +151,22 @@ macro_rules! make_spec {
         $spec.clone()
     };
     ($spec:tt) => {
-        $crate::spec!($spec)
+        $crate::recipe!($spec)
     };
+}
+
+/// Creates a request from a literal range identifier, or json structure
+#[macro_export(local_inner_macros)]
+macro_rules! request {
+    ($req:literal) => {
+        $crate::api::Request::Pkg($crate::api::PkgRequest::new(
+            $crate::api::parse_ident_range($req).unwrap(),
+            api::RequestedBy::SpkInternalTest,
+        ))
+    };
+    ($req:tt) => {{
+        let value = serde_json::json!($req);
+        let req: $crate::api::Request = serde_json::from_value(value).unwrap();
+        req
+    }};
 }

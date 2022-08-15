@@ -14,7 +14,7 @@ on:
 
 name: Code Coverage
 jobs:
-  codecov-spk:
+  codecov:
     runs-on: ubuntu-latest
     container:
       image: xd009642/tarpaulin
@@ -47,7 +47,4 @@ jobs:
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
         with:
-          # This action gets confused because of how spfs and spk are checked out
-          # side-by-side. Then, browsing files on the codecov.io site doesn't work.
-          working-directory: "/__w/spk/spk/spk"
           token: ${{ secrets.CODECOV_TOKEN }}

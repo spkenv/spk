@@ -12,6 +12,8 @@ use super::{flags, CommandArgs, Run};
 #[derive(Args)]
 pub struct Export {
     #[clap(flatten)]
+    pub options: flags::Options,
+    #[clap(flatten)]
     pub requests: flags::Requests,
 
     #[clap(short, long, global = true, parse(from_occurrences))]
@@ -29,9 +31,10 @@ pub struct Export {
 #[async_trait::async_trait]
 impl Run for Export {
     async fn run(&mut self) -> Result<i32> {
+        let options = self.options.get_options()?;
         let pkg = self
             .requests
-            .parse_idents([self.package.as_str()])?
+            .parse_idents(&options, [self.package.as_str()])?
             .pop()
             .unwrap();
 

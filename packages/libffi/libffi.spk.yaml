@@ -1,4 +1,5 @@
 pkg: libffi/3.4.2
+api: v0/package
 
 sources:
   - tar: https://github.com/libffi/libffi/releases/download/v3.4.2/libffi-3.4.2.tar.gz
