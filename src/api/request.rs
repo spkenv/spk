@@ -11,12 +11,12 @@ use std::{
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+use super::compat::{API_STR, BINARY_STR};
+use super::version_range::{self, Ranged};
 use super::{
-    compat::API_STR,
-    compat::BINARY_STR,
-    version_range::{self, Ranged},
-    Build, BuildIdent, CompatRule, Compatibility, Component, EqualsVersion, Ident, OptName,
-    OptNameBuf, PkgName, PkgNameBuf, RepositoryNameBuf, Spec, Version, VersionFilter,
+    Build, BuildIdent, CompatRule, Compatibility, Component, DoubleEqualsVersion, EqualsVersion,
+    Ident, Opt, OptName, OptNameBuf, Package, PkgName, PkgNameBuf, RepositoryNameBuf, Version,
+    VersionFilter,
 };
 use crate::{storage::KNOWN_REPOSITORY_NAMES, Error, Result};
 
@@ -220,19 +220,15 @@ impl RangeIdent {
     }
 
     /// Return true if the given package spec satisfies this request.
-    pub fn is_satisfied_by(&self, spec: &Spec, required: CompatRule) -> Compatibility {
-        if spec.pkg.name != self.name {
+    pub fn is_satisfied_by<P: Package>(&self, spec: &P, required: CompatRule) -> Compatibility {
+        if spec.name() != &self.name {
             return Compatibility::Incompatible("different package names".into());
         }
 
         if !self.components.is_empty() && self.build != Some(Build::Source) {
-            let required_components = spec.install.components.resolve_uses(self.components.iter());
-            let available_components: HashSet<_> = spec
-                .install
-                .components
-                .iter()
-                .map(|c| c.name.clone())
-                .collect();
+            let required_components = spec.components().resolve_uses(self.components.iter());
+            let available_components: HashSet<_> =
+                spec.components().iter().map(|c| c.name.clone()).collect();
             let missing_components = required_components
                 .difference(&available_components)
                 .sorted()
@@ -258,10 +254,11 @@ impl RangeIdent {
             return c;
         }
 
-        if self.build.is_some() && self.build != spec.pkg.build {
+        if self.build.is_some() && self.build != spec.ident().build {
             return Compatibility::Incompatible(format!(
                 "requested build {:?} != {:?}",
-                self.build, spec.pkg.build
+                self.build,
+                spec.ident().build
             ));
         }
 
@@ -567,6 +564,49 @@ impl VarRequest {
         new.value = value.into();
         Ok(new)
     }
+
+    /// Check if this package spec satisfies the given var request.
+    pub fn is_satisfied_by<P: Package>(&self, spec: &P) -> Compatibility {
+        let opt_required = self.var.namespace() == Some(spec.name());
+        let mut opt: Option<&Opt> = None;
+        let request_name = &self.var;
+        for o in spec.options().iter() {
+            if request_name == o.full_name() {
+                opt = Some(o);
+                break;
+            }
+            if request_name == &o.full_name().with_namespace(spec.name()) {
+                opt = Some(o);
+                break;
+            }
+        }
+
+        match opt {
+            None => {
+                if opt_required {
+                    return Compatibility::Incompatible(format!(
+                        "Package does not define requested option: {}",
+                        self.var
+                    ));
+                }
+                Compatibility::Compatible
+            }
+            Some(Opt::Pkg(opt)) => opt.validate(Some(&self.value)),
+            Some(Opt::Var(opt)) => {
+                let exact = opt.get_value(Some(&self.value));
+                if exact.as_deref() != Some(&self.value) {
+                    Compatibility::Incompatible(format!(
+                        "Incompatible build option '{}': '{}' != '{}'",
+                        self.var,
+                        exact.unwrap_or_else(|| "None".to_string()),
+                        self.value
+                    ))
+                } else {
+                    Compatibility::Compatible
+                }
+            }
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for VarRequest {
@@ -633,6 +673,8 @@ impl Serialize for VarRequest {
 pub enum RequestedBy {
     /// From the command line
     CommandLine,
+    /// Embedded in another package
+    Embedded,
     /// A source package that made the request during a source build resolve
     SourceBuild(Ident),
     /// A package that made the request as part of a binary build env setup
@@ -671,6 +713,7 @@ impl std::fmt::Display for RequestedBy {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             RequestedBy::CommandLine => write!(f, "command line"),
+            RequestedBy::Embedded => write!(f, "embedded in another package"),
             RequestedBy::SourceBuild(ident) => write!(f, "{ident} source build"),
             RequestedBy::BinaryBuild(ident) => write!(f, "{ident} binary build"),
             RequestedBy::SourceTest(ident) => write!(f, "{ident} source test"),
@@ -788,13 +831,23 @@ impl PkgRequest {
         self.requested_by.values().flatten().cloned().collect()
     }
 
-    // TODO: change parameter to `pkg: Ident`
     pub fn from_ident(pkg: Ident, requester: RequestedBy) -> Self {
         let ri = RangeIdent {
             repository_name: None,
             name: pkg.name,
             components: Default::default(),
-            version: VersionFilter::single(EqualsVersion::version_range(pkg.version.clone())),
+            version: VersionFilter::single(EqualsVersion::version_range(pkg.version)),
+            build: pkg.build,
+        };
+        Self::new(ri, requester)
+    }
+
+    pub fn from_ident_exact(pkg: Ident, requester: RequestedBy) -> Self {
+        let ri = RangeIdent {
+            repository_name: None,
+            name: pkg.name,
+            components: Default::default(),
+            version: VersionFilter::single(DoubleEqualsVersion::version_range(pkg.version)),
             build: pkg.build,
         };
         Self::new(ri, requester)
@@ -878,19 +931,18 @@ impl PkgRequest {
     }
 
     /// Return true if the given package spec satisfies this request.
-    pub fn is_satisfied_by(&self, spec: &Spec) -> Compatibility {
-        if spec.deprecated {
+    pub fn is_satisfied_by<P: Package>(&self, spec: &P) -> Compatibility {
+        if spec.is_deprecated() {
             // deprecated builds are only okay if their build
             // was specifically requested
-            if self.pkg.build.is_none() || self.pkg.build != spec.pkg.build {
+            if self.pkg.build.is_none() || self.pkg.build != spec.ident().build {
                 return Compatibility::Incompatible(
                     "Build is deprecated and was not specifically requested".to_string(),
                 );
             }
         }
 
-        if self.prerelease_policy == PreReleasePolicy::ExcludeAll
-            && !spec.pkg.version.pre.is_empty()
+        if self.prerelease_policy == PreReleasePolicy::ExcludeAll && !spec.version().pre.is_empty()
         {
             return Compatibility::Incompatible("prereleases not allowed".to_string());
         }
@@ -986,6 +1038,6 @@ impl<'de> Deserialize<'de> for PkgRequest {
     }
 }
 
-pub(crate) fn is_false(value: &bool) -> bool {
+pub(super) fn is_false(value: &bool) -> bool {
     !*value
 }

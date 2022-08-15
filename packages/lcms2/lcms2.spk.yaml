@@ -1,4 +1,5 @@
 pkg: lcms2/2.12.0
+api: v0/package
   # - name: lcms2
   # - description: "Open source library for ICC profiles"
   # - url: https://github.com/mm2/Little-CMS

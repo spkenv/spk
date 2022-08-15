@@ -1,4 +1,5 @@
 pkg: ffmpeg/4.2.4
+api: v0/package
   # - name: "FFmpeg"
   # - description: "Multimedia processing libraries and tools"
   # - license: LGPL-2.1

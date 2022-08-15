@@ -1,4 +1,5 @@
 pkg: fmt/8.0.1+r.1
+api: v0/package
   # - name: fmt
   # - description: "Header-only C++ string formatting like C++20 std::format"
   # - url: https://github.com/fmtlib/fmt

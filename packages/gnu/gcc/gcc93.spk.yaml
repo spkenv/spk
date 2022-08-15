@@ -1,4 +1,5 @@
 pkg: gcc/9.3.0
+api: v0/package
 
 sources:
   - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-9.3.0/gcc-9.3.0.tar.gz

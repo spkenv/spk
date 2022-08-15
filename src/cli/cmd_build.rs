@@ -61,6 +61,7 @@ impl Run for Build {
 
         for packages in runs {
             let mut make_source = super::cmd_make_source::MakeSource {
+                options: self.options.clone(),
                 verbose: self.verbose,
                 packages: packages.clone(),
                 runtime: self.runtime.clone(),

@@ -7,6 +7,8 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
+use spk::api::TemplateExt;
+use spk::prelude::*;
 
 #[cfg(test)]
 #[path = "./flags_test.rs"]
@@ -163,16 +165,18 @@ impl Requests {
     /// Resolve command line requests to package identifiers.
     pub fn parse_idents<'a, I: IntoIterator<Item = &'a str>>(
         &self,
+        options: &spk::api::OptionMap,
         packages: I,
     ) -> Result<Vec<spk::api::Ident>> {
         let mut idents = Vec::new();
         for package in packages {
             if package.contains('@') {
-                let (spec, _, stage) = parse_stage_specifier(package)?;
+                let (template, _, stage) = parse_stage_specifier(package)?;
+                let recipe = template.render(options)?;
 
                 match stage {
                     spk::api::TestStage::Sources => {
-                        let ident = spec.pkg.with_build(Some(spk::api::Build::Source));
+                        let ident = recipe.to_ident().into_build(spk::api::Build::Source);
                         idents.push(ident);
                         continue;
                     }
@@ -186,8 +190,9 @@ impl Requests {
 
             let path = std::path::Path::new(package);
             if path.is_file() {
-                let (_, spec) = find_package_spec(&Some(package))?.must_be_found();
-                idents.push(spec.pkg.clone());
+                let (_, template) = find_package_template(&Some(package))?.must_be_found();
+                let recipe = template.render(options)?;
+                idents.push(recipe.to_ident());
             } else {
                 idents.push(spk::api::parse_ident(package)?)
             }
@@ -240,11 +245,12 @@ impl Requests {
         for r in requests.into_iter() {
             let r = r.as_ref();
             if r.contains('@') {
-                let (spec, _, stage) = parse_stage_specifier(r)?;
+                let (template, _, stage) = parse_stage_specifier(r)?;
+                let recipe = template.render(&options)?;
 
                 match stage {
                     spk::api::TestStage::Sources => {
-                        let ident = spec.pkg.with_build(Some(spk::api::Build::Source));
+                        let ident = recipe.to_ident().into_build(spk::api::Build::Source);
                         out.push(
                             spk::api::PkgRequest::from_ident(
                                 ident,
@@ -255,29 +261,16 @@ impl Requests {
                     }
 
                     spk::api::TestStage::Build => {
-                        let requirements =
-                            spk::build::BinaryPackageBuilder::from_spec((*spec).clone())
-                                .with_options(options.clone())
-                                .get_build_requirements()?;
-                        for request in requirements {
-                            out.push(request);
-                        }
+                        let requirements = recipe.get_build_requirements(&options)?;
+                        out.extend(requirements);
                     }
-                    spk::api::TestStage::Install => {
-                        for request in spec.install.requirements.iter() {
-                            let req = match request {
-                                v @ spk::api::Request::Var(_) => v.clone(),
-                                spk::api::Request::Pkg(r) => {
-                                    let mut t = r.clone();
-                                    t.add_requester(spk::api::RequestedBy::PackageBuild(
-                                        spec.pkg.clone(),
-                                    ));
-                                    spk::api::Request::Pkg(t)
-                                }
-                            };
-                            out.push(req);
-                        }
-                    }
+                    spk::api::TestStage::Install => out.push(
+                        spk::api::PkgRequest::from_ident_exact(
+                            recipe.to_ident(),
+                            spk::api::RequestedBy::CommandLine,
+                        )
+                        .into(),
+                    ),
                 }
                 continue;
             }
@@ -325,7 +318,11 @@ impl Requests {
 /// Returns the spec, filename and stage for the given specifier
 pub fn parse_stage_specifier(
     specifier: &str,
-) -> Result<(Arc<spk::api::Spec>, std::path::PathBuf, spk::api::TestStage)> {
+) -> Result<(
+    Arc<spk::api::SpecTemplate>,
+    std::path::PathBuf,
+    spk::api::TestStage,
+)> {
     let (package, stage) = specifier.split_once('@').ok_or_else(|| {
         anyhow!(
             "Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
@@ -334,44 +331,44 @@ pub fn parse_stage_specifier(
 
     let stage = spk::api::TestStage::from_str(stage)?;
 
-    let (filename, spec) = find_package_spec(&Some(package))?.must_be_found();
+    let (filename, spec) = find_package_template(&Some(package))?.must_be_found();
     Ok((spec, filename, stage))
 }
 
-/// The result of the [`find_package_spec`] function.
+/// The result of the [`find_package_template`] function.
 // We are okay with the large variant here because it's specifically
 // used as the positive result of the function, with the others simply
 // denoting unique error cases.
 #[allow(clippy::large_enum_variant)]
-pub enum FindPackageSpecResult {
-    /// A non-ambiguous package spec file was found
+pub enum FindPackageTemplateResult {
+    /// A non-ambiguous package template file was found
     Found {
         path: std::path::PathBuf,
-        spec: Arc<spk::api::Spec>,
+        template: Arc<spk::api::SpecTemplate>,
     },
     /// No package was specifically requested, and there are multiple
-    /// spec files in the current repository.
-    MultipleSpecFiles,
-    /// No package was specifically requested, and there are multiple
-    /// spec files in the current repository.
-    NoSpecFiles,
+    /// files in the current repository.
+    MultipleTemplateFiles,
+    /// No package was specifically requested, and there no template
+    /// files in the current repository.
+    NoTemplateFiles,
     NotFound(String),
 }
 
-impl FindPackageSpecResult {
+impl FindPackageTemplateResult {
     pub fn is_found(&self) -> bool {
         matches!(self, Self::Found { .. })
     }
 
-    /// Prints error messages and exists if no spec file was found
-    pub fn must_be_found(self) -> (std::path::PathBuf, Arc<spk::api::Spec>) {
+    /// Prints error messages and exists if no template file was found
+    pub fn must_be_found(self) -> (std::path::PathBuf, Arc<spk::api::SpecTemplate>) {
         match self {
-            Self::Found { path, spec } => return (path, spec),
-            Self::MultipleSpecFiles => {
+            Self::Found { path, template } => return (path, template),
+            Self::MultipleTemplateFiles => {
                 tracing::error!("Multiple package specs in current directory");
                 tracing::error!(" > please specify a package name or filepath");
             }
-            Self::NoSpecFiles => {
+            Self::NoTemplateFiles => {
                 tracing::error!("No package specs found in current directory");
                 tracing::error!(" > please specify a filepath");
             }
@@ -383,16 +380,16 @@ impl FindPackageSpecResult {
     }
 }
 
-/// Find a package spec file for the requested package, if any.
+/// Find a package template file for the requested package, if any.
 ///
 /// This function will use the current directory and the provided
 /// package name or filename to try and discover the matching
-/// yaml spec file.
-pub fn find_package_spec<S>(package: &Option<S>) -> Result<FindPackageSpecResult>
+/// yaml template file.
+pub fn find_package_template<S>(package: &Option<S>) -> Result<FindPackageTemplateResult>
 where
     S: AsRef<str>,
 {
-    use FindPackageSpecResult::*;
+    use FindPackageTemplateResult::*;
 
     // Lazily process the glob. This closure is expected to be called at
     // most once, but there are two code paths that might need to call it.
@@ -409,32 +406,35 @@ where
             return match packages.len() {
                 1 => {
                     let path = packages.pop().unwrap();
-                    let spec = Arc::new(spk::api::read_spec_file(&path)?);
-                    Ok(Found { path, spec })
+                    let template = spk::api::SpecTemplate::from_file(&path)?;
+                    Ok(Found {
+                        path,
+                        template: Arc::new(template),
+                    })
                 }
-                2.. => Ok(MultipleSpecFiles),
-                _ => Ok(NoSpecFiles),
+                2.. => Ok(MultipleTemplateFiles),
+                _ => Ok(NoTemplateFiles),
             };
         }
         Some(package) => package,
     };
 
-    match spk::api::read_spec_file(package.as_ref()) {
+    match spk::api::SpecTemplate::from_file(package.as_ref().as_ref()) {
         Err(spk::Error::IO(err)) if err.kind() == std::io::ErrorKind::NotFound => {}
         res => {
             return Ok(Found {
                 path: package.as_ref().into(),
-                spec: Arc::new(res?),
+                template: Arc::new(res?),
             })
         }
     }
 
     for path in find_packages()? {
-        let spec = spk::api::read_spec_file(&path)?;
-        if spec.pkg.name.as_str() == package.as_ref() {
+        let template = spk::api::SpecTemplate::from_file(&path)?;
+        if template.name().as_str() == package.as_ref() {
             return Ok(Found {
                 path,
-                spec: Arc::new(spec),
+                template: Arc::new(template),
             });
         }
     }

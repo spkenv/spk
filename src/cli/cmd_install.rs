@@ -9,6 +9,7 @@ use clap::Args;
 use colored::Colorize;
 use futures::TryFutureExt;
 use spk::io::Format;
+use spk::prelude::*;
 
 use super::{flags, CommandArgs, Run};
 
@@ -66,7 +67,7 @@ impl Run for Install {
         let mut primary = Vec::new();
         let mut tertiary = Vec::new();
         for solved in solution.items() {
-            if requested.contains(&solved.spec.pkg.name) {
+            if requested.contains(solved.spec.name()) {
                 primary.push(solved.spec);
                 continue;
             }
@@ -78,20 +79,20 @@ impl Run for Install {
         println!("  Requested:");
         for spec in primary {
             let mut end = String::new();
-            if spec.pkg.build.is_none() {
+            if spec.ident().build.is_none() {
                 end = " [build from source]".magenta().to_string();
             }
-            println!("    {}{end}", spec.pkg.format_ident());
+            println!("    {}{end}", spec.ident().format_ident());
         }
         if !tertiary.is_empty() {
             println!("\n  Dependencies:");
         }
         for spec in tertiary {
             let mut end = String::new();
-            if spec.pkg.build.is_none() {
+            if spec.ident().build.is_none() {
                 end = " [build from source]".magenta().to_string();
             }
-            println!("    {}{end}", spec.pkg.format_ident())
+            println!("    {}{end}", spec.ident().format_ident())
         }
 
         println!();

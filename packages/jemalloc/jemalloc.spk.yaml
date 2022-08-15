@@ -1,4 +1,5 @@
 pkg: jemalloc/4.5.0+r.1
+api: v0/package
   # - name: jemalloc
   # - description: "Open source scalable allocator for C/C++"
   # - url: https://jemalloc.net

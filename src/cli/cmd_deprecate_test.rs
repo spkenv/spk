@@ -5,7 +5,7 @@
 use rstest::rstest;
 
 use super::{change_deprecation_state, ChangeAction};
-use spk::make_repo;
+use spk::{make_repo, prelude::*};
 
 #[rstest]
 #[tokio::test]
@@ -44,14 +44,14 @@ async fn test_deprecate_without_prompt() {
     for name in &[name1, name2, name3] {
         let ident = spk::api::parse_ident(name).unwrap();
         let (_, r) = &repos[0];
-        let spec = r.read_spec(&ident).await.unwrap();
+        let recipe = r.read_recipe(&ident).await.unwrap();
         println!("checking: {}", ident);
-        assert!(spec.deprecated);
+        assert!(recipe.is_deprecated());
 
         for b in r.list_package_builds(&ident).await.unwrap() {
-            let bspec = r.read_spec(&b).await.unwrap();
+            let spec = r.read_package(&b).await.unwrap();
             println!("checking: {}", b);
-            assert!(bspec.deprecated);
+            assert!(spec.is_deprecated());
         }
     }
 }

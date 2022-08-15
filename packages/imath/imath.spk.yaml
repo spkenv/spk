@@ -1,4 +1,5 @@
 pkg: imath/3.1.3
+api: v0/package
   # - name: "Imath"
   # - description: "Basic vector, matrix, and math for 3D graphics"
   # - license: BSD-3-clause

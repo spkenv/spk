@@ -1,20 +1,42 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashMap;
-use std::path::Path;
 
+use std::{path::Path, str::FromStr};
+
+use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 
-use super::{
-    request::is_false, Build, BuildSpec, Compat, Compatibility, Ident, Inheritance, InstallSpec,
-    Meta, Opt, OptionMap, PkgRequest, Request, SourceSpec, TestSpec, VarRequest,
-};
+use super::{Deprecate, DeprecateMut, Named, Package, Template, TemplateExt, Versioned};
 use crate::{Error, Result};
 
-#[cfg(test)]
-#[path = "./spec_test.rs"]
-mod spec_test;
+/// Create a spec recipe from a json structure.
+///
+/// This will panic if the given struct
+/// cannot be deserialized into a recipe.
+///
+/// ```
+/// # #[macro_use] extern crate spk;
+/// # fn main() {
+/// recipe!({
+///   "api": "v0/package",
+///   "pkg": "my-pkg/1.0.0",
+///   "build": {
+///     "options": [
+///       {"pkg": "dependency"}
+///     ]
+///   }
+/// });
+/// # }
+/// ```
+#[macro_export]
+macro_rules! recipe {
+    ($($spec:tt)+) => {{
+        let value = serde_json::json!($($spec)+);
+        let spec: $crate::api::SpecRecipe = serde_json::from_value(value).unwrap();
+        spec
+    }};
+}
 
 /// Create a spec from a json structure.
 ///
@@ -25,6 +47,7 @@ mod spec_test;
 /// # #[macro_use] extern crate spk;
 /// # fn main() {
 /// spec!({
+///   "api": "v0/package",
 ///   "pkg": "my-pkg/1.0.0",
 ///   "build": {
 ///     "options": [
@@ -43,279 +66,211 @@ macro_rules! spec {
     }};
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct Spec {
-    pub pkg: Ident,
-    #[serde(default, skip_serializing_if = "Meta::is_default")]
-    pub meta: Meta,
-    #[serde(default, skip_serializing_if = "Compat::is_default")]
-    pub compat: Compat,
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub deprecated: bool,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub sources: Vec<SourceSpec>,
-    #[serde(default, skip_serializing_if = "BuildSpec::is_default")]
-    pub build: BuildSpec,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tests: Vec<TestSpec>,
-    #[serde(default, skip_serializing_if = "InstallSpec::is_default")]
-    pub install: InstallSpec,
+/// A generic, structured data object that can be turned into a recipe
+/// when provided with the necessary option values
+pub struct SpecTemplate {
+    name: super::PkgNameBuf,
+    file_path: std::path::PathBuf,
+    inner: serde_yaml::Mapping,
 }
 
-impl Spec {
-    /// Create an empty spec for the identified package
-    pub fn new(ident: Ident) -> Self {
-        Self {
-            pkg: ident,
-            meta: Meta::default(),
-            compat: Compat::default(),
-            deprecated: bool::default(),
-            sources: Vec::new(),
-            build: BuildSpec::default(),
-            tests: Vec::new(),
-            install: InstallSpec::default(),
+impl Named for SpecTemplate {
+    fn name(&self) -> &super::PkgName {
+        &self.name
+    }
+}
+
+impl Template for SpecTemplate {
+    type Output = SpecRecipe;
+
+    fn file_path(&self) -> &Path {
+        &self.file_path
+    }
+
+    fn render(&self, _options: &super::OptionMap) -> Result<Self::Output> {
+        serde_yaml::from_value(self.inner.clone().into()).map_err(|err| {
+            Error::String(format!(
+                "failed to parse rendered template for {}: {err}",
+                self.file_path.display()
+            ))
+        })
+    }
+}
+
+impl TemplateExt for SpecTemplate {
+    fn from_file(path: &Path) -> Result<Self> {
+        let file_path = path.canonicalize()?;
+        let file = std::fs::File::open(&file_path)?;
+        let reader = std::io::BufReader::new(file);
+
+        let inner: serde_yaml::Mapping = serde_yaml::from_reader(reader).map_err(|err| {
+            Error::String(format!("Invalid yaml in template file {path:?}: {err}"))
+        })?;
+
+        let pkg = inner
+            .get(&serde_yaml::Value::String("pkg".to_string()))
+            .ok_or_else(|| {
+                crate::Error::String(format!("Missing pkg field in spec file: {file_path:?}"))
+            })?;
+        let pkg = pkg.as_str().ok_or_else(|| {
+            crate::Error::String(format!(
+                "Invalid value for 'pkg' field: expected string, got {pkg:?} in {file_path:?}"
+            ))
+        })?;
+        let name = super::PkgNameBuf::from_str(
+            // it should never be possible for split to return 0 results
+            // but this trick avoids the use of unwrap
+            pkg.split('/').next().unwrap_or(pkg),
+        )?;
+
+        if inner
+            .get(&serde_yaml::Value::String("api".to_string()))
+            .is_none()
+        {
+            tracing::warn!(
+                "Spec file is missing the 'api' field, this may be an error in the future"
+            );
+            tracing::warn!(" > for specs in the original spk format, add 'api: v0/package'");
+        }
+
+        Ok(Self {
+            file_path,
+            name,
+            inner,
+        })
+    }
+}
+
+/// Specifies some buildable object within the spk ecosystem.
+///
+/// All build-able types have a recipe representation
+/// that can be serialized and deserialized from a human-written
+/// file or machine-managed persistent storage.
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize)]
+#[serde(tag = "api")]
+#[enum_dispatch(Named, Versioned, Deprecate, DeprecateMut)]
+pub enum SpecRecipe {
+    #[serde(rename = "v0/package")]
+    V0Package(super::v0::Spec),
+}
+
+impl super::Recipe for SpecRecipe {
+    type Output = Spec;
+
+    fn default_variants(&self) -> &Vec<super::OptionMap> {
+        match self {
+            SpecRecipe::V0Package(r) => r.default_variants(),
         }
     }
 
-    /// Return the full set of resolved build options using the given ones.
-    pub fn resolve_all_options(&self, given: &OptionMap) -> OptionMap {
-        self.build.resolve_all_options(Some(&self.pkg.name), given)
-    }
-    /// Check if this package spec satisfies the given request.
-    pub fn satisfies_request(&self, request: Request) -> Compatibility {
-        match request {
-            Request::Pkg(request) => self.satisfies_pkg_request(&request),
-            Request::Var(request) => self.satisfies_var_request(&request),
+    fn resolve_options(&self, inputs: &super::OptionMap) -> Result<super::OptionMap> {
+        match self {
+            SpecRecipe::V0Package(r) => r.resolve_options(inputs),
         }
     }
 
-    /// Check if this package spec satisfies the given var request.
-    pub fn satisfies_var_request(&self, request: &VarRequest) -> Compatibility {
-        let opt_required = request.var.namespace() == Some(&self.pkg.name);
-        let mut opt: Option<&Opt> = None;
-        for o in self.build.options.iter() {
-            let is_same_base_name = request.var.base_name() == o.base_name();
-            if !is_same_base_name {
-                continue;
-            }
-
-            let is_global = request.var.namespace().is_none();
-            let is_this_namespace = request.var.namespace() == Some(&*self.pkg.name);
-            if is_this_namespace || is_global {
-                opt = Some(o);
-                break;
-            }
-        }
-
-        match opt {
-            None => {
-                if opt_required {
-                    return Compatibility::Incompatible(format!(
-                        "Package does not define requested option: {}",
-                        request.var
-                    ));
-                }
-                Compatibility::Compatible
-            }
-            Some(Opt::Pkg(opt)) => opt.validate(Some(&request.value)),
-            Some(Opt::Var(opt)) => {
-                let exact = opt.get_value(Some(&request.value));
-                if exact.as_deref() != Some(&request.value) {
-                    Compatibility::Incompatible(format!(
-                        "Incompatible build option '{}': has '{}', requires '{}'",
-                        request.var,
-                        exact.unwrap_or_else(|| "None".to_string()),
-                        request.value,
-                    ))
-                } else {
-                    Compatibility::Compatible
-                }
-            }
+    fn get_build_requirements(&self, options: &super::OptionMap) -> Result<Vec<super::Request>> {
+        match self {
+            SpecRecipe::V0Package(r) => r.get_build_requirements(options),
         }
     }
 
-    /// Check if this package spec satisfies the given pkg request.
-    pub fn satisfies_pkg_request(&self, request: &PkgRequest) -> Compatibility {
-        if request.pkg.name != self.pkg.name {
-            return Compatibility::Incompatible(format!(
-                "different package name: {} != {}",
-                request.pkg.name, self.pkg.name
-            ));
+    fn get_tests(&self, options: &super::OptionMap) -> Result<Vec<super::TestSpec>> {
+        match self {
+            SpecRecipe::V0Package(r) => r.get_tests(options),
         }
-
-        let compat = request.is_satisfied_by(self);
-        if !compat.is_ok() {
-            return compat;
-        }
-
-        if request.pkg.build.is_none() {
-            return Compatibility::Compatible;
-        }
-
-        if request.pkg.build == self.pkg.build {
-            return Compatibility::Compatible;
-        }
-
-        Compatibility::Incompatible(format!(
-            "Package and request differ in builds: requested {:?}, got {:?}",
-            request.pkg.build, self.pkg.build
-        ))
     }
 
-    /// Validate the current spfs change as a build of this spec
-    pub async fn validate_build_changeset(&self) -> Result<()> {
-        self.build.validation.validate_build_changeset(self).await
+    fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
+        match self {
+            SpecRecipe::V0Package(r) => r.generate_source_build(root).map(Spec::V0Package),
+        }
     }
 
-    /// Update this spec to represent a specific binary package build.
-    pub fn update_for_build<I, S>(&mut self, options: &OptionMap, resolved: I) -> Result<()>
+    fn generate_binary_build(
+        &self,
+        options: &super::OptionMap,
+        build_env: &crate::solve::Solution,
+    ) -> Result<Self::Output> {
+        match self {
+            SpecRecipe::V0Package(r) => r
+                .generate_binary_build(options, build_env)
+                .map(Spec::V0Package),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for SpecRecipe {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
-        I: IntoIterator<Item = S>,
-        S: AsRef<Spec>,
+        D: serde::Deserializer<'de>,
     {
-        let specs: HashMap<_, _> = resolved
-            .into_iter()
-            .map(|s| (s.as_ref().pkg.name.clone(), s))
-            .collect();
-        for (dep_name, dep_spec) in specs.iter() {
-            for opt in dep_spec.as_ref().build.options.iter() {
-                if let Opt::Var(opt) = opt {
-                    if let Inheritance::Weak = opt.inheritance {
-                        continue;
-                    }
-                    let mut inherited_opt = opt.clone();
-                    if inherited_opt.var.namespace().is_none() {
-                        inherited_opt.var = inherited_opt.var.with_namespace(&dep_name);
-                    }
-                    inherited_opt.inheritance = Inheritance::Weak;
-                    if let Inheritance::Strong = opt.inheritance {
-                        let mut req = VarRequest::new(inherited_opt.var.clone());
-                        req.pin = true;
-                        self.install.upsert_requirement(Request::Var(req));
-                    }
-                    self.build.upsert_opt(Opt::Var(inherited_opt));
-                }
-            }
+        let mut value = serde_yaml::Mapping::deserialize(deserializer)?;
+        let api_field = serde_yaml::Value::String(String::from("api"));
+        // unfortunately, serde does not have a derive mechanism which
+        // would allow us to specify a default enum variant for when
+        // the 'api' field does not exist in a spec. This small setup will not
+        // create as nice of error messages in some cases, but is the
+        // best implementation that I could think of without adding a
+        // non-trivial maintenance burden to the setup.
+        let variant = value
+            .remove(&api_field)
+            .unwrap_or_else(|| serde_yaml::Value::String(String::from("v0/package")));
+        match variant.as_str() {
+            Some("v0/package") => Ok(Self::V0Package(
+                serde_yaml::from_value(value.into()).map_err(serde::de::Error::custom)?,
+            )),
+            Some(variant) => Err(serde::de::Error::custom(format!(
+                "Unknown api variant: '{variant}'"
+            ))),
+            None => Err(serde::de::Error::custom(
+                "Invalid value for field 'api', expected string type",
+            )),
         }
-
-        for e in self.install.embedded.iter() {
-            self.build
-                .options
-                .extend(e.build.options.clone().into_iter());
-        }
-
-        for opt in self.build.options.iter_mut() {
-            match opt {
-                Opt::Var(opt) => {
-                    opt.set_value(
-                        options
-                            .get(&opt.var)
-                            .map(String::to_owned)
-                            .or_else(|| opt.get_value(None))
-                            .unwrap_or_default(),
-                    )?;
-                    continue;
-                }
-                Opt::Pkg(opt) => {
-                    let spec = specs.get(&opt.pkg);
-                    match spec {
-                        None => {
-                            return Err(Error::String(format!(
-                                "PkgOpt missing in resolved: {}",
-                                opt.pkg
-                            )));
-                        }
-                        Some(spec) => {
-                            let rendered = spec.as_ref().compat.render(&spec.as_ref().pkg.version);
-                            opt.set_value(rendered)?;
-                        }
-                    }
-                }
-            }
-        }
-
-        self.install
-            .render_all_pins(options, specs.iter().map(|(_, s)| &s.as_ref().pkg))?;
-        let digest = self.resolve_all_options(options).digest();
-        self.pkg.set_build(Some(Build::Digest(digest)));
-        Ok(())
     }
+}
+
+/// Specifies some data object within the spk ecosystem.
+///
+/// All resolve-able types have a spec representation
+/// that can be serialized and deserialized from a
+/// [`crate::storage::Repository`].
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize)]
+#[serde(tag = "api")]
+#[enum_dispatch(Named, Versioned, Deprecate, DeprecateMut, Package)]
+pub enum Spec {
+    #[serde(rename = "v0/package")]
+    V0Package(super::v0::Spec),
 }
 
 impl<'de> Deserialize<'de> for Spec {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
-        D: serde::de::Deserializer<'de>,
+        D: serde::Deserializer<'de>,
     {
-        #[derive(Deserialize)]
-        struct SpecSchema {
-            pkg: Ident,
-            #[serde(default)]
-            meta: Meta,
-            #[serde(default)]
-            compat: Compat,
-            #[serde(default)]
-            deprecated: bool,
-            #[serde(default)]
-            sources: Option<Vec<SourceSpec>>,
-            #[serde(default)]
-            build: serde_yaml::Mapping,
-            #[serde(default)]
-            tests: Vec<TestSpec>,
-            #[serde(default)]
-            install: InstallSpec,
-        }
-        let unchecked = SpecSchema::deserialize(deserializer)?;
-        let build_spec_result = if unchecked.pkg.build.is_none() {
-            BuildSpec::deserialize(serde_yaml::Value::Mapping(unchecked.build))
-        } else {
-            // if the build is set, we assume that this is a rendered spec
-            // and we do not want to make an existing rendered build spec unloadable
-            BuildSpec::deserialize_unsafe(serde_yaml::Value::Mapping(unchecked.build))
-        };
-        let build_spec = build_spec_result
-            .map_err(|err| serde::de::Error::custom(format!("spec.build: {err}")))?;
-
-        Ok(Spec {
-            pkg: unchecked.pkg,
-            meta: unchecked.meta,
-            compat: unchecked.compat,
-            deprecated: unchecked.deprecated,
-            sources: unchecked
-                .sources
-                .unwrap_or_else(|| vec![SourceSpec::Local(super::LocalSource::default())]),
-            build: build_spec,
-            tests: unchecked.tests,
-            install: unchecked.install,
-        })
-    }
-}
-
-/// ReadSpec loads a package specification from a yaml file.
-pub fn read_spec_file<P: AsRef<Path>>(filepath: P) -> Result<Spec> {
-    let filepath = filepath.as_ref().canonicalize()?;
-    let file = std::fs::File::open(&filepath)?;
-    let mut spec: Spec = serde_yaml::from_reader(file)
-        .map_err(|err| Error::InvalidPackageSpecFile(filepath.clone(), err))?;
-    if let Some(spec_root) = filepath.parent() {
-        for source in spec.sources.iter_mut() {
-            if let SourceSpec::Local(source) = source {
-                source.path = spec_root.join(&source.path);
-            }
+        let mut value = serde_yaml::Mapping::deserialize(deserializer)?;
+        let api_field = serde_yaml::Value::String(String::from("api"));
+        // unfortunately, serde does not have a derive mechanism which
+        // would allow us to specify a default enum variant for when
+        // the 'api' field does not exist in a spec. This small setup will not
+        // create as nice of error messages in some cases, but is the
+        // best implementation that I could think of without adding a
+        // non-trivial maintenance burden to the setup.
+        let variant = value
+            .remove(&api_field)
+            .unwrap_or_else(|| serde_yaml::Value::String(String::from("v0/package")));
+        match variant.as_str() {
+            Some("v0/package") => Ok(Self::V0Package(
+                serde_yaml::from_value(value.into()).map_err(serde::de::Error::custom)?,
+            )),
+            Some(variant) => Err(serde::de::Error::custom(format!(
+                "Unknown api variant: '{variant}'"
+            ))),
+            None => Err(serde::de::Error::custom(
+                "Invalid value for field 'api', expected string type",
+            )),
         }
     }
-
-    Ok(spec)
-}
-
-/// Save the given spec to a file.
-pub fn save_spec_file<P: AsRef<Path>>(filepath: P, spec: &Spec) -> crate::Result<()> {
-    let file = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(filepath)?;
-    serde_yaml::to_writer(file, spec).map_err(Error::SpecEncodingError)?;
-    Ok(())
 }
 
 impl AsRef<Spec> for Spec {

@@ -1,4 +1,5 @@
 pkg: freetype/2.10.1
+api: v0/package
   # - name: Freetype
   # - description: "Open source library for font reading and rasterization."
   # - license: FTL

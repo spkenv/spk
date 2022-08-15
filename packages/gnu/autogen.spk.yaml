@@ -1,4 +1,5 @@
 pkg: autogen/5.12
+api: v0/package
 
 sources:
   - tar: http://ftpmirror.gnu.org/gnu/autogen/rel5.12/autogen-5.12.tar.gz

@@ -16,6 +16,7 @@ use super::solution::PackageSource;
 use crate::api::OptNameBuf;
 use crate::{
     api::{self, BuildKey},
+    prelude::*,
     storage, Error, Result,
 };
 
@@ -52,7 +53,7 @@ pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
         false
     }
     async fn next(&mut self) -> crate::Result<Option<BuildWithRepos>>;
-    async fn version_spec(&self) -> Option<Arc<api::Spec>>;
+    async fn recipe(&self) -> Option<Arc<api::SpecRecipe>>;
     fn len(&self) -> usize;
 }
 
@@ -273,7 +274,7 @@ pub struct RepositoryBuildIterator {
         api::Ident,
         HashMap<api::RepositoryNameBuf, Arc<storage::RepositoryHandle>>,
     )>,
-    spec: Option<Arc<api::Spec>>,
+    recipe: Option<Arc<api::SpecRecipe>>,
 }
 
 #[async_trait::async_trait]
@@ -292,32 +293,25 @@ impl BuildIterator for RepositoryBuildIterator {
         let mut result = HashMap::new();
 
         for (repo_name, repo) in repos.iter() {
-            let mut spec = match repo.read_spec(&build).await {
+            let spec = match repo.read_package(&build).await {
                 Ok(spec) => spec,
                 Err(Error::PackageNotFoundError(..)) => {
-                    tracing::warn!(
-                        "Repository listed build with no spec: {} from {:?}",
-                        build,
-                        repo
-                    );
+                    tracing::warn!("Repository listed build with no spec: {build} from {repo:?}",);
                     // Skip to next build
                     return self.next().await;
                 }
                 Err(err) => return Err(err),
             };
 
-            let components = match repo.get_package(&build).await {
+            let components = match repo.read_components(&build).await {
                 Ok(c) => c,
                 Err(Error::PackageNotFoundError(..)) => Default::default(),
                 Err(err) => return Err(err),
             };
 
-            if spec.pkg.build.is_none() {
-                tracing::warn!(
-                    "Published spec is corrupt (has no associated build), pkg={}",
-                    build,
-                );
-                Arc::make_mut(&mut spec).pkg = spec.pkg.with_build(build.build.clone());
+            if spec.ident().build.is_none() {
+                tracing::warn!("Published spec is corrupt (has no associated build), pkg={build}",);
+                return self.next().await;
             }
 
             result.insert(
@@ -335,8 +329,8 @@ impl BuildIterator for RepositoryBuildIterator {
         Ok(Some(result))
     }
 
-    async fn version_spec(&self) -> Option<Arc<api::Spec>> {
-        self.spec.clone()
+    async fn recipe(&self) -> Option<Arc<api::SpecRecipe>> {
+        self.recipe.clone()
     }
 
     fn len(&self) -> usize {
@@ -354,7 +348,7 @@ impl RepositoryBuildIterator {
             HashMap<api::RepositoryNameBuf, Arc<storage::RepositoryHandle>>,
         > = HashMap::new();
 
-        let mut spec = None;
+        let mut recipe = None;
         for (repo_name, repo) in &repos {
             let builds = repo.list_package_builds(&pkg).await?;
             for build in builds {
@@ -370,8 +364,8 @@ impl RepositoryBuildIterator {
                     }
                 }
             }
-            if spec.is_none() {
-                spec = match repo.read_spec(&pkg).await {
+            if recipe.is_none() {
+                recipe = match repo.read_recipe(&pkg).await {
                     Ok(spec) => Some(spec),
                     Err(Error::PackageNotFoundError(..)) => None,
                     Err(err) => return Err(err),
@@ -387,7 +381,7 @@ impl RepositoryBuildIterator {
 
         Ok(RepositoryBuildIterator {
             builds: builds.into(),
-            spec,
+            recipe,
         })
     }
 }
@@ -405,7 +399,7 @@ impl BuildIterator for EmptyBuildIterator {
         Ok(None)
     }
 
-    async fn version_spec(&self) -> Option<Arc<api::Spec>> {
+    async fn recipe(&self) -> Option<Arc<api::SpecRecipe>> {
         None
     }
 
@@ -440,8 +434,8 @@ impl BuildIterator for SortedBuildIterator {
         Ok(self.builds.pop_front())
     }
 
-    async fn version_spec(&self) -> Option<Arc<api::Spec>> {
-        self.source.lock().await.version_spec().await
+    async fn recipe(&self) -> Option<Arc<api::SpecRecipe>> {
+        self.source.lock().await.recipe().await
     }
 
     fn len(&self) -> usize {
@@ -488,13 +482,13 @@ impl SortedBuildIterator {
         ordered_names: &Vec<OptNameBuf>,
         build_name_values: &HashMap<api::Ident, api::OptionMap>,
     ) -> BuildKey {
-        let build_id = &spec.pkg;
+        let build_id = spec.ident();
         let empty = api::OptionMap::default();
         let name_values = match build_name_values.get(build_id) {
             Some(nv) => nv,
             None => &empty,
         };
-        BuildKey::new(&spec.pkg, ordered_names, name_values)
+        BuildKey::new(spec.ident(), ordered_names, name_values)
     }
 
     /// Sorts builds by keys based on ordered build option names and
@@ -511,7 +505,7 @@ impl SortedBuildIterator {
             // won't use the build option values in their key, they
             // don't need to be looked at. They have a type of key
             // that always puts them last in the build order.
-            if let Some(b) = &build.pkg.build {
+            if let Some(b) = &build.ident().build {
                 if b.is_source() {
                     continue;
                 }
@@ -526,7 +520,7 @@ impl SortedBuildIterator {
             // later use when generating the build's key object. They
             // won't all be used in the key, but this saves having to
             // regenerate them.
-            let options_map = build.resolve_all_options(&api::OptionMap::default());
+            let options_map = build.option_values();
 
             // Work out which options will be used in the keys. This
             // is done for all builds before the first key is
@@ -559,7 +553,7 @@ impl SortedBuildIterator {
                 }
             }
 
-            build_name_values.insert(build.pkg.clone(), options_map);
+            build_name_values.insert(build.ident().clone(), options_map);
         }
 
         // Now that all the builds have been processed, pull out the
@@ -646,13 +640,13 @@ impl SortedBuildIterator {
                 .map(|(spec, _)| {
                     format!(
                         "{} = {} : {:?}",
-                        spec.pkg,
+                        spec.ident(),
                         SortedBuildIterator::make_option_values_build_key(
                             spec,
                             &ordered_names,
                             &build_name_values,
                         ),
-                        spec.resolve_all_options(&api::OptionMap::default()),
+                        spec.option_values(),
                     )
                 })
                 .collect::<Vec<String>>()

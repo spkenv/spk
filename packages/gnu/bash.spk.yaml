@@ -1,4 +1,5 @@
 pkg: bash/5.1
+api: v0/package
 
 sources:
   - tar: http://ftpmirror.gnu.org/gnu/bash/bash-5.1.tar.gz

@@ -8,6 +8,7 @@ mod build_spec;
 mod compat;
 mod component_spec;
 mod component_spec_list;
+mod deprecate;
 mod embedded_packages_list;
 mod environ;
 pub(crate) mod ident;
@@ -16,11 +17,16 @@ mod meta;
 mod name;
 mod option;
 mod option_map;
+mod package;
+pub mod prelude;
+mod recipe;
 mod request;
 mod requirements_list;
 mod source_spec;
 mod spec;
+mod template;
 mod test_spec;
+pub mod v0;
 mod validation;
 mod validators;
 mod version;
@@ -33,6 +39,7 @@ pub use build_spec::BuildSpec;
 pub use compat::{parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility};
 pub use component_spec::{Component, ComponentSpec, FileMatcher};
 pub use component_spec_list::ComponentSpecList;
+pub use deprecate::{Deprecate, DeprecateMut};
 pub use embedded_packages_list::EmbeddedPackagesList;
 pub use environ::{AppendEnv, EnvOp, PrependEnv, SetEnv};
 pub use ident::{parse_ident, BuildIdent, Ident};
@@ -45,13 +52,16 @@ pub use name::{
 pub use option::{Inheritance, Opt, PkgOpt, VarOpt};
 pub(crate) use option_map::DIGEST_SIZE;
 pub use option_map::{host_options, OptionMap};
+pub use package::Package;
+pub use recipe::{Recipe, Versioned};
 pub use request::{
     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, RangeIdent, Request,
     RequestedBy, VarRequest,
 };
 pub use requirements_list::RequirementsList;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
-pub use spec::{read_spec_file, save_spec_file, Spec};
+pub use spec::{Spec, SpecRecipe, SpecTemplate};
+pub use template::{Named, Template, TemplateExt};
 
 pub use test_spec::{TestSpec, TestStage};
 pub use validation::{default_validators, ValidationSpec, Validator};

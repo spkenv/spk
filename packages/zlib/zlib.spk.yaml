@@ -1,5 +1,6 @@
 pkg: zlib/1.2.11+r.1
-  # - name: "zlib"
+api: v0/package
+ # - name: "zlib"
   # - description: "Compression library"
   # - license: Zlib
   # - url: https://www.zlib.net

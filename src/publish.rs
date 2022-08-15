@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::{
     api,
     io::{self, Format},
+    prelude::*,
     storage::{self, CachePolicy},
     with_cache_policy, Error, Result,
 };
@@ -70,10 +71,10 @@ impl Publisher {
 
     /// Publish the identified package as configured.
     pub async fn publish(&self, pkg: &api::Ident) -> Result<Vec<api::Ident>> {
-        let spec_ident = pkg.with_build(None);
-        tracing::info!("loading spec: {}", spec_ident.format_ident());
+        let recipe_ident = pkg.with_build(None);
+        tracing::info!("loading recipe: {}", recipe_ident.format_ident());
         match with_cache_policy!(self.from, CachePolicy::BypassCache, {
-            self.from.read_spec(&spec_ident).await
+            self.from.read_recipe(&recipe_ident).await
         }) {
             Err(err @ Error::PackageNotFoundError(_)) if self.force => {
                 return Err(
@@ -86,17 +87,21 @@ impl Publisher {
                 // and the publish will be rejected by the storage.
             }
             Err(err) => return Err(err),
-            Ok(spec) => {
-                tracing::info!("publishing spec: {}", spec.pkg.format_ident());
+            Ok(recipe) => {
+                tracing::info!("publishing recipe: {}", recipe.to_ident().format_ident());
                 if self.force {
-                    self.to.force_publish_spec(&spec).await?;
+                    self.to.force_publish_recipe(&recipe).await?;
                 } else {
-                    match self.to.publish_spec(&spec).await {
+                    match self.to.publish_recipe(&recipe).await {
                         Ok(_) | Err(Error::VersionExistsError(_)) => {
                             // It's cool if the version already exists
                         }
                         Err(err) => {
-                            return Err(format!("Failed to publish spec {}: {err}", spec.pkg).into())
+                            return Err(format!(
+                                "Failed to publish recipe {}: {err}",
+                                recipe.to_ident()
+                            )
+                            .into())
                         }
                     }
                 }
@@ -121,9 +126,9 @@ impl Publisher {
             }
 
             tracing::debug!("   loading package: {}", build.format_ident());
-            let spec = self.from.read_spec(build).await?;
-            let components = self.from.get_package(build).await?;
-            tracing::info!("publishing package: {}", spec.pkg.format_ident());
+            let spec = self.from.read_package(build).await?;
+            let components = self.from.read_components(build).await?;
+            tracing::info!("publishing package: {}", spec.ident().format_ident());
             let env_spec = components.values().cloned().collect();
             match (&*self.from, &*self.to) {
                 (SPFS(src), SPFS(dest)) => {
@@ -141,7 +146,7 @@ impl Publisher {
                     ))
                 }
             }
-            self.to.publish_package(&spec, components).await?;
+            self.to.publish_package(&spec, &components).await?;
         }
 
         Ok(builds)

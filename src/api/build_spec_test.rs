@@ -4,7 +4,6 @@
 use rstest::rstest;
 
 use super::BuildSpec;
-use crate::{api, opt_name, option_map};
 
 #[rstest]
 fn test_variants_may_have_a_build() {
@@ -23,8 +22,7 @@ fn test_variants_must_be_unique() {
     // two variants end up resolving to the same set of options
     let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(
         r#"{
-        options: [{var: "my-opt/any-value"}],
-        variants: [{my-opt: "any-value"}, {}],
+        variants: [{my-opt: "any-value"}, {my-opt: "any-value"}],
     }"#,
     );
 
@@ -37,42 +35,4 @@ fn test_variants_must_be_unique_unknown_ok() {
     let _: BuildSpec =
         serde_yaml::from_str("{variants: [{unknown: any-value}, {unknown: any_other_value}]}")
             .unwrap();
-}
-
-#[rstest]
-fn test_resolve_all_options_package_option() {
-    let spec: BuildSpec = serde_yaml::from_str(
-        r#"{
-            options: [
-                {var: "python.abi/cp37m"},
-                {var: "my-opt/default"},
-                {var: "debug/off"},
-            ]
-        }"#,
-    )
-    .unwrap();
-
-    let options = option_map! {
-        "python.abi" => "cp27mu",
-        "my-opt" => "value",
-        "my-pkg.my-opt" => "override",
-        "debug" => "on",
-    };
-    let name: api::PkgNameBuf = "my-pkg".parse().unwrap();
-    let resolved = spec.resolve_all_options(Some(&name), &options);
-    assert_eq!(
-        resolved.get(opt_name!("my-opt")),
-        Some(&"override".to_string()),
-        "namespaced option should take precedence"
-    );
-    assert_eq!(
-        resolved.get(opt_name!("debug")),
-        Some(&"on".to_string()),
-        "global opt should resolve if given"
-    );
-    assert_eq!(
-        resolved.get(opt_name!("python.abi")),
-        Some(&"cp27mu".to_string()),
-        "opt for other package should exist"
-    );
 }

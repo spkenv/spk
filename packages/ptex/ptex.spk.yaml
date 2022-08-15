@@ -1,5 +1,6 @@
 pkg: ptex/2.4.0
-  # - name: "Ptex"
+api: v0/package
+ # - name: "Ptex"
   # - description: "Per-face texture mapping for production rendering"
   # - license: BSD-3-clause
   # - url: https://ptex.us
@@ -28,7 +29,7 @@ build:
     - { gcc: 9.3 }
 
   script:
-    - cmake -S ptex -B build 
+    - cmake -S ptex -B build
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=$PREFIX
         -DCMAKE_PREFIX_PATH=$PREFIX

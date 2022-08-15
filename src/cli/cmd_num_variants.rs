@@ -4,12 +4,16 @@
 
 use anyhow::{Context, Result};
 use clap::Args;
+use spk::prelude::*;
 
 use super::{flags, CommandArgs, Run};
 
 /// Build a source package from a spec file.
 #[derive(Args)]
 pub struct NumVariants {
+    #[clap(flatten)]
+    pub options: flags::Options,
+
     /// The package or yaml spec file to report on
     #[clap(name = "PKG|SPEC_FILE")]
     pub package: Option<String>,
@@ -18,11 +22,13 @@ pub struct NumVariants {
 #[async_trait::async_trait]
 impl Run for NumVariants {
     async fn run(&mut self) -> Result<i32> {
-        let (_, spec) = flags::find_package_spec(&self.package)
+        let (_, template) = flags::find_package_template(&self.package)
             .context("find package spec")?
             .must_be_found();
+        let options = self.options.get_options()?;
+        let recipe = template.render(&options)?;
 
-        println!("{}", spec.build.variants.len());
+        println!("{}", recipe.default_variants().len());
 
         Ok(0)
     }

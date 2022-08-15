@@ -61,7 +61,7 @@ impl RuntimeRepository {
 
     #[cfg(test)]
     pub fn new(root: std::path::PathBuf) -> Self {
-        // this function is not allowed outside of testing because get_package
+        // this function is not allowed outside of testing because read_components
         // makes assumptions about the runtime directory which cannot be
         // reasonably altered
         let address = Self::address_from_root(&root);
@@ -75,8 +75,14 @@ impl RuntimeRepository {
 
 #[async_trait::async_trait]
 impl Repository for RuntimeRepository {
+    type Recipe = api::SpecRecipe;
+
     fn address(&self) -> &url::Url {
         &self.address
+    }
+
+    fn name(&self) -> &api::RepositoryName {
+        &self.name
     }
 
     async fn list_packages(&self) -> Result<Vec<api::PkgNameBuf>> {
@@ -162,27 +168,11 @@ impl Repository for RuntimeRepository {
             .collect()
     }
 
-    fn name(&self) -> &api::RepositoryName {
-        &self.name
+    async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
+        Err(Error::PackageNotFoundError(pkg.clone()))
     }
 
-    async fn read_spec(&self, pkg: &api::Ident) -> Result<Arc<api::Spec>> {
-        let mut path = self.root.join(pkg.to_string());
-        path.push("spec.yaml");
-
-        match api::read_spec_file(&path).map(Arc::new) {
-            Err(Error::IO(err)) => {
-                if err.kind() == std::io::ErrorKind::NotFound {
-                    Err(Error::PackageNotFoundError(pkg.clone()))
-                } else {
-                    Err(err.into())
-                }
-            }
-            err => err,
-        }
-    }
-
-    async fn get_package(
+    async fn read_components(
         &self,
         pkg: &api::Ident,
     ) -> Result<HashMap<api::Component, spfs::encoding::Digest>> {
@@ -228,24 +218,43 @@ impl Repository for RuntimeRepository {
         Ok(mapped)
     }
 
-    async fn force_publish_spec(&self, _spec: &api::Spec) -> Result<()> {
+    async fn force_publish_recipe(&self, _spec: &Self::Recipe) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
-    async fn publish_spec(&self, _spec: &api::Spec) -> Result<()> {
+    async fn publish_recipe(&self, _spec: &Self::Recipe) -> Result<()> {
         Err(Error::String(
             "Cannot publish to a runtime repository".into(),
         ))
     }
 
-    async fn remove_spec(&self, _pkg: &api::Ident) -> Result<()> {
+    async fn remove_recipe(&self, _pkg: &api::Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
+    }
+
+    async fn read_package(
+        &self,
+        pkg: &api::Ident,
+    ) -> Result<Arc<<Self::Recipe as api::Recipe>::Output>> {
+        let mut path = self.root.join(pkg.to_string());
+        path.push("spec.yaml");
+
+        let mut reader = std::fs::File::open(&path).map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                Error::PackageNotFoundError(pkg.clone())
+            } else {
+                err.into()
+            }
+        })?;
+        serde_yaml::from_reader(&mut reader)
+            .map(Arc::new)
+            .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
     }
 
     async fn publish_package(
         &self,
-        _spec: &api::Spec,
-        _components: HashMap<api::Component, spfs::encoding::Digest>,
+        _spec: &<Self::Recipe as api::Recipe>::Output,
+        _components: &HashMap<api::Component, spfs::encoding::Digest>,
     ) -> Result<()> {
         Err(Error::String(
             "Cannot publish to a runtime repository".into(),

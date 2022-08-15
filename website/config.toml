@@ -10,3 +10,8 @@ themeVariant = "blue"
 
 [outputs]
 home = [ "HTML", "RSS", "JSON"]
+
+[module]
+[[module.mounts]]
+source = 'static'
+target = 'assets/static'

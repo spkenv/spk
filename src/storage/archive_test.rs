@@ -4,27 +4,27 @@
 use rstest::rstest;
 
 use super::{export_package, import_package};
-use crate::{build, fixtures::*};
+use crate::{api::Package, build, fixtures::*};
 
 #[rstest]
 #[tokio::test]
 async fn test_archive_io() {
     let rt = spfs_runtime().await;
-    let spec = crate::spec!(
+    let spec = crate::recipe!(
         {
             "pkg": "spk-archive-test/0.0.1",
             "build": {"script": "touch /spfs/file.txt"},
         }
     );
-    rt.tmprepo.publish_spec(&spec).await.unwrap();
-    let spec = build::BinaryPackageBuilder::from_spec(spec)
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
+    let (spec, _) = build::BinaryPackageBuilder::from_recipe(spec)
         .with_source(build::BuildSource::LocalPath(".".into()))
-        .build()
+        .build_and_publish(&*rt.tmprepo)
         .await
         .unwrap();
     let filename = rt.tmpdir.path().join("archive.spk");
     filename.ensure();
-    export_package(&spec.pkg, &filename)
+    export_package(spec.ident(), &filename)
         .await
         .expect("failed to export");
     let mut actual = Vec::new();
@@ -70,20 +70,20 @@ async fn test_archive_io() {
 #[tokio::test]
 async fn test_archive_create_parents() {
     let rt = spfs_runtime().await;
-    let spec = crate::spec!(
+    let spec = crate::recipe!(
         {
             "pkg": "spk-archive-test/0.0.1",
             "build": {"script": "touch /spfs/file.txt"},
         }
     );
-    rt.tmprepo.publish_spec(&spec).await.unwrap();
-    let spec = build::BinaryPackageBuilder::from_spec(spec)
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
+    let (spec, _) = build::BinaryPackageBuilder::from_recipe(spec)
         .with_source(build::BuildSource::LocalPath(".".into()))
-        .build()
+        .build_and_publish(&*rt.tmprepo)
         .await
         .unwrap();
     let filename = rt.tmpdir.path().join("deep/nested/path/archive.spk");
-    export_package(&spec.pkg, filename)
+    export_package(spec.ident(), filename)
         .await
         .expect("export should create dirs as needed");
 }

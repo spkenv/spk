@@ -11,7 +11,11 @@ use itertools::Itertools;
 use serde::Serialize;
 
 use super::{flags, CommandArgs, Run};
-use spk::{api, solve::PackageSource, solve::SolvedRequest};
+use spk::{
+    api::{self, Package},
+    solve::PackageSource,
+    solve::SolvedRequest,
+};
 
 // Constants for the valid output formats
 const LAYER_FORMAT: &str = "layers";
@@ -131,19 +135,15 @@ impl Bake {
     /// Bake command can do nothing with.
     fn get_spfs_layer(&self, resolved: &SolvedRequest) -> spk::Result<String> {
         let spfs_layer = match &resolved.source {
-            PackageSource::Spec(s) => {
-                // The source of the resolved package is another
-                // package, not a repo.
-                if resolved.spec.pkg.build.as_ref().unwrap().is_embedded() {
-                    // Embedded builds are provided by another package
-                    // in the solve, they don't have a layer of their
-                    // own so they can be skipped over.
-                    return Err(spk::Error::SkipEmbedded);
-                } else {
-                    // This is a /src build of a package, and bake
-                    // doesn't build packages from source
-                    return Err(spk::Error::String(format!("Cannot bake, solution requires packages that need building - Request for: {}, Resolved to: {}, Provided by: {}", resolved.request.pkg, resolved.spec.pkg, s.pkg)));
-                }
+            PackageSource::Embedded => {
+                // Embedded builds are provided by another package
+                // in the solve. They don't have a layer of their
+                // own so they can be skipped over.
+                return Err(spk::Error::SkipEmbedded);
+            }
+            PackageSource::BuildFromSource { .. } => {
+                // bake doesn't build packages from source
+                return Err(spk::Error::String(format!("Cannot bake, solution requires packages that need building - Request for: {}, Resolved to: {}", resolved.request.pkg, resolved.spec.ident())));
             }
             PackageSource::Repository {
                 repo: _,
@@ -193,7 +193,7 @@ impl Bake {
 
             // Store in a map so they can be matched up with the
             // layers in the runtime environment in the next loop.
-            layers_to_packages.insert(spfs_layer, resolved.spec.pkg.to_string());
+            layers_to_packages.insert(spfs_layer, resolved.spec.ident().to_string());
         }
 
         // Keep the runtime stack order with the first layer at the
@@ -280,7 +280,7 @@ impl Bake {
 
             stack.push(BakeLayer {
                 spfs_layer,
-                spk_package: resolved.spec.pkg.to_string(),
+                spk_package: resolved.spec.ident().to_string(),
                 spk_requester: requested_by.join(", "),
                 spfs_tag,
             });

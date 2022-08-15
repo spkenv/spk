@@ -6,7 +6,9 @@ use std::{collections::BTreeSet, fmt::Write};
 use anyhow::{anyhow, Result};
 use clap::Args;
 use colored::Colorize;
-use spk::{api::PkgName, io::Format};
+use spk::api::PkgName;
+use spk::io::Format;
+use spk::prelude::*;
 
 use super::{flags, CommandArgs, Run};
 
@@ -135,8 +137,8 @@ impl<T: Output> Run for Ls<T> {
                     let mut any_deprecated = false;
                     let mut any_not_deprecated = false;
                     while let Some(build) = builds.pop() {
-                        match repo.read_spec(&build).await {
-                            Ok(spec) if !spec.deprecated => {
+                        match repo.read_package(&build).await {
+                            Ok(spec) if !spec.is_deprecated() => {
                                 any_not_deprecated = true;
                             }
                             Ok(_) => {
@@ -187,14 +189,14 @@ impl<T: Output> Run for Ls<T> {
                         // Doing this here slows the listing down, but
                         // the spec file is the only place that holds
                         // the deprecation status.
-                        let spec = match repo.read_spec(&build).await {
+                        let spec = match repo.read_package(&build).await {
                             Ok(spec) => spec,
                             Err(err) => {
                                 self.output.warn(format!("Skipping {build}: {err}"));
                                 continue;
                             }
                         };
-                        if spec.deprecated && !self.deprecated {
+                        if spec.is_deprecated() && !self.deprecated {
                             // Hide deprecated packages by default
                             continue;
                         }
@@ -304,14 +306,14 @@ impl<T: Output> Ls<T> {
                     // Doing this here slows the listing down, but
                     // the spec file is the only place that holds
                     // the deprecation status.
-                    let spec = match repo.read_spec(&build).await {
+                    let spec = match repo.read_package(&build).await {
                         Ok(spec) => spec,
                         Err(err) => {
                             self.output.warn(format!("Skipping {build}: {err}"));
                             continue;
                         }
                     };
-                    if spec.deprecated && !self.deprecated {
+                    if spec.is_deprecated() && !self.deprecated {
                         // Hide deprecated packages by default
                         continue;
                     }
@@ -324,7 +326,7 @@ impl<T: Output> Ls<T> {
                         );
                     }
                     self.output
-                        .println((self.format_build(&build, &spec, repo).await?).to_string());
+                        .println((self.format_build(&build, &*spec, repo).await?).to_string());
                 }
             }
         }
@@ -338,7 +340,7 @@ impl<T: Output> Ls<T> {
         repo: &spk::storage::RepositoryHandle,
     ) -> Result<String> {
         let mut item = pkg.format_ident();
-        if spec.deprecated {
+        if spec.is_deprecated() {
             let _ = write!(item, " {}", "DEPRECATED".red());
         }
 
@@ -351,13 +353,14 @@ impl<T: Output> Ls<T> {
         // Based on the verbosity, display more details for the
         // package build.
         if self.verbose > 0 {
-            let options = spec.resolve_all_options(&spk::api::OptionMap::default());
+            let spec = repo.read_package(pkg).await?;
+            let options = spec.option_values();
             item.push(' ');
             item.push_str(&spk::io::format_options(&options));
         }
 
         if self.verbose > 1 || self.components {
-            let cmpts = repo.get_package(pkg).await?;
+            let cmpts = repo.read_components(pkg).await?;
             item.push(' ');
             item.push_str(&spk::io::format_components(cmpts.keys()));
         }

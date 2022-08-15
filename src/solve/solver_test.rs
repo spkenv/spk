@@ -7,29 +7,16 @@ use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
 
 use super::Solver;
-use crate::fixtures::*;
-use crate::{api, io, Error, Result};
+use crate::{api, io, prelude::*, Error, Result};
+use crate::{fixtures::*, recipe};
 // macros
-use crate::{make_build, make_build_and_components, make_repo, opt_name, option_map, spec};
+use crate::{
+    make_build, make_build_and_components, make_repo, opt_name, option_map, request, spec,
+};
 
 #[fixture]
 fn solver() -> Solver {
     Solver::default()
-}
-
-/// Creates a request from a literal range identifier, or json structure
-macro_rules! request {
-    ($req:literal) => {
-        crate::api::Request::Pkg(crate::api::PkgRequest::new(
-            crate::api::parse_ident_range($req).unwrap(),
-            api::RequestedBy::SpkInternalTest,
-        ))
-    };
-    ($req:tt) => {{
-        let value = serde_json::json!($req);
-        let req: crate::api::Request = serde_json::from_value(value).unwrap();
-        req
-    }};
 }
 
 /// Asserts that a package exists in the solution at a specific version,
@@ -45,20 +32,22 @@ macro_rules! assert_resolved {
         assert_resolved!($solution, $pkg, version = $version, $message)
     };
     ($solution:ident, $pkg:literal, version = $version:literal, $message:literal) => {{
+        use $crate::prelude::*;
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
-        assert_eq!(pkg.spec.pkg.version, $version, $message);
+        assert_eq!(*pkg.spec.version(), $version, $message);
     }};
 
     ($solution:ident, $pkg:literal, build = $build:expr) => {
         assert_resolved!($solution, $pkg, build = $build, "wrong package build was resolved")
     };
     ($solution:ident, $pkg:literal, build = $build:expr, $message:literal) => {{
+        use $crate::prelude::*;
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
-        assert_eq!(pkg.spec.pkg.build, $build, $message);
+        assert_eq!(pkg.spec.ident().build, $build, $message);
     }};
 
     ($solution:ident, $pkg:literal, components = [$($component:literal),+ $(,)?]) => {{
@@ -82,7 +71,7 @@ macro_rules! assert_resolved {
         let names: std::collections::HashSet<_> = $solution
             .items()
             .into_iter()
-            .map(|s| s.spec.pkg.name.to_string())
+            .map(|s| s.spec.name().to_string())
             .collect();
         let expected: std::collections::HashSet<_> = vec![
             $( $pkg.to_string() ),*
@@ -114,7 +103,7 @@ async fn test_solver_package_with_no_spec(mut solver: Solver) {
     let repo = crate::storage::RepositoryHandle::new_mem();
 
     let options = option_map! {};
-    let mut spec = spec!({"pkg": "my-pkg/1.0.0"});
+    let mut spec = api::v0::Spec::new(crate::ident!("my-pkg/1.0.0"));
     spec.pkg
         .set_build(Some(api::Build::Digest(options.digest())));
 
@@ -122,7 +111,9 @@ async fn test_solver_package_with_no_spec(mut solver: Solver) {
     let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
         .into_iter()
         .collect();
-    repo.publish_package(&spec, components).await.unwrap();
+    repo.publish_package(&spec.into(), &components)
+        .await
+        .unwrap();
 
     solver.update_options(options);
     solver.add_repository(Arc::new(repo));
@@ -142,18 +133,14 @@ async fn test_solver_package_with_no_spec(mut solver: Solver) {
 async fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
     let repo = crate::storage::RepositoryHandle::new_mem();
 
-    let options = option_map! {};
-    let mut spec = spec!({"pkg": "my-pkg/1.0.0"});
-    spec.pkg
-        .set_build(Some(api::Build::Digest(options.digest())));
+    let spec = spec!({"pkg": "my-pkg/1.0.0/4OYMIQUY"});
 
     // publish package without publishing spec
     let components = vec![(api::Component::Run, EMPTY_DIGEST.into())]
         .into_iter()
         .collect();
-    repo.publish_package(&spec, components).await.unwrap();
+    repo.publish_package(&spec, &components).await.unwrap();
 
-    solver.update_options(options);
     solver.add_repository(Arc::new(repo));
     // Create this one as requested by the command line, rather than the tests
     let req = crate::api::Request::Pkg(crate::api::PkgRequest::new(
@@ -184,9 +171,9 @@ async fn test_solver_single_package_no_deps(mut solver: Solver) {
     let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_eq!(packages.len(), 1, "expected one resolved package");
     let resolved = packages.get("my-pkg").unwrap();
-    assert_eq!(&resolved.spec.pkg.version.to_string(), "1.0.0");
-    assert!(resolved.spec.pkg.build.is_some());
-    assert_ne!(resolved.spec.pkg.build, Some(api::Build::Source));
+    assert_eq!(&resolved.spec.version().to_string(), "1.0.0");
+    assert!(resolved.spec.ident().build.is_some());
+    assert_ne!(resolved.spec.ident().build, Some(api::Build::Source));
 }
 
 #[rstest]
@@ -535,7 +522,7 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
     // - the options for each build are checked
     // - the resolved build must have used the option
 
-    let spec = spec!(
+    let spec = recipe!(
         {
             "pkg": "vnp3/2.0.0",
             "build": {
@@ -557,13 +544,12 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
     let for_py26 = make_build!(spec, [py26]);
     let for_py371 = make_build!(spec, [py371]);
     let for_py37 = make_build!(spec, [py37]);
-
     let repo = make_repo!([for_py27, for_py26, for_py37, for_py371]);
-    repo.publish_spec(&spec).await.unwrap();
+    repo.publish_recipe(&spec).await.unwrap();
     let repo = Arc::new(repo);
 
     // The 'by_build_option_values' build sorting method does not use
-    // the variants or version spec's default options. It sorts the
+    // the variants or recipe's default options. It sorts the
     // builds by putting the ones with the highest numbered build
     // options (dependencies) first. The '~'s and ',<3's have been
     // added to some of the version ranges below force the solver to
@@ -589,7 +575,7 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
         let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
         let resolved = solution.get("vnp3").unwrap();
-        let opt = resolved.spec.build.options.get(0).unwrap();
+        let opt = resolved.spec.options().get(0).unwrap();
         let value = opt.get_value(None);
 
         // Check the first digit component of the pyver value
@@ -614,7 +600,7 @@ async fn test_solver_option_injection(mut solver: Solver) {
     // test the options that are defined when a package is resolved
     // - options are namespaced and added to the environment
     init_logging();
-    let spec = spec!(
+    let spec = recipe!(
         {
             "pkg": "vnp3/2.0.0",
             "build": {
@@ -635,7 +621,7 @@ async fn test_solver_option_injection(mut solver: Solver) {
     );
     let build = make_build!(spec, [pybuild]);
     let repo = make_repo!([build]);
-    repo.publish_spec(&spec).await.unwrap();
+    repo.publish_recipe(&spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("vnp3"));
@@ -657,7 +643,7 @@ async fn test_solver_option_injection(mut solver: Solver) {
         !opts.contains_key(opt_name!("vnp3.special")),
         "should not define empty values"
     );
-    assert_eq!(opts.len(), 0, "expected no more options");
+    assert_eq!(opts.len(), 0, "expected no more options, got {opts}");
 }
 
 #[rstest]
@@ -685,6 +671,7 @@ async fn test_solver_build_from_source(mut solver: Solver) {
     let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
+    solver.set_binary_only(false);
     // the new option value should disqualify the existing build
     // but a new one should be generated for this set of options
     solver.add_request(request!({"var": "debug/on"}));
@@ -696,7 +683,7 @@ async fn test_solver_build_from_source(mut solver: Solver) {
     assert!(
         resolved.is_source_build(),
         "Should set unbuilt spec as source: {}",
-        resolved.spec.pkg
+        resolved.spec.ident()
     );
 
     solver.reset();
@@ -789,6 +776,7 @@ async fn test_solver_build_from_source_dependency(mut solver: Solver) {
     solver.update_options(option_map! {"debug" => "on"});
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-tool"));
+    solver.set_binary_only(false);
 
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
@@ -802,7 +790,7 @@ async fn test_solver_build_from_source_dependency(mut solver: Solver) {
 #[tokio::test]
 async fn test_solver_deprecated_build(mut solver: Solver) {
     let deprecated = make_build!({"pkg": "my-pkg/1.0.0", "deprecated": true});
-    let deprecated_build = deprecated.pkg.clone();
+    let deprecated_build = deprecated.ident().clone();
     let repo = make_repo!([
         {"pkg": "my-pkg/0.9.0"},
         {"pkg": "my-pkg/1.0.0"},
@@ -839,8 +827,7 @@ async fn test_solver_deprecated_build(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_deprecated_version(mut solver: Solver) {
-    let mut deprecated = make_build!({"pkg": "my-pkg/1.0.0"});
-    deprecated.deprecated = true;
+    let deprecated = make_build!({"pkg": "my-pkg/1.0.0", "deprecated": true});
     let repo = make_repo!(
         [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0", "deprecated": true}, deprecated]
     );
@@ -861,7 +848,7 @@ async fn test_solver_deprecated_version(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(
         api::PkgRequest::new(
-            api::RangeIdent::equals(&deprecated.pkg, []),
+            api::RangeIdent::equals(deprecated.ident(), []),
             api::RequestedBy::SpkInternalTest,
         )
         .into(),
@@ -886,28 +873,33 @@ async fn test_solver_build_from_source_deprecated(mut solver: Solver) {
         [
             {
                 "pkg": "my-tool/1.2.0/src",
+                "deprecated": false,
                 "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
             {
                 "pkg": "my-tool/1.2.0",
+                "deprecated": true,
                 "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
             },
         ],
-    options = {"debug" => "off"}
+        options = {"debug" => "off"}
     );
-    let mut spec = repo
-        .read_spec(&api::parse_ident("my-tool/1.2.0").unwrap())
+    let spec = repo
+        .read_recipe(&api::parse_ident("my-tool/1.2.0").unwrap())
         .await
         .unwrap();
-    Arc::make_mut(&mut spec).deprecated = true;
-    repo.force_publish_spec(&spec).await.unwrap();
+    repo.force_publish_recipe(&spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
 
     let res = run_and_print_resolve_for_tests(&solver).await;
-    assert!(matches!(res, Err(Error::Solve(_))));
+    match res {
+        Err(Error::Solve(_)) => {}
+        Err(err) => panic!("expected solve error, got {err}"),
+        _ => panic!("expected solve error, got successful solution"),
+    }
 }
 
 #[rstest]
@@ -1211,12 +1203,12 @@ async fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     let dep_v1 = spec!({"pkg": "build-dep/1.0.0"});
     let dep_v2 = spec!({"pkg": "build-dep/2.0.0"});
 
-    let a_spec = spec!({
+    let a_spec = recipe!({
         "pkg": "pkga/1.0.0",
         "build": {"options": [{"pkg": "build-dep/=1.0.0"}, {"var": "debug/on"}]},
     });
 
-    let b_spec = spec!({
+    let b_spec = recipe!({
         "pkg": "pkgb/1.0.0",
         "build": {"options": [{"pkg": "build-dep/=2.0.0"}, {"var": "debug/off"}]},
     });
@@ -1224,8 +1216,8 @@ async fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     let a_build = make_build!(a_spec, [dep_v1]);
     let b_build = make_build!(b_spec, [dep_v2]);
     let repo = make_repo!([a_build, b_build,]);
-    repo.publish_spec(&a_spec).await.unwrap();
-    repo.publish_spec(&b_spec).await.unwrap();
+    repo.publish_recipe(&a_spec).await.unwrap();
+    repo.publish_recipe(&b_spec).await.unwrap();
     let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
@@ -1391,7 +1383,7 @@ async fn test_solver_component_availability(mut solver: Solver) {
     // - all the specs components are selected in the resolve
     // - the final build has published layers for each component
 
-    let spec373 = spec!({
+    let spec373 = recipe!({
         "pkg": "python/3.7.3",
         "install": {
             "components": [
@@ -1400,10 +1392,24 @@ async fn test_solver_component_availability(mut solver: Solver) {
             ]
         },
     });
-    let mut spec372 = spec373.clone();
-    spec372.pkg = api::parse_ident("python/3.7.2").unwrap();
-    let mut spec371 = spec373.clone();
-    spec371.pkg = api::parse_ident("python/3.7.1").unwrap();
+    let spec372 = recipe!({
+        "pkg": "python/3.7.2",
+        "install": {
+            "components": [
+                {"name": "bin", "uses": ["lib"]},
+                {"name": "lib"},
+            ]
+        },
+    });
+    let spec371 = recipe!({
+        "pkg": "python/3.7.1",
+        "install": {
+            "components": [
+                {"name": "bin", "uses": ["lib"]},
+                {"name": "lib"},
+            ]
+        },
+    });
 
     // the first pkg has what we want on paper, but didn't actually publish
     // the components that we need (missing bin)
@@ -1418,9 +1424,9 @@ async fn test_solver_component_availability(mut solver: Solver) {
         (build372, cmpt372),
         (build371, cmpt371),
     ]);
-    repo.publish_spec(&spec373).await.unwrap();
-    repo.publish_spec(&spec372).await.unwrap();
-    repo.publish_spec(&spec371).await.unwrap();
+    repo.publish_recipe(&spec373).await.unwrap();
+    repo.publish_recipe(&spec372).await.unwrap();
+    repo.publish_recipe(&spec371).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("python:bin"));

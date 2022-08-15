@@ -1,5 +1,6 @@
 pkg: openimageio/2.3.7.2
-  # - name: OpenImageIO
+api: v0/package
+ # - name: OpenImageIO
   # - description: "Library and tools for image files and processing"
   # - homepage: https://openimageio.readthedocs.io
   # - author: "Larry Gritz <lg@larrygritz.com>"

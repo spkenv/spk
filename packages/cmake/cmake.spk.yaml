@@ -1,4 +1,5 @@
 pkg: cmake/3.16.4
+api: v0/package
 
 sources:
   # Idiom that retrieves the tar file from github if it isn't already local.

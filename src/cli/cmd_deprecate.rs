@@ -7,6 +7,7 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 use spk::io::Format;
+use spk::prelude::*;
 
 use super::{flags, CommandArgs, Run};
 
@@ -68,7 +69,7 @@ impl ChangeAction {
 /// circumstances. Deprecating a package version also deprecates all
 /// builds by association.
 #[derive(Args, Clone)]
-pub struct Deprecate {
+pub struct DeprecateCmd {
     #[clap(flatten)]
     repos: flags::Repositories,
 
@@ -88,7 +89,7 @@ pub struct Deprecate {
 
 /// Deprecate (hide) packages in a repository
 #[async_trait::async_trait]
-impl Run for Deprecate {
+impl Run for DeprecateCmd {
     async fn run(&mut self) -> Result<i32> {
         change_deprecation_state(
             ChangeAction::Deprecate,
@@ -100,7 +101,7 @@ impl Run for Deprecate {
     }
 }
 
-impl CommandArgs for Deprecate {
+impl CommandArgs for DeprecateCmd {
     fn get_positional_args(&self) -> Vec<String> {
         // The important positional args for a deprecate are the packages
         self.packages.clone()
@@ -164,50 +165,67 @@ pub(crate) async fn change_deprecation_state(
 
         let ident = spk::api::parse_ident(name)?;
         for (repo_name, repo) in repos.iter() {
-            let spec = match repo.read_spec(&ident).await {
-                Ok(s) => s,
-                Err(err) => {
-                    tracing::debug!("Unable to read {ident} spec from {repo_name}: {err}");
-                    continue;
-                }
-            };
-            to_action.push((spec, repo_name, Arc::clone(repo)));
-
-            // If this package (ident) is version, not a build, then
-            // get all the builds of that version and add them for
-            // actioning too.
-            match ident.build {
-                Some(_) => { // It's a build that was added above, nothing more to do
-                }
-                None => {
-                    // It's a package version, so find and add its
-                    // builds from this repo
-                    print!("{ident} is a package version, adding its builds from {repo_name}... ");
-                    let mut count = 0;
-                    let builds = match repo.list_package_builds(&ident).await {
-                        Ok(idents) => idents,
-                        Err(err) => {
-                            tracing::debug!("No {ident} build found in {repo_name}: {err}");
-                            continue;
-                        }
-                    };
-                    for build in builds {
-                        let build_spec = match repo.read_spec(&build).await {
-                            Ok(b) => b,
+            if ident.build.is_none() {
+                match repo.read_recipe(&ident).await {
+                    Ok(recipe) => {
+                        to_action.push((
+                            DeprecationTarget::Recipe(recipe),
+                            repo_name,
+                            Arc::clone(repo),
+                        ));
+                        // It's a package version, so find and add its
+                        // builds from this repo
+                        print!(
+                            "{ident} is a package version, adding its builds from {repo_name}... "
+                        );
+                        let mut count = 0;
+                        let builds = match repo.list_package_builds(&ident).await {
+                            Ok(idents) => idents,
                             Err(err) => {
-                                tracing::debug!(
-                                    "Unable to read {build} build spec from {repo_name}: {err}"
-                                );
+                                tracing::debug!("No {ident} build found in {repo_name}: {err}");
                                 continue;
                             }
                         };
+                        for build in builds {
+                            let spec = match repo.read_package(&build).await {
+                                Ok(b) => b,
+                                Err(err) => {
+                                    tracing::debug!(
+                                        "Unable to read {build} build spec from {repo_name}: {err}"
+                                    );
+                                    continue;
+                                }
+                            };
 
-                        to_action.push((build_spec, repo_name, Arc::clone(repo)));
-                        count += 1;
+                            to_action.push((
+                                DeprecationTarget::Package(spec),
+                                repo_name,
+                                Arc::clone(repo),
+                            ));
+                            count += 1;
+                        }
+                        println!("{count} found");
                     }
-                    println!("{count} found");
+                    Err(err) => {
+                        tracing::debug!("Unable to read recipe {ident} from {repo_name}: {err}");
+                        continue;
+                    }
                 }
-            };
+            } else {
+                match repo.read_package(&ident).await {
+                    Ok(package) => {
+                        to_action.push((
+                            DeprecationTarget::Package(package),
+                            repo_name,
+                            Arc::clone(repo),
+                        ));
+                    }
+                    Err(err) => {
+                        tracing::debug!("Unable to read package {ident} from {repo_name}: {err}");
+                        continue;
+                    }
+                }
+            }
         }
     }
 
@@ -230,7 +248,7 @@ pub(crate) async fn change_deprecation_state(
         to_action.len()
     );
     for (spec, repo_name, _) in to_action.iter() {
-        println!("  {} (in {repo_name})", spec.pkg.format_ident());
+        println!("  {} (in {repo_name})", spec.ident().format_ident());
     }
 
     // Ask the user if they are sure they want to do the action on
@@ -260,28 +278,85 @@ pub(crate) async fn change_deprecation_state(
     // Change all the item's statuses to the correct state based on
     // the action, unless they are already in that state.
     let new_status = action == ChangeAction::Deprecate;
-    for (mut spec, repo_name, repo) in to_action.into_iter() {
-        let fmt = spec.pkg.format_ident();
+    for (mut target, repo_name, repo) in to_action.into_iter() {
+        let fmt = target.ident().format_ident();
 
-        if spec.deprecated == new_status {
+        if target.is_deprecated() == new_status {
             println!(
-                " {} {} in {repo_name}, it is already {}.",
+                " {} {fmt} in {repo_name}, it is already {}.",
                 "Skipping".yellow(),
-                spec.pkg.format_ident(),
                 action.as_past_tense(),
             );
             continue;
         }
 
-        println!(
-            "{} {} in {repo_name}",
-            action.as_present_tense(),
-            spec.pkg.format_ident(),
-        );
+        println!("{} {fmt} in {repo_name}", action.as_present_tense(),);
 
-        Arc::make_mut(&mut spec).deprecated = new_status;
-        repo.force_publish_spec(&spec).await?;
+        match action {
+            ChangeAction::Deprecate => target.deprecate()?,
+            ChangeAction::Undeprecate => target.undeprecate()?,
+        }
+        match target {
+            DeprecationTarget::Recipe(r) => repo.force_publish_recipe(&r).await?,
+            DeprecationTarget::Package(p) => repo.update_package(&p).await?,
+        }
         tracing::info!(repo=%repo_name, "{} {fmt}", action.as_past_tense());
     }
     Ok(0)
+}
+enum DeprecationTarget {
+    Recipe(Arc<spk::api::SpecRecipe>),
+    Package(Arc<spk::api::Spec>),
+}
+
+impl Deprecate for DeprecationTarget {
+    fn is_deprecated(&self) -> bool {
+        match self {
+            DeprecationTarget::Recipe(t) => t.is_deprecated(),
+            DeprecationTarget::Package(t) => t.is_deprecated(),
+        }
+    }
+}
+
+impl DeprecateMut for DeprecationTarget {
+    fn deprecate(&mut self) -> spk::Result<()> {
+        match self {
+            DeprecationTarget::Recipe(t) => {
+                let mut new = (**t).clone();
+                new.deprecate()?;
+                let _ = std::mem::replace(t, new.into());
+            }
+            DeprecationTarget::Package(t) => {
+                let mut new = (**t).clone();
+                new.deprecate()?;
+                let _ = std::mem::replace(t, new.into());
+            }
+        }
+        Ok(())
+    }
+
+    fn undeprecate(&mut self) -> spk::Result<()> {
+        match self {
+            DeprecationTarget::Recipe(t) => {
+                let mut new = (**t).clone();
+                new.undeprecate()?;
+                let _ = std::mem::replace(t, new.into());
+            }
+            DeprecationTarget::Package(t) => {
+                let mut new = (**t).clone();
+                new.undeprecate()?;
+                let _ = std::mem::replace(t, new.into());
+            }
+        }
+        Ok(())
+    }
+}
+
+impl DeprecationTarget {
+    fn ident(&self) -> spk::api::Ident {
+        match self {
+            DeprecationTarget::Recipe(r) => r.to_ident(),
+            DeprecationTarget::Package(r) => r.ident().clone(),
+        }
+    }
 }

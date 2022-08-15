@@ -74,6 +74,14 @@ impl std::fmt::Display for Ident {
 }
 
 impl Ident {
+    pub fn new(name: PkgNameBuf) -> Self {
+        Self {
+            name,
+            version: Default::default(),
+            build: Default::default(),
+        }
+    }
+
     /// Return true if this identifier is for a source package.
     pub fn is_source(&self) -> bool {
         match &self.build {
@@ -103,12 +111,11 @@ impl Ident {
         new
     }
 
-    pub fn new(name: PkgNameBuf) -> Self {
-        Self {
-            name,
-            version: Default::default(),
-            build: Default::default(),
-        }
+    /// Turn this identifier into one for the given build.
+    pub fn into_build(mut self, build: Build) -> Self {
+        // TODO: return a non-null build identifier type
+        self.build = Some(build);
+        self
     }
 
     /// Convert into a [`BuildIdent`] with the given [`RepositoryNameBuf`].

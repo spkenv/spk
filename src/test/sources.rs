@@ -8,11 +8,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::TestError;
-use crate::{api, build, exec, solve, storage, Result};
+use crate::{api, build, exec, prelude::*, solve, storage, Result};
 
 pub struct PackageSourceTester<'a> {
     prefix: PathBuf,
-    spec: api::Spec,
+    recipe: api::SpecRecipe,
     script: String,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     options: api::OptionMap,
@@ -23,10 +23,10 @@ pub struct PackageSourceTester<'a> {
 }
 
 impl<'a> PackageSourceTester<'a> {
-    pub fn new(spec: api::Spec, script: String) -> Self {
+    pub fn new(recipe: api::SpecRecipe, script: String) -> Self {
         Self {
             prefix: PathBuf::from("/spfs"),
-            spec,
+            recipe,
             script,
             repos: Vec::new(),
             options: api::OptionMap::default(),
@@ -124,7 +124,7 @@ impl<'a> PackageSourceTester<'a> {
         if self.source.is_none() {
             // we only require the source package to actually exist
             // if a local directory has not been specified for the test
-            let source_pkg = self.spec.pkg.with_build(Some(api::Build::Source));
+            let source_pkg = self.recipe.to_ident().into_build(api::Build::Source);
             let mut ident_range = api::RangeIdent::equals(&source_pkg, [api::Component::Source]);
             ident_range.components.insert(api::Component::Source);
             let request =
@@ -159,8 +159,10 @@ impl<'a> PackageSourceTester<'a> {
 
         let source_dir = match &self.source {
             Some(source) => source.clone(),
-            None => build::source_package_path(&self.spec.pkg.with_build(Some(api::Build::Source)))
-                .to_path(&self.prefix),
+            None => {
+                build::source_package_path(&self.recipe.to_ident().into_build(api::Build::Source))
+                    .to_path(&self.prefix)
+            }
         };
 
         let tmpdir = tempfile::Builder::new().prefix("spk-test").tempdir()?;
