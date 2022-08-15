@@ -23,6 +23,8 @@ spk-ident-component = { path = '../spk-ident-component' }
 spk-name = { path = '../spk-name' }
 spk-option-map = { path = '../spk-option-map' }
 spk-solver = { path = '../spk-solver' }
+spk-solver-graph = { path = '../spk-solver-graph' }
+spk-solver-solution = { path = '../spk-solver-solution' }
 spk-spec = { path = '../spk-spec' }
 spk-spec-ops = { path = '../spk-spec-ops' }
 spk-storage = { path = '../spk-storage' }

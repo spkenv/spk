@@ -18,9 +18,9 @@ use spk_ident_component::Component;
 use spk_ident_ops::MetadataPath;
 use spk_name::OptNameBuf;
 use spk_option_map::OptionMap;
-use spk_solver::{
-    graph::Graph, BoxedResolverCallback, DefaultResolver, ResolverCallback, Solution, Solver,
-};
+use spk_solver::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
+use spk_solver_graph::Graph;
+use spk_solver_solution::Solution;
 use spk_spec::{ComponentSpecList, Package};
 use spk_spec_ops::{ComponentOps, PackageOps};
 use spk_storage::{self as storage};

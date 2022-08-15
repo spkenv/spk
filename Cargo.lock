@@ -2713,6 +2713,8 @@ dependencies = [
  "spk-name",
  "spk-option-map",
  "spk-solver",
+ "spk-solver-graph",
+ "spk-solver-solution",
  "spk-spec",
  "spk-spec-ops",
  "spk-storage",
@@ -2762,6 +2764,7 @@ dependencies = [
  "spk-name",
  "spk-option-map",
  "spk-solver",
+ "spk-solver-solution",
  "spk-spec",
  "spk-spec-ops",
  "spk-storage",
@@ -2794,6 +2797,7 @@ dependencies = [
  "spk-ident",
  "spk-name",
  "spk-solver",
+ "spk-solver-solution",
  "spk-spec",
  "spk-spec-ops",
  "spk-storage",
@@ -3014,6 +3018,8 @@ dependencies = [
  "spk-name",
  "spk-option-map",
  "spk-solver",
+ "spk-solver-graph",
+ "spk-solver-solution",
  "spk-spec",
  "spk-spec-ops",
  "spk-storage",
@@ -3038,7 +3044,9 @@ dependencies = [
  "spfs",
  "spk-format",
  "spk-ident-component",
- "spk-solver",
+ "spk-solver-solution",
+ "spk-spec",
+ "spk-spec-ops",
  "spk-storage",
  "thiserror",
  "tracing",
@@ -3177,8 +3185,43 @@ dependencies = [
  "async-trait",
  "colored",
  "ctrlc",
+ "futures",
+ "once_cell",
+ "priority-queue",
+ "rstest",
+ "serde_json",
+ "spfs",
+ "spk-fixtures",
+ "spk-format",
+ "spk-ident",
+ "spk-ident-build",
+ "spk-ident-component",
+ "spk-name",
+ "spk-option-map",
+ "spk-solver-graph",
+ "spk-solver-package-iterator",
+ "spk-solver-solution",
+ "spk-solver-validation",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-storage",
+ "spk-validators",
+ "spk-version",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-solver-graph"
+version = "0.36.0"
+dependencies = [
+ "async-recursion",
+ "async-stream",
+ "async-trait",
+ "colored",
+ "ctrlc",
  "dyn-clone",
- "enum_dispatch",
  "futures",
  "itertools",
  "once_cell",
@@ -3194,6 +3237,8 @@ dependencies = [
  "spk-ident-component",
  "spk-name",
  "spk-option-map",
+ "spk-solver-package-iterator",
+ "spk-solver-solution",
  "spk-spec",
  "spk-spec-ops",
  "spk-storage",
@@ -3203,6 +3248,72 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "spk-solver-package-iterator"
+version = "0.36.0"
+dependencies = [
+ "async-trait",
+ "dyn-clone",
+ "futures",
+ "itertools",
+ "once_cell",
+ "rstest",
+ "spk-ident",
+ "spk-name",
+ "spk-option-map",
+ "spk-solver",
+ "spk-solver-solution",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-storage",
+ "spk-validators",
+ "spk-version",
+ "spk-version-range",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-solver-solution"
+version = "0.36.0"
+dependencies = [
+ "spfs",
+ "spk-format",
+ "spk-ident",
+ "spk-ident-component",
+ "spk-name",
+ "spk-option-map",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-storage",
+ "spk-version",
+ "thiserror",
+]
+
+[[package]]
+name = "spk-solver-validation"
+version = "0.36.0"
+dependencies = [
+ "colored",
+ "enum_dispatch",
+ "itertools",
+ "rstest",
+ "serde_yaml",
+ "spk-fixtures",
+ "spk-format",
+ "spk-ident",
+ "spk-ident-build",
+ "spk-ident-component",
+ "spk-name",
+ "spk-solver-graph",
+ "spk-solver-solution",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-version",
+ "thiserror",
 ]
 
 [[package]]

@@ -14,11 +14,10 @@ use spk_ident::{Ident, PkgRequest, PreReleasePolicy, RangeIdent, Request, Reques
 use spk_ident_build::Build;
 use spk_ident_component::Component;
 use spk_option_map::OptionMap;
-use spk_solver::graph::Graph;
-use spk_solver::{
-    BoxedResolverCallback, DefaultResolver, Recipe, ResolverCallback, Solution, Solver,
-};
-use spk_spec::SpecRecipe;
+use spk_solver::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
+use spk_solver_graph::Graph;
+use spk_solver_solution::Solution;
+use spk_spec::{Recipe, SpecRecipe};
 use spk_spec_ops::RecipeOps;
 use spk_storage::{self as storage};
 

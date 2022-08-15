@@ -12,6 +12,7 @@ use spk_ident::{
 use spk_ident_build::Build;
 use spk_ident_component::Component;
 use spk_name::opt_name;
+use spk_solver_solution::PackageSource;
 use spk_spec::{recipe, v0, Package};
 use spk_spec_ops::{PackageOps, Versioned};
 use spk_storage::RepositoryHandle;
@@ -63,7 +64,7 @@ macro_rules! assert_resolved {
             .get($pkg)
             .expect("expected package to be in solution");
         match pkg.source {
-            crate::PackageSource::Repository{components, ..} => {
+            PackageSource::Repository{components, ..} => {
                 resolved.extend(components.keys().map(ToString::to_string));
             }
             _ => panic!("expected pkg to have a repo source"),
@@ -125,7 +126,12 @@ async fn test_solver_package_with_no_spec(mut solver: Solver) {
     solver.add_request(request!("my-pkg"));
 
     let res = run_and_print_resolve_for_tests(&solver).await;
-    assert!(matches!(res, Err(Error::FailedToResolve(_))));
+    assert!(matches!(
+        res,
+        Err(Error::SpkSolverGraphError(
+            spk_solver_graph::Error::FailedToResolve(_)
+        ))
+    ));
 }
 
 #[rstest]
@@ -150,7 +156,12 @@ async fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
     solver.add_request(req);
 
     let res = run_and_print_resolve_for_tests(&solver).await;
-    assert!(matches!(res, Err(Error::PackageNotFoundDuringSolve(_))));
+    assert!(matches!(
+        res,
+        Err(Error::SpkSolverGraphError(
+            spk_solver_graph::Error::PackageNotFoundDuringSolve(_)
+        ))
+    ));
 }
 
 #[rstest]
@@ -897,7 +908,7 @@ async fn test_solver_build_from_source_deprecated(mut solver: Solver) {
 
     let res = run_and_print_resolve_for_tests(&solver).await;
     match res {
-        Err(Error::FailedToResolve(_)) => {}
+        Err(Error::SpkSolverGraphError(spk_solver_graph::Error::FailedToResolve(_))) => {}
         Err(err) => panic!("expected solve error, got {err:?}"),
         _ => panic!("expected solve error, got successful solution"),
     }
