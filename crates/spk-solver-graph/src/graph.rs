@@ -11,6 +11,8 @@ use spk_ident::{Ident, InclusionPolicy, PkgRequest, Request, RequestedBy, VarReq
 use spk_ident_component::Component;
 use spk_name::{OptNameBuf, PkgName, PkgNameBuf};
 use spk_option_map::{option_map, OptionMap};
+use spk_solver_package_iterator::PackageIterator;
+use spk_solver_solution::{PackageSource, Solution};
 use spk_spec::{
     ComponentSpecList, EmbeddedPackagesList, Package, RequirementsList, Spec, SpecRecipe,
 };
@@ -23,11 +25,6 @@ use std::iter::FromIterator;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
-
-use super::{
-    package_iterator::PackageIterator,
-    solution::{PackageSource, Solution},
-};
 
 #[cfg(test)]
 #[path = "./graph_test.rs"]

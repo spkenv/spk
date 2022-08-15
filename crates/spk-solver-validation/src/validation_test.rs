@@ -4,11 +4,13 @@
 use rstest::rstest;
 use spk_fixtures::*;
 use spk_name::opt_name;
+use spk_solver_graph::State;
+use spk_solver_solution::PackageSource;
 use spk_spec::spec;
 use std::sync::Arc;
 
 use super::{OptionsValidator, VarRequirementsValidator};
-use crate::{graph::State, validation::ValidatorT};
+use crate::validation::ValidatorT;
 
 #[rstest]
 fn test_empty_options_can_match_anything() {
@@ -29,7 +31,7 @@ fn test_empty_options_can_match_anything() {
             "install": {"requirements": [{"var": "python.abi/cp37m"}]},
         }
     ));
-    let source = crate::PackageSource::Embedded;
+    let source = PackageSource::Embedded;
 
     assert!(
         validator
@@ -63,7 +65,7 @@ fn test_qualified_var_supersedes_unqualified() {
             "build": {"options": [{"var": "debug", "static": "on"}]},
         }
     ));
-    let source = crate::PackageSource::Embedded;
+    let source = PackageSource::Embedded;
 
     let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
@@ -81,7 +83,7 @@ fn test_qualified_var_supersedes_unqualified() {
             "build": {"options": [{"var": "debug", "static": "off"}]},
         }
     ));
-    let source = crate::PackageSource::Embedded;
+    let source = PackageSource::Embedded;
     let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
         !compat.is_ok(),

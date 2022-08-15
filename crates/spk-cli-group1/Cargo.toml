@@ -24,6 +24,7 @@ spk-format = { path = '../spk-format' }
 spk-ident = { path = '../spk-ident' }
 spk-name = { path = '../spk-name' }
 spk-solver = { path = '../spk-solver' }
+spk-solver-solution = { path = '../spk-solver-solution' }
 spk-spec = { path = '../spk-spec' }
 spk-spec-ops = { path = '../spk-spec-ops' }
 spk-storage = { path = '../spk-storage' }

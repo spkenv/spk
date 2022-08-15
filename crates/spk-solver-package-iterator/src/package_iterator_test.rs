@@ -8,10 +8,9 @@ use std::sync::Arc;
 use rstest::rstest;
 use spk_name::PkgName;
 use spk_option_map::{option_map, OptionMap};
+use spk_solver::{make_build, make_repo};
 use spk_spec::{recipe, spec, Package, Spec};
 use spk_spec_ops::PackageOps;
-
-use crate::{make_build, make_repo};
 
 use super::{BuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator};
 

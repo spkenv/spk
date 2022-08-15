@@ -6,6 +6,7 @@ use once_cell::sync::Lazy;
 use spk_ident::Ident;
 use spk_name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_option_map::OptionMap;
+use spk_solver_solution::PackageSource;
 use spk_spec::{Package, Spec, SpecRecipe};
 use spk_spec_ops::PackageOps;
 use spk_storage::RepositoryHandle;
@@ -19,7 +20,6 @@ use std::{
     sync::Arc,
 };
 
-use super::solution::PackageSource;
 use crate::build_key::BuildKey;
 use crate::{Error, Result};
 
@@ -392,7 +392,7 @@ impl RepositoryBuildIterator {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct EmptyBuildIterator {}
 
 #[async_trait::async_trait]

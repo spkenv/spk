@@ -5,7 +5,9 @@
 use spfs::encoding::Digest;
 use spk_format::{FormatIdent, FormatOptionMap};
 use spk_ident_component::Component;
-use spk_solver::{Package, PackageOps, PackageSource, Recipe, Solution};
+use spk_solver_solution::{PackageSource, Solution};
+use spk_spec::{Package, Recipe};
+use spk_spec_ops::PackageOps;
 use spk_storage::{self as storage};
 
 use crate::{Error, Result};

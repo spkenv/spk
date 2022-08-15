@@ -21,9 +21,12 @@ use spk_format::{
     FormatChange, FormatChangeOptions, FormatIdent, FormatOptionMap, FormatRequest, FormatSolution,
 };
 use spk_ident_build::Build;
+use spk_solver_graph::{
+    Change, Decision, Node, Note, DUPLICATE_REQUESTS_COUNT, REQUESTS_FOR_SAME_PACKAGE_COUNT,
+};
 use spk_spec_ops::PackageOps;
 
-use crate::{graph, Error, ResolverCallback, Result, Solution, Solver, SolverRuntime};
+use crate::{Error, ResolverCallback, Result, Solution, Solver, SolverRuntime};
 
 static USER_CANCELLED: Lazy<AtomicBool> = Lazy::new(|| {
     // Set up a ctrl-c handler to allow a solve to be interrupted
@@ -40,8 +43,7 @@ static USER_CANCELLED: Lazy<AtomicBool> = Lazy::new(|| {
     AtomicBool::new(false)
 });
 
-pub fn format_note(note: &graph::Note) -> String {
-    use graph::Note;
+pub fn format_note(note: &Note) -> String {
     match note {
         Note::SkipPackageNote(n) => {
             format!(
@@ -55,8 +57,8 @@ pub fn format_note(note: &graph::Note) -> String {
     }
 }
 
-pub fn change_is_relevant_at_verbosity(change: &graph::Change, verbosity: u32) -> bool {
-    use graph::Change::*;
+pub fn change_is_relevant_at_verbosity(change: &Change, verbosity: u32) -> bool {
+    use Change::*;
     let relevant_level = match change {
         SetPackage(_) => 1,
         StepBack(_) => 1,
@@ -70,7 +72,7 @@ pub fn change_is_relevant_at_verbosity(change: &graph::Change, verbosity: u32) -
 
 pub struct FormattedDecisionsIter<I>
 where
-    I: Stream<Item = Result<(Arc<graph::Node>, Arc<graph::Decision>)>>,
+    I: Stream<Item = Result<(Arc<Node>, Arc<Decision>)>>,
 {
     inner: Pin<Box<I>>,
     level: u64,
@@ -84,7 +86,7 @@ where
 
 impl<I> FormattedDecisionsIter<I>
 where
-    I: Stream<Item = Result<(Arc<graph::Node>, Arc<graph::Decision>)>>,
+    I: Stream<Item = Result<(Arc<Node>, Arc<Decision>)>>,
 {
     pub(crate) fn new<T>(inner: T, settings: DecisionFormatterSettings) -> Self
     where
@@ -239,7 +241,7 @@ where
                     let mut fill: &str;
                     let mut new_level = self.level + 1;
                     for change in decision.changes.iter() {
-                        use graph::Change::*;
+                        use Change::*;
                         match change {
                             SetPackage(change) => {
                                 if change.spec.ident().build == Some(Build::Embedded) {
@@ -248,7 +250,7 @@ where
                                     fill = ">";
                                 }
                             }
-                            StepBack(graph::StepBack { destination, .. }) => {
+                            StepBack(spk_solver_graph::StepBack { destination, .. }) => {
                                 fill = "!";
                                 new_level = destination.state_depth;
                             }
@@ -600,7 +602,7 @@ impl DecisionFormatter {
     ///
     pub fn formatted_decisions_iter<'a, S>(&self, decisions: S) -> FormattedDecisionsIter<S>
     where
-        S: Stream<Item = Result<(Arc<graph::Node>, Arc<graph::Decision>)>> + 'a,
+        S: Stream<Item = Result<(Arc<Node>, Arc<Decision>)>> + 'a,
     {
         FormattedDecisionsIter::new(decisions, self.settings.clone())
     }
@@ -659,7 +661,7 @@ impl DecisionFormatter {
 
         // Show number of requests for same package from RequestPackage
         // related counter
-        let num_reqs = graph::REQUESTS_FOR_SAME_PACKAGE_COUNT.load(Ordering::SeqCst);
+        let num_reqs = REQUESTS_FOR_SAME_PACKAGE_COUNT.load(Ordering::SeqCst);
         let mut requests = if num_reqs != 1 { "requests" } else { "request" };
         let _ = writeln!(
             out,
@@ -668,7 +670,7 @@ impl DecisionFormatter {
 
         // Show number of duplicate (identical) requests from
         // RequestPackage related counter
-        let num_dups = graph::DUPLICATE_REQUESTS_COUNT.load(Ordering::SeqCst);
+        let num_dups = DUPLICATE_REQUESTS_COUNT.load(Ordering::SeqCst);
         requests = if num_dups != 1 { "requests" } else { "request" };
         let _ = writeln!(out, " Solver hit {num_dups} identical duplicate {requests}");
 

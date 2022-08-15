@@ -8,13 +8,11 @@ use spk_format::{FormatChange, FormatChangeOptions};
 use spk_ident_component::Component;
 use spk_name::{opt_name, PkgName};
 use spk_option_map::option_map;
+use spk_solver_solution::PackageSource;
 use spk_spec::{recipe, spec};
 
 use super::DecisionBuilder;
-use crate::{
-    self as solve,
-    graph::{self},
-};
+use crate::{graph, Decision};
 
 #[rstest]
 fn test_resolve_build_same_result() {
@@ -28,10 +26,10 @@ fn test_resolve_build_same_result() {
     let recipe = Arc::new(recipe);
     let build_spec = spec!({"pkg": "test/1.0.0/3I42H3S6"});
     let build_spec = Arc::new(build_spec);
-    let source = solve::PackageSource::Embedded; // TODO: ???
+    let source = PackageSource::Embedded; // TODO: ???
 
-    let resolve = solve::graph::Decision::builder(&base).resolve_package(&build_spec, source);
-    let build = solve::graph::Decision::builder(&base)
+    let resolve = Decision::builder(&base).resolve_package(&build_spec, source);
+    let build = Decision::builder(&base)
         .build_package(&recipe, &build_spec)
         .unwrap();
 
@@ -112,7 +110,7 @@ fn test_request_default_component() {
     let base = std::sync::Arc::new(super::State::default());
 
     let resolve_state = DecisionBuilder::new(&base)
-        .resolve_package(&spec, solve::solution::PackageSource::Embedded) // TODO: embedded???
+        .resolve_package(&spec, PackageSource::Embedded) // TODO: embedded???
         .apply(&base);
     let request = resolve_state
         .get_merged_request(PkgName::new("dependency").unwrap())

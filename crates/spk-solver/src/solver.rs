@@ -19,25 +19,23 @@ use spk_ident_build::Build;
 use spk_ident_component::Component;
 use spk_name::{PkgName, PkgNameBuf};
 use spk_option_map::OptionMap;
+use spk_solver_graph::{
+    Change, Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SkipPackageNote,
+    State, StepBack, DEAD_STATE,
+};
+use spk_solver_package_iterator::{
+    EmptyBuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator,
+};
+use spk_solver_solution::{PackageSource, Solution};
+use spk_solver_validation::{default_validators, BinaryOnlyValidator, ValidatorT, Validators};
 use spk_spec::{Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_spec_ops::{PackageOps, RecipeOps};
 use spk_storage::RepositoryHandle;
 use spk_version::Compatibility;
 
-use crate::{graph::StepBack, Error, Result};
+use crate::{Error, Result};
 
-use super::{
-    error,
-    graph::{
-        self, Change, Decision, Graph, Node, Note, RequestPackage, RequestVar, SkipPackageNote,
-        State, DEAD_STATE,
-    },
-    package_iterator::{
-        EmptyBuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator,
-    },
-    solution::{PackageSource, Solution},
-    validation::{self, BinaryOnlyValidator, ValidatorT, Validators},
-};
+use super::error;
 
 // Public to allow other tests to use its macros
 #[cfg(test)]
@@ -78,7 +76,7 @@ impl Default for Solver {
         Self {
             repos: Vec::default(),
             initial_state_builders: Vec::default(),
-            validators: Cow::from(validation::default_validators()),
+            validators: Cow::from(default_validators()),
             number_of_steps: 0,
             number_builds_skipped: 0,
             number_incompat_versions: 0,
@@ -224,13 +222,18 @@ impl Solver {
             let (pkg, builds) = match iterator_lock.next().await {
                 Ok(Some((pkg, builds))) => (pkg, builds),
                 Ok(None) => break,
-                Err(Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(_))) => {
+                Err(spk_solver_package_iterator::Error::SpkValidatorsError(
+                    spk_validators::Error::PackageNotFoundError(_),
+                )) => {
                     // Intercept this error in this situation to
                     // capture the request for the package that turned
                     // out to be missing.
-                    return Err(Error::PackageNotFoundDuringSolve(request.clone()));
+                    return Err(spk_solver_graph::Error::PackageNotFoundDuringSolve(
+                        request.clone(),
+                    )
+                    .into());
                 }
-                Err(e) => return Err(e),
+                Err(e) => return Err(e.into()),
             };
 
             let mut compat = request.is_version_applicable(&pkg.version);
@@ -308,8 +311,10 @@ impl Solver {
                                 continue;
                             }
                             Ok(r) => r,
-                            Err(Error::SpkValidatorsError(
-                                spk_validators::Error::PackageNotFoundError(pkg),
+                            Err(spk_solver_solution::Error::SpkStorageError(
+                                spk_storage::Error::SpkValidatorsError(
+                                    spk_validators::Error::PackageNotFoundError(pkg),
+                                ),
                             )) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
@@ -319,7 +324,7 @@ impl Solver {
                                 ));
                                 continue;
                             }
-                            Err(err) => return Err(err),
+                            Err(err) => return Err(err.into()),
                         };
                         compat = self.validate_recipe(&node.state, &recipe)?;
                         if !&compat {
@@ -332,7 +337,7 @@ impl Solver {
                         }
 
                         let new_spec = match self.resolve_new_build(&*recipe, &node.state).await {
-                            Err(Error::SolverError(err)) => {
+                            Err(err) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
                                         spec.ident().clone(),
@@ -421,7 +426,7 @@ impl Solver {
     pub fn reset(&mut self) {
         self.repos.truncate(0);
         self.initial_state_builders.truncate(0);
-        self.validators = Cow::from(validation::default_validators());
+        self.validators = Cow::from(default_validators());
         self.number_of_steps = 0;
         self.number_builds_skipped = 0;
         self.number_incompat_versions = 0;
@@ -500,7 +505,7 @@ impl Solver {
 
     pub fn update_options(&mut self, options: OptionMap) {
         self.initial_state_builders
-            .push(Change::SetOptions(graph::SetOptions::new(options)))
+            .push(Change::SetOptions(SetOptions::new(options)))
     }
 
     /// Get the number of steps (forward) taken in the solve
@@ -615,9 +620,7 @@ impl SolverRuntime {
             .get_pkg_requests()
             .is_empty();
         if is_dead && !is_empty {
-            Err(super::Error::FailedToResolve(
-                (*self.graph).read().await.clone(),
-            ))
+            Err(spk_solver_graph::Error::FailedToResolve((*self.graph).read().await.clone()).into())
         } else {
             current_node_lock
                 .state
@@ -767,13 +770,13 @@ impl SolverRuntime {
                         yield Ok(to_yield);
                         continue 'outer;
                     }
-                    Err(crate::Error::PackageNotFoundDuringSolve(err_req)) => {
+                    Err(Error::SpkSolverGraphError(spk_solver_graph::Error::PackageNotFoundDuringSolve(err_req))) => {
                         let requested_by = err_req.get_requesters();
                         for req in &requested_by {
                             // Can't recover from a command line request for a
                             // missing package.
                             if let RequestedBy::CommandLine = req {
-                                yield Err(crate::Error::PackageNotFoundDuringSolve(err_req));
+                                yield Err(Error::SpkSolverGraphError(spk_solver_graph::Error::PackageNotFoundDuringSolve(err_req)));
                                 continue 'outer;
                             }
 

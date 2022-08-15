@@ -138,7 +138,7 @@ macro_rules! make_build_and_components {
             }
             for name in names {
                 let name = $crate::Component::parse(name).expect("invalid component name");
-                components.insert(name, spfs::encoding::EMPTY_DIGEST.into());
+                components.insert(name, $crate::spfs::encoding::EMPTY_DIGEST.into());
             }
             (spec, components)
         }
