@@ -48,6 +48,6 @@ jobs:
         run: |
           # Run tests as a normal user to verify privilege escalation
           useradd -m e2e
-          su e2e -c tests/integration/run_tests.sh
+          su e2e -c crates/spfs/tests/integration/run_tests.sh
       - name: Change perms for rust-cache
         run: sudo chown -R $(id -u) target
