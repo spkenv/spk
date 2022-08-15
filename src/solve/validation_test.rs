@@ -5,52 +5,9 @@ use std::sync::Arc;
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
-use super::{default_validators, OptionsValidator, VarRequirementsValidator};
+use super::{OptionsValidator, VarRequirementsValidator};
 use crate::solve::{graph::State, validation::ValidatorT};
-use crate::{api, fixtures::*, ident, opt_name, solve, spec};
-
-#[rstest]
-fn test_src_package_install_requests_are_not_considered() {
-    let validators = default_validators();
-
-    let spec = Arc::new(spec!(
-        {
-            "pkg": "my-pkg/1.0.0/src",
-            "install": {
-                "embedded": [{"pkg": "embedded/9.0.0"}],
-                "requirements": [{"pkg": "dependency/=2"}, {"var": "debug/on"}],
-            },
-        }
-    ));
-    let source = solve::PackageSource::Embedded;
-
-    let state = State::new(
-        vec![
-            api::PkgRequest::from_ident(
-                ident!("my-pkg/1.0.0/src"),
-                api::RequestedBy::SpkInternalTest,
-            ),
-            api::PkgRequest::from_ident(
-                ident!("embedded/1.0.0"),
-                api::RequestedBy::SpkInternalTest,
-            ),
-            api::PkgRequest::from_ident(ident!("dependency/1"), api::RequestedBy::SpkInternalTest),
-        ]
-        .into_iter()
-        .collect(),
-        vec![],
-        vec![],
-        vec![(opt_name!("debug").to_owned(), "off".to_string())],
-    );
-    for validator in validators {
-        let msg = "Source package should be valid regardless of requirements";
-        assert!(
-            validator.validate(&state, &*spec, &source).unwrap().is_ok(),
-            "{}",
-            msg
-        );
-    }
-}
+use crate::{fixtures::*, opt_name, solve, spec};
 
 #[rstest]
 fn test_empty_options_can_match_anything() {
@@ -71,10 +28,13 @@ fn test_empty_options_can_match_anything() {
             "install": {"requirements": [{"var": "python.abi/cp37m"}]},
         }
     ));
-    let source = solve::PackageSource::Embedded; // TODO: ???
+    let source = solve::PackageSource::Embedded;
 
     assert!(
-        validator.validate(&state, &*spec, &source).unwrap().is_ok(),
+        validator
+            .validate_package(&state, &*spec, &source)
+            .unwrap()
+            .is_ok(),
         "empty option should not invalidate requirement"
     );
 }
@@ -102,9 +62,9 @@ fn test_qualified_var_supersedes_unqualified() {
             "build": {"options": [{"var": "debug", "static": "on"}]},
         }
     ));
-    let source = solve::PackageSource::Embedded; // TODO: ???
+    let source = solve::PackageSource::Embedded;
 
-    let compat = validator.validate(&state, &*spec, &source).unwrap();
+    let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
         compat.is_ok(),
         "qualified var requests should superseded unqualified ones, got: {}",
@@ -120,8 +80,8 @@ fn test_qualified_var_supersedes_unqualified() {
             "build": {"options": [{"var": "debug", "static": "off"}]},
         }
     ));
-    let source = solve::PackageSource::Embedded; // TODO: ???
-    let compat = validator.validate(&state, &*spec, &source).unwrap();
+    let source = solve::PackageSource::Embedded;
+    let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
         !compat.is_ok(),
         "qualified var requests should supercede unqualified ones, got: {compat}",

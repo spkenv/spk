@@ -131,6 +131,22 @@ impl Spec {
             request.pkg.build, self.pkg.build
         ))
     }
+
+    /// Remove requirements and other package data that
+    /// is not relevant for a source package build.
+    fn prune_for_source_build(&mut self) {
+        self.install.requirements.clear();
+        self.build = Default::default();
+        self.tests.clear();
+        self.install.components.clear();
+        self.install.components.push(api::ComponentSpec {
+            name: api::Component::Source,
+            files: Default::default(),
+            uses: Default::default(),
+            requirements: Default::default(),
+            embedded: Default::default(),
+        });
+    }
 }
 
 impl Named for Spec {
@@ -280,10 +296,9 @@ impl Recipe for Spec {
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self> {
-        // TODO: remove all things that would cause this to not resolve
-        //       after solver no longer treats source packages differently
         let mut source = self.clone();
         source.pkg.set_build(Some(Build::Source));
+        source.prune_for_source_build();
         for source in source.sources.iter_mut() {
             if let api::SourceSpec::Local(source) = source {
                 source.path = root.join(&source.path);
@@ -405,7 +420,7 @@ impl<'de> Deserialize<'de> for Spec {
         let build_spec = build_spec_result
             .map_err(|err| serde::de::Error::custom(format!("spec.build: {err}")))?;
 
-        Ok(Spec {
+        let mut spec = Spec {
             pkg: unchecked.pkg,
             meta: unchecked.meta,
             compat: unchecked.compat,
@@ -416,6 +431,13 @@ impl<'de> Deserialize<'de> for Spec {
             build: build_spec,
             tests: unchecked.tests,
             install: unchecked.install,
-        })
+        };
+        if spec.pkg.is_source() {
+            // for backward-compatibility with older publishes, prune out anything
+            // that is not relevant to a source package, since now source packages
+            // can technically have their own requirements, etc.
+            spec.prune_for_source_build();
+        }
+        Ok(spec)
     }
 }

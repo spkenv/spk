@@ -169,8 +169,20 @@ impl Solver {
         )))
     }
 
+    /// Resolve the build environment, and generate a build for
+    /// the given recipe and state.
+    ///
+    /// The returned spec describes the package that should be built
+    /// in order to satisfy the set of requests in the provided state.
+    /// The build environment for the package is resolved in order to
+    /// validate that a build is possible and to generate the resulting
+    /// spec.
     #[async_recursion::async_recursion]
-    async fn resolve_new_build(&self, recipe: &api::SpecRecipe, state: &State) -> Result<Solution> {
+    async fn resolve_new_build(
+        &self,
+        recipe: &api::SpecRecipe,
+        state: &State,
+    ) -> Result<Arc<api::Spec>> {
         let mut opts = state.get_option_map().clone();
         for pkg_request in state.get_pkg_requests() {
             if !opts.contains_key(pkg_request.pkg.name.as_opt_name()) {
@@ -191,7 +203,8 @@ impl Solver {
             ..Default::default()
         };
         solver.update_options(opts.clone());
-        solver.solve_build_environment(recipe).await
+        let solution = solver.solve_build_environment(recipe).await?;
+        recipe.generate_binary_build(&opts, &solution).map(Arc::new)
     }
 
     async fn step_state(&mut self, node: &mut Arc<Node>) -> Result<Option<Decision>> {
@@ -260,10 +273,23 @@ impl Solver {
                 // Try all the hash map values to check all repos.
                 for (spec, source) in hm.values() {
                     let spec = Arc::clone(spec);
-
                     let build_from_source =
                         spec.ident().is_source() && request.pkg.build != Some(Build::Source);
-                    if build_from_source {
+
+                    let mut decision = if !build_from_source {
+                        compat = self.validate_package(&node.state, &spec, source)?;
+                        if !&compat {
+                            notes.push(Note::SkipPackageNote(SkipPackageNote::new(
+                                spec.ident().clone(),
+                                compat.clone(),
+                            )));
+                            self.number_builds_skipped += 1;
+                            continue;
+                        }
+                        Decision::builder(&node.state)
+                            .with_components(&request.pkg.components)
+                            .resolve_package(&spec, source.clone())
+                    } else {
                         if let PackageSource::Embedded = source {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
                                 spec.ident().clone(),
@@ -272,19 +298,6 @@ impl Solver {
                             self.number_builds_skipped += 1;
                             continue;
                         }
-                    }
-
-                    compat = self.validate(&node.state, &spec, source)?;
-                    if !&compat {
-                        notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                            spec.ident().clone(),
-                            compat.clone(),
-                        )));
-                        self.number_builds_skipped += 1;
-                        continue;
-                    }
-
-                    let mut decision = if build_from_source {
                         let recipe = match source.read_recipe(spec.ident()).await {
                             Ok(r) if r.is_deprecated() => {
                                 notes.push(Note::SkipPackageNote(
@@ -307,42 +320,59 @@ impl Solver {
                             }
                             Err(err) => return Err(err),
                         };
-                        match self.resolve_new_build(&*recipe, &node.state).await {
-                            Ok(build_env) => {
-                                match Decision::builder(&node.state)
-                                    .with_components(&request.pkg.components)
-                                    .build_package(&recipe, &build_env)
-                                {
-                                    Ok(decision) => decision,
-                                    Err(err) => {
-                                        notes.push(Note::SkipPackageNote(
-                                            SkipPackageNote::new_from_message(
-                                                spec.ident().clone(),
-                                                &format!("cannot build package: {err}"),
-                                            ),
-                                        ));
-                                        self.number_builds_skipped += 1;
-                                        continue;
-                                    }
-                                }
-                            }
+                        compat = self.validate_recipe(&node.state, &recipe)?;
+                        if !&compat {
+                            notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
+                                spec.ident().clone(),
+                                format!("recipe is not valid: {compat}"),
+                            )));
+                            self.number_builds_skipped += 1;
+                            continue;
+                        }
 
-                            // FIXME: This should only match `SolverError`
+                        let new_spec = match self.resolve_new_build(&*recipe, &node.state).await {
+                            Err(Error::Solve(err)) => {
+                                notes.push(Note::SkipPackageNote(
+                                    SkipPackageNote::new_from_message(
+                                        spec.ident().clone(),
+                                        format!("cannot resolve build env: {err}"),
+                                    ),
+                                ));
+                                self.number_builds_skipped += 1;
+                                continue;
+                            }
+                            res => res?,
+                        };
+                        let new_source = PackageSource::BuildFromSource {
+                            recipe: Arc::clone(&recipe),
+                        };
+
+                        compat = self.validate_package(&node.state, &new_spec, &new_source)?;
+                        if !&compat {
+                            notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
+                                spec.ident().clone(),
+                                format!("built package would still be invalid: {compat}"),
+                            )));
+                            self.number_builds_skipped += 1;
+                            continue;
+                        }
+
+                        match Decision::builder(&node.state)
+                            .with_components(&request.pkg.components)
+                            .build_package(&recipe, &new_spec)
+                        {
+                            Ok(decision) => decision,
                             Err(err) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
                                         spec.ident().clone(),
-                                        &format!("cannot resolve build env: {err}"),
+                                        format!("cannot build package: {err}"),
                                     ),
                                 ));
                                 self.number_builds_skipped += 1;
                                 continue;
                             }
                         }
-                    } else {
-                        Decision::builder(&node.state)
-                            .with_components(&request.pkg.components)
-                            .resolve_package(&spec, source.clone())
                     };
                     decision.add_notes(notes.iter().cloned());
                     return Ok(Some(decision));
@@ -353,14 +383,24 @@ impl Solver {
         Err(errors::Error::OutOfOptions(errors::OutOfOptions { request, notes }).into())
     }
 
-    fn validate<P: Package>(
+    fn validate_recipe<R: Recipe>(&self, node: &State, recipe: &R) -> Result<api::Compatibility> {
+        for validator in self.validators.as_ref() {
+            let compat = validator.validate_recipe(node, recipe)?;
+            if !&compat {
+                return Ok(compat);
+            }
+        }
+        Ok(api::Compatibility::Compatible)
+    }
+
+    fn validate_package<P: Package>(
         &self,
         node: &State,
         spec: &P,
         source: &PackageSource,
     ) -> Result<api::Compatibility> {
         for validator in self.validators.as_ref() {
-            let compat = validator.validate(node, spec, source)?;
+            let compat = validator.validate_package(node, spec, source)?;
             if !&compat {
                 return Ok(compat);
             }

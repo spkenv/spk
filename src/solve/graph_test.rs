@@ -28,7 +28,7 @@ fn test_resolve_build_same_result() {
 
     let resolve = solve::graph::Decision::builder(&base).resolve_package(&build_spec, source);
     let build = solve::graph::Decision::builder(&base)
-        .build_package(&recipe, &solve::Solution::new(None))
+        .build_package(&recipe, &build_spec)
         .unwrap();
 
     let with_binary = resolve.apply(&base);
@@ -131,7 +131,7 @@ fn test_request_default_component() {
     );
 
     let build_state = DecisionBuilder::new(&base)
-        .build_package(&recipe, &solve::solution::Solution::new(None))
+        .build_package(&recipe, &spec)
         .unwrap()
         .apply(&base);
     let request = build_state

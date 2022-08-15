@@ -132,29 +132,28 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         }
     }
 
+    /// Create a new decision to build a package from a recipe.
+    ///
+    /// The returned decision describes building the given recipe
+    /// into the package described by the given spec so that it
+    /// can be included in the final solution.
     pub fn build_package(
         self,
         recipe: &Arc<api::SpecRecipe>,
-        build_env: &Solution,
+        spec: &Arc<api::Spec>,
     ) -> crate::Result<Decision> {
         let generate_changes = || -> crate::Result<Vec<_>> {
-            let mut changes = Vec::<Change>::new();
-
-            let options = build_env.options();
-            let spec = recipe.generate_binary_build(&options, build_env)?;
-            let spec = Arc::new(spec);
-
-            changes.push(Change::SetPackageBuild(Box::new(SetPackageBuild::new(
-                Arc::clone(&spec),
+            let mut changes = vec![Change::SetPackageBuild(Box::new(SetPackageBuild::new(
+                Arc::clone(spec),
                 Arc::clone(recipe),
-            ))));
+            )))];
 
             let requested_by = api::RequestedBy::PackageBuild(spec.ident().clone());
             changes
                 .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
             changes.extend(self.components_to_changes(spec.components(), &requested_by));
             changes.extend(self.embedded_to_changes(spec.embedded()));
-            changes.push(Self::options_to_change(&spec));
+            changes.push(Self::options_to_change(spec));
 
             Ok(changes)
         };
@@ -171,12 +170,6 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 Arc::clone(spec),
                 source,
             )))];
-
-            // installation options are not relevant for source packages
-            if spec.ident().is_source() {
-                // TODO: let the package itself determine this
-                return changes;
-            }
 
             let requested_by = api::RequestedBy::PackageBuild(spec.ident().clone());
             changes
