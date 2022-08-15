@@ -50,6 +50,7 @@ server = [
     "tokio-util/io-util",
 ]
 "runtime-compat-0.33" = []
+"protobuf-src" = ["dep:protobuf-src"]
 
 [dependencies]
 async-trait = "0.1.52"
@@ -114,6 +115,7 @@ whoami = "1.2"
 thiserror = "1.0"
 
 [build-dependencies]
+protobuf-src = { version = "1.0.5", optional = true } # protoc @ 3.19.3
 tonic-build = "0.8"
 
 [dev-dependencies]

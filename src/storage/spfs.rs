@@ -377,7 +377,7 @@ impl Repository for SPFSRepository {
             let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
             let tag = self.resolve_tag(pkg, &tag_spec).await?;
 
-            let mut reader = self.inner.open_payload(tag.target).await?;
+            let (mut reader, _) = self.inner.open_payload(tag.target).await?;
             let mut yaml = String::new();
             reader.read_to_string(&mut yaml).await?;
             serde_yaml::from_str(&yaml)

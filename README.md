@@ -56,6 +56,10 @@ For details on architecture and design of the codebase, see the [developer docs]
 ```sh
 # once cargo is installed, you can build and install both projects with
 make build
+
+# additionaly features can be activated in all relevant cargo commands as desired
+#   protobuf-src will
+make build FEATURES=spfs/protobuf-src
 ```
 
 ### Binaries and Capabilities
