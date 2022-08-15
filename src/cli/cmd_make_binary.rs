@@ -121,7 +121,7 @@ impl Run for MakeBinary {
                     modified_data.timestamp = Local::now().timestamp();
                     Arc::make_mut(&mut spec)
                         .meta
-                        .modified_stack
+                        .modification_history
                         .push(modified_data);
                     tracing::info!("saving spec file {}", Format::format_ident(&spec.pkg));
                     spk::save_spec(&spec).await?;

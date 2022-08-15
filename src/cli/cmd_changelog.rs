@@ -75,50 +75,29 @@ impl Run for Changelog {
                         versions.reverse();
 
                         for (version, repo_index) in versions {
-                            let (_repo_name, repo) = repos.get(repo_index).unwrap();
+                            let (repo_name, repo) = repos.get(repo_index).unwrap();
                             let mut name = String::from(&package.to_string());
                             name.push('/');
                             name.push_str(&version.to_string());
 
                             let ident = spk::api::parse_ident(name.clone())?;
-                            let mut spec = match repo.read_spec(&ident).await {
+                            let spec = match repo.read_spec(&ident).await {
                                 Ok(s) => s,
                                 Err(err) => {
                                     tracing::debug!(
-                                        "Unable to read {ident} spec from {_repo_name}: {err}"
+                                        "Unable to read {ident} spec from {repo_name}: {err}"
                                     );
                                     continue;
                                 }
                             };
 
-                            if Arc::make_mut(&mut spec).meta.modified_stack.is_empty() {
+                            if spec.meta.modification_history.is_empty() {
                                 tracing::debug!("Package {ident} does not have modified meta data");
                                 continue;
                             }
 
-                            let recent_change =
-                                Arc::make_mut(&mut spec).meta.get_recent_modified_time();
-                            let current_time = chrono::offset::Local::now().timestamp();
-                            let diff = current_time - recent_change.timestamp;
-
-                            if diff < changelog_range {
-                                let naive_date_time =
-                                    NaiveDateTime::from_timestamp(recent_change.timestamp, 0);
-                                let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc)
-                                    .with_timezone(&Local);
-                                println!(
-                                    "Package: {}, Modified on {}",
-                                    name.yellow(),
-                                    date_time.to_string().yellow()
-                                );
-                                println!(
-                                    "Author: {}, Action: {}, Comment: {}",
-                                    recent_change.author.yellow(),
-                                    recent_change.action.yellow(),
-                                    recent_change.comment.yellow(),
-                                );
-                                println!();
-                            }
+                            let recent_change = spec.meta.get_recent_modified_time();
+                            print_modified_packages(name, changelog_range, &recent_change);
                         }
                     }
                 }
@@ -145,38 +124,48 @@ impl Run for Changelog {
                         }
                     };
 
-                    if Arc::make_mut(&mut spec).meta.modified_stack.is_empty() {
+                    if Arc::make_mut(&mut spec)
+                        .meta
+                        .modification_history
+                        .is_empty()
+                    {
                         tracing::debug!("Package {ident} does not have modified meta data");
                         continue;
                     }
 
-                    for change in &Arc::make_mut(&mut spec).meta.modified_stack {
-                        let current_time = chrono::offset::Local::now().timestamp();
-                        let diff = current_time - change.timestamp;
-
-                        if diff < changelog_range {
-                            let naive_date_time =
-                                NaiveDateTime::from_timestamp(change.timestamp, 0);
-                            let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc)
-                                .with_timezone(&Local);
-                            println!(
-                                "Package: {}, Modified on {}",
-                                ident.to_string().yellow(),
-                                date_time.to_string().yellow()
-                            );
-                            println!(
-                                "Author: {}, Action: {}, Comment: {}",
-                                change.author.yellow(),
-                                change.action.yellow(),
-                                change.comment.yellow(),
-                            );
-                            println!();
-                        }
+                    for change in &Arc::make_mut(&mut spec).meta.modification_history {
+                        print_modified_packages(ident.to_string(), changelog_range, change);
                     }
                 }
             }
         }
         Ok(0)
+    }
+}
+
+fn print_modified_packages(
+    pkg: String,
+    changelog_range: i64,
+    metadata: &spk::api::meta::ModifiedMetaData,
+) {
+    let current_time = chrono::offset::Local::now().timestamp();
+    let diff = current_time - metadata.timestamp;
+
+    if diff < changelog_range {
+        let naive_date_time = NaiveDateTime::from_timestamp(metadata.timestamp, 0);
+        let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc).with_timezone(&Local);
+        println!(
+            "Package: {}, Modified on {}",
+            pkg.yellow(),
+            date_time.to_string().yellow()
+        );
+        println!(
+            "Author: {}, Action: {}, Comment: {}",
+            metadata.author.yellow(),
+            metadata.action.yellow(),
+            metadata.comment.yellow(),
+        );
+        println!();
     }
 }
 

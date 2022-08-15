@@ -58,7 +58,7 @@ impl MakeSource {
                     modified_data.timestamp = Local::now().timestamp();
                     Arc::make_mut(&mut spec)
                         .meta
-                        .modified_stack
+                        .modification_history
                         .push(modified_data);
                     tracing::info!("saving spec file {}", spec.pkg.format_ident());
                     spk::save_spec(&spec).await?;
