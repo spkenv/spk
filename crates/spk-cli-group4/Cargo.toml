@@ -1,0 +1,26 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spk-cli-group4"
+version = "0.36.0"
+
+[lib]
+name = "spk_cli_group4"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+clap = { version = "3.2", features = ["derive", "env"] }
+colored = "2.0.0"
+futures = "0.3.9"
+serde_yaml = "0.8.17"
+spfs = { version = '0.34.6', path = "../spfs" }
+spk-cli-common = { path = '../spk-cli-common' }
+spk-format = { path = '../spk-format' }
+spk-ident = { path = '../spk-ident' }
+spk-option-map = { path = '../spk-option-map' }
+spk-spec = { path = '../spk-spec' }
+spk-spec-ops = { path = '../spk-spec-ops' }
+tokio = { version = "1.20", features = ["rt"] }
+tracing = "0.1.35"

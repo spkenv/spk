@@ -2673,56 +2673,24 @@ dependencies = [
  "async-trait",
  "clap 3.2.11",
  "colored",
- "ctrlc",
- "data-encoding",
- "dyn-clone",
- "enum_dispatch",
- "futures",
- "glob",
- "ignore",
- "indexmap",
- "itertools",
- "lazy_static",
- "nix",
- "nom",
- "nom-supreme",
- "once_cell",
- "regex",
- "relative-path",
- "ring",
- "rstest",
- "sentry",
- "sentry-anyhow",
- "sentry-tracing",
- "serde",
- "serde_derive",
- "serde_json",
- "serde_yaml",
- "spfs",
- "spk-build",
- "spk-exec",
- "spk-fixtures",
+ "spk-cli-common",
+ "spk-cli-group1",
+ "spk-cli-group2",
+ "spk-cli-group3",
+ "spk-cli-group4",
+ "spk-cmd-build",
+ "spk-cmd-convert",
+ "spk-cmd-env",
+ "spk-cmd-explain",
+ "spk-cmd-install",
+ "spk-cmd-make-binary",
+ "spk-cmd-make-source",
+ "spk-cmd-render",
+ "spk-cmd-repo",
+ "spk-cmd-test",
  "spk-format",
- "spk-ident",
- "spk-ident-build",
- "spk-ident-component",
- "spk-name",
- "spk-option-map",
- "spk-solver",
- "spk-spec",
- "spk-spec-ops",
- "spk-storage",
- "spk-validators",
- "spk-version",
- "sys-info",
- "tar",
- "tempfile",
- "thiserror",
  "tokio",
  "tracing",
- "tracing-subscriber 0.3.14",
- "url",
- "whoami",
 ]
 
 [[package]]
@@ -2763,6 +2731,296 @@ dependencies = [
  "relative-path",
  "spfs",
  "thiserror",
+]
+
+[[package]]
+name = "spk-cli-common"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "colored",
+ "futures",
+ "glob",
+ "lazy_static",
+ "nix",
+ "once_cell",
+ "rstest",
+ "sentry",
+ "sentry-anyhow",
+ "sentry-tracing",
+ "serde_json",
+ "serde_yaml",
+ "spfs",
+ "spk-build",
+ "spk-exec",
+ "spk-format",
+ "spk-ident",
+ "spk-ident-build",
+ "spk-ident-component",
+ "spk-name",
+ "spk-option-map",
+ "spk-solver",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-storage",
+ "spk-validators",
+ "spk-version",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.14",
+ "whoami",
+]
+
+[[package]]
+name = "spk-cli-group1"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "colored",
+ "futures",
+ "itertools",
+ "rstest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "spfs",
+ "spk-cli-common",
+ "spk-format",
+ "spk-ident",
+ "spk-name",
+ "spk-solver",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-storage",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-cli-group2"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "colored",
+ "itertools",
+ "nom",
+ "nom-supreme",
+ "rstest",
+ "spfs",
+ "spk-cli-common",
+ "spk-format",
+ "spk-ident",
+ "spk-ident-component",
+ "spk-name",
+ "spk-option-map",
+ "spk-solver",
+ "spk-spec",
+ "spk-storage",
+ "spk-validators",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-cli-group3"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "colored",
+ "spk-cli-common",
+ "spk-storage",
+ "spk-validators",
+ "tracing",
+]
+
+[[package]]
+name = "spk-cli-group4"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "colored",
+ "futures",
+ "serde_yaml",
+ "spfs",
+ "spk-cli-common",
+ "spk-format",
+ "spk-ident",
+ "spk-option-map",
+ "spk-spec",
+ "spk-spec-ops",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-cmd-build"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "spk-cli-common",
+ "spk-cmd-make-binary",
+ "spk-cmd-make-source",
+]
+
+[[package]]
+name = "spk-cmd-convert"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "spk-cli-common",
+ "spk-cmd-env",
+]
+
+[[package]]
+name = "spk-cmd-env"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "nix",
+ "spfs",
+ "spk-cli-common",
+ "spk-exec",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-cmd-explain"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "spk-cli-common",
+ "tokio",
+]
+
+[[package]]
+name = "spk-cmd-install"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "colored",
+ "futures",
+ "spk-cli-common",
+ "spk-exec",
+ "spk-format",
+ "spk-spec-ops",
+ "tokio",
+]
+
+[[package]]
+name = "spk-cmd-make-binary"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "futures",
+ "spk-build",
+ "spk-cli-common",
+ "spk-format",
+ "spk-ident",
+ "spk-option-map",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-storage",
+ "spk-validators",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-cmd-make-source"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "spk-build",
+ "spk-cli-common",
+ "spk-format",
+ "spk-ident",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-storage",
+ "tracing",
+]
+
+[[package]]
+name = "spk-cmd-render"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "spfs",
+ "spk-cli-common",
+ "spk-exec",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-cmd-repo"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "spk-cli-common",
+ "spk-storage",
+ "tracing",
+]
+
+[[package]]
+name = "spk-cmd-test"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "rstest",
+ "spfs",
+ "spk-build",
+ "spk-cli-common",
+ "spk-cmd-build",
+ "spk-exec",
+ "spk-fixtures",
+ "spk-format",
+ "spk-ident",
+ "spk-ident-build",
+ "spk-ident-component",
+ "spk-name",
+ "spk-option-map",
+ "spk-solver",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-storage",
+ "spk-validators",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
