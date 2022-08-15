@@ -28,7 +28,7 @@ async fn test_undeprecate_without_prompt() {
     // with the '--yes' flag to prevent it prompting.
     let packages = vec![name1.to_string(), name2.to_string(), name3.to_string()];
     let yes = true;
-    let comment = vec![("test".to_string())];
+    let comment = Some("test".to_string());
     let result =
         change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
 
@@ -68,7 +68,7 @@ async fn test_undeprecate_no_repos() {
     // at all. No packages should be found, this should a result of 1.
     let packages = vec![name.to_string()];
     let yes = true;
-    let comment = vec![("test".to_string())];
+    let comment = Some("test".to_string());
     let result =
         change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
 
@@ -96,7 +96,7 @@ async fn test_undeprecate_no_version() {
     // This should return a result of 2.
     let packages = vec![name.to_string()];
     let yes = true;
-    let comment = vec![("test".to_string())];
+    let comment = Some("test".to_string());
     let result =
         change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
 
@@ -124,7 +124,7 @@ async fn test_undeprecate_no_version_but_trailing_slash() {
     // putting in a trailing slash. This should return a result of 3.
     let packages = vec![format!("{}/", name)];
     let yes = true;
-    let comment = vec![("test".to_string())];
+    let comment = Some("test".to_string());
     let result =
         change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
 
@@ -156,7 +156,7 @@ async fn test_undeprecate_with_no_package_found() {
 
     let packages = vec![missing_pkg.to_string()];
     let yes = true;
-    let comment = vec![("test".to_string())];
+    let comment = Some("test".to_string());
     let result =
         change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes, &comment).await;
 

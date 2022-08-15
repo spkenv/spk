@@ -12,7 +12,7 @@ mod embedded_packages_list;
 mod environ;
 pub(crate) mod ident;
 mod install_spec;
-mod meta;
+pub mod meta;
 mod name;
 mod option;
 mod option_map;

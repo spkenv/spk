@@ -24,7 +24,7 @@ pub struct Meta {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub labels: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub modified_stack: Vec<ModifiedMetaData>,
+    pub modification_history: Vec<ModifiedMetaData>,
 }
 
 impl Default for Meta {
@@ -34,7 +34,7 @@ impl Default for Meta {
             homepage: None,
             license: Self::default_license(),
             labels: Default::default(),
-            modified_stack: Vec::new(),
+            modification_history: Vec::new(),
         }
     }
 }
@@ -59,18 +59,14 @@ impl Meta {
             comment,
             timestamp,
         };
-
-        match self.modified_stack.is_empty() {
-            true => self.modified_stack = vec![data],
-            false => self.modified_stack.push(data),
-        }
+        self.modification_history.push(data);
     }
 
-    pub fn get_recent_modified_time(&mut self) -> ModifiedMetaData {
+    pub fn get_recent_modified_time(&self) -> ModifiedMetaData {
         let mut recent_modified_time: i64 = 0;
         let mut result: ModifiedMetaData = ModifiedMetaData::default();
 
-        for data in &self.modified_stack {
+        for data in &self.modification_history {
             if data.timestamp > recent_modified_time {
                 recent_modified_time = data.timestamp;
                 result = data.to_owned();

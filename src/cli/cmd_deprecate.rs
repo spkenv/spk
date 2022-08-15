@@ -77,7 +77,7 @@ pub struct Deprecate {
 
     /// Add a comment when deprecating a package
     #[clap(long, short)]
-    pub comment: Vec<String>,
+    pub comment: Option<String>,
 
     /// The package version or build to deprecate
     ///
@@ -134,7 +134,7 @@ pub(crate) async fn change_deprecation_state(
     repositories: &[(String, spk::storage::RepositoryHandle)],
     packages: &[String],
     yes: bool,
-    comment: &[String],
+    comment: &Option<String>,
 ) -> Result<i32> {
     let repos: Vec<_> = repositories
         .iter()
@@ -283,13 +283,13 @@ pub(crate) async fn change_deprecation_state(
             action.as_present_tense(),
             spec.pkg.format_ident(),
         );
-        match comment.is_empty() {
-            true => Arc::make_mut(&mut spec)
+        match comment {
+            None => Arc::make_mut(&mut spec)
                 .meta
                 .update_modified_time(action.as_str(), "None".to_string()),
-            false => Arc::make_mut(&mut spec)
+            Some(comment) => Arc::make_mut(&mut spec)
                 .meta
-                .update_modified_time(action.as_str(), comment.first().unwrap().to_string()),
+                .update_modified_time(action.as_str(), comment.to_string()),
         };
         Arc::make_mut(&mut spec).deprecated = new_status;
         repo.force_publish_spec(&spec).await?;

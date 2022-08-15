@@ -132,8 +132,6 @@ trait CommandArgs {
     /// commands.
     fn get_positional_args(&self) -> Vec<String>;
 }
-//cargo build
-//target/debug/spk
 
 #[enum_dispatch(Run)]
 #[enum_dispatch(CommandArgs)]

@@ -30,7 +30,7 @@ pub struct Undeprecate {
 
     /// Add a comment when undeprecating a package
     #[clap(long, short)]
-    pub comment: Vec<String>,
+    pub comment: Option<String>,
 
     /// The package version or build to undeprecate
     ///
