@@ -1,78 +1,29 @@
-[package]
-authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
-edition = "2021"
-name = "spk"
-version = "0.36.0"
-
-[workspace]
-members = ["crates/*", "spk-launcher"]
-
-[lib]
-name = "spk"
-path = "src/lib.rs"
-
-[[bin]]
-name = "spk"
-path = "src/cli/bin.rs"
-
-[features]
-sentry = ["dep:sentry", "dep:sentry-anyhow", "dep:sentry-tracing"]
-fixtures = ["dep:rstest"]
-test-macros = []
-migration-to-components = []
-
-[dependencies]
-anyhow = "1.0"
-async-recursion = "1.0"
-async-stream = "0.3"
-async-trait = "0.1"
-clap = { version = "3.2", features = ["derive", "env"] }
-colored = "2.0"
-ctrlc = "3.2"
-data-encoding = "2.3"
-dyn-clone = "1.0"
-enum_dispatch = "0.3.8"
-futures = "0.3.9"
-glob = "0.3.0"
-ignore = "0.4.18"
-indexmap = "1.7"
-itertools = "0.10"
-lazy_static = "1.4"
-nom = "7.1"
-nom-supreme = "0.8"
-once_cell = "1.8"
-paste = "1.0"
-priority-queue = "1.2"
-rand = "0.8"
-regex = "1.5"
-relative-path = "1.3"
-ring = "0.16.15"
-rstest = { version = "0.15.0", optional = true }
-serde = { version = "1.0", features = ["derive"] }
-serde_derive = "1.0"
-serde_json = "1.0"
-serde_yaml = "0.8.17"
-sentry = { version = "0.27.0", optional = true }
-sentry-anyhow = { version = "0.27.0", optional = true }
-sentry-tracing = { version = "0.27.0", optional = true }
-spfs = { version = '0.34.6', path = "crates/spfs" }
-sys-info = "0.9.0"
-tar = "0.4.30"
-tempfile = "3.3"
-thiserror = "1.0"
-tokio = { version = "1.20", features = ["rt"] }
-tracing = "0.1.35"
-tracing-subscriber = { version = "0.3.14", features = ["env-filter"] }
-url = "2.2"
-whoami = "1.2"
-
-[target.'cfg(target_os = "linux")'.dependencies]
-nix = "0.24.1"
-
-[dev-dependencies]
-proptest = "1.0.0"
-spk = { path = ".", features = ["fixtures", "test-macros"] }
-
 [profile.release]
 lto = true
 codegen-units = 1
+
+[workspace]
+members = [
+    "crates/spk",
+    "crates/spk-build",
+    "crates/spk-build-ops",
+    "crates/spk-env",
+    "crates/spk-exec",
+    "crates/spk-fixtures",
+    "crates/spk-format",
+    "crates/spk-ident",
+    "crates/spk-ident-build",
+    "crates/spk-ident-component",
+    "crates/spk-ident-ops",
+    "crates/spk-launcher",
+    "crates/spk-name",
+    "crates/spk-option-map",
+    "crates/spk-solver",
+    "crates/spk-spec",
+    "crates/spk-spec-ops",
+    "crates/spk-storage",
+    "crates/spk-validators",
+    "crates/spk-version",
+    "crates/spk-version-range",
+    "crates/spfs"
+]

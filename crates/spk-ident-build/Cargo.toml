@@ -1,0 +1,22 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spk-ident-build"
+version = "0.36.0"
+
+[lib]
+name = "spk_ident_build"
+path = "src/lib.rs"
+
+[dependencies]
+colored = "2.0"
+data-encoding = "2.3"
+itertools = "0.10"
+nom = "7.1"
+nom-supreme = "0.8"
+spk-format = { path = "../spk-format" }
+spk-option-map = { path = "../spk-option-map" }
+thiserror = "1.0"
+
+[dev-dependencies]
+rstest = "0.15.0"

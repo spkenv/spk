@@ -1,0 +1,34 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spk-ident"
+version = "0.36.0"
+
+[lib]
+name = "spk_ident"
+path = "src/lib.rs"
+
+[dependencies]
+colored = "2.0"
+itertools = "0.10"
+nom = "7.1"
+nom-supreme = "0.8"
+once_cell = "1.8"
+relative-path = "1.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.8.17"
+thiserror = "1.0"
+spfs = { version = '0.34.6', path = "../spfs" }
+spk-format = { path = "../spk-format" }
+spk-ident-build = { path = "../spk-ident-build" }
+spk-ident-component = { path = "../spk-ident-component" }
+spk-ident-ops = { path = "../spk-ident-ops" }
+spk-name = { path = "../spk-name" }
+spk-spec-ops = { path = "../spk-spec-ops" }
+spk-version = { path = "../spk-version" }
+spk-version-range = { path = "../spk-version-range" }
+
+[dev-dependencies]
+data-encoding = "2.3"
+proptest = "1.0.0"
+rstest = "0.15.0"

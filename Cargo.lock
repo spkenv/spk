@@ -826,6 +826,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fuchsia-cprng"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06f77d526c1a601b7c4cdd98f54b5eaabffc14d5f2f0296febdc7f357c6d3ba"
+
+[[package]]
 name = "futures"
 version = "0.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1329,6 +1335,15 @@ name = "match_cfg"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffbee8634e0d45d258acb448e7eaab3fce7a0a467395d4d9f228e3c1f01fb2e4"
+
+[[package]]
+name = "matchers"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f099785f7595cc4b4553a174ce30dd7589ef93391ff414dbb67f62392b9e0ce1"
+dependencies = [
+ "regex-automata",
+]
 
 [[package]]
 name = "matchers"
@@ -1836,7 +1851,7 @@ dependencies = [
  "lazy_static",
  "num-traits",
  "quick-error 2.0.1",
- "rand",
+ "rand 0.8.5",
  "rand_chacha",
  "rand_xorshift",
  "regex-syntax",
@@ -1945,13 +1960,26 @@ dependencies = [
 
 [[package]]
 name = "rand"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "552840b97013b1a26992c11eac34bdd778e464601a4c2054b5f0bff7c6761293"
+dependencies = [
+ "fuchsia-cprng",
+ "libc",
+ "rand_core 0.3.1",
+ "rdrand",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "rand"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
  "rand_chacha",
- "rand_core",
+ "rand_core 0.6.3",
 ]
 
 [[package]]
@@ -1961,8 +1989,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
- "rand_core",
+ "rand_core 0.6.3",
 ]
+
+[[package]]
+name = "rand_core"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a6fdeb83b075e8266dcc8762c22776f6877a63111121f5f8c7411e5be7eed4b"
+dependencies = [
+ "rand_core 0.4.2",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c33a3c44ca05fa6f1807d8e6743f3824e8509beca625669633be0acbdf509dc"
 
 [[package]]
 name = "rand_core"
@@ -1979,7 +2022,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d25bf25ec5ae4a3f1b92f929810509a2f53d7dca2f50b794ff57e3face536c8f"
 dependencies = [
- "rand_core",
+ "rand_core 0.6.3",
 ]
 
 [[package]]
@@ -2004,6 +2047,15 @@ dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
  "num_cpus",
+]
+
+[[package]]
+name = "rdrand"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "678054eb77286b51581ba43620cc911abf02758c91f93f479767aed0f90458b2"
+dependencies = [
+ "rand_core 0.3.1",
 ]
 
 [[package]]
@@ -2348,7 +2400,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a4591a2d128af73b1b819ab95f143bc6a2fbe48cd23a4c45e1ee32177e66ae6"
 dependencies = [
  "once_cell",
- "rand",
+ "rand 0.8.5",
  "sentry-types",
  "serde",
  "serde_json",
@@ -2372,7 +2424,7 @@ checksum = "ea50bcf843510179a7ba41c9fe4d83a8958e9f8adf707ec731ff999297536344"
 dependencies = [
  "sentry-core",
  "tracing-core",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.14",
 ]
 
 [[package]]
@@ -2578,7 +2630,7 @@ dependencies = [
  "prost",
  "protobuf-src",
  "question",
- "rand",
+ "rand 0.8.5",
  "relative-path",
  "ring",
  "rstest",
@@ -2600,7 +2652,7 @@ dependencies = [
  "tonic",
  "tonic-build",
  "tracing",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.14",
  "url",
  "uuid",
  "walkdir",
@@ -2618,8 +2670,6 @@ name = "spk"
 version = "0.36.0"
 dependencies = [
  "anyhow",
- "async-recursion",
- "async-stream",
  "async-trait",
  "clap 3.2.11",
  "colored",
@@ -2637,10 +2687,6 @@ dependencies = [
  "nom",
  "nom-supreme",
  "once_cell",
- "paste",
- "priority-queue",
- "proptest",
- "rand",
  "regex",
  "relative-path",
  "ring",
@@ -2653,16 +2699,175 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "spfs",
- "spk",
+ "spk-build",
+ "spk-exec",
+ "spk-fixtures",
+ "spk-format",
+ "spk-ident",
+ "spk-ident-build",
+ "spk-ident-component",
+ "spk-name",
+ "spk-option-map",
+ "spk-solver",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-storage",
+ "spk-validators",
+ "spk-version",
  "sys-info",
  "tar",
  "tempfile",
  "thiserror",
  "tokio",
  "tracing",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.14",
  "url",
  "whoami",
+]
+
+[[package]]
+name = "spk-build"
+version = "0.36.0"
+dependencies = [
+ "relative-path",
+ "rstest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "spfs",
+ "spk-env",
+ "spk-exec",
+ "spk-fixtures",
+ "spk-ident",
+ "spk-ident-build",
+ "spk-ident-component",
+ "spk-ident-ops",
+ "spk-name",
+ "spk-option-map",
+ "spk-solver",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-storage",
+ "spk-version",
+ "tar",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-build-ops"
+version = "0.36.0"
+dependencies = [
+ "relative-path",
+ "spfs",
+ "thiserror",
+]
+
+[[package]]
+name = "spk-env"
+version = "0.36.0"
+dependencies = [
+ "relative-path",
+ "spk-ident-ops",
+]
+
+[[package]]
+name = "spk-exec"
+version = "0.36.0"
+dependencies = [
+ "spfs",
+ "spk-format",
+ "spk-ident-component",
+ "spk-solver",
+ "spk-storage",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "spk-fixtures"
+version = "0.36.0"
+dependencies = [
+ "rstest",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber 0.2.25",
+]
+
+[[package]]
+name = "spk-format"
+version = "0.36.0"
+dependencies = [
+ "spk-name",
+ "thiserror",
+]
+
+[[package]]
+name = "spk-ident"
+version = "0.36.0"
+dependencies = [
+ "colored",
+ "data-encoding",
+ "itertools",
+ "nom",
+ "nom-supreme",
+ "once_cell",
+ "proptest",
+ "relative-path",
+ "rstest",
+ "serde",
+ "serde_yaml",
+ "spfs",
+ "spk-format",
+ "spk-ident-build",
+ "spk-ident-component",
+ "spk-ident-ops",
+ "spk-name",
+ "spk-spec-ops",
+ "spk-version",
+ "spk-version-range",
+ "thiserror",
+]
+
+[[package]]
+name = "spk-ident-build"
+version = "0.36.0"
+dependencies = [
+ "colored",
+ "data-encoding",
+ "itertools",
+ "nom",
+ "nom-supreme",
+ "rstest",
+ "spk-format",
+ "spk-option-map",
+ "thiserror",
+]
+
+[[package]]
+name = "spk-ident-component"
+version = "0.36.0"
+dependencies = [
+ "colored",
+ "nom",
+ "nom-supreme",
+ "rstest",
+ "serde",
+ "serde_yaml",
+ "spk-format",
+ "spk-name",
+ "thiserror",
+]
+
+[[package]]
+name = "spk-ident-ops"
+version = "0.36.0"
+dependencies = [
+ "relative-path",
+ "spk-name",
+ "spk-version",
 ]
 
 [[package]]
@@ -2674,6 +2879,230 @@ dependencies = [
  "spfs",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "spk-name"
+version = "0.36.0"
+dependencies = [
+ "nom",
+ "paste",
+ "rstest",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "spk-option-map"
+version = "0.36.0"
+dependencies = [
+ "colored",
+ "data-encoding",
+ "itertools",
+ "ring",
+ "rstest",
+ "serde",
+ "serde_yaml",
+ "spk-format",
+ "spk-name",
+ "sys-info",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "spk-solver"
+version = "0.36.0"
+dependencies = [
+ "async-recursion",
+ "async-stream",
+ "async-trait",
+ "colored",
+ "ctrlc",
+ "dyn-clone",
+ "enum_dispatch",
+ "futures",
+ "itertools",
+ "once_cell",
+ "priority-queue",
+ "rstest",
+ "serde_json",
+ "serde_yaml",
+ "spfs",
+ "spk-fixtures",
+ "spk-format",
+ "spk-ident",
+ "spk-ident-build",
+ "spk-ident-component",
+ "spk-name",
+ "spk-option-map",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-storage",
+ "spk-validators",
+ "spk-version",
+ "spk-version-range",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-spec"
+version = "0.36.0"
+dependencies = [
+ "data-encoding",
+ "enum_dispatch",
+ "ignore",
+ "indexmap",
+ "itertools",
+ "nom",
+ "regex",
+ "relative-path",
+ "rstest",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_yaml",
+ "spfs",
+ "spk-build-ops",
+ "spk-fixtures",
+ "spk-ident",
+ "spk-ident-build",
+ "spk-ident-component",
+ "spk-ident-ops",
+ "spk-name",
+ "spk-option-map",
+ "spk-spec-ops",
+ "spk-validators",
+ "spk-version",
+ "spk-version-range",
+ "sys-info",
+ "tempfile",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "spk-spec-ops"
+version = "0.36.0"
+dependencies = [
+ "enum_dispatch",
+ "ignore",
+ "rstest",
+ "serde",
+ "spk-ident-ops",
+ "spk-name",
+ "spk-version",
+ "thiserror",
+]
+
+[[package]]
+name = "spk-storage"
+version = "0.36.0"
+dependencies = [
+ "async-trait",
+ "colored",
+ "data-encoding",
+ "enum_dispatch",
+ "futures",
+ "glob",
+ "ignore",
+ "indexmap",
+ "itertools",
+ "lazy_static",
+ "nom",
+ "once_cell",
+ "regex",
+ "relative-path",
+ "ring",
+ "rstest",
+ "sentry",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_yaml",
+ "spfs",
+ "spk-fixtures",
+ "spk-ident",
+ "spk-ident-build",
+ "spk-ident-component",
+ "spk-ident-ops",
+ "spk-name",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-validators",
+ "spk-version",
+ "sys-info",
+ "tar",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.2.25",
+ "url",
+]
+
+[[package]]
+name = "spk-validators"
+version = "0.36.0"
+dependencies = [
+ "data-encoding",
+ "ignore",
+ "indexmap",
+ "itertools",
+ "nom",
+ "regex",
+ "relative-path",
+ "ring",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_yaml",
+ "spfs",
+ "spk-env",
+ "spk-ident",
+ "spk-ident-build",
+ "spk-ident-ops",
+ "spk-name",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-version",
+ "sys-info",
+ "tempdir",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "spk-version"
+version = "0.36.0"
+dependencies = [
+ "itertools",
+ "nom",
+ "nom-supreme",
+ "rstest",
+ "serde",
+ "spk-fixtures",
+ "spk-name",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "spk-version-range"
+version = "0.36.0"
+dependencies = [
+ "enum_dispatch",
+ "itertools",
+ "nom",
+ "nom-supreme",
+ "proptest",
+ "rstest",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-version",
+ "thiserror",
 ]
 
 [[package]]
@@ -2749,6 +3178,16 @@ dependencies = [
  "filetime",
  "libc",
  "xattr",
+]
+
+[[package]]
+name = "tempdir"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
+dependencies = [
+ "rand 0.4.6",
+ "remove_dir_all",
 ]
 
 [[package]]
@@ -3017,7 +3456,7 @@ dependencies = [
  "indexmap",
  "pin-project",
  "pin-project-lite",
- "rand",
+ "rand 0.8.5",
  "slab",
  "tokio",
  "tokio-util",
@@ -3113,13 +3552,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-serde"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc6b213177105856957181934e4920de57730fc69bf42c37ee5bb664d406d9e1"
+dependencies = [
+ "serde",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-subscriber"
+version = "0.2.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e0d2eaa99c3c2e41547cfa109e910a68ea03823cccad4a0525dcbc9b01e8c71"
+dependencies = [
+ "ansi_term",
+ "chrono",
+ "lazy_static",
+ "matchers 0.0.1",
+ "regex",
+ "serde",
+ "serde_json",
+ "sharded-slab",
+ "smallvec",
+ "thread_local",
+ "tracing",
+ "tracing-core",
+ "tracing-log",
+ "tracing-serde",
+]
+
+[[package]]
 name = "tracing-subscriber"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a713421342a5a666b7577783721d3117f1b69a393df803ee17bb73b1e122a59"
 dependencies = [
  "ansi_term",
- "matchers",
+ "matchers 0.1.0",
  "once_cell",
  "regex",
  "sharded-slab",

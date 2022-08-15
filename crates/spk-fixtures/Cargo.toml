@@ -1,0 +1,15 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spk-fixtures"
+version = "0.36.0"
+
+[lib]
+name = "spk_fixtures"
+path = "src/lib.rs"
+
+[dependencies]
+rstest = "0.15.0"
+tempfile = "3.3"
+tracing = "0.1.35"
+tracing-subscriber = "0.2.16"
