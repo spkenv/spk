@@ -28,7 +28,6 @@ sentry-tracing = { version = "0.27.0", optional = true }
 spfs = { version = '0.34.6', path = "../spfs" }
 spk-build = { path = '../spk-build' }
 spk-exec = { path = '../spk-exec' }
-spk-format = { path = '../spk-format' }
 spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = '../spk-ident' }
 spk-name = { path = '../spk-name' }

@@ -6,7 +6,7 @@ use async_stream::stream;
 use colored::Colorize;
 use futures::Stream;
 use once_cell::sync::{Lazy, OnceCell};
-use spk_format::{FormatChange, FormatIdent, FormatOptionMap, FormatRequest};
+use spk_foundation::format::{FormatChange, FormatIdent, FormatOptionMap, FormatRequest};
 use spk_foundation::ident_component::Component;
 use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
 use spk_foundation::{option_map, option_map::OptionMap};
@@ -88,7 +88,7 @@ impl FormatChange for Change {
 
     fn format_change(
         &self,
-        format_settings: &spk_format::FormatChangeOptions,
+        format_settings: &spk_foundation::format::FormatChangeOptions,
         state: Option<&Self::State>,
     ) -> String {
         use Change::*;

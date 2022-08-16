@@ -12,7 +12,6 @@ path = "src/lib.rs"
 colored = "2.0"
 enum_dispatch = "0.3.8"
 itertools = "0.10"
-spk-format = { path = "../spk-format" }
 spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
 spk-name = { path = "../spk-name" }

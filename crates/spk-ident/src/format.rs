@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use colored::Colorize;
-use spk_format::{FormatBuild, FormatIdent};
+use spk_foundation::format::{FormatBuild, FormatIdent};
 
 use crate::{BuildIdent, Ident};
 

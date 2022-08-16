@@ -2688,7 +2688,7 @@ dependencies = [
  "spk-cmd-render",
  "spk-cmd-repo",
  "spk-cmd-test",
- "spk-format",
+ "spk-foundation",
  "tokio",
  "tracing",
 ]
@@ -2751,7 +2751,6 @@ dependencies = [
  "spfs",
  "spk-build",
  "spk-exec",
- "spk-format",
  "spk-foundation",
  "spk-ident",
  "spk-name",
@@ -2784,7 +2783,6 @@ dependencies = [
  "serde_yaml",
  "spfs",
  "spk-cli-common",
- "spk-format",
  "spk-foundation",
  "spk-ident",
  "spk-name",
@@ -2810,7 +2808,6 @@ dependencies = [
  "rstest",
  "spfs",
  "spk-cli-common",
- "spk-format",
  "spk-foundation",
  "spk-ident",
  "spk-name",
@@ -2849,7 +2846,6 @@ dependencies = [
  "serde_yaml",
  "spfs",
  "spk-cli-common",
- "spk-format",
  "spk-foundation",
  "spk-ident",
  "spk-spec",
@@ -2917,7 +2913,6 @@ dependencies = [
  "futures",
  "spk-cli-common",
  "spk-exec",
- "spk-format",
  "spk-foundation",
  "tokio",
 ]
@@ -2932,7 +2927,6 @@ dependencies = [
  "futures",
  "spk-build",
  "spk-cli-common",
- "spk-format",
  "spk-foundation",
  "spk-ident",
  "spk-spec",
@@ -2951,7 +2945,6 @@ dependencies = [
  "clap 3.2.11",
  "spk-build",
  "spk-cli-common",
- "spk-format",
  "spk-foundation",
  "spk-ident",
  "spk-spec",
@@ -2998,7 +2991,6 @@ dependencies = [
  "spk-cli-common",
  "spk-cmd-build",
  "spk-exec",
- "spk-format",
  "spk-foundation",
  "spk-ident",
  "spk-name",
@@ -3018,21 +3010,12 @@ name = "spk-exec"
 version = "0.36.0"
 dependencies = [
  "spfs",
- "spk-format",
  "spk-foundation",
  "spk-solver-solution",
  "spk-spec",
  "spk-storage",
  "thiserror",
  "tracing",
-]
-
-[[package]]
-name = "spk-format"
-version = "0.36.0"
-dependencies = [
- "spk-name",
- "thiserror",
 ]
 
 [[package]]
@@ -3051,7 +3034,6 @@ dependencies = [
  "rstest",
  "serde",
  "serde_yaml",
- "spk-format",
  "spk-name",
  "spk-version",
  "sys-info",
@@ -3077,7 +3059,6 @@ dependencies = [
  "serde",
  "serde_yaml",
  "spfs",
- "spk-format",
  "spk-foundation",
  "spk-name",
  "spk-version",
@@ -3121,7 +3102,6 @@ dependencies = [
  "rstest",
  "serde_json",
  "spfs",
- "spk-format",
  "spk-foundation",
  "spk-ident",
  "spk-name",
@@ -3156,7 +3136,6 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "spfs",
- "spk-format",
  "spk-foundation",
  "spk-ident",
  "spk-name",
@@ -3200,7 +3179,6 @@ name = "spk-solver-solution"
 version = "0.36.0"
 dependencies = [
  "spfs",
- "spk-format",
  "spk-foundation",
  "spk-ident",
  "spk-name",
@@ -3219,7 +3197,6 @@ dependencies = [
  "itertools",
  "rstest",
  "serde_yaml",
- "spk-format",
  "spk-foundation",
  "spk-ident",
  "spk-name",

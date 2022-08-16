@@ -16,6 +16,5 @@ colored = "2.0.0"
 futures = "0.3.9"
 spk-cli-common = { path = '../spk-cli-common' }
 spk-exec = { path = '../spk-exec' }
-spk-format = { path = '../spk-format' }
 spk-foundation = { path = '../spk-foundation' }
 tokio = { version = "1.20", features = ["rt"] }

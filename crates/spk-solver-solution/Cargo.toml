@@ -10,7 +10,6 @@ path = "src/lib.rs"
 
 [dependencies]
 spfs = { version = '0.34.6', path = "../spfs" }
-spk-format = { path = "../spk-format" }
 spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
 spk-name = { path = "../spk-name" }

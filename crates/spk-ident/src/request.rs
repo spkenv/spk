@@ -12,7 +12,7 @@ use colored::Colorize;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use spk_format::{FormatBuild, FormatComponents, FormatRequest};
+use spk_foundation::format::{FormatBuild, FormatComponents, FormatRequest};
 
 use super::Ident;
 use crate::{BuildIdent, Error, Result};
@@ -928,7 +928,7 @@ impl FormatRequest for PkgRequest {
         &self,
         repository_name: &Option<spk_name::RepositoryNameBuf>,
         name: &PkgName,
-        format_settings: &spk_format::FormatChangeOptions,
+        format_settings: &spk_foundation::format::FormatChangeOptions,
     ) -> String {
         let mut out = match repository_name {
             Some(repository_name) => format!("{repository_name}/{}", name.as_str().bold()),

@@ -7,7 +7,7 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_format::FormatIdent;
+use spk_foundation::format::FormatIdent;
 use spk_foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_ident::{parse_ident, Ident};
 use spk_spec::{Deprecate, DeprecateMut, Spec, SpecRecipe};

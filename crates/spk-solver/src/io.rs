@@ -17,7 +17,7 @@ use async_stream::stream;
 use colored::Colorize;
 use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
-use spk_format::{
+use spk_foundation::format::{
     FormatChange, FormatChangeOptions, FormatIdent, FormatOptionMap, FormatRequest, FormatSolution,
 };
 use spk_foundation::ident_build::Build;

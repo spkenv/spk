@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use colored::Colorize;
-use spk_format::FormatError;
+use spk_foundation::format::FormatError;
 use spk_solver_graph::Graph;
 use thiserror::Error;
 

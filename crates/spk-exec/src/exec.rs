@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use spfs::encoding::Digest;
-use spk_format::{FormatIdent, FormatOptionMap};
+use spk_foundation::format::{FormatIdent, FormatOptionMap};
 use spk_foundation::ident_component::Component;
 use spk_foundation::spec_ops::PackageOps;
 use spk_solver_solution::{PackageSource, Solution};

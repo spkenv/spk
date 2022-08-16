@@ -5,8 +5,9 @@ use std::{collections::HashSet, convert::TryFrom};
 
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use spk_format::FormatComponents;
 use spk_name::PkgName;
+
+use crate::format::FormatComponents;
 
 use super::{Error, Result};
 
