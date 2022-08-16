@@ -4,8 +4,8 @@
 use std::convert::TryInto;
 
 use serde::{Deserialize, Serialize};
+use spk_foundation::spec_ops::{ComponentOps, FileMatcher};
 use spk_ident_component::Component;
-use spk_spec_ops::{ComponentOps, FileMatcher};
 
 use crate::Result;
 

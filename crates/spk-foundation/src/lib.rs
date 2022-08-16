@@ -4,6 +4,7 @@
 
 pub mod fixtures;
 pub mod ident_build;
+pub mod spec_ops;
 pub mod version_range;
 
 pub use fixtures::*;

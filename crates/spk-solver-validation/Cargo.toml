@@ -20,7 +20,6 @@ spk-name = { path = "../spk-name" }
 spk-solver-graph = { path = "../spk-solver-graph" }
 spk-solver-solution = { path = "../spk-solver-solution" }
 spk-spec = { path = "../spk-spec" }
-spk-spec-ops = { path = '../spk-spec-ops' }
 spk-version = { path = "../spk-version" }
 thiserror = "1.0"
 

@@ -10,10 +10,10 @@ use futures::TryFutureExt;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{flags, spk_exe, CommandArgs, Run};
 use spk_format::{FormatIdent, FormatOptionMap};
+use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps};
 use spk_ident::{PkgRequest, RangeIdent, RequestedBy};
 use spk_option_map::{host_options, OptionMap};
 use spk_spec::{Recipe, SpecTemplate, Template, TemplateExt};
-use spk_spec_ops::{Named, PackageOps, RecipeOps};
 use spk_storage::{self as storage};
 
 #[derive(Clone)]

@@ -13,20 +13,16 @@ use std::{
 
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
-use spk_spec_ops::RecipeOps;
 use spk_version::{get_version_position_label, CompatRule, Compatibility, Version, VERSION_SEP};
 
 use self::intersection::{CombineWith, ValidRange};
+use crate::spec_ops::RecipeOps;
 
 mod error;
 mod intersection;
 pub mod parsing;
 
 pub use error::{Error, Result};
-
-#[cfg(test)]
-#[path = "./version_range_test.rs"]
-mod version_range_test;
 
 pub const VERSION_RANGE_SEP: &str = ",";
 
@@ -535,6 +531,10 @@ pub struct LowestSpecifiedRange {
 
 impl LowestSpecifiedRange {
     pub const REQUIRED_NUMBER_OF_DIGITS: usize = 2;
+
+    pub fn new(specified: usize, base: Version) -> Self {
+        Self { specified, base }
+    }
 }
 
 impl TryFrom<Version> for LowestSpecifiedRange {
@@ -820,6 +820,12 @@ pub struct NotEqualsVersion {
     base: Version,
 }
 
+impl NotEqualsVersion {
+    pub fn new(specified: usize, base: Version) -> Self {
+        Self { specified, base }
+    }
+}
+
 impl From<Version> for NotEqualsVersion {
     fn from(base: Version) -> Self {
         let specified = base.parts.len();
@@ -937,6 +943,12 @@ impl Display for DoubleEqualsVersion {
 pub struct DoubleNotEqualsVersion {
     specified: usize,
     base: Version,
+}
+
+impl DoubleNotEqualsVersion {
+    pub fn new(specified: usize, base: Version) -> Self {
+        Self { specified, base }
+    }
 }
 
 impl From<Version> for DoubleNotEqualsVersion {

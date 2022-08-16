@@ -43,3 +43,7 @@ pub use spec::{Spec, SpecRecipe, SpecTemplate};
 pub use template::{Template, TemplateExt};
 pub use test_spec::TestStage;
 pub use validation::{default_validators, ValidationSpec, Validator};
+
+#[cfg(test)]
+#[path = "./version_range_test.rs"]
+mod version_range_test;

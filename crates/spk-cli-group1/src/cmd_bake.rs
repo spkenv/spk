@@ -9,9 +9,9 @@ use futures::TryFutureExt;
 use itertools::Itertools;
 use serde::Serialize;
 use spk_cli_common::{current_env, flags, CommandArgs, Error, Result, Run};
+use spk_foundation::spec_ops::PackageOps;
 use spk_ident::RequestedBy;
 use spk_solver_solution::{PackageSource, SolvedRequest};
-use spk_spec_ops::PackageOps;
 
 // Constants for the valid output formats
 const LAYER_FORMAT: &str = "layers";

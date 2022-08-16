@@ -30,7 +30,6 @@ spk-solver-package-iterator = { path = "../spk-solver-package-iterator" }
 spk-solver-solution = { path = "../spk-solver-solution" }
 spk-solver-validation = { path = "../spk-solver-validation" }
 spk-spec = { path = "../spk-spec" }
-spk-spec-ops = { path = '../spk-spec-ops' }
 spk-storage = { path = "../spk-storage" }
 spk-validators = { path = "../spk-validators" }
 spk-version = { path = "../spk-version" }

@@ -9,12 +9,12 @@ use std::{
 };
 
 use spk_format::{FormatChangeOptions, FormatOptionMap, FormatRequest, FormatSolution};
+use spk_foundation::spec_ops::{Named, PackageOps, Versioned};
 use spk_ident::{Ident, PkgRequest, RequestedBy};
 use spk_ident_component::Component;
 use spk_name::PkgNameBuf;
 use spk_option_map::OptionMap;
 use spk_spec::{BuildEnv, Package, Spec, SpecRecipe};
-use spk_spec_ops::{Named, PackageOps, Versioned};
 use spk_storage::RepositoryHandle;
 use spk_version::VERSION_SEP;
 

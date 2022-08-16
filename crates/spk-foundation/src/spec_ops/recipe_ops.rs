@@ -4,7 +4,7 @@
 
 use spk_version::{CompatRule, Compatibility, Version};
 
-use crate::{Named, Versioned};
+use super::{Named, Versioned};
 
 pub trait RecipeOps: Named + Versioned {
     type Ident;

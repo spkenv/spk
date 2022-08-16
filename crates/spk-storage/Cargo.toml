@@ -37,7 +37,6 @@ spk-ident-component = { path = "../spk-ident-component" }
 spk-ident-ops = { path = "../spk-ident-ops" }
 spk-name = { path = "../spk-name" }
 spk-spec = { path = "../spk-spec" }
-spk-spec-ops = { path = "../spk-spec-ops" }
 spk-validators = { path = "../spk-validators" }
 spk-version = { path = "../spk-version" }
 sys-info = "0.9.0"

@@ -10,10 +10,10 @@ use spk_build::BuildSource;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_format::{FormatIdent, FormatOptionMap};
 use spk_foundation::ident_build::Build;
+use spk_foundation::spec_ops::RecipeOps;
 use spk_ident::parse_ident;
 use spk_option_map::{host_options, OptionMap};
 use spk_spec::{Recipe, Template, TestStage};
-use spk_spec_ops::RecipeOps;
 
 #[cfg(test)]
 #[path = "./cmd_test_test.rs"]

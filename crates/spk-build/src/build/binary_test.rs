@@ -6,13 +6,13 @@ use rstest::rstest;
 use spfs::{encoding::EMPTY_DIGEST, prelude::*};
 use spk_env::data_path;
 use spk_foundation::fixtures::*;
+use spk_foundation::spec_ops::PackageOps;
 use spk_ident::{PkgRequest, RangeIdent, Request};
 use spk_ident_component::Component;
 use spk_name::opt_name;
 use spk_option_map::option_map;
 use spk_solver::Solution;
 use spk_spec::{recipe, ComponentSpecList, Inheritance, Opt, Package, Recipe, SpecRecipe};
-use spk_spec_ops::PackageOps;
 use spk_storage::{self as storage, fixtures::*, Repository};
 
 use super::{BinaryPackageBuilder, BuildSource};

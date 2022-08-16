@@ -8,10 +8,10 @@ use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
 use spk_cli_common::{current_env, flags, CommandArgs, Run};
 use spk_format::FormatSolution;
+use spk_foundation::spec_ops::Named;
 use spk_ident::Request;
 use spk_option_map::OptionMap;
 use spk_spec::{Recipe, Template};
-use spk_spec_ops::Named;
 
 /// View the current environment or information about a package
 #[derive(Args)]

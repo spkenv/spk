@@ -11,6 +11,7 @@ use spk_build::{source_package_path, BuildSource};
 use spk_cli_common::{Error, Result, TestError};
 use spk_exec::resolve_runtime_layers;
 use spk_foundation::ident_build::Build;
+use spk_foundation::spec_ops::RecipeOps;
 use spk_ident::{Ident, PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_ident_component::Component;
 use spk_option_map::OptionMap;
@@ -18,7 +19,6 @@ use spk_solver::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solve
 use spk_solver_graph::Graph;
 use spk_solver_solution::Solution;
 use spk_spec::{Recipe, SpecRecipe};
-use spk_spec_ops::RecipeOps;
 use spk_storage::{self as storage};
 
 pub struct PackageBuildTester<'a> {

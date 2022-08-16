@@ -4,7 +4,7 @@
 
 use spk_version::Compatibility;
 
-use crate::{Named, Versioned};
+use super::{Named, Versioned};
 
 pub trait PackageOps: Named + Versioned {
     type Ident;

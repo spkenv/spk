@@ -4,10 +4,10 @@
 
 use itertools::Itertools;
 use rstest::rstest;
+use spk_foundation::spec_ops::PackageOps;
 use spk_name::opt_name;
 use spk_option_map::OptionMap;
 use spk_spec::spec;
-use spk_spec_ops::PackageOps;
 
 use super::{
     BuildKey, BuildKeyEntry, BuildKeyExpandedVersionRange, BuildKeyVersionNumber,

@@ -38,7 +38,6 @@ members = [
     "crates/spk-solver-solution",
     "crates/spk-solver-validation",
     "crates/spk-spec",
-    "crates/spk-spec-ops",
     "crates/spk-storage",
     "crates/spk-validators",
     "crates/spk-version",
