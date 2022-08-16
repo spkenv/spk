@@ -12,12 +12,12 @@ use spk_foundation::ident_build::Build;
 use spk_foundation::ident_component::Component;
 use spk_foundation::option_map::{host_options, OptionMap};
 use spk_foundation::spec_ops::{Named, RecipeOps};
+use spk_foundation::version::CompatRule;
 use spk_ident::{parse_ident, Ident, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_name::{OptName, OptNameBuf};
 use spk_solver::{self as solve};
 use spk_spec::{Recipe, SpecTemplate, Template, TemplateExt, TestStage};
 use spk_storage::{self as storage};
-use spk_version::CompatRule;
 
 #[cfg(test)]
 #[path = "./flags_test.rs"]

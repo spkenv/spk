@@ -29,7 +29,6 @@ spk-solver-validation = { path = "../spk-solver-validation" }
 spk-spec = { path = "../spk-spec" }
 spk-storage = { path = "../spk-storage" }
 spk-validators = { path = "../spk-validators" }
-spk-version = { path = "../spk-version" }
 thiserror = "1.0"
 tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"

@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use spk_version::Version;
+use crate::version::Version;
 
 /// Some item that has an associated version
 #[enum_dispatch::enum_dispatch]

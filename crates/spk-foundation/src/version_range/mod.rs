@@ -13,10 +13,10 @@ use std::{
 
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
-use spk_version::{get_version_position_label, CompatRule, Compatibility, Version, VERSION_SEP};
 
 use self::intersection::{CombineWith, ValidRange};
 use crate::spec_ops::RecipeOps;
+use crate::version::{get_version_position_label, CompatRule, Compatibility, Version, VERSION_SEP};
 
 mod error;
 mod intersection;
@@ -343,7 +343,7 @@ impl SemverRange {
         Self { minimum }
     }
 
-    pub fn new_version_range<V: TryInto<Version, Error = spk_version::Error>>(
+    pub fn new_version_range<V: TryInto<Version, Error = crate::version::Error>>(
         minimum: V,
     ) -> Result<VersionRange> {
         Ok(VersionRange::Semver(SemverRange {
@@ -590,7 +590,7 @@ impl GreaterThanRange {
         Self { bound }
     }
 
-    pub fn new_version_range<V: TryInto<Version, Error = spk_version::Error>>(
+    pub fn new_version_range<V: TryInto<Version, Error = crate::version::Error>>(
         boundary: V,
     ) -> Result<VersionRange> {
         Ok(VersionRange::GreaterThan(Self {
@@ -633,7 +633,7 @@ impl LessThanRange {
         Self { bound }
     }
 
-    pub fn new_version_range<V: TryInto<Version, Error = spk_version::Error>>(
+    pub fn new_version_range<V: TryInto<Version, Error = crate::version::Error>>(
         boundary: V,
     ) -> Result<VersionRange> {
         Ok(VersionRange::LessThan(Self {
@@ -676,7 +676,7 @@ impl GreaterThanOrEqualToRange {
         Self { bound }
     }
 
-    pub fn new_version_range<V: TryInto<Version, Error = spk_version::Error>>(
+    pub fn new_version_range<V: TryInto<Version, Error = crate::version::Error>>(
         boundary: V,
     ) -> Result<VersionRange> {
         Ok(VersionRange::GreaterThanOrEqualTo(Self {
@@ -719,7 +719,7 @@ impl LessThanOrEqualToRange {
         Self { bound }
     }
 
-    pub fn new_version_range<V: TryInto<Version, Error = spk_version::Error>>(
+    pub fn new_version_range<V: TryInto<Version, Error = crate::version::Error>>(
         boundary: V,
     ) -> Result<VersionRange> {
         Ok(VersionRange::LessThanOrEqualTo(Self {

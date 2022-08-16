@@ -18,6 +18,7 @@ use priority_queue::priority_queue::PriorityQueue;
 use spk_foundation::ident_build::Build;
 use spk_foundation::ident_component::Component;
 use spk_foundation::spec_ops::{PackageOps, RecipeOps};
+use spk_foundation::version::Compatibility;
 use spk_ident::{Ident, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_name::{PkgName, PkgNameBuf};
 use spk_solver_graph::{
@@ -31,7 +32,6 @@ use spk_solver_solution::{PackageSource, Solution};
 use spk_solver_validation::{default_validators, BinaryOnlyValidator, ValidatorT, Validators};
 use spk_spec::{Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_storage::RepositoryHandle;
-use spk_version::Compatibility;
 
 use crate::{Error, Result};
 

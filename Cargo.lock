@@ -2712,7 +2712,6 @@ dependencies = [
  "spk-solver-solution",
  "spk-spec",
  "spk-storage",
- "spk-version",
  "tar",
  "tempfile",
  "thiserror",
@@ -2759,7 +2758,6 @@ dependencies = [
  "spk-spec",
  "spk-storage",
  "spk-validators",
- "spk-version",
  "thiserror",
  "tokio",
  "tracing",
@@ -3035,7 +3033,6 @@ dependencies = [
  "serde",
  "serde_yaml",
  "spk-name",
- "spk-version",
  "sys-info",
  "tempfile",
  "thiserror",
@@ -3061,7 +3058,6 @@ dependencies = [
  "spfs",
  "spk-foundation",
  "spk-name",
- "spk-version",
  "thiserror",
 ]
 
@@ -3112,7 +3108,6 @@ dependencies = [
  "spk-spec",
  "spk-storage",
  "spk-validators",
- "spk-version",
  "thiserror",
  "tokio",
  "tracing",
@@ -3144,7 +3139,6 @@ dependencies = [
  "spk-spec",
  "spk-storage",
  "spk-validators",
- "spk-version",
  "thiserror",
  "tokio",
  "tracing",
@@ -3168,7 +3162,6 @@ dependencies = [
  "spk-spec",
  "spk-storage",
  "spk-validators",
- "spk-version",
  "thiserror",
  "tokio",
  "tracing",
@@ -3184,7 +3177,6 @@ dependencies = [
  "spk-name",
  "spk-spec",
  "spk-storage",
- "spk-version",
  "thiserror",
 ]
 
@@ -3203,7 +3195,6 @@ dependencies = [
  "spk-solver-graph",
  "spk-solver-solution",
  "spk-spec",
- "spk-version",
  "thiserror",
 ]
 
@@ -3231,7 +3222,6 @@ dependencies = [
  "spk-ident",
  "spk-name",
  "spk-validators",
- "spk-version",
  "sys-info",
  "tempfile",
  "thiserror",
@@ -3269,7 +3259,6 @@ dependencies = [
  "spk-name",
  "spk-spec",
  "spk-validators",
- "spk-version",
  "sys-info",
  "tar",
  "tempfile",
@@ -3301,24 +3290,8 @@ dependencies = [
  "spk-ident",
  "spk-name",
  "spk-spec",
- "spk-version",
  "sys-info",
  "tempdir",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "spk-version"
-version = "0.36.0"
-dependencies = [
- "itertools",
- "nom",
- "nom-supreme",
- "rstest",
- "serde",
- "spk-foundation",
- "spk-name",
  "thiserror",
  "tracing",
 ]

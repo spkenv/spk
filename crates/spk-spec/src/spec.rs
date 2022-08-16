@@ -9,9 +9,9 @@ use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
+use spk_foundation::version::{Compat, Compatibility, Version};
 use spk_ident::{Ident, PkgRequest, RangeIdent, Request, VarRequest};
 use spk_name::{PkgName, PkgNameBuf};
-use spk_version::{Compat, Compatibility, Version};
 
 use crate::{test_spec::TestSpec, Deprecate, DeprecateMut, Error, Package, Result};
 use crate::{BuildEnv, ComponentSpec, Recipe, Template, TemplateExt};
@@ -180,7 +180,7 @@ impl RecipeOps for SpecRecipe {
     fn is_satisfied_by_range_ident(
         &self,
         range_ident: &Self::RangeIdent,
-        required: spk_version::CompatRule,
+        required: spk_foundation::version::CompatRule,
     ) -> Compatibility {
         match self {
             SpecRecipe::V0Package(r) => r.is_satisfied_by_range_ident(range_ident, required),
@@ -352,7 +352,7 @@ impl RecipeOps for Spec {
     fn is_satisfied_by_range_ident(
         &self,
         range_ident: &Self::RangeIdent,
-        required: spk_version::CompatRule,
+        required: spk_foundation::version::CompatRule,
     ) -> Compatibility {
         match self {
             Spec::V0Package(r) => RecipeOps::is_satisfied_by_range_ident(r, range_ident, required),

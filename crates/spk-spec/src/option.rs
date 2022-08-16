@@ -6,13 +6,13 @@ use std::str::FromStr;
 
 use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
+use spk_foundation::version::{CompatRule, Compatibility};
 use spk_foundation::version_range::{Ranged, VersionRange};
 use spk_ident::{
     parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, Request, RequestedBy,
     VarRequest,
 };
 use spk_name::{OptName, OptNameBuf, PkgName, PkgNameBuf};
-use spk_version::{CompatRule, Compatibility};
 
 use crate::{Error, Result};
 

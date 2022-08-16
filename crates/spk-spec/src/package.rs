@@ -4,7 +4,7 @@
 
 use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::PackageOps;
-use spk_version::{Compat, Compatibility};
+use spk_foundation::version::{Compat, Compatibility};
 
 #[cfg(test)]
 #[path = "./package_test.rs"]

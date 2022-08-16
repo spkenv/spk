@@ -1,6 +1,17 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
+mod compat;
+mod error;
+pub mod parsing;
+
+pub use compat::{
+    parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility, API_STR, BINARY_STR,
+};
+
+pub use error::{Error, Result};
+
 use std::{
     cmp::{Ord, Ordering},
     convert::TryFrom,
@@ -12,8 +23,6 @@ use std::{
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use spk_name::validate_tag_name;
 use thiserror::Error;
-
-use crate::Error;
 
 #[cfg(test)]
 #[path = "./version_test.rs"]
@@ -47,8 +56,8 @@ pub struct InvalidVersionError {
 }
 
 impl InvalidVersionError {
-    pub fn new_error(msg: String) -> crate::Error {
-        crate::Error::InvalidVersionError(Self { message: msg })
+    pub fn new_error(msg: String) -> Error {
+        Error::InvalidVersionError(Self { message: msg })
     }
 }
 
@@ -128,7 +137,7 @@ impl Ord for TagSet {
 impl FromStr for TagSet {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         parse_tag_set(s)
     }
 }
@@ -136,10 +145,10 @@ impl FromStr for TagSet {
 /// Parse the given string as a set of version tags.
 ///
 /// ```
-/// let tag_set = spk_version::parse_tag_set("dev.4,alpha.1").unwrap();
+/// let tag_set = spk_foundation::version::parse_tag_set("dev.4,alpha.1").unwrap();
 /// assert_eq!(tag_set.get("alpha"), Some(&1));
 /// ```
-pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> crate::Result<TagSet> {
+pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> Result<TagSet> {
     let tags = tags.as_ref();
     let mut tag_set = TagSet::default();
     if tags.is_empty() {
@@ -361,9 +370,9 @@ impl From<VersionParts> for Version {
 }
 
 impl TryFrom<&str> for Version {
-    type Error = crate::Error;
+    type Error = Error;
 
-    fn try_from(value: &str) -> crate::Result<Self> {
+    fn try_from(value: &str) -> Result<Self> {
         parse_version(value)
     }
 }
@@ -371,7 +380,7 @@ impl TryFrom<&str> for Version {
 impl FromStr for Version {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         parse_version(s)
     }
 }
@@ -448,7 +457,7 @@ impl Ord for Version {
 }
 
 /// Parse a string as a version specifier.
-pub fn parse_version<S: AsRef<str>>(version: S) -> crate::Result<Version> {
+pub fn parse_version<S: AsRef<str>>(version: S) -> Result<Version> {
     let version = version.as_ref();
     if version.is_empty() {
         return Ok(Version::default());
@@ -478,7 +487,7 @@ pub fn parse_version<S: AsRef<str>>(version: S) -> crate::Result<Version> {
 }
 
 impl Serialize for Version {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -486,7 +495,7 @@ impl Serialize for Version {
     }
 }
 impl<'de> Deserialize<'de> for Version {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {

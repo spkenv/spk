@@ -65,7 +65,7 @@ fn test_parse_version(#[case] string: &str, #[case] expected: Version) {
 #[case("1.2.5-alpha.a")]
 fn test_parse_version_invalid(#[case] string: &str) {
     let result = parse_version(string);
-    if let Err(crate::Error::InvalidVersionError(_)) = result {
+    if let Err(super::Error::InvalidVersionError(_)) = result {
         // ok
     } else {
         panic!("expected InvalidVersionError, got: {:?}", result)

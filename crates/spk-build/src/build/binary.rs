@@ -17,6 +17,7 @@ use spk_foundation::ident_component::Component;
 use spk_foundation::ident_ops::MetadataPath;
 use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::{ComponentOps, PackageOps};
+use spk_foundation::version::VERSION_SEP;
 use spk_ident::{Ident, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
 use spk_name::OptNameBuf;
 use spk_solver::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
@@ -24,7 +25,6 @@ use spk_solver_graph::Graph;
 use spk_solver_solution::Solution;
 use spk_spec::{ComponentSpecList, Package};
 use spk_storage::{self as storage};
-use spk_version::VERSION_SEP;
 
 use crate::{Error, Result};
 

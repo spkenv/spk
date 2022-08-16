@@ -15,7 +15,7 @@ use nom::{
 };
 use nom_supreme::tag::{complete::tag, TagError};
 
-use crate::{InvalidVersionError, TagSet, Version};
+use crate::version::{InvalidVersionError, TagSet, Version};
 
 use super::separated_list1_with_cut;
 use spk_name::parsing::tag_name;
@@ -27,7 +27,7 @@ pub(crate) fn ptag<'a, E>(input: &'a str) -> IResult<&'a str, (&'a str, u32), E>
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, crate::version::error::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>,
 {
     separated_pair(
@@ -59,7 +59,7 @@ pub(crate) fn ptagset<'a, E>(input: &'a str) -> IResult<&'a str, TagSet, E>
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, crate::version::error::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
@@ -97,7 +97,7 @@ pub(crate) fn ptagset_str<'a, E>(input: &'a str) -> IResult<&'a str, Vec<(&'a st
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, crate::version::error::Error>
         + TagError<&'a str, &'static str>,
 {
     map_res(
@@ -130,7 +130,7 @@ pub fn version<'a, E>(input: &'a str) -> IResult<&'a str, Version, E>
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, crate::version::error::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
@@ -168,7 +168,7 @@ pub fn version_str<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, crate::version::error::Error>
         + TagError<&'a str, &'static str>,
 {
     recognize(pair(

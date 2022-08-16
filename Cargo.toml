@@ -35,6 +35,5 @@ members = [
     "crates/spk-spec",
     "crates/spk-storage",
     "crates/spk-validators",
-    "crates/spk-version",
     "crates/spfs"
 ]
