@@ -4,11 +4,11 @@
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
+use spk_foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::PackageOps;
 use spk_foundation::version::Version;
 use spk_ident::Ident;
-use spk_name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_solver_solution::PackageSource;
 use spk_spec::{Package, Spec, SpecRecipe};
 use spk_storage::RepositoryHandle;

@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+mod error;
+pub mod parsing;
+
+pub use error::{Error, Result};
+
 use std::{borrow::Borrow, convert::TryFrom};
 
 use paste::paste;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use crate::Result;
 
 #[cfg(test)]
 #[path = "./name_test.rs"]
@@ -20,7 +23,7 @@ mod name_test;
 /// and should only be used for testing.
 ///
 /// ```
-/// # #[macro_use] extern crate spk_name;
+/// # #[macro_use] extern crate spk_foundation;
 /// # fn main() {
 /// pkg_name!("my-pkg");
 /// # }
@@ -28,7 +31,7 @@ mod name_test;
 #[macro_export]
 macro_rules! pkg_name {
     ($name:literal) => {
-        $crate::PkgName::new($name).unwrap()
+        $crate::name::PkgName::new($name).unwrap()
     };
 }
 
@@ -38,7 +41,7 @@ macro_rules! pkg_name {
 /// and should only be used for testing.
 ///
 /// ```
-/// # #[macro_use] extern crate spk_name;
+/// # #[macro_use] extern crate spk_foundation;
 /// # fn main() {
 /// opt_name!("my_option");
 /// opt_name!("python.abi");
@@ -47,7 +50,7 @@ macro_rules! pkg_name {
 #[macro_export]
 macro_rules! opt_name {
     ($name:literal) => {
-        $crate::OptName::new($name).unwrap()
+        $crate::name::OptName::new($name).unwrap()
     };
 }
 
@@ -217,7 +220,7 @@ macro_rules! name {
         }
 
         impl std::convert::TryFrom<&str> for $owned_typ_name {
-            type Error = $crate::Error;
+            type Error = $crate::name::Error;
 
             fn try_from(s: &str) -> Result<Self> {
                 s.parse()
@@ -253,7 +256,7 @@ macro_rules! name {
         }
 
         impl std::str::FromStr for $owned_typ_name {
-            type Err = $crate::Error;
+            type Err = $crate::name::Error;
 
             fn from_str(s: &str) -> Result<Self> {
                 $typ_name::new(&s).map(std::borrow::ToOwned::to_owned)
@@ -275,8 +278,8 @@ pub struct InvalidNameError {
 }
 
 impl InvalidNameError {
-    pub fn new_error(msg: String) -> crate::Error {
-        crate::Error::InvalidNameError(Self { message: msg })
+    pub fn new_error(msg: String) -> Error {
+        Error::InvalidNameError(Self { message: msg })
     }
 }
 
@@ -285,7 +288,7 @@ name!(PkgName, "package");
 name!(RepositoryName, "repository");
 
 impl TryFrom<String> for PkgNameBuf {
-    type Error = crate::Error;
+    type Error = Error;
 
     fn try_from(s: String) -> Result<Self> {
         validate_pkg_name(&s)?;
@@ -330,7 +333,7 @@ impl AsRef<OptName> for PkgName {
 }
 
 /// Ensure that the provided string is a valid package name
-fn validate_pkg_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
+fn validate_pkg_name<S: AsRef<str>>(name: S) -> Result<()> {
     if name.as_ref().len() < PkgName::MIN_LEN {
         return Err(InvalidNameError::new_error(format!(
             "Invalid package name, must be at least {} characters, got {} [{}]",
@@ -377,7 +380,7 @@ fn is_valid_pkg_name_char(c: char) -> bool {
 }
 
 impl TryFrom<String> for OptNameBuf {
-    type Error = crate::Error;
+    type Error = Error;
 
     fn try_from(s: String) -> Result<Self> {
         validate_opt_name(&s)?;
@@ -422,7 +425,7 @@ impl OptName {
     /// with any leading namespace removed, use [`Self::without_namespace`].
     ///
     /// ```
-    /// # #[macro_use] extern crate spk_name;
+    /// # #[macro_use] extern crate spk_foundation;
     /// # fn main() {
     /// assert_eq!(opt_name!("my_option").base_name(), "my_option");
     /// assert_eq!(opt_name!("python.abi").base_name(), "abi");
@@ -470,7 +473,7 @@ impl OptName {
 ///
 /// This is for checking option names with or without any leading
 /// package namespace.
-fn validate_opt_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
+fn validate_opt_name<S: AsRef<str>>(name: S) -> Result<()> {
     match name.as_ref().split_once(OptName::SEP) {
         Some((ns, opt)) => {
             validate_pkg_name(ns)?;
@@ -486,7 +489,7 @@ fn validate_opt_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
 /// package specifier. Complete option names can be validated
 /// with [`validate_opt_name`], or leading package names can
 /// be validated separately with [`validate_pkg_name`].
-fn validate_opt_base_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
+fn validate_opt_base_name<S: AsRef<str>>(name: S) -> Result<()> {
     if name.as_ref().len() < OptName::MIN_LEN {
         return Err(InvalidNameError::new_error(format!(
             "Invalid option name, must be at least {} characters, got {} [{}]",
@@ -528,7 +531,7 @@ fn is_valid_opt_name_char(c: char) -> bool {
 }
 
 /// Check if a name is a valid pre/post release tag name
-pub fn validate_tag_name<S: AsRef<str>>(name: S) -> crate::Result<()> {
+pub fn validate_tag_name<S: AsRef<str>>(name: S) -> Result<()> {
     let index = validate_source_str(&name, |c: char| c.is_ascii_alphanumeric());
     if index > -1 {
         let name = name.as_ref();

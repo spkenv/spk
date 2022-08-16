@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use spk_name::PkgName;
+use crate::name::PkgName;
 
 /// Some item that has an associated package name
 #[enum_dispatch::enum_dispatch]

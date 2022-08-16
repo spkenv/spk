@@ -16,11 +16,11 @@ use spk_foundation::ident_build::{
     parsing::{build, build_str},
     Build,
 };
+use spk_foundation::name::{parsing::package_name, RepositoryName};
 use spk_foundation::version::{
     parsing::{version, version_str},
     Version,
 };
-use spk_name::{parsing::package_name, RepositoryName};
 
 use crate::Ident;
 

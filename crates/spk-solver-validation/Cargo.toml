@@ -14,7 +14,6 @@ enum_dispatch = "0.3.8"
 itertools = "0.10"
 spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
-spk-name = { path = "../spk-name" }
 spk-solver-graph = { path = "../spk-solver-graph" }
 spk-solver-solution = { path = "../spk-solver-solution" }
 spk-spec = { path = "../spk-spec" }

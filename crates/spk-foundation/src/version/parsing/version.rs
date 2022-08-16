@@ -18,7 +18,7 @@ use nom_supreme::tag::{complete::tag, TagError};
 use crate::version::{InvalidVersionError, TagSet, Version};
 
 use super::separated_list1_with_cut;
-use spk_name::parsing::tag_name;
+use crate::name::parsing::tag_name;
 
 /// Parse a valid version pre- or post-tag.
 ///

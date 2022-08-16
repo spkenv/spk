@@ -24,7 +24,7 @@ pub enum Error {
     #[error(transparent)]
     InvalidVersionError(#[from] spk_foundation::version::InvalidVersionError),
     #[error(transparent)]
-    InvalidNameError(#[from] spk_name::InvalidNameError),
+    InvalidNameError(#[from] spk_foundation::name::InvalidNameError),
     #[error(transparent)]
     InvalidBuildError(#[from] spk_foundation::ident_build::InvalidBuildError),
 

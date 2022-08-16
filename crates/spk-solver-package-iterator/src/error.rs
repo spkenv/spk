@@ -9,7 +9,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
-    SpkNameError(#[from] spk_name::Error),
+    SpkNameError(#[from] spk_foundation::name::Error),
     #[error(transparent)]
     SpkStorageError(#[from] spk_storage::Error),
     #[error(transparent)]

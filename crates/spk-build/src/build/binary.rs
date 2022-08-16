@@ -15,11 +15,11 @@ use spk_foundation::env::data_path;
 use spk_foundation::ident_build::Build;
 use spk_foundation::ident_component::Component;
 use spk_foundation::ident_ops::MetadataPath;
+use spk_foundation::name::OptNameBuf;
 use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::{ComponentOps, PackageOps};
 use spk_foundation::version::VERSION_SEP;
 use spk_ident::{Ident, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
-use spk_name::OptNameBuf;
 use spk_solver::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_solver_graph::Graph;
 use spk_solver_solution::Solution;
@@ -65,7 +65,7 @@ pub enum BuildSource {
 /// Builds a binary package.
 ///
 /// ```no_run
-/// # #[macro_use] extern crate spk_name;
+/// # #[macro_use] extern crate spk_foundation;
 /// # #[macro_use] extern crate spk_spec;
 /// # async fn demo() {
 /// spk_build::BinaryPackageBuilder::from_recipe(recipe!({

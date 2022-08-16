@@ -6,7 +6,7 @@ use rstest::rstest;
 
 use super::OptionMap;
 use crate::option_map;
-use spk_name::{opt_name, pkg_name};
+use crate::{opt_name, pkg_name};
 
 #[rstest]
 fn test_package_options() {

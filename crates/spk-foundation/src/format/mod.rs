@@ -6,7 +6,7 @@ mod error;
 
 pub use error::{Error, Result};
 
-use spk_name::{PkgName, RepositoryNameBuf};
+use crate::name::{PkgName, RepositoryNameBuf};
 
 /// Helper to hold values that affect the formatting of a request
 pub struct FormatChangeOptions {

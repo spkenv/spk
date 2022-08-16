@@ -8,11 +8,11 @@ use spfs::encoding::EMPTY_DIGEST;
 use spk_foundation::fixtures::*;
 use spk_foundation::ident_build::Build;
 use spk_foundation::ident_component::Component;
+use spk_foundation::opt_name;
 use spk_foundation::spec_ops::{PackageOps, Versioned};
 use spk_ident::{
     ident, parse_ident, parse_ident_range, PkgRequest, RangeIdent, Request, RequestedBy, VarRequest,
 };
-use spk_name::opt_name;
 use spk_solver_solution::PackageSource;
 use spk_spec::{recipe, v0, Package};
 use spk_storage::RepositoryHandle;

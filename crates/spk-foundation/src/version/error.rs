@@ -11,7 +11,7 @@ pub enum Error {
     #[error(transparent)]
     InvalidVersionError(#[from] super::InvalidVersionError),
     #[error(transparent)]
-    SpkNameError(#[from] spk_name::Error),
+    SpkNameError(#[from] crate::name::Error),
     #[error("Error: {0}")]
     String(String),
 }

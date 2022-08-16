@@ -20,7 +20,6 @@ spfs = { version = '0.34.6', path = "../spfs" }
 spk-cli-common = { path = '../spk-cli-common' }
 spk-foundation = { path = '../spk-foundation' }
 spk-ident = { path = '../spk-ident' }
-spk-name = { path = '../spk-name' }
 spk-solver = { path = '../spk-solver' }
 spk-spec = { path = '../spk-spec' }
 spk-storage = { path = '../spk-storage' }

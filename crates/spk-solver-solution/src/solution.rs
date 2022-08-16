@@ -10,11 +10,11 @@ use std::{
 
 use spk_foundation::format::{FormatChangeOptions, FormatOptionMap, FormatRequest, FormatSolution};
 use spk_foundation::ident_component::Component;
+use spk_foundation::name::PkgNameBuf;
 use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::{Named, PackageOps, Versioned};
 use spk_foundation::version::VERSION_SEP;
 use spk_ident::{Ident, PkgRequest, RequestedBy};
-use spk_name::PkgNameBuf;
 use spk_spec::{BuildEnv, Package, Spec, SpecRecipe};
 use spk_storage::RepositoryHandle;
 

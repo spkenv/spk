@@ -13,7 +13,7 @@ use nom::{
     IResult,
 };
 
-use crate::{PkgName, RepositoryName};
+use crate::name::{PkgName, RepositoryName};
 
 #[inline]
 pub fn is_legal_package_name_chr(c: char) -> bool {
