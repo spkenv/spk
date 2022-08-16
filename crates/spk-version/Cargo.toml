@@ -18,5 +18,5 @@ thiserror = "1.0"
 
 [dev-dependencies]
 rstest = "0.15.0"
-spk-fixtures = { path = "../spk-fixtures" }
+spk-foundation = { path = "../spk-foundation" }
 tracing = "0.1.35"

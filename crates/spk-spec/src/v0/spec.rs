@@ -6,6 +6,7 @@ use std::path::Path;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use spk_foundation::version_range::Ranged;
 use spk_ident::{
     is_false, Ident, PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy, VarRequest,
 };
@@ -15,7 +16,6 @@ use spk_name::PkgName;
 use spk_option_map::OptionMap;
 use spk_spec_ops::{Named, PackageOps, RecipeOps, Versioned};
 use spk_version::{Compat, CompatRule, Compatibility, Version};
-use spk_version_range::Ranged;
 
 use crate::BuildEnv;
 use crate::{

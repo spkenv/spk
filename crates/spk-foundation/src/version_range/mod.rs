@@ -16,11 +16,13 @@ use itertools::Itertools;
 use spk_spec_ops::RecipeOps;
 use spk_version::{get_version_position_label, CompatRule, Compatibility, Version, VERSION_SEP};
 
-use crate::{Error, Result};
-
 use self::intersection::{CombineWith, ValidRange};
 
+mod error;
 mod intersection;
+pub mod parsing;
+
+pub use error::{Error, Result};
 
 #[cfg(test)]
 #[path = "./version_range_test.rs"]
@@ -314,7 +316,7 @@ impl std::str::FromStr for VersionRange {
         };
 
         all_consuming(alt((
-            crate::parsing::version_range,
+            parsing::version_range,
             // Allow empty input to be treated like "*"
             map(
                 eof,
@@ -323,9 +325,7 @@ impl std::str::FromStr for VersionRange {
         )))(rule_str)
         .map(|(_, vr)| vr)
         .map_err(|err| match err {
-            nom::Err::Error(e) | nom::Err::Failure(e) => {
-                crate::Error::String(convert_error(rule_str, e))
-            }
+            nom::Err::Error(e) | nom::Err::Failure(e) => Error::String(convert_error(rule_str, e)),
             nom::Err::Incomplete(_) => unreachable!(),
         })
     }
@@ -538,7 +538,7 @@ impl LowestSpecifiedRange {
 }
 
 impl TryFrom<Version> for LowestSpecifiedRange {
-    type Error = crate::Error;
+    type Error = Error;
 
     fn try_from(base: Version) -> Result<Self> {
         let specified = base.parts.len();

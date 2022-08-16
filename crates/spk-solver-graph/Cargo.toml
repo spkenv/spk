@@ -22,6 +22,7 @@ priority-queue = "1.2"
 serde_json = "1.0"
 spfs = { version = '0.34.6', path = "../spfs" }
 spk-format = { path = "../spk-format" }
+spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
 spk-ident-build = { path = "../spk-ident-build" }
 spk-ident-component = { path = "../spk-ident-component" }
@@ -34,7 +35,6 @@ spk-spec-ops = { path = '../spk-spec-ops' }
 spk-storage = { path = "../spk-storage" }
 spk-validators = { path = "../spk-validators" }
 spk-version = { path = "../spk-version" }
-spk-version-range = { path = "../spk-version-range" }
 thiserror = "1.0"
 tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"
@@ -42,4 +42,4 @@ tracing = "0.1.35"
 [dev-dependencies]
 rstest = "0.15.0"
 serde_yaml = "0.8.17"
-spk-fixtures = { path = "../spk-fixtures" }
+spk-foundation = { path = "../spk-foundation" }

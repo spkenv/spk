@@ -36,4 +36,4 @@ tracing = "0.1.35"
 [dev-dependencies]
 rstest = "0.15.0"
 spk-cmd-build = { path = "../spk-cmd-build" }
-spk-fixtures = { path = '../spk-fixtures' }
+spk-foundation = { path = '../spk-foundation' }

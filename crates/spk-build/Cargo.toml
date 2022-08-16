@@ -36,6 +36,6 @@ tracing = "0.1.35"
 [dev-dependencies]
 rstest = "0.15.0"
 serde_yaml = "0.8.17"
-spk-fixtures = { path = "../spk-fixtures" }
+spk-foundation = { path = "../spk-foundation" }
 tar = "0.4.30"
 tempfile = "3.3"

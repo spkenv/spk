@@ -15,7 +15,7 @@ use super::{
     GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
     LowestSpecifiedRange, NotEqualsVersion, SemverRange, WildcardRange,
 };
-use crate::{CompatRange, Ranged, VersionRange};
+use super::{CompatRange, Ranged, VersionRange};
 
 #[rstest]
 fn test_parse_version_range_carat() {

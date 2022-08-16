@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use rstest::rstest;
-use spk_fixtures::*;
+use spk_foundation::fixtures::*;
 
 use super::{GitSource, LocalSource, ScriptSource, TarSource};
 

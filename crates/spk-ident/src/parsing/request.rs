@@ -12,10 +12,10 @@ use nom::{
     IResult,
 };
 use nom_supreme::tag::TagError;
+use spk_foundation::version_range::{parsing::version_range, VersionFilter};
 use spk_ident_build::{parsing::build, Build};
 use spk_ident_component::{parsing::components, Component};
 use spk_name::{parsing::package_name, PkgName};
-use spk_version_range::{parsing::version_range, VersionFilter};
 
 use crate::RangeIdent;
 
@@ -61,7 +61,7 @@ where
         + ContextError<&'a str>
         + FromExternalError<&'a str, crate::error::Error>
         + FromExternalError<&'a str, spk_version::Error>
-        + FromExternalError<&'a str, spk_version_range::Error>
+        + FromExternalError<&'a str, spk_foundation::version_range::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
@@ -88,7 +88,7 @@ where
         + FromExternalError<&'b str, crate::error::Error>
         + FromExternalError<&'b str, spk_ident_build::Error>
         + FromExternalError<&'b str, spk_version::Error>
-        + FromExternalError<&'b str, spk_version_range::Error>
+        + FromExternalError<&'b str, spk_foundation::version_range::Error>
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {
@@ -130,7 +130,7 @@ where
         + FromExternalError<&'a str, crate::error::Error>
         + FromExternalError<&'a str, spk_ident_build::Error>
         + FromExternalError<&'a str, spk_version::Error>
-        + FromExternalError<&'a str, spk_version_range::Error>
+        + FromExternalError<&'a str, spk_foundation::version_range::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {

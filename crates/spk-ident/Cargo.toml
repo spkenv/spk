@@ -20,13 +20,13 @@ serde_yaml = "0.8.17"
 thiserror = "1.0"
 spfs = { version = '0.34.6', path = "../spfs" }
 spk-format = { path = "../spk-format" }
+spk-foundation = { path = "../spk-foundation" }
 spk-ident-build = { path = "../spk-ident-build" }
 spk-ident-component = { path = "../spk-ident-component" }
 spk-ident-ops = { path = "../spk-ident-ops" }
 spk-name = { path = "../spk-name" }
 spk-spec-ops = { path = "../spk-spec-ops" }
 spk-version = { path = "../spk-version" }
-spk-version-range = { path = "../spk-version-range" }
 
 [dev-dependencies]
 data-encoding = "2.3"

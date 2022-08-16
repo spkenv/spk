@@ -7,7 +7,7 @@ use std::{convert::TryInto, ops::DerefMut};
 
 use rstest::fixture;
 use spfs::{config::Remote, prelude::*, Result};
-use spk_fixtures::*;
+use spk_foundation::fixtures::*;
 use tokio::sync::{Mutex, MutexGuard};
 
 use crate as storage;

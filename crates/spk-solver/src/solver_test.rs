@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
-use spk_fixtures::*;
+use spk_foundation::fixtures::*;
 use spk_ident::{
     ident, parse_ident, parse_ident_range, PkgRequest, RangeIdent, Request, RequestedBy, VarRequest,
 };
