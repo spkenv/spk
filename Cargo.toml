@@ -27,7 +27,6 @@ members = [
     "crates/spk-format",
     "crates/spk-ident",
     "crates/spk-ident-component",
-    "crates/spk-ident-ops",
     "crates/spk-launcher",
     "crates/spk-name",
     "crates/spk-option-map",

@@ -7,8 +7,8 @@ use std::path::Path;
 use itertools::Itertools;
 use spfs::tracking::{Diff, DiffMode};
 use spk_foundation::env::data_path;
+use spk_foundation::ident_ops::MetadataPath;
 use spk_foundation::spec_ops::{ComponentOps, PackageOps};
-use spk_ident_ops::MetadataPath;
 
 #[cfg(test)]
 #[path = "./validators_test.rs"]

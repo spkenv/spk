@@ -6,7 +6,7 @@ use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
 use relative_path::RelativePathBuf;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use spk_ident_ops::MetadataPath;
+use spk_foundation::ident_ops::MetadataPath;
 
 use crate::{parsing, RangeIdent, Result};
 use spk_foundation::ident_build::Build;

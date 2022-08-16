@@ -5,6 +5,7 @@
 pub mod env;
 pub mod fixtures;
 pub mod ident_build;
+pub mod ident_ops;
 pub mod spec_ops;
 pub mod version_range;
 
