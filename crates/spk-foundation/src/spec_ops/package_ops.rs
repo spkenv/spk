@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use spk_version::Compatibility;
+use crate::version::Compatibility;
 
 use super::{Named, Versioned};
 

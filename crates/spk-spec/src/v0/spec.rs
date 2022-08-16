@@ -10,12 +10,12 @@ use spk_foundation::ident_build::Build;
 use spk_foundation::ident_component::Component;
 use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
+use spk_foundation::version::{Compat, CompatRule, Compatibility, Version};
 use spk_foundation::version_range::Ranged;
 use spk_ident::{
     is_false, Ident, PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy, VarRequest,
 };
 use spk_name::PkgName;
-use spk_version::{Compat, CompatRule, Compatibility, Version};
 
 use crate::BuildEnv;
 use crate::{
@@ -396,12 +396,12 @@ impl RecipeOps for Spec {
     type PkgRequest = PkgRequest;
     type RangeIdent = RangeIdent;
 
-    fn is_api_compatible(&self, base: &spk_version::Version) -> Compatibility {
+    fn is_api_compatible(&self, base: &spk_foundation::version::Version) -> Compatibility {
         self.compat()
             .is_api_compatible(base, Versioned::version(&self))
     }
 
-    fn is_binary_compatible(&self, base: &spk_version::Version) -> Compatibility {
+    fn is_binary_compatible(&self, base: &spk_foundation::version::Version) -> Compatibility {
         self.compat()
             .is_binary_compatible(base, Versioned::version(&self))
     }
@@ -409,7 +409,7 @@ impl RecipeOps for Spec {
     fn is_satisfied_by_range_ident(
         &self,
         range_ident: &RangeIdent,
-        required: spk_version::CompatRule,
+        required: spk_foundation::version::CompatRule,
     ) -> Compatibility {
         if self.name() != range_ident.name {
             return Compatibility::Incompatible("different package names".into());

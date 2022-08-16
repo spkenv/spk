@@ -7,12 +7,12 @@ use proptest::{
     prelude::*,
 };
 use rstest::rstest;
+use spk_foundation::version::{parse_version, CompatRule, TagSet, Version, VersionParts};
 use spk_foundation::version_range::{
     parse_version_range, CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
     GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
     LowestSpecifiedRange, NotEqualsVersion, Ranged, SemverRange, VersionRange, WildcardRange,
 };
-use spk_version::{parse_version, CompatRule, TagSet, Version, VersionParts};
 
 use super::{spec, Spec};
 

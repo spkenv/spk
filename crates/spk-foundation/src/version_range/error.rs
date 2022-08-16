@@ -9,7 +9,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
-    SpkVersionError(#[from] spk_version::Error),
+    SpkVersionError(#[from] crate::version::Error),
     #[error("Error: {0}")]
     String(String),
 }

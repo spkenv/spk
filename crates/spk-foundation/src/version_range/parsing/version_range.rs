@@ -14,11 +14,11 @@ use nom::{
     IResult,
 };
 use nom_supreme::tag::{complete::tag, TagError};
-use spk_version::{
+
+use crate::version::{
     parsing::{version, version_str},
     CompatRule,
 };
-
 use crate::version_range::{
     CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
     GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
@@ -39,7 +39,7 @@ where
     E: ParseError<&'a str>
         + ContextError<&'a str>
         + FromExternalError<&'a str, crate::version_range::error::Error>
-        + FromExternalError<&'a str, spk_version::Error>
+        + FromExternalError<&'a str, crate::version::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
@@ -123,7 +123,7 @@ where
     E: ParseError<&'a str>
         + ContextError<&'a str>
         + FromExternalError<&'a str, crate::version_range::error::Error>
-        + FromExternalError<&'a str, spk_version::Error>
+        + FromExternalError<&'a str, crate::version::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {

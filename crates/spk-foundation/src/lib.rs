@@ -10,6 +10,7 @@ pub mod ident_component;
 pub mod ident_ops;
 pub mod option_map;
 pub mod spec_ops;
+pub mod version;
 pub mod version_range;
 
 pub use fixtures::*;

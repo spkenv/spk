@@ -22,7 +22,7 @@ pub enum Error {
 
     // API Errors
     #[error(transparent)]
-    InvalidVersionError(#[from] spk_version::InvalidVersionError),
+    InvalidVersionError(#[from] spk_foundation::version::InvalidVersionError),
     #[error(transparent)]
     InvalidNameError(#[from] spk_name::InvalidNameError),
     #[error(transparent)]

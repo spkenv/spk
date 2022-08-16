@@ -15,5 +15,4 @@ spk-ident = { path = "../spk-ident" }
 spk-name = { path = "../spk-name" }
 spk-spec = { path = "../spk-spec" }
 spk-storage = { path = "../spk-storage" }
-spk-version = { path = "../spk-version" }
 thiserror = "1.0"

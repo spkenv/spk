@@ -9,8 +9,9 @@ use std::str::FromStr;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use super::{version, Version, VERSION_SEP};
-use crate::{Error, Result};
+use super::{Error, Result};
+use super::{Version, VERSION_SEP};
+use crate::version;
 
 #[cfg(test)]
 #[path = "./compat_test.rs"]
@@ -192,17 +193,17 @@ impl std::fmt::Display for Compat {
 }
 
 impl TryFrom<&str> for Compat {
-    type Error = crate::Error;
+    type Error = super::Error;
 
-    fn try_from(value: &str) -> crate::Result<Self> {
+    fn try_from(value: &str) -> super::Result<Self> {
         Self::from_str(value)
     }
 }
 
 impl FromStr for Compat {
-    type Err = crate::Error;
+    type Err = super::Error;
 
-    fn from_str(value: &str) -> crate::Result<Self> {
+    fn from_str(value: &str) -> super::Result<Self> {
         use nom::branch::alt;
         use nom::bytes::complete::tag;
         use nom::combinator::{complete, map};
@@ -426,7 +427,7 @@ impl Compat {
 }
 
 /// Parse a string as a compatibility specifier.
-pub fn parse_compat<S: AsRef<str>>(compat: S) -> crate::Result<Compat> {
+pub fn parse_compat<S: AsRef<str>>(compat: S) -> super::Result<Compat> {
     Compat::from_str(compat.as_ref())
 }
 

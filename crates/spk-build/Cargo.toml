@@ -23,7 +23,6 @@ spk-solver-graph = { path = "../spk-solver-graph" }
 spk-solver-solution = { path = "../spk-solver-solution" }
 spk-spec = { path = "../spk-spec" }
 spk-storage = { path = "../spk-storage" }
-spk-version = { path = "../spk-version" }
 thiserror = "1.0"
 tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"

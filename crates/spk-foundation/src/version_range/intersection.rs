@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use spk_version::Version;
+use crate::version::Version;
 
 /// A range of valid versions that has some kind of bound.
 #[derive(Debug)]

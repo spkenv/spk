@@ -25,7 +25,6 @@ spfs = { version = '0.34.6', path = "../spfs" }
 spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
 spk-name = { path = "../spk-name" }
-spk-version = { path = "../spk-version" }
 sys-info = "0.9.0"
 tempdir = "0.3.7"
 thiserror = "1.0"

@@ -16,11 +16,11 @@ use spk_foundation::ident_build::{
     parsing::{build, build_str},
     Build,
 };
-use spk_name::{parsing::package_name, RepositoryName};
-use spk_version::{
+use spk_foundation::version::{
     parsing::{version, version_str},
     Version,
 };
+use spk_name::{parsing::package_name, RepositoryName};
 
 use crate::Ident;
 
@@ -38,7 +38,7 @@ where
         + ContextError<&'b str>
         + FromExternalError<&'b str, crate::error::Error>
         + FromExternalError<&'b str, spk_foundation::ident_build::Error>
-        + FromExternalError<&'b str, spk_version::Error>
+        + FromExternalError<&'b str, spk_foundation::version::Error>
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {
@@ -76,7 +76,7 @@ where
         + ContextError<&'b str>
         + FromExternalError<&'b str, crate::error::Error>
         + FromExternalError<&'b str, spk_foundation::ident_build::Error>
-        + FromExternalError<&'b str, spk_version::Error>
+        + FromExternalError<&'b str, spk_foundation::version::Error>
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {
@@ -138,7 +138,7 @@ where
         + ContextError<&'a str>
         + FromExternalError<&'a str, crate::error::Error>
         + FromExternalError<&'a str, spk_foundation::ident_build::Error>
-        + FromExternalError<&'a str, spk_version::Error>
+        + FromExternalError<&'a str, spk_foundation::version::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
