@@ -6,9 +6,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use rstest::rstest;
+use spk_foundation::name::PkgName;
 use spk_foundation::spec_ops::PackageOps;
 use spk_foundation::{option_map, option_map::OptionMap};
-use spk_name::PkgName;
 use spk_solver::{make_build, make_repo};
 use spk_spec::{recipe, spec, Package, Spec};
 

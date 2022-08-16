@@ -18,12 +18,12 @@ use super::Ident;
 use crate::{BuildIdent, Error, Result};
 use spk_foundation::ident_build::Build;
 use spk_foundation::ident_component::{Component, ComponentSet};
+use spk_foundation::name::{OptName, OptNameBuf, PkgName, PkgNameBuf, RepositoryNameBuf};
 use spk_foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_foundation::version::{CompatRule, Compatibility, Version, API_STR, BINARY_STR};
 use spk_foundation::version_range::{
     DoubleEqualsVersion, EqualsVersion, Ranged, RestrictMode, VersionFilter, VersionRange,
 };
-use spk_name::{OptName, OptNameBuf, PkgName, PkgNameBuf, RepositoryNameBuf};
 
 #[cfg(test)]
 #[path = "./request_test.rs"]
@@ -926,7 +926,7 @@ impl FormatRequest for PkgRequest {
 
     fn format_request(
         &self,
-        repository_name: &Option<spk_name::RepositoryNameBuf>,
+        repository_name: &Option<spk_foundation::name::RepositoryNameBuf>,
         name: &PkgName,
         format_settings: &spk_foundation::format::FormatChangeOptions,
     ) -> String {

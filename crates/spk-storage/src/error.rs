@@ -22,7 +22,7 @@ pub enum Error {
     #[error(transparent)]
     SpkIdentComponentError(#[from] spk_foundation::ident_component::Error),
     #[error(transparent)]
-    SpkNameError(#[from] spk_name::Error),
+    SpkNameError(#[from] spk_foundation::name::Error),
     #[error(transparent)]
     SpkSpecError(#[from] spk_spec::Error),
     #[error(transparent)]

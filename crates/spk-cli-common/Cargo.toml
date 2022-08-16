@@ -30,7 +30,6 @@ spk-build = { path = '../spk-build' }
 spk-exec = { path = '../spk-exec' }
 spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = '../spk-ident' }
-spk-name = { path = '../spk-name' }
 spk-solver = { path = '../spk-solver' }
 spk-solver-solution = { path = '../spk-solver-solution' }
 spk-spec = { path = '../spk-spec' }

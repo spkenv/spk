@@ -10,8 +10,8 @@ use spk_foundation::ident_ops::MetadataPath;
 
 use crate::{parsing, RangeIdent, Result};
 use spk_foundation::ident_build::Build;
+use spk_foundation::name::{PkgNameBuf, RepositoryNameBuf};
 use spk_foundation::version::Version;
-use spk_name::{PkgNameBuf, RepositoryNameBuf};
 
 #[cfg(test)]
 #[path = "./ident_test.rs"]

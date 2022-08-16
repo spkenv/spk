@@ -21,7 +21,7 @@ use nom::{
     IResult, Parser,
 };
 use nom_supreme::tag::TagError;
-use spk_name::{
+use spk_foundation::name::{
     parsing::{is_legal_package_name_chr, known_repository_name, repository_name},
     RepositoryName,
 };

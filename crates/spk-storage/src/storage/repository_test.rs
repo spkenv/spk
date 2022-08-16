@@ -4,9 +4,9 @@
 
 use rstest::rstest;
 use spk_foundation::ident_component::Component;
+use spk_foundation::pkg_name;
 use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps};
 use spk_ident::parse_ident;
-use spk_name::pkg_name;
 use spk_spec::{recipe, spec};
 
 use crate::{fixtures::*, Error};

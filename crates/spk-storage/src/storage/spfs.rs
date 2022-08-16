@@ -19,10 +19,10 @@ use serde_derive::{Deserialize, Serialize};
 use spfs::{storage::EntryType, tracking};
 use spk_foundation::ident_build::{parse_build, Build, InvalidBuildError};
 use spk_foundation::ident_component::Component;
+use spk_foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_foundation::version::{parse_version, Version};
 use spk_ident::Ident;
-use spk_name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_spec::{Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 

@@ -8,7 +8,8 @@ use std::sync::Arc;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use spk_name::{OptName, OptNameBuf, PkgName};
+
+use crate::name::{OptName, OptNameBuf, PkgName};
 
 mod error;
 mod format;
@@ -44,7 +45,7 @@ macro_rules! option_map {
         #[allow(unused_imports)]
         use {
             std::convert::TryFrom,
-            spk_name::OptNameBuf,
+            $crate::name::OptNameBuf,
             $crate::option_map::OptionMap
         };
         #[allow(unused_mut)]

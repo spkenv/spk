@@ -17,10 +17,10 @@ use futures::{Stream, TryStreamExt};
 use priority_queue::priority_queue::PriorityQueue;
 use spk_foundation::ident_build::Build;
 use spk_foundation::ident_component::Component;
+use spk_foundation::name::{PkgName, PkgNameBuf};
 use spk_foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_foundation::version::Compatibility;
 use spk_ident::{Ident, PkgRequest, Request, RequestedBy, VarRequest};
-use spk_name::{PkgName, PkgNameBuf};
 use spk_solver_graph::{
     Change, Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SkipPackageNote,
     State, StepBack, DEAD_STATE,

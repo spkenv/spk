@@ -15,9 +15,9 @@ use nom::{
     IResult,
 };
 use nom_supreme::tag::TagError;
-use spk_name::{parsing::is_legal_package_name_chr, PkgName};
 
 use crate::ident_component::Component;
+use crate::name::{parsing::is_legal_package_name_chr, PkgName};
 
 /// Parse a component name into a [`Component`].
 ///

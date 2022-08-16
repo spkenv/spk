@@ -27,7 +27,7 @@ pub enum Error {
     #[error(transparent)]
     SpkIdentError(#[from] spk_ident::Error),
     #[error(transparent)]
-    SpkNameError(#[from] spk_name::Error),
+    SpkNameError(#[from] spk_foundation::name::Error),
     #[error("Error: {0}")]
     String(String),
 }

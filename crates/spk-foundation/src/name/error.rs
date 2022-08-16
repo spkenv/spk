@@ -9,5 +9,5 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
-    InvalidNameError(#[from] crate::InvalidNameError),
+    InvalidNameError(#[from] super::InvalidNameError),
 }

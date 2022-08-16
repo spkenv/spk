@@ -7,10 +7,10 @@ use std::sync::Arc;
 
 use spk_foundation::ident_build::Build;
 use spk_foundation::ident_component::Component;
+use spk_foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_foundation::spec_ops::{Named, PackageOps, Versioned};
 use spk_foundation::version::Version;
 use spk_ident::Ident;
-use spk_name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_spec::SpecRecipe;
 use tokio::sync::RwLock;
 

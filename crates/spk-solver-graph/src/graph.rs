@@ -8,11 +8,11 @@ use futures::Stream;
 use once_cell::sync::{Lazy, OnceCell};
 use spk_foundation::format::{FormatChange, FormatIdent, FormatOptionMap, FormatRequest};
 use spk_foundation::ident_component::Component;
+use spk_foundation::name::{OptNameBuf, PkgName, PkgNameBuf};
 use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
 use spk_foundation::version::Compatibility;
 use spk_foundation::{option_map, option_map::OptionMap};
 use spk_ident::{Ident, InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
-use spk_name::{OptNameBuf, PkgName, PkgNameBuf};
 use spk_solver_package_iterator::PackageIterator;
 use spk_solver_solution::{PackageSource, Solution};
 use spk_spec::{

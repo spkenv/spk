@@ -13,6 +13,7 @@ use proptest::{
 };
 use spk_foundation::ident_build::Build;
 use spk_foundation::ident_component::Component;
+use spk_foundation::name::{PkgNameBuf, RepositoryNameBuf};
 use spk_foundation::version::{CompatRule, TagSet, Version};
 use spk_foundation::version_range::{
     CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
@@ -20,7 +21,6 @@ use spk_foundation::version_range::{
     LowestSpecifiedRange, NotEqualsVersion, SemverRange, VersionFilter, VersionRange,
     WildcardRange,
 };
-use spk_name::{PkgNameBuf, RepositoryNameBuf};
 
 use crate::{parse_ident, RangeIdent};
 

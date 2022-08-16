@@ -23,7 +23,6 @@ serde_json = "1.0"
 spfs = { version = '0.34.6', path = "../spfs" }
 spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
-spk-name = { path = "../spk-name" }
 spk-solver-package-iterator = { path = "../spk-solver-package-iterator" }
 spk-solver-solution = { path = "../spk-solver-solution" }
 spk-spec = { path = "../spk-spec" }

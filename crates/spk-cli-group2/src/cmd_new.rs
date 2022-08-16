@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 use spk_cli_common::{CommandArgs, Run};
-use spk_name::PkgNameBuf;
+use spk_foundation::name::PkgNameBuf;
 
 #[cfg(test)]
 #[path = "./cmd_new_test.rs"]

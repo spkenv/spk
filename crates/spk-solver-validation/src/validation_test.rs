@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use rstest::rstest;
 use spk_foundation::fixtures::*;
-use spk_name::opt_name;
+use spk_foundation::opt_name;
 use spk_solver_graph::State;
 use spk_solver_solution::PackageSource;
 use spk_spec::spec;

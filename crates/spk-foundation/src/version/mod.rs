@@ -21,8 +21,9 @@ use std::{
 };
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use spk_name::validate_tag_name;
 use thiserror::Error;
+
+use crate::name::validate_tag_name;
 
 #[cfg(test)]
 #[path = "./version_test.rs"]
