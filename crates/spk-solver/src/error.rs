@@ -17,7 +17,7 @@ pub enum Error {
     #[error("Solver interrupted: {0}")]
     SolverInterrupted(String),
     #[error(transparent)]
-    SpkIdentComponentError(#[from] spk_ident_component::Error),
+    SpkIdentComponentError(#[from] spk_foundation::ident_component::Error),
     #[error(transparent)]
     SpkSolverGraphError(#[from] spk_solver_graph::Error),
     #[error(transparent)]

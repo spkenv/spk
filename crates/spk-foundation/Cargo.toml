@@ -8,6 +8,9 @@ version = "0.36.0"
 name = "spk_foundation"
 path = "src/lib.rs"
 
+[features]
+migration-to-components = []
+
 [dependencies]
 colored = "2.0"
 data-encoding = "2.3"

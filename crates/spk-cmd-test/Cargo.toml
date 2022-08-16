@@ -19,7 +19,6 @@ spk-exec = { path = '../spk-exec' }
 spk-format = { path = '../spk-format' }
 spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = '../spk-ident' }
-spk-ident-component = { path = '../spk-ident-component' }
 spk-name = { path = '../spk-name' }
 spk-solver = { path = '../spk-solver' }
 spk-solver-graph = { path = '../spk-solver-graph' }

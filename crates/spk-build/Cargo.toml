@@ -17,7 +17,6 @@ spfs = { version = '0.34.6', path = "../spfs" }
 spk-exec = { path = "../spk-exec" }
 spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
-spk-ident-component = { path = "../spk-ident-component" }
 spk-name = { path = "../spk-name" }
 spk-solver = { path = "../spk-solver" }
 spk-solver-graph = { path = "../spk-solver-graph" }

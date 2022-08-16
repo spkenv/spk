@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use spk_format::FormatComponents;
 use spk_name::PkgName;
 
-use crate::{Error, Result};
+use super::{Error, Result};
 
 #[cfg(test)]
 #[path = "./component_spec_test.rs"]

@@ -4,9 +4,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::Result;
+use spk_foundation::ident_component::Component;
 use spk_foundation::spec_ops::PackageOps;
 use spk_ident::Ident;
-use spk_ident_component::Component;
 use spk_name::{PkgName, PkgNameBuf, RepositoryName};
 use spk_spec::Package;
 use spk_version::Version;

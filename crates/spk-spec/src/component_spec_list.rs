@@ -4,7 +4,7 @@
 use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
-use spk_ident_component::Component;
+use spk_foundation::ident_component::Component;
 
 use super::ComponentSpec;
 

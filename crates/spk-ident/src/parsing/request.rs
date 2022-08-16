@@ -13,8 +13,8 @@ use nom::{
 };
 use nom_supreme::tag::TagError;
 use spk_foundation::ident_build::{parsing::build, Build};
+use spk_foundation::ident_component::{parsing::components, Component};
 use spk_foundation::version_range::{parsing::version_range, VersionFilter};
-use spk_ident_component::{parsing::components, Component};
 use spk_name::{parsing::package_name, PkgName};
 
 use crate::RangeIdent;

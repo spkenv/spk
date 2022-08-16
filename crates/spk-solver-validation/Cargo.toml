@@ -15,7 +15,6 @@ itertools = "0.10"
 spk-format = { path = "../spk-format" }
 spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
-spk-ident-component = { path = "../spk-ident-component" }
 spk-name = { path = "../spk-name" }
 spk-solver-graph = { path = "../spk-solver-graph" }
 spk-solver-solution = { path = "../spk-solver-solution" }
