@@ -2703,7 +2703,6 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "spfs",
- "spk-env",
  "spk-exec",
  "spk-foundation",
  "spk-ident",
@@ -3025,14 +3024,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spk-env"
-version = "0.36.0"
-dependencies = [
- "relative-path",
- "spk-ident-ops",
-]
-
-[[package]]
 name = "spk-exec"
 version = "0.36.0"
 dependencies = [
@@ -3066,6 +3057,7 @@ dependencies = [
  "itertools",
  "nom",
  "nom-supreme",
+ "relative-path",
  "rstest",
  "serde",
  "spk-format",
@@ -3395,7 +3387,6 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "spfs",
- "spk-env",
  "spk-foundation",
  "spk-ident",
  "spk-ident-ops",

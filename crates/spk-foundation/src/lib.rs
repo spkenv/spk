@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+pub mod env;
 pub mod fixtures;
 pub mod ident_build;
 pub mod spec_ops;

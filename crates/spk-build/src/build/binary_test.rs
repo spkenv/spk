@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 use spfs::{encoding::EMPTY_DIGEST, prelude::*};
-use spk_env::data_path;
+use spk_foundation::env::data_path;
 use spk_foundation::fixtures::*;
 use spk_foundation::spec_ops::PackageOps;
 use spk_ident::{PkgRequest, RangeIdent, Request};

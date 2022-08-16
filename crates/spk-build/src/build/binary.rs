@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use relative_path::RelativePathBuf;
 use spfs::prelude::*;
-use spk_env::data_path;
 use spk_exec::resolve_runtime_layers;
+use spk_foundation::env::data_path;
 use spk_foundation::ident_build::Build;
 use spk_foundation::spec_ops::{ComponentOps, PackageOps};
 use spk_ident::{Ident, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
