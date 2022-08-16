@@ -406,19 +406,18 @@ impl Runtime {
     /// Write out the startup script data to disk, ensuring
     /// that all required startup files are present in their
     /// defined location.
-    pub fn ensure_startup_scripts(&self) -> Result<()> {
-        // Capture the current $TMPDIR value here before it
-        // is lost when entering the runtime later.
-        let tmpdir_value_for_child_process = std::env::var("TMPDIR").ok();
-
+    pub fn ensure_startup_scripts(
+        &self,
+        tmpdir_value_for_child_process: &Option<String>,
+    ) -> Result<()> {
         std::fs::write(
             &self.config.sh_startup_file,
-            startup_sh::source(&tmpdir_value_for_child_process),
+            startup_sh::source(tmpdir_value_for_child_process),
         )
         .map_err(|err| Error::RuntimeWriteError(self.config.sh_startup_file.clone(), err))?;
         std::fs::write(
             &self.config.csh_startup_file,
-            startup_csh::source(&tmpdir_value_for_child_process),
+            startup_csh::source(tmpdir_value_for_child_process),
         )
         .map_err(|err| Error::RuntimeWriteError(self.config.csh_startup_file.clone(), err))?;
         std::fs::write(&self.config.csh_expect_file, csh_exp::SOURCE)

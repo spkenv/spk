@@ -36,6 +36,10 @@ pub struct CmdEnter {
     #[clap(long)]
     runtime_storage: Option<url::Url>,
 
+    /// The value to set $TMPDIR to in new environment
+    #[clap(long)]
+    tmpdir: Option<String>,
+
     #[cfg(feature = "runtime-compat-0.33")]
     /// The name of the runtime being entered
     #[clap(long)]
@@ -128,7 +132,7 @@ impl CmdEnter {
             })?;
             drop(monitor_stdin);
 
-            owned.ensure_startup_scripts()?;
+            owned.ensure_startup_scripts(&self.tmpdir)?;
             std::env::set_var("SPFS_RUNTIME", owned.name());
 
             let mut child = self.exec_runtime_command(&owned).await?;
