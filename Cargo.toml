@@ -22,7 +22,6 @@ members = [
     "crates/spk-cmd-render",
     "crates/spk-cmd-repo",
     "crates/spk-cmd-test",
-    "crates/spk-env",
     "crates/spk-exec",
     "crates/spk-foundation",
     "crates/spk-format",
