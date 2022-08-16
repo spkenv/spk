@@ -5,7 +5,7 @@
 use rstest::rstest;
 
 use super::{parse_build, SRC};
-use spk_option_map::OptionMap;
+use crate::option_map::OptionMap;
 
 #[rstest]
 fn test_parse_build_src() {

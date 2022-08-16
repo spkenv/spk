@@ -6,7 +6,7 @@ use std::io::Write;
 
 use rstest::rstest;
 use spk_foundation::fixtures::*;
-use spk_option_map::OptionMap;
+use spk_foundation::option_map::OptionMap;
 
 use crate::{spec::SpecTemplate, Recipe, Template, TemplateExt};
 

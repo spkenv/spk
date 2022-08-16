@@ -18,7 +18,6 @@ spk-cli-common = { path = '../spk-cli-common' }
 spk-format = { path = '../spk-format' }
 spk-foundation = { path = '../spk-foundation' }
 spk-ident = { path = '../spk-ident' }
-spk-option-map = { path = '../spk-option-map' }
 spk-spec = { path = '../spk-spec' }
 spk-storage = { path = '../spk-storage' }
 spk-validators = { path = '../spk-validators' }

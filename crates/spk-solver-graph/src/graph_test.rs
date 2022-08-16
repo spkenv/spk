@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use rstest::rstest;
 use spk_format::{FormatChange, FormatChangeOptions};
+use spk_foundation::option_map;
 use spk_ident_component::Component;
 use spk_name::{opt_name, PkgName};
-use spk_option_map::option_map;
 use spk_solver_solution::PackageSource;
 use spk_spec::{recipe, spec};
 

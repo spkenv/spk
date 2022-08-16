@@ -5,8 +5,8 @@
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
+use spk_foundation::option_map::OptionMap;
 use spk_ident::Request;
-use spk_option_map::OptionMap;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum TestStage {

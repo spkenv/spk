@@ -32,7 +32,7 @@ impl InvalidBuildError {
 pub enum Build {
     Source,
     Embedded,
-    Digest([char; spk_option_map::DIGEST_SIZE]),
+    Digest([char; crate::option_map::DIGEST_SIZE]),
 }
 
 impl Build {

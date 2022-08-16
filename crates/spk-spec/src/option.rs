@@ -327,14 +327,14 @@ struct VarOptSchema {
         default,
         rename = "static",
         skip_serializing_if = "String::is_empty",
-        deserialize_with = "spk_option_map::string_from_scalar"
+        deserialize_with = "spk_foundation::option_map::string_from_scalar"
     )]
     value: String,
     // the default field can be loaded for legacy compatibility but is deprecated
     #[serde(
         default,
         skip_serializing,
-        deserialize_with = "spk_option_map::string_from_scalar"
+        deserialize_with = "spk_foundation::option_map::string_from_scalar"
     )]
     default: String,
 }
@@ -509,7 +509,7 @@ struct PkgOptSchema {
         default,
         rename = "static",
         skip_serializing_if = "String::is_empty",
-        deserialize_with = "spk_option_map::string_from_scalar"
+        deserialize_with = "spk_foundation::option_map::string_from_scalar"
     )]
     value: String,
     // the default field can be loaded for legacy compatibility but is deprecated
@@ -614,7 +614,7 @@ where
     match value {
         Value::Sequence(b) => b
             .into_iter()
-            .map(spk_option_map::string_from_scalar)
+            .map(spk_foundation::option_map::string_from_scalar)
             .collect::<serde_yaml::Result<Vec<String>>>()
             .map_err(|err| serde::de::Error::custom(format!("expected list of scalars: {}", err))),
         _ => Err(serde::de::Error::custom("expected list of scalars")),

@@ -24,7 +24,6 @@ spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
 spk-ident-component = { path = "../spk-ident-component" }
 spk-name = { path = "../spk-name" }
-spk-option-map = { path = "../spk-option-map" }
 spk-solver-graph = { path = "../spk-solver-graph" }
 spk-solver-package-iterator = { path = "../spk-solver-package-iterator" }
 spk-solver-solution = { path = "../spk-solver-solution" }

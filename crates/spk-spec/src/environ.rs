@@ -82,7 +82,7 @@ impl<'de> Deserialize<'de> for EnvOp {
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct AppendEnv {
     append: String,
-    #[serde(deserialize_with = "spk_option_map::string_from_scalar")]
+    #[serde(deserialize_with = "spk_foundation::option_map::string_from_scalar")]
     value: String,
     #[serde(
         default,
@@ -135,7 +135,7 @@ impl AppendEnv {
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct PrependEnv {
     prepend: String,
-    #[serde(deserialize_with = "spk_option_map::string_from_scalar")]
+    #[serde(deserialize_with = "spk_foundation::option_map::string_from_scalar")]
     value: String,
     #[serde(
         default,
@@ -185,7 +185,7 @@ impl PrependEnv {
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct SetEnv {
     set: String,
-    #[serde(deserialize_with = "spk_option_map::string_from_scalar")]
+    #[serde(deserialize_with = "spk_foundation::option_map::string_from_scalar")]
     value: String,
 }
 

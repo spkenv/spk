@@ -4,9 +4,9 @@
 
 use std::path::Path;
 
+use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::{Named, RecipeOps, Versioned};
 use spk_ident::{Ident, Request};
-use spk_option_map::OptionMap;
 
 use crate::{test_spec::TestSpec, Package, Result};
 

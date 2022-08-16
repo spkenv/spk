@@ -19,10 +19,10 @@ nom-supreme = "0.8"
 spfs = { version = '0.34.6', path = "../spfs" }
 spk-cli-common = { path = '../spk-cli-common' }
 spk-format = { path = '../spk-format' }
+spk-foundation = { path = '../spk-foundation' }
 spk-ident = { path = '../spk-ident' }
 spk-ident-component = { path = '../spk-ident-component' }
 spk-name = { path = '../spk-name' }
-spk-option-map = { path = '../spk-option-map' }
 spk-solver = { path = '../spk-solver' }
 spk-spec = { path = '../spk-spec' }
 spk-storage = { path = '../spk-storage' }

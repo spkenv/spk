@@ -1,13 +1,14 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
+use spk_foundation::option_map::OptionMap;
+use spk_ident::{Ident, Request};
 
 use crate::{Error, Result};
-use spk_ident::{Ident, Request};
-use spk_option_map::OptionMap;
 
 #[cfg(test)]
 #[path = "./requirements_list_test.rs"]

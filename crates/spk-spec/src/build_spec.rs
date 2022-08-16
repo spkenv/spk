@@ -5,7 +5,7 @@ use std::collections::HashSet;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use spk_option_map::OptionMap;
+use spk_foundation::option_map::OptionMap;
 
 use super::{Opt, ValidationSpec};
 

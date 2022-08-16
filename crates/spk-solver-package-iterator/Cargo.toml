@@ -16,7 +16,6 @@ once_cell = "1.8"
 spk-ident = { path = "../spk-ident" }
 spk-foundation = { path = "../spk-foundation" }
 spk-name = { path = "../spk-name" }
-spk-option-map = { path = "../spk-option-map" }
 spk-solver-solution = { path = "../spk-solver-solution" }
 spk-spec = { path = "../spk-spec" }
 spk-storage = { path = "../spk-storage" }

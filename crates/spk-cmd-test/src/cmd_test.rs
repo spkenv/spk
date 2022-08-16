@@ -10,9 +10,9 @@ use spk_build::BuildSource;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_format::{FormatIdent, FormatOptionMap};
 use spk_foundation::ident_build::Build;
+use spk_foundation::option_map::{host_options, OptionMap};
 use spk_foundation::spec_ops::RecipeOps;
 use spk_ident::parse_ident;
-use spk_option_map::{host_options, OptionMap};
 use spk_spec::{Recipe, Template, TestStage};
 
 #[cfg(test)]

@@ -33,7 +33,6 @@ spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = '../spk-ident' }
 spk-ident-component = { path = '../spk-ident-component' }
 spk-name = { path = '../spk-name' }
-spk-option-map = { path = '../spk-option-map' }
 spk-solver = { path = '../spk-solver' }
 spk-solver-solution = { path = '../spk-solver-solution' }
 spk-spec = { path = '../spk-spec' }

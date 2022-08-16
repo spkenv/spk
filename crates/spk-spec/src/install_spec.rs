@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{ComponentSpecList, EmbeddedPackagesList, EnvOp, RequirementsList};
 use crate::Result;
+use spk_foundation::option_map::OptionMap;
 use spk_ident::{Ident, Request};
-use spk_option_map::OptionMap;
 
 #[cfg(test)]
 #[path = "./install_spec_test.rs"]
