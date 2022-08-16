@@ -29,8 +29,8 @@ spfs = { version = '0.34.6', path = "../spfs" }
 spk-build = { path = '../spk-build' }
 spk-exec = { path = '../spk-exec' }
 spk-format = { path = '../spk-format' }
+spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = '../spk-ident' }
-spk-ident-build = { path = '../spk-ident-build' }
 spk-ident-component = { path = '../spk-ident-component' }
 spk-name = { path = '../spk-name' }
 spk-option-map = { path = '../spk-option-map' }

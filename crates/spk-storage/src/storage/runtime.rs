@@ -8,8 +8,8 @@ use std::{
 };
 
 use spfs::prelude::*;
+use spk_foundation::ident_build::parse_build;
 use spk_ident::Ident;
-use spk_ident_build::parse_build;
 use spk_ident_component::Component;
 use spk_name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_spec::SpecRecipe;

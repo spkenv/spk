@@ -9,11 +9,15 @@ name = "spk_foundation"
 path = "src/lib.rs"
 
 [dependencies]
+colored = "2.0"
+data-encoding = "2.3"
 enum_dispatch = "0.3.8"
 itertools = "0.10"
 nom = "7.1"
 nom-supreme = "0.8"
 rstest = "0.15.0"
+spk-format = { path = "../spk-format" }
+spk-option-map = { path = "../spk-option-map" }
 spk-spec-ops = { path = "../spk-spec-ops" }
 spk-version = { path = "../spk-version" }
 tempfile = "3.3"

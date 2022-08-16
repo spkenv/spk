@@ -11,13 +11,13 @@ use proptest::{
     option::weighted,
     prelude::*,
 };
+use spk_foundation::ident_build::Build;
 use spk_foundation::version_range::{
     CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
     GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
     LowestSpecifiedRange, NotEqualsVersion, SemverRange, VersionFilter, VersionRange,
     WildcardRange,
 };
-use spk_ident_build::Build;
 use spk_ident_component::Component;
 use spk_name::{PkgNameBuf, RepositoryNameBuf};
 use spk_version::{CompatRule, TagSet, Version};

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use serde::{Deserialize, Serialize};
-use spk_ident_build::Build;
+use spk_foundation::ident_build::Build;
 
 use super::{BuildSpec, InstallSpec, Spec};
 

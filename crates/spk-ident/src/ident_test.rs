@@ -7,8 +7,8 @@ use std::convert::TryInto;
 use std::str::FromStr;
 
 use rstest::rstest;
+use spk_foundation::ident_build::Build;
 use spk_foundation::version_range::{CompatRange, VersionFilter, VersionRange};
-use spk_ident_build::Build;
 use spk_version::{parse_version, Version};
 
 use super::{parse_ident, Ident};

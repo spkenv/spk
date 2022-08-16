@@ -5,7 +5,7 @@
 use colored::Colorize;
 use spk_format::FormatBuild;
 
-use crate::Build;
+use super::Build;
 
 impl FormatBuild for Build {
     fn format_build(&self) -> String {

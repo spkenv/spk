@@ -16,8 +16,8 @@ serde_yaml = "0.8.17"
 spfs = { version = '0.34.6', path = "../spfs" }
 spk-env = { path = "../spk-env" }
 spk-exec = { path = "../spk-exec" }
+spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
-spk-ident-build = { path = "../spk-ident-build" }
 spk-ident-component = { path = "../spk-ident-component" }
 spk-ident-ops = { path = "../spk-ident-ops" }
 spk-name = { path = "../spk-name" }
@@ -36,6 +36,5 @@ tracing = "0.1.35"
 [dev-dependencies]
 rstest = "0.15.0"
 serde_yaml = "0.8.17"
-spk-foundation = { path = "../spk-foundation" }
 tar = "0.4.30"
 tempfile = "3.3"

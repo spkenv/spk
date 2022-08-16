@@ -6,10 +6,10 @@ use std::sync::Arc;
 use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
 use spk_foundation::fixtures::*;
+use spk_foundation::ident_build::Build;
 use spk_ident::{
     ident, parse_ident, parse_ident_range, PkgRequest, RangeIdent, Request, RequestedBy, VarRequest,
 };
-use spk_ident_build::Build;
 use spk_ident_component::Component;
 use spk_name::opt_name;
 use spk_solver_solution::PackageSource;

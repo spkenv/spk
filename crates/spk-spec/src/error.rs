@@ -21,7 +21,7 @@ pub enum Error {
     #[error(transparent)]
     SpkBuildOpsError(#[from] spk_build_ops::Error),
     #[error(transparent)]
-    SpkIdentBuildError(#[from] spk_ident_build::Error),
+    SpkIdentBuildError(#[from] spk_foundation::ident_build::Error),
     #[error(transparent)]
     SpkIdentComponentError(#[from] spk_ident_component::Error),
     #[error(transparent)]

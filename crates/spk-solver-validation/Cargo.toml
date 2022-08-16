@@ -13,8 +13,8 @@ colored = "2.0"
 enum_dispatch = "0.3.8"
 itertools = "0.10"
 spk-format = { path = "../spk-format" }
+spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
-spk-ident-build = { path = "../spk-ident-build" }
 spk-ident-component = { path = "../spk-ident-component" }
 spk-name = { path = "../spk-name" }
 spk-solver-graph = { path = "../spk-solver-graph" }
@@ -27,4 +27,3 @@ thiserror = "1.0"
 [dev-dependencies]
 rstest = "0.15.0"
 serde_yaml = "0.8.17"
-spk-foundation = { path = "../spk-foundation" }

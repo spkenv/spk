@@ -6,11 +6,11 @@ use std::path::Path;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use spk_foundation::ident_build::Build;
 use spk_foundation::version_range::Ranged;
 use spk_ident::{
     is_false, Ident, PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy, VarRequest,
 };
-use spk_ident_build::Build;
 use spk_ident_component::Component;
 use spk_name::PkgName;
 use spk_option_map::OptionMap;
