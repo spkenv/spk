@@ -23,6 +23,7 @@ serde_yaml = "0.8.17"
 serde_json = "1.0"
 spfs = { version = '0.34.6', path = "../spfs" }
 spk-build-ops = { path = "../spk-build-ops" }
+spk-foundation = { path = "../spk-foundation" }
 spk-ident-build = { path = "../spk-ident-build" }
 spk-ident-component = { path = "../spk-ident-component" }
 spk-ident-ops = { path = "../spk-ident-ops" }
@@ -32,7 +33,6 @@ spk-option-map = { path = "../spk-option-map" }
 spk-spec-ops = { path = "../spk-spec-ops" }
 spk-validators = { path = "../spk-validators" }
 spk-version = { path = "../spk-version" }
-spk-version-range = { path = "../spk-version-range" }
 sys-info = "0.9.0"
 tempfile = "3.3"
 thiserror = "1.0"
@@ -40,4 +40,3 @@ tracing = "0.1.35"
 
 [dev-dependencies]
 rstest = "0.15.0"
-spk-fixtures = { path = "../spk-fixtures" }

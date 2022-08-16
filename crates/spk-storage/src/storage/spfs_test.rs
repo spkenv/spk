@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use rstest::rstest;
 use spfs::prelude::*;
-use spk_fixtures::*;
+use spk_foundation::fixtures::*;
 use spk_ident::Ident;
 use spk_version::Version;
 

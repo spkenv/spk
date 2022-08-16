@@ -42,7 +42,7 @@ pub enum Error {
     #[error(transparent)]
     SpkValidatorsError(#[from] spk_validators::Error),
     #[error(transparent)]
-    SpkVersionRangeError(#[from] spk_version_range::Error),
+    SpkVersionRangeError(#[from] spk_foundation::version_range::Error),
     #[error("Error: {0}")]
     String(String),
 }

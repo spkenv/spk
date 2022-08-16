@@ -24,7 +24,7 @@ members = [
     "crates/spk-cmd-test",
     "crates/spk-env",
     "crates/spk-exec",
-    "crates/spk-fixtures",
+    "crates/spk-foundation",
     "crates/spk-format",
     "crates/spk-ident",
     "crates/spk-ident-build",
@@ -43,6 +43,5 @@ members = [
     "crates/spk-storage",
     "crates/spk-validators",
     "crates/spk-version",
-    "crates/spk-version-range",
     "crates/spfs"
 ]

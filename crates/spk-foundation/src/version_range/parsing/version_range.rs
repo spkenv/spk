@@ -19,7 +19,7 @@ use spk_version::{
     CompatRule,
 };
 
-use crate::{
+use crate::version_range::{
     CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
     GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
     LowestSpecifiedRange, NotEqualsVersion, SemverRange, VersionFilter, VersionRange,
@@ -38,7 +38,7 @@ pub(crate) fn compat_range<'a, E>(input: &'a str) -> IResult<&'a str, VersionRan
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, crate::version_range::error::Error>
         + FromExternalError<&'a str, spk_version::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
@@ -74,7 +74,7 @@ pub(crate) fn wildcard_range<'a, E>(input: &'a str) -> IResult<&'a str, VersionR
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, crate::version_range::error::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
@@ -122,14 +122,14 @@ pub fn version_range<'a, E>(input: &'a str) -> IResult<&'a str, VersionRange, E>
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, crate::version_range::error::Error>
         + FromExternalError<&'a str, spk_version::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
     map(
         separated_list1(
-            tag(crate::VERSION_RANGE_SEP),
+            tag(crate::version_range::VERSION_RANGE_SEP),
             alt((
                 // Use `cut` for these that first match on an operator first,
                 // if the version fails to parse then it shouldn't continue to

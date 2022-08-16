@@ -7,11 +7,11 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
+use spk_foundation::version_range::{parse_version_range, Ranged};
 use spk_ident::Ident;
 use spk_name::OptNameBuf;
 use spk_option_map::OptionMap;
 use spk_version::Version;
-use spk_version_range::{parse_version_range, Ranged};
 
 use crate::Result;
 

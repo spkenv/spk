@@ -6,7 +6,7 @@ use rstest::rstest;
 
 use super::parse_compat;
 use crate::parse_version;
-use spk_fixtures::*;
+use spk_foundation::fixtures::*;
 
 #[rstest]
 #[case("x.x.x", "1.0.0", "1.0.0", true)]

@@ -2705,7 +2705,7 @@ dependencies = [
  "spfs",
  "spk-env",
  "spk-exec",
- "spk-fixtures",
+ "spk-foundation",
  "spk-ident",
  "spk-ident-build",
  "spk-ident-component",
@@ -3010,8 +3010,8 @@ dependencies = [
  "spk-cli-common",
  "spk-cmd-build",
  "spk-exec",
- "spk-fixtures",
  "spk-format",
+ "spk-foundation",
  "spk-ident",
  "spk-ident-build",
  "spk-ident-component",
@@ -3053,21 +3053,30 @@ dependencies = [
 ]
 
 [[package]]
-name = "spk-fixtures"
-version = "0.36.0"
-dependencies = [
- "rstest",
- "tempfile",
- "tracing",
- "tracing-subscriber 0.2.25",
-]
-
-[[package]]
 name = "spk-format"
 version = "0.36.0"
 dependencies = [
  "spk-name",
  "thiserror",
+]
+
+[[package]]
+name = "spk-foundation"
+version = "0.36.0"
+dependencies = [
+ "enum_dispatch",
+ "itertools",
+ "nom",
+ "nom-supreme",
+ "proptest",
+ "rstest",
+ "spk-spec",
+ "spk-spec-ops",
+ "spk-version",
+ "tempfile",
+ "thiserror",
+ "tracing",
+ "tracing-subscriber 0.2.25",
 ]
 
 [[package]]
@@ -3087,13 +3096,13 @@ dependencies = [
  "serde_yaml",
  "spfs",
  "spk-format",
+ "spk-foundation",
  "spk-ident-build",
  "spk-ident-component",
  "spk-ident-ops",
  "spk-name",
  "spk-spec-ops",
  "spk-version",
- "spk-version-range",
  "thiserror",
 ]
 
@@ -3191,8 +3200,8 @@ dependencies = [
  "rstest",
  "serde_json",
  "spfs",
- "spk-fixtures",
  "spk-format",
+ "spk-foundation",
  "spk-ident",
  "spk-ident-build",
  "spk-ident-component",
@@ -3230,8 +3239,8 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "spfs",
- "spk-fixtures",
  "spk-format",
+ "spk-foundation",
  "spk-ident",
  "spk-ident-build",
  "spk-ident-component",
@@ -3244,7 +3253,6 @@ dependencies = [
  "spk-storage",
  "spk-validators",
  "spk-version",
- "spk-version-range",
  "thiserror",
  "tokio",
  "tracing",
@@ -3260,6 +3268,7 @@ dependencies = [
  "itertools",
  "once_cell",
  "rstest",
+ "spk-foundation",
  "spk-ident",
  "spk-name",
  "spk-option-map",
@@ -3270,7 +3279,6 @@ dependencies = [
  "spk-storage",
  "spk-validators",
  "spk-version",
- "spk-version-range",
  "thiserror",
  "tokio",
  "tracing",
@@ -3302,8 +3310,8 @@ dependencies = [
  "itertools",
  "rstest",
  "serde_yaml",
- "spk-fixtures",
  "spk-format",
+ "spk-foundation",
  "spk-ident",
  "spk-ident-build",
  "spk-ident-component",
@@ -3335,7 +3343,7 @@ dependencies = [
  "serde_yaml",
  "spfs",
  "spk-build-ops",
- "spk-fixtures",
+ "spk-foundation",
  "spk-ident",
  "spk-ident-build",
  "spk-ident-component",
@@ -3345,7 +3353,6 @@ dependencies = [
  "spk-spec-ops",
  "spk-validators",
  "spk-version",
- "spk-version-range",
  "sys-info",
  "tempfile",
  "thiserror",
@@ -3392,7 +3399,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "spfs",
- "spk-fixtures",
+ "spk-foundation",
  "spk-ident",
  "spk-ident-build",
  "spk-ident-component",
@@ -3452,26 +3459,10 @@ dependencies = [
  "nom-supreme",
  "rstest",
  "serde",
- "spk-fixtures",
+ "spk-foundation",
  "spk-name",
  "thiserror",
  "tracing",
-]
-
-[[package]]
-name = "spk-version-range"
-version = "0.36.0"
-dependencies = [
- "enum_dispatch",
- "itertools",
- "nom",
- "nom-supreme",
- "proptest",
- "rstest",
- "spk-spec",
- "spk-spec-ops",
- "spk-version",
- "thiserror",
 ]
 
 [[package]]

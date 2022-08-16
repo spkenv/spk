@@ -4,8 +4,8 @@
 use std::collections::HashSet;
 
 use rstest::rstest;
+use spk_foundation::version_range::RestrictMode;
 use spk_ident_component::Component;
-use spk_version_range::RestrictMode;
 
 use super::{parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, VarRequest};
 use crate::parse_ident;
