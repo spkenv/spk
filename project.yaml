@@ -1,3 +1,0 @@
-scanner:
-  exclude_files: ["*"]
-  exclude_dirs: ["*"]

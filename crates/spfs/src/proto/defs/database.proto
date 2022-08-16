@@ -1,0 +1,96 @@
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+syntax = "proto3";
+
+package spfs;
+
+import "types.proto";
+import "error.proto";
+
+message ReadObjectRequest{
+    Digest digest = 1;
+}
+message ReadObjectResponse{
+    oneof result {
+        Error error = 1;
+        Object ok = 2;
+    }
+}
+
+message DigestSearchCriteria {
+    message All {}
+    message StartsWith { bytes bytes = 1; }
+
+    oneof criteria {
+        All all = 1;
+        StartsWith starts_with = 2;
+    }
+}
+
+message FindDigestsRequest { DigestSearchCriteria search_criteria = 1; }
+message FindDigestsResponse {
+    oneof result {
+        Error error = 1;
+        Digest ok = 2;
+    }
+}
+
+message IterDigestsRequest{}
+message IterDigestsResponse{
+    oneof result {
+        Error error = 1;
+        Digest ok = 2;
+    }
+}
+
+message IterObjectsRequest{}
+message IterObjectsResponse{
+    oneof result {
+        Error error = 1;
+        Object ok = 2;
+    }
+}
+
+message WalkObjectsRequest{
+    Digest root = 1;
+}
+message WalkObjectsResponse{
+    message WalkObjectsItem {
+        Digest digest = 1;
+        Object object = 2;
+    }
+    oneof result {
+        Error error = 1;
+        WalkObjectsItem ok = 2;
+    }
+}
+
+message WriteObjectRequest{
+    Object object = 1;
+}
+message WriteObjectResponse{
+    oneof result {
+        Error error = 1;
+        Ok ok = 2;
+    }
+}
+
+message RemoveObjectRequest{
+    Digest digest = 1;
+}
+message RemoveObjectResponse{
+    oneof result {
+        Error error = 1;
+        Ok ok = 2;
+    }
+}
+
+service DatabaseService {
+    rpc ReadObject(ReadObjectRequest) returns (ReadObjectResponse);
+    rpc FindDigests(FindDigestsRequest) returns (stream FindDigestsResponse);
+    rpc IterObjects(IterObjectsRequest) returns (stream IterObjectsResponse);
+    rpc WalkObjects(WalkObjectsRequest) returns (stream WalkObjectsResponse);
+    rpc WriteObject(WriteObjectRequest) returns (WriteObjectResponse);
+    rpc RemoveObject(RemoveObjectRequest) returns (RemoveObjectResponse);
+}

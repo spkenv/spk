@@ -16,7 +16,7 @@ To help understand the decision tree and what can go wrong let's look at some ex
 
 ### Package Doesn't Exist
 
-```bash
+```console
 $ spk explain -v doesntexist
  DEFINE {arch=x86_64, centos=7, distro=centos, os=linux}
  REQUEST doesntexist/*
@@ -34,7 +34,7 @@ This error is one of the most obvious - but knowing when and why it can appear h
 
 ### No Applicable Versions
 
-```bash
+```console
 $ spk explain -v gcc/3.*
  REQUEST gcc/3.*
  DEFINE {arch=x86_64, centos=7, distro=centos, os=linux}
@@ -59,7 +59,7 @@ In these cases, the additional use of the `--verbose (-v)` flag is extremely hel
 
 ### Incompatible Options
 
-```bash
+```console
 $ spk explain -v gcc/6 -o os=darwin
  DEFINE {arch=x86_64, centos=7, distro=centos, os=darwin}
  REQUEST gcc/6.0.0
@@ -83,7 +83,7 @@ In most cases, the solver will encouter multiple issues as it tries to find an a
 
 #### Incompatible Dependencies
 
-```bash
+```console
 $ spk explain -v my-plugin/1, maya/2020
  REQUEST my-plugin/1.0.0
  REQUEST maya/2019.0.0
@@ -101,7 +101,7 @@ The last line of this output is the unwinding of the solver stack. When the firs
 
 #### Recovered Incompatibility
 
-```bash
+```console
 $ spk explain -v my-plugin/1 maya/2019
  REQUEST my-plugin/1.0.0
  REQUEST maya/2019.0.0
@@ -120,7 +120,7 @@ Similar to above, `my-plugin/1.1.0` has a dependency on `maya/2020` which confli
 
 #### Revisiting a Request
 
-```bash
+```console
 $ spk explain -v my-plugin
  REQUEST my-plugin/*
 > RESOLVE my-plugin/1.0.0/3I42H3S6
@@ -138,7 +138,7 @@ In this example, `my-plugin` has two dependencies. The first maya dependency is 
 
 #### Deprecated Packages
 
-```
+```console
 $ spk explain -v my-tool
  REQUEST my-tool/*
 . TRY my-tool/1.2.0/STLY6HNC - Build is deprecated and was not specifically requested
@@ -157,7 +157,8 @@ Packages can be deprecated by package owners when an issue is found or an older 
 
 Some package, especially DCC packages, are bundled with other software/packages. Package maintainers should include these packages as _embedded_ packages, so that the solver understands what's in the bundle. The solver will show embedded packages being requested and resolved, always with the `embedded` build string.
 
-```
+```console
+$ spk explain qt maya
  REQUEST qt/*
  REQUEST maya/*
 > RESOLVE qt/5.13.0/3I42H3S6

@@ -1,0 +1,53 @@
+name: Rust
+
+on:
+  workflow_dispatch:
+  push:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: rust
+      options: --security-opt seccomp=unconfined --privileged
+    env:
+      # Disable cnproc because we're in a container
+      SPFS_MONITOR_DISABLE_CNPROC: "1"
+      # Define a local origin repo for tests to use
+      SPFS_REMOTE_origin_ADDRESS: "file:///tmp/spfs-repos/origin"
+    steps:
+      - uses: actions/checkout@v2
+      - name: Prepare Container
+        run: |
+          apt-get update
+          # nodejs is needed for rust-cache (when using `act`)
+          apt-get install -y libcap2-bin sudo nodejs cmake tcsh rsync protobuf-compiler
+          rustup component add clippy rustfmt
+      - uses: Swatinem/rust-cache@v1
+      - name: Build Slim
+        run: make debug FEATURES=
+      - name: Build Default
+        run: make debug
+      - name: Build Server
+        run: make debug FEATURES=spfs/server,spfs/cli
+      - name: Install Debug Binaries
+        run: make install-debug FEATURES=spfs/server,spfs/cli
+      - name: Setup a local origin repo
+        run: SPFS_REMOTE_origin_ADDRESS="${SPFS_REMOTE_origin_ADDRESS}?create=true" spfs ls-tags -r origin
+        # Run test before lint, lint takes a while and it is useful to know that
+        # the tests are failing before knowing if the lints are passing.
+      - name: Run Unit Tests
+        run: make test FEATURES=spfs/server,spfs/cli
+      - name: Lint
+        run: make lint FEATURES=spfs/server,spfs/cli
+      - name: SPFS Integration Tests
+        run: |
+          # Run tests as a normal user to verify privilege escalation
+          useradd -m e2e
+          su e2e -c crates/spfs/tests/integration/run_tests.sh
+      - name: Change perms for rust-cache
+        run: sudo chown -R $(id -u) target

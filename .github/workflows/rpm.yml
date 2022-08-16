@@ -1,45 +1,41 @@
-name: RPM & Packages
+name: Artifacts
 
 on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
-  build:
+  rpms:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - run: echo RPM_NAME=$(rpmspec -q spk.spec | head -n1) >> $GITHUB_ENV
-      - run: echo Building ${{ env.RPM_NAME }}.rpm
+      - name: install dependencies
+        run: |
+          apt-get update
+          apt-get install -y make
       - name: build RPM package
-        env:
-          SPFS_PULL_USERNAME: ${{ secrets.SPFS_PULL_USERNAME }}
-          SPFS_PULL_PASSWORD: ${{ secrets.SPFS_PULL_PASSWORD }}
-        run: make rpm
+        run: make rpms
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
-          name: Binary RPM
-          path: dist/rpm/RPMS/x86_64/${{ env.RPM_NAME }}.rpm
-  make_packages:
+          name: Binary RPMs
+          path: dist/rpm/RPMS/x86_64/
+  packages:
     runs-on: ubuntu-latest
-    needs: build
-    # we only build all the packages on master, and when
-    # it is manually triggered by someone to run
-    if: github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch'
+    needs: rpms
+    # we only build all the packages when
+    # it is manually triggered by someone
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v2
       - name: Download Deps
         uses: dawidd6/action-download-artifact@v2
         with:
-          github_token: ${{secrets.SPFS_PULL_PASSWORD}}
           workflow: rpm.yml
           workflow_conclusion: success
-          branch: master
           name: Binary RPM
-          repo: imageworks/spfs
       - uses: actions/download-artifact@v2
         with:
           name: Binary RPM

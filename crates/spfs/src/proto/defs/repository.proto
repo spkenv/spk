@@ -1,0 +1,13 @@
+// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+syntax = "proto3";
+
+package spfs;
+
+message PingRequest {}
+message PingResponse {}
+
+service Repository {
+    rpc Ping(PingRequest) returns (PingResponse);
+}
