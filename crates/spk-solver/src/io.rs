@@ -20,7 +20,7 @@ use once_cell::sync::Lazy;
 use spk_format::{
     FormatChange, FormatChangeOptions, FormatIdent, FormatOptionMap, FormatRequest, FormatSolution,
 };
-use spk_ident_build::Build;
+use spk_foundation::ident_build::Build;
 use spk_solver_graph::{
     Change, Decision, Node, Note, DUPLICATE_REQUESTS_COUNT, REQUESTS_FOR_SAME_PACKAGE_COUNT,
 };

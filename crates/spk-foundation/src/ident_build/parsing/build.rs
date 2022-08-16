@@ -13,13 +13,13 @@ use nom::{
 };
 use nom_supreme::tag::{complete::tag, TagError};
 
-use crate::Build;
+use crate::ident_build::Build;
 
 /// Parse a base32 build.
 ///
 /// Example: `"CU7ZWOIF"`
 ///
-/// The input must be of length [`crate::DIGEST_SIZE`].
+/// The input must be of length [`crate::ident_build::DIGEST_SIZE`].
 pub(crate) fn base32_build<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
@@ -38,7 +38,7 @@ pub fn build<'a, E>(input: &'a str) -> IResult<&'a str, Build, E>
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>
+        + FromExternalError<&'a str, crate::ident_build::error::Error>
         + TagError<&'a str, &'static str>,
 {
     map_res(build_str, Build::from_str)(input)
@@ -54,7 +54,11 @@ pub fn build_str<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
 {
-    alt((tag(crate::SRC), tag(crate::EMBEDDED), base32_build))(input)
+    alt((
+        tag(crate::ident_build::SRC),
+        tag(crate::ident_build::EMBEDDED),
+        base32_build,
+    ))(input)
 }
 
 #[inline]

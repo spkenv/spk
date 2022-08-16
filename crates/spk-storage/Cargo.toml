@@ -33,7 +33,6 @@ sentry = { version = "0.27.0", optional = true }
 spfs = { version = '0.34.6', path = "../spfs" }
 spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
-spk-ident-build = { path = "../spk-ident-build" }
 spk-ident-component = { path = "../spk-ident-component" }
 spk-ident-ops = { path = "../spk-ident-ops" }
 spk-name = { path = "../spk-name" }

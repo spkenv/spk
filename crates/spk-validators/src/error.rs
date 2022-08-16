@@ -26,7 +26,7 @@ pub enum Error {
     #[error(transparent)]
     InvalidNameError(#[from] spk_name::InvalidNameError),
     #[error(transparent)]
-    InvalidBuildError(#[from] spk_ident_build::InvalidBuildError),
+    InvalidBuildError(#[from] spk_foundation::ident_build::InvalidBuildError),
 
     // Storage Errors
     #[error("Package not found: {0}")]

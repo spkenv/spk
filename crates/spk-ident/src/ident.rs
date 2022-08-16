@@ -9,7 +9,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use spk_ident_ops::MetadataPath;
 
 use crate::{parsing, RangeIdent, Result};
-use spk_ident_build::Build;
+use spk_foundation::ident_build::Build;
 use spk_name::{PkgNameBuf, RepositoryNameBuf};
 use spk_version::Version;
 

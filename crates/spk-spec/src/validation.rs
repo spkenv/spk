@@ -98,11 +98,13 @@ impl ValidationSpec {
 
         for validator in self.configured_validators().iter() {
             if let Some(err) = validator.validate(package, &diffs, SPFS) {
-                return Err(spk_ident_build::InvalidBuildError::new_error(format!(
-                    "{:?}: {}",
-                    validator, err
-                ))
-                .into());
+                return Err(
+                    spk_foundation::ident_build::InvalidBuildError::new_error(format!(
+                        "{:?}: {}",
+                        validator, err
+                    ))
+                    .into(),
+                );
             }
         }
 

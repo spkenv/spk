@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::sync::Arc;
 
+use spk_foundation::ident_build::Build;
 use spk_ident::Ident;
-use spk_ident_build::Build;
 use spk_ident_component::Component;
 use spk_name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_spec::SpecRecipe;

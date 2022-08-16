@@ -23,8 +23,8 @@ serde_json = "1.0.57"
 serde_yaml = "0.8.17"
 spfs = { version = '0.34.6', path = "../spfs" }
 spk-env = { path = "../spk-env" }
+spk-foundation = { path = "../spk-foundation" }
 spk-ident = { path = "../spk-ident" }
-spk-ident-build = { path = "../spk-ident-build" }
 spk-ident-ops = { path = "../spk-ident-ops" }
 spk-name = { path = "../spk-name" }
 spk-spec-ops = { path = "../spk-spec-ops" }

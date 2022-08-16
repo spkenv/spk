@@ -22,8 +22,8 @@ pub struct InvalidBuildError {
 }
 
 impl InvalidBuildError {
-    pub fn new_error(msg: String) -> crate::Error {
-        crate::Error::InvalidBuildError(Self { message: msg })
+    pub fn new_error(msg: String) -> super::Error {
+        super::Error::InvalidBuildError(Self { message: msg })
     }
 }
 
@@ -67,9 +67,9 @@ impl std::fmt::Display for Build {
 }
 
 impl FromStr for Build {
-    type Err = crate::Error;
+    type Err = super::Error;
 
-    fn from_str(source: &str) -> crate::Result<Self> {
+    fn from_str(source: &str) -> super::Result<Self> {
         match source {
             SRC => Ok(Build::Source),
             EMBEDDED => Ok(Build::Embedded),
@@ -95,6 +95,6 @@ impl FromStr for Build {
 }
 
 /// Parse the given string as a build identifier
-pub fn parse_build<S: AsRef<str>>(digest: S) -> crate::Result<Build> {
+pub fn parse_build<S: AsRef<str>>(digest: S) -> super::Result<Build> {
     Build::from_str(digest.as_ref())
 }

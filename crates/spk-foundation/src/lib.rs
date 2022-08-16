@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 pub mod fixtures;
+pub mod ident_build;
 pub mod version_range;
 
 pub use fixtures::*;
