@@ -25,8 +25,8 @@ where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
     take_while_m_n(
-        spk_option_map::DIGEST_SIZE,
-        spk_option_map::DIGEST_SIZE,
+        crate::option_map::DIGEST_SIZE,
+        crate::option_map::DIGEST_SIZE,
         is_base32_digit,
     )(input)
 }

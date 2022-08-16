@@ -3,8 +3,8 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
+use spk_foundation::option_map;
 use spk_name::opt_name;
-use spk_option_map::option_map;
 
 use crate::{prelude::*, spec::SpecRecipe};
 

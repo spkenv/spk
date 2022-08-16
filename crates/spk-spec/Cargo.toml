@@ -27,7 +27,6 @@ spk-foundation = { path = "../spk-foundation" }
 spk-ident-component = { path = "../spk-ident-component" }
 spk-ident = { path = "../spk-ident" }
 spk-name = { path = "../spk-name" }
-spk-option-map = { path = "../spk-option-map" }
 spk-validators = { path = "../spk-validators" }
 spk-version = { path = "../spk-version" }
 sys-info = "0.9.0"

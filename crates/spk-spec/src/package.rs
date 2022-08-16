@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::PackageOps;
-use spk_option_map::OptionMap;
 use spk_version::{Compat, Compatibility};
 
 #[cfg(test)]

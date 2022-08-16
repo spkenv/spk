@@ -10,6 +10,11 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_name::{OptName, OptNameBuf, PkgName};
 
+mod error;
+mod format;
+
+pub use error::{Error, Result};
+
 #[cfg(test)]
 #[path = "./option_map_test.rs"]
 mod option_map_test;
@@ -25,7 +30,7 @@ type Digest = [char; DIGEST_SIZE];
 /// Create a set of options from a simple mapping.
 ///
 /// ```
-/// # #[macro_use] extern crate spk_option_map;
+/// # #[macro_use] extern crate spk_foundation;
 /// # fn main() {
 /// option_map!{
 ///   "debug" => "on",
@@ -40,7 +45,7 @@ macro_rules! option_map {
         use {
             std::convert::TryFrom,
             spk_name::OptNameBuf,
-            $crate::OptionMap
+            $crate::option_map::OptionMap
         };
         #[allow(unused_mut)]
         let mut opts = OptionMap::default();
@@ -53,7 +58,7 @@ macro_rules! option_map {
 }
 
 /// Detect and return the default options for the current host system.
-pub fn host_options() -> crate::Result<OptionMap> {
+pub fn host_options() -> Result<OptionMap> {
     let mut opts = OptionMap::default();
     opts.insert(OptName::os().to_owned(), std::env::consts::OS.into());
     opts.insert(OptName::arch().to_owned(), std::env::consts::ARCH.into());
@@ -61,7 +66,7 @@ pub fn host_options() -> crate::Result<OptionMap> {
     let info = match sys_info::linux_os_release() {
         Ok(i) => i,
         Err(err) => {
-            return Err(crate::Error::String(format!(
+            return Err(Error::String(format!(
                 "Failed to get linux info: {:?}",
                 err
             )))

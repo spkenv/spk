@@ -10,10 +10,10 @@ mod solver;
 // Re-export for macros
 pub use serde_json;
 pub use spfs;
+pub use spk_foundation::option_map;
 pub use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
 pub use spk_ident::{parse_ident_range, PkgRequest, Request, RequestedBy};
 pub use spk_ident_component::Component;
-pub use spk_option_map::option_map;
 pub use spk_solver_solution::{PackageSource, Solution};
 pub use spk_spec::{recipe, spec, v0, Package, Recipe, Spec};
 pub use spk_storage::RepositoryHandle;

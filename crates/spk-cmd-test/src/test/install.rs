@@ -9,10 +9,10 @@ use std::sync::Arc;
 
 use spk_cli_common::{Error, Result, TestError};
 use spk_exec::resolve_runtime_layers;
+use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::RecipeOps;
 use spk_ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_ident_component::Component;
-use spk_option_map::OptionMap;
 use spk_solver::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_solver_graph::Graph;
 use spk_spec::SpecRecipe;

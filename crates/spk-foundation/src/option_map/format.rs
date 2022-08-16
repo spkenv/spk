@@ -5,7 +5,7 @@
 use colored::Colorize;
 use spk_format::FormatOptionMap;
 
-use crate::OptionMap;
+use super::OptionMap;
 
 impl FormatOptionMap for OptionMap {
     fn format_option_map(&self) -> String {

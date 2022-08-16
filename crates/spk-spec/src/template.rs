@@ -4,8 +4,8 @@
 
 use std::path::Path;
 
+use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::Named;
-use spk_option_map::OptionMap;
 
 use crate::Result;
 

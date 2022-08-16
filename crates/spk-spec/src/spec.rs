@@ -7,10 +7,10 @@ use std::str::FromStr;
 
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
+use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
 use spk_ident::{Ident, PkgRequest, RangeIdent, Request, VarRequest};
 use spk_name::{PkgName, PkgNameBuf};
-use spk_option_map::OptionMap;
 use spk_version::{Compat, Compatibility, Version};
 
 use crate::{test_spec::TestSpec, Deprecate, DeprecateMut, Error, Package, Result};
