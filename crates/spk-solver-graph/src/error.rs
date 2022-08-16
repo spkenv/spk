@@ -5,7 +5,7 @@
 use std::fmt::Write;
 
 use colored::Colorize;
-use spk_format::FormatError;
+use spk_foundation::format::FormatError;
 use spk_ident::PkgRequest;
 use thiserror::Error;
 

@@ -20,7 +20,6 @@ serde_json = "1.0.57"
 serde_yaml = "0.8.17"
 spfs = { version = '0.34.6', path = "../spfs" }
 spk-cli-common = { path = '../spk-cli-common' }
-spk-format = { path = '../spk-format' }
 spk-foundation = { path = '../spk-foundation' }
 spk-ident = { path = '../spk-ident' }
 spk-name = { path = '../spk-name' }

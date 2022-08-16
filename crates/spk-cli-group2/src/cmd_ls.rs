@@ -8,7 +8,7 @@ use anyhow::{anyhow, Result};
 use clap::Args;
 use colored::Colorize;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_format::{FormatComponents, FormatIdent, FormatOptionMap};
+use spk_foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
 use spk_foundation::ident_component::ComponentSet;
 use spk_ident::{
     parse_ident,

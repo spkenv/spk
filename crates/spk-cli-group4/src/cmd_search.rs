@@ -4,7 +4,7 @@
 use anyhow::Result;
 use clap::Args;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_format::FormatIdent;
+use spk_foundation::format::FormatIdent;
 use spk_ident::parse_ident;
 
 /// Search for packages by name/substring

@@ -24,7 +24,6 @@ members = [
     "crates/spk-cmd-test",
     "crates/spk-exec",
     "crates/spk-foundation",
-    "crates/spk-format",
     "crates/spk-ident",
     "crates/spk-launcher",
     "crates/spk-name",

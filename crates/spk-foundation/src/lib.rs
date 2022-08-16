@@ -4,6 +4,7 @@
 
 pub mod env;
 pub mod fixtures;
+pub mod format;
 pub mod ident_build;
 pub mod ident_component;
 pub mod ident_ops;

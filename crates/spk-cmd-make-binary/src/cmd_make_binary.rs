@@ -9,7 +9,7 @@ use clap::Args;
 use futures::TryFutureExt;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{flags, spk_exe, CommandArgs, Run};
-use spk_format::{FormatIdent, FormatOptionMap};
+use spk_foundation::format::{FormatIdent, FormatOptionMap};
 use spk_foundation::option_map::{host_options, OptionMap};
 use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps};
 use spk_ident::{PkgRequest, RangeIdent, RequestedBy};

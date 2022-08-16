@@ -10,7 +10,7 @@ use colored::Colorize;
 use futures::TryFutureExt;
 use spk_cli_common::{build_required_packages, current_env, flags, CommandArgs, Run};
 use spk_exec::setup_current_runtime;
-use spk_format::FormatIdent;
+use spk_foundation::format::FormatIdent;
 use spk_foundation::spec_ops::{Named, PackageOps};
 
 /// Install a package into the current environment

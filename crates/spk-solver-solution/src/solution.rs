@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
 };
 
-use spk_format::{FormatChangeOptions, FormatOptionMap, FormatRequest, FormatSolution};
+use spk_foundation::format::{FormatChangeOptions, FormatOptionMap, FormatRequest, FormatSolution};
 use spk_foundation::ident_component::Component;
 use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::{Named, PackageOps, Versioned};

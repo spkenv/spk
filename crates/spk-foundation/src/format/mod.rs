@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+mod error;
+
+pub use error::{Error, Result};
+
 use spk_name::{PkgName, RepositoryNameBuf};
 
 /// Helper to hold values that affect the formatting of a request

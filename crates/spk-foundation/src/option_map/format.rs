@@ -3,7 +3,8 @@
 // https://github.com/imageworks/spk
 
 use colored::Colorize;
-use spk_format::FormatOptionMap;
+
+use crate::format::FormatOptionMap;
 
 use super::OptionMap;
 

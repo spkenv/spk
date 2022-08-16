@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use spk_format::{FormatComponents, FormatIdent};
+use spk_foundation::format::{FormatComponents, FormatIdent};
 use spk_foundation::ident_component::ComponentSet;
 use spk_foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_ident::Ident;

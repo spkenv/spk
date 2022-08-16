@@ -8,7 +8,7 @@ use anyhow::Result;
 use clap::Args;
 use spk_build::BuildSource;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_format::{FormatIdent, FormatOptionMap};
+use spk_foundation::format::{FormatIdent, FormatOptionMap};
 use spk_foundation::ident_build::Build;
 use spk_foundation::option_map::{host_options, OptionMap};
 use spk_foundation::spec_ops::RecipeOps;

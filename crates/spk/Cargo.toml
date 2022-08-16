@@ -29,6 +29,6 @@ spk-cmd-make-source = { path = '../spk-cmd-make-source' }
 spk-cmd-render = { path = '../spk-cmd-render' }
 spk-cmd-repo = { path = '../spk-cmd-repo' }
 spk-cmd-test = { path = '../spk-cmd-test' }
-spk-format = { path = '../spk-format' }
+spk-foundation = { path = '../spk-foundation' }
 tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"
