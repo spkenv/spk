@@ -145,14 +145,27 @@ where
         Some(exe) => exe,
     };
 
-    let mut enter_args = vec![
+    let mut enter_args = Vec::new();
+
+    // Capture the current $TMPDIR value here before it is lost when running
+    // privileged process spfs-enter.
+    if let Some(tmpdir_value_for_child_process) = std::env::var_os("TMPDIR") {
+        tracing::trace!(
+            ?tmpdir_value_for_child_process,
+            "capture existing value for $TMPDIR (build_spfs_enter_command)"
+        );
+
+        enter_args.extend(["--tmpdir".into(), tmpdir_value_for_child_process]);
+    }
+
+    enter_args.extend([
         "--runtime-storage".into(),
         rt.storage().address().to_string().into(),
         "--runtime".into(),
         rt.name().into(),
         "--".into(),
         command.into(),
-    ];
+    ]);
     enter_args.extend(args.into_iter().map(Into::into));
     Ok(Command {
         executable: exe.into(),

@@ -28,7 +28,7 @@ components:
         -v $PWD/dist/rpm/RPMS/x86_64:/tmp/rpms
         -v $PWD/tests/integration:/tests
         $CENTOS_IMAGE
-        bash -xc "yum install -y /tmp/rpms/*.rpm  && bash /tests/run_tests.sh"
+        bash -xc "yum install -y tcsh /tmp/rpms/*.rpm  && bash /tests/run_tests.sh"
     ci_config:
       parallel: true
       needs:
