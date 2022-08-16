@@ -6,11 +6,11 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use spk_foundation::ident_build::Build;
+use spk_foundation::spec_ops::{Named, PackageOps, Versioned};
 use spk_ident::Ident;
 use spk_ident_component::Component;
 use spk_name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_spec::SpecRecipe;
-use spk_spec_ops::{Named, PackageOps, Versioned};
 use spk_version::Version;
 use tokio::sync::RwLock;
 

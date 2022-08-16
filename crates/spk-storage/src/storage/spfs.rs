@@ -18,11 +18,11 @@ use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 use spfs::{storage::EntryType, tracking};
 use spk_foundation::ident_build::{parse_build, Build, InvalidBuildError};
+use spk_foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_ident::Ident;
 use spk_ident_component::Component;
 use spk_name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_spec::{Spec, SpecRecipe};
-use spk_spec_ops::{PackageOps, RecipeOps};
 use spk_version::{parse_version, Version};
 use tokio::io::AsyncReadExt;
 

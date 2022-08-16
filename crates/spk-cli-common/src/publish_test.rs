@@ -3,9 +3,9 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
+use spk_foundation::spec_ops::PackageOps;
 use spk_ident_component::Component;
 use spk_solver::{recipe, spec};
-use spk_spec_ops::PackageOps;
 use spk_storage::fixtures::*;
 
 use super::Publisher;

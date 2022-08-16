@@ -7,8 +7,8 @@ use std::iter::FromIterator;
 
 use serde::{Deserialize, Serialize};
 use spk_build_ops::reset_permissions;
+use spk_foundation::spec_ops::{ComponentOps, PackageOps};
 use spk_ident_ops::MetadataPath;
-use spk_spec_ops::{ComponentOps, PackageOps};
 use spk_validators::{
     must_collect_all_files, must_install_something, must_not_alter_existing_files,
 };

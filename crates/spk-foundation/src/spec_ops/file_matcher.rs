@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Result};
+use super::{Error, Result};
 
 #[cfg(test)]
 #[path = "./file_matcher_test.rs"]

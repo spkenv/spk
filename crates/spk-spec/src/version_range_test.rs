@@ -7,15 +7,14 @@ use proptest::{
     prelude::*,
 };
 use rstest::rstest;
-use spk_spec::{spec, Spec};
+use spk_foundation::version_range::{
+    parse_version_range, CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
+    GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
+    LowestSpecifiedRange, NotEqualsVersion, Ranged, SemverRange, VersionRange, WildcardRange,
+};
 use spk_version::{parse_version, CompatRule, TagSet, Version, VersionParts};
 
-use super::{
-    parse_version_range, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
-    GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
-    LowestSpecifiedRange, NotEqualsVersion, SemverRange, WildcardRange,
-};
-use super::{CompatRange, Ranged, VersionRange};
+use super::{spec, Spec};
 
 #[rstest]
 fn test_parse_version_range_carat() {
@@ -239,9 +238,9 @@ fn arb_lowest_specified_range_from_version(
                 0..=(*version.parts.get(parts_to_generate - 1).unwrap()),
             )
                 .prop_map(|(version, parts_to_generate, last_element_value)| {
-                    VersionRange::LowestSpecified(LowestSpecifiedRange {
-                        specified: parts_to_generate,
-                        base: Version {
+                    VersionRange::LowestSpecified(LowestSpecifiedRange::new(
+                        parts_to_generate,
+                        Version {
                             parts: version
                                 .parts
                                 .iter()
@@ -262,7 +261,7 @@ fn arb_lowest_specified_range_from_version(
                             pre: version.pre,
                             post: version.post,
                         },
-                    })
+                    ))
                 })
         },
     )
@@ -299,32 +298,30 @@ fn arb_semver_range_from_version(version: Version) -> impl Strategy<Value = Vers
             (Just(version), Just(parts_to_generate), ranges).prop_map(
                 |(version, parts_to_generate, values_to_use)| {
                     let mut found_non_zero = false;
-                    VersionRange::Semver(SemverRange {
-                        minimum: Version {
-                            parts: version
-                                .parts
-                                .iter()
-                                .take(parts_to_generate)
-                                .zip(values_to_use.iter())
-                                .map(|(actual_number, proposed_number)| {
-                                    if !found_non_zero && *actual_number == 0 {
-                                        found_non_zero = true;
-                                        *actual_number
-                                    } else if !found_non_zero {
-                                        *actual_number
-                                    } else {
-                                        *proposed_number
-                                    }
-                                })
-                                .collect::<Vec<_>>()
-                                .into(),
-                            // Retain pre and post from original version because
-                            // if the original has pre it might be smaller than
-                            // the smallest value we generated without it.
-                            pre: version.pre,
-                            post: version.post,
-                        },
-                    })
+                    VersionRange::Semver(SemverRange::new(Version {
+                        parts: version
+                            .parts
+                            .iter()
+                            .take(parts_to_generate)
+                            .zip(values_to_use.iter())
+                            .map(|(actual_number, proposed_number)| {
+                                if !found_non_zero && *actual_number == 0 {
+                                    found_non_zero = true;
+                                    *actual_number
+                                } else if !found_non_zero {
+                                    *actual_number
+                                } else {
+                                    *proposed_number
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .into(),
+                        // Retain pre and post from original version because
+                        // if the original has pre it might be smaller than
+                        // the smallest value we generated without it.
+                        pre: version.pre,
+                        post: version.post,
+                    }))
                 },
             )
         },
@@ -357,12 +354,13 @@ fn arb_wildcard_range_from_version(version: Version) -> impl Strategy<Value = Ve
 fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = VersionRange> {
     prop_oneof![
         // Compat: the same version
-        (weighted(0.33, arb_compat_rule()), Just(version.clone()))
-            .prop_map(|(required, base)| { VersionRange::Compat(CompatRange { base, required }) }),
+        (weighted(0.33, arb_compat_rule()), Just(version.clone())).prop_map(|(required, base)| {
+            VersionRange::Compat(CompatRange::new(base, required))
+        }),
         // DoubleEquals: the same version
-        Just(VersionRange::DoubleEquals(DoubleEqualsVersion {
-            version: version.clone()
-        })),
+        Just(VersionRange::DoubleEquals(DoubleEqualsVersion::new(
+            version.clone()
+        ))),
         // DoubleNotEquals: an arbitrary version that isn't equal
         (arb_version(), Just(version.clone()))
             .prop_filter(
@@ -370,15 +368,13 @@ fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = Ve
                 |(other_version, version)| other_version != version
             )
             .prop_map(|(other_version, _)| {
-                VersionRange::DoubleNotEquals(DoubleNotEqualsVersion {
-                    specified: other_version.parts.len(),
-                    base: other_version,
-                })
+                VersionRange::DoubleNotEquals(DoubleNotEqualsVersion::new(
+                    other_version.parts.len(),
+                    other_version,
+                ))
             }),
         // Equals: the same version
-        Just(VersionRange::Equals(EqualsVersion {
-            version: version.clone()
-        })),
+        Just(VersionRange::Equals(EqualsVersion::new(version.clone()))),
         // Filter: skipping for now
         // GreaterThan: an arbitrary version that is <=
         (arb_version(), Just(version.clone()))
@@ -387,9 +383,7 @@ fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = Ve
                 |(other_version, version)| other_version <= version
             )
             .prop_map(|(other_version, _)| {
-                VersionRange::GreaterThan(GreaterThanRange {
-                    bound: other_version,
-                })
+                VersionRange::GreaterThan(GreaterThanRange::new(other_version))
             }),
         // GreaterThanOrEqualTo: an arbitrary version that is <
         (arb_version(), Just(version.clone()))
@@ -398,9 +392,7 @@ fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = Ve
                 |(other_version, version)| other_version < version
             )
             .prop_map(|(other_version, _)| {
-                VersionRange::GreaterThanOrEqualTo(GreaterThanOrEqualToRange {
-                    bound: other_version,
-                })
+                VersionRange::GreaterThanOrEqualTo(GreaterThanOrEqualToRange::new(other_version))
             }),
         // LesserThan: an arbitrary version that is >=
         (arb_version(), Just(version.clone()))
@@ -409,9 +401,7 @@ fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = Ve
                 |(other_version, version)| other_version >= version
             )
             .prop_map(|(other_version, _)| {
-                VersionRange::LessThan(LessThanRange {
-                    bound: other_version,
-                })
+                VersionRange::LessThan(LessThanRange::new(other_version))
             }),
         // LessThanOrEqualTo: an arbitrary version that is >
         (arb_version(), Just(version.clone()))
@@ -420,9 +410,7 @@ fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = Ve
                 |(other_version, version)| other_version > version
             )
             .prop_map(|(other_version, _)| {
-                VersionRange::LessThanOrEqualTo(LessThanOrEqualToRange {
-                    bound: other_version,
-                })
+                VersionRange::LessThanOrEqualTo(LessThanOrEqualToRange::new(other_version))
             }),
         // LowestSpecified: transform version digits
         arb_lowest_specified_range_from_version(version.clone()),
@@ -433,10 +421,10 @@ fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = Ve
                 |(other_version, version)| other_version != version
             )
             .prop_map(|(other_version, _)| {
-                VersionRange::NotEquals(NotEqualsVersion {
-                    specified: other_version.parts.len(),
-                    base: other_version,
-                })
+                VersionRange::NotEquals(NotEqualsVersion::new(
+                    other_version.parts.len(),
+                    other_version,
+                ))
             }),
         // Semver: transform version digits
         arb_semver_range_from_version(version.clone()),

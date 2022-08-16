@@ -19,7 +19,6 @@ spk-name = { path = "../spk-name" }
 spk-option-map = { path = "../spk-option-map" }
 spk-solver-solution = { path = "../spk-solver-solution" }
 spk-spec = { path = "../spk-spec" }
-spk-spec-ops = { path = '../spk-spec-ops' }
 spk-storage = { path = "../spk-storage" }
 spk-validators = { path = "../spk-validators" }
 spk-version = { path = "../spk-version" }

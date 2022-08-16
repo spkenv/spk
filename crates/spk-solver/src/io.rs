@@ -21,10 +21,10 @@ use spk_format::{
     FormatChange, FormatChangeOptions, FormatIdent, FormatOptionMap, FormatRequest, FormatSolution,
 };
 use spk_foundation::ident_build::Build;
+use spk_foundation::spec_ops::PackageOps;
 use spk_solver_graph::{
     Change, Decision, Node, Note, DUPLICATE_REQUESTS_COUNT, REQUESTS_FOR_SAME_PACKAGE_COUNT,
 };
-use spk_spec_ops::PackageOps;
 
 use crate::{Error, ResolverCallback, Result, Solution, Solver, SolverRuntime};
 

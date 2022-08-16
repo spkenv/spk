@@ -3,11 +3,11 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
+use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps};
 use spk_ident::parse_ident;
 use spk_ident_component::Component;
 use spk_name::pkg_name;
 use spk_spec::{recipe, spec};
-use spk_spec_ops::{Named, PackageOps, RecipeOps};
 
 use crate::{fixtures::*, Error};
 

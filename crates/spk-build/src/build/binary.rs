@@ -13,6 +13,7 @@ use spfs::prelude::*;
 use spk_env::data_path;
 use spk_exec::resolve_runtime_layers;
 use spk_foundation::ident_build::Build;
+use spk_foundation::spec_ops::{ComponentOps, PackageOps};
 use spk_ident::{Ident, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
 use spk_ident_component::Component;
 use spk_ident_ops::MetadataPath;
@@ -22,7 +23,6 @@ use spk_solver::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solve
 use spk_solver_graph::Graph;
 use spk_solver_solution::Solution;
 use spk_spec::{ComponentSpecList, Package};
-use spk_spec_ops::{ComponentOps, PackageOps};
 use spk_storage::{self as storage};
 use spk_version::VERSION_SEP;
 

@@ -15,6 +15,7 @@ use async_stream::stream;
 use futures::{Stream, TryStreamExt};
 use priority_queue::priority_queue::PriorityQueue;
 use spk_foundation::ident_build::Build;
+use spk_foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_ident::{Ident, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_ident_component::Component;
 use spk_name::{PkgName, PkgNameBuf};
@@ -29,7 +30,6 @@ use spk_solver_package_iterator::{
 use spk_solver_solution::{PackageSource, Solution};
 use spk_solver_validation::{default_validators, BinaryOnlyValidator, ValidatorT, Validators};
 use spk_spec::{Deprecate, Package, Recipe, Spec, SpecRecipe};
-use spk_spec_ops::{PackageOps, RecipeOps};
 use spk_storage::RepositoryHandle;
 use spk_version::Compatibility;
 

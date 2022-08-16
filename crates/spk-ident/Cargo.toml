@@ -24,7 +24,6 @@ spk-foundation = { path = "../spk-foundation" }
 spk-ident-component = { path = "../spk-ident-component" }
 spk-ident-ops = { path = "../spk-ident-ops" }
 spk-name = { path = "../spk-name" }
-spk-spec-ops = { path = "../spk-spec-ops" }
 spk-version = { path = "../spk-version" }
 
 [dev-dependencies]
