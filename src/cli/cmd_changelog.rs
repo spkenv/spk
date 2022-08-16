@@ -5,11 +5,11 @@
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use super::{flags, CommandArgs, Run};
 
-use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use chrono::{DateTime, Duration, Local, NaiveDateTime, Utc};
 /// Returns meta data of packages changed within a time frame
 #[derive(Args)]
 pub struct Changelog {
@@ -42,22 +42,8 @@ impl Run for Changelog {
             }
         }
 
-        // Seconds in day, week, month, and year for comparison when checking creation date.
-        let range_in_seconds: HashMap<&str, i64> = HashMap::from([
-            ("d", 86400),    // day
-            ("w", 604800),   // week
-            ("m", 2592000),  // month
-            ("y", 31104000), // year
-        ]);
-        let changelog_range: i64 = match &self.time {
-            None => *range_in_seconds.get("m").unwrap(),
-            Some(time) => {
-                let range_vec = time.split_terminator("").skip(1).collect::<Vec<&str>>();
-                let range_multiplier = atoi::<i64>(time).unwrap();
-                let range_type = *range_in_seconds.get(range_vec.last().unwrap()).unwrap();
-                range_multiplier * range_type
-            }
-        };
+        let oldest_date_for_search =
+            age_to_date(self.time.clone().unwrap_or_else(|| "1m".into()))?.timestamp();
 
         match &self.package {
             None => {
@@ -97,7 +83,7 @@ impl Run for Changelog {
                             }
 
                             let recent_change = spec.meta.get_recent_modified_time();
-                            print_modified_packages(name, changelog_range, &recent_change);
+                            print_modified_packages(name, oldest_date_for_search, &recent_change);
                         }
                     }
                 }
@@ -134,7 +120,7 @@ impl Run for Changelog {
                     }
 
                     for change in &Arc::make_mut(&mut spec).meta.modification_history {
-                        print_modified_packages(ident.to_string(), changelog_range, change);
+                        print_modified_packages(ident.to_string(), oldest_date_for_search, change);
                     }
                 }
             }
@@ -143,15 +129,30 @@ impl Run for Changelog {
     }
 }
 
+fn age_to_date(age: String) -> spfs::Result<DateTime<Utc>> {
+    let (num, postfix) = age.split_at(age.len() - 1);
+    let num: i64 = num
+        .parse()
+        .map_err(|err| spfs::Error::from(format!("{:?}", err)))?;
+    if num < 0 {
+        return Err(format!("provided age must be greater than zero: '{age}'").into());
+    }
+
+    match postfix {
+        "y" => Ok(Utc::now() - Duration::weeks(num * 52)),
+        "m" => Ok(Utc::now() - Duration::weeks(num * 4)),
+        "w" => Ok(Utc::now() - Duration::weeks(num)),
+        "d" => Ok(Utc::now() - Duration::days(num)),
+        _ => Err(format!("Unknown age postfix: '{postfix}', must be one of y, m, w, d").into()),
+    }
+}
+
 fn print_modified_packages(
     pkg: String,
-    changelog_range: i64,
+    oldest_date_for_search: i64,
     metadata: &spk::api::meta::ModifiedMetaData,
 ) {
-    let current_time = chrono::offset::Local::now().timestamp();
-    let diff = current_time - metadata.timestamp;
-
-    if diff < changelog_range {
+    if oldest_date_for_search < metadata.timestamp {
         let naive_date_time = NaiveDateTime::from_timestamp(metadata.timestamp, 0);
         let date_time = DateTime::<Utc>::from_utc(naive_date_time, Utc).with_timezone(&Local);
         println!(
@@ -167,12 +168,6 @@ fn print_modified_packages(
         );
         println!();
     }
-}
-
-// https://stackoverflow.com/questions/65601579/parse-an-integer-ignoring-any-non-numeric-suffix
-fn atoi<F: FromStr>(input: &str) -> Result<F, <F as FromStr>::Err> {
-    let i = input.find(|c: char| !c.is_numeric()).unwrap_or(input.len());
-    input[..i].parse::<F>()
 }
 
 impl CommandArgs for Changelog {
