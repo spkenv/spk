@@ -3,9 +3,9 @@
 // https://github.com/imageworks/spk
 
 use spk_format::{FormatComponents, FormatIdent};
+use spk_foundation::ident_component::ComponentSet;
 use spk_foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_ident::Ident;
-use spk_ident_component::ComponentSet;
 use spk_storage::{self as storage};
 use std::sync::Arc;
 use storage::{with_cache_policy, CachePolicy};

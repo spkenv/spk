@@ -17,11 +17,11 @@ use spk_format::{FormatBuild, FormatComponents, FormatRequest};
 use super::Ident;
 use crate::{BuildIdent, Error, Result};
 use spk_foundation::ident_build::Build;
+use spk_foundation::ident_component::{Component, ComponentSet};
 use spk_foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_foundation::version_range::{
     DoubleEqualsVersion, EqualsVersion, Ranged, RestrictMode, VersionFilter, VersionRange,
 };
-use spk_ident_component::{Component, ComponentSet};
 use spk_name::{OptName, OptNameBuf, PkgName, PkgNameBuf, RepositoryNameBuf};
 use spk_version::{CompatRule, Compatibility, Version, API_STR, BINARY_STR};
 

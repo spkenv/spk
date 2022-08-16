@@ -4,8 +4,8 @@
 use std::convert::TryInto;
 
 use serde::{Deserialize, Serialize};
+use spk_foundation::ident_component::Component;
 use spk_foundation::spec_ops::{ComponentOps, FileMatcher};
-use spk_ident_component::Component;
 
 use crate::Result;
 
@@ -29,7 +29,9 @@ pub struct ComponentSpec {
 
 impl ComponentSpec {
     /// Create a new, empty component with the given name
-    pub fn new<S: TryInto<Component, Error = spk_ident_component::Error>>(name: S) -> Result<Self> {
+    pub fn new<S: TryInto<Component, Error = spk_foundation::ident_component::Error>>(
+        name: S,
+    ) -> Result<Self> {
         let name = name.try_into()?;
         Ok(Self {
             name,

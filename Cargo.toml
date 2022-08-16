@@ -26,7 +26,6 @@ members = [
     "crates/spk-foundation",
     "crates/spk-format",
     "crates/spk-ident",
-    "crates/spk-ident-component",
     "crates/spk-launcher",
     "crates/spk-name",
     "crates/spk-solver",

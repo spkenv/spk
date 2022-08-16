@@ -21,7 +21,6 @@ spk-cli-common = { path = '../spk-cli-common' }
 spk-format = { path = '../spk-format' }
 spk-foundation = { path = '../spk-foundation' }
 spk-ident = { path = '../spk-ident' }
-spk-ident-component = { path = '../spk-ident-component' }
 spk-name = { path = '../spk-name' }
 spk-solver = { path = '../spk-solver' }
 spk-spec = { path = '../spk-spec' }

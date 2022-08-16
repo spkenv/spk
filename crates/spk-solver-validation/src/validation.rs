@@ -4,9 +4,9 @@
 
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
+use spk_foundation::ident_component::Component;
 use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps};
 use spk_ident::{Ident, PkgRequest, Request, VarRequest};
-use spk_ident_component::Component;
 use spk_solver_graph::{CachedHash, GetMergedRequestError, State};
 use spk_solver_solution::PackageSource;
 use spk_spec::{Package, Recipe, Spec};
