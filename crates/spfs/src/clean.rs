@@ -55,6 +55,7 @@ pub async fn purge_objects(
     let map_err = |e| Error::String(format!("Unexpected error in clean process: {e}"));
 
     let repo = Arc::new(crate::open_repository(repo).await?);
+    let renders_for_all_users = Arc::new(repo.renders_for_all_users()?);
 
     // we still do each of these pieces separately, because we'd like
     // to ensure that objects are removed successfully before any
@@ -85,7 +86,7 @@ pub async fn purge_objects(
 
     let mut futures: futures::stream::FuturesUnordered<_> = objects
         .iter()
-        .map(|digest| tokio::spawn(clean_render(Arc::clone(&repo), **digest)))
+        .map(|digest| tokio::spawn(clean_render(Arc::clone(&renders_for_all_users), **digest)))
         .collect();
     while let Some(result) = futures.next().await {
         if let Err(err) = result.map_err(map_err).and_then(|e| e) {
@@ -133,16 +134,20 @@ async fn clean_payload(
 }
 
 async fn clean_render(
-    repo: Arc<storage::RepositoryHandle>,
+    renders_for_all_users: Arc<Vec<Box<dyn storage::ManifestViewer>>>,
     digest: encoding::Digest,
 ) -> Result<()> {
-    let viewer = repo.renders()?;
-    let res = viewer.remove_rendered_manifest(digest).await;
-    if let Err(crate::Error::UnknownObject(_)) = res {
-        Ok(())
-    } else {
-        res
+    let mut result = None;
+    for viewer in renders_for_all_users.iter() {
+        match viewer.remove_rendered_manifest(digest).await {
+            Ok(_) | Err(crate::Error::UnknownObject(_)) => continue,
+            err @ Err(_) => {
+                // Remember this error but attempt to clean all the users.
+                result = Some(err);
+            }
+        }
     }
+    result.unwrap_or(Ok(()))
 }
 
 pub async fn get_all_unattached_objects(
