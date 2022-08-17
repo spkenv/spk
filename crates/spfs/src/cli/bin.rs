@@ -8,7 +8,6 @@ use spfs::Error;
 #[macro_use]
 mod args;
 mod cmd_check;
-mod cmd_clean;
 mod cmd_commit;
 mod cmd_config;
 mod cmd_diff;
@@ -83,7 +82,6 @@ pub enum Command {
     Ls(cmd_ls::CmdLs),
     Migrate(cmd_migrate::CmdMigrate),
     Check(cmd_check::CmdCheck),
-    Clean(cmd_clean::CmdClean),
     Read(cmd_read::CmdRead),
     Write(cmd_write::CmdWrite),
 
@@ -116,7 +114,6 @@ impl Opt {
             Command::Ls(cmd) => cmd.run(config).await,
             Command::Migrate(cmd) => cmd.run(config).await,
             Command::Check(cmd) => cmd.run(config).await,
-            Command::Clean(cmd) => cmd.run(config).await,
             Command::Read(cmd) => cmd.run(config).await,
             Command::Write(cmd) => cmd.run(config).await,
             Command::Run(cmd) => cmd.run(config).await,
