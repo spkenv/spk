@@ -1,0 +1,31 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spfs-storage"
+version = "0.34.6"
+
+[lib]
+name = "spfs_storage"
+path = "src/lib.rs"
+
+[dependencies]
+async-stream = "0.3"
+async-trait = "0.1.52"
+close-err = "1.0"
+futures = "0.3.9"
+spfs-encoding = { path = '../spfs-encoding' }
+tokio = { version = "1.20", features = [
+    "fs",
+    "io-util",
+    "io-std",
+    "rt",
+    "rt-multi-thread",
+    "macros",
+    "sync",
+    "process",
+    "signal"
+] }
+tokio-stream = { version = "0.1", features = ["net"] }
+
+[dev-dependencies]
+rstest = { version = "0.15.0", default_features = false }

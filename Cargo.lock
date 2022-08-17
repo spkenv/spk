@@ -2641,6 +2641,7 @@ dependencies = [
  "serde_json",
  "serde_qs",
  "serial_test",
+ "spfs-storage",
  "strum",
  "strum_macros",
  "tar",
@@ -2657,6 +2658,39 @@ dependencies = [
  "uuid",
  "walkdir",
  "whoami",
+]
+
+[[package]]
+name = "spfs-encoding"
+version = "0.34.6"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "close-err",
+ "data-encoding",
+ "futures",
+ "libc",
+ "rand 0.8.5",
+ "ring",
+ "rstest",
+ "serde",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
+name = "spfs-storage"
+version = "0.34.6"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "close-err",
+ "futures",
+ "rstest",
+ "spfs-encoding",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]

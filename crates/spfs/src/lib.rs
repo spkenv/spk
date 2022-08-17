@@ -16,7 +16,6 @@ mod clean;
 mod commit;
 pub mod config;
 mod diff;
-pub mod encoding;
 pub mod env;
 mod error;
 pub mod graph;
@@ -30,7 +29,6 @@ pub mod runtime;
 #[cfg(feature = "server")]
 pub mod server;
 mod status;
-pub mod storage;
 pub mod sync;
 pub mod tracking;
 

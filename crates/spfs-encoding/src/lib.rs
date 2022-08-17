@@ -8,6 +8,9 @@ pub use binary::{
     write_int, write_string, write_uint, INT_SIZE,
 };
 
+mod error;
+pub use error::{Error, Result};
+
 mod hash;
 pub use hash::{
     parse_digest, Decodable, Digest, Encodable, Hasher, PartialDigest, DIGEST_SIZE, EMPTY_DIGEST,
