@@ -13,9 +13,9 @@ use super::{PkgOpt, VarOpt};
 #[case("{pkg: my-pkg}", "2", false)]
 #[case("{pkg: my-pkg}", "2.7", false)]
 #[case("{pkg: my-pkg}", "~2.7", false)]
-#[case("{pkg: my-pkg}", "2,<3", false)] // This should work but doesn't
-#[case("{pkg: my-pkg}", "2,3", false)] // This should work but doesn't
-#[case("{pkg: my-pkg}", "2.7,<3", false)] // This should work but doesn't
+#[case("{pkg: my-pkg}", "2,<3", false)]
+#[case("{pkg: my-pkg}", "2,3", false)]
+#[case("{pkg: my-pkg}", "2.7,<3", false)]
 #[case("{pkg: my-pkg}", "<3", false)]
 #[case("{pkg: my-pkg}", ">3", false)]
 fn test_pkg_opt_validation(#[case] spec: &str, #[case] value: &str, #[case] expect_err: bool) {
