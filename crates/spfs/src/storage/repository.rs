@@ -60,6 +60,15 @@ pub trait Repository:
         Err(Error::NoRenderStorage(self.address()))
     }
 
+    /// If supported, returns a list of the render storage for all the users
+    /// with renders found in the repository.
+    ///
+    /// # Errors:
+    /// - [`Error::NoRenderStorage`] - if this repository does not support manifest rendering
+    fn renders_for_all_users(&self) -> Result<Vec<Box<dyn ManifestViewer>>> {
+        Err(Error::NoRenderStorage(self.address()))
+    }
+
     /// Return true if this repository contains the given reference.
     async fn has_ref(&self, reference: &str) -> bool {
         self.read_ref(reference).await.is_ok()
