@@ -250,17 +250,35 @@ async fn clean_render(
     result.unwrap_or(Ok(()))
 }
 
-pub async fn get_all_unattached_objects(
+#[derive(Debug)]
+pub struct AttachedAndUnattachedObjects {
+    pub attached: HashSet<encoding::Digest>,
+    pub unattached: HashSet<encoding::Digest>,
+}
+
+pub async fn get_all_attached_and_unattached_objects(
     repo: &storage::RepositoryHandle,
-) -> Result<HashSet<encoding::Digest>> {
+) -> Result<AttachedAndUnattachedObjects> {
     tracing::info!("evaluating repository digraph");
     let mut digests = HashSet::new();
     let mut digest_stream = repo.find_digests(crate::graph::DigestSearchCriteria::All);
     while let Some(digest) = digest_stream.next().await {
         digests.insert(digest?);
     }
-    let attached = &get_all_attached_objects(repo).await?;
-    Ok(digests.difference(attached).copied().collect())
+    let attached = get_all_attached_objects(repo).await?;
+    let unattached = digests.difference(&attached).copied().collect();
+    Ok(AttachedAndUnattachedObjects {
+        attached,
+        unattached,
+    })
+}
+
+pub async fn get_all_unattached_objects(
+    repo: &storage::RepositoryHandle,
+) -> Result<HashSet<encoding::Digest>> {
+    get_all_attached_and_unattached_objects(repo)
+        .await
+        .map(|objects| objects.unattached)
 }
 
 pub async fn get_all_unattached_payloads(
