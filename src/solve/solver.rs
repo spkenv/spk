@@ -298,7 +298,8 @@ impl Solver {
                             self.number_builds_skipped += 1;
                             continue;
                         }
-                        let recipe = match source.read_recipe(spec.ident()).await {
+                        let recipe = match source.read_recipe(&spec.ident().with_build(None)).await
+                        {
                             Ok(r) if r.is_deprecated() => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
