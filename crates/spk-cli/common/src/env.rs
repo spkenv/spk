@@ -62,7 +62,7 @@ pub async fn current_env() -> crate::Result<Solution> {
 #[cfg(feature = "sentry")]
 pub fn configure_sentry() -> sentry::ClientInitGuard {
     // Call this before `sentry::init` to avoid potential `SIGSEGV`.
-    let username = whoami::username();
+    let username = get_username_for_sentry();
 
     // When using the sentry feature it is expected that the DSN
     // and other configuration is provided at *compile* time.
@@ -113,6 +113,19 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
 }
 
 #[cfg(feature = "sentry")]
+fn get_username_for_sentry() -> String {
+    // If this is being run from a gitlab CI job, then return the
+    // username of the person that triggered the job. Otherwise get
+    // the username of the person who ran this spk instance.
+    if let Ok(value) = std::env::var("GITLAB_USER_LOGIN") {
+        value
+    } else {
+        // Call this before `sentry::init` to avoid potential `SIGSEGV`.
+        whoami::username()
+    }
+}
+
+#[cfg(feature = "sentry")]
 fn get_spk_context() -> (
     String,
     std::collections::BTreeMap<String, serde_json::Value>,
@@ -130,8 +143,11 @@ fn get_spk_context() -> (
     data.insert(String::from("args"), json!(args.join(" ")));
     data.insert(String::from("cwd"), json!(cwd));
 
-    if let Ok(spk_bin_tag) = std::env::var("SPK_BIN_TAG") {
-        data.insert(String::from("SPK_BIN_TAG"), json!(spk_bin_tag));
+    let env_vars_to_add = vec!["SPK_BIN_TAG", "CI_JOB_URL"];
+    for env_var in env_vars_to_add {
+        if let Ok(value) = std::env::var(env_var) {
+            data.insert(String::from(env_var), json!(value));
+        }
     }
 
     (command, data)

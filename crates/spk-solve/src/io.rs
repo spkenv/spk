@@ -501,7 +501,7 @@ impl DecisionFormatter {
 
                 eprintln!("{}", mesg.yellow());
                 eprintln!("{}", self.format_solve_stats(&runtime.solver, solve_time));
-                return Err(Error::Solve(solve::Error::SolverInterrupted(mesg)));
+                return Err(Error::SolverInterrupted(mesg));
             }
             LoopOutcome::Failed(e) => {
                 return Err(*e);
