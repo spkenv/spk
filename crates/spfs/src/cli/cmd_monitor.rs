@@ -54,7 +54,9 @@ impl CmdMonitor {
         let mut stdin = tokio::io::stdin();
         let mut buffer = [0; 64];
         let wait_for_ok = stdin.read(&mut buffer);
-        match timeout(Duration::from_secs(10), wait_for_ok).await {
+        // Some large environments can take many minutes to render. Be generous
+        // with this timeout.
+        match timeout(Duration::from_secs(3600), wait_for_ok).await {
             Ok(Ok(bytes_read)) if bytes_read > 0 => {
                 tracing::debug!(
                     ?bytes_read,
