@@ -65,16 +65,19 @@ impl CmdClean {
             self.prune(&repo).await?;
         }
 
-        let (mut unattached, payloads) = tokio::try_join!(
-            spfs::get_all_unattached_objects(&repo),
+        let (mut attached_and_unattached, payloads) = tokio::try_join!(
+            spfs::get_all_attached_and_unattached_objects(&repo),
             spfs::get_all_unattached_payloads(&repo)
         )?;
-        unattached.extend(payloads);
-        if unattached.is_empty() {
+        attached_and_unattached.unattached.extend(payloads);
+        if attached_and_unattached.unattached.is_empty() {
             tracing::info!("no objects to remove");
             return Ok(0);
         }
-        tracing::info!("found {} objects to remove", unattached.len());
+        tracing::info!(
+            "found {} objects to remove",
+            attached_and_unattached.unattached.len()
+        );
         if !self.dry_run && !self.yes {
             let answer = question::Question::new(
                 "  >--> Do you wish to proceed with the removal of these objects?",
@@ -88,7 +91,16 @@ impl CmdClean {
             }
         }
 
-        match spfs::purge_objects(&unattached.iter().collect::<Vec<_>>(), &repo, self.dry_run).await
+        match spfs::purge_objects(
+            &attached_and_unattached
+                .unattached
+                .iter()
+                .collect::<Vec<_>>(),
+            &repo,
+            Some(&attached_and_unattached.attached),
+            self.dry_run,
+        )
+        .await
         {
             Err(err) => Err(err),
             Ok(_) => {

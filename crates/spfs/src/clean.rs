@@ -20,7 +20,7 @@ pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle, dry_run: b
     } else {
         tracing::info!("removing orphaned data");
         let count = unattached.len();
-        purge_objects(&unattached.iter().collect::<Vec<_>>(), repo, dry_run).await?;
+        purge_objects(&unattached.iter().collect::<Vec<_>>(), repo, None, dry_run).await?;
         tracing::info!("cleaned {count} objects");
     }
     Ok(())
@@ -28,14 +28,21 @@ pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle, dry_run: b
 
 /// Remove the identified objects from the given repository.
 ///
+/// If the set of all attached objects is provided, also purge renders of
+/// objects that are no longer attached.
+///
 /// # Errors
 /// - [`Error::IncompleteClean`]: An accumulation of any errors hit during the prune process
 pub async fn purge_objects(
     objects: &[&encoding::Digest],
     repo: &storage::RepositoryHandle,
+    attached_objects: Option<&HashSet<encoding::Digest>>,
     dry_run: bool,
 ) -> Result<()> {
     let repo = &repo.address();
+    let repo = Arc::new(crate::open_repository(repo).await?);
+    let renders_for_all_users = Arc::new(repo.renders_for_all_users()?);
+
     let style = indicatif::ProgressStyle::default_bar()
         .template("       {msg:<21} [{bar:40}] {pos:>7}/{len:7}")
         .progress_chars("=>-");
@@ -48,15 +55,21 @@ pub async fn purge_objects(
     payload_bar.set_style(style.clone());
     payload_bar.set_message("cleaning payloads");
     let render_bar = multibar.add(indicatif::ProgressBar::new(obj_count));
-    render_bar.set_style(style);
+    render_bar.set_style(style.clone());
     render_bar.set_message("cleaning renders");
+    let user_render_bar = attached_objects.as_ref().map(|_| {
+        let bar = multibar.add(indicatif::ProgressBar::new(
+            renders_for_all_users.len().try_into().unwrap_or(u64::MAX),
+        ));
+        bar.set_style(style);
+        bar.set_message("cleaning user renders");
+        bar
+    });
+
     let mut errors = Vec::new();
 
     let bars_future = tokio::task::spawn_blocking(move || multibar.join());
     let map_err = |e| Error::String(format!("Unexpected error in clean process: {e}"));
-
-    let repo = Arc::new(crate::open_repository(repo).await?);
-    let renders_for_all_users = Arc::new(repo.renders_for_all_users()?);
 
     // we still do each of these pieces separately, because we'd like
     // to ensure that objects are removed successfully before any
@@ -102,6 +115,34 @@ pub async fn purge_objects(
         render_bar.inc(1);
     }
     render_bar.finish();
+
+    if let (Some(attached_objects), Some(user_render_bar)) =
+        (attached_objects, user_render_bar.as_ref())
+    {
+        for (username, manifest_viewer) in renders_for_all_users.iter() {
+            let mut iter = manifest_viewer.iter_rendered_manifests();
+            while let Some(digest) = iter.try_next().await? {
+                // Note that if there are a small number of these trace lines
+                // output, they might be covered up by the progress bars.
+                tracing::trace!(?username, ?digest, "rendered object");
+
+                if attached_objects.contains(&digest) {
+                    tracing::trace!(?username, ?digest, "still attached");
+                    continue;
+                }
+
+                if let Err(err) =
+                    clean_render_for_user(username, &**manifest_viewer, digest, dry_run).await
+                {
+                    errors.push(err);
+                }
+            }
+            user_render_bar.inc(1);
+        }
+    }
+    if let Some(bar) = user_render_bar {
+        bar.finish()
+    }
 
     let mut futures: futures::stream::FuturesUnordered<_> = renders_for_all_users
         .iter()
@@ -227,6 +268,23 @@ async fn clean_proxy(proxy_path: std::path::PathBuf, dry_run: bool) -> Result<bo
     Ok(files_were_deleted || !files_exist)
 }
 
+async fn clean_render_for_user(
+    username: &String,
+    viewer: &dyn storage::ManifestViewer,
+    digest: encoding::Digest,
+    dry_run: bool,
+) -> Result<()> {
+    if dry_run {
+        tracing::info!("remove render for user {username}: {digest}");
+        return Ok(());
+    }
+
+    match viewer.remove_rendered_manifest(digest).await {
+        Ok(_) | Err(crate::Error::UnknownObject(_)) => Ok(()),
+        Err(err) => Err(err),
+    }
+}
+
 async fn clean_render(
     renders_for_all_users: Arc<Vec<(String, Box<dyn storage::ManifestViewer>)>>,
     digest: encoding::Digest,
@@ -234,13 +292,8 @@ async fn clean_render(
 ) -> Result<()> {
     let mut result = None;
     for (username, viewer) in renders_for_all_users.iter() {
-        if dry_run {
-            tracing::info!("remove render for user {username}: {digest}");
-            continue;
-        }
-
-        match viewer.remove_rendered_manifest(digest).await {
-            Ok(_) | Err(crate::Error::UnknownObject(_)) => continue,
+        match clean_render_for_user(username, &**viewer, digest, dry_run).await {
+            Ok(_) => continue,
             err @ Err(_) => {
                 // Remember this error but attempt to clean all the users.
                 result = Some(err);
