@@ -18,7 +18,7 @@ const PROC_DIR: &str = "/proc";
 const SPFS_DIR: &str = "/spfs";
 
 const NONE: Option<&str> = None;
-const SPFS_MONITOR_FOREGROUND_LOGGING_VAR: &str = "SPFS_MONITOR_FOREGROUND_LOGGING";
+pub const SPFS_MONITOR_FOREGROUND_LOGGING_VAR: &str = "SPFS_MONITOR_FOREGROUND_LOGGING";
 const SPFS_MONITOR_DISABLE_CNPROC_VAR: &str = "SPFS_MONITOR_DISABLE_CNPROC";
 
 /// A struct for holding the options that will be included

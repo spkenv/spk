@@ -5,6 +5,7 @@
 use std::ffi::OsString;
 
 use clap::Parser;
+use spfs::env::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
 use spfs::Error;
 use tokio::{
     io::AsyncWriteExt,
@@ -121,16 +122,30 @@ impl CmdEnter {
             // namespace that spfs-monitor should be monitoring. Inform it to
             // proceed.
             tracing::debug!("informing spfs-monitor to proceed");
-            monitor_stdin
-                .write_all("go".as_bytes())
-                .await
-                .map_err(|err| {
-                    spfs::Error::String(format!("Failed to write to spfs-monitor: {err}"))
-                })?;
-            monitor_stdin.flush().await.map_err(|err| {
-                spfs::Error::String(format!("Failed to flush write to spfs-monitor: {err}"))
-            })?;
-            drop(monitor_stdin);
+            let send_go = async move {
+                monitor_stdin.write_all("go".as_bytes()).await?;
+                monitor_stdin.flush().await?;
+                Ok::<_, std::io::Error>(())
+            }
+            .await;
+            match send_go {
+                Ok(_) => {}
+                Err(err) if err.kind() == std::io::ErrorKind::BrokenPipe => {
+                    // Pipe error generally means the spfs-monitor process is
+                    // gone. If it failed to start/quit prematurely then it
+                    // may have already deleted the runtime. It is not safe to
+                    // proceed with using the runtime, so we don't ignore this
+                    // error and hope for the best. Using this new environment
+                    // puts whatever is using it at risk of data loss.
+                    return Err(
+                        format!(
+                            "spfs-monitor disappeared unexpectedly, it is unsafe to continue. Setting ${SPFS_MONITOR_FOREGROUND_LOGGING_VAR}=1 may provide more details"
+                        ).into());
+                }
+                Err(err) => {
+                    return Err(format!("Failed to inform spfs-monitor to start: {err}").into())
+                }
+            };
 
             owned.ensure_startup_scripts(&self.tmpdir)?;
             std::env::set_var("SPFS_RUNTIME", owned.name());
