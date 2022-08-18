@@ -1,0 +1,32 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spk-cli-group2"
+version = "0.36.0"
+
+[lib]
+name = "spk_cli_group2"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+clap = { version = "3.2", features = ["derive", "env"] }
+colored = "2.0.0"
+itertools = "0.10"
+nom = "7.1"
+nom-supreme = "0.8"
+spfs = { version = '0.34.6', path = "../spfs" }
+spk-cli-common = { path = '../spk-cli-common' }
+spk-foundation = { path = '../spk-foundation' }
+spk-ident = { path = '../spk-ident' }
+spk-solver = { path = '../spk-solver' }
+spk-spec = { path = '../spk-spec' }
+spk-storage = { path = '../spk-storage' }
+spk-validators = { path = '../spk-validators' }
+tokio = { version = "1.20", features = ["rt"] }
+tracing = "0.1.35"
+
+[dev-dependencies]
+rstest = "0.15.0"
+tempfile = "3.3"

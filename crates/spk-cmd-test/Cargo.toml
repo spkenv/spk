@@ -1,0 +1,33 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spk-cmd-test"
+version = "0.36.0"
+
+[lib]
+name = "spk_cmd_test"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+clap = { version = "3.2", features = ["derive", "env"] }
+spfs = { version = '0.34.6', path = "../spfs" }
+spk-build = { path = '../spk-build' }
+spk-cli-common = { path = '../spk-cli-common' }
+spk-exec = { path = '../spk-exec' }
+spk-foundation = { path = "../spk-foundation" }
+spk-ident = { path = '../spk-ident' }
+spk-solver = { path = '../spk-solver' }
+spk-solver-graph = { path = '../spk-solver-graph' }
+spk-solver-solution = { path = '../spk-solver-solution' }
+spk-spec = { path = '../spk-spec' }
+spk-storage = { path = '../spk-storage' }
+spk-validators = { path = '../spk-validators' }
+tempfile = "3.3"
+tokio = { version = "1.20", features = ["rt"] }
+tracing = "0.1.35"
+
+[dev-dependencies]
+rstest = "0.15.0"
+spk-cmd-build = { path = "../spk-cmd-build" }

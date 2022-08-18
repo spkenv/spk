@@ -21,7 +21,7 @@ components:
 
   - kind: RustCrate
     name: spk-launcher
-    location: spk-launcher
+    location: crates/spk-launcher
     ci_config:
       parallel: true
       tags:
