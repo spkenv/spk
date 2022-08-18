@@ -79,6 +79,24 @@ impl graph::Database for super::RpcRepository {
             .to_result()?;
         Ok(())
     }
+
+    async fn remove_object_if_older_than(
+        &self,
+        older_than: chrono::DateTime<chrono::Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        let request = proto::RemoveObjectIfOlderThanRequest {
+            older_than: Some(proto::convert_from_datetime(&older_than)),
+            digest: Some(digest.into()),
+        };
+        Ok(self
+            .db_client
+            .clone()
+            .remove_object_if_older_than(request)
+            .await?
+            .into_inner()
+            .to_result()?)
+    }
 }
 
 impl storage::PlatformStorage for super::RpcRepository {}

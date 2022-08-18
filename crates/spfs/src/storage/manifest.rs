@@ -4,6 +4,7 @@
 
 use std::pin::Pin;
 
+use chrono::{DateTime, Utc};
 use futures::stream::Stream;
 use tokio_stream::StreamExt;
 
@@ -73,4 +74,12 @@ pub trait ManifestViewer: Send + Sync {
 
     /// Cleanup a previously rendered manifest from the local disk.
     async fn remove_rendered_manifest(&self, digest: encoding::Digest) -> Result<()>;
+
+    /// Cleanup a previously rendered manifest from the local disk, if it is
+    /// older than a threshold.
+    async fn remove_rendered_manifest_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<()>;
 }

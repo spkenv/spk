@@ -4,6 +4,7 @@
 
 use std::{collections::VecDeque, pin::Pin, task::Poll};
 
+use chrono::{DateTime, Utc};
 use futures::{Future, Stream, StreamExt, TryStreamExt};
 
 use super::Object;
@@ -250,6 +251,16 @@ pub trait Database: DatabaseView {
 
     /// Remove an object from the database.
     async fn remove_object(&self, digest: encoding::Digest) -> Result<()>;
+
+    /// Remove an object from the database if older than some threshold.
+    ///
+    /// Return true if the object was deleted, or false if the object was not
+    /// old enough.
+    async fn remove_object_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool>;
 }
 
 #[async_trait::async_trait]
@@ -260,5 +271,13 @@ impl<T: Database> Database for &T {
 
     async fn remove_object(&self, digest: encoding::Digest) -> Result<()> {
         Database::remove_object(&**self, digest).await
+    }
+
+    async fn remove_object_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        Database::remove_object_if_older_than(&**self, older_than, digest).await
     }
 }

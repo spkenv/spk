@@ -122,6 +122,11 @@ rpc_result!(
     gen::RemoveObjectResponse,
     gen::remove_object_response::Result
 );
+rpc_result!(
+    gen::RemoveObjectIfOlderThanResponse,
+    gen::remove_object_if_older_than_response::Result,
+    bool
+);
 
 rpc_result!(
     gen::HasPayloadResponse,

@@ -86,6 +86,17 @@ message RemoveObjectResponse{
     }
 }
 
+message RemoveObjectIfOlderThanRequest{
+    DateTime older_than = 1;
+    Digest digest = 2;
+}
+message RemoveObjectIfOlderThanResponse{
+    oneof result {
+        Error error = 1;
+        bool ok = 2;
+    }
+}
+
 service DatabaseService {
     rpc ReadObject(ReadObjectRequest) returns (ReadObjectResponse);
     rpc FindDigests(FindDigestsRequest) returns (stream FindDigestsResponse);
@@ -93,4 +104,5 @@ service DatabaseService {
     rpc WalkObjects(WalkObjectsRequest) returns (stream WalkObjectsResponse);
     rpc WriteObject(WriteObjectRequest) returns (WriteObjectResponse);
     rpc RemoveObject(RemoveObjectRequest) returns (RemoveObjectResponse);
+    rpc RemoveObjectIfOlderThan(RemoveObjectIfOlderThanRequest) returns (RemoveObjectIfOlderThanResponse);
 }

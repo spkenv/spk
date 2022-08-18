@@ -7,6 +7,7 @@ use std::pin::Pin;
 
 use crate::graph::Object;
 use crate::{encoding, graph, Error, Result};
+use chrono::{DateTime, Utc};
 use close_err::Closable;
 use encoding::{Decodable, Encodable};
 use futures::Stream;
@@ -119,5 +120,36 @@ impl graph::Database for super::FSRepository {
             };
         }
         Ok(())
+    }
+
+    async fn remove_object_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> crate::Result<bool> {
+        let filepath = self.objects.build_digest_path(&digest);
+
+        // this might fail but we don't consider that fatal just yet
+        let _ = tokio::fs::set_permissions(&filepath, std::fs::Permissions::from_mode(0o777)).await;
+
+        let metadata = tokio::fs::symlink_metadata(&filepath)
+            .await
+            .map_err(|err| Error::StorageReadError(filepath.clone(), err))?;
+
+        let mtime = metadata
+            .modified()
+            .map_err(|err| Error::StorageReadError(filepath.clone(), err))?;
+
+        if DateTime::<Utc>::from(mtime) >= older_than {
+            return Ok(false);
+        }
+
+        if let Err(err) = tokio::fs::remove_file(&filepath).await {
+            return match err.kind() {
+                std::io::ErrorKind::NotFound => Ok(true),
+                _ => Err(Error::StorageWriteError(filepath, err)),
+            };
+        }
+        Ok(true)
     }
 }
