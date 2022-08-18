@@ -31,4 +31,4 @@ RUN yum-builddep -y /root/rpmbuild/SPECS/$APP.spec && yum clean all
 COPY . /source/$APP-$VERSION
 RUN tar -C /source -czvf /root/rpmbuild/SOURCES/v$VERSION.tar.gz .
 
-ENTRYPOINT ["sh", "-c", "rpmbuild -ba /root/rpmbuild/SPECS/$APP.spec"]
+ENTRYPOINT ["sh", "-c", "rpmbuild -ba /root/rpmbuild/SPECS/$APP.spec && chmod  0777 -r /root/rpmbuild/RPMS"]
