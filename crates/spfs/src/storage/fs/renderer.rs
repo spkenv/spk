@@ -4,7 +4,10 @@
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 
+use async_stream::try_stream;
+use futures::Stream;
 use tokio::io::AsyncReadExt;
 
 use super::FSRepository;
@@ -33,6 +36,17 @@ impl ManifestViewer for FSRepository {
         };
         let rendered_dir = renders.build_digest_path(&digest);
         was_render_completed(&rendered_dir)
+    }
+
+    fn iter_rendered_manifests<'db>(
+        &'db self,
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + 'db>> {
+        Box::pin(try_stream! {
+            let renders = self.get_render_storage()?;
+            for await digest in renders.iter() {
+                yield digest?;
+            }
+        })
     }
 
     /// Return the path that the manifest would be rendered to.

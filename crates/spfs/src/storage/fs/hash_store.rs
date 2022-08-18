@@ -126,6 +126,10 @@ impl FSHashStore {
         Box::pin(try_stream! {
             while let Some(name) = subdir.next_entry().await.map_err(|err| Error::StorageReadError(entry.path(), err))? {
                 let digest_str = format!("{entry_filename}{}", name.file_name().to_string_lossy());
+                if digest_str.ends_with(".completed") {
+                    // We're operating on a renders store.
+                    continue;
+                }
 
                 match encoding::parse_digest(&digest_str) {
                     Ok(digest) => match &search_criteria {

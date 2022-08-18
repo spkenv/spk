@@ -53,6 +53,11 @@ pub trait ManifestViewer: Send + Sync {
     /// Returns true if the identified manifest has been rendered already
     async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool;
 
+    /// Iterate the manifests that have been rendered.
+    fn iter_rendered_manifests<'db>(
+        &'db self,
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + 'db>>;
+
     /// Returns what would be used as the local path to the root of the rendered manifest.
     ///
     /// This path does not necessarily exist or contain a valid render.
