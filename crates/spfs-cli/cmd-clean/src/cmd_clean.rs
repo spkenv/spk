@@ -32,6 +32,10 @@ pub struct CmdClean {
     #[clap(long, short)]
     yes: bool,
 
+    /// Don't delete anything, just print what would be deleted (assumes --yes).
+    #[clap(long)]
+    dry_run: bool,
+
     /// Prune tags older that the given age (eg: 1y, 8w, 10d, 3h, 4m, 8s) (default: 9w)
     #[clap(long = "prune-if-older-than")]
     prune_if_older_than: Option<String>,
@@ -71,7 +75,7 @@ impl CmdClean {
             return Ok(0);
         }
         tracing::info!("found {} objects to remove", unattached.len());
-        if !self.yes {
+        if !self.dry_run && !self.yes {
             let answer = question::Question::new(
                 "  >--> Do you wish to proceed with the removal of these objects?",
             )
@@ -84,7 +88,8 @@ impl CmdClean {
             }
         }
 
-        match spfs::purge_objects(&unattached.iter().collect::<Vec<_>>(), &repo).await {
+        match spfs::purge_objects(&unattached.iter().collect::<Vec<_>>(), &repo, self.dry_run).await
+        {
             Err(err) => Err(err),
             Ok(_) => {
                 tracing::info!("clean successful");

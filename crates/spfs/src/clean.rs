@@ -13,14 +13,14 @@ use crate::{encoding, storage, Error, Result};
 mod clean_test;
 
 /// Clean all untagged objects from the given repo.
-pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<()> {
+pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle, dry_run: bool) -> Result<()> {
     let unattached = get_all_unattached_objects(repo).await?;
     if unattached.is_empty() {
         tracing::info!("nothing to clean!");
     } else {
         tracing::info!("removing orphaned data");
         let count = unattached.len();
-        purge_objects(&unattached.iter().collect::<Vec<_>>(), repo).await?;
+        purge_objects(&unattached.iter().collect::<Vec<_>>(), repo, dry_run).await?;
         tracing::info!("cleaned {count} objects");
     }
     Ok(())
@@ -33,6 +33,7 @@ pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle) -> Result<
 pub async fn purge_objects(
     objects: &[&encoding::Digest],
     repo: &storage::RepositoryHandle,
+    dry_run: bool,
 ) -> Result<()> {
     let repo = &repo.address();
     let style = indicatif::ProgressStyle::default_bar()
@@ -62,7 +63,7 @@ pub async fn purge_objects(
     // related payloads, etc...
     let mut futures: futures::stream::FuturesUnordered<_> = objects
         .iter()
-        .map(|digest| tokio::spawn(clean_object(Arc::clone(&repo), **digest)))
+        .map(|digest| tokio::spawn(clean_object(Arc::clone(&repo), **digest, dry_run)))
         .collect();
     while let Some(result) = futures.next().await {
         if let Err(err) = result.map_err(map_err).and_then(|e| e) {
@@ -74,7 +75,7 @@ pub async fn purge_objects(
 
     let mut futures: futures::stream::FuturesUnordered<_> = objects
         .iter()
-        .map(|digest| tokio::spawn(clean_payload(Arc::clone(&repo), **digest)))
+        .map(|digest| tokio::spawn(clean_payload(Arc::clone(&repo), **digest, dry_run)))
         .collect();
     while let Some(result) = futures.next().await {
         if let Err(err) = result.map_err(map_err).and_then(|e| e) {
@@ -86,7 +87,13 @@ pub async fn purge_objects(
 
     let mut futures: futures::stream::FuturesUnordered<_> = objects
         .iter()
-        .map(|digest| tokio::spawn(clean_render(Arc::clone(&renders_for_all_users), **digest)))
+        .map(|digest| {
+            tokio::spawn(clean_render(
+                Arc::clone(&renders_for_all_users),
+                **digest,
+                dry_run,
+            ))
+        })
         .collect();
     while let Some(result) = futures.next().await {
         if let Err(err) = result.map_err(map_err).and_then(|e| e) {
@@ -98,10 +105,10 @@ pub async fn purge_objects(
 
     let mut futures: futures::stream::FuturesUnordered<_> = renders_for_all_users
         .iter()
-        .filter_map(|proxy| {
+        .filter_map(|(_, proxy)| {
             proxy
                 .proxy_path()
-                .map(|proxy_path| tokio::spawn(clean_proxy(proxy_path.to_owned())))
+                .map(|proxy_path| tokio::spawn(clean_proxy(proxy_path.to_owned(), dry_run)))
         })
         .collect();
     while let Some(result) = futures.next().await {
@@ -126,7 +133,13 @@ pub async fn purge_objects(
 async fn clean_object(
     repo: Arc<storage::RepositoryHandle>,
     digest: encoding::Digest,
+    dry_run: bool,
 ) -> Result<()> {
+    if dry_run {
+        tracing::info!("remove object: {digest}");
+        return Ok(());
+    }
+
     let res = repo.remove_object(digest).await;
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
@@ -138,7 +151,13 @@ async fn clean_object(
 async fn clean_payload(
     repo: Arc<storage::RepositoryHandle>,
     digest: encoding::Digest,
+    dry_run: bool,
 ) -> Result<()> {
+    if dry_run {
+        tracing::info!("remove payload: {digest}");
+        return Ok(());
+    }
+
     let res = repo.remove_payload(digest).await;
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
@@ -151,7 +170,7 @@ async fn clean_payload(
 ///
 /// Return true if any files were deleted, or if an empty directory was found.
 #[async_recursion::async_recursion]
-async fn clean_proxy(proxy_path: std::path::PathBuf) -> Result<bool> {
+async fn clean_proxy(proxy_path: std::path::PathBuf, dry_run: bool) -> Result<bool> {
     // Any files in the proxy area that have a st_nlink count of 1 are unused
     // and can be removed.
     let mut files_exist = false;
@@ -172,10 +191,12 @@ async fn clean_proxy(proxy_path: std::path::PathBuf) -> Result<bool> {
             .map_err(|err| Error::StorageReadError(entry.path(), err))?;
 
         if file_type.is_dir() {
-            if clean_proxy(entry.path()).await? {
+            if clean_proxy(entry.path(), dry_run).await? {
                 // If some files were deleted, attempt to delete the directory
                 // itself. It may now be empty. Ignore any failures.
-                if (tokio::fs::remove_dir(entry.path()).await).is_ok() {
+                if dry_run {
+                    tracing::info!("rmdir {}", entry.path().display());
+                } else if (tokio::fs::remove_dir(entry.path()).await).is_ok() {
                     files_were_deleted = true;
                 }
             }
@@ -192,9 +213,13 @@ async fn clean_proxy(proxy_path: std::path::PathBuf) -> Result<bool> {
             // This file with st_nlink count of 1 is "safe" to remove. There
             // may be some other process that is about to create a hard link
             // to this file, and will fail if it goes missing.
-            tokio::fs::remove_file(entry.path())
-                .await
-                .map_err(|err| Error::StorageReadError(entry.path(), err))?;
+            if dry_run {
+                tracing::info!("rm {}", entry.path().display());
+            } else {
+                tokio::fs::remove_file(entry.path())
+                    .await
+                    .map_err(|err| Error::StorageReadError(entry.path(), err))?;
+            }
 
             files_were_deleted = true;
         }
@@ -203,11 +228,17 @@ async fn clean_proxy(proxy_path: std::path::PathBuf) -> Result<bool> {
 }
 
 async fn clean_render(
-    renders_for_all_users: Arc<Vec<Box<dyn storage::ManifestViewer>>>,
+    renders_for_all_users: Arc<Vec<(String, Box<dyn storage::ManifestViewer>)>>,
     digest: encoding::Digest,
+    dry_run: bool,
 ) -> Result<()> {
     let mut result = None;
-    for viewer in renders_for_all_users.iter() {
+    for (username, viewer) in renders_for_all_users.iter() {
+        if dry_run {
+            tracing::info!("remove render for user {username}: {digest}");
+            continue;
+        }
+
         match viewer.remove_rendered_manifest(digest).await {
             Ok(_) | Err(crate::Error::UnknownObject(_)) => continue,
             err @ Err(_) => {
