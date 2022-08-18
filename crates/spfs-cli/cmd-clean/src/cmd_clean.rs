@@ -65,6 +65,8 @@ impl CmdClean {
             self.prune(&repo).await?;
         }
 
+        let time_before_inventory = Utc::now() - chrono::Duration::minutes(15);
+
         let (mut attached_and_unattached, payloads) = tokio::try_join!(
             spfs::get_all_attached_and_unattached_objects(&repo),
             spfs::get_all_unattached_payloads(&repo)
@@ -92,6 +94,7 @@ impl CmdClean {
         }
 
         match spfs::purge_objects(
+            time_before_inventory,
             &attached_and_unattached
                 .unattached
                 .iter()

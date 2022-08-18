@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use chrono::Utc;
 use rstest::rstest;
 
 use super::{
@@ -144,7 +145,7 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
         .await
         .unwrap();
 
-    clean_untagged_objects(&tmprepo, false)
+    clean_untagged_objects(Utc::now(), &tmprepo, false)
         .await
         .expect("failed to clean objects");
 
@@ -190,7 +191,7 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
         .await
         .unwrap();
 
-    clean_untagged_objects(&tmprepo, false)
+    clean_untagged_objects(Utc::now(), &tmprepo, false)
         .await
         .expect("failed to clean objects");
 
@@ -247,7 +248,7 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
     let files = list_files(tmprepo.objects.root());
     assert!(!files.is_empty(), "should have stored data");
 
-    clean_untagged_objects(&tmprepo.clone().into(), false)
+    clean_untagged_objects(Utc::now(), &tmprepo.clone().into(), false)
         .await
         .expect("failed to clean repo");
 

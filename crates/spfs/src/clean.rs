@@ -4,6 +4,8 @@
 
 use std::{collections::HashSet, os::linux::fs::MetadataExt, sync::Arc};
 
+use chrono::{DateTime, Utc};
+use futures::FutureExt;
 use tokio_stream::StreamExt;
 
 use crate::{encoding, storage, Error, Result};
@@ -13,14 +15,25 @@ use crate::{encoding, storage, Error, Result};
 mod clean_test;
 
 /// Clean all untagged objects from the given repo.
-pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle, dry_run: bool) -> Result<()> {
+pub async fn clean_untagged_objects(
+    older_than: DateTime<Utc>,
+    repo: &storage::RepositoryHandle,
+    dry_run: bool,
+) -> Result<()> {
     let unattached = get_all_unattached_objects(repo).await?;
     if unattached.is_empty() {
         tracing::info!("nothing to clean!");
     } else {
         tracing::info!("removing orphaned data");
         let count = unattached.len();
-        purge_objects(&unattached.iter().collect::<Vec<_>>(), repo, None, dry_run).await?;
+        purge_objects(
+            older_than,
+            &unattached.iter().collect::<Vec<_>>(),
+            repo,
+            None,
+            dry_run,
+        )
+        .await?;
         tracing::info!("cleaned {count} objects");
     }
     Ok(())
@@ -28,12 +41,15 @@ pub async fn clean_untagged_objects(repo: &storage::RepositoryHandle, dry_run: b
 
 /// Remove the identified objects from the given repository.
 ///
+/// Objects younger than the given threshold will not be touched.
+///
 /// If the set of all attached objects is provided, also purge renders of
 /// objects that are no longer attached.
 ///
 /// # Errors
 /// - [`Error::IncompleteClean`]: An accumulation of any errors hit during the prune process
 pub async fn purge_objects(
+    older_than: DateTime<Utc>,
     objects: &[&encoding::Digest],
     repo: &storage::RepositoryHandle,
     attached_objects: Option<&HashSet<encoding::Digest>>,
@@ -71,22 +87,37 @@ pub async fn purge_objects(
     let bars_future = tokio::task::spawn_blocking(move || multibar.join());
     let map_err = |e| Error::String(format!("Unexpected error in clean process: {e}"));
 
+    let mut cleaned_objects = Vec::new();
+
     // we still do each of these pieces separately, because we'd like
     // to ensure that objects are removed successfully before any
     // related payloads, etc...
     let mut futures: futures::stream::FuturesUnordered<_> = objects
         .iter()
-        .map(|digest| tokio::spawn(clean_object(Arc::clone(&repo), **digest, dry_run)))
+        .map(|digest| {
+            tokio::spawn(clean_object(
+                older_than,
+                Arc::clone(&repo),
+                **digest,
+                dry_run,
+            ))
+            .map(move |f| (*digest, f))
+        })
         .collect();
-    while let Some(result) = futures.next().await {
-        if let Err(err) = result.map_err(map_err).and_then(|e| e) {
-            errors.push(err);
-        }
+    while let Some((digest, result)) = futures.next().await {
+        match result.map_err(map_err).and_then(|e| e) {
+            Ok(deleted) if deleted => cleaned_objects.push(digest),
+            Ok(_) => {}
+            Err(err) => errors.push(err),
+        };
         obj_bar.inc(1);
     }
     obj_bar.finish();
 
-    let mut futures: futures::stream::FuturesUnordered<_> = objects
+    // `cleaned_objects` contain the objects that were old enough to be cleaned,
+    // only remove the payloads and renders for those.
+
+    let mut futures: futures::stream::FuturesUnordered<_> = cleaned_objects
         .iter()
         .map(|digest| tokio::spawn(clean_payload(Arc::clone(&repo), **digest, dry_run)))
         .collect();
@@ -98,10 +129,11 @@ pub async fn purge_objects(
     }
     payload_bar.finish();
 
-    let mut futures: futures::stream::FuturesUnordered<_> = objects
+    let mut futures: futures::stream::FuturesUnordered<_> = cleaned_objects
         .iter()
         .map(|digest| {
             tokio::spawn(clean_render(
+                older_than,
                 Arc::clone(&renders_for_all_users),
                 **digest,
                 dry_run,
@@ -132,7 +164,8 @@ pub async fn purge_objects(
                 }
 
                 if let Err(err) =
-                    clean_render_for_user(username, &**manifest_viewer, digest, dry_run).await
+                    clean_render_for_user(older_than, username, &**manifest_viewer, digest, dry_run)
+                        .await
                 {
                     errors.push(err);
                 }
@@ -172,18 +205,21 @@ pub async fn purge_objects(
 }
 
 async fn clean_object(
+    older_than: DateTime<Utc>,
     repo: Arc<storage::RepositoryHandle>,
     digest: encoding::Digest,
     dry_run: bool,
-) -> Result<()> {
+) -> Result<bool> {
     if dry_run {
         tracing::info!("remove object: {digest}");
-        return Ok(());
+        return Ok(true);
     }
 
-    let res = repo.remove_object(digest).await;
+    let res = repo.remove_object_if_older_than(older_than, digest).await;
     if let Err(Error::UnknownObject(_)) = res {
-        Ok(())
+        // Treat this as if the object was deleted, so there is an attempt to
+        // delete the payload, etc.
+        Ok(true)
     } else {
         res
     }
@@ -269,6 +305,7 @@ async fn clean_proxy(proxy_path: std::path::PathBuf, dry_run: bool) -> Result<bo
 }
 
 async fn clean_render_for_user(
+    older_than: DateTime<Utc>,
     username: &String,
     viewer: &dyn storage::ManifestViewer,
     digest: encoding::Digest,
@@ -279,20 +316,24 @@ async fn clean_render_for_user(
         return Ok(());
     }
 
-    match viewer.remove_rendered_manifest(digest).await {
+    match viewer
+        .remove_rendered_manifest_if_older_than(older_than, digest)
+        .await
+    {
         Ok(_) | Err(crate::Error::UnknownObject(_)) => Ok(()),
         Err(err) => Err(err),
     }
 }
 
 async fn clean_render(
+    older_than: DateTime<Utc>,
     renders_for_all_users: Arc<Vec<(String, Box<dyn storage::ManifestViewer>)>>,
     digest: encoding::Digest,
     dry_run: bool,
 ) -> Result<()> {
     let mut result = None;
     for (username, viewer) in renders_for_all_users.iter() {
-        match clean_render_for_user(username, &**viewer, digest, dry_run).await {
+        match clean_render_for_user(older_than, username, &**viewer, digest, dry_run).await {
             Ok(_) => continue,
             err @ Err(_) => {
                 // Remember this error but attempt to clean all the users.
