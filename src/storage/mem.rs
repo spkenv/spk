@@ -167,6 +167,9 @@ where
         self.name.as_ref()
     }
     async fn read_recipe(&self, pkg: &api::Ident) -> Result<Arc<Self::Recipe>> {
+        if pkg.build.is_some() {
+            return Err(format!("cannot read a recipe for a package build: {pkg}").into());
+        }
         self.specs
             .read()
             .await
