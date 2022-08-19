@@ -16,6 +16,8 @@ BuildRequires: python3-pip
 BuildRequires: cmake3
 BuildRequires: make
 Requires: bash
+Obsoletes: spfs
+Provides: spfs = 0.34.6
 
 %define debug_package %{nil}
 
