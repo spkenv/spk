@@ -6,7 +6,6 @@ codegen-units = 1
 members = [
     "crates/spk",
     "crates/spk-build",
-    "crates/spk-build-ops",
     "crates/spk-cli-group1",
     "crates/spk-cli-group2",
     "crates/spk-cli-group3",

@@ -19,8 +19,6 @@ pub enum Error {
     #[error(transparent)]
     SPFS(#[from] spfs::Error),
     #[error(transparent)]
-    SpkBuildOpsError(#[from] spk_build_ops::Error),
-    #[error(transparent)]
     SpkIdentBuildError(#[from] spk_foundation::ident_build::Error),
     #[error(transparent)]
     SpkIdentComponentError(#[from] spk_foundation::ident_component::Error),

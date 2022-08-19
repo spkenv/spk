@@ -2673,6 +2673,7 @@ dependencies = [
  "async-trait",
  "clap 3.2.11",
  "colored",
+ "spk-build",
  "spk-cli-common",
  "spk-cli-group1",
  "spk-cli-group2",
@@ -2689,6 +2690,7 @@ dependencies = [
  "spk-cmd-repo",
  "spk-cmd-test",
  "spk-foundation",
+ "spk-storage",
  "tokio",
  "tracing",
 ]
@@ -2716,15 +2718,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "spk-build-ops"
-version = "0.36.0"
-dependencies = [
- "relative-path",
- "spfs",
- "thiserror",
 ]
 
 [[package]]
@@ -3195,7 +3188,6 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "spfs",
- "spk-build-ops",
  "spk-foundation",
  "spk-ident",
  "spk-validators",
