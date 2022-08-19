@@ -42,7 +42,7 @@ jobs:
       - uses: Swatinem/rust-cache@v1
       - name: Generate code coverage
         run: |
-          make install
+          make install-debug-spfs
           spfs run - -- bash -c 'cargo tarpaulin --workspace --verbose --timeout 120 --out Xml'
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
