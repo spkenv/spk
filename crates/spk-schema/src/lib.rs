@@ -26,7 +26,11 @@ mod validation;
 // Re-export for macros
 pub use serde_json;
 
-pub use spk_schema_foundation as foundation;
+pub use spk_schema_foundation::{
+    self as foundation, env, ident_build, ident_component, ident_ops, name,
+    option_map::{self, OptionMap},
+    spec_ops, version, version_range,
+};
 pub use spk_schema_ident::{self as ident, Ident};
 pub use spk_schema_validators as validators;
 

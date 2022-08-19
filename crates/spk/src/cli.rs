@@ -21,7 +21,7 @@ use spk_cmd_make_source::cmd_make_source;
 use spk_cmd_render::cmd_render;
 use spk_cmd_repo::cmd_repo;
 use spk_cmd_test::cmd_test;
-use spk_foundation::format::FormatError;
+use spk_schema::foundation::format::FormatError;
 
 #[cfg(feature = "sentry")]
 use spk_cli_common::configure_sentry;

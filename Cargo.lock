@@ -2664,6 +2664,7 @@ dependencies = [
  "spk-cmd-render",
  "spk-cmd-repo",
  "spk-cmd-test",
+ "spk-exec",
  "spk-schema",
  "spk-solve",
  "spk-storage",

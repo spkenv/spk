@@ -14,11 +14,12 @@ anyhow = "1.0"
 async-trait = "0.1"
 clap = { version = "3.2", features = ["derive", "env"] }
 colored = "2.0.0"
+spk-build = { path = '../spk-build' }
+spk-cli-common = { path = '../spk-cli/common' }
 spk-cli-group1 = { path = '../spk-cli/group1' }
 spk-cli-group2 = { path = '../spk-cli/group2' }
 spk-cli-group3 = { path = '../spk-cli/group3' }
 spk-cli-group4 = { path = '../spk-cli/group4' }
-spk-cli-common = { path = '../spk-cli/common' }
 spk-cmd-build = { path = '../spk-cli/cmd-build' }
 spk-cmd-convert = { path = '../spk-cli/cmd-convert' }
 spk-cmd-env = { path = '../spk-cli/cmd-env' }
@@ -29,8 +30,9 @@ spk-cmd-make-source = { path = '../spk-cli/cmd-make-source' }
 spk-cmd-render = { path = '../spk-cli/cmd-render' }
 spk-cmd-repo = { path = '../spk-cli/cmd-repo' }
 spk-cmd-test = { path = '../spk-cli/cmd-test' }
-spk-foundation = { path = '../spk-foundation' }
-spk-build = { path = '../spk-build' }
+spk-exec = { path = '../spk-exec' }
+spk-schema = { path = '../spk-schema' }
+spk-solve = { path = '../spk-solve' }
 spk-storage = { path = '../spk-storage' }
 tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"
