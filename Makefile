@@ -47,6 +47,11 @@ debug:
 	cd $(SOURCE_ROOT)
 	cargo build --workspace $(cargo_features_arg)
 
+debug-spfs: FEATURES ?= spfs/cli
+debug-spfs:
+	cd $(SOURCE_ROOT)
+	cargo build -p spfs $(cargo_features_arg)
+
 release: FEATURES ?= spfs/cli
 release:
 	cd $(SOURCE_ROOT)
@@ -96,13 +101,23 @@ rpm-buildenv:
 		-f rpmbuild.Dockerfile \
 		--tag build_env
 
-install-debug: copy-debug setcap
+install-debug-spfs: copy-debug-spfs setcap
+
+install-debug-spk: copy-debug-spk
+
+install-debug: install-debug-spfs install-debug-spk
 
 install: copy-release setcap
 
-copy-debug: debug
+copy-debug-spfs: debug-spfs
 	cd $(SOURCE_ROOT)
-	sudo cp -f target/debug/spk target/debug/spfs* /usr/bin/
+	sudo cp -f target/debug/spfs* /usr/bin/
+
+copy-debug-spk: debug
+	cd $(SOURCE_ROOT)
+	sudo cp -f target/debug/spk /usr/bin/
+
+copy-debug: copy-debug-spfs copy-debug-spk
 
 copy-release: release
 	cd $(SOURCE_ROOT)
