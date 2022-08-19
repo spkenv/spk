@@ -39,10 +39,12 @@ jobs:
           # spfs "custom build command" needs rustfmt? (protobufs?)
           rustup component add rustfmt
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v1
-      - name: Generate code coverage
+      - uses: Swatinem/rust-cache@v2
+      - name: Install spfs
         run: |
           make install-debug-spfs
+      - name: Generate code coverage
+        run: |
           spfs run - -- bash -c 'cargo tarpaulin --workspace --verbose --timeout 120 --out Xml'
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
