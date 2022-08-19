@@ -33,10 +33,6 @@ pub enum Error {
     Tonic(#[from] tonic::Status),
     #[error(transparent)]
     TokioJoinError(#[from] tokio::task::JoinError),
-    #[error("Encoding read error")]
-    EncodingReadError(#[source] io::Error),
-    #[error("Encoding write error")]
-    EncodingWriteError(#[source] io::Error),
     #[error("Failed to spawn {0} process")]
     ProcessSpawnError(String, #[source] io::Error),
 

@@ -23,10 +23,10 @@ pub fn consume_header(mut reader: impl Read, header: &[u8]) -> Result<()> {
         .read_exact(buf.as_mut_slice())
         .map_err(Error::EncodingReadError)?;
     if buf[0..header.len()] != *header || buf.last() != Some(&b'\n') {
-        Err(Error::from(format!(
-            "Invalid header: expected {:?}, got {:?}",
-            header, buf
-        )))
+        Err(Error::InvalidHeader {
+            wanted: header.to_vec(),
+            got: buf,
+        })
     } else {
         Ok(())
     }
@@ -95,9 +95,7 @@ pub fn read_digest(mut reader: impl Read) -> Result<Digest> {
 /// Write a string to the given binary stream.
 pub fn write_string(mut writer: impl Write, string: &str) -> Result<()> {
     if string.contains('\x00') {
-        return Err(Error::from(
-            "Cannot encode string with null character".to_string(),
-        ));
+        return Err(Error::StringHasNullCharacter);
     }
     writer
         .write_all(string.as_bytes())
@@ -120,7 +118,11 @@ pub fn read_string(reader: &mut impl BufRead) -> Result<String> {
         let buf = reader.fill_buf().map_err(Error::EncodingReadError)?;
         match buf.iter().position(|&c| c == 0) {
             Some(index) => {
-                r.push(std::str::from_utf8(&buf[..index])?.to_string());
+                r.push(
+                    std::str::from_utf8(&buf[..index])
+                        .map_err(Error::EncodingFormatError)?
+                        .to_string(),
+                );
                 reader.consume(index + 1);
                 break;
             }
@@ -130,7 +132,11 @@ pub fn read_string(reader: &mut impl BufRead) -> Result<String> {
                         std::io::ErrorKind::UnexpectedEof,
                     )));
                 }
-                r.push(std::str::from_utf8(buf)?.to_string());
+                r.push(
+                    std::str::from_utf8(buf)
+                        .map_err(Error::EncodingFormatError)?
+                        .to_string(),
+                );
                 let l = buf.len();
                 reader.consume(l)
             }

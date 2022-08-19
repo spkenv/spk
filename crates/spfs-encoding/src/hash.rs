@@ -188,7 +188,10 @@ impl PartialDigest {
 
         // an empty digest string is always ambiguous and not valid
         if partial.is_empty() {
-            return Err(Error::new("partial digest cannot be empty"));
+            return Err(Error::InvalidPartialDigest {
+                reason: "partial digest cannot be empty".to_string(),
+                given: String::new(),
+            });
         }
         // BASE32 requires padding in specific multiples
         let trailing_character_count = partial.len() % PAD_TO_MULTIPLE;
@@ -204,10 +207,14 @@ impl PartialDigest {
                 use data_encoding::DecodeKind::*;
                 let source = source.as_ref();
                 match err.kind {
-                    Padding => Error::new(format!(
-                        "invalid partial digest: len must be a multiple of 2, got '{source}'",
-                    )),
-                    _ => Error::new(format!("invalid partial digest: {err}, got '{source}'",)),
+                    Padding => Error::InvalidPartialDigest {
+                        reason: "len must be a multiple of 2".to_string(),
+                        given: source.to_owned(),
+                    },
+                    _ => Error::InvalidPartialDigest {
+                        reason: err.to_string(),
+                        given: source.to_owned(),
+                    },
                 }
             })?;
 
@@ -332,18 +339,18 @@ impl<'a> Digest {
     pub fn as_bytes(&'a self) -> &'a [u8] {
         self.0.as_ref()
     }
+
     pub fn into_bytes(self) -> [u8; DIGEST_SIZE] {
         self.0
     }
+
     pub fn from_bytes(digest_bytes: &[u8]) -> Result<Self> {
         match digest_bytes.try_into() {
-            Err(err) => Err(Error::new(format!(
-                "{err} ({} != {SHA256_OUTPUT_LEN})",
-                digest_bytes.len(),
-            ))),
+            Err(_err) => Err(Error::DigestLengthError(digest_bytes.len())),
             Ok(bytes) => Ok(Self(bytes)),
         }
     }
+
     pub fn parse(digest_str: &str) -> Result<Digest> {
         digest_str.try_into()
     }
@@ -365,10 +372,10 @@ impl<'a> Digest {
             ctx.update(&buf.as_slice()[..count]);
         }
         let ring_digest = ctx.finish();
-        let bytes = match ring_digest.as_ref().try_into() {
-            Err(err) => return Err(Error::new(format!("internal error: {:?}", err))),
-            Ok(b) => b,
-        };
+        let bytes = ring_digest
+            .as_ref()
+            .try_into()
+            .expect("sha256 digest should be the exact desired length");
         Ok(Digest(bytes))
     }
 
@@ -387,10 +394,10 @@ impl<'a> Digest {
             ctx.update(&buf.as_slice()[..count]);
         }
         let ring_digest = ctx.finish();
-        let bytes = match ring_digest.as_ref().try_into() {
-            Err(err) => return Err(Error::new(format!("internal error: {:?}", err))),
-            Ok(b) => b,
-        };
+        let bytes = ring_digest
+            .as_ref()
+            .try_into()
+            .expect("sha256 digest should be the exact desired length");
         Ok(Digest(bytes))
     }
 }
@@ -486,7 +493,7 @@ pub const DIGEST_SIZE: usize = SHA256_OUTPUT_LEN;
 /// ```
 /// use std::convert::TryInto;
 /// use ring::digest;
-/// use spfs::encoding::{EMPTY_DIGEST, DIGEST_SIZE};
+/// use spfs_encoding::{EMPTY_DIGEST, DIGEST_SIZE};
 ///
 /// let empty_digest: [u8; DIGEST_SIZE] = digest::digest(&digest::SHA256, b"").as_ref().try_into().unwrap();
 /// assert_eq!(empty_digest, EMPTY_DIGEST);
@@ -504,9 +511,8 @@ pub const NULL_DIGEST: [u8; DIGEST_SIZE] = [
 
 /// Parse a string-digest.
 pub fn parse_digest(digest_str: impl AsRef<str>) -> Result<Digest> {
-    let digest_bytes = match BASE32.decode(digest_str.as_ref().as_bytes()) {
-        Ok(bytes) => bytes,
-        Err(err) => return Err(Error::new(format!("invalid digest: {:?}", err))),
-    };
+    let digest_bytes = BASE32
+        .decode(digest_str.as_ref().as_bytes())
+        .map_err(Error::DigestDecodeError)?;
     Digest::from_bytes(digest_bytes.as_slice())
 }
