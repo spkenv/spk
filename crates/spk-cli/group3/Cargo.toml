@@ -4,10 +4,6 @@ edition = "2021"
 name = "spk-cli-group3"
 version = "0.36.0"
 
-[lib]
-name = "spk_cli_group3"
-path = "src/lib.rs"
-
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"

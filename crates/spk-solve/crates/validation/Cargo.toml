@@ -4,10 +4,6 @@ edition = "2021"
 name = "spk-solve-validation"
 version = "0.36.0"
 
-[lib]
-name = "spk_solve_validation"
-path = "src/lib.rs"
-
 [dependencies]
 colored = "2.0"
 enum_dispatch = "0.3.8"

@@ -4,10 +4,6 @@ edition = "2021"
 name = "spk-solve-graph"
 version = "0.36.0"
 
-[lib]
-name = "spk_solve_graph"
-path = "src/lib.rs"
-
 [dependencies]
 async-recursion = "1.0"
 async-stream = "0.3"

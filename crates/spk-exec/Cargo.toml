@@ -4,10 +4,6 @@ edition = "2021"
 name = "spk-exec"
 version = "0.36.0"
 
-[lib]
-name = "spk_exec"
-path = "src/lib.rs"
-
 [dependencies]
 spfs = { version = '0.34.6', path = "../spfs" }
 spk-schema = { path = '../spk-schema' }

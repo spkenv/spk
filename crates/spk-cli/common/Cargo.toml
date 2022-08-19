@@ -4,10 +4,6 @@ edition = "2021"
 name = "spk-cli-common"
 version = "0.36.0"
 
-[lib]
-name = "spk_cli_common"
-path = "src/lib.rs"
-
 [features]
 sentry = ["dep:sentry", "dep:sentry-anyhow", "dep:sentry-tracing"]
 

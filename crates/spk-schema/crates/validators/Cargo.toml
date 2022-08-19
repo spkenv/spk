@@ -4,10 +4,6 @@ edition = "2021"
 name = "spk-schema-validators"
 version = "0.36.0"
 
-[lib]
-name = "spk_schema_validators"
-path = "src/lib.rs"
-
 [dependencies]
 data-encoding = "2.3.0"
 ignore = "0.4.18"

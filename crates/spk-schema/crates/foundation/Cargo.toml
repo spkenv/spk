@@ -4,10 +4,6 @@ edition = "2021"
 name = "spk-schema-foundation"
 version = "0.36.0"
 
-[lib]
-name = "spk_schema_foundation"
-path = "src/lib.rs"
-
 [features]
 migration-to-components = []
 

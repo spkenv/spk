@@ -4,10 +4,6 @@ edition = "2021"
 name = "spk-schema"
 version = "0.36.0"
 
-[lib]
-name = "spk_schema"
-path = "src/lib.rs"
-
 [dependencies]
 data-encoding = "2.3"
 enum_dispatch = "0.3.8"

@@ -4,10 +4,6 @@ edition = "2021"
 name = "spk-storage"
 version = "0.36.0"
 
-[lib]
-name = "spk_storage"
-path = "src/lib.rs"
-
 [dependencies]
 async-trait = "0.1"
 colored = "2.0"

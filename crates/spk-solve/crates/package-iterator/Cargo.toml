@@ -4,10 +4,6 @@ edition = "2021"
 name = "spk-solve-package-iterator"
 version = "0.36.0"
 
-[lib]
-name = "spk_solve_package_iterator"
-path = "src/lib.rs"
-
 [dependencies]
 async-trait = "0.1"
 dyn-clone = "1.0"
