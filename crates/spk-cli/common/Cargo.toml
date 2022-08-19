@@ -25,16 +25,16 @@ serde_yaml = "0.8.17"
 sentry = { version = "0.27.0", optional = true }
 sentry-anyhow = { version = "0.27.0", optional = true }
 sentry-tracing = { version = "0.27.0", optional = true }
-spfs = { version = '0.34.6', path = "../spfs" }
-spk-build = { path = '../spk-build' }
-spk-exec = { path = '../spk-exec' }
-spk-foundation = { path = "../spk-foundation" }
-spk-ident = { path = '../spk-ident' }
-spk-solver = { path = '../spk-solver' }
-spk-solver-solution = { path = '../spk-solver-solution' }
-spk-spec = { path = '../spk-spec' }
-spk-storage = { path = '../spk-storage' }
-spk-validators = { path = '../spk-validators' }
+spfs = { version = '0.34.6', path = "../../spfs" }
+spk-build = { path = '../../spk-build' }
+spk-exec = { path = '../../spk-exec' }
+spk-foundation = { path = "../../spk-foundation" }
+spk-ident = { path = '../../spk-ident' }
+spk-solver = { path = '../../spk-solver' }
+spk-solver-solution = { path = '../../spk-solver-solution' }
+spk-spec = { path = '../../spk-spec' }
+spk-storage = { path = '../../spk-storage' }
+spk-validators = { path = '../../spk-validators' }
 thiserror = "1.0"
 tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"

@@ -1,16 +1,19 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
 edition = "2021"
-name = "spk-cmd-convert"
+name = "spk-cli-group3"
 version = "0.36.0"
 
 [lib]
-name = "spk_cmd_convert"
+name = "spk_cli_group3"
 path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
 clap = { version = "3.2", features = ["derive", "env"] }
-spk-cli-common = { path = '../spk-cli-common' }
-spk-cmd-env = { path = "../spk-cmd-env" }
+colored = "2.0.0"
+spk-cli-common = { path = '../common' }
+spk-storage = { path = '../../spk-storage' }
+spk-validators = { path = '../../spk-validators' }
+tracing = "0.1.35"

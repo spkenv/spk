@@ -1,16 +1,17 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
 edition = "2021"
-name = "spk-cmd-explain"
+name = "spk-cmd-build"
 version = "0.36.0"
 
 [lib]
-name = "spk_cmd_explain"
+name = "spk_cmd_build"
 path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
 clap = { version = "3.2", features = ["derive", "env"] }
-spk-cli-common = { path = '../spk-cli-common' }
-tokio = { version = "1.20", features = ["rt"] }
+spk-cli-common = { path = '../common' }
+spk-cmd-make-binary = { path = '../cmd-make-binary' }
+spk-cmd-make-source = { path = '../cmd-make-source' }

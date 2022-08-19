@@ -12,8 +12,8 @@ path = "src/lib.rs"
 anyhow = "1.0"
 async-trait = "0.1"
 clap = { version = "3.2", features = ["derive", "env"] }
-spfs = { version = '0.34.6', path = "../spfs" }
-spk-cli-common = { path = '../spk-cli-common' }
-spk-exec = { path = '../spk-exec' }
+spfs = { version = '0.34.6', path = "../../spfs" }
+spk-cli-common = { path = '../common' }
+spk-exec = { path = '../../spk-exec' }
 tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"
