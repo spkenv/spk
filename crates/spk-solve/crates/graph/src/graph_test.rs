@@ -8,7 +8,7 @@ use spk_foundation::format::{FormatChange, FormatChangeOptions};
 use spk_foundation::ident_component::Component;
 use spk_foundation::option_map;
 use spk_foundation::{name::PkgName, opt_name};
-use spk_solver_solution::PackageSource;
+use spk_solve_solution::PackageSource;
 use spk_spec::{recipe, spec};
 
 use super::DecisionBuilder;

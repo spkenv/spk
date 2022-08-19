@@ -32,9 +32,9 @@ pub enum Error {
     #[error(transparent)]
     SpkNameError(#[from] spk_foundation::name::Error),
     #[error(transparent)]
-    SpkSolverPackageIteratorError(#[from] spk_solver_package_iterator::Error),
+    SpkSolverPackageIteratorError(#[from] spk_solve_package_iterator::Error),
     #[error(transparent)]
-    SpkSolverSolutionError(#[from] spk_solver_solution::Error),
+    SpkSolverSolutionError(#[from] spk_solve_solution::Error),
     #[error(transparent)]
     SpkSpecError(#[from] spk_spec::Error),
     #[error(transparent)]

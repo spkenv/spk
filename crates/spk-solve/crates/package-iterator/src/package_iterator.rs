@@ -9,7 +9,7 @@ use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::PackageOps;
 use spk_foundation::version::Version;
 use spk_ident::Ident;
-use spk_solver_solution::PackageSource;
+use spk_solve_solution::PackageSource;
 use spk_spec::{Package, Spec, SpecRecipe};
 use spk_storage::RepositoryHandle;
 use std::ffi::OsString;

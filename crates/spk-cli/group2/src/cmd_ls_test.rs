@@ -5,7 +5,7 @@
 use clap::Parser;
 use spfs::{config::Remote, RemoteAddress};
 use spk_foundation::ident_component::Component;
-use spk_solver::spec;
+use spk_solve::spec;
 use spk_spec::recipe;
 use spk_storage::fixtures::*;
 

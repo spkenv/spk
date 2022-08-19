@@ -13,8 +13,8 @@ use spk_foundation::ident_component::Component;
 use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::RecipeOps;
 use spk_ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
-use spk_solver::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
-use spk_solver_graph::Graph;
+use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
+use spk_solve::graph::Graph;
 use spk_spec::SpecRecipe;
 use spk_storage::{self as storage};
 

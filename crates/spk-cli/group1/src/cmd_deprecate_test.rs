@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 use spk_ident::parse_ident;
-use spk_solver::make_repo;
+use spk_solve::make_repo;
 use spk_spec::Deprecate;
 
 use super::{change_deprecation_state, ChangeAction};

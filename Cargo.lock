@@ -2665,6 +2665,7 @@ dependencies = [
  "spk-cmd-repo",
  "spk-cmd-test",
  "spk-foundation",
+ "spk-spec",
  "spk-storage",
  "tokio",
  "tracing",
@@ -2683,9 +2684,7 @@ dependencies = [
  "spk-exec",
  "spk-foundation",
  "spk-ident",
- "spk-solver",
- "spk-solver-graph",
- "spk-solver-solution",
+ "spk-solve",
  "spk-spec",
  "spk-storage",
  "tar",
@@ -2715,8 +2714,7 @@ dependencies = [
  "spk-exec",
  "spk-foundation",
  "spk-ident",
- "spk-solver",
- "spk-solver-solution",
+ "spk-solve",
  "spk-spec",
  "spk-storage",
  "spk-validators",
@@ -2744,8 +2742,7 @@ dependencies = [
  "spk-cli-common",
  "spk-foundation",
  "spk-ident",
- "spk-solver",
- "spk-solver-solution",
+ "spk-solve",
  "spk-spec",
  "spk-storage",
  "tokio",
@@ -2767,7 +2764,7 @@ dependencies = [
  "spk-cli-common",
  "spk-foundation",
  "spk-ident",
- "spk-solver",
+ "spk-solve",
  "spk-spec",
  "spk-storage",
  "spk-validators",
@@ -2946,9 +2943,7 @@ dependencies = [
  "spk-exec",
  "spk-foundation",
  "spk-ident",
- "spk-solver",
- "spk-solver-graph",
- "spk-solver-solution",
+ "spk-solve",
  "spk-spec",
  "spk-storage",
  "spk-validators",
@@ -2963,7 +2958,7 @@ version = "0.36.0"
 dependencies = [
  "spfs",
  "spk-foundation",
- "spk-solver-solution",
+ "spk-solve",
  "spk-spec",
  "spk-storage",
  "thiserror",
@@ -3026,7 +3021,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "spk-solver"
+name = "spk-solve"
 version = "0.36.0"
 dependencies = [
  "async-recursion",
@@ -3042,10 +3037,10 @@ dependencies = [
  "spfs",
  "spk-foundation",
  "spk-ident",
- "spk-solver-graph",
- "spk-solver-package-iterator",
- "spk-solver-solution",
- "spk-solver-validation",
+ "spk-solve-graph",
+ "spk-solve-package-iterator",
+ "spk-solve-solution",
+ "spk-solve-validation",
  "spk-spec",
  "spk-storage",
  "spk-validators",
@@ -3055,7 +3050,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "spk-solver-graph"
+name = "spk-solve-graph"
 version = "0.36.0"
 dependencies = [
  "async-recursion",
@@ -3074,8 +3069,8 @@ dependencies = [
  "spfs",
  "spk-foundation",
  "spk-ident",
- "spk-solver-package-iterator",
- "spk-solver-solution",
+ "spk-solve-package-iterator",
+ "spk-solve-solution",
  "spk-spec",
  "spk-storage",
  "spk-validators",
@@ -3085,7 +3080,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "spk-solver-package-iterator"
+name = "spk-solve-package-iterator"
 version = "0.36.0"
 dependencies = [
  "async-trait",
@@ -3096,8 +3091,8 @@ dependencies = [
  "rstest",
  "spk-foundation",
  "spk-ident",
- "spk-solver",
- "spk-solver-solution",
+ "spk-solve",
+ "spk-solve-solution",
  "spk-spec",
  "spk-storage",
  "spk-validators",
@@ -3107,7 +3102,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "spk-solver-solution"
+name = "spk-solve-solution"
 version = "0.36.0"
 dependencies = [
  "spfs",
@@ -3119,7 +3114,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "spk-solver-validation"
+name = "spk-solve-validation"
 version = "0.36.0"
 dependencies = [
  "colored",
@@ -3129,8 +3124,8 @@ dependencies = [
  "serde_yaml",
  "spk-foundation",
  "spk-ident",
- "spk-solver-graph",
- "spk-solver-solution",
+ "spk-solve-graph",
+ "spk-solve-solution",
  "spk-spec",
  "thiserror",
 ]

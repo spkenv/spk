@@ -13,7 +13,7 @@ use spk_foundation::spec_ops::{PackageOps, Versioned};
 use spk_ident::{
     ident, parse_ident, parse_ident_range, PkgRequest, RangeIdent, Request, RequestedBy, VarRequest,
 };
-use spk_solver_solution::PackageSource;
+use spk_solve_solution::PackageSource;
 use spk_spec::{recipe, v0, Package};
 use spk_storage::RepositoryHandle;
 
@@ -128,9 +128,9 @@ async fn test_solver_package_with_no_spec(mut solver: Solver) {
     let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(matches!(
         res,
-        Err(Error::SpkSolverGraphError(
-            spk_solver_graph::Error::FailedToResolve(_)
-        ))
+        Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(
+            _
+        )))
     ));
 }
 
@@ -158,8 +158,8 @@ async fn test_solver_package_with_no_spec_from_cmd_line(mut solver: Solver) {
     let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(matches!(
         res,
-        Err(Error::SpkSolverGraphError(
-            spk_solver_graph::Error::PackageNotFoundDuringSolve(_)
+        Err(Error::GraphError(
+            spk_solve_graph::Error::PackageNotFoundDuringSolve(_)
         ))
     ));
 }
@@ -908,7 +908,7 @@ async fn test_solver_build_from_source_deprecated(mut solver: Solver) {
 
     let res = run_and_print_resolve_for_tests(&solver).await;
     match res {
-        Err(Error::SpkSolverGraphError(spk_solver_graph::Error::FailedToResolve(_))) => {}
+        Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(_))) => {}
         Err(err) => panic!("expected solve error, got {err:?}"),
         _ => panic!("expected solve error, got successful solution"),
     }

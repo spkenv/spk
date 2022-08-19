@@ -13,8 +13,8 @@ use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
 use spk_foundation::version::Compatibility;
 use spk_foundation::{option_map, option_map::OptionMap};
 use spk_ident::{Ident, InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
-use spk_solver_package_iterator::PackageIterator;
-use spk_solver_solution::{PackageSource, Solution};
+use spk_solve_package_iterator::PackageIterator;
+use spk_solve_solution::{PackageSource, Solution};
 use spk_spec::{
     ComponentSpecList, EmbeddedPackagesList, Package, RequirementsList, Spec, SpecRecipe,
 };

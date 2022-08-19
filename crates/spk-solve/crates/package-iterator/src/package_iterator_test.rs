@@ -9,7 +9,7 @@ use rstest::rstest;
 use spk_foundation::name::PkgName;
 use spk_foundation::spec_ops::PackageOps;
 use spk_foundation::{option_map, option_map::OptionMap};
-use spk_solver::{make_build, make_repo};
+use spk_solve::{make_build, make_repo};
 use spk_spec::{recipe, spec, Package, Spec};
 
 use super::{BuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator};

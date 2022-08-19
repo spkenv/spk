@@ -18,9 +18,7 @@ spk-cli-common = { path = '../common' }
 spk-exec = { path = '../../spk-exec' }
 spk-foundation = { path = "../../spk-foundation" }
 spk-ident = { path = '../../spk-ident' }
-spk-solver = { path = '../../spk-solver' }
-spk-solver-graph = { path = '../../spk-solver-graph' }
-spk-solver-solution = { path = '../../spk-solver-solution' }
+spk-solve = { path = '../../spk-solve' }
 spk-spec = { path = '../../spk-spec' }
 spk-storage = { path = '../../spk-storage' }
 spk-validators = { path = '../../spk-validators' }

@@ -21,15 +21,15 @@ use spk_foundation::name::{PkgName, PkgNameBuf};
 use spk_foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_foundation::version::Compatibility;
 use spk_ident::{Ident, PkgRequest, Request, RequestedBy, VarRequest};
-use spk_solver_graph::{
+use spk_solve_graph::{
     Change, Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SkipPackageNote,
     State, StepBack, DEAD_STATE,
 };
-use spk_solver_package_iterator::{
+use spk_solve_package_iterator::{
     EmptyBuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator,
 };
-use spk_solver_solution::{PackageSource, Solution};
-use spk_solver_validation::{default_validators, BinaryOnlyValidator, ValidatorT, Validators};
+use spk_solve_solution::{PackageSource, Solution};
+use spk_solve_validation::{default_validators, BinaryOnlyValidator, ValidatorT, Validators};
 use spk_spec::{Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_storage::RepositoryHandle;
 
@@ -222,13 +222,13 @@ impl Solver {
             let (pkg, builds) = match iterator_lock.next().await {
                 Ok(Some((pkg, builds))) => (pkg, builds),
                 Ok(None) => break,
-                Err(spk_solver_package_iterator::Error::SpkValidatorsError(
+                Err(spk_solve_package_iterator::Error::SpkValidatorsError(
                     spk_validators::Error::PackageNotFoundError(_),
                 )) => {
                     // Intercept this error in this situation to
                     // capture the request for the package that turned
                     // out to be missing.
-                    return Err(spk_solver_graph::Error::PackageNotFoundDuringSolve(
+                    return Err(spk_solve_graph::Error::PackageNotFoundDuringSolve(
                         request.clone(),
                     )
                     .into());
@@ -311,7 +311,7 @@ impl Solver {
                                 continue;
                             }
                             Ok(r) => r,
-                            Err(spk_solver_solution::Error::SpkStorageError(
+                            Err(spk_solve_solution::Error::SpkStorageError(
                                 spk_storage::Error::SpkValidatorsError(
                                     spk_validators::Error::PackageNotFoundError(pkg),
                                 ),
@@ -620,7 +620,7 @@ impl SolverRuntime {
             .get_pkg_requests()
             .is_empty();
         if is_dead && !is_empty {
-            Err(spk_solver_graph::Error::FailedToResolve((*self.graph).read().await.clone()).into())
+            Err(spk_solve_graph::Error::FailedToResolve((*self.graph).read().await.clone()).into())
         } else {
             current_node_lock
                 .state
@@ -770,13 +770,13 @@ impl SolverRuntime {
                         yield Ok(to_yield);
                         continue 'outer;
                     }
-                    Err(Error::SpkSolverGraphError(spk_solver_graph::Error::PackageNotFoundDuringSolve(err_req))) => {
+                    Err(Error::GraphError(spk_solve_graph::Error::PackageNotFoundDuringSolve(err_req))) => {
                         let requested_by = err_req.get_requesters();
                         for req in &requested_by {
                             // Can't recover from a command line request for a
                             // missing package.
                             if let RequestedBy::CommandLine = req {
-                                yield Err(Error::SpkSolverGraphError(spk_solver_graph::Error::PackageNotFoundDuringSolve(err_req)));
+                                yield Err(Error::GraphError(spk_solve_graph::Error::PackageNotFoundDuringSolve(err_req)));
                                 continue 'outer;
                             }
 

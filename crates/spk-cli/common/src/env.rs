@@ -11,7 +11,7 @@ use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use spk_foundation::spec_ops::PackageOps;
 use spk_ident::{parse_ident, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
-use spk_solver_solution::{PackageSource, Solution};
+use spk_solve::solution::{PackageSource, Solution};
 use spk_storage::{self as storage};
 
 use crate::Error;

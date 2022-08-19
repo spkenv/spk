@@ -22,7 +22,7 @@ use spk_foundation::format::{
 };
 use spk_foundation::ident_build::Build;
 use spk_foundation::spec_ops::PackageOps;
-use spk_solver_graph::{
+use spk_solve_graph::{
     Change, Decision, Node, Note, DUPLICATE_REQUESTS_COUNT, REQUESTS_FOR_SAME_PACKAGE_COUNT,
 };
 
@@ -250,7 +250,7 @@ where
                                     fill = ">";
                                 }
                             }
-                            StepBack(spk_solver_graph::StepBack { destination, .. }) => {
+                            StepBack(spk_solve_graph::StepBack { destination, .. }) => {
                                 fill = "!";
                                 new_level = destination.state_depth;
                             }

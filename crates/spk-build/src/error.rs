@@ -21,7 +21,7 @@ pub enum Error {
     #[error(transparent)]
     SpkIdentError(#[from] spk_ident::Error),
     #[error(transparent)]
-    SpkSolverError(#[from] spk_solver::Error),
+    SpkSolverError(#[from] spk_solve::Error),
     #[error(transparent)]
     SpkSpecError(#[from] spk_spec::Error),
     #[error(transparent)]

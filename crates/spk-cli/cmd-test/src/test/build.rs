@@ -15,9 +15,9 @@ use spk_foundation::ident_component::Component;
 use spk_foundation::option_map::OptionMap;
 use spk_foundation::spec_ops::RecipeOps;
 use spk_ident::{Ident, PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
-use spk_solver::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
-use spk_solver_graph::Graph;
-use spk_solver_solution::Solution;
+use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
+use spk_solve::graph::Graph;
+use spk_solve::solution::Solution;
 use spk_spec::{Recipe, SpecRecipe};
 use spk_storage::{self as storage};
 

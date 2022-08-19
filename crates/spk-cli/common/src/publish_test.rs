@@ -5,7 +5,7 @@
 use rstest::rstest;
 use spk_foundation::ident_component::Component;
 use spk_foundation::spec_ops::PackageOps;
-use spk_solver::{recipe, spec};
+use spk_solve::{recipe, spec};
 use spk_storage::fixtures::*;
 
 use super::Publisher;

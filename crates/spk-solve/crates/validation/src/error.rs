@@ -4,7 +4,7 @@
 
 use colored::Colorize;
 use spk_foundation::format::FormatError;
-use spk_solver_graph::Graph;
+use spk_solve_graph::Graph;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -18,7 +18,7 @@ pub enum Error {
     #[error(transparent)]
     SpkIdentError(#[from] spk_ident::Error),
     #[error(transparent)]
-    SpkSolverGraphGetMergedRequestError(#[from] spk_solver_graph::GetMergedRequestError),
+    SpkSolverGraphGetMergedRequestError(#[from] spk_solve_graph::GetMergedRequestError),
 }
 
 impl FormatError for Error {

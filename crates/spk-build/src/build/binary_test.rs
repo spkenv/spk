@@ -11,7 +11,7 @@ use spk_foundation::opt_name;
 use spk_foundation::option_map;
 use spk_foundation::spec_ops::PackageOps;
 use spk_ident::{PkgRequest, RangeIdent, Request};
-use spk_solver::Solution;
+use spk_solve::Solution;
 use spk_spec::{recipe, ComponentSpecList, Inheritance, Opt, Package, Recipe, SpecRecipe};
 use spk_storage::{self as storage, fixtures::*, Repository};
 

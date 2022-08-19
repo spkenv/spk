@@ -12,7 +12,7 @@ use spfs::prelude::Encodable;
 use spk_foundation::env::data_path;
 use spk_foundation::ident_component::Component;
 use spk_ident::Ident;
-use spk_solver::PackageOps;
+use spk_solve::PackageOps;
 use spk_storage::{self as storage};
 use thiserror::Error;
 

@@ -3,5 +3,5 @@ lto = true
 codegen-units = 1
 
 [workspace]
-members = ["crates/*", "crates/spk-cli/*"]
+members = ["crates/*", "crates/spk-cli/*", "crates/spk-solve/crates/*"]
 exclude = ["crates/spk-cli"]

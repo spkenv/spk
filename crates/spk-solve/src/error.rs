@@ -5,7 +5,7 @@
 use colored::Colorize;
 use spk_foundation::format::FormatError;
 use spk_ident::PkgRequest;
-use spk_solver_graph::Note;
+use spk_solve_graph::Note;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -19,15 +19,15 @@ pub enum Error {
     #[error(transparent)]
     SpkIdentComponentError(#[from] spk_foundation::ident_component::Error),
     #[error(transparent)]
-    SpkSolverGraphError(#[from] spk_solver_graph::Error),
+    GraphError(#[from] spk_solve_graph::Error),
     #[error(transparent)]
-    SpkSolverGraphGraphError(#[from] spk_solver_graph::GraphError),
+    GraphGraphError(#[from] spk_solve_graph::GraphError),
     #[error(transparent)]
-    SpkSolverPackageIteratorError(#[from] spk_solver_package_iterator::Error),
+    PackageIteratorError(#[from] spk_solve_package_iterator::Error),
     #[error(transparent)]
-    SpkSolverSolutionError(#[from] spk_solver_solution::Error),
+    SolutionError(#[from] spk_solve_solution::Error),
     #[error(transparent)]
-    SpkSolverValidationError(#[from] spk_solver_validation::Error),
+    ValidationError(#[from] spk_solve_validation::Error),
     #[error(transparent)]
     SpkSpecError(#[from] spk_spec::Error),
     #[error("Error: {0}")]
@@ -53,7 +53,7 @@ impl FormatError for Error {
                 msg.push_str("\n * ");
                 msg.push_str(err.as_str());
             }
-            Error::SpkSolverGraphError(err) => return err.format_error(verbosity),
+            Error::GraphError(err) => return err.format_error(verbosity),
             err => {
                 msg.push_str("\n * ");
                 msg.push_str(err.to_string().as_str());

@@ -8,8 +8,8 @@ use spk_foundation::ident_component::Component;
 use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps};
 use spk_foundation::version::Compatibility;
 use spk_ident::{Ident, PkgRequest, Request, VarRequest};
-use spk_solver_graph::{CachedHash, GetMergedRequestError, State};
-use spk_solver_solution::PackageSource;
+use spk_solve_graph::{CachedHash, GetMergedRequestError, State};
+use spk_solve_solution::PackageSource;
 use spk_spec::{Package, Recipe, Spec};
 use std::collections::HashSet;
 
@@ -164,7 +164,7 @@ impl EmbeddedPackageValidator {
         use Compatibility::{Compatible, Incompatible};
         let existing = match state.get_merged_request(embedded.name()) {
             Ok(request) => request,
-            Err(spk_solver_graph::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
+            Err(spk_solve_graph::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
             Err(err) => return Err(err.into()),
         };
 
@@ -438,7 +438,7 @@ impl PkgRequirementsValidator {
 
         let existing = match state.get_merged_request(&request.pkg.name) {
             Ok(request) => request,
-            Err(spk_solver_graph::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
+            Err(spk_solve_graph::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
             // XXX: KeyError or ValueError still possible here?
             Err(err) => return Err(err.into()),
         };
@@ -460,7 +460,7 @@ impl PkgRequirementsValidator {
                     (spec, spec.components().names())
                 }
             },
-            Err(spk_solver_graph::GetCurrentResolveError::PackageNotResolved(_)) => {
+            Err(spk_solve_graph::GetCurrentResolveError::PackageNotResolved(_)) => {
                 return Ok(Compatible)
             }
         };
