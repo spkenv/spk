@@ -3,8 +3,8 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spk_foundation::name::OptName;
-use spk_foundation::option_map::OptionMap;
+use spk_schema::foundation::name::OptName;
+use spk_schema::foundation::option_map::OptionMap;
 
 #[rstest]
 #[case(&["hello:world"], &[("hello", "world")])]

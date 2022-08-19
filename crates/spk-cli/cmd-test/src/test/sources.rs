@@ -10,14 +10,14 @@ use std::sync::Arc;
 use spk_build::source_package_path;
 use spk_cli_common::{Error, Result, TestError};
 use spk_exec::resolve_runtime_layers;
-use spk_foundation::ident_build::Build;
-use spk_foundation::ident_component::Component;
-use spk_foundation::option_map::OptionMap;
-use spk_foundation::spec_ops::RecipeOps;
-use spk_ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
+use spk_schema::foundation::ident_build::Build;
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::option_map::OptionMap;
+use spk_schema::foundation::spec_ops::RecipeOps;
+use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_solve::graph::Graph;
-use spk_spec::SpecRecipe;
+use spk_schema::SpecRecipe;
 use spk_storage::{self as storage};
 
 pub struct PackageSourceTester<'a> {

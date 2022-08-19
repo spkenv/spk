@@ -8,15 +8,15 @@ use anyhow::{anyhow, Result};
 use clap::Args;
 use colored::Colorize;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
-use spk_foundation::ident_component::ComponentSet;
-use spk_foundation::name::{PkgName, PkgNameBuf};
-use spk_ident::{
+use spk_schema::foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
+use spk_schema::foundation::ident_component::ComponentSet;
+use spk_schema::foundation::name::{PkgName, PkgNameBuf};
+use spk_schema::ident::{
     parse_ident,
     parsing::{ident_parts, IdentParts},
     Ident, KNOWN_REPOSITORY_NAMES,
 };
-use spk_spec::{Deprecate, Package, Spec};
+use spk_schema::{Deprecate, Package, Spec};
 use spk_storage::{self as storage};
 
 #[cfg(test)]

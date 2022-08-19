@@ -7,10 +7,10 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_foundation::format::FormatIdent;
-use spk_foundation::spec_ops::{PackageOps, RecipeOps};
-use spk_ident::{parse_ident, Ident};
-use spk_spec::{Deprecate, DeprecateMut, Spec, SpecRecipe};
+use spk_schema::foundation::format::FormatIdent;
+use spk_schema::foundation::spec_ops::{PackageOps, RecipeOps};
+use spk_schema::ident::{parse_ident, Ident};
+use spk_schema::{Deprecate, DeprecateMut, Spec, SpecRecipe};
 use spk_storage::{self as storage};
 
 #[cfg(test)]
@@ -321,7 +321,7 @@ impl Deprecate for DeprecationTarget {
 }
 
 impl DeprecateMut for DeprecationTarget {
-    fn deprecate(&mut self) -> spk_spec::Result<()> {
+    fn deprecate(&mut self) -> spk_schema::Result<()> {
         match self {
             DeprecationTarget::Recipe(t) => {
                 let mut new = (**t).clone();
@@ -337,7 +337,7 @@ impl DeprecateMut for DeprecationTarget {
         Ok(())
     }
 
-    fn undeprecate(&mut self) -> spk_spec::Result<()> {
+    fn undeprecate(&mut self) -> spk_schema::Result<()> {
         match self {
             DeprecationTarget::Recipe(t) => {
                 let mut new = (**t).clone();

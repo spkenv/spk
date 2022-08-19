@@ -17,13 +17,13 @@ use itertools::Itertools;
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 use spfs::{storage::EntryType, tracking};
-use spk_foundation::ident_build::{parse_build, Build, InvalidBuildError};
-use spk_foundation::ident_component::Component;
-use spk_foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
-use spk_foundation::spec_ops::{PackageOps, RecipeOps};
-use spk_foundation::version::{parse_version, Version};
-use spk_ident::Ident;
-use spk_spec::{Spec, SpecRecipe};
+use spk_schema::foundation::ident_build::{parse_build, Build, InvalidBuildError};
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
+use spk_schema::foundation::spec_ops::{PackageOps, RecipeOps};
+use spk_schema::foundation::version::{parse_version, Version};
+use spk_schema::ident::Ident;
+use spk_schema::{Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
 use super::{CachePolicy, Repository};
@@ -136,7 +136,7 @@ impl<T> From<CacheValue<T>> for Result<T> {
                 serde::ser::Error::custom(err),
             )),
             CacheValue::PackageNotFoundError(i) => Err(crate::Error::SpkValidatorsError(
-                spk_validators::Error::PackageNotFoundError(i),
+                spk_schema::validators::Error::PackageNotFoundError(i),
             )),
             CacheValue::StringError(s) => Err(s.into()),
             CacheValue::StringifiedError(s) => Err(s.into()),
@@ -152,9 +152,9 @@ impl<T> From<std::result::Result<T, &crate::Error>> for CacheValue<T> {
             Err(crate::Error::InvalidPackageSpec(i, err)) => {
                 CacheValue::InvalidPackageSpec(i.clone(), err.to_string())
             }
-            Err(crate::Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(
-                i,
-            ))) => CacheValue::PackageNotFoundError(i.clone()),
+            Err(crate::Error::SpkValidatorsError(
+                spk_schema::validators::Error::PackageNotFoundError(i),
+            )) => CacheValue::PackageNotFoundError(i.clone()),
             Err(crate::Error::String(s)) => CacheValue::StringError(s.clone()),
             // Decorate the error message so we can tell it was a custom error
             // downgraded to a String.
@@ -179,7 +179,7 @@ std::thread_local! {
 
     static RECIPE_CACHE : CacheByAddress<
         Ident,
-        CacheValue<Arc<spk_spec::SpecRecipe>>
+        CacheValue<Arc<spk_schema::SpecRecipe>>
     > = RefCell::new(HashMap::new());
 
     static PACKAGE_CACHE : CacheByAddress<
@@ -295,9 +295,9 @@ impl Repository for SPFSRepository {
     async fn list_build_components(&self, pkg: &Ident) -> Result<Vec<Component>> {
         match self.lookup_package(pkg).await {
             Ok(p) => Ok(p.into_components().into_keys().collect()),
-            Err(Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(_))) => {
-                Ok(Vec::new())
-            }
+            Err(Error::SpkValidatorsError(
+                spk_schema::validators::Error::PackageNotFoundError(_),
+            )) => Ok(Vec::new()),
             Err(err) => Err(err),
         }
     }
@@ -356,7 +356,7 @@ impl Repository for SPFSRepository {
     async fn read_package(
         &self,
         pkg: &Ident,
-    ) -> Result<Arc<<Self::Recipe as spk_spec::Recipe>::Output>> {
+    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
         // TODO: reduce duplicate code with read_recipe
         let address = self.address();
         if self.cached_result_permitted() {
@@ -394,7 +394,7 @@ impl Repository for SPFSRepository {
             // BUG(rbottriell): this creates a race condition but is not super dangerous
             // because of the non-destructive tag history
             Err(Error::SpkValidatorsError(
-                spk_validators::Error::VersionExistsError(spec.to_ident()),
+                spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
             ))
         } else {
             self.force_publish_recipe(spec).await
@@ -406,7 +406,7 @@ impl Repository for SPFSRepository {
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
         match self.inner.remove_tag_stream(&tag_spec).await {
             Err(spfs::Error::UnknownReference(_)) => Err(Error::SpkValidatorsError(
-                spk_validators::Error::PackageNotFoundError(pkg.clone()),
+                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
             )),
             Err(err) => Err(err.into()),
             Ok(_) => {
@@ -420,7 +420,7 @@ impl Repository for SPFSRepository {
         let tag_path = self.build_spec_tag(&spec.to_ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
 
-        let payload = serde_yaml::to_vec(&spec).map_err(spk_spec::Error::SpecEncodingError)?;
+        let payload = serde_yaml::to_vec(&spec).map_err(spk_schema::Error::SpecEncodingError)?;
         let digest = self
             .inner
             .commit_blob(Box::pin(std::io::Cursor::new(payload)))
@@ -474,7 +474,7 @@ impl Repository for SPFSRepository {
         let tag_path = self.build_spec_tag(spec.ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
         let payload = serde_yaml::to_vec(&spec)
-            .map_err(|err| Error::SpkSpecError(spk_spec::Error::SpecEncodingError(err)))?;
+            .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
         let digest = self
             .inner
             .commit_blob(Box::pin(std::io::Cursor::new(payload)))
@@ -667,7 +667,7 @@ impl SPFSRepository {
             .await
             .map_err(|err| match err {
                 spfs::Error::UnknownReference(_) => Error::SpkValidatorsError(
-                    spk_validators::Error::PackageNotFoundError(for_pkg.clone()),
+                    spk_schema::validators::Error::PackageNotFoundError(for_pkg.clone()),
                 ),
                 err => err.into(),
             });
@@ -718,7 +718,7 @@ impl SPFSRepository {
             return Ok(StoredPackage::WithoutComponents(tag_spec));
         }
         Err(Error::SpkValidatorsError(
-            spk_validators::Error::PackageNotFoundError(pkg.clone()),
+            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
         ))
     }
 

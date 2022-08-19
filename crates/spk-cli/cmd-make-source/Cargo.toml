@@ -14,8 +14,6 @@ async-trait = "0.1"
 clap = { version = "3.2", features = ["derive", "env"] }
 spk-build = { path = '../../spk-build' }
 spk-cli-common = { path = '../common' }
-spk-foundation = { path = '../../spk-foundation' }
-spk-ident = { path = '../../spk-ident' }
-spk-spec = { path = '../../spk-spec' }
+spk-schema = { path = '../../spk-schema' }
 spk-storage = { path = '../../spk-storage' }
 tracing = "0.1.35"

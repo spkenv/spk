@@ -4,15 +4,15 @@
 
 use rstest::rstest;
 use spfs::{encoding::EMPTY_DIGEST, prelude::*};
-use spk_foundation::env::data_path;
-use spk_foundation::fixtures::*;
-use spk_foundation::ident_component::Component;
-use spk_foundation::opt_name;
-use spk_foundation::option_map;
-use spk_foundation::spec_ops::PackageOps;
-use spk_ident::{PkgRequest, RangeIdent, Request};
+use spk_schema::foundation::env::data_path;
+use spk_schema::foundation::fixtures::*;
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::opt_name;
+use spk_schema::foundation::option_map;
+use spk_schema::foundation::spec_ops::PackageOps;
+use spk_schema::ident::{PkgRequest, RangeIdent, Request};
+use spk_schema::{recipe, ComponentSpecList, Inheritance, Opt, Package, Recipe, SpecRecipe};
 use spk_solve::Solution;
-use spk_spec::{recipe, ComponentSpecList, Inheritance, Opt, Package, Recipe, SpecRecipe};
 use spk_storage::{self as storage, fixtures::*, Repository};
 
 use super::{BinaryPackageBuilder, BuildSource};
@@ -343,7 +343,7 @@ async fn test_build_bad_options() {
     assert!(
         matches!(
             res,
-            Err(crate::Error::SpkSpecError(spk_spec::Error::String(_)))
+            Err(crate::Error::SpkSpecError(spk_schema::Error::String(_)))
         ),
         "got {:?}",
         res

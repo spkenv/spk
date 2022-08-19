@@ -8,8 +8,8 @@ use clap::Args;
 use colored::Colorize;
 use itertools::Itertools;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_foundation::format::FormatIdent;
-use spk_ident::{parse_ident, Ident};
+use spk_schema::foundation::format::FormatIdent;
+use spk_schema::ident::{parse_ident, Ident};
 use spk_storage::{self as storage};
 
 /// Remove a package from a repository
@@ -104,7 +104,7 @@ async fn remove_build(
     if spec.is_ok() {
         tracing::info!("removed build spec {pretty_pkg} from {repo_name}")
     } else if let Err(spk_storage::Error::SpkValidatorsError(
-        spk_validators::Error::PackageNotFoundError(_),
+        spk_schema::validators::Error::PackageNotFoundError(_),
     )) = spec
     {
         tracing::warn!("spec {pretty_pkg} not found in {repo_name}")
@@ -112,7 +112,7 @@ async fn remove_build(
     if package.is_ok() {
         tracing::info!("removed build      {pretty_pkg} from {repo_name}")
     } else if let Err(spk_storage::Error::SpkValidatorsError(
-        spk_validators::Error::PackageNotFoundError(_),
+        spk_schema::validators::Error::PackageNotFoundError(_),
     )) = package
     {
         tracing::warn!("build {pretty_pkg} not found in {repo_name}")
@@ -135,7 +135,7 @@ async fn remove_all(repo_name: &str, repo: &storage::RepositoryHandle, pkg: &Ide
     match repo.remove_recipe(pkg).await {
         Ok(()) => tracing::info!("removed spec       {pretty_pkg} from {repo_name}"),
         Err(spk_storage::Error::SpkValidatorsError(
-            spk_validators::Error::PackageNotFoundError(_),
+            spk_schema::validators::Error::PackageNotFoundError(_),
         )) => {
             tracing::warn!("spec {pretty_pkg} not found in {repo_name}")
         }

@@ -15,12 +15,13 @@ use crate::option_map::OptionMap;
 use async_stream::stream;
 use futures::{Stream, TryStreamExt};
 use priority_queue::priority_queue::PriorityQueue;
-use spk_foundation::ident_build::Build;
-use spk_foundation::ident_component::Component;
-use spk_foundation::name::{PkgName, PkgNameBuf};
-use spk_foundation::spec_ops::{PackageOps, RecipeOps};
-use spk_foundation::version::Compatibility;
-use spk_ident::{Ident, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::foundation::ident_build::Build;
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::name::{PkgName, PkgNameBuf};
+use spk_schema::foundation::spec_ops::{PackageOps, RecipeOps};
+use spk_schema::foundation::version::Compatibility;
+use spk_schema::ident::{Ident, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::{Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
     Change, Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SkipPackageNote,
     State, StepBack, DEAD_STATE,
@@ -30,7 +31,6 @@ use spk_solve_package_iterator::{
 };
 use spk_solve_solution::{PackageSource, Solution};
 use spk_solve_validation::{default_validators, BinaryOnlyValidator, ValidatorT, Validators};
-use spk_spec::{Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_storage::RepositoryHandle;
 
 use crate::{Error, Result};
@@ -223,7 +223,7 @@ impl Solver {
                 Ok(Some((pkg, builds))) => (pkg, builds),
                 Ok(None) => break,
                 Err(spk_solve_package_iterator::Error::SpkValidatorsError(
-                    spk_validators::Error::PackageNotFoundError(_),
+                    spk_schema::validators::Error::PackageNotFoundError(_),
                 )) => {
                     // Intercept this error in this situation to
                     // capture the request for the package that turned
@@ -313,7 +313,7 @@ impl Solver {
                             Ok(r) => r,
                             Err(spk_solve_solution::Error::SpkStorageError(
                                 spk_storage::Error::SpkValidatorsError(
-                                    spk_validators::Error::PackageNotFoundError(pkg),
+                                    spk_schema::validators::Error::PackageNotFoundError(pkg),
                                 ),
                             )) => {
                                 notes.push(Note::SkipPackageNote(

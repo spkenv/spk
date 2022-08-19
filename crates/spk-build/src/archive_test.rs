@@ -3,8 +3,8 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spk_foundation::spec_ops::PackageOps;
-use spk_spec::recipe;
+use spk_schema::foundation::spec_ops::PackageOps;
+use spk_schema::recipe;
 use spk_storage::{export_package, fixtures::*, import_package};
 
 use crate::{BinaryPackageBuilder, BuildSource};

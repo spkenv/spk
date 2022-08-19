@@ -15,10 +15,8 @@ serde_json = "1.0"
 serde_yaml = "0.8.17"
 spfs = { version = '0.34.6', path = "../spfs" }
 spk-exec = { path = "../spk-exec" }
-spk-foundation = { path = "../spk-foundation" }
-spk-ident = { path = "../spk-ident" }
 spk-solve = { path = "../spk-solve" }
-spk-spec = { path = "../spk-spec" }
+spk-schema = { path = "../spk-schema" }
 spk-storage = { path = "../spk-storage" }
 thiserror = "1.0"
 tokio = { version = "1.20", features = ["rt"] }

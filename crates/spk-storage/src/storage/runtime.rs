@@ -8,12 +8,12 @@ use std::{
 };
 
 use spfs::prelude::*;
-use spk_foundation::ident_build::parse_build;
-use spk_foundation::ident_component::Component;
-use spk_foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
-use spk_foundation::version::{parse_version, Version};
-use spk_ident::Ident;
-use spk_spec::SpecRecipe;
+use spk_schema::foundation::ident_build::parse_build;
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
+use spk_schema::foundation::version::{parse_version, Version};
+use spk_schema::ident::Ident;
+use spk_schema::SpecRecipe;
 
 use super::Repository;
 use crate::{Error, Result};
@@ -173,7 +173,7 @@ impl Repository for RuntimeRepository {
 
     async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
         Err(Error::SpkValidatorsError(
-            spk_validators::Error::PackageNotFoundError(pkg.clone()),
+            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
         ))
     }
 
@@ -197,9 +197,9 @@ impl Repository for RuntimeRepository {
                 .await
                 .map_err(|err| {
                     if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                        Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(
-                            pkg.clone(),
-                        ))
+                        Error::SpkValidatorsError(
+                            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                        )
                     } else {
                         err
                     }
@@ -214,7 +214,7 @@ impl Repository for RuntimeRepository {
             // package digest.
             let digest = find_layer_by_filename(path).await.map_err(|err| {
                 if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                    Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
                         pkg.clone(),
                     ))
                 } else {
@@ -244,13 +244,15 @@ impl Repository for RuntimeRepository {
     async fn read_package(
         &self,
         pkg: &Ident,
-    ) -> Result<Arc<<Self::Recipe as spk_spec::Recipe>::Output>> {
+    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
         let mut path = self.root.join(pkg.to_string());
         path.push("spec.yaml");
 
         let mut reader = std::fs::File::open(&path).map_err(|err| {
             if err.kind() == std::io::ErrorKind::NotFound {
-                Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(pkg.clone()))
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
             } else {
                 err.into()
             }
@@ -262,7 +264,7 @@ impl Repository for RuntimeRepository {
 
     async fn publish_package(
         &self,
-        _spec: &<Self::Recipe as spk_spec::Recipe>::Output,
+        _spec: &<Self::Recipe as spk_schema::Recipe>::Output,
         _components: &HashMap<Component, spfs::encoding::Digest>,
     ) -> Result<()> {
         Err(Error::String(

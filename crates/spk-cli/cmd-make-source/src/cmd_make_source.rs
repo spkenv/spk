@@ -8,10 +8,10 @@ use anyhow::{Context, Result};
 use clap::Args;
 use spk_build::SourcePackageBuilder;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_foundation::format::FormatIdent;
-use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps};
-use spk_ident::BuildIdent;
-use spk_spec::{SpecTemplate, Template, TemplateExt};
+use spk_schema::foundation::format::FormatIdent;
+use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps};
+use spk_schema::ident::BuildIdent;
+use spk_schema::{SpecTemplate, Template, TemplateExt};
 use spk_storage::{self as storage};
 
 /// Build a source package from a spec file.

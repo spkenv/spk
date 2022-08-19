@@ -4,7 +4,7 @@
 use std::{convert::TryFrom, path::Path};
 
 use futures::{TryFutureExt, TryStreamExt};
-use spk_ident::Ident;
+use spk_schema::ident::Ident;
 
 use super::{Repository, SPFSRepository};
 use crate::{Error, Result};
@@ -62,7 +62,9 @@ pub async fn export_package<P: AsRef<Path>>(pkg: &Ident, filename: P) -> Result<
     for pkg in to_transfer.into_iter() {
         let local_err = match copy_package(&pkg, &local_repo, &target_repo).await {
             Ok(_) => continue,
-            Err(Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(_))) => None,
+            Err(Error::SpkValidatorsError(
+                spk_schema::validators::Error::PackageNotFoundError(_),
+            )) => None,
             Err(err) => Some(err),
         };
         if remote_repo.is_err() {
@@ -71,7 +73,9 @@ pub async fn export_package<P: AsRef<Path>>(pkg: &Ident, filename: P) -> Result<
         let remote_err = match copy_package(&pkg, remote_repo.as_ref().unwrap(), &target_repo).await
         {
             Ok(_) => continue,
-            Err(Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(_))) => None,
+            Err(Error::SpkValidatorsError(
+                spk_schema::validators::Error::PackageNotFoundError(_),
+            )) => None,
             Err(err) => Some(err),
         };
         // we will hide the remote_err in cases when both failed,
@@ -79,7 +83,7 @@ pub async fn export_package<P: AsRef<Path>>(pkg: &Ident, filename: P) -> Result<
         // local error is preferred
         return Err(local_err
             .or(remote_err)
-            .unwrap_or_else(|| spk_validators::Error::PackageNotFoundError(pkg).into()));
+            .unwrap_or_else(|| spk_schema::validators::Error::PackageNotFoundError(pkg).into()));
     }
 
     tracing::info!(path=?filename, "building archive");

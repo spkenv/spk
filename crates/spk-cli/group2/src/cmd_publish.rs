@@ -6,7 +6,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use clap::Args;
 use spk_cli_common::{CommandArgs, Publisher, Run};
-use spk_ident::Ident;
+use spk_schema::ident::Ident;
 use spk_storage::{self as storage};
 
 /// Publish a package into a shared repository

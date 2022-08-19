@@ -17,11 +17,11 @@ use async_stream::stream;
 use colored::Colorize;
 use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
-use spk_foundation::format::{
+use spk_schema::foundation::format::{
     FormatChange, FormatChangeOptions, FormatIdent, FormatOptionMap, FormatRequest, FormatSolution,
 };
-use spk_foundation::ident_build::Build;
-use spk_foundation::spec_ops::PackageOps;
+use spk_schema::foundation::ident_build::Build;
+use spk_schema::foundation::spec_ops::PackageOps;
 use spk_solve_graph::{
     Change, Decision, Node, Note, DUPLICATE_REQUESTS_COUNT, REQUESTS_FOR_SAME_PACKAGE_COUNT,
 };

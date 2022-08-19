@@ -4,13 +4,13 @@
 
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
-use spk_foundation::ident_component::Component;
-use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps};
-use spk_foundation::version::Compatibility;
-use spk_ident::{Ident, PkgRequest, Request, VarRequest};
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps};
+use spk_schema::foundation::version::Compatibility;
+use spk_schema::ident::{Ident, PkgRequest, Request, VarRequest};
+use spk_schema::{Package, Recipe, Spec};
 use spk_solve_graph::{CachedHash, GetMergedRequestError, State};
 use spk_solve_solution::PackageSource;
-use spk_spec::{Package, Recipe, Spec};
 use std::collections::HashSet;
 
 #[cfg(test)]
@@ -447,7 +447,7 @@ impl PkgRequirementsValidator {
         let request = match restricted.restrict(request) {
             Ok(_) => restricted,
             // FIXME: only match ValueError
-            Err(spk_ident::Error::String(err)) => {
+            Err(spk_schema::ident::Error::String(err)) => {
                 return Ok(Incompatible(format!("conflicting requirement: {}", err)))
             }
             Err(err) => return Err(err.into()),

@@ -9,11 +9,11 @@ use clap::Args;
 use futures::TryFutureExt;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{flags, spk_exe, CommandArgs, Run};
-use spk_foundation::format::{FormatIdent, FormatOptionMap};
-use spk_foundation::option_map::{host_options, OptionMap};
-use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps};
-use spk_ident::{PkgRequest, RangeIdent, RequestedBy};
-use spk_spec::{Recipe, SpecTemplate, Template, TemplateExt};
+use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
+use spk_schema::foundation::option_map::{host_options, OptionMap};
+use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps};
+use spk_schema::ident::{PkgRequest, RangeIdent, RequestedBy};
+use spk_schema::{Recipe, SpecTemplate, Template, TemplateExt};
 use spk_storage::{self as storage};
 
 #[derive(Clone)]
@@ -195,7 +195,7 @@ impl Run for MakeBinary {
                     | Err(
                         err @ spk_build::Error::SpkStorageError(
                             spk_storage::Error::SpkValidatorsError(
-                                spk_validators::Error::PackageNotFoundError(_),
+                                spk_schema::validators::Error::PackageNotFoundError(_),
                             ),
                         ),
                     ) => {

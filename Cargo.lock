@@ -2664,8 +2664,8 @@ dependencies = [
  "spk-cmd-render",
  "spk-cmd-repo",
  "spk-cmd-test",
- "spk-foundation",
- "spk-spec",
+ "spk-schema",
+ "spk-solve",
  "spk-storage",
  "tokio",
  "tracing",
@@ -2682,10 +2682,8 @@ dependencies = [
  "serde_yaml",
  "spfs",
  "spk-exec",
- "spk-foundation",
- "spk-ident",
+ "spk-schema",
  "spk-solve",
- "spk-spec",
  "spk-storage",
  "tar",
  "tempfile",
@@ -2712,12 +2710,9 @@ dependencies = [
  "spfs",
  "spk-build",
  "spk-exec",
- "spk-foundation",
- "spk-ident",
+ "spk-schema",
  "spk-solve",
- "spk-spec",
  "spk-storage",
- "spk-validators",
  "thiserror",
  "tokio",
  "tracing",
@@ -2740,10 +2735,8 @@ dependencies = [
  "serde_yaml",
  "spfs",
  "spk-cli-common",
- "spk-foundation",
- "spk-ident",
+ "spk-schema",
  "spk-solve",
- "spk-spec",
  "spk-storage",
  "tokio",
  "tracing",
@@ -2762,12 +2755,9 @@ dependencies = [
  "nom-supreme",
  "spfs",
  "spk-cli-common",
- "spk-foundation",
- "spk-ident",
+ "spk-schema",
  "spk-solve",
- "spk-spec",
  "spk-storage",
- "spk-validators",
  "tokio",
  "tracing",
 ]
@@ -2781,8 +2771,8 @@ dependencies = [
  "clap 3.2.11",
  "colored",
  "spk-cli-common",
+ "spk-schema",
  "spk-storage",
- "spk-validators",
  "tracing",
 ]
 
@@ -2798,9 +2788,7 @@ dependencies = [
  "serde_yaml",
  "spfs",
  "spk-cli-common",
- "spk-foundation",
- "spk-ident",
- "spk-spec",
+ "spk-schema",
  "tokio",
  "tracing",
 ]
@@ -2865,7 +2853,7 @@ dependencies = [
  "futures",
  "spk-cli-common",
  "spk-exec",
- "spk-foundation",
+ "spk-schema",
  "tokio",
 ]
 
@@ -2879,11 +2867,8 @@ dependencies = [
  "futures",
  "spk-build",
  "spk-cli-common",
- "spk-foundation",
- "spk-ident",
- "spk-spec",
+ "spk-schema",
  "spk-storage",
- "spk-validators",
  "tokio",
  "tracing",
 ]
@@ -2897,9 +2882,7 @@ dependencies = [
  "clap 3.2.11",
  "spk-build",
  "spk-cli-common",
- "spk-foundation",
- "spk-ident",
- "spk-spec",
+ "spk-schema",
  "spk-storage",
  "tracing",
 ]
@@ -2941,12 +2924,9 @@ dependencies = [
  "spk-build",
  "spk-cli-common",
  "spk-exec",
- "spk-foundation",
- "spk-ident",
+ "spk-schema",
  "spk-solve",
- "spk-spec",
  "spk-storage",
- "spk-validators",
  "tempfile",
  "tokio",
  "tracing",
@@ -2957,16 +2937,54 @@ name = "spk-exec"
 version = "0.36.0"
 dependencies = [
  "spfs",
- "spk-foundation",
+ "spk-schema",
  "spk-solve",
- "spk-spec",
  "spk-storage",
  "thiserror",
  "tracing",
 ]
 
 [[package]]
-name = "spk-foundation"
+name = "spk-launcher"
+version = "0.33.6"
+dependencies = [
+ "anyhow",
+ "nix",
+ "spfs",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "spk-schema"
+version = "0.36.0"
+dependencies = [
+ "data-encoding",
+ "enum_dispatch",
+ "ignore",
+ "indexmap",
+ "itertools",
+ "nom",
+ "proptest",
+ "regex",
+ "relative-path",
+ "rstest",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_yaml",
+ "spfs",
+ "spk-schema-foundation",
+ "spk-schema-ident",
+ "spk-schema-validators",
+ "sys-info",
+ "tempfile",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "spk-schema-foundation"
 version = "0.36.0"
 dependencies = [
  "colored",
@@ -2990,7 +3008,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "spk-ident"
+name = "spk-schema-ident"
 version = "0.36.0"
 dependencies = [
  "colored",
@@ -3005,19 +3023,34 @@ dependencies = [
  "serde",
  "serde_yaml",
  "spfs",
- "spk-foundation",
+ "spk-schema-foundation",
  "thiserror",
 ]
 
 [[package]]
-name = "spk-launcher"
-version = "0.33.6"
+name = "spk-schema-validators"
+version = "0.36.0"
 dependencies = [
- "anyhow",
- "nix",
+ "data-encoding",
+ "ignore",
+ "indexmap",
+ "itertools",
+ "nom",
+ "regex",
+ "relative-path",
+ "ring",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_yaml",
  "spfs",
- "tempfile",
- "tokio",
+ "spk-schema",
+ "spk-schema-foundation",
+ "spk-schema-ident",
+ "sys-info",
+ "tempdir",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -3035,15 +3068,12 @@ dependencies = [
  "rstest",
  "serde_json",
  "spfs",
- "spk-foundation",
- "spk-ident",
+ "spk-schema",
  "spk-solve-graph",
  "spk-solve-package-iterator",
  "spk-solve-solution",
  "spk-solve-validation",
- "spk-spec",
  "spk-storage",
- "spk-validators",
  "thiserror",
  "tokio",
  "tracing",
@@ -3067,13 +3097,10 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "spfs",
- "spk-foundation",
- "spk-ident",
+ "spk-schema",
  "spk-solve-package-iterator",
  "spk-solve-solution",
- "spk-spec",
  "spk-storage",
- "spk-validators",
  "thiserror",
  "tokio",
  "tracing",
@@ -3089,13 +3116,10 @@ dependencies = [
  "itertools",
  "once_cell",
  "rstest",
- "spk-foundation",
- "spk-ident",
+ "spk-schema",
  "spk-solve",
  "spk-solve-solution",
- "spk-spec",
  "spk-storage",
- "spk-validators",
  "thiserror",
  "tokio",
  "tracing",
@@ -3106,9 +3130,7 @@ name = "spk-solve-solution"
 version = "0.36.0"
 dependencies = [
  "spfs",
- "spk-foundation",
- "spk-ident",
- "spk-spec",
+ "spk-schema",
  "spk-storage",
  "thiserror",
 ]
@@ -3122,40 +3144,10 @@ dependencies = [
  "itertools",
  "rstest",
  "serde_yaml",
- "spk-foundation",
- "spk-ident",
+ "spk-schema",
  "spk-solve-graph",
  "spk-solve-solution",
- "spk-spec",
  "thiserror",
-]
-
-[[package]]
-name = "spk-spec"
-version = "0.36.0"
-dependencies = [
- "data-encoding",
- "enum_dispatch",
- "ignore",
- "indexmap",
- "itertools",
- "nom",
- "proptest",
- "regex",
- "relative-path",
- "rstest",
- "serde",
- "serde_derive",
- "serde_json",
- "serde_yaml",
- "spfs",
- "spk-foundation",
- "spk-ident",
- "spk-validators",
- "sys-info",
- "tempfile",
- "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -3184,10 +3176,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "spfs",
- "spk-foundation",
- "spk-ident",
- "spk-spec",
- "spk-validators",
+ "spk-schema",
  "sys-info",
  "tar",
  "tempfile",
@@ -3196,32 +3185,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber 0.2.25",
  "url",
-]
-
-[[package]]
-name = "spk-validators"
-version = "0.36.0"
-dependencies = [
- "data-encoding",
- "ignore",
- "indexmap",
- "itertools",
- "nom",
- "regex",
- "relative-path",
- "ring",
- "serde",
- "serde_derive",
- "serde_json",
- "serde_yaml",
- "spfs",
- "spk-foundation",
- "spk-ident",
- "spk-spec",
- "sys-info",
- "tempdir",
- "thiserror",
- "tracing",
 ]
 
 [[package]]

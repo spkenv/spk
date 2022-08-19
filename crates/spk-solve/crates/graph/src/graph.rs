@@ -6,18 +6,18 @@ use async_stream::stream;
 use colored::Colorize;
 use futures::Stream;
 use once_cell::sync::{Lazy, OnceCell};
-use spk_foundation::format::{FormatChange, FormatIdent, FormatOptionMap, FormatRequest};
-use spk_foundation::ident_component::Component;
-use spk_foundation::name::{OptNameBuf, PkgName, PkgNameBuf};
-use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
-use spk_foundation::version::Compatibility;
-use spk_foundation::{option_map, option_map::OptionMap};
-use spk_ident::{Ident, InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
-use spk_solve_package_iterator::PackageIterator;
-use spk_solve_solution::{PackageSource, Solution};
-use spk_spec::{
+use spk_schema::foundation::format::{FormatChange, FormatIdent, FormatOptionMap, FormatRequest};
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::name::{OptNameBuf, PkgName, PkgNameBuf};
+use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
+use spk_schema::foundation::version::Compatibility;
+use spk_schema::foundation::{option_map, option_map::OptionMap};
+use spk_schema::ident::{Ident, InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::{
     ComponentSpecList, EmbeddedPackagesList, Package, RequirementsList, Spec, SpecRecipe,
 };
+use spk_solve_package_iterator::PackageIterator;
+use spk_solve_solution::{PackageSource, Solution};
 use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
@@ -88,7 +88,7 @@ impl FormatChange for Change {
 
     fn format_change(
         &self,
-        format_settings: &spk_foundation::format::FormatChangeOptions,
+        format_settings: &spk_schema::foundation::format::FormatChangeOptions,
         state: Option<&Self::State>,
     ) -> String {
         use Change::*;

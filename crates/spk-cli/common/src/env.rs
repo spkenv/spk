@@ -9,8 +9,8 @@ use std::{
 
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
-use spk_foundation::spec_ops::PackageOps;
-use spk_ident::{parse_ident, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
+use spk_schema::foundation::spec_ops::PackageOps;
+use spk_schema::ident::{parse_ident, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
 use spk_solve::solution::{PackageSource, Solution};
 use spk_storage::{self as storage};
 
@@ -36,7 +36,7 @@ pub async fn current_env() -> crate::Result<Solution> {
                 let components = match repo.read_components(spec.ident()).await {
                     Ok(c) => c,
                     Err(spk_storage::Error::SpkValidatorsError(
-                        spk_validators::Error::PackageNotFoundError(_),
+                        spk_schema::validators::Error::PackageNotFoundError(_),
                     )) => {
                         tracing::info!("Skipping missing build {pkg}; currently being built?");
                         continue;

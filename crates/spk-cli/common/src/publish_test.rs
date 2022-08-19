@@ -3,8 +3,8 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spk_foundation::ident_component::Component;
-use spk_foundation::spec_ops::PackageOps;
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::spec_ops::PackageOps;
 use spk_solve::{recipe, spec};
 use spk_storage::fixtures::*;
 

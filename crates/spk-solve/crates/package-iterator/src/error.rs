@@ -9,13 +9,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
-    SpkNameError(#[from] spk_foundation::name::Error),
+    SpkNameError(#[from] spk_schema::foundation::name::Error),
     #[error(transparent)]
     SpkStorageError(#[from] spk_storage::Error),
     #[error(transparent)]
-    SpkValidatorsError(#[from] spk_validators::Error),
+    SpkValidatorsError(#[from] spk_schema::validators::Error),
     #[error(transparent)]
-    SpkVersionRangeError(#[from] spk_foundation::version_range::Error),
+    SpkVersionRangeError(#[from] spk_schema::foundation::version_range::Error),
     #[error("Error: {0}")]
     String(String),
 }

@@ -9,7 +9,7 @@ use clap::Parser;
 use rstest::rstest;
 use spk_cli_common::Run;
 use spk_cmd_build::cmd_build::Build;
-use spk_foundation::fixtures::*;
+use spk_schema::foundation::fixtures::*;
 use spk_storage::fixtures::*;
 
 use super::Test;

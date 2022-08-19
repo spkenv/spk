@@ -5,8 +5,8 @@
 use std::fmt::Write;
 
 use colored::Colorize;
-use spk_foundation::format::FormatError;
-use spk_ident::PkgRequest;
+use spk_schema::foundation::format::FormatError;
+use spk_schema::ident::PkgRequest;
 use thiserror::Error;
 
 use super::graph::GraphError;
@@ -26,23 +26,23 @@ pub enum Error {
     #[error("Solver interrupted: {0}")]
     SolverInterrupted(String),
     #[error(transparent)]
-    SpkIdentError(#[from] spk_ident::Error),
+    SpkIdentError(#[from] spk_schema::ident::Error),
     #[error(transparent)]
-    SpkIdentComponentError(#[from] spk_foundation::ident_component::Error),
+    SpkIdentComponentError(#[from] spk_schema::foundation::ident_component::Error),
     #[error(transparent)]
-    SpkNameError(#[from] spk_foundation::name::Error),
+    SpkNameError(#[from] spk_schema::foundation::name::Error),
     #[error(transparent)]
     SpkSolverPackageIteratorError(#[from] spk_solve_package_iterator::Error),
     #[error(transparent)]
     SpkSolverSolutionError(#[from] spk_solve_solution::Error),
     #[error(transparent)]
-    SpkSpecError(#[from] spk_spec::Error),
+    SpkSpecError(#[from] spk_schema::Error),
     #[error(transparent)]
     SpkStorageError(#[from] spk_storage::Error),
     #[error(transparent)]
-    SpkValidatorsError(#[from] spk_validators::Error),
+    SpkValidatorsError(#[from] spk_schema::validators::Error),
     #[error(transparent)]
-    SpkVersionRangeError(#[from] spk_foundation::version_range::Error),
+    SpkVersionRangeError(#[from] spk_schema::foundation::version_range::Error),
     #[error("Error: {0}")]
     String(String),
 }

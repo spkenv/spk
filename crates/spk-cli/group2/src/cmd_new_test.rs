@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spk_spec::{SpecTemplate, TemplateExt};
+use spk_schema::{SpecTemplate, TemplateExt};
 
 #[rstest]
 fn test_template_is_valid() {

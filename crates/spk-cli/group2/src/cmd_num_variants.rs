@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_spec::{Recipe, Template};
+use spk_schema::{Recipe, Template};
 
 /// Build a source package from a spec file.
 #[derive(Args)]

@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use spk_foundation::format::{FormatComponents, FormatIdent};
-use spk_foundation::ident_component::ComponentSet;
-use spk_foundation::spec_ops::{PackageOps, RecipeOps};
-use spk_ident::Ident;
+use spk_schema::foundation::format::{FormatComponents, FormatIdent};
+use spk_schema::foundation::ident_component::ComponentSet;
+use spk_schema::foundation::spec_ops::{PackageOps, RecipeOps};
+use spk_schema::ident::Ident;
 use spk_storage::{self as storage};
 use std::sync::Arc;
 use storage::{with_cache_policy, CachePolicy};
@@ -79,7 +79,7 @@ impl Publisher {
         }) {
             Err(
                 err @ spk_storage::Error::SpkValidatorsError(
-                    spk_validators::Error::PackageNotFoundError(_),
+                    spk_schema::validators::Error::PackageNotFoundError(_),
                 ),
             ) if self.force => {
                 return Err(
@@ -87,7 +87,7 @@ impl Publisher {
                 );
             }
             Err(spk_storage::Error::SpkValidatorsError(
-                spk_validators::Error::PackageNotFoundError(_),
+                spk_schema::validators::Error::PackageNotFoundError(_),
             )) => {
                 // If it was not found locally, allow the publish to proceed;
                 // if it is also missing on the remote, that will be caught
@@ -102,7 +102,7 @@ impl Publisher {
                     match self.to.publish_recipe(&recipe).await {
                         Ok(_)
                         | Err(spk_storage::Error::SpkValidatorsError(
-                            spk_validators::Error::VersionExistsError(_),
+                            spk_schema::validators::Error::VersionExistsError(_),
                         )) => {
                             // It's cool if the version already exists
                         }

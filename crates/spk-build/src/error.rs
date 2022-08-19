@@ -19,11 +19,11 @@ pub enum Error {
     #[error(transparent)]
     SpkExecError(#[from] spk_exec::Error),
     #[error(transparent)]
-    SpkIdentError(#[from] spk_ident::Error),
+    SpkIdentError(#[from] spk_schema::ident::Error),
     #[error(transparent)]
     SpkSolverError(#[from] spk_solve::Error),
     #[error(transparent)]
-    SpkSpecError(#[from] spk_spec::Error),
+    SpkSpecError(#[from] spk_schema::Error),
     #[error(transparent)]
     SpkStorageError(#[from] spk_storage::Error),
     #[error("Error: {0}")]

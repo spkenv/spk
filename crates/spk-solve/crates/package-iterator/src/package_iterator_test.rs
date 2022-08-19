@@ -6,11 +6,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use rstest::rstest;
-use spk_foundation::name::PkgName;
-use spk_foundation::spec_ops::PackageOps;
-use spk_foundation::{option_map, option_map::OptionMap};
+use spk_schema::foundation::name::PkgName;
+use spk_schema::foundation::spec_ops::PackageOps;
+use spk_schema::foundation::{option_map, option_map::OptionMap};
+use spk_schema::{recipe, spec, Package, Spec};
 use spk_solve::{make_build, make_repo};
-use spk_spec::{recipe, spec, Package, Spec};
 
 use super::{BuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator};
 

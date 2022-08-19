@@ -3,11 +3,11 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spk_foundation::ident_component::Component;
-use spk_foundation::pkg_name;
-use spk_foundation::spec_ops::{Named, PackageOps, RecipeOps};
-use spk_ident::parse_ident;
-use spk_spec::{recipe, spec};
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::pkg_name;
+use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps};
+use spk_schema::ident::parse_ident;
+use spk_schema::{recipe, spec};
 
 use crate::{fixtures::*, Error};
 
@@ -59,7 +59,7 @@ async fn test_repo_read_recipe_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
     let nothing = parse_ident("nothing").unwrap();
     match repo.read_recipe(&nothing).await {
-        Err(Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(_))) => (),
+        Err(Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(_))) => {}
         _ => panic!("expected package not found error"),
     }
 }
@@ -72,7 +72,7 @@ async fn test_repo_read_package_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
     let nothing = parse_ident("nothing/1.0.0/src").unwrap();
     match repo.read_package(&nothing).await {
-        Err(Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(_))) => (),
+        Err(Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(_))) => {}
         res => panic!("expected package not found error, got {:?}", res),
     }
 }
@@ -109,7 +109,7 @@ async fn test_repo_publish_recipe(#[case] repo: RepoKind) {
     );
 
     match repo.publish_recipe(&spec).await {
-        Err(Error::SpkValidatorsError(spk_validators::Error::VersionExistsError(_))) => (),
+        Err(Error::SpkValidatorsError(spk_schema::validators::Error::VersionExistsError(_))) => (),
         _ => panic!("expected version exists error"),
     }
     repo.force_publish_recipe(&spec)

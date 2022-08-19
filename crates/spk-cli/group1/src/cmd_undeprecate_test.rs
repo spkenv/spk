@@ -3,9 +3,9 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spk_ident::parse_ident;
+use spk_schema::ident::parse_ident;
 use spk_solve::make_repo;
-use spk_spec::Deprecate;
+use spk_schema::Deprecate;
 
 use super::{change_deprecation_state, ChangeAction};
 

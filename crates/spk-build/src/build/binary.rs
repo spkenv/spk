@@ -11,19 +11,19 @@ use std::sync::Arc;
 use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 use spk_exec::resolve_runtime_layers;
-use spk_foundation::env::data_path;
-use spk_foundation::ident_build::Build;
-use spk_foundation::ident_component::Component;
-use spk_foundation::ident_ops::MetadataPath;
-use spk_foundation::name::OptNameBuf;
-use spk_foundation::option_map::OptionMap;
-use spk_foundation::spec_ops::{ComponentOps, PackageOps};
-use spk_foundation::version::VERSION_SEP;
-use spk_ident::{Ident, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
+use spk_schema::foundation::env::data_path;
+use spk_schema::foundation::ident_build::Build;
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::ident_ops::MetadataPath;
+use spk_schema::foundation::name::OptNameBuf;
+use spk_schema::foundation::option_map::OptionMap;
+use spk_schema::foundation::spec_ops::{ComponentOps, PackageOps};
+use spk_schema::foundation::version::VERSION_SEP;
+use spk_schema::ident::{Ident, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
+use spk_schema::{ComponentSpecList, Package};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
-use spk_spec::{ComponentSpecList, Package};
 use spk_storage::{self as storage};
 
 use crate::{Error, Result};
@@ -65,8 +65,7 @@ pub enum BuildSource {
 /// Builds a binary package.
 ///
 /// ```no_run
-/// # #[macro_use] extern crate spk_foundation;
-/// # #[macro_use] extern crate spk_spec;
+/// # use spk_schema::{recipe, foundation::opt_name};
 /// # async fn demo() {
 /// spk_build::BinaryPackageBuilder::from_recipe(recipe!({
 ///         "pkg": "my-pkg",
@@ -94,7 +93,7 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
 
 impl<'a, Recipe> BinaryPackageBuilder<'a, Recipe>
 where
-    Recipe: spk_spec::Recipe<Ident = Ident>,
+    Recipe: spk_schema::Recipe<Ident = Ident>,
     Recipe::Output: Package<Ident = Ident> + serde::Serialize,
     <Recipe::Output as PackageOps>::Ident: MetadataPath,
     <Recipe::Output as PackageOps>::Component: ComponentOps,

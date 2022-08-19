@@ -3,11 +3,11 @@
 // https://github.com/imageworks/spk
 
 use spfs::encoding::Digest;
-use spk_foundation::format::{FormatIdent, FormatOptionMap};
-use spk_foundation::ident_component::Component;
-use spk_foundation::spec_ops::PackageOps;
+use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::spec_ops::PackageOps;
+use spk_schema::{Package, Recipe};
 use spk_solve::solution::{PackageSource, Solution};
-use spk_spec::{Package, Recipe};
 use spk_storage::{self as storage};
 
 use crate::{Error, Result};

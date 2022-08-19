@@ -47,7 +47,7 @@ impl Run for Export {
         });
         let res = storage::export_package(&pkg, &filename).await;
         if let Err(spk_storage::Error::SpkValidatorsError(
-            spk_validators::Error::PackageNotFoundError(_),
+            spk_schema::validators::Error::PackageNotFoundError(_),
         )) = res
         {
             tracing::warn!("Ensure that you are specifying at least a package and");

@@ -7,11 +7,11 @@ use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
 use spk_cli_common::{current_env, flags, CommandArgs, Run};
-use spk_foundation::format::FormatSolution;
-use spk_foundation::option_map::OptionMap;
-use spk_foundation::spec_ops::Named;
-use spk_ident::Request;
-use spk_spec::{Recipe, Template};
+use spk_schema::foundation::format::FormatSolution;
+use spk_schema::foundation::option_map::OptionMap;
+use spk_schema::foundation::spec_ops::Named;
+use spk_schema::ident::Request;
+use spk_schema::{Recipe, Template};
 
 /// View the current environment or information about a package
 #[derive(Args)]

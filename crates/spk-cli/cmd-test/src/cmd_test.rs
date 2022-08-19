@@ -8,12 +8,12 @@ use anyhow::Result;
 use clap::Args;
 use spk_build::BuildSource;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_foundation::format::{FormatIdent, FormatOptionMap};
-use spk_foundation::ident_build::Build;
-use spk_foundation::option_map::{host_options, OptionMap};
-use spk_foundation::spec_ops::RecipeOps;
-use spk_ident::parse_ident;
-use spk_spec::{Recipe, Template, TestStage};
+use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
+use spk_schema::foundation::ident_build::Build;
+use spk_schema::foundation::option_map::{host_options, OptionMap};
+use spk_schema::foundation::spec_ops::RecipeOps;
+use spk_schema::ident::parse_ident;
+use spk_schema::{Recipe, Template, TestStage};
 
 #[cfg(test)]
 #[path = "./cmd_test_test.rs"]
@@ -98,13 +98,13 @@ impl Run for Test {
                                 break;
                             }
                             Err(spk_storage::Error::SpkValidatorsError(
-                                spk_validators::Error::PackageNotFoundError(_),
+                                spk_schema::validators::Error::PackageNotFoundError(_),
                             )) => continue,
                             Err(err) => return Err(err.into()),
                         }
                     }
                     found.ok_or(spk_storage::Error::SpkValidatorsError(
-                        spk_validators::Error::PackageNotFoundError(pkg),
+                        spk_schema::validators::Error::PackageNotFoundError(pkg),
                     ))?
                 }
             };

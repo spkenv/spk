@@ -4,13 +4,13 @@
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
-use spk_foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
-use spk_foundation::option_map::OptionMap;
-use spk_foundation::spec_ops::PackageOps;
-use spk_foundation::version::Version;
-use spk_ident::Ident;
+use spk_schema::foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
+use spk_schema::foundation::option_map::OptionMap;
+use spk_schema::foundation::spec_ops::PackageOps;
+use spk_schema::foundation::version::Version;
+use spk_schema::ident::Ident;
+use spk_schema::{Package, Spec, SpecRecipe};
 use spk_solve_solution::PackageSource;
-use spk_spec::{Package, Spec, SpecRecipe};
 use spk_storage::RepositoryHandle;
 use std::ffi::OsString;
 use std::time::{Duration, Instant};
@@ -127,7 +127,9 @@ impl PackageIterator for RepositoryPackageIterator {
         let version_map = if self.versions.is_none() {
             match self.build_version_map().await {
                 Ok(version_map) => version_map,
-                Err(Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(_))) => {
+                Err(Error::SpkValidatorsError(
+                    spk_schema::validators::Error::PackageNotFoundError(_),
+                )) => {
                     return Box::new(RepositoryPackageIterator::new(
                         self.package_name.clone(),
                         self.repos.clone(),
@@ -252,7 +254,7 @@ impl RepositoryPackageIterator {
         }
 
         if version_map.is_empty() {
-            return Err(spk_validators::Error::PackageNotFoundError(
+            return Err(spk_schema::validators::Error::PackageNotFoundError(
                 self.package_name.clone().into(),
             )
             .into());
@@ -297,7 +299,7 @@ impl BuildIterator for RepositoryBuildIterator {
             let spec = match repo.read_package(&build).await {
                 Ok(spec) => spec,
                 Err(spk_storage::Error::SpkValidatorsError(
-                    spk_validators::Error::PackageNotFoundError(_),
+                    spk_schema::validators::Error::PackageNotFoundError(_),
                 )) => {
                     tracing::warn!("Repository listed build with no spec: {build} from {repo:?}",);
                     // Skip to next build
@@ -309,7 +311,7 @@ impl BuildIterator for RepositoryBuildIterator {
             let components = match repo.read_components(&build).await {
                 Ok(c) => c,
                 Err(spk_storage::Error::SpkValidatorsError(
-                    spk_validators::Error::PackageNotFoundError(_),
+                    spk_schema::validators::Error::PackageNotFoundError(_),
                 )) => Default::default(),
                 Err(err) => return Err(err.into()),
             };
@@ -373,7 +375,7 @@ impl RepositoryBuildIterator {
                 recipe = match repo.read_recipe(&pkg).await {
                     Ok(spec) => Some(spec),
                     Err(spk_storage::Error::SpkValidatorsError(
-                        spk_validators::Error::PackageNotFoundError(_),
+                        spk_schema::validators::Error::PackageNotFoundError(_),
                     )) => None,
                     Err(err) => return Err(err.into()),
                 };

@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use colored::Colorize;
-use spk_foundation::format::FormatError;
+use spk_schema::foundation::format::FormatError;
 use spk_solve_graph::Graph;
 use thiserror::Error;
 
@@ -16,7 +16,7 @@ pub enum Error {
     #[error("Solver error: {0}")]
     SolverError(String),
     #[error(transparent)]
-    SpkIdentError(#[from] spk_ident::Error),
+    SpkIdentError(#[from] spk_schema::ident::Error),
     #[error(transparent)]
     SpkSolverGraphGetMergedRequestError(#[from] spk_solve_graph::GetMergedRequestError),
 }

@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use rstest::rstest;
-use spk_foundation::fixtures::*;
-use spk_foundation::opt_name;
+use spk_schema::foundation::fixtures::*;
+use spk_schema::foundation::opt_name;
+use spk_schema::spec;
 use spk_solve_graph::State;
 use spk_solve_solution::PackageSource;
-use spk_spec::spec;
 use std::sync::Arc;
 
 use super::{OptionsValidator, VarRequirementsValidator};

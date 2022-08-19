@@ -8,15 +8,15 @@ use anyhow::{anyhow, bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
 use solve::{DecisionFormatter, DecisionFormatterBuilder};
-use spk_foundation::ident_build::Build;
-use spk_foundation::ident_component::Component;
-use spk_foundation::name::{OptName, OptNameBuf};
-use spk_foundation::option_map::{host_options, OptionMap};
-use spk_foundation::spec_ops::{Named, RecipeOps};
-use spk_foundation::version::CompatRule;
-use spk_ident::{parse_ident, Ident, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::foundation::ident_build::Build;
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::name::{OptName, OptNameBuf};
+use spk_schema::foundation::option_map::{host_options, OptionMap};
+use spk_schema::foundation::spec_ops::{Named, RecipeOps};
+use spk_schema::foundation::version::CompatRule;
+use spk_schema::ident::{parse_ident, Ident, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_solve::{self as solve};
-use spk_spec::{Recipe, SpecTemplate, Template, TemplateExt, TestStage};
+use spk_schema::{Recipe, SpecTemplate, Template, TemplateExt, TestStage};
 use spk_storage::{self as storage};
 
 #[cfg(test)]
@@ -408,7 +408,7 @@ where
     };
 
     match SpecTemplate::from_file(package.as_ref().as_ref()) {
-        Err(spk_spec::Error::IO(err)) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(spk_schema::Error::IO(err)) if err.kind() == std::io::ErrorKind::NotFound => {}
         res => {
             return Ok(Found {
                 path: package.as_ref().into(),

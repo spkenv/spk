@@ -5,16 +5,16 @@ use std::sync::Arc;
 
 use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
-use spk_foundation::fixtures::*;
-use spk_foundation::ident_build::Build;
-use spk_foundation::ident_component::Component;
-use spk_foundation::opt_name;
-use spk_foundation::spec_ops::{PackageOps, Versioned};
-use spk_ident::{
+use spk_schema::foundation::fixtures::*;
+use spk_schema::foundation::ident_build::Build;
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::opt_name;
+use spk_schema::foundation::spec_ops::{PackageOps, Versioned};
+use spk_schema::ident::{
     ident, parse_ident, parse_ident_range, PkgRequest, RangeIdent, Request, RequestedBy, VarRequest,
 };
+use spk_schema::{recipe, v0, Package};
 use spk_solve_solution::PackageSource;
-use spk_spec::{recipe, v0, Package};
 use spk_storage::RepositoryHandle;
 
 use super::Solver;
