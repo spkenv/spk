@@ -10,20 +10,20 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     /// Some underlying io error caused a decode process to fail
     #[error("Encoding read error")]
-    EncodingReadError(#[source] std::io::Error),
+    FailedRead(#[source] std::io::Error),
 
     /// Some underlying io error caused a encode process to fail
     #[error("Encoding write error")]
-    EncodingWriteError(#[source] std::io::Error),
+    FailedWrite(#[source] std::io::Error),
 
     /// A string could not be decoded because of an invalid byte sequence
     #[error("Error in encoding format")]
-    InvalidEncodedString(#[source] std::str::Utf8Error),
+    InvalidStringEncoding(#[source] std::str::Utf8Error),
 
     /// Strings cannot be encoded by this crate if they contain
     /// a null character, as that character is used as terminating character
     #[error("Cannot encode string with null character")]
-    StringHasNullCharacter,
+    StringHasNull,
 
     /// The header in a byte stream was not as expected
     #[error("Invalid header: wanted '{wanted:?}', got '{got:?}'")]
@@ -37,12 +37,12 @@ pub enum Error {
     /// A digest could not be decoded from a string because the
     /// contained invalid data or was otherwise malformed
     #[error("Could not decode digest: {0}")]
-    DigestDecodeError(#[source] data_encoding::DecodeError),
+    InvalidDigestEncoding(#[source] data_encoding::DecodeError),
 
     /// A digest could not be created because the wrong number
     /// of bytes were provided
     #[error("Invalid number of bytes for digest: {0} != {}", super::DIGEST_SIZE)]
-    DigestLengthError(usize),
+    InvalidDigestLength(usize),
 
     /// A partial digest could not be parsed from a string because
     /// of some issue with the provided data

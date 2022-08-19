@@ -365,7 +365,7 @@ impl<'a> Digest {
     /// be given.
     pub fn from_bytes(digest_bytes: &[u8]) -> Result<Self> {
         match digest_bytes.try_into() {
-            Err(_err) => Err(Error::DigestLengthError(digest_bytes.len())),
+            Err(_err) => Err(Error::InvalidDigestLength(digest_bytes.len())),
             Ok(bytes) => Ok(Self(bytes)),
         }
     }
@@ -387,7 +387,7 @@ impl<'a> Digest {
             count = reader
                 .read(buf.as_mut_slice())
                 .await
-                .map_err(Error::EncodingReadError)?;
+                .map_err(Error::FailedRead)?;
             if count == 0 {
                 break;
             }
@@ -409,9 +409,7 @@ impl<'a> Digest {
         let mut count;
         buf.resize(4096, 0);
         loop {
-            count = reader
-                .read(buf.as_mut_slice())
-                .map_err(Error::EncodingReadError)?;
+            count = reader.read(buf.as_mut_slice()).map_err(Error::FailedRead)?;
             if count == 0 {
                 break;
             }
@@ -539,6 +537,6 @@ pub const NULL_DIGEST: [u8; DIGEST_SIZE] = [
 pub fn parse_digest(digest_str: impl AsRef<str>) -> Result<Digest> {
     let digest_bytes = BASE32
         .decode(digest_str.as_ref().as_bytes())
-        .map_err(Error::DigestDecodeError)?;
+        .map_err(Error::InvalidDigestEncoding)?;
     Digest::from_bytes(digest_bytes.as_slice())
 }
