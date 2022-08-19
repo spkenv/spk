@@ -8,7 +8,7 @@ use spk_schema::foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Version;
-use spk_schema::ident::Ident;
+use spk_schema::Ident;
 use spk_schema::{Package, Spec, SpecRecipe};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;

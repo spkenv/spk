@@ -12,7 +12,7 @@ use spk_schema::foundation::ident_build::parse_build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::{parse_version, Version};
-use spk_schema::ident::Ident;
+use spk_schema::Ident;
 use spk_schema::SpecRecipe;
 
 use super::Repository;

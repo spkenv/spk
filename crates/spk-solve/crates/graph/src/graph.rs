@@ -12,9 +12,9 @@ use spk_schema::foundation::name::{OptNameBuf, PkgName, PkgNameBuf};
 use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::foundation::{option_map, option_map::OptionMap};
-use spk_schema::ident::{Ident, InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::{
-    ComponentSpecList, EmbeddedPackagesList, Package, RequirementsList, Spec, SpecRecipe,
+    ComponentSpecList, EmbeddedPackagesList, Ident, Package, RequirementsList, Spec, SpecRecipe,
 };
 use spk_solve_package_iterator::PackageIterator;
 use spk_solve_solution::{PackageSource, Solution};

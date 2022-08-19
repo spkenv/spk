@@ -5,7 +5,7 @@ use rstest::rstest;
 use spfs::prelude::*;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::version::Version;
-use spk_schema::ident::Ident;
+use spk_schema::Ident;
 
 use super::SPFSRepository;
 use crate::storage::{CachePolicy, Repository};

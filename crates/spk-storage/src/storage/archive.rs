@@ -4,7 +4,7 @@
 use std::{convert::TryFrom, path::Path};
 
 use futures::{TryFutureExt, TryStreamExt};
-use spk_schema::ident::Ident;
+use spk_schema::Ident;
 
 use super::{Repository, SPFSRepository};
 use crate::{Error, Result};

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use spk_schema::ident::Ident;
+use spk_schema::Ident;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;

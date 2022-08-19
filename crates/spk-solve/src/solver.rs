@@ -20,8 +20,8 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{Ident, PkgRequest, Request, RequestedBy, VarRequest};
-use spk_schema::{Deprecate, Package, Recipe, Spec, SpecRecipe};
+use spk_schema::ident::{PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::{Deprecate, Ident, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
     Change, Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SkipPackageNote,
     State, StepBack, DEAD_STATE,

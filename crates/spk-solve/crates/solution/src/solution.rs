@@ -16,8 +16,8 @@ use spk_schema::foundation::name::PkgNameBuf;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::{Named, PackageOps, Versioned};
 use spk_schema::foundation::version::VERSION_SEP;
-use spk_schema::ident::{Ident, PkgRequest, RequestedBy};
-use spk_schema::{BuildEnv, Package, Spec, SpecRecipe};
+use spk_schema::ident::{PkgRequest, RequestedBy};
+use spk_schema::{BuildEnv, Ident, Package, Spec, SpecRecipe};
 use spk_storage::RepositoryHandle;
 
 use crate::{Error, Result};

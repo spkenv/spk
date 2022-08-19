@@ -27,7 +27,7 @@ mod validation;
 pub use serde_json;
 
 pub use spk_schema_foundation as foundation;
-pub use spk_schema_ident as ident;
+pub use spk_schema_ident::{self as ident, Ident};
 pub use spk_schema_validators as validators;
 
 pub use build_spec::BuildSpec;

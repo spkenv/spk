@@ -11,7 +11,7 @@ use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::ident::Ident;
+use spk_schema::Ident;
 use spk_solve::PackageOps;
 use spk_storage::{self as storage};
 use thiserror::Error;

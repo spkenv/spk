@@ -11,7 +11,7 @@ use spk_schema::foundation::name::OptNameBuf;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Version;
 use spk_schema::foundation::version_range::{parse_version_range, Ranged};
-use spk_schema::ident::Ident;
+use spk_schema::Ident;
 
 use crate::Result;
 

@@ -14,11 +14,11 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::RecipeOps;
-use spk_schema::ident::{Ident, PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
+use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
-use spk_schema::{Recipe, SpecRecipe};
+use spk_schema::{Recipe, SpecRecipe, Ident};
 use spk_storage::{self as storage};
 
 pub struct PackageBuildTester<'a> {

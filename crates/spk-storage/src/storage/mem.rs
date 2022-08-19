@@ -10,7 +10,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::spec_ops::{Named, PackageOps, Versioned};
 use spk_schema::foundation::version::Version;
-use spk_schema::ident::Ident;
+use spk_schema::Ident;
 use spk_schema::SpecRecipe;
 use tokio::sync::RwLock;
 
