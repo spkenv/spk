@@ -11,12 +11,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     #[error(transparent)]
     IO(#[from] std::io::Error),
-    // #[error(transparent)]
-    // SPFS(#[from] spfs::Error),
     #[error(transparent)]
     Serde(#[from] serde_yaml::Error),
-    // #[error(transparent)]
-    // Solve(#[from] crate::solve::Error),
     #[error("Error: {0}")]
     String(String),
 
@@ -34,19 +30,10 @@ pub enum Error {
     #[error("Version exists: {0}")]
     VersionExistsError(Ident),
 
-    // Build Errors
-    // #[error(transparent)]
-    // Collection(#[from] build::CollectionError),
-    // #[error(transparent)]
-    // Build(#[from] build::BuildError),
-
     // Bake Errors
     #[error("Skip embedded")]
     SkipEmbedded,
 
-    // Test Errors
-    // #[error(transparent)]
-    // Test(#[from] test::TestError),
     /// Not running under an active spk environment
     #[error("No current spfs runtime environment")]
     NoEnvironment,
