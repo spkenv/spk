@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use crate::encoding;
 use crate::encoding::Encodable;
 use crate::Result;
+use crate::{encoding, Error};
 
 #[cfg(test)]
 #[path = "./platform_test.rs"]
@@ -24,6 +24,7 @@ impl Platform {
     pub fn new<E, I>(layers: I) -> Result<Self>
     where
         E: encoding::Encodable,
+        Error: std::convert::From<E::Error>,
         I: Iterator<Item = E>,
     {
         let mut platform = Self { stack: Vec::new() };
@@ -40,6 +41,8 @@ impl Platform {
 }
 
 impl Encodable for Platform {
+    type Error = Error;
+
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_uint(&mut writer, self.stack.len() as u64)?;
         for digest in self.stack.iter() {

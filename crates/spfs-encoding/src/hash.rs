@@ -131,19 +131,22 @@ pub trait Encodable
 where
     Self: Sized,
 {
+    /// The flavor of error returned by encoding methods
+    type Error;
+
     /// Compute the digest for this instance, by
     /// encoding it into binary form and hashing the result
-    fn digest(&self) -> Result<Digest> {
+    fn digest(&self) -> std::result::Result<Digest, Self::Error> {
         let mut hasher = Hasher::default();
         self.encode(&mut hasher)?;
         Ok(hasher.digest())
     }
 
     /// Write this object in binary format.
-    fn encode(&self, writer: &mut impl Write) -> Result<()>;
+    fn encode(&self, writer: &mut impl Write) -> std::result::Result<(), Self::Error>;
 
     /// Encode this object into it's binary form in memory.
-    fn encode_to_bytes(&self) -> Result<Vec<u8>> {
+    fn encode_to_bytes(&self) -> std::result::Result<Vec<u8>, Self::Error> {
         let mut buf = Vec::new();
         self.encode(&mut buf)?;
         Ok(buf)
@@ -156,14 +159,17 @@ where
     Self: Encodable,
 {
     /// Read a previously encoded object from the given binary stream.
-    fn decode(reader: &mut impl std::io::BufRead) -> Result<Self>;
+    fn decode(reader: &mut impl std::io::BufRead) -> std::result::Result<Self, Self::Error>;
 }
 
 impl Encodable for String {
-    fn encode(&self, writer: &mut impl Write) -> Result<()> {
+    type Error = Error;
+
+    fn encode(&self, writer: &mut impl Write) -> std::result::Result<(), Self::Error> {
         super::binary::write_string(writer, self)
     }
 }
+
 impl Decodable for String {
     fn decode(reader: &mut impl std::io::BufRead) -> Result<Self> {
         super::binary::read_string(reader)
@@ -484,6 +490,8 @@ impl Display for Digest {
 }
 
 impl Encodable for Digest {
+    type Error = Error;
+
     fn encode(&self, mut writer: &mut impl Write) -> Result<()> {
         binary::write_digest(&mut writer, self)
     }
@@ -500,6 +508,8 @@ impl Decodable for Digest {
 }
 
 impl Encodable for &Digest {
+    type Error = Error;
+
     fn encode(&self, mut writer: &mut impl Write) -> Result<()> {
         binary::write_digest(&mut writer, self)
     }

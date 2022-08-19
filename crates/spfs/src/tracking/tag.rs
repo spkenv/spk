@@ -122,6 +122,8 @@ impl std::fmt::Display for Tag {
 }
 
 impl Encodable for Tag {
+    type Error = Error;
+
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         if let Some(org) = self.org.as_ref() {
             encoding::write_string(&mut writer, org)?;

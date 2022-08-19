@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use crate::encoding;
+use crate::Error;
 use crate::Result;
 
 #[cfg(test)]
@@ -31,8 +32,10 @@ impl Layer {
 }
 
 impl encoding::Encodable for Layer {
+    type Error = Error;
+
     fn encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_digest(writer, &self.manifest)
+        encoding::write_digest(writer, &self.manifest).map_err(Error::Encoding)
     }
 }
 

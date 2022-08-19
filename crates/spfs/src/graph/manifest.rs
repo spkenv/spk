@@ -7,8 +7,8 @@ use std::io::BufRead;
 
 use super::{Entry, Tree};
 use crate::encoding::Encodable;
-use crate::Result;
 use crate::{encoding, tracking};
+use crate::{Error, Result};
 use encoding::Decodable;
 
 #[cfg(test)]
@@ -180,6 +180,8 @@ impl Manifest {
 }
 
 impl Encodable for Manifest {
+    type Error = Error;
+
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         self.root().encode(&mut writer)?;
         encoding::write_uint(&mut writer, self.tree_order.len() as u64)?;

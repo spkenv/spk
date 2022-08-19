@@ -10,6 +10,7 @@ use super::Manifest;
 use super::Platform;
 use super::Tree;
 use crate::encoding;
+use crate::Error;
 use strum_macros::Display;
 
 #[derive(Debug, Display, Eq, PartialEq)]
@@ -106,6 +107,8 @@ impl ObjectKind {
 const OBJECT_HEADER: &[u8] = "--SPFS--".as_bytes();
 
 impl encoding::Encodable for Object {
+    type Error = Error;
+
     fn digest(&self) -> crate::Result<encoding::Digest> {
         match self {
             Self::Platform(obj) => obj.digest(),

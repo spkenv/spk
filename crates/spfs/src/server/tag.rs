@@ -8,7 +8,7 @@ use futures::TryStreamExt;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 
-use crate::proto::{self, tag_service_server::TagServiceServer, RpcResult};
+use crate::proto::{self, convert_digest, tag_service_server::TagServiceServer, RpcResult};
 use crate::storage;
 
 #[derive(Debug, Clone)]
@@ -49,7 +49,7 @@ impl proto::tag_service_server::TagService for TagService {
         request: tonic::Request<proto::FindTagsRequest>,
     ) -> Result<tonic::Response<proto::FindTagsResponse>, tonic::Status> {
         let request = request.into_inner();
-        let digest = proto::handle_error!(request.digest.try_into());
+        let digest = proto::handle_error!(convert_digest(request.digest));
         let mut results = self.repo.find_tags(&digest);
         let mut tags = Vec::new();
         while let Some(item) = results.next().await {
