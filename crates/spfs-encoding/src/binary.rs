@@ -10,7 +10,7 @@ use std::{
 use super::hash::{Digest, DIGEST_SIZE, NULL_DIGEST};
 use crate::{Error, Result};
 
-pub const INT_SIZE: usize = std::mem::size_of::<u64>();
+const INT_SIZE: usize = std::mem::size_of::<u64>();
 
 #[cfg(test)]
 #[path = "./binary_test.rs"]
@@ -120,7 +120,7 @@ pub fn read_string(reader: &mut impl BufRead) -> Result<String> {
             Some(index) => {
                 r.push(
                     std::str::from_utf8(&buf[..index])
-                        .map_err(Error::EncodingFormatError)?
+                        .map_err(Error::InvalidEncodedString)?
                         .to_string(),
                 );
                 reader.consume(index + 1);
@@ -134,7 +134,7 @@ pub fn read_string(reader: &mut impl BufRead) -> Result<String> {
                 }
                 r.push(
                     std::str::from_utf8(buf)
-                        .map_err(Error::EncodingFormatError)?
+                        .map_err(Error::InvalidEncodedString)?
                         .to_string(),
                 );
                 let l = buf.len();

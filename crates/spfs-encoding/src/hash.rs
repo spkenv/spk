@@ -36,6 +36,8 @@ pub struct Hasher<T> {
 }
 
 impl<T> Hasher<T> {
+    /// The target of the hasher will receive a copy
+    /// of all bytes that are written to it
     pub fn with_target(writer: T) -> Self {
         Self {
             ctx: Context::new(&SHA256),
@@ -43,6 +45,7 @@ impl<T> Hasher<T> {
         }
     }
 
+    /// Finalize the hasher and return the digest
     pub fn digest(self) -> Digest {
         let ring_digest = self.ctx.finish();
         let bytes = match ring_digest.as_ref().try_into() {
@@ -123,11 +126,13 @@ where
     }
 }
 
-/// Encodable is a type that can be binary encoded to a byte stream.
+/// Encodable is a type that can be binary-encoded to a byte stream
 pub trait Encodable
 where
     Self: Sized,
 {
+    /// Compute the digest for this instance, by
+    /// encoding it into binary form and hashing the result
     fn digest(&self) -> Result<Digest> {
         let mut hasher = Hasher::default();
         self.encode(&mut hasher)?;
@@ -145,6 +150,7 @@ where
     }
 }
 
+/// Decodable is a type that can be rebuilt from a previously encoded binary stream
 pub trait Decodable
 where
     Self: Encodable,
@@ -169,8 +175,15 @@ impl Decodable for String {
 pub struct PartialDigest(Vec<u8>);
 
 impl PartialDigest {
+    /// Parse the given string as a partial digest.
+    ///
+    /// Not every subset of characters from a digest is valid
+    /// or useful, but we can extract as much useful information
+    /// as we can in order to (hopefully) create a non-ambiguous
+    /// prefix of bytes.
     pub fn parse<S: AsRef<str>>(source: S) -> Result<Self> {
         use std::borrow::Cow;
+        /// The specific length multiple required by our encoding
         const PAD_TO_MULTIPLE: usize = 8;
 
         let mut partial = Cow::Borrowed(source.as_ref());
@@ -336,14 +349,20 @@ impl AsRef<Digest> for Digest {
 }
 
 impl<'a> Digest {
+    /// Yields a view of the underlying bytes for this digest
     pub fn as_bytes(&'a self) -> &'a [u8] {
         self.0.as_ref()
     }
 
+    /// Extract the raw bytes of this digest
     pub fn into_bytes(self) -> [u8; DIGEST_SIZE] {
         self.0
     }
 
+    /// Create a digest from the provided bytes.
+    ///
+    /// The exact [`DIGEST_SIZE`] number of bytes must
+    /// be given.
     pub fn from_bytes(digest_bytes: &[u8]) -> Result<Self> {
         match digest_bytes.try_into() {
             Err(_err) => Err(Error::DigestLengthError(digest_bytes.len())),
@@ -351,10 +370,13 @@ impl<'a> Digest {
         }
     }
 
+    /// Parse the given string as an encoded digest
     pub fn parse(digest_str: &str) -> Result<Digest> {
         digest_str.try_into()
     }
 
+    /// Reads the given async reader to completion, returning
+    /// the digest of it's contents.
     pub async fn from_async_reader(mut reader: impl AsyncRead + Unpin) -> Result<Self> {
         use tokio::io::AsyncReadExt;
         let mut ctx = Context::new(&SHA256);
@@ -379,6 +401,8 @@ impl<'a> Digest {
         Ok(Digest(bytes))
     }
 
+    /// Reads the given reader to completion, returning
+    /// the digest of it's contents.
     pub fn from_reader(mut reader: impl Read) -> Result<Self> {
         let mut ctx = Context::new(&SHA256);
         let mut buf = Vec::with_capacity(4096);
@@ -415,6 +439,7 @@ impl<'de> Deserialize<'de> for Digest {
     where
         D: serde::Deserializer<'de>,
     {
+        /// Visits a serialized string, decoding it as a digest
         struct StringVisitor<'de>(&'de u8);
         impl<'de> serde::de::Visitor<'de> for StringVisitor<'de> {
             type Value = Digest;
@@ -486,6 +511,7 @@ impl Encodable for &Digest {
     }
 }
 
+/// The number of bytes that make up an spfs digest
 pub const DIGEST_SIZE: usize = SHA256_OUTPUT_LEN;
 
 /// The bytes of an empty digest. This represents the result of hashing no bytes - the initial state.
