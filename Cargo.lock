@@ -51,9 +51,6 @@ name = "anyhow"
 version = "1.0.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb07d2053ccdbe10e2af2995a2f116c1330396493dc1269f6a91d0ae82e19704"
-dependencies = [
- "backtrace",
-]
 
 [[package]]
 name = "arrayref"
@@ -2358,17 +2355,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sentry-anyhow"
-version = "0.27.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08d3479158a7396b4dfd346a1944d523427a225ff3c39102e8e985bc21cdfea8"
-dependencies = [
- "anyhow",
- "sentry-backtrace",
- "sentry-core",
-]
-
-[[package]]
 name = "sentry-backtrace"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2414,17 +2400,6 @@ checksum = "696c74c5882d5a0d5b4a31d0ff3989b04da49be7983b7f52a52c667da5b480bf"
 dependencies = [
  "sentry-backtrace",
  "sentry-core",
-]
-
-[[package]]
-name = "sentry-tracing"
-version = "0.27.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea50bcf843510179a7ba41c9fe4d83a8958e9f8adf707ec731ff999297536344"
-dependencies = [
- "sentry-core",
- "tracing-core",
- "tracing-subscriber 0.3.14",
 ]
 
 [[package]]
@@ -2673,6 +2648,7 @@ dependencies = [
  "async-trait",
  "clap 3.2.11",
  "colored",
+ "spk-build",
  "spk-cli-common",
  "spk-cli-group1",
  "spk-cli-group2",
@@ -2688,7 +2664,10 @@ dependencies = [
  "spk-cmd-render",
  "spk-cmd-repo",
  "spk-cmd-test",
- "spk-foundation",
+ "spk-exec",
+ "spk-schema",
+ "spk-solve",
+ "spk-storage",
  "tokio",
  "tracing",
 ]
@@ -2704,27 +2683,14 @@ dependencies = [
  "serde_yaml",
  "spfs",
  "spk-exec",
- "spk-foundation",
- "spk-ident",
- "spk-solver",
- "spk-solver-graph",
- "spk-solver-solution",
- "spk-spec",
+ "spk-schema",
+ "spk-solve",
  "spk-storage",
  "tar",
  "tempfile",
  "thiserror",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "spk-build-ops"
-version = "0.36.0"
-dependencies = [
- "relative-path",
- "spfs",
- "thiserror",
 ]
 
 [[package]]
@@ -2740,22 +2706,14 @@ dependencies = [
  "lazy_static",
  "nix",
  "once_cell",
- "rstest",
- "sentry",
- "sentry-anyhow",
- "sentry-tracing",
  "serde_json",
  "serde_yaml",
  "spfs",
  "spk-build",
  "spk-exec",
- "spk-foundation",
- "spk-ident",
- "spk-solver",
- "spk-solver-solution",
- "spk-spec",
+ "spk-schema",
+ "spk-solve",
  "spk-storage",
- "spk-validators",
  "thiserror",
  "tokio",
  "tracing",
@@ -2773,17 +2731,13 @@ dependencies = [
  "colored",
  "futures",
  "itertools",
- "rstest",
  "serde",
  "serde_json",
  "serde_yaml",
  "spfs",
  "spk-cli-common",
- "spk-foundation",
- "spk-ident",
- "spk-solver",
- "spk-solver-solution",
- "spk-spec",
+ "spk-schema",
+ "spk-solve",
  "spk-storage",
  "tokio",
  "tracing",
@@ -2800,16 +2754,11 @@ dependencies = [
  "itertools",
  "nom",
  "nom-supreme",
- "rstest",
  "spfs",
  "spk-cli-common",
- "spk-foundation",
- "spk-ident",
- "spk-solver",
- "spk-spec",
+ "spk-schema",
+ "spk-solve",
  "spk-storage",
- "spk-validators",
- "tempfile",
  "tokio",
  "tracing",
 ]
@@ -2823,8 +2772,8 @@ dependencies = [
  "clap 3.2.11",
  "colored",
  "spk-cli-common",
+ "spk-schema",
  "spk-storage",
- "spk-validators",
  "tracing",
 ]
 
@@ -2840,9 +2789,7 @@ dependencies = [
  "serde_yaml",
  "spfs",
  "spk-cli-common",
- "spk-foundation",
- "spk-ident",
- "spk-spec",
+ "spk-schema",
  "tokio",
  "tracing",
 ]
@@ -2907,7 +2854,7 @@ dependencies = [
  "futures",
  "spk-cli-common",
  "spk-exec",
- "spk-foundation",
+ "spk-schema",
  "tokio",
 ]
 
@@ -2921,11 +2868,8 @@ dependencies = [
  "futures",
  "spk-build",
  "spk-cli-common",
- "spk-foundation",
- "spk-ident",
- "spk-spec",
+ "spk-schema",
  "spk-storage",
- "spk-validators",
  "tokio",
  "tracing",
 ]
@@ -2939,9 +2883,7 @@ dependencies = [
  "clap 3.2.11",
  "spk-build",
  "spk-cli-common",
- "spk-foundation",
- "spk-ident",
- "spk-spec",
+ "spk-schema",
  "spk-storage",
  "tracing",
 ]
@@ -2979,20 +2921,13 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap 3.2.11",
- "rstest",
  "spfs",
  "spk-build",
  "spk-cli-common",
- "spk-cmd-build",
  "spk-exec",
- "spk-foundation",
- "spk-ident",
- "spk-solver",
- "spk-solver-graph",
- "spk-solver-solution",
- "spk-spec",
+ "spk-schema",
+ "spk-solve",
  "spk-storage",
- "spk-validators",
  "tempfile",
  "tokio",
  "tracing",
@@ -3003,16 +2938,54 @@ name = "spk-exec"
 version = "0.36.0"
 dependencies = [
  "spfs",
- "spk-foundation",
- "spk-solver-solution",
- "spk-spec",
+ "spk-schema",
+ "spk-solve",
  "spk-storage",
  "thiserror",
  "tracing",
 ]
 
 [[package]]
-name = "spk-foundation"
+name = "spk-launcher"
+version = "0.33.6"
+dependencies = [
+ "anyhow",
+ "nix",
+ "spfs",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "spk-schema"
+version = "0.36.0"
+dependencies = [
+ "data-encoding",
+ "enum_dispatch",
+ "ignore",
+ "indexmap",
+ "itertools",
+ "nom",
+ "proptest",
+ "regex",
+ "relative-path",
+ "rstest",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_yaml",
+ "spfs",
+ "spk-schema-foundation",
+ "spk-schema-ident",
+ "spk-schema-validators",
+ "sys-info",
+ "tempfile",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "spk-schema-foundation"
 version = "0.36.0"
 dependencies = [
  "colored",
@@ -3036,7 +3009,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "spk-ident"
+name = "spk-schema-ident"
 version = "0.36.0"
 dependencies = [
  "colored",
@@ -3051,158 +3024,131 @@ dependencies = [
  "serde",
  "serde_yaml",
  "spfs",
- "spk-foundation",
+ "spk-schema-foundation",
  "thiserror",
 ]
 
 [[package]]
-name = "spk-launcher"
-version = "0.33.6"
-dependencies = [
- "anyhow",
- "nix",
- "spfs",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "spk-solver"
-version = "0.36.0"
-dependencies = [
- "async-recursion",
- "async-stream",
- "async-trait",
- "colored",
- "ctrlc",
- "futures",
- "once_cell",
- "priority-queue",
- "rstest",
- "serde_json",
- "spfs",
- "spk-foundation",
- "spk-ident",
- "spk-solver-graph",
- "spk-solver-package-iterator",
- "spk-solver-solution",
- "spk-solver-validation",
- "spk-spec",
- "spk-storage",
- "spk-validators",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "spk-solver-graph"
-version = "0.36.0"
-dependencies = [
- "async-recursion",
- "async-stream",
- "async-trait",
- "colored",
- "ctrlc",
- "dyn-clone",
- "futures",
- "itertools",
- "once_cell",
- "priority-queue",
- "rstest",
- "serde_json",
- "serde_yaml",
- "spfs",
- "spk-foundation",
- "spk-ident",
- "spk-solver-package-iterator",
- "spk-solver-solution",
- "spk-spec",
- "spk-storage",
- "spk-validators",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "spk-solver-package-iterator"
-version = "0.36.0"
-dependencies = [
- "async-trait",
- "dyn-clone",
- "futures",
- "itertools",
- "once_cell",
- "rstest",
- "spk-foundation",
- "spk-ident",
- "spk-solver",
- "spk-solver-solution",
- "spk-spec",
- "spk-storage",
- "spk-validators",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "spk-solver-solution"
-version = "0.36.0"
-dependencies = [
- "spfs",
- "spk-foundation",
- "spk-ident",
- "spk-spec",
- "spk-storage",
- "thiserror",
-]
-
-[[package]]
-name = "spk-solver-validation"
-version = "0.36.0"
-dependencies = [
- "colored",
- "enum_dispatch",
- "itertools",
- "rstest",
- "serde_yaml",
- "spk-foundation",
- "spk-ident",
- "spk-solver-graph",
- "spk-solver-solution",
- "spk-spec",
- "thiserror",
-]
-
-[[package]]
-name = "spk-spec"
+name = "spk-schema-validators"
 version = "0.36.0"
 dependencies = [
  "data-encoding",
- "enum_dispatch",
  "ignore",
  "indexmap",
  "itertools",
  "nom",
- "proptest",
  "regex",
  "relative-path",
- "rstest",
+ "ring",
  "serde",
  "serde_derive",
  "serde_json",
  "serde_yaml",
  "spfs",
- "spk-build-ops",
- "spk-foundation",
- "spk-ident",
- "spk-validators",
+ "spk-schema",
+ "spk-schema-foundation",
+ "spk-schema-ident",
  "sys-info",
- "tempfile",
+ "tempdir",
  "thiserror",
  "tracing",
+]
+
+[[package]]
+name = "spk-solve"
+version = "0.36.0"
+dependencies = [
+ "async-recursion",
+ "async-stream",
+ "async-trait",
+ "colored",
+ "ctrlc",
+ "futures",
+ "once_cell",
+ "priority-queue",
+ "rstest",
+ "serde_json",
+ "spfs",
+ "spk-schema",
+ "spk-solve-graph",
+ "spk-solve-package-iterator",
+ "spk-solve-solution",
+ "spk-solve-validation",
+ "spk-storage",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-solve-graph"
+version = "0.36.0"
+dependencies = [
+ "async-recursion",
+ "async-stream",
+ "async-trait",
+ "colored",
+ "ctrlc",
+ "dyn-clone",
+ "futures",
+ "itertools",
+ "once_cell",
+ "priority-queue",
+ "rstest",
+ "serde_json",
+ "serde_yaml",
+ "spfs",
+ "spk-schema",
+ "spk-solve-package-iterator",
+ "spk-solve-solution",
+ "spk-storage",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-solve-package-iterator"
+version = "0.36.0"
+dependencies = [
+ "async-trait",
+ "dyn-clone",
+ "futures",
+ "itertools",
+ "once_cell",
+ "rstest",
+ "spk-schema",
+ "spk-solve",
+ "spk-solve-solution",
+ "spk-storage",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-solve-solution"
+version = "0.36.0"
+dependencies = [
+ "spfs",
+ "spk-schema",
+ "spk-storage",
+ "thiserror",
+]
+
+[[package]]
+name = "spk-solve-validation"
+version = "0.36.0"
+dependencies = [
+ "colored",
+ "enum_dispatch",
+ "itertools",
+ "rstest",
+ "serde_yaml",
+ "spk-schema",
+ "spk-solve-graph",
+ "spk-solve-solution",
+ "thiserror",
 ]
 
 [[package]]
@@ -3231,10 +3177,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "spfs",
- "spk-foundation",
- "spk-ident",
- "spk-spec",
- "spk-validators",
+ "spk-schema",
  "sys-info",
  "tar",
  "tempfile",
@@ -3243,32 +3186,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber 0.2.25",
  "url",
-]
-
-[[package]]
-name = "spk-validators"
-version = "0.36.0"
-dependencies = [
- "data-encoding",
- "ignore",
- "indexmap",
- "itertools",
- "nom",
- "regex",
- "relative-path",
- "ring",
- "serde",
- "serde_derive",
- "serde_json",
- "serde_yaml",
- "spfs",
- "spk-foundation",
- "spk-ident",
- "spk-spec",
- "sys-info",
- "tempdir",
- "thiserror",
- "tracing",
 ]
 
 [[package]]

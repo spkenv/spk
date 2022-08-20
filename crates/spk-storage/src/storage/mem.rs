@@ -5,13 +5,13 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use spk_foundation::ident_build::Build;
-use spk_foundation::ident_component::Component;
-use spk_foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
-use spk_foundation::spec_ops::{Named, PackageOps, Versioned};
-use spk_foundation::version::Version;
-use spk_ident::Ident;
-use spk_spec::SpecRecipe;
+use spk_schema::foundation::ident_build::Build;
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
+use spk_schema::foundation::spec_ops::{Named, PackageOps, Versioned};
+use spk_schema::foundation::version::Version;
+use spk_schema::Ident;
+use spk_schema::SpecRecipe;
 use tokio::sync::RwLock;
 
 use super::Repository;
@@ -25,7 +25,7 @@ type BuildMap<Package> = HashMap<Build, (Arc<Package>, ComponentMap)>;
 #[derive(Clone, Debug)]
 pub struct MemRepository<Recipe = SpecRecipe>
 where
-    Recipe: spk_spec::Recipe + Sync + Send,
+    Recipe: spk_schema::Recipe + Sync + Send,
     Recipe::Output: Sync + Send,
 {
     address: url::Url,
@@ -36,8 +36,8 @@ where
 
 impl<Recipe, Package> MemRepository<Recipe>
 where
-    Recipe: spk_spec::Recipe<Output = Package> + Send + Sync,
-    Package: spk_spec::Package + Send + Sync,
+    Recipe: spk_schema::Recipe<Output = Package> + Send + Sync,
+    Package: spk_schema::Package + Send + Sync,
 {
     pub fn new() -> Self {
         let specs = Arc::default();
@@ -56,8 +56,8 @@ where
 
 impl<Recipe, Package> Default for MemRepository<Recipe>
 where
-    Recipe: spk_spec::Recipe<Output = Package> + Send + Sync,
-    Package: spk_spec::Package + Send + Sync,
+    Recipe: spk_schema::Recipe<Output = Package> + Send + Sync,
+    Package: spk_schema::Package + Send + Sync,
 {
     fn default() -> Self {
         Self::new()
@@ -66,7 +66,7 @@ where
 
 impl<Recipe> std::hash::Hash for MemRepository<Recipe>
 where
-    Recipe: spk_spec::Recipe + Send + Sync,
+    Recipe: spk_schema::Recipe + Send + Sync,
     Recipe::Output: Send + Sync,
 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -88,7 +88,7 @@ impl PartialOrd for MemRepository {
 
 impl<Recipe> PartialEq for MemRepository<Recipe>
 where
-    Recipe: spk_spec::Recipe + Send + Sync,
+    Recipe: spk_schema::Recipe + Send + Sync,
     Recipe::Output: Send + Sync,
 {
     fn eq(&self, other: &Self) -> bool {
@@ -98,7 +98,7 @@ where
 
 impl<Recipe> Eq for MemRepository<Recipe>
 where
-    Recipe: spk_spec::Recipe + Send + Sync,
+    Recipe: spk_schema::Recipe + Send + Sync,
     Recipe::Output: Send + Sync,
 {
 }
@@ -106,8 +106,8 @@ where
 #[async_trait::async_trait]
 impl<Recipe> Repository for MemRepository<Recipe>
 where
-    Recipe: spk_spec::Recipe<Ident = Ident> + Clone + Send + Sync,
-    Recipe::Output: spk_spec::Package<Ident = Ident> + Clone + Send + Sync,
+    Recipe: spk_schema::Recipe<Ident = Ident> + Clone + Send + Sync,
+    Recipe::Output: spk_schema::Package<Ident = Ident> + Clone + Send + Sync,
 {
     type Recipe = Recipe;
 
@@ -179,19 +179,23 @@ where
             .await
             .get(&pkg.name)
             .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(pkg.clone()))
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
             })?
             .get(&pkg.version)
             .map(Arc::clone)
             .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(pkg.clone()))
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
             })
     }
 
     async fn read_components(&self, pkg: &Ident) -> Result<ComponentMap> {
         match &pkg.build {
             None => Err(Error::SpkValidatorsError(
-                spk_validators::Error::PackageNotFoundError(pkg.clone()),
+                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
             )),
             Some(build) => self
                 .packages
@@ -199,20 +203,20 @@ where
                 .await
                 .get(&pkg.name)
                 .ok_or_else(|| {
-                    Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
                         pkg.clone(),
                     ))
                 })?
                 .get(&pkg.version)
                 .ok_or_else(|| {
-                    Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
                         pkg.clone(),
                     ))
                 })?
                 .get(build)
                 .map(|(_, d)| d.to_owned())
                 .ok_or_else(|| {
-                    Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
                         pkg.clone(),
                     ))
                 }),
@@ -232,7 +236,7 @@ where
         let versions = specs.entry(spec.name().to_owned()).or_default();
         if versions.contains_key(spec.version()) {
             Err(Error::SpkValidatorsError(
-                spk_validators::Error::VersionExistsError(spec.to_ident()),
+                spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
             ))
         } else {
             versions.insert(spec.version().clone(), Arc::new(spec.clone()));
@@ -246,13 +250,13 @@ where
             Some(v) => v,
             None => {
                 return Err(Error::SpkValidatorsError(
-                    spk_validators::Error::PackageNotFoundError(pkg.clone()),
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
                 ))
             }
         };
         if versions.remove(&pkg.version).is_none() {
             Err(Error::SpkValidatorsError(
-                spk_validators::Error::PackageNotFoundError(pkg.clone()),
+                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
             ))
         } else {
             Ok(())
@@ -263,31 +267,39 @@ where
         &self,
         // TODO: use an ident type that must have a build
         pkg: &Ident,
-    ) -> Result<Arc<<Self::Recipe as spk_spec::Recipe>::Output>> {
+    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
         let build = pkg.build.as_ref().ok_or_else(|| {
-            Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(pkg.clone()))
+            Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                pkg.clone(),
+            ))
         })?;
         self.packages
             .read()
             .await
             .get(&pkg.name)
             .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(pkg.clone()))
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
             })?
             .get(&pkg.version)
             .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(pkg.clone()))
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
             })?
             .get(build)
             .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_validators::Error::PackageNotFoundError(pkg.clone()))
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
             })
             .map(|found| Arc::clone(&found.0))
     }
 
     async fn publish_package(
         &self,
-        spec: &<Self::Recipe as spk_spec::Recipe>::Output,
+        spec: &<Self::Recipe as spk_schema::Recipe>::Output,
         components: &ComponentMap,
     ) -> Result<()> {
         let build = match &spec.ident().build {
@@ -324,7 +336,7 @@ where
             Some(v) => v,
             None => {
                 return Err(Error::SpkValidatorsError(
-                    spk_validators::Error::PackageNotFoundError(pkg.clone()),
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
                 ))
             }
         };
@@ -333,14 +345,14 @@ where
             Some(v) => v,
             None => {
                 return Err(Error::SpkValidatorsError(
-                    spk_validators::Error::PackageNotFoundError(pkg.clone()),
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
                 ))
             }
         };
 
         if builds.remove(build).is_none() {
             Err(Error::SpkValidatorsError(
-                spk_validators::Error::PackageNotFoundError(pkg.clone()),
+                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
             ))
         } else {
             Ok(())

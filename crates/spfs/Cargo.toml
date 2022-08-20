@@ -5,10 +5,6 @@ edition = "2021"
 name = "spfs"
 version = "0.34.6"
 
-[lib]
-name = "spfs"
-path = "src/lib.rs"
-
 [[bin]]
 name = "spfs"
 path = "src/cli/bin.rs"

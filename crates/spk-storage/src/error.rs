@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use spk_ident::Ident;
+use spk_schema::Ident;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -18,15 +18,15 @@ pub enum Error {
     #[error(transparent)]
     SPFS(#[from] spfs::Error),
     #[error(transparent)]
-    SpkIdentBuildError(#[from] spk_foundation::ident_build::Error),
+    SpkIdentBuildError(#[from] spk_schema::foundation::ident_build::Error),
     #[error(transparent)]
-    SpkIdentComponentError(#[from] spk_foundation::ident_component::Error),
+    SpkIdentComponentError(#[from] spk_schema::foundation::ident_component::Error),
     #[error(transparent)]
-    SpkNameError(#[from] spk_foundation::name::Error),
+    SpkNameError(#[from] spk_schema::foundation::name::Error),
     #[error(transparent)]
-    SpkSpecError(#[from] spk_spec::Error),
+    SpkSpecError(#[from] spk_schema::Error),
     #[error(transparent)]
-    SpkValidatorsError(#[from] spk_validators::Error),
+    SpkValidatorsError(#[from] spk_schema::validators::Error),
     #[error("Error: {0}")]
     String(String),
 }

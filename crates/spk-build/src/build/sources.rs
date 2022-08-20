@@ -9,10 +9,10 @@ use std::{
 
 use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
-use spk_foundation::env::data_path;
-use spk_foundation::ident_component::Component;
-use spk_ident::Ident;
-use spk_solver::PackageOps;
+use spk_schema::foundation::env::data_path;
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::Ident;
+use spk_solve::PackageOps;
 use spk_storage::{self as storage};
 use thiserror::Error;
 
@@ -40,7 +40,7 @@ impl CollectionError {
 /// Builds a source package.
 ///
 /// ```no_run
-/// # #[macro_use] extern crate spk_spec;
+/// # #[macro_use] extern crate spk_schema;
 /// # async fn demo() {
 /// spk_build::SourcePackageBuilder::from_recipe(recipe!({
 ///        "pkg": "my-pkg",
@@ -50,15 +50,15 @@ impl CollectionError {
 ///    .unwrap();
 /// # }
 /// ```
-pub struct SourcePackageBuilder<Recipe: spk_spec::Recipe> {
+pub struct SourcePackageBuilder<Recipe: spk_schema::Recipe> {
     recipe: Recipe,
     prefix: PathBuf,
 }
 
 impl<Recipe> SourcePackageBuilder<Recipe>
 where
-    Recipe: spk_spec::Recipe,
-    Recipe::Output: spk_spec::Package<Ident = Ident>,
+    Recipe: spk_schema::Recipe,
+    Recipe::Output: spk_schema::Package<Ident = Ident>,
 {
     pub fn from_recipe(recipe: Recipe) -> Self {
         Self {
@@ -131,7 +131,7 @@ where
 /// Collect the sources for a spec in the given directory.
 pub(super) fn collect_sources<Package, P: AsRef<Path>>(spec: &Package, source_dir: P) -> Result<()>
 where
-    Package: spk_spec::Package<Ident = Ident>,
+    Package: spk_schema::Package<Ident = Ident>,
 {
     let source_dir = source_dir.as_ref();
     std::fs::create_dir_all(&source_dir)?;

@@ -1,0 +1,12 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spk-cmd-explain"
+version = "0.36.0"
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+clap = { version = "3.2", features = ["derive", "env"] }
+spk-cli-common = { path = '../common' }
+tokio = { version = "1.20", features = ["rt"] }

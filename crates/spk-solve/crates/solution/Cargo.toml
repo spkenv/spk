@@ -1,0 +1,11 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spk-solve-solution"
+version = "0.36.0"
+
+[dependencies]
+spfs = { version = '0.34.6', path = "../../../spfs" }
+spk-schema = { path = "../../../spk-schema" }
+spk-storage = { path = "../../../spk-storage" }
+thiserror = "1.0"

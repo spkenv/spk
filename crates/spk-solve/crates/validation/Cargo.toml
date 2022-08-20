@@ -1,0 +1,18 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spk-solve-validation"
+version = "0.36.0"
+
+[dependencies]
+colored = "2.0"
+enum_dispatch = "0.3.8"
+itertools = "0.10"
+spk-solve-graph = { path = "../graph" }
+spk-solve-solution = { path = "../solution" }
+spk-schema = { path = "../../../spk-schema" }
+thiserror = "1.0"
+
+[dev-dependencies]
+rstest = "0.15.0"
+serde_yaml = "0.8.17"

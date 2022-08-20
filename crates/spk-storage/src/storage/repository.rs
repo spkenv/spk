@@ -4,12 +4,12 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::Result;
-use spk_foundation::ident_component::Component;
-use spk_foundation::name::{PkgName, PkgNameBuf, RepositoryName};
-use spk_foundation::spec_ops::PackageOps;
-use spk_foundation::version::Version;
-use spk_ident::Ident;
-use spk_spec::Package;
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
+use spk_schema::foundation::spec_ops::PackageOps;
+use spk_schema::foundation::version::Version;
+use spk_schema::Ident;
+use spk_schema::Package;
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -30,7 +30,7 @@ impl CachePolicy {
 
 #[async_trait::async_trait]
 pub trait Repository: Sync {
-    type Recipe: spk_spec::Recipe;
+    type Recipe: spk_schema::Recipe;
 
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository
@@ -89,7 +89,7 @@ pub trait Repository: Sync {
         &self,
         // TODO: use an ident type that must have a build
         pkg: &Ident,
-    ) -> Result<Arc<<Self::Recipe as spk_spec::Recipe>::Output>>;
+    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>>;
 
     /// Publish a package to this repository.
     ///
@@ -97,7 +97,7 @@ pub trait Repository: Sync {
     /// layer which contains properly constructed binary package files and metadata.
     async fn publish_package(
         &self,
-        package: &<Self::Recipe as spk_spec::Recipe>::Output,
+        package: &<Self::Recipe as spk_schema::Recipe>::Output,
         components: &HashMap<Component, spfs::encoding::Digest>,
     ) -> Result<()>;
 
@@ -109,10 +109,10 @@ pub trait Repository: Sync {
     /// or deprecation status).
     async fn update_package(
         &self,
-        package: &<Self::Recipe as spk_spec::Recipe>::Output,
+        package: &<Self::Recipe as spk_schema::Recipe>::Output,
     ) -> Result<()>
     where
-        <Self::Recipe as spk_spec::Recipe>::Output: Package<Ident = Ident>,
+        <Self::Recipe as spk_schema::Recipe>::Output: Package<Ident = Ident>,
     {
         let components = self.read_components(package.ident()).await?;
         self.publish_package(package, &components).await
