@@ -505,7 +505,8 @@ async fn test_default_build_component() {
     match req {
         Request::Pkg(req) => {
             assert_eq!(req.pkg.components, vec![Component::default_for_build()].into_iter().collect(),
-                "a build request with no components should have the default build component injected automatically"
+                       "a build request with no components should have the default build component ({}) injected automatically",
+                       Component::default_for_build()
             );
         }
         _ => panic!("expected pkg request"),

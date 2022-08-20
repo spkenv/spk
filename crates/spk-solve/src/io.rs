@@ -504,6 +504,9 @@ impl DecisionFormatter {
                 return Err(Error::SolverInterrupted(mesg));
             }
             LoopOutcome::Failed(e) => {
+                #[cfg(feature = "sentry")]
+                self.add_details_to_next_sentry_event(&runtime.solver, start.elapsed());
+
                 return Err(*e);
             }
             LoopOutcome::Success => {}
@@ -600,7 +603,7 @@ impl DecisionFormatter {
     #[cfg(feature = "sentry")]
     fn send_sentry_warning_message(
         &self,
-        solver: &solve::Solver,
+        solver: &Solver,
         solve_duration: Duration,
         sentry_warning: SentryWarning,
     ) {
