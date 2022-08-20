@@ -3,10 +3,15 @@
 // https://github.com/imageworks/spk
 
 use chrono::prelude::*;
-use clap::Args;
+use clap::Parser;
 use colored::*;
 
 use spfs::prelude::*;
+
+#[macro_use]
+mod args;
+
+main!(CmdClean);
 
 /// Clean the repository storage of any untracked data
 ///
@@ -15,8 +20,12 @@ use spfs::prelude::*;
 /// provides semantics for pruning a repository from older
 /// tag data to help detach data in the case of needing to
 /// reduce repository size.
-#[derive(Debug, Args)]
+#[derive(Debug, Parser)]
+#[clap(name = "spfs-clean")]
 pub struct CmdClean {
+    #[clap(short, long, parse(from_occurrences))]
+    pub verbose: usize,
+
     /// Trigger the clean operation on a remote repository
     #[clap(short, long)]
     remote: Option<String>,

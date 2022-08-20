@@ -14,6 +14,10 @@ name = "spfs"
 path = "src/cli/bin.rs"
 required-features = ["cli"]
 [[bin]]
+name = "spfs-clean"
+path = "src/cli/cmd_clean.rs"
+required-features = ["cli"]
+[[bin]]
 name = "spfs-enter"
 path = "src/cli/cmd_enter.rs"
 required-features = ["cli"]

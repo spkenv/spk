@@ -191,6 +191,38 @@ impl Repository for FSRepository {
             None => Err("repository has not been setup for rendering manifests".into()),
         }
     }
+    fn renders_for_all_users(&self) -> Result<Vec<Box<dyn ManifestViewer>>> {
+        if self.renders.is_none() {
+            return Err("repository has not been setup for rendering manifests".into());
+        }
+
+        let mut render_dirs = Vec::new();
+
+        let renders_dir = self.root.join("renders");
+        for entry in std::fs::read_dir(&renders_dir)
+            .map_err(|err| Error::StorageReadError(renders_dir.clone(), err))?
+        {
+            let entry = entry.map_err(|err| Error::StorageReadError(renders_dir.clone(), err))?;
+
+            let dir = entry.path();
+            if !dir.is_dir() {
+                continue;
+            }
+            render_dirs.push(dir);
+        }
+
+        Ok(render_dirs
+            .into_iter()
+            .map(|dir| -> Box<dyn ManifestViewer> {
+                Box::new(Self {
+                    objects: FSHashStore::open_unchecked(self.root.join("objects")),
+                    payloads: FSHashStore::open_unchecked(self.root.join("payloads")),
+                    renders: FSHashStore::open(self.root.join("renders").join(dir)).ok(),
+                    root: self.root.clone(),
+                })
+            })
+            .collect())
+    }
 }
 
 impl std::fmt::Debug for FSRepository {

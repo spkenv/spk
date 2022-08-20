@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use tokio_stream::StreamExt;
 
@@ -54,12 +54,15 @@ pub async fn purge_objects(
     let bars_future = tokio::task::spawn_blocking(move || multibar.join());
     let map_err = |e| Error::String(format!("Unexpected error in clean process: {e}"));
 
+    let repo = Arc::new(crate::open_repository(repo).await?);
+    let renders_for_all_users = Arc::new(repo.renders_for_all_users()?);
+
     // we still do each of these pieces separately, because we'd like
     // to ensure that objects are removed successfully before any
     // related payloads, etc...
     let mut futures: futures::stream::FuturesUnordered<_> = objects
         .iter()
-        .map(|digest| tokio::spawn(clean_object(repo.clone(), **digest)))
+        .map(|digest| tokio::spawn(clean_object(Arc::clone(&repo), **digest)))
         .collect();
     while let Some(result) = futures.next().await {
         if let Err(err) = result.map_err(map_err).and_then(|e| e) {
@@ -71,7 +74,7 @@ pub async fn purge_objects(
 
     let mut futures: futures::stream::FuturesUnordered<_> = objects
         .iter()
-        .map(|digest| tokio::spawn(clean_payload(repo.clone(), **digest)))
+        .map(|digest| tokio::spawn(clean_payload(Arc::clone(&repo), **digest)))
         .collect();
     while let Some(result) = futures.next().await {
         if let Err(err) = result.map_err(map_err).and_then(|e| e) {
@@ -83,7 +86,7 @@ pub async fn purge_objects(
 
     let mut futures: futures::stream::FuturesUnordered<_> = objects
         .iter()
-        .map(|digest| tokio::spawn(clean_render(repo.clone(), **digest)))
+        .map(|digest| tokio::spawn(clean_render(Arc::clone(&renders_for_all_users), **digest)))
         .collect();
     while let Some(result) = futures.next().await {
         if let Err(err) = result.map_err(map_err).and_then(|e| e) {
@@ -106,8 +109,10 @@ pub async fn purge_objects(
     }
 }
 
-async fn clean_object(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
-    let repo = crate::open_repository(repo_addr).await?;
+async fn clean_object(
+    repo: Arc<storage::RepositoryHandle>,
+    digest: encoding::Digest,
+) -> Result<()> {
     let res = repo.remove_object(digest).await;
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
@@ -116,8 +121,10 @@ async fn clean_object(repo_addr: url::Url, digest: encoding::Digest) -> Result<(
     }
 }
 
-async fn clean_payload(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
-    let repo = crate::open_repository(repo_addr).await?;
+async fn clean_payload(
+    repo: Arc<storage::RepositoryHandle>,
+    digest: encoding::Digest,
+) -> Result<()> {
     let res = repo.remove_payload(digest).await;
     if let Err(Error::UnknownObject(_)) = res {
         Ok(())
@@ -126,15 +133,21 @@ async fn clean_payload(repo_addr: url::Url, digest: encoding::Digest) -> Result<
     }
 }
 
-async fn clean_render(repo_addr: url::Url, digest: encoding::Digest) -> Result<()> {
-    let repo = crate::open_repository(repo_addr).await?;
-    let viewer = repo.renders()?;
-    let res = viewer.remove_rendered_manifest(digest).await;
-    if let Err(crate::Error::UnknownObject(_)) = res {
-        Ok(())
-    } else {
-        res
+async fn clean_render(
+    renders_for_all_users: Arc<Vec<Box<dyn storage::ManifestViewer>>>,
+    digest: encoding::Digest,
+) -> Result<()> {
+    let mut result = None;
+    for viewer in renders_for_all_users.iter() {
+        match viewer.remove_rendered_manifest(digest).await {
+            Ok(_) | Err(crate::Error::UnknownObject(_)) => continue,
+            err @ Err(_) => {
+                // Remember this error but attempt to clean all the users.
+                result = Some(err);
+            }
+        }
     }
+    result.unwrap_or(Ok(()))
 }
 
 pub async fn get_all_unattached_objects(
