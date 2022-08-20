@@ -21,6 +21,12 @@ pub trait PackageOps: Named + Versioned {
     fn is_satisfied_by_var_request(&self, var_request: &Self::VarRequest) -> Compatibility;
 }
 
+pub trait PackageMutOps {
+    type Ident;
+
+    fn ident_mut(&mut self) -> &mut Self::Ident;
+}
+
 impl<T> PackageOps for std::sync::Arc<T>
 where
     T: PackageOps,

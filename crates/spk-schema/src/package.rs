@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::PackageOps;
@@ -87,9 +86,6 @@ pub trait Package:
 
         Compatibility::Compatible
     }
-
-    /// Return a copy of this package with the given build.
-    fn with_build(&self, build: Build) -> Self::Package;
 }
 
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
@@ -143,10 +139,6 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 
     fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
         (**self).validate_options(given_options)
-    }
-
-    fn with_build(&self, build: Build) -> Self::Package {
-        (**self).with_build(build)
     }
 }
 
@@ -202,9 +194,5 @@ impl<T: Package + Send + Sync> Package for &T {
 
     fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
         (**self).validate_options(given_options)
-    }
-
-    fn with_build(&self, build: Build) -> Self::Package {
-        (**self).with_build(build)
     }
 }

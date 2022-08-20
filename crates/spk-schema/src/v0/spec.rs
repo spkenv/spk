@@ -7,6 +7,7 @@ use std::path::Path;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::spec_ops::PackageMutOps;
 
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
@@ -254,12 +255,6 @@ impl Package for Spec {
 
     fn build_script(&self) -> String {
         self.build.script.join("\n")
-    }
-
-    fn with_build(&self, build: Build) -> Self {
-        let mut n = self.clone();
-        n.pkg.set_build(Some(build));
-        n
     }
 }
 
@@ -568,6 +563,14 @@ impl PackageOps for Spec {
                 }
             }
         }
+    }
+}
+
+impl PackageMutOps for Spec {
+    type Ident = Ident;
+
+    fn ident_mut(&mut self) -> &mut Self::Ident {
+        &mut self.pkg
     }
 }
 

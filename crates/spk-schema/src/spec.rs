@@ -7,8 +7,8 @@ use std::str::FromStr;
 
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::Component;
+use spk_schema_foundation::spec_ops::PackageMutOps;
 
 use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
@@ -451,6 +451,16 @@ impl PackageOps for Spec {
     }
 }
 
+impl PackageMutOps for Spec {
+    type Ident = Ident;
+
+    fn ident_mut(&mut self) -> &mut Self::Ident {
+        match self {
+            Spec::V0Package(r) => PackageMutOps::ident_mut(r),
+        }
+    }
+}
+
 impl Named for Spec {
     fn name(&self) -> &PkgName {
         match self {
@@ -538,12 +548,6 @@ impl Package for Spec {
     fn build_script(&self) -> String {
         match self {
             Spec::V0Package(spec) => spec.build_script(),
-        }
-    }
-
-    fn with_build(&self, build: Build) -> Self {
-        match self {
-            Spec::V0Package(spec) => Spec::V0Package(spec.with_build(build)),
         }
     }
 }
