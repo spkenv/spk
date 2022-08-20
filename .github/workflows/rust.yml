@@ -10,7 +10,7 @@ env:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     container:
       image: rust
       options: --security-opt seccomp=unconfined --privileged
@@ -27,23 +27,23 @@ jobs:
           # nodejs is needed for rust-cache (when using `act`)
           apt-get install -y libcap2-bin sudo nodejs cmake tcsh rsync protobuf-compiler
           rustup component add clippy rustfmt
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
       - name: Build Slim
-        run: make debug FEATURES=
+        run: make debug-slim
       - name: Build Default
         run: make debug
       - name: Build Server
-        run: make debug FEATURES=spfs/server,spfs/cli
+        run: make debug FEATURES=spfs/server
       - name: Install Debug Binaries
-        run: make install-debug FEATURES=spfs/server,spfs/cli
+        run: make install-debug-spfs FEATURES=spfs/server
       - name: Setup a local origin repo
         run: SPFS_REMOTE_origin_ADDRESS="${SPFS_REMOTE_origin_ADDRESS}?create=true" spfs ls-tags -r origin
         # Run test before lint, lint takes a while and it is useful to know that
         # the tests are failing before knowing if the lints are passing.
       - name: Run Unit Tests
-        run: make test FEATURES=spfs/server,spfs/cli
+        run: make test FEATURES=spfs/server
       - name: Lint
-        run: make lint FEATURES=spfs/server,spfs/cli
+        run: make lint FEATURES=spfs/server
       - name: SPFS Integration Tests
         run: |
           # Run tests as a normal user to verify privilege escalation

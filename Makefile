@@ -42,15 +42,23 @@ format:
 .PHONY: build
 build: debug
 
-debug: FEATURES ?= spfs/cli
 debug:
 	cd $(SOURCE_ROOT)
-	cargo build --workspace $(cargo_features_arg)
+	cargo build --workspace $(cargo_features_arg) --features spfs/cli
 
-release: FEATURES ?= spfs/cli
+# This target is for building with no extra features enabled.
+# Ignores $FEATURES; doesn't enable spfs/cli.
+debug-slim:
+	cd $(SOURCE_ROOT)
+	cargo build --workspace
+
+debug-spfs:
+	cd $(SOURCE_ROOT)
+	cargo build -p spfs $(cargo_features_arg) --features spfs/cli
+
 release:
 	cd $(SOURCE_ROOT)
-	cargo build --workspace --release $(cargo_features_arg)
+	cargo build --workspace --release $(cargo_features_arg) --features spfs/cli
 
 .PHONY: test
 test:
@@ -96,13 +104,23 @@ rpm-buildenv:
 		-f rpmbuild.Dockerfile \
 		--tag build_env
 
-install-debug: copy-debug setcap
+install-debug-spfs: copy-debug-spfs setcap
+
+install-debug-spk: copy-debug-spk
+
+install-debug: install-debug-spfs install-debug-spk
 
 install: copy-release setcap
 
-copy-debug: debug
+copy-debug-spfs: debug-spfs
 	cd $(SOURCE_ROOT)
-	sudo cp -f target/debug/spk target/debug/spfs* /usr/bin/
+	sudo cp -f target/debug/spfs* /usr/bin/
+
+copy-debug-spk: debug
+	cd $(SOURCE_ROOT)
+	sudo cp -f target/debug/spk /usr/bin/
+
+copy-debug: copy-debug-spfs copy-debug-spk
 
 copy-release: release
 	cd $(SOURCE_ROOT)
