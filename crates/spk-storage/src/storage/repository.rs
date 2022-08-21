@@ -46,6 +46,11 @@ pub trait Storage: Sync {
         package: &<Self::Recipe as spk_schema::Recipe>::Output,
         components: &HashMap<Component, spfs::encoding::Digest>,
     ) -> Result<()>;
+
+    /// Remove a package from this repository.
+    ///
+    /// The given package identifier must identify a full package build.
+    async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()>;
 }
 
 /// High level repository concepts.
@@ -170,7 +175,16 @@ pub trait Repository: Storage + Sync {
         &self,
         // TODO: use an ident type that must have a build
         pkg: &Ident,
-    ) -> Result<()>;
+    ) -> Result<()> {
+        if pkg.build.is_none() {
+            return Err(Error::String(format!(
+                "Package must include a build in order to be removed: {}",
+                pkg
+            )));
+        }
+
+        self.remove_package_from_storage(pkg).await
+    }
 
     /// Identify the payloads for the identified package's components.
     async fn read_components(
