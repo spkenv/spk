@@ -2,17 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     sync::Arc,
 };
 
 use crate::{Error, Result};
-use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Version;
 use spk_schema::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage, InvalidBuildError};
 use spk_schema::Ident;
+use spk_schema::{foundation::ident_component::Component, spec_ops::RecipeOps};
 use spk_schema::{Package, Recipe};
 
 #[cfg(test)]
@@ -45,7 +45,7 @@ pub enum PublishPolicy {
 /// storage types, but perform the same logical operation for any storage type.
 #[async_trait::async_trait]
 pub trait Storage: Sync {
-    type Recipe: spk_schema::Recipe<Output = Self::Package, Recipe = Self::Recipe>;
+    type Recipe: spk_schema::Recipe<Output = Self::Package, Recipe = Self::Recipe, Ident = Ident>;
     type Package: Package<Input = Self::Recipe, Ident = Ident>;
 
     /// Return the set of concrete builds for the given package name and version.
@@ -95,12 +95,45 @@ pub trait Storage: Sync {
     async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()>;
 }
 
+mod internal {
+    use std::collections::{BTreeSet, HashMap};
+
+    use crate::Result;
+    use spk_schema::foundation::ident_component::Component;
+    use spk_schema::{Package, Recipe};
+
+    /// Reusable methods for [`super::Repository`] that are not intended to be
+    /// part of its public interface.
+    pub trait Repository: super::Storage {
+        /// Get all the embedded packages described by a [`Package`] and
+        /// return what [`api::Component`]s are providing each one.
+        fn get_embedded_providers(
+            &self,
+            package: &<Self::Recipe as Recipe>::Output,
+        ) -> Result<HashMap<<Self as super::Storage>::Recipe, BTreeSet<Component>>> {
+            let mut embedded_providers = HashMap::new();
+            for (embed, component) in package.embedded_as_recipes()?.into_iter() {
+                // "top level" embedded as assumed to be provided by the "run"
+                // component.
+                (*embedded_providers
+                    .entry(embed)
+                    .or_insert_with(BTreeSet::new))
+                .insert(component.unwrap_or(Component::Run));
+            }
+            Ok(embedded_providers)
+        }
+    }
+}
+
+/// Blanket implementation.
+impl<T: Storage> internal::Repository for T {}
+
 /// High level repository concepts.
 ///
 /// An abstraction for interacting with different storage backends as a
 /// repository for spk packages.
 #[async_trait::async_trait]
-pub trait Repository: Storage + Sync {
+pub trait Repository: internal::Repository + Storage + Sync {
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository
     /// share an address
@@ -205,17 +238,7 @@ pub trait Repository: Storage + Sync {
         // After successfully publishing a package, also publish stubs for any
         // embedded packages in this package.
         if !package.ident().is_source() {
-            // Take inventory of all the embedded specs and which components
-            // of the parent spec provide them.
-            let mut embedded_providers = HashMap::new();
-            for (embed, component) in package.embedded_as_recipes()?.into_iter() {
-                // "top level" embedded as assumed to be provided by the "run"
-                // component.
-                (*embedded_providers
-                    .entry(embed)
-                    .or_insert_with(BTreeSet::new))
-                .insert(component.unwrap_or(Component::Run));
-            }
+            let embedded_providers = self.get_embedded_providers(package)?;
 
             for (embed, components) in embedded_providers.into_iter() {
                 // The "version spec" must exist for this package to be discoverable.
@@ -272,6 +295,23 @@ pub trait Repository: Storage + Sync {
                 "Package must include a build in order to be removed: {}",
                 pkg
             )));
+        }
+
+        // Attempt to find and remove any related embedded package stubs.
+        if let Ok(spec) = self.read_package(pkg).await {
+            if !spec.ident().is_source() {
+                let embedded_providers = self.get_embedded_providers(&*spec)?;
+
+                for (embed, components) in embedded_providers.into_iter() {
+                    let embed = embed.to_ident().with_build(Some(Build::Embedded(
+                        EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
+                            ident: spec.ident().into(),
+                            components,
+                        })),
+                    )));
+                    self.remove_recipe(&embed).await?;
+                }
+            }
         }
 
         self.remove_package_from_storage(pkg).await

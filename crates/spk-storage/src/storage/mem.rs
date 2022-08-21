@@ -140,7 +140,6 @@ where
         let mut packages = self.packages.write().await;
         let versions = packages.entry(package.name().to_owned()).or_default();
         let builds = versions.entry(package.version().clone()).or_default();
-
         builds.insert(build, (Arc::new(package.clone()), components.clone()));
         Ok(())
     }
