@@ -13,7 +13,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::Ident;
-use spk_schema::SpecRecipe;
+use spk_schema::{Spec, SpecRecipe};
 
 use super::{
     repository::{PublishPolicy, Storage},
@@ -85,6 +85,7 @@ impl RuntimeRepository {
 #[async_trait::async_trait]
 impl Storage for RuntimeRepository {
     type Recipe = SpecRecipe;
+    type Package = Spec;
 
     async fn publish_package_to_storage(
         &self,

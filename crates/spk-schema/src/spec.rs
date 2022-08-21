@@ -7,6 +7,7 @@ use std::str::FromStr;
 
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::ident_build::Build;
 
 use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
@@ -205,6 +206,7 @@ impl RecipeOps for SpecRecipe {
 
 impl Recipe for SpecRecipe {
     type Output = Spec;
+    type Recipe = Self;
 
     fn default_variants(&self) -> &Vec<OptionMap> {
         match self {
@@ -249,6 +251,12 @@ impl Recipe for SpecRecipe {
             SpecRecipe::V0Package(r) => r
                 .generate_binary_build(options, build_env)
                 .map(Spec::V0Package),
+        }
+    }
+
+    fn with_build(&self, build: Option<Build>) -> Self {
+        match self {
+            SpecRecipe::V0Package(r) => SpecRecipe::V0Package(r.with_build(build)),
         }
     }
 }
@@ -329,7 +337,7 @@ impl<'de> Deserialize<'de> for SpecRecipe {
 /// and deserialized from a `Repository`.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize)]
 #[serde(tag = "api")]
-#[enum_dispatch(Deprecate, DeprecateMut, Package)]
+#[enum_dispatch(Deprecate, DeprecateMut)]
 pub enum Spec {
     #[serde(rename = "v0/package")]
     V0Package(super::v0::Spec),
@@ -377,6 +385,7 @@ impl RecipeOps for Spec {
 
 impl Recipe for Spec {
     type Output = Spec;
+    type Recipe = Self;
 
     fn default_variants(&self) -> &Vec<OptionMap> {
         match self {
@@ -423,6 +432,12 @@ impl Recipe for Spec {
                 .map(Spec::V0Package),
         }
     }
+
+    fn with_build(&self, build: Option<Build>) -> Self::Recipe {
+        match self {
+            Spec::V0Package(r) => Spec::V0Package(r.with_build(build)),
+        }
+    }
 }
 
 impl PackageOps for Spec {
@@ -461,6 +476,79 @@ impl Versioned for Spec {
     fn version(&self) -> &Version {
         match self {
             Spec::V0Package(r) => r.version(),
+        }
+    }
+}
+
+// enum_dispatch does not support associated types.
+impl Package for Spec {
+    type Input = SpecRecipe;
+
+    fn compat(&self) -> &Compat {
+        match self {
+            Spec::V0Package(spec) => spec.compat(),
+        }
+    }
+
+    fn option_values(&self) -> OptionMap {
+        match self {
+            Spec::V0Package(spec) => spec.option_values(),
+        }
+    }
+
+    fn options(&self) -> &Vec<super::Opt> {
+        match self {
+            Spec::V0Package(spec) => spec.options(),
+        }
+    }
+
+    fn sources(&self) -> &Vec<super::SourceSpec> {
+        match self {
+            Spec::V0Package(spec) => spec.sources(),
+        }
+    }
+
+    fn embedded(&self) -> &super::EmbeddedPackagesList {
+        match self {
+            Spec::V0Package(spec) => spec.embedded(),
+        }
+    }
+
+    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str> {
+        match self {
+            Spec::V0Package(spec) => spec
+                .embedded_as_recipes()
+                .map(|vec| vec.into_iter().map(Into::into).collect()),
+        }
+    }
+
+    fn components(&self) -> &super::ComponentSpecList {
+        match self {
+            Spec::V0Package(spec) => spec.components(),
+        }
+    }
+
+    fn runtime_environment(&self) -> &Vec<super::EnvOp> {
+        match self {
+            Spec::V0Package(spec) => spec.runtime_environment(),
+        }
+    }
+
+    fn runtime_requirements(&self) -> &super::RequirementsList {
+        match self {
+            Spec::V0Package(spec) => spec.runtime_requirements(),
+        }
+    }
+
+    fn validation(&self) -> &super::ValidationSpec {
+        match self {
+            Spec::V0Package(spec) => spec.validation(),
+        }
+    }
+
+    fn build_script(&self) -> String {
+        match self {
+            Spec::V0Package(spec) => spec.build_script(),
         }
     }
 }

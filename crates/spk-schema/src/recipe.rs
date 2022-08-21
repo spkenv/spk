@@ -4,6 +4,8 @@
 
 use std::path::Path;
 
+use spk_schema_foundation::ident_build::Build;
+
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, RecipeOps, Versioned};
 use crate::ident::{Ident, Request};
@@ -18,7 +20,8 @@ pub trait BuildEnv {
 
 /// Can be used to build a package.
 #[enum_dispatch::enum_dispatch]
-pub trait Recipe: RecipeOps + Named + Versioned + super::Deprecate + Sync + Send {
+pub trait Recipe: RecipeOps + Named + Versioned + super::Deprecate + Clone + Sync + Send {
+    type Recipe;
     type Output: super::Package;
 
     /// Return the default variants to be built for this recipe
@@ -49,6 +52,9 @@ pub trait Recipe: RecipeOps + Named + Versioned + super::Deprecate + Sync + Send
     where
         E: BuildEnv<Package = P>,
         P: Package<Ident = Ident>;
+
+    /// Return a copy of this recipe with the given build.
+    fn with_build(&self, build: Option<Build>) -> Self::Recipe;
 }
 
 impl<T> Recipe for std::sync::Arc<T>
@@ -56,6 +62,7 @@ where
     T: Recipe,
 {
     type Output = T::Output;
+    type Recipe = T::Recipe;
 
     fn default_variants(&self) -> &Vec<OptionMap> {
         (**self).default_variants()
@@ -88,12 +95,17 @@ where
     {
         (**self).generate_binary_build(options, build_env)
     }
+
+    fn with_build(&self, build: Option<Build>) -> Self::Recipe {
+        (**self).with_build(build)
+    }
 }
 
 impl<T> Recipe for &T
 where
     T: Recipe,
 {
+    type Recipe = T::Recipe;
     type Output = T::Output;
 
     fn default_variants(&self) -> &Vec<OptionMap> {
@@ -126,5 +138,9 @@ where
         P: Package<Ident = Ident>,
     {
         (**self).generate_binary_build(options, build_env)
+    }
+
+    fn with_build(&self, build: Option<Build>) -> Self::Recipe {
+        (**self).with_build(build)
     }
 }

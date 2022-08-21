@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use spk_schema::SpecRecipe;
+use spk_schema::{Spec, SpecRecipe};
 
 use super::Repository;
 
-type Handle = dyn Repository<Recipe = SpecRecipe>;
+type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
 
 #[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[allow(clippy::large_enum_variant)]

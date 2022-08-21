@@ -12,7 +12,9 @@ mod package_test;
 
 /// Can be resolved into an environment.
 #[enum_dispatch::enum_dispatch]
-pub trait Package: PackageOps + super::Deprecate + Sync + Send {
+pub trait Package: PackageOps + super::Deprecate + Clone + Sync + Send {
+    type Input: super::Recipe;
+
     /// The compatibility guaranteed by this package's version
     fn compat(&self) -> &Compat;
 
@@ -27,6 +29,9 @@ pub trait Package: PackageOps + super::Deprecate + Sync + Send {
 
     /// The packages that are embedded within this one
     fn embedded(&self) -> &super::EmbeddedPackagesList;
+
+    /// The packages that are embedded within this one
+    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str>;
 
     /// The components defined by this package
     fn components(&self) -> &super::ComponentSpecList;
@@ -74,6 +79,8 @@ pub trait Package: PackageOps + super::Deprecate + Sync + Send {
 }
 
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
+    type Input = T::Input;
+
     fn compat(&self) -> &Compat {
         (**self).compat()
     }
@@ -92,6 +99,10 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 
     fn embedded(&self) -> &super::EmbeddedPackagesList {
         (**self).embedded()
+    }
+
+    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str> {
+        (**self).embedded_as_recipes()
     }
 
     fn components(&self) -> &super::ComponentSpecList {
@@ -120,6 +131,8 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 }
 
 impl<T: Package + Send + Sync> Package for &T {
+    type Input = T::Input;
+
     // TODO: use or find a macro for this
     fn compat(&self) -> &Compat {
         (**self).compat()
@@ -139,6 +152,10 @@ impl<T: Package + Send + Sync> Package for &T {
 
     fn embedded(&self) -> &super::EmbeddedPackagesList {
         (**self).embedded()
+    }
+
+    fn embedded_as_recipes(&self) -> std::result::Result<Vec<Self::Input>, &str> {
+        (**self).embedded_as_recipes()
     }
 
     fn components(&self) -> &super::ComponentSpecList {

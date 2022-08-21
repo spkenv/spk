@@ -11,6 +11,7 @@ use spk_schema::foundation::name::OptNameBuf;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Version;
 use spk_schema::foundation::version_range::{parse_version_range, Ranged};
+use spk_schema::ident_build::{Build, EmbeddedSource};
 use spk_schema::Ident;
 
 use crate::Result;
@@ -136,10 +137,11 @@ impl BuildKey {
             // All '/src' builds use the same simplified key
             return BuildKey::Src;
         }
-        if let Some(super::Build::Embedded(super::EmbeddedSource::Ident(ident))) =
-            pkg.build.as_ref()
-        {
-            return BuildKey::Embed(*ident.clone());
+        if let Some(Build::Embedded(EmbeddedSource::Ident(ident))) = pkg.build.as_ref() {
+            let ident: Ident = ident
+                .parse()
+                .unwrap_or_else(|_| Ident::new("unknown".try_into().expect("valid package name")));
+            return BuildKey::Embed(ident);
         }
 
         // Binary builds (non-/src) use a compound key of option

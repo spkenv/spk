@@ -8,9 +8,9 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Version;
-use spk_schema::ident_build::{Build, InvalidBuildError};
+use spk_schema::ident_build::{Build, EmbeddedSource, InvalidBuildError};
 use spk_schema::Ident;
-use spk_schema::Package;
+use spk_schema::{Package, Recipe};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -42,7 +42,8 @@ pub enum PublishPolicy {
 /// storage types, but perform the same logical operation for any storage type.
 #[async_trait::async_trait]
 pub trait Storage: Sync {
-    type Recipe: spk_schema::Recipe;
+    type Recipe: spk_schema::Recipe<Output = Self::Package, Recipe = Self::Recipe>;
+    type Package: Package<Input = Self::Recipe, Ident = Ident>;
 
     /// Publish a package to this repository.
     ///
@@ -162,8 +163,7 @@ pub trait Repository: Storage + Sync {
         components: &HashMap<Component, spfs::encoding::Digest>,
     ) -> Result<()>
     where
-        <<Self as Storage>::Recipe as spk_schema::Recipe>::Output:
-            spk_schema::Package<Ident = Ident> + Send + Sync,
+        <<<Self as Storage>::Recipe as spk_schema::Recipe>::Output as Package>::Input: Clone,
     {
         let build = match &package.ident().build {
             Some(b) => b.to_owned(),
@@ -182,6 +182,29 @@ pub trait Repository: Storage + Sync {
         }
 
         self.publish_package_to_storage(package, components).await?;
+
+        // After successfully publishing a package, also publish stubs for any
+        // embedded packages in this package.
+        if !package.ident().is_source() {
+            for embed in package.embedded_as_recipes()?.into_iter() {
+                // The "version spec" must exist for this package to be discoverable.
+                // One may already exist from "real" (non-embedded) publishes.
+                let version_spec = embed.with_build(None);
+                match self.publish_recipe(&version_spec).await {
+                    Ok(_)
+                    | Err(Error::SpkValidatorsError(
+                        spk_schema::validators::Error::VersionExistsError(_),
+                    )) => {}
+                    Err(err) => return Err(err),
+                };
+
+                let embed = embed.with_build(Some(Build::Embedded(EmbeddedSource::Ident(
+                    package.ident().to_string(),
+                ))));
+                self.force_publish_recipe(&embed).await?;
+            }
+        }
+
         Ok(())
     }
 

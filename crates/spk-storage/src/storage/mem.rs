@@ -8,10 +8,9 @@ use std::sync::Arc;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
-use spk_schema::foundation::spec_ops::{Named, PackageOps, Versioned};
 use spk_schema::foundation::version::Version;
 use spk_schema::Ident;
-use spk_schema::SpecRecipe;
+use spk_schema::{Spec, SpecRecipe};
 use tokio::sync::RwLock;
 
 use super::repository::{PublishPolicy, Storage};
@@ -24,7 +23,7 @@ type VersionMap<T> = HashMap<Version, T>;
 type BuildMap<Package> = HashMap<Build, (Arc<Package>, ComponentMap)>;
 
 #[derive(Clone, Debug)]
-pub struct MemRepository<Recipe = SpecRecipe>
+pub struct MemRepository<Recipe = SpecRecipe, Package = Spec>
 where
     Recipe: spk_schema::Recipe + Sync + Send,
     Recipe::Output: Sync + Send,
@@ -33,6 +32,7 @@ where
     name: RepositoryNameBuf,
     specs: Arc<RwLock<PackageMap<Arc<Recipe>>>>,
     packages: Arc<RwLock<PackageMap<BuildMap<Recipe::Output>>>>,
+    _marker: std::marker::PhantomData<Package>,
 }
 
 impl<Recipe, Package> MemRepository<Recipe>
@@ -51,6 +51,7 @@ where
             name: "mem".try_into().expect("valid repository name"),
             specs,
             packages: Arc::default(),
+            _marker: std::marker::PhantomData::default(),
         }
     }
 }
@@ -97,20 +98,16 @@ where
     }
 }
 
-impl<Recipe> Eq for MemRepository<Recipe>
-where
-    Recipe: spk_schema::Recipe + Send + Sync,
-    Recipe::Output: Send + Sync,
-{
-}
+impl<Recipe> Eq for MemRepository<Recipe> where Recipe: spk_schema::Recipe + Send + Sync {}
 
 #[async_trait::async_trait]
-impl<Recipe> Storage for MemRepository<Recipe>
+impl<Recipe, Package> Storage for MemRepository<Recipe, Package>
 where
-    Recipe: spk_schema::Recipe<Ident = Ident> + Clone + Send + Sync,
-    Recipe::Output: spk_schema::Package<Ident = Ident> + Clone + Send + Sync,
+    Recipe: spk_schema::Recipe<Output = Package, Ident = Ident, Recipe = Recipe> + Send + Sync,
+    Package: spk_schema::Package<Input = Recipe, Ident = Ident> + Send + Sync,
 {
     type Recipe = Recipe;
+    type Package = Package;
 
     async fn publish_package_to_storage(
         &self,
@@ -212,10 +209,12 @@ where
 }
 
 #[async_trait::async_trait]
-impl<Recipe> Repository for MemRepository<Recipe>
+impl<Recipe, Package> Repository for MemRepository<Recipe, Package>
 where
-    Recipe: spk_schema::Recipe<Ident = Ident> + Clone + Send + Sync,
+    Recipe:
+        spk_schema::Recipe<Ident = Ident, Output = Package, Recipe = Recipe> + Clone + Send + Sync,
     Recipe::Output: spk_schema::Package<Ident = Ident> + Clone + Send + Sync,
+    Package: spk_schema::Package<Input = Recipe> + Send + Sync,
 {
     fn address(&self) -> &url::Url {
         &self.address

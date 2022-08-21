@@ -202,6 +202,7 @@ std::thread_local! {
 #[async_trait::async_trait]
 impl Storage for SPFSRepository {
     type Recipe = SpecRecipe;
+    type Package = Spec;
 
     async fn publish_package_to_storage(
         &self,
