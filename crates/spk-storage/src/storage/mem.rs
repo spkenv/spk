@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use spk_schema::foundation::ident_build::Build;
+use spk_schema::foundation::ident_build::{Build, EmbeddedSource};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::Version;
@@ -21,6 +21,7 @@ type ComponentMap = HashMap<Component, spfs::encoding::Digest>;
 type PackageMap<T> = HashMap<PkgNameBuf, VersionMap<T>>;
 type VersionMap<T> = HashMap<Version, T>;
 type BuildMap<Package> = HashMap<Build, (Arc<Package>, ComponentMap)>;
+type StubMap<Package> = HashMap<Build, Arc<Package>>;
 
 #[derive(Clone, Debug)]
 pub struct MemRepository<Recipe = SpecRecipe, Package = Spec>
@@ -32,6 +33,7 @@ where
     name: RepositoryNameBuf,
     specs: Arc<RwLock<PackageMap<Arc<Recipe>>>>,
     packages: Arc<RwLock<PackageMap<BuildMap<Recipe::Output>>>>,
+    embedded_stubs: Arc<RwLock<PackageMap<StubMap<Package>>>>,
     _marker: std::marker::PhantomData<Package>,
 }
 
@@ -51,6 +53,7 @@ where
             name: "mem".try_into().expect("valid repository name"),
             specs,
             packages: Arc::default(),
+            embedded_stubs: Arc::default(),
             _marker: std::marker::PhantomData::default(),
         }
     }
@@ -103,8 +106,8 @@ impl<Recipe> Eq for MemRepository<Recipe> where Recipe: spk_schema::Recipe + Sen
 #[async_trait::async_trait]
 impl<Recipe, Package> Storage for MemRepository<Recipe, Package>
 where
-    Recipe: spk_schema::Recipe<Output = Package, Ident = Ident, Recipe = Recipe> + Send + Sync,
-    Package: spk_schema::Package<Input = Recipe, Ident = Ident> + Send + Sync,
+    Recipe: spk_schema::Recipe<Output = Package, Ident = Ident> + Send + Sync,
+    Package: spk_schema::Package<Input = Recipe, Ident = Ident, Package = Package> + Send + Sync,
 {
     type Recipe = Recipe;
     type Package = Package;
@@ -124,9 +127,38 @@ where
         }
     }
 
-    async fn get_embedded_package_builds(&self, _pkg: &Ident) -> Result<HashSet<Ident>> {
-        // TODO: no tests exercise this yet.
-        Ok(HashSet::default())
+    async fn get_embedded_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>> {
+        if let Some(versions) = self.embedded_stubs.read().await.get(&pkg.name) {
+            if let Some(builds) = versions.get(&pkg.version) {
+                Ok(builds
+                    .keys()
+                    .map(|b| pkg.with_build(Some(b.clone())))
+                    .collect())
+            } else {
+                Ok(HashSet::new())
+            }
+        } else {
+            Ok(HashSet::new())
+        }
+    }
+
+    async fn publish_embed_stub_to_storage(&self, spec: &Self::Package) -> Result<()> {
+        let build = match &spec.ident().build {
+            Some(b) => b.to_owned(),
+            None => {
+                return Err(Error::String(format!(
+                    "Package must include a build in order to be published: {}",
+                    spec.ident()
+                )))
+            }
+        };
+
+        let mut embedded_stubs = self.embedded_stubs.write().await;
+        let versions = embedded_stubs.entry(spec.name().to_owned()).or_default();
+        let builds = versions.entry(spec.version().clone()).or_default();
+
+        builds.insert(build, Arc::new(spec.clone()));
+        Ok(())
     }
 
     async fn publish_package_to_storage(
@@ -140,6 +172,7 @@ where
         let mut packages = self.packages.write().await;
         let versions = packages.entry(package.name().to_owned()).or_default();
         let builds = versions.entry(package.version().clone()).or_default();
+
         builds.insert(build, (Arc::new(package.clone()), components.clone()));
         Ok(())
     }
@@ -194,6 +227,84 @@ where
         }
     }
 
+    async fn read_package_from_storage(
+        &self,
+        // TODO: use an ident type that must have a build
+        pkg: &Ident,
+    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
+        let build = pkg.build.as_ref().ok_or_else(|| {
+            Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                pkg.clone(),
+            ))
+        })?;
+        self.packages
+            .read()
+            .await
+            .get(&pkg.name)
+            .ok_or_else(|| {
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
+            })?
+            .get(&pkg.version)
+            .ok_or_else(|| {
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
+            })?
+            .get(build)
+            .ok_or_else(|| {
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
+            })
+            .map(|found| Arc::clone(&found.0))
+    }
+
+    async fn remove_embed_stub_from_storage(&self, pkg: &Ident) -> Result<()> {
+        let build = match &pkg.build {
+            Some(b @ Build::Embedded(EmbeddedSource::Package { .. })) => b,
+            _ => {
+                return Err(Error::String(format!(
+                    "Package must identify an embedded package in order to be removed: {}",
+                    pkg
+                )))
+            }
+        };
+
+        let mut packages = self.embedded_stubs.write().await;
+        match packages.get_mut(&pkg.name) {
+            Some(versions) => {
+                match versions.get_mut(&pkg.version) {
+                    Some(builds) => {
+                        if builds.remove(build).is_none() {
+                            return Err(Error::SpkValidatorsError(
+                                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                            ));
+                        }
+                        if builds.is_empty() {
+                            versions.remove(&pkg.version);
+                        }
+                    }
+                    None => {
+                        return Err(Error::SpkValidatorsError(
+                            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                        ))
+                    }
+                };
+                if versions.is_empty() {
+                    packages.remove(&pkg.name);
+                }
+            }
+            None => {
+                return Err(Error::SpkValidatorsError(
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                ))
+            }
+        };
+        Ok(())
+    }
+
     async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()> {
         // Caller has already proven that build is `Some`.
         let build = pkg.build.as_ref().unwrap();
@@ -230,10 +341,9 @@ where
 #[async_trait::async_trait]
 impl<Recipe, Package> Repository for MemRepository<Recipe, Package>
 where
-    Recipe:
-        spk_schema::Recipe<Ident = Ident, Output = Package, Recipe = Recipe> + Clone + Send + Sync,
+    Recipe: spk_schema::Recipe<Ident = Ident, Output = Package> + Clone + Send + Sync,
     Recipe::Output: spk_schema::Package<Ident = Ident> + Clone + Send + Sync,
-    Package: spk_schema::Package<Input = Recipe> + Send + Sync,
+    Package: spk_schema::Package<Input = Recipe, Package = Package> + Send + Sync,
 {
     fn address(&self) -> &url::Url {
         &self.address
@@ -280,6 +390,36 @@ where
         self.name.as_ref()
     }
 
+    async fn read_embed_stub(&self, pkg: &Ident) -> Result<Arc<Self::Package>> {
+        let build = pkg.build.as_ref().ok_or_else(|| {
+            Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                pkg.clone(),
+            ))
+        })?;
+        self.embedded_stubs
+            .read()
+            .await
+            .get(&pkg.name)
+            .ok_or_else(|| {
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
+            })?
+            .get(&pkg.version)
+            .ok_or_else(|| {
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
+            })?
+            .get(build)
+            .ok_or_else(|| {
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
+            })
+            .map(Arc::clone)
+    }
+
     async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
         if pkg.build.is_some() {
             return Err(format!("cannot read a recipe for a package build: {pkg}").into());
@@ -304,54 +444,23 @@ where
 
     async fn remove_recipe(&self, pkg: &Ident) -> Result<()> {
         let mut specs = self.specs.write().await;
-        let versions = match specs.get_mut(&pkg.name) {
-            Some(v) => v,
+        match specs.get_mut(&pkg.name) {
+            Some(versions) => {
+                if versions.remove(&pkg.version).is_none() {
+                    return Err(Error::SpkValidatorsError(
+                        spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                    ));
+                }
+                if versions.is_empty() {
+                    specs.remove(&pkg.name);
+                }
+            }
             None => {
                 return Err(Error::SpkValidatorsError(
                     spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
                 ))
             }
         };
-        if versions.remove(&pkg.version).is_none() {
-            Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
-            ))
-        } else {
-            Ok(())
-        }
-    }
-
-    async fn read_package(
-        &self,
-        // TODO: use an ident type that must have a build
-        pkg: &Ident,
-    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
-        let build = pkg.build.as_ref().ok_or_else(|| {
-            Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                pkg.clone(),
-            ))
-        })?;
-        self.packages
-            .read()
-            .await
-            .get(&pkg.name)
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
-                ))
-            })?
-            .get(&pkg.version)
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
-                ))
-            })?
-            .get(build)
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
-                ))
-            })
-            .map(|found| Arc::clone(&found.0))
+        Ok(())
     }
 }

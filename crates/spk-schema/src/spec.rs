@@ -207,7 +207,6 @@ impl RecipeOps for SpecRecipe {
 
 impl Recipe for SpecRecipe {
     type Output = Spec;
-    type Recipe = Self;
 
     fn default_variants(&self) -> &Vec<OptionMap> {
         match self {
@@ -252,12 +251,6 @@ impl Recipe for SpecRecipe {
             SpecRecipe::V0Package(r) => r
                 .generate_binary_build(options, build_env)
                 .map(Spec::V0Package),
-        }
-    }
-
-    fn with_build(&self, build: Option<Build>) -> Self {
-        match self {
-            SpecRecipe::V0Package(r) => SpecRecipe::V0Package(r.with_build(build)),
         }
     }
 }
@@ -386,7 +379,6 @@ impl RecipeOps for Spec {
 
 impl Recipe for Spec {
     type Output = Spec;
-    type Recipe = Self;
 
     fn default_variants(&self) -> &Vec<OptionMap> {
         match self {
@@ -431,12 +423,6 @@ impl Recipe for Spec {
             Spec::V0Package(r) => r
                 .generate_binary_build(options, build_env)
                 .map(Spec::V0Package),
-        }
-    }
-
-    fn with_build(&self, build: Option<Build>) -> Self::Recipe {
-        match self {
-            Spec::V0Package(r) => Spec::V0Package(r.with_build(build)),
         }
     }
 }
@@ -484,6 +470,13 @@ impl Versioned for Spec {
 // enum_dispatch does not support associated types.
 impl Package for Spec {
     type Input = SpecRecipe;
+    type Package = Self;
+
+    fn as_recipe(&self) -> Self::Input {
+        match self {
+            Spec::V0Package(spec) => SpecRecipe::V0Package(spec.as_recipe()),
+        }
+    }
 
     fn compat(&self) -> &Compat {
         match self {
@@ -515,12 +508,12 @@ impl Package for Spec {
         }
     }
 
-    fn embedded_as_recipes(
+    fn embedded_as_packages(
         &self,
-    ) -> std::result::Result<Vec<(Self::Input, Option<Component>)>, &str> {
+    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
         match self {
             Spec::V0Package(spec) => spec
-                .embedded_as_recipes()
+                .embedded_as_packages()
                 .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
         }
     }
@@ -552,6 +545,12 @@ impl Package for Spec {
     fn build_script(&self) -> String {
         match self {
             Spec::V0Package(spec) => spec.build_script(),
+        }
+    }
+
+    fn with_build(&self, build: Build) -> Self {
+        match self {
+            Spec::V0Package(spec) => Spec::V0Package(spec.with_build(build)),
         }
     }
 }

@@ -109,6 +109,10 @@ impl Build {
     pub fn is_embedded(&self) -> bool {
         matches!(self, Build::Embedded(_))
     }
+
+    pub fn is_embed_stub(&self) -> bool {
+        matches!(self, Build::Embedded(EmbeddedSource::Package { .. }))
+    }
 }
 
 impl MetadataPath for Build {

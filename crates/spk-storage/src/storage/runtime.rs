@@ -120,6 +120,12 @@ impl Storage for RuntimeRepository {
         Ok(HashSet::default())
     }
 
+    async fn publish_embed_stub_to_storage(&self, _spec: &Self::Package) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a runtime repository".into(),
+        ))
+    }
+
     async fn publish_package_to_storage(
         &self,
         _package: &<Self::Recipe as spk_schema::Recipe>::Output,
@@ -190,6 +196,31 @@ impl Storage for RuntimeRepository {
         Ok(mapped)
     }
 
+    async fn read_package_from_storage(
+        &self,
+        pkg: &Ident,
+    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
+        let mut path = self.root.join(pkg.to_string());
+        path.push("spec.yaml");
+
+        let mut reader = std::fs::File::open(&path).map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
+            } else {
+                Error::FileOpenError(path.to_owned(), err)
+            }
+        })?;
+        serde_yaml::from_reader(&mut reader)
+            .map(Arc::new)
+            .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+    }
+
+    async fn remove_embed_stub_from_storage(&self, _pkg: &Ident) -> Result<()> {
+        Err(Error::String("Cannot modify a runtime repository".into()))
+    }
+
     async fn remove_package_from_storage(&self, _pkg: &Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
@@ -257,6 +288,12 @@ impl Repository for RuntimeRepository {
             .collect()
     }
 
+    async fn read_embed_stub(&self, pkg: &Ident) -> Result<Arc<Self::Package>> {
+        Err(Error::SpkValidatorsError(
+            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+        ))
+    }
+
     async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
         Err(Error::SpkValidatorsError(
             spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
@@ -265,27 +302,6 @@ impl Repository for RuntimeRepository {
 
     async fn remove_recipe(&self, _pkg: &Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
-    }
-
-    async fn read_package(
-        &self,
-        pkg: &Ident,
-    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
-        let mut path = self.root.join(pkg.to_string());
-        path.push("spec.yaml");
-
-        let mut reader = std::fs::File::open(&path).map_err(|err| {
-            if err.kind() == std::io::ErrorKind::NotFound {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
-                ))
-            } else {
-                Error::FileOpenError(path.to_owned(), err)
-            }
-        })?;
-        serde_yaml::from_reader(&mut reader)
-            .map(Arc::new)
-            .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
     }
 }
 
