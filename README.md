@@ -1,4 +1,4 @@
-<!-- Copyright (c) 2021 Sony Pictures Imageworks, et al. -->
+<!-- Copyright (c) Sony Pictures Imageworks, et al. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- https://github.com/imageworks/spk -->
 
@@ -19,7 +19,7 @@ See the main [docs](docs/) for details on using spk, starting with the [index](d
 
 ## License
 
-SPK/SPFS/spawn are Copyright (c) 2021 Sony Pictures Imageworks, et al.
+SPK/SPFS/spawn are Copyright (c) Sony Pictures Imageworks, et al.
 All Rights Reserved.
 
 SPK/SPFS/spawn are distributed using the [Apache-2.0 license](LICENSE.txt).

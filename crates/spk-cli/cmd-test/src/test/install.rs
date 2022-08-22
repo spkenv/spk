@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Sony Pictures Imageworks, et al.
+// Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
@@ -13,9 +13,9 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::RecipeOps;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
-use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
-use spk_solve::graph::Graph;
 use spk_schema::SpecRecipe;
+use spk_solve::graph::Graph;
+use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_storage::{self as storage};
 
 pub struct PackageInstallTester<'a> {
