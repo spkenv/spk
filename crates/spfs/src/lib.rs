@@ -16,7 +16,6 @@ mod clean;
 mod commit;
 pub mod config;
 mod diff;
-pub mod encoding;
 pub mod env;
 mod error;
 pub mod graph;
@@ -33,6 +32,8 @@ mod status;
 pub mod storage;
 pub mod sync;
 pub mod tracking;
+
+pub use spfs_encoding as encoding;
 
 // re-exported to make downstream implementations easier
 pub use async_trait::async_trait;

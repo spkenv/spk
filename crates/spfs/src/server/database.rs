@@ -8,7 +8,9 @@ use std::sync::Arc;
 use futures::{Stream, StreamExt};
 use tonic::{Request, Response, Status};
 
-use crate::proto::{self, database_service_server::DatabaseServiceServer, RpcResult};
+use crate::proto::{
+    self, convert_digest, database_service_server::DatabaseServiceServer, RpcResult,
+};
 use crate::storage;
 
 #[derive(Debug, Clone)]
@@ -30,7 +32,7 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
         request: Request<proto::ReadObjectRequest>,
     ) -> Result<Response<proto::ReadObjectResponse>, Status> {
         let request = request.into_inner();
-        let digest = proto::handle_error!(request.digest.try_into());
+        let digest = proto::handle_error!(convert_digest(request.digest));
         let object = { proto::handle_error!(self.repo.read_object(digest).await) };
         let result = proto::ReadObjectResponse::ok((&object).into());
         Ok(Response::new(result))
@@ -91,7 +93,7 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
         request: Request<proto::RemoveObjectRequest>,
     ) -> Result<Response<proto::RemoveObjectResponse>, Status> {
         let request = request.into_inner();
-        let digest: crate::encoding::Digest = proto::handle_error!(request.digest.try_into());
+        let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
         proto::handle_error!(self.repo.remove_object(digest).await);
         let result = proto::RemoveObjectResponse::ok(proto::Ok {});
         Ok(Response::new(result))

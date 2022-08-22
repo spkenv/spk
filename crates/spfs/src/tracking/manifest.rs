@@ -248,7 +248,7 @@ impl ManifestBuilderHasher for DigestFromAsyncReader {
         &self,
         reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
     ) -> Result<encoding::Digest> {
-        encoding::Digest::from_async_reader(reader).await
+        Ok(encoding::Digest::from_async_reader(reader).await?)
     }
 }
 

@@ -19,6 +19,10 @@ pub enum Error {
     JSON(#[from] serde_json::Error),
     #[error(transparent)]
     Config(#[from] config::ConfigError),
+
+    #[error(transparent)]
+    Encoding(#[from] super::encoding::Error),
+
     #[error("Invalid repository url: {0:?}")]
     InvalidRemoteUrl(#[from] url::ParseError),
     #[error("Invalid date time: {0:?}")]
@@ -33,10 +37,6 @@ pub enum Error {
     Tonic(#[from] tonic::Status),
     #[error(transparent)]
     TokioJoinError(#[from] tokio::task::JoinError),
-    #[error("Encoding read error")]
-    EncodingReadError(#[source] io::Error),
-    #[error("Encoding write error")]
-    EncodingWriteError(#[source] io::Error),
     #[error("Failed to spawn {0} process")]
     ProcessSpawnError(String, #[source] io::Error),
 
@@ -140,8 +140,8 @@ impl Error {
         };
 
         match self {
-            Error::EncodingReadError(err) => handle_io_error(err),
-            Error::EncodingWriteError(err) => handle_io_error(err),
+            Error::Encoding(encoding::Error::FailedRead(err)) => handle_io_error(err),
+            Error::Encoding(encoding::Error::FailedWrite(err)) => handle_io_error(err),
             Error::ProcessSpawnError(_, err) => handle_io_error(err),
             Error::RuntimeReadError(_, err) => handle_io_error(err),
             Error::RuntimeWriteError(_, err) => handle_io_error(err),

@@ -309,9 +309,9 @@ impl FSHashStore {
         let last = parts.pop();
         let second_last = parts.pop();
         match (second_last, last) {
-            (Some(Normal(a)), Some(Normal(b))) => {
-                encoding::parse_digest(a.to_string_lossy() + b.to_string_lossy())
-            }
+            (Some(Normal(a)), Some(Normal(b))) => Ok(encoding::parse_digest(
+                a.to_string_lossy() + b.to_string_lossy(),
+            )?),
             _ => Err(format!("not a valid digest path: {:?}", &path).into()),
         }
     }

@@ -1,0 +1,19 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spfs-encoding"
+version = "0.34.6"
+
+[dependencies]
+data-encoding = "2.3"
+rand = "0.8.5"
+ring = "0.16.15"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.20", features = [
+    "io-util",
+    "io-std",
+] }
+thiserror = "1.0"
+
+[dev-dependencies]
+rstest = { version = "0.15.0", default_features = false }

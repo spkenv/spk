@@ -70,10 +70,13 @@ impl FromStr for EntryKind {
 }
 
 impl encoding::Encodable for EntryKind {
+    type Error = Error;
+
     fn encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_string(writer, self.to_string().as_ref())
+        encoding::write_string(writer, self.to_string().as_ref()).map_err(Error::Encoding)
     }
 }
+
 impl encoding::Decodable for EntryKind {
     fn decode(reader: &mut impl BufRead) -> Result<Self> {
         Self::from_str(encoding::read_string(reader)?.as_str())

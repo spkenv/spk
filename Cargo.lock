@@ -2616,6 +2616,7 @@ dependencies = [
  "serde_json",
  "serde_qs",
  "serial_test",
+ "spfs-encoding",
  "strum",
  "strum_macros",
  "tar",
@@ -2632,6 +2633,19 @@ dependencies = [
  "uuid",
  "walkdir",
  "whoami",
+]
+
+[[package]]
+name = "spfs-encoding"
+version = "0.34.6"
+dependencies = [
+ "data-encoding",
+ "rand 0.8.5",
+ "ring",
+ "rstest",
+ "serde",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]

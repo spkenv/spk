@@ -95,6 +95,8 @@ impl PartialEq for Tree {
 impl Eq for Tree {}
 
 impl encoding::Encodable for Tree {
+    type Error = Error;
+
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_uint(&mut writer, self.len() as u64)?;
         let mut entries: Vec<_> = self.entries.iter().collect();

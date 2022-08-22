@@ -20,19 +20,16 @@ fn convert_from_datetime(source: &chrono::DateTime<chrono::Utc>) -> super::DateT
     }
 }
 
-impl TryFrom<Option<super::Digest>> for encoding::Digest {
-    type Error = Error;
-    fn try_from(source: Option<super::Digest>) -> Result<Self> {
-        source
-            .ok_or_else(|| Error::String("Expected non-null digest in rpc message".into()))?
-            .try_into()
-    }
+pub fn convert_digest(source: Option<super::Digest>) -> Result<encoding::Digest> {
+    source
+        .ok_or_else(|| Error::String("Expected non-null digest in rpc message".into()))?
+        .try_into()
 }
 
 impl TryFrom<super::Digest> for encoding::Digest {
     type Error = Error;
     fn try_from(source: super::Digest) -> Result<Self> {
-        Self::from_bytes(source.bytes.as_slice())
+        Self::from_bytes(source.bytes.as_slice()).map_err(Error::Encoding)
     }
 }
 
@@ -65,8 +62,8 @@ impl TryFrom<super::Tag> for tracking::Tag {
     type Error = Error;
     fn try_from(source: super::Tag) -> Result<Self> {
         let org = source.org.is_empty().not().then(|| source.org);
-        let mut tag = Self::new(org, source.name, source.target.try_into()?)?;
-        tag.parent = source.parent.try_into()?;
+        let mut tag = Self::new(org, source.name, convert_digest(source.target)?)?;
+        tag.parent = convert_digest(source.parent)?;
         tag.user = source.user;
         tag.time = convert_to_datetime(source.time)?;
         Ok(tag)
@@ -212,7 +209,7 @@ impl TryFrom<super::Layer> for graph::Layer {
     type Error = Error;
     fn try_from(source: super::Layer) -> Result<Self> {
         Ok(Self {
-            manifest: source.manifest.try_into()?,
+            manifest: convert_digest(source.manifest)?,
         })
     }
 }
@@ -296,7 +293,7 @@ impl TryFrom<super::Entry> for graph::Entry {
             None => return Err("Received unknown entry kind in rpm data".into()),
         };
         Ok(Self {
-            object: source.object.try_into()?,
+            object: convert_digest(source.object)?,
             kind,
             mode: source.mode,
             size: source.size,
@@ -318,7 +315,7 @@ impl TryFrom<super::Blob> for graph::Blob {
     type Error = Error;
     fn try_from(source: super::Blob) -> Result<Self> {
         Ok(Self {
-            payload: source.payload.try_into()?,
+            payload: convert_digest(source.payload)?,
             size: source.size,
         })
     }

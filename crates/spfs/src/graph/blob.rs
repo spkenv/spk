@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use crate::encoding;
+use crate::Error;
 use crate::Result;
 
 /// Blobs represent an arbitrary chunk of binary data, usually a file.
@@ -28,12 +29,15 @@ impl Blob {
 }
 
 impl encoding::Encodable for Blob {
+    type Error = Error;
+
     fn digest(&self) -> Result<encoding::Digest> {
         Ok(self.digest())
     }
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_digest(&mut writer, &self.payload)?;
-        encoding::write_uint(writer, self.size)
+        encoding::write_uint(writer, self.size)?;
+        Ok(())
     }
 }
 impl encoding::Decodable for Blob {

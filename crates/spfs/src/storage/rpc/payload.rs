@@ -66,7 +66,7 @@ impl storage::PayloadStorage for super::RpcRepository {
         let result = crate::proto::write_payload_response::UploadResponse::decode(bytes)
             .map_err(|err| format!("Payload server returned invalid response data: {err:?}"))?
             .to_result()?;
-        Ok((result.digest.try_into()?, result.size))
+        Ok((proto::convert_digest(result.digest)?, result.size))
     }
 
     async fn open_payload(

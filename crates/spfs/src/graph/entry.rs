@@ -6,6 +6,7 @@ use std::io::BufRead;
 
 use crate::encoding;
 use crate::tracking;
+use crate::Error;
 use crate::Result;
 
 #[cfg(test)]
@@ -58,6 +59,8 @@ impl Ord for Entry {
 }
 
 impl encoding::Encodable for Entry {
+    type Error = Error;
+
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_digest(&mut writer, &self.object)?;
         self.kind.encode(&mut writer)?;

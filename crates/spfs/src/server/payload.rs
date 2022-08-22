@@ -1,7 +1,7 @@
 // Copyright (c) 2021 Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::convert::TryInto;
+
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -9,7 +9,7 @@ use futures::{Stream, StreamExt};
 use prost::Message;
 use tonic::{Request, Response, Status};
 
-use crate::proto::{self, payload_service_server::PayloadServiceServer, RpcResult};
+use crate::proto::{self, convert_digest, payload_service_server::PayloadServiceServer, RpcResult};
 use crate::storage;
 
 /// The payload service is both a gRPC service AND an http server
@@ -61,7 +61,7 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         request: Request<proto::HasPayloadRequest>,
     ) -> Result<Response<proto::HasPayloadResponse>, Status> {
         let request = request.into_inner();
-        let digest: crate::encoding::Digest = proto::handle_error!(request.digest.try_into());
+        let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
         let exists = self.repo.has_payload(digest).await;
         let result = proto::HasPayloadResponse::ok(exists);
         Ok(Response::new(result))
@@ -72,7 +72,7 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         request: Request<proto::OpenPayloadRequest>,
     ) -> Result<Response<proto::OpenPayloadResponse>, Status> {
         let request = request.into_inner();
-        let digest: crate::encoding::Digest = proto::handle_error!(request.digest.try_into());
+        let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
         // do a little effort to determine if we can actually serve the
         // requested payload
         let _ = proto::handle_error!(self.repo.open_payload(digest).await);
@@ -91,7 +91,7 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         request: Request<proto::RemovePayloadRequest>,
     ) -> Result<Response<proto::RemovePayloadResponse>, Status> {
         let request = request.into_inner();
-        let digest: crate::encoding::Digest = proto::handle_error!(request.digest.try_into());
+        let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
         proto::handle_error!(self.repo.remove_payload(digest).await);
         let result = proto::RemovePayloadResponse::ok(proto::Ok {});
         Ok(Response::new(result))
