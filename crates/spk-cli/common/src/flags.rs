@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Sony Pictures Imageworks, et al.
+// Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
@@ -15,8 +15,8 @@ use spk_schema::foundation::option_map::{host_options, OptionMap};
 use spk_schema::foundation::spec_ops::{Named, RecipeOps};
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{parse_ident, Ident, PkgRequest, Request, RequestedBy, VarRequest};
-use spk_solve::{self as solve};
 use spk_schema::{Recipe, SpecTemplate, Template, TemplateExt, TestStage};
+use spk_solve::{self as solve};
 use spk_storage::{self as storage};
 
 #[cfg(test)]

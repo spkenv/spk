@@ -1,11 +1,11 @@
-// Copyright (c) 2022 Sony Pictures Imageworks, et al.
+// Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
 use spk_schema::ident::parse_ident;
-use spk_solve::make_repo;
 use spk_schema::Deprecate;
+use spk_solve::make_repo;
 
 use super::{change_deprecation_state, ChangeAction};
 

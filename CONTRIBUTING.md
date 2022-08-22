@@ -1,4 +1,4 @@
-<!-- Copyright (c) 2021 Sony Pictures Imageworks, et al. -->
+<!-- Copyright (c) Sony Pictures Imageworks, et al. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- https://github.com/imageworks/spk -->
 
@@ -33,7 +33,7 @@ process.
 
 SPK/SPFS/spawn are distributed using the [Apache-2.0 license](LICENSE.txt).
 
-SPK/SPFS/spawn are Copyright (c) 2021 Sony Pictures Imageworks, et al.
+SPK/SPFS/spawn are Copyright (c) Sony Pictures Imageworks, et al.
 
 Please note that the "et al" encompasses all the other contributors. We do
 not require transfer of copyright -- technically speaking, submitters retain
@@ -142,4 +142,3 @@ take it hard if your first try is not accepted. It happens to all of us.
 
 8. After approval, one of the senior developers (with commit approval to the
 official main repository) will merge your fixes into the master branch.
-
