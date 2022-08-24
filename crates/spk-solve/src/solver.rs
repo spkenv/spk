@@ -95,7 +95,11 @@ impl Solver {
         let request = match request {
             Request::Pkg(mut request) => {
                 if request.pkg.components.is_empty() {
-                    request.pkg.components.insert(Component::default_for_run());
+                    if request.pkg.is_source() {
+                        request.pkg.components.insert(Component::Source);
+                    } else {
+                        request.pkg.components.insert(Component::default_for_run());
+                    }
                 }
                 Change::RequestPackage(RequestPackage::new(request))
             }
