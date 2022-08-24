@@ -277,7 +277,7 @@ impl Recipe for Spec {
                         opt.to_request(given_value, RequestedBy::BinaryBuild(self.to_ident()))?;
                     if req.pkg.components.is_empty() {
                         // inject the default component for this context if needed
-                        req.pkg.components.insert(Component::Build);
+                        req.pkg.components.insert(Component::default_for_build());
                     }
                     requests.push(req.into());
                 }

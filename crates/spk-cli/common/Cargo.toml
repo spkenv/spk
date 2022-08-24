@@ -5,7 +5,7 @@ name = "spk-cli-common"
 version = "0.36.0"
 
 [features]
-sentry = ["dep:sentry", "dep:sentry-anyhow", "dep:sentry-tracing"]
+sentry = ["dep:sentry", "dep:sentry-anyhow", "dep:sentry-tracing", "dep:strip-ansi-escapes", "spk-solve/sentry", "spk-build/sentry", "spfs/sentry"]
 
 [dependencies]
 anyhow = "1.0"
@@ -27,6 +27,7 @@ spk-exec = { path = '../../spk-exec' }
 spk-solve = { path = '../../spk-solve' }
 spk-schema = { path = '../../spk-schema' }
 spk-storage = { path = '../../spk-storage' }
+strip-ansi-escapes = { version = "0.1.1", optional = true }
 thiserror = "1.0"
 tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"

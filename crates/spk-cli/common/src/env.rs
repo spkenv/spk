@@ -61,11 +61,8 @@ pub async fn current_env() -> crate::Result<Solution> {
 
 #[cfg(feature = "sentry")]
 pub fn configure_sentry() -> sentry::ClientInitGuard {
-    use serde_json::json;
-    use std::collections::BTreeMap;
-
     // Call this before `sentry::init` to avoid potential `SIGSEGV`.
-    let username = whoami::username();
+    let username = get_username_for_sentry();
 
     // When using the sentry feature it is expected that the DSN
     // and other configuration is provided at *compile* time.
@@ -76,18 +73,25 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
             environment: option_env!("SENTRY_ENVIRONMENT")
                 .map(ToString::to_string)
                 .map(std::borrow::Cow::Owned),
+            before_send: Some(std::sync::Arc::new(|mut event| {
+                // Remove ansi color codes from the event message
+                if let Some(message) = event.message {
+                    event.message = Some(remove_ansi_escapes(message));
+                }
+                Some(event)
+            })),
+            before_breadcrumb: Some(std::sync::Arc::new(|mut breadcrumb| {
+                // Remove ansi color codes from the breadcrumb message
+                if let Some(message) = breadcrumb.message {
+                    breadcrumb.message = Some(remove_ansi_escapes(message));
+                }
+                Some(breadcrumb)
+            })),
             ..Default::default()
         },
     ));
 
-    let args: Vec<_> = std::env::args().collect();
-    let program = args[0].clone();
-    let command = args[1].clone();
-
-    let mut data = BTreeMap::new();
-    data.insert(String::from("program"), json!(program));
-    data.insert(String::from("command"), json!(command));
-    data.insert(String::from("args"), json!(args));
+    let (command, data) = get_spk_context();
 
     sentry::configure_scope(|scope| {
         scope.set_user(Some(sentry::User {
@@ -106,6 +110,57 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
     });
 
     guard
+}
+
+#[cfg(feature = "sentry")]
+fn get_username_for_sentry() -> String {
+    // If this is being run from a gitlab CI job, then return the
+    // username of the person that triggered the job. Otherwise get
+    // the username of the person who ran this spk instance.
+    if let Ok(value) = std::env::var("GITLAB_USER_LOGIN") {
+        value
+    } else {
+        // Call this before `sentry::init` to avoid potential `SIGSEGV`.
+        whoami::username()
+    }
+}
+
+#[cfg(feature = "sentry")]
+fn get_spk_context() -> (
+    String,
+    std::collections::BTreeMap<String, serde_json::Value>,
+) {
+    use serde_json::json;
+
+    let args: Vec<_> = std::env::args().collect();
+    let program = args[0].clone();
+    let command = args[1].clone();
+    let cwd = std::env::current_dir().ok();
+
+    let mut data = std::collections::BTreeMap::new();
+    data.insert(String::from("program"), json!(program));
+    data.insert(String::from("command"), json!(command));
+    data.insert(String::from("args"), json!(args.join(" ")));
+    data.insert(String::from("cwd"), json!(cwd));
+
+    let env_vars_to_add = vec!["SPK_BIN_TAG", "CI_JOB_URL"];
+    for env_var in env_vars_to_add {
+        if let Ok(value) = std::env::var(env_var) {
+            data.insert(String::from(env_var), json!(value));
+        }
+    }
+
+    (command, data)
+}
+
+#[cfg(feature = "sentry")]
+fn remove_ansi_escapes(message: String) -> String {
+    if let Ok(b) = strip_ansi_escapes::strip(message.clone()) {
+        if let Ok(s) = std::str::from_utf8(&b) {
+            return s.to_string();
+        }
+    }
+    message
 }
 
 pub fn configure_logging(verbosity: u32) -> Result<()> {

@@ -58,41 +58,54 @@ impl Opt {
             // This is here because the `_sentry_guard` is about to go
             // out of scope and close the connection. The error will
             // be output for the user in 'main()' below.
-            sentry::with_scope(
-                |scope| {
-                    let mut positional_args: Vec<String> = self.cmd.get_positional_args();
-                    // Sort to make the fingerprinting consistent.
-                    positional_args.sort();
+            match err.root_cause().downcast_ref::<Error>() {
+                Some(Error::SpkSolverError(spk_solve::Error::SolverInterrupted(_))) => {
+                    // SolverInterrupted errors are not sent to sentry
+                    // here. A message has already been sent to sentry
+                    // from io::Decision::Formatter::run_and_print_decisions()
+                    // before it returns these errors.
+                }
+                _ => {
+                    // Send all other errors that reach this level to sentry
+                    sentry::with_scope(
+                        |scope| {
+                            let mut positional_args: Vec<String> = self.cmd.get_positional_args();
+                            // Sort to make the fingerprinting consistent.
+                            positional_args.sort();
 
-                    let mut fingerprints: Vec<&str> = Vec::with_capacity(positional_args.len() + 1);
-                    fingerprints.push("{{ error.value }}");
-                    fingerprints
-                        .extend(positional_args.iter().map(|s| &**s).collect::<Vec<&str>>());
+                            let mut fingerprints: Vec<&str> =
+                                Vec::with_capacity(positional_args.len() + 1);
+                            fingerprints.push("{{ error.value }}");
+                            fingerprints.extend(
+                                positional_args.iter().map(|s| &**s).collect::<Vec<&str>>(),
+                            );
 
-                    scope.set_fingerprint(Some(&fingerprints));
-                },
-                || {
-                    /*
-                    // capture_error does not add a backtrace to
-                    // sentry for the error event, unless backtraces
-                    // are enabled for all events when the sentry
-                    // client is configured. This causes less sentry
-                    // empty backtrace noise:
-                    sentry::capture_error(<anyhow::Error as AsRef<
-                        (dyn std::error::Error + Send + Sync + 'static),
-                    >>::as_ref(&_err));
-                     */
+                            scope.set_fingerprint(Some(&fingerprints));
+                        },
+                        || {
+                            /*
+                            // capture_error does not add a backtrace to
+                            // sentry for the error event, unless backtraces
+                            // are enabled for all events when the sentry
+                            // client is configured. This causes less sentry
+                            // empty backtrace noise:
+                            sentry::capture_error(<anyhow::Error as AsRef<
+                            (dyn std::error::Error + Send + Sync + 'static),
+                            >>::as_ref(&_err));
+                             */
 
-                    // This will always add a backtrace to sentry for
-                    // an error event, but it will be empty because
-                    // these errors are not panics and as such have no
-                    // backtrace data. This generates empty backtrace
-                    // noise in sentry. Panics will have backtraces,
-                    // but aren't handled by this, they are sent when
-                    // the _sentry_guard goes out of scope.
-                    sentry_anyhow::capture_anyhow(err);
-                },
-            );
+                            // This will always add a backtrace to sentry for
+                            // an error event, but it will be empty because
+                            // these errors are not panics and as such have no
+                            // backtrace data. This generates empty backtrace
+                            // noise in sentry. Panics will have backtraces,
+                            // but aren't handled by this, they are sent when
+                            // the _sentry_guard goes out of scope.
+                            sentry_anyhow::capture_anyhow(err);
+                        },
+                    );
+                }
+            }
         }
 
         result

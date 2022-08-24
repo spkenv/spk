@@ -410,6 +410,14 @@ impl DecisionFormatterBuilder {
     }
 }
 
+#[cfg(feature = "sentry")]
+#[derive(Debug, Clone)]
+enum SentryWarning {
+    LongSolve,
+    SolverInterruptedByUser,
+    SolverInterruptedByTimeout,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct DecisionFormatterSettings {
     pub(crate) verbosity: u32,
@@ -478,14 +486,27 @@ impl DecisionFormatter {
                 // complete because of the interruption.
                 let solve_time = start.elapsed();
 
+                // The solve was interrupted, record time taken and
+                // other the details in sentry for later analysis.
                 #[cfg(feature = "sentry")]
-                self.add_details_to_next_sentry_event(&runtime.solver, solve_time);
+                self.send_sentry_warning_message(
+                    &runtime.solver,
+                    solve_time,
+                    if mesg.contains("by user") {
+                        SentryWarning::SolverInterruptedByUser
+                    } else {
+                        SentryWarning::SolverInterruptedByTimeout
+                    },
+                );
 
                 eprintln!("{}", mesg.yellow());
                 eprintln!("{}", self.format_solve_stats(&runtime.solver, solve_time));
                 return Err(Error::SolverInterrupted(mesg));
             }
             LoopOutcome::Failed(e) => {
+                #[cfg(feature = "sentry")]
+                self.add_details_to_next_sentry_event(&runtime.solver, start.elapsed());
+
                 return Err(*e);
             }
             LoopOutcome::Success => {}
@@ -499,40 +520,10 @@ impl DecisionFormatter {
                 self.settings.long_solves_threshold
             );
 
+            // The solve took longer than we'd like, record the
+            // details in sentry for later analysis.
             #[cfg(feature = "sentry")]
-            {
-                // The solve took longer than we'd like, record the
-                // details in sentry for later analysis.
-                let mut initial_requests =
-                    self.add_details_to_next_sentry_event(&runtime.solver, solve_time);
-                initial_requests.sort();
-
-                sentry::with_scope(
-                    |scope| {
-                        let mut fingerprints: Vec<&str> =
-                            Vec::with_capacity(initial_requests.len() + 1);
-                        fingerprints.push("{{ message }}");
-                        fingerprints
-                            .extend(initial_requests.iter().map(|s| &**s).collect::<Vec<&str>>());
-                        scope.set_fingerprint(Some(&fingerprints));
-                    },
-                    || {
-                        // Note: putting the requests in the message for
-                        // this kind of sentry event, effectively sets the
-                        // fingerprint to just the '{{ message }}' field.
-                        // But it also changes the sentry title for these
-                        // events.
-                        sentry::capture_message(
-                            &format!(
-                                "Long solve (>{} secs): {}",
-                                self.settings.long_solves_threshold,
-                                initial_requests.join(" ")
-                            ),
-                            sentry::Level::Warning,
-                        )
-                    },
-                );
-            }
+            self.send_sentry_warning_message(&runtime.solver, solve_time, SentryWarning::LongSolve);
         }
 
         // Note: this time includes the output time because the solver is
@@ -562,7 +553,7 @@ impl DecisionFormatter {
         solver: &Solver,
         solve_duration: Duration,
     ) -> Vec<String> {
-        let seconds = solve_duration.as_secs() as f64 + solve_duration.subsec_nanos() as f64 * 1e-9;
+        let seconds = solve_duration.as_secs_f64();
 
         let initial_state = solver.get_initial_state();
 
@@ -583,8 +574,19 @@ impl DecisionFormatter {
                 .map(|v| format!("{}: {}", v.var, v.value))
                 .collect::<Vec<String>>()),
         );
-
         data.insert(String::from("seconds"), serde_json::json!(seconds));
+
+        // This adds an easy way to cut and paste from the sentry web
+        // interface to a CLI when investigating an issue in sentry.
+        let cmd = format!(
+            "spk explain {} {}",
+            requests.join(" "),
+            vars.iter()
+                .map(|v| format!("-o {}={}", v.var, v.value))
+                .collect::<Vec<String>>()
+                .join(" ")
+        );
+        data.insert(String::from("cmd"), serde_json::json!(cmd));
 
         sentry::add_breadcrumb(sentry::Breadcrumb {
             category: Some("solve".into()),
@@ -596,6 +598,69 @@ impl DecisionFormatter {
 
         // NOTE: this does not include var requests
         requests
+    }
+
+    #[cfg(feature = "sentry")]
+    fn send_sentry_warning_message(
+        &self,
+        solver: &Solver,
+        solve_duration: Duration,
+        sentry_warning: SentryWarning,
+    ) {
+        // The message will be made up of the prefix and suffix with
+        // the solve duration in secs between them, and the initial
+        // requests appended to the end.
+
+        let mut initial_requests = self.add_details_to_next_sentry_event(solver, solve_duration);
+        // For consistency across fingerprints
+        initial_requests.sort();
+
+        let message_prefix = match sentry_warning {
+            SentryWarning::LongSolve => "Long solve (",
+            SentryWarning::SolverInterruptedByUser => "Solver interrupted by user ... ",
+            SentryWarning::SolverInterruptedByTimeout => "Solve interrupted by timeout after ",
+        };
+        let message_suffix = match sentry_warning {
+            SentryWarning::LongSolve => format!(" >{} secs)", self.settings.long_solves_threshold),
+            SentryWarning::SolverInterruptedByUser => String::from(" for"),
+            SentryWarning::SolverInterruptedByTimeout => format!(
+                " (>{} secs) for",
+                self.settings.max_too_long_count * self.settings.too_long.as_secs()
+            ),
+        };
+
+        // First closure configures the scope for this message.
+        // Second closure makes and sends the message.
+        sentry::with_scope(
+            |scope| {
+                // The solve time is not included in the fingerprint
+                // to group messages into the same overarching sentry
+                // issue.
+                let message_for_fingerprints = &format!("{}{}", message_prefix, message_suffix);
+
+                let mut fingerprints: Vec<&str> = Vec::with_capacity(initial_requests.len() + 1);
+                fingerprints.push(message_for_fingerprints);
+                fingerprints.extend(initial_requests.iter().map(|s| &**s).collect::<Vec<&str>>());
+
+                scope.set_fingerprint(Some(&fingerprints));
+            },
+            || {
+                // The combined message with the solve duration and
+                // initial requests will be used as sentry title for
+                // these events.
+                let seconds = solve_duration.as_secs_f64();
+                sentry::capture_message(
+                    &format!(
+                        "{}{:.2} secs{}: {}",
+                        message_prefix,
+                        seconds,
+                        message_suffix,
+                        initial_requests.join(" ")
+                    ),
+                    sentry::Level::Warning,
+                )
+            },
+        );
     }
 
     /// Given a sequence of decisions, returns an iterator
@@ -610,7 +675,7 @@ impl DecisionFormatter {
     pub(crate) fn format_solve_stats(&self, solver: &Solver, solve_duration: Duration) -> String {
         // Show how long this solve took
         let mut out: String = " Solver took: ".to_string();
-        let seconds = solve_duration.as_secs() as f64 + solve_duration.subsec_nanos() as f64 * 1e-9;
+        let seconds = solve_duration.as_secs_f64();
         let _ = writeln!(out, "{seconds} seconds");
 
         // Show numbers of incompatible versions and builds from the solver

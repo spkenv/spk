@@ -4,6 +4,9 @@ edition = "2021"
 name = "spk-cli-group1"
 version = "0.36.0"
 
+[features]
+sentry = ["spk-solve/sentry"]
+
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
