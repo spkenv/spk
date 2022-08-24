@@ -114,21 +114,21 @@ install: copy-release setcap
 
 copy-debug-spfs: debug-spfs
 	cd $(SOURCE_ROOT)
-	sudo cp -f target/debug/spfs* /usr/bin/
+	sudo cp -f target/debug/spfs* /usr/local/bin/
 
 copy-debug-spk: debug
 	cd $(SOURCE_ROOT)
-	sudo cp -f target/debug/spk /usr/bin/
+	sudo cp -f target/debug/spk /usr/local/bin/
 
 copy-debug: copy-debug-spfs copy-debug-spk
 
 copy-release: release
 	cd $(SOURCE_ROOT)
-	sudo cp -f target/release/spk target/release/spfs* /usr/bin/
+	sudo cp -f target/release/spk target/release/spfs* /usr/local/bin/
 
 setcap:
-	sudo setcap 'cap_fowner+ep' /usr/bin/spfs-clean
-	sudo setcap 'cap_net_admin+ep' /usr/bin/spfs-monitor
-	sudo setcap 'cap_chown,cap_fowner+ep' /usr/bin/spfs-render
-	sudo setcap 'cap_sys_chroot,cap_sys_admin+ep' /usr/bin/spfs-join
-	sudo setcap 'cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep' /usr/bin/spfs-enter
+	sudo setcap 'cap_fowner+ep' /usr/local/bin/spfs-clean
+	sudo setcap 'cap_net_admin+ep' /usr/local/bin/spfs-monitor
+	sudo setcap 'cap_chown,cap_fowner+ep' /usr/local/bin/spfs-render
+	sudo setcap 'cap_sys_chroot,cap_sys_admin+ep' /usr/local/bin/spfs-join
+	sudo setcap 'cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep' /usr/local/bin/spfs-enter
