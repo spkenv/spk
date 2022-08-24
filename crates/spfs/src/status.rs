@@ -23,8 +23,8 @@ pub async fn make_active_runtime_editable() -> Result<()> {
     }
 
     rt.status.editable = true;
-    remount_runtime(&rt).await?;
-    rt.save_state_to_storage().await
+    rt.save_state_to_storage().await?;
+    remount_runtime(&rt).await
 }
 
 /// Remount the given runtime as configured.
