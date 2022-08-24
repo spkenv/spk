@@ -251,7 +251,7 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         .await
         .expect("failed to clean repo");
 
-    let files = list_files(tmprepo.renders.as_ref().unwrap().root());
+    let files = list_files(tmprepo.renders.as_ref().unwrap().renders.root());
     assert!(files.is_empty(), "should remove all created data files");
 }
 

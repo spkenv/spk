@@ -28,7 +28,7 @@ pub enum RenderType {
 impl ManifestViewer for FSRepository {
     async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool {
         let renders = match &self.renders {
-            Some(renders) => renders,
+            Some(render_store) => &render_store.renders,
             None => return false,
         };
         let rendered_dir = renders.build_digest_path(&digest);
@@ -82,7 +82,7 @@ impl ManifestViewer for FSRepository {
     /// Remove the identified render from this storage.
     async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
         let renders = match &self.renders {
-            Some(renders) => renders,
+            Some(render_store) => &render_store.renders,
             None => return Ok(()),
         };
         let rendered_dirpath = renders.build_digest_path(&digest);
@@ -104,7 +104,7 @@ impl ManifestViewer for FSRepository {
 impl FSRepository {
     fn get_render_storage(&self) -> Result<&super::FSHashStore> {
         match &self.renders {
-            Some(renders) => Ok(renders),
+            Some(render_store) => Ok(&render_store.renders),
             None => Err(Error::NoRenderStorage(self.address())),
         }
     }
@@ -188,9 +188,65 @@ impl FSRepository {
                 Ok(())
             };
         }
-        let committed_path = self.payloads.build_digest_path(&entry.object);
+
+        let mut committed_path = self.payloads.build_digest_path(&entry.object);
         match render_type {
             RenderType::HardLink => {
+                // All hard links to a file have shared metadata (owner, perms).
+                // Whereas the same blob may be rendered into multiple files
+                // across different users and/or will different expected perms.
+                // Therefore, a copy of the blob is needed for every unique
+                // combination of user and perms. Since each user has their own
+                // "bastion" directory, there needs only be a unique copy per
+                // perms.
+                if let Some(render_store) = &self.renders {
+                    let bastion_path = render_store
+                        .bastion
+                        .build_digest_path(&entry.object)
+                        .join(entry.mode.to_string());
+                    tracing::trace!(?bastion_path, "bastion");
+                    if !bastion_path.exists() {
+                        let path_to_create = bastion_path.parent().unwrap();
+                        tokio::fs::create_dir_all(&path_to_create)
+                            .await
+                            .map_err(|err| {
+                                Error::StorageWriteError(path_to_create.to_owned(), err)
+                            })?;
+                        // Write to a temporary file so that some other render
+                        // process doesn't think a partially-written file is
+                        // good.
+                        let temp_bastion_file = tempfile::NamedTempFile::new_in(path_to_create)
+                            .map_err(|err| {
+                                Error::StorageWriteError(path_to_create.to_owned(), err)
+                            })?;
+                        tokio::fs::copy(&committed_path, &temp_bastion_file)
+                            .await
+                            .map_err(|err| {
+                                Error::StorageWriteError(temp_bastion_file.path().to_owned(), err)
+                            })?;
+                        // Move temporary file into place.
+                        if let Err(err) = temp_bastion_file.persist(&bastion_path) {
+                            match err.error.kind() {
+                                std::io::ErrorKind::AlreadyExists => (),
+                                _ => {
+                                    return Err(Error::StorageWriteError(
+                                        bastion_path.to_owned(),
+                                        err.error,
+                                    ))
+                                }
+                            }
+                        }
+                    }
+                    // Renders should hard link to this bastion file; it will
+                    // be owned by the current user and (eventually) have the
+                    // expected mode.
+                    committed_path = bastion_path;
+                } else {
+                    return Err(
+                        "Cannot render blob as hard link to repository with no render store".into(),
+                    );
+                }
+
                 if let Err(err) = tokio::fs::hard_link(&committed_path, &rendered_path).await {
                     match err.kind() {
                         std::io::ErrorKind::AlreadyExists => (),

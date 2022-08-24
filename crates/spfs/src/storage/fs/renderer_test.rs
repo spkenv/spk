@@ -78,6 +78,7 @@ async fn test_render_manifest_with_repo(tmpdir: tempfile::TempDir) {
         .renders
         .as_ref()
         .unwrap()
+        .renders
         .build_digest_path(&manifest.digest().unwrap());
     assert!(!render.exists(), "render should NOT be seen as existing");
     tmprepo.render_manifest(&manifest).await.unwrap();

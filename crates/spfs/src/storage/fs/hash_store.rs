@@ -20,6 +20,7 @@ use crate::{encoding, Error, Result};
 #[path = "./hash_store_test.rs"]
 mod hash_store_test;
 
+pub(crate) const BASTION_DIRNAME: &str = "bastion";
 const WORK_DIRNAME: &str = "work";
 
 pub(crate) enum PersistableObject {
@@ -40,6 +41,12 @@ pub struct FSHashStore {
 }
 
 impl FSHashStore {
+    /// The folder where payloads are copied to have the expected ownership
+    /// and permissions suitable for hard-linking into a render.
+    pub fn bastiondir(&self) -> PathBuf {
+        self.root.join(&BASTION_DIRNAME)
+    }
+
     pub fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
         let root = root.as_ref();
         Ok(Self::open_unchecked(
@@ -72,7 +79,7 @@ impl FSHashStore {
     ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send + 'static>> {
         let entry_filename = entry.file_name();
         let entry_filename = entry_filename.to_string_lossy().into_owned();
-        if entry_filename == WORK_DIRNAME {
+        if entry_filename == WORK_DIRNAME || entry_filename == BASTION_DIRNAME {
             return Box::pin(futures::stream::empty());
         }
 
