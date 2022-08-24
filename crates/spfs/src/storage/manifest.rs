@@ -50,6 +50,9 @@ impl<T: ManifestStorage> ManifestStorage for &T {}
 
 #[async_trait::async_trait]
 pub trait ManifestViewer: Send + Sync {
+    /// Returns the location of the render bastion path
+    fn bastion_path(&self) -> Option<&std::path::Path>;
+
     /// Returns true if the identified manifest has been rendered already
     async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool;
 

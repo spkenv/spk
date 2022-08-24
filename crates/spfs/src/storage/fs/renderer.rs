@@ -26,6 +26,12 @@ pub enum RenderType {
 
 #[async_trait::async_trait]
 impl ManifestViewer for FSRepository {
+    fn bastion_path(&self) -> Option<&std::path::Path> {
+        self.renders
+            .as_ref()
+            .map(|render_store| render_store.bastion.root())
+    }
+
     async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool {
         let renders = match &self.renders {
             Some(render_store) => &render_store.renders,

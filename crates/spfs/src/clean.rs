@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, os::linux::fs::MetadataExt, sync::Arc};
 
 use tokio_stream::StreamExt;
 
@@ -96,6 +96,20 @@ pub async fn purge_objects(
     }
     render_bar.finish();
 
+    let mut futures: futures::stream::FuturesUnordered<_> = renders_for_all_users
+        .iter()
+        .filter_map(|bastion| {
+            bastion
+                .bastion_path()
+                .map(|bastion_path| tokio::spawn(clean_bastion(bastion_path.to_owned())))
+        })
+        .collect();
+    while let Some(result) = futures.next().await {
+        if let Err(err) = result.map_err(map_err).and_then(|e| e) {
+            errors.push(err);
+        }
+    }
+
     match bars_future.await {
         Err(err) => tracing::warn!("{err}"),
         Ok(Err(err)) => tracing::warn!("{err}"),
@@ -148,6 +162,46 @@ async fn clean_render(
         }
     }
     result.unwrap_or(Ok(()))
+}
+
+#[async_recursion::async_recursion]
+async fn clean_bastion(bastion_path: std::path::PathBuf) -> Result<()> {
+    // Any files in the bastion area that have a st_nlink count of 1 are unused
+    // and can be removed.
+    let mut iter = tokio::fs::read_dir(&bastion_path)
+        .await
+        .map_err(|err| Error::StorageReadError(bastion_path.clone(), err))?;
+    while let Some(entry) = iter
+        .next_entry()
+        .await
+        .map_err(|err| Error::StorageReadError(bastion_path.clone(), err))?
+    {
+        let file_type = entry
+            .file_type()
+            .await
+            .map_err(|err| Error::StorageReadError(entry.path(), err))?;
+
+        if file_type.is_dir() {
+            clean_bastion(entry.path()).await?;
+        } else if file_type.is_file() {
+            let metadata = entry
+                .metadata()
+                .await
+                .map_err(|err| Error::StorageReadError(entry.path(), err))?;
+
+            if metadata.st_nlink() != 1 {
+                continue;
+            }
+
+            // This file with st_nlink count of 1 is "safe" to remove. There
+            // may be some other process that is about to create a hard link
+            // to this file, and will fail if it goes missing.
+            tokio::fs::remove_file(entry.path())
+                .await
+                .map_err(|err| Error::StorageReadError(entry.path(), err))?;
+        }
+    }
+    Ok(())
 }
 
 pub async fn get_all_unattached_objects(
