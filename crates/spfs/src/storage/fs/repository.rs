@@ -7,7 +7,7 @@ use std::io::Write;
 use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use super::hash_store::BASTION_DIRNAME;
+use super::hash_store::PROXY_DIRNAME;
 use super::FSHashStore;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
@@ -44,17 +44,17 @@ impl FromUrl for Config {
     }
 }
 
-/// Renders need a place for bastion files and the rendered hard links.
+/// Renders need a place for proxy files and the rendered hard links.
 pub struct RenderStore {
-    pub bastion: FSHashStore,
+    pub proxy: FSHashStore,
     pub renders: FSHashStore,
 }
 
 impl RenderStore {
     pub fn for_user<P: AsRef<Path>>(root: &Path, username: P) -> Result<Self> {
         let renders_dir = root.join("renders").join(username.as_ref());
-        FSHashStore::open(renders_dir.join(BASTION_DIRNAME)).and_then(|bastion| {
-            FSHashStore::open(&renders_dir).map(|renders| RenderStore { bastion, renders })
+        FSHashStore::open(renders_dir.join(PROXY_DIRNAME)).and_then(|proxy| {
+            FSHashStore::open(&renders_dir).map(|renders| RenderStore { proxy, renders })
         })
     }
 }
@@ -62,7 +62,7 @@ impl RenderStore {
 impl Clone for RenderStore {
     fn clone(&self) -> Self {
         Self {
-            bastion: FSHashStore::open_unchecked(self.bastion.root()),
+            proxy: FSHashStore::open_unchecked(self.proxy.root()),
             renders: FSHashStore::open_unchecked(self.renders.root()),
         }
     }
@@ -103,7 +103,7 @@ impl FSRepository {
         makedirs_with_perms(root.join("payloads"), 0o777)?;
         let username = whoami::username();
         makedirs_with_perms(
-            root.join("renders").join(username).join(BASTION_DIRNAME),
+            root.join("renders").join(username).join(PROXY_DIRNAME),
             0o777,
         )?;
         set_last_migration(&root, None).await?;

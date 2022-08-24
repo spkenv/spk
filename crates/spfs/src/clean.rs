@@ -98,10 +98,10 @@ pub async fn purge_objects(
 
     let mut futures: futures::stream::FuturesUnordered<_> = renders_for_all_users
         .iter()
-        .filter_map(|bastion| {
-            bastion
-                .bastion_path()
-                .map(|bastion_path| tokio::spawn(clean_bastion(bastion_path.to_owned())))
+        .filter_map(|proxy| {
+            proxy
+                .proxy_path()
+                .map(|proxy_path| tokio::spawn(clean_proxy(proxy_path.to_owned())))
         })
         .collect();
     while let Some(result) = futures.next().await {
@@ -147,39 +147,22 @@ async fn clean_payload(
     }
 }
 
-async fn clean_render(
-    renders_for_all_users: Arc<Vec<Box<dyn storage::ManifestViewer>>>,
-    digest: encoding::Digest,
-) -> Result<()> {
-    let mut result = None;
-    for viewer in renders_for_all_users.iter() {
-        match viewer.remove_rendered_manifest(digest).await {
-            Ok(_) | Err(crate::Error::UnknownObject(_)) => continue,
-            err @ Err(_) => {
-                // Remember this error but attempt to clean all the users.
-                result = Some(err);
-            }
-        }
-    }
-    result.unwrap_or(Ok(()))
-}
-
-/// Remove any unused bastion files.
+/// Remove any unused proxy files.
 ///
 /// Return true if any files were deleted, or if an empty directory was found.
 #[async_recursion::async_recursion]
-async fn clean_bastion(bastion_path: std::path::PathBuf) -> Result<bool> {
-    // Any files in the bastion area that have a st_nlink count of 1 are unused
+async fn clean_proxy(proxy_path: std::path::PathBuf) -> Result<bool> {
+    // Any files in the proxy area that have a st_nlink count of 1 are unused
     // and can be removed.
     let mut files_exist = false;
     let mut files_were_deleted = false;
-    let mut iter = tokio::fs::read_dir(&bastion_path)
+    let mut iter = tokio::fs::read_dir(&proxy_path)
         .await
-        .map_err(|err| Error::StorageReadError(bastion_path.clone(), err))?;
+        .map_err(|err| Error::StorageReadError(proxy_path.clone(), err))?;
     while let Some(entry) = iter
         .next_entry()
         .await
-        .map_err(|err| Error::StorageReadError(bastion_path.clone(), err))?
+        .map_err(|err| Error::StorageReadError(proxy_path.clone(), err))?
     {
         files_exist = true;
 
@@ -189,7 +172,7 @@ async fn clean_bastion(bastion_path: std::path::PathBuf) -> Result<bool> {
             .map_err(|err| Error::StorageReadError(entry.path(), err))?;
 
         if file_type.is_dir() {
-            if clean_bastion(entry.path()).await? {
+            if clean_proxy(entry.path()).await? {
                 // If some files were deleted, attempt to delete the directory
                 // itself. It may now be empty. Ignore any failures.
                 if (tokio::fs::remove_dir(entry.path()).await).is_ok() {
@@ -217,6 +200,23 @@ async fn clean_bastion(bastion_path: std::path::PathBuf) -> Result<bool> {
         }
     }
     Ok(files_were_deleted || !files_exist)
+}
+
+async fn clean_render(
+    renders_for_all_users: Arc<Vec<Box<dyn storage::ManifestViewer>>>,
+    digest: encoding::Digest,
+) -> Result<()> {
+    let mut result = None;
+    for viewer in renders_for_all_users.iter() {
+        match viewer.remove_rendered_manifest(digest).await {
+            Ok(_) | Err(crate::Error::UnknownObject(_)) => continue,
+            err @ Err(_) => {
+                // Remember this error but attempt to clean all the users.
+                result = Some(err);
+            }
+        }
+    }
+    result.unwrap_or(Ok(()))
 }
 
 pub async fn get_all_unattached_objects(

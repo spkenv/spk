@@ -26,12 +26,6 @@ pub enum RenderType {
 
 #[async_trait::async_trait]
 impl ManifestViewer for FSRepository {
-    fn bastion_path(&self) -> Option<&std::path::Path> {
-        self.renders
-            .as_ref()
-            .map(|render_store| render_store.bastion.root())
-    }
-
     async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool {
         let renders = match &self.renders {
             Some(render_store) => &render_store.renders,
@@ -46,6 +40,12 @@ impl ManifestViewer for FSRepository {
         Ok(self
             .get_render_storage()?
             .build_digest_path(&manifest.digest()?))
+    }
+
+    fn proxy_path(&self) -> Option<&std::path::Path> {
+        self.renders
+            .as_ref()
+            .map(|render_store| render_store.proxy.root())
     }
 
     /// Create a hard-linked rendering of the given file manifest.
@@ -206,16 +206,16 @@ impl FSRepository {
                     // across different users and/or will different expected perms.
                     // Therefore, a copy of the blob is needed for every unique
                     // combination of user and perms. Since each user has their own
-                    // "bastion" directory, there needs only be a unique copy per
+                    // "proxy" directory, there needs only be a unique copy per
                     // perms.
                     if let Some(render_store) = &self.renders {
-                        let bastion_path = render_store
-                            .bastion
+                        let proxy_path = render_store
+                            .proxy
                             .build_digest_path(&entry.object)
                             .join(entry.mode.to_string());
-                        tracing::trace!(?bastion_path, "bastion");
-                        if !bastion_path.exists() {
-                            let path_to_create = bastion_path.parent().unwrap();
+                        tracing::trace!(?proxy_path, "proxy");
+                        if !proxy_path.exists() {
+                            let path_to_create = proxy_path.parent().unwrap();
                             tokio::fs::create_dir_all(&path_to_create)
                                 .await
                                 .map_err(|err| {
@@ -224,35 +224,32 @@ impl FSRepository {
                             // Write to a temporary file so that some other render
                             // process doesn't think a partially-written file is
                             // good.
-                            let temp_bastion_file = tempfile::NamedTempFile::new_in(path_to_create)
+                            let temp_proxy_file = tempfile::NamedTempFile::new_in(path_to_create)
                                 .map_err(|err| {
-                                    Error::StorageWriteError(path_to_create.to_owned(), err)
-                                })?;
-                            tokio::fs::copy(&payload_path, &temp_bastion_file)
+                                Error::StorageWriteError(path_to_create.to_owned(), err)
+                            })?;
+                            tokio::fs::copy(&payload_path, &temp_proxy_file)
                                 .await
                                 .map_err(|err| {
-                                    Error::StorageWriteError(
-                                        temp_bastion_file.path().to_owned(),
-                                        err,
-                                    )
+                                    Error::StorageWriteError(temp_proxy_file.path().to_owned(), err)
                                 })?;
                             // Move temporary file into place.
-                            if let Err(err) = temp_bastion_file.persist(&bastion_path) {
+                            if let Err(err) = temp_proxy_file.persist(&proxy_path) {
                                 match err.error.kind() {
                                     std::io::ErrorKind::AlreadyExists => (),
                                     _ => {
                                         return Err(Error::StorageWriteError(
-                                            bastion_path.to_owned(),
+                                            proxy_path.to_owned(),
                                             err.error,
                                         ))
                                     }
                                 }
                             }
                         }
-                        // Renders should hard link to this bastion file; it will
+                        // Renders should hard link to this proxy file; it will
                         // be owned by the current user and (eventually) have the
                         // expected mode.
-                        committed_path = bastion_path;
+                        committed_path = proxy_path;
                     } else {
                         return Err(
                             "Cannot render blob as hard link to repository with no render store"
