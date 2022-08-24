@@ -164,10 +164,15 @@ async fn clean_render(
     result.unwrap_or(Ok(()))
 }
 
+/// Remove any unused bastion files.
+///
+/// Return true if any files were deleted, or if an empty directory was found.
 #[async_recursion::async_recursion]
-async fn clean_bastion(bastion_path: std::path::PathBuf) -> Result<()> {
+async fn clean_bastion(bastion_path: std::path::PathBuf) -> Result<bool> {
     // Any files in the bastion area that have a st_nlink count of 1 are unused
     // and can be removed.
+    let mut files_exist = false;
+    let mut files_were_deleted = false;
     let mut iter = tokio::fs::read_dir(&bastion_path)
         .await
         .map_err(|err| Error::StorageReadError(bastion_path.clone(), err))?;
@@ -176,13 +181,21 @@ async fn clean_bastion(bastion_path: std::path::PathBuf) -> Result<()> {
         .await
         .map_err(|err| Error::StorageReadError(bastion_path.clone(), err))?
     {
+        files_exist = true;
+
         let file_type = entry
             .file_type()
             .await
             .map_err(|err| Error::StorageReadError(entry.path(), err))?;
 
         if file_type.is_dir() {
-            clean_bastion(entry.path()).await?;
+            if clean_bastion(entry.path()).await? {
+                // If some files were deleted, attempt to delete the directory
+                // itself. It may now be empty. Ignore any failures.
+                if (tokio::fs::remove_dir(entry.path()).await).is_ok() {
+                    files_were_deleted = true;
+                }
+            }
         } else if file_type.is_file() {
             let metadata = entry
                 .metadata()
@@ -199,9 +212,11 @@ async fn clean_bastion(bastion_path: std::path::PathBuf) -> Result<()> {
             tokio::fs::remove_file(entry.path())
                 .await
                 .map_err(|err| Error::StorageReadError(entry.path(), err))?;
+
+            files_were_deleted = true;
         }
     }
-    Ok(())
+    Ok(files_were_deleted || !files_exist)
 }
 
 pub async fn get_all_unattached_objects(
