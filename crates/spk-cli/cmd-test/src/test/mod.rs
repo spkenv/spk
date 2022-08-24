@@ -19,7 +19,7 @@ use spk_cli_common::{Error, Result, TestError};
 pub trait Tester: Send {
     async fn test(&mut self) -> Result<()>;
 
-    fn execute_test(
+    fn execute_test_script(
         &self,
         source_dir: &Path,
         mut env: HashMap<String, String>,

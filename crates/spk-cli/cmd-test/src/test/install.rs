@@ -126,7 +126,7 @@ impl<'a> PackageInstallTester<'a> {
             None => PathBuf::from("."),
         };
 
-        self.execute_test(&source_dir, env, &rt)
+        self.execute_test_script(&source_dir, env, &rt)
     }
 }
 

@@ -153,7 +153,7 @@ impl<'a> PackageBuildTester<'a> {
             BuildSource::LocalPath(path) => path.clone(),
         };
 
-        self.execute_test(&source_dir, env, &rt)
+        self.execute_test_script(&source_dir, env, &rt)
     }
 
     async fn resolve_source_package(&mut self, package: &Ident) -> Result<Solution> {
