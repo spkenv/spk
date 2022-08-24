@@ -23,8 +23,8 @@ pub async fn make_active_runtime_editable() -> Result<()> {
     }
 
     rt.status.editable = true;
-    remount_runtime(&rt).await?;
-    rt.save_state_to_storage().await
+    rt.save_state_to_storage().await?;
+    remount_runtime(&rt).await
 }
 
 /// Remount the given runtime as configured.
@@ -78,19 +78,16 @@ pub async fn active_runtime() -> Result<runtime::Runtime> {
 
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).
 pub async fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
-    let overlay_mount_options = env::OverlayMountOptions {
-        read_only: !rt.status.editable,
-    };
     tracing::debug!("computing runtime manifest");
     let (dirs, manifest) = tokio::try_join!(
-        resolve_and_render_overlay_dirs(rt, &overlay_mount_options),
+        resolve_and_render_overlay_dirs(rt),
         compute_runtime_manifest(rt)
     )?;
 
     let original = env::become_root()?;
     env::ensure_mounts_already_exist()?;
     env::unmount_env()?;
-    env::mount_env(rt, &overlay_mount_options, &dirs)?;
+    env::mount_env(rt, &dirs)?;
     env::mask_files(&rt.config, &manifest, original.uid)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;
@@ -99,12 +96,9 @@ pub async fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
 
 /// Initialize the current runtime as rt.
 pub async fn initialize_runtime(rt: &runtime::Runtime) -> Result<()> {
-    let overlay_mount_options = env::OverlayMountOptions {
-        read_only: !rt.status.editable,
-    };
     tracing::debug!("computing runtime manifest");
     let (dirs, manifest) = tokio::try_join!(
-        resolve_and_render_overlay_dirs(rt, &overlay_mount_options),
+        resolve_and_render_overlay_dirs(rt),
         compute_runtime_manifest(rt)
     )?;
     env::enter_mount_namespace()?;
@@ -113,7 +107,7 @@ pub async fn initialize_runtime(rt: &runtime::Runtime) -> Result<()> {
     env::ensure_mount_targets_exist(&rt.config)?;
     env::mount_runtime(&rt.config)?;
     env::setup_runtime(rt).await?;
-    env::mount_env(rt, &overlay_mount_options, &dirs)?;
+    env::mount_env(rt, &dirs)?;
     env::mask_files(&rt.config, &manifest, original.uid)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;

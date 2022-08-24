@@ -29,6 +29,13 @@ pub(crate) struct OverlayMountOptions {
 }
 
 impl OverlayMountOptions {
+    /// Create the mount options for a runtime state
+    fn new(rt: &runtime::Runtime) -> Self {
+        Self {
+            read_only: !rt.status.editable,
+        }
+    }
+
     /// Return the options that should be included in the mount request.
     pub(crate) fn options(&self) -> Vec<&str> {
         if self.read_only {
@@ -609,30 +616,30 @@ pub fn mask_files(
 ///
 /// `prefix` is prepended to the generated overlay args.
 pub(crate) fn get_overlay_args<P: AsRef<Path>>(
-    config: &runtime::Config,
-    overlay_mount_options: &OverlayMountOptions,
+    rt: &runtime::Runtime,
     lowerdirs: impl IntoIterator<Item = P>,
 ) -> Result<String> {
     // Allocate a large buffer up front to avoid resizing/copying.
     let mut args = String::with_capacity(4096);
 
-    for option in overlay_mount_options.options() {
+    let mount_options = OverlayMountOptions::new(rt);
+    for option in mount_options.options() {
         args.push_str(option);
         args.push(',');
     }
 
     args.push_str("lowerdir=");
-    args.push_str(&config.lower_dir.to_string_lossy());
+    args.push_str(&rt.config.lower_dir.to_string_lossy());
     for path in lowerdirs.into_iter() {
         args.push(':');
         args.push_str(&path.as_ref().to_string_lossy());
     }
 
     args.push_str(",upperdir=");
-    args.push_str(&config.upper_dir.to_string_lossy());
+    args.push_str(&rt.config.upper_dir.to_string_lossy());
 
     args.push_str(",workdir=");
-    args.push_str(&config.work_dir.to_string_lossy());
+    args.push_str(&rt.config.work_dir.to_string_lossy());
 
     match nix::unistd::sysconf(nix::unistd::SysconfVar::PAGE_SIZE) {
         Err(_) => tracing::debug!("failed to get page size for checking arg length"),
@@ -653,11 +660,10 @@ pub(crate) const OVERLAY_ARGS_RO_PREFIX: &str = "ro";
 
 pub(crate) fn mount_env<P: AsRef<Path>>(
     rt: &runtime::Runtime,
-    overlay_mount_options: &OverlayMountOptions,
     lowerdirs: impl IntoIterator<Item = P>,
 ) -> Result<()> {
     tracing::debug!("mounting the overlay filesystem...");
-    let overlay_args = get_overlay_args(&rt.config, overlay_mount_options, lowerdirs)?;
+    let overlay_args = get_overlay_args(rt, lowerdirs)?;
     let mount = super::resolve::which("mount").unwrap_or_else(|| "/usr/bin/mount".into());
     tracing::debug!("{mount:?} -t overlay -o {overlay_args} none {SPFS_DIR}",);
     // for some reason, the overlay mount process creates a bad filesystem if the

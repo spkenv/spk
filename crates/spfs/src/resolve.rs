@@ -147,7 +147,6 @@ pub async fn compute_object_manifest(
 pub(crate) async fn resolve_overlay_dirs(
     runtime: &runtime::Runtime,
     repo: &storage::RepositoryHandle,
-    overlay_mount_options: &crate::env::OverlayMountOptions,
 ) -> Result<Vec<graph::Manifest>> {
     let layers = resolve_stack_to_layers(runtime.status.stack.iter(), Some(repo)).await?;
     let mut manifests = Vec::with_capacity(layers.len());
@@ -165,9 +164,7 @@ pub(crate) async fn resolve_overlay_dirs(
             let rendered_dir = renders.manifest_render_path(manifest)?;
             overlay_dirs.push(rendered_dir);
         }
-        if crate::env::get_overlay_args(&runtime.config, overlay_mount_options, overlay_dirs)
-            .is_ok()
-        {
+        if crate::env::get_overlay_args(runtime, overlay_dirs).is_ok() {
             break;
         }
         // Cut the number of layers in half...
@@ -214,13 +211,12 @@ pub(crate) async fn resolve_overlay_dirs(
 /// These are returned as a list, from bottom to top.
 pub(crate) async fn resolve_and_render_overlay_dirs(
     runtime: &runtime::Runtime,
-    overlay_mount_options: &crate::env::OverlayMountOptions,
 ) -> Result<Vec<std::path::PathBuf>> {
     let config = get_config()?;
     let repo: storage::RepositoryHandle = config.get_local_repository().await?.into();
     let renders = repo.renders()?;
 
-    let manifests = resolve_overlay_dirs(runtime, &repo, overlay_mount_options).await?;
+    let manifests = resolve_overlay_dirs(runtime, &repo).await?;
 
     let mut to_render = HashSet::new();
     for digest in manifests.iter().map(|m| m.digest()) {
