@@ -1349,6 +1349,34 @@ async fn test_solver_components_when_no_components_requested(mut solver: Solver)
 
 #[rstest]
 #[tokio::test]
+async fn test_solver_src_package_request_when_no_components_requested(mut solver: Solver) {
+    // test when a /src package build is requested with no components
+    // and a matching package with a /src package build exists in the repo
+    // - the solver should resolve to the /src package build
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "mypkg/1.2.3",
+            },
+            {
+                "pkg": "mypkg/1.2.3/src",
+            },
+        ]
+    );
+    solver.add_repository(Arc::new(repo));
+
+    let req = request!("mypkg/1.2.3/src");
+    solver.add_request(req);
+
+    let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
+    let resolved = solution.get("mypkg").unwrap().spec.ident().clone();
+
+    let expected = ident!("mypkg/1.2.3/src");
+    assert_eq!(resolved, expected);
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_solver_all_component(mut solver: Solver) {
     // test when a package is requested with the 'all' component
     // - all the specs components are selected in the resolve
