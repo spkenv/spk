@@ -15,7 +15,10 @@ use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::Ident;
 use spk_schema::SpecRecipe;
 
-use super::{repository::Storage, Repository};
+use super::{
+    repository::{PublishPolicy, Storage},
+    Repository,
+};
 use crate::{Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -93,7 +96,11 @@ impl Storage for RuntimeRepository {
         ))
     }
 
-    async fn publish_recipe_to_storage(&self, _spec: &Self::Recipe, _force: bool) -> Result<()> {
+    async fn publish_recipe_to_storage(
+        &self,
+        _spec: &Self::Recipe,
+        _publish_policy: PublishPolicy,
+    ) -> Result<()> {
         Err(Error::String(
             "Cannot publish to a runtime repository".into(),
         ))

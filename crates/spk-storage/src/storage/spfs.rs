@@ -26,7 +26,10 @@ use spk_schema::Ident;
 use spk_schema::{Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
-use super::{repository::Storage, CachePolicy, Repository};
+use super::{
+    repository::{PublishPolicy, Storage},
+    CachePolicy, Repository,
+};
 use crate::{with_cache_policy, Error, Result};
 
 #[cfg(test)]
@@ -245,10 +248,16 @@ impl Storage for SPFSRepository {
         Ok(())
     }
 
-    async fn publish_recipe_to_storage(&self, spec: &Self::Recipe, force: bool) -> Result<()> {
+    async fn publish_recipe_to_storage(
+        &self,
+        spec: &Self::Recipe,
+        publish_policy: PublishPolicy,
+    ) -> Result<()> {
         let tag_path = self.build_spec_tag(&spec.to_ident());
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
-        if !force && self.inner.has_tag(&tag_spec).await {
+        if matches!(publish_policy, PublishPolicy::DoNotOverwriteVersion)
+            && self.inner.has_tag(&tag_spec).await
+        {
             // BUG(rbottriell): this creates a race condition but is not super dangerous
             // because of the non-destructive tag history
             return Err(Error::SpkValidatorsError(

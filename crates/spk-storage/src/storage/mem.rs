@@ -14,7 +14,7 @@ use spk_schema::Ident;
 use spk_schema::SpecRecipe;
 use tokio::sync::RwLock;
 
-use super::repository::Storage;
+use super::repository::{PublishPolicy, Storage};
 use super::Repository;
 use crate::{Error, Result};
 
@@ -128,10 +128,16 @@ where
         Ok(())
     }
 
-    async fn publish_recipe_to_storage(&self, spec: &Self::Recipe, force: bool) -> Result<()> {
+    async fn publish_recipe_to_storage(
+        &self,
+        spec: &Self::Recipe,
+        publish_policy: PublishPolicy,
+    ) -> Result<()> {
         let mut specs = self.specs.write().await;
         let versions = specs.entry(spec.name().to_owned()).or_default();
-        if !force && versions.contains_key(spec.version()) {
+        if matches!(publish_policy, PublishPolicy::DoNotOverwriteVersion)
+            && versions.contains_key(spec.version())
+        {
             Err(Error::SpkValidatorsError(
                 spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
             ))

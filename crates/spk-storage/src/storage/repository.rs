@@ -29,6 +29,13 @@ impl CachePolicy {
     }
 }
 
+/// Policy for publishing recipes.
+#[derive(Clone, Copy, Debug)]
+pub enum PublishPolicy {
+    OverwriteVersion,
+    DoNotOverwriteVersion,
+}
+
 /// Low level storage operations.
 ///
 /// These methods are expected to have different implementations for different
@@ -55,8 +62,12 @@ pub trait Storage: Sync {
     ///
     /// # Errors:
     /// - VersionExistsError: if the spec version is already present and
-    ///   `force` isn't true
-    async fn publish_recipe_to_storage(&self, spec: &Self::Recipe, force: bool) -> Result<()>;
+    ///   `publish_policy` does not allow overwrite.
+    async fn publish_recipe_to_storage(
+        &self,
+        spec: &Self::Recipe,
+        publish_policy: PublishPolicy,
+    ) -> Result<()>;
 
     /// Identify the payloads for the identified package's components.
     async fn read_components_from_storage(
@@ -111,7 +122,8 @@ pub trait Repository: Storage + Sync {
     /// # Errors:
     /// - VersionExistsError: if the recipe version is already present
     async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        self.publish_recipe_to_storage(spec, false).await
+        self.publish_recipe_to_storage(spec, PublishPolicy::DoNotOverwriteVersion)
+            .await
     }
 
     /// Remove a package recipe from this repository.
@@ -126,7 +138,8 @@ pub trait Repository: Storage + Sync {
     /// Same as [`Self::publish_recipe`] except that it clobbers any existing
     /// recipe with the same version.
     async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        self.publish_recipe_to_storage(spec, true).await
+        self.publish_recipe_to_storage(spec, PublishPolicy::OverwriteVersion)
+            .await
     }
 
     /// Read package information for a specific version and build.
