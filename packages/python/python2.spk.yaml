@@ -1,6 +1,6 @@
 pkg: python/2.7.5
 api: v0/package
-ources:
+sources:
   - git: https://github.com/python/cpython
     ref: v2.7.5
 build:
