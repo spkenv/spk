@@ -465,13 +465,14 @@ where
             );
             println!(" - to cancel and discard this build, run `exit 1`");
             println!(" - to finalize and save the package, run `exit 0`");
-            spfs::build_interactive_shell_command(&runtime)?
+            spfs::build_interactive_shell_command(&runtime, Some("bash"))?
         } else {
             use std::ffi::OsString;
             spfs::build_shell_initialized_command(
                 &runtime,
                 OsString::from("bash"),
                 &[OsString::from("-ex"), build_script.into_os_string()],
+                Some("bash"),
             )?
         };
 

@@ -61,11 +61,11 @@ impl CmdJoin {
         let cmd = match self.command.take() {
             Some(exe) if !exe.is_empty() => {
                 tracing::debug!("executing runtime command");
-                spfs::build_shell_initialized_command(rt, exe, self.args.drain(..))?
+                spfs::build_shell_initialized_command(rt, exe, self.args.drain(..), None)?
             }
             _ => {
                 tracing::debug!("starting interactive shell environment");
-                spfs::build_interactive_shell_command(rt)?
+                spfs::build_interactive_shell_command(rt, None)?
             }
         };
         let mut proc = cmd.into_std();
