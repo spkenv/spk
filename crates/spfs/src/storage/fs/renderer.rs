@@ -28,7 +28,7 @@ pub enum RenderType {
 impl ManifestViewer for FSRepository {
     async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool {
         let renders = match &self.renders {
-            Some(renders) => renders,
+            Some(render_store) => &render_store.renders,
             None => return false,
         };
         let rendered_dir = renders.build_digest_path(&digest);
@@ -40,6 +40,12 @@ impl ManifestViewer for FSRepository {
         Ok(self
             .get_render_storage()?
             .build_digest_path(&manifest.digest()?))
+    }
+
+    fn proxy_path(&self) -> Option<&std::path::Path> {
+        self.renders
+            .as_ref()
+            .map(|render_store| render_store.proxy.root())
     }
 
     /// Create a hard-linked rendering of the given file manifest.
@@ -82,7 +88,7 @@ impl ManifestViewer for FSRepository {
     /// Remove the identified render from this storage.
     async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
         let renders = match &self.renders {
-            Some(renders) => renders,
+            Some(render_store) => &render_store.renders,
             None => return Ok(()),
         };
         let rendered_dirpath = renders.build_digest_path(&digest);
@@ -104,7 +110,7 @@ impl ManifestViewer for FSRepository {
 impl FSRepository {
     fn get_render_storage(&self) -> Result<&super::FSHashStore> {
         match &self.renders {
-            Some(renders) => Ok(renders),
+            Some(render_store) => Ok(&render_store.renders),
             None => Err(Error::NoRenderStorage(self.address())),
         }
     }
@@ -188,19 +194,94 @@ impl FSRepository {
                 Ok(())
             };
         }
-        let committed_path = self.payloads.build_digest_path(&entry.object);
+
+        let mut committed_path = self.payloads.build_digest_path(&entry.object);
         match render_type {
             RenderType::HardLink => {
-                if let Err(err) = tokio::fs::hard_link(&committed_path, &rendered_path).await {
-                    match err.kind() {
-                        std::io::ErrorKind::AlreadyExists => (),
-                        _ => {
-                            return Err(Error::StorageWriteError(
-                                rendered_path.as_ref().to_owned(),
-                                err,
-                            ))
+                let payload_path = committed_path;
+                let mut retry_count = 0;
+                loop {
+                    // All hard links to a file have shared metadata (owner, perms).
+                    // Whereas the same blob may be rendered into multiple files
+                    // across different users and/or will different expected perms.
+                    // Therefore, a copy of the blob is needed for every unique
+                    // combination of user and perms. Since each user has their own
+                    // "proxy" directory, there needs only be a unique copy per
+                    // perms.
+                    if let Some(render_store) = &self.renders {
+                        let proxy_path = render_store
+                            .proxy
+                            .build_digest_path(&entry.object)
+                            .join(entry.mode.to_string());
+                        tracing::trace!(?proxy_path, "proxy");
+                        if !proxy_path.exists() {
+                            let path_to_create = proxy_path.parent().unwrap();
+                            tokio::fs::create_dir_all(&path_to_create)
+                                .await
+                                .map_err(|err| {
+                                    Error::StorageWriteError(path_to_create.to_owned(), err)
+                                })?;
+                            // Write to a temporary file so that some other render
+                            // process doesn't think a partially-written file is
+                            // good.
+                            let temp_proxy_file = tempfile::NamedTempFile::new_in(path_to_create)
+                                .map_err(|err| {
+                                Error::StorageWriteError(path_to_create.to_owned(), err)
+                            })?;
+                            tokio::fs::copy(&payload_path, &temp_proxy_file)
+                                .await
+                                .map_err(|err| {
+                                    Error::StorageWriteError(temp_proxy_file.path().to_owned(), err)
+                                })?;
+                            // Move temporary file into place.
+                            if let Err(err) = temp_proxy_file.persist(&proxy_path) {
+                                match err.error.kind() {
+                                    std::io::ErrorKind::AlreadyExists => (),
+                                    _ => {
+                                        return Err(Error::StorageWriteError(
+                                            proxy_path.to_owned(),
+                                            err.error,
+                                        ))
+                                    }
+                                }
+                            }
+                        }
+                        // Renders should hard link to this proxy file; it will
+                        // be owned by the current user and (eventually) have the
+                        // expected mode.
+                        committed_path = proxy_path;
+                    } else {
+                        return Err(
+                            "Cannot render blob as hard link to repository with no render store"
+                                .into(),
+                        );
+                    }
+
+                    if let Err(err) = tokio::fs::hard_link(&committed_path, &rendered_path).await {
+                        match err.kind() {
+                            std::io::ErrorKind::NotFound if retry_count < 3 => {
+                                // There is a chance to lose a race with
+                                // `spfs clean` if it sees `committed_path` as
+                                // only having one link. If we get a `NotFound`
+                                // error, assume our newly copied file has
+                                // been deleted and try again.
+                                //
+                                // It's _very_ unlikely we'd lose this race
+                                // multiple times. Don't loop forever.
+                                retry_count += 1;
+                                continue;
+                            }
+                            std::io::ErrorKind::AlreadyExists => (),
+                            _ => {
+                                return Err(Error::StorageWriteError(
+                                    rendered_path.as_ref().to_owned(),
+                                    err,
+                                ))
+                            }
                         }
                     }
+
+                    break;
                 }
             }
             RenderType::Copy => {

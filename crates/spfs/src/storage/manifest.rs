@@ -58,6 +58,9 @@ pub trait ManifestViewer: Send + Sync {
     /// This path does not necessarily exist or contain a valid render.
     fn manifest_render_path(&self, manifest: &graph::Manifest) -> Result<std::path::PathBuf>;
 
+    /// Returns the location of the render proxy path
+    fn proxy_path(&self) -> Option<&std::path::Path>;
+
     /// Create a rendered view of the given manifest on the local disk.
     ///
     /// Returns the local path to the root of the rendered manifest

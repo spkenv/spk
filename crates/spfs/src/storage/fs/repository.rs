@@ -7,6 +7,7 @@ use std::io::Write;
 use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
 
+use super::hash_store::PROXY_DIRNAME;
 use super::FSHashStore;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
@@ -43,6 +44,29 @@ impl FromUrl for Config {
     }
 }
 
+/// Renders need a place for proxy files and the rendered hard links.
+pub struct RenderStore {
+    pub proxy: FSHashStore,
+    pub renders: FSHashStore,
+}
+
+impl RenderStore {
+    pub fn for_user<P: AsRef<Path>>(root: &Path, username: P) -> Result<Self> {
+        let renders_dir = root.join("renders").join(username.as_ref());
+        FSHashStore::open(renders_dir.join(PROXY_DIRNAME)).and_then(|proxy| {
+            FSHashStore::open(&renders_dir).map(|renders| RenderStore { proxy, renders })
+        })
+    }
+}
+
+impl Clone for RenderStore {
+    fn clone(&self) -> Self {
+        Self {
+            proxy: FSHashStore::open_unchecked(self.proxy.root()),
+            renders: FSHashStore::open_unchecked(self.renders.root()),
+        }
+    }
+}
 /// A pure filesystem-based repository of spfs data.
 pub struct FSRepository {
     root: PathBuf,
@@ -51,7 +75,7 @@ pub struct FSRepository {
     /// stores all digraph object data for this repo
     pub objects: FSHashStore,
     /// stores rendered file system layers for use in overlayfs
-    pub renders: Option<FSHashStore>,
+    pub renders: Option<RenderStore>,
 }
 
 #[async_trait::async_trait]
@@ -78,7 +102,10 @@ impl FSRepository {
         makedirs_with_perms(root.join("objects"), 0o777)?;
         makedirs_with_perms(root.join("payloads"), 0o777)?;
         let username = whoami::username();
-        makedirs_with_perms(root.join("renders").join(username), 0o777)?;
+        makedirs_with_perms(
+            root.join("renders").join(username).join(PROXY_DIRNAME),
+            0o777,
+        )?;
         set_last_migration(&root, None).await?;
         // Safety: we canonicalized `root` and we just changed the repo
         // `VERSION` to our version, so it is compatible.
@@ -139,7 +166,7 @@ impl FSRepository {
         Ok(Self {
             objects: FSHashStore::open(root.join("objects"))?,
             payloads: FSHashStore::open(root.join("payloads"))?,
-            renders: FSHashStore::open(root.join("renders").join(username)).ok(),
+            renders: RenderStore::for_user(root, username).ok(),
             root: root.to_owned(),
         })
     }
@@ -168,10 +195,7 @@ impl Clone for FSRepository {
         Self {
             objects: FSHashStore::open_unchecked(root.join("objects")),
             payloads: FSHashStore::open_unchecked(root.join("payloads")),
-            renders: self
-                .renders
-                .as_ref()
-                .map(|r| FSHashStore::open_unchecked(r.root())),
+            renders: self.renders.clone(),
             root,
         }
     }
@@ -217,7 +241,10 @@ impl Repository for FSRepository {
                 Box::new(Self {
                     objects: FSHashStore::open_unchecked(self.root.join("objects")),
                     payloads: FSHashStore::open_unchecked(self.root.join("payloads")),
-                    renders: FSHashStore::open(self.root.join("renders").join(dir)).ok(),
+                    renders: self
+                        .renders
+                        .as_ref()
+                        .and_then(|_| RenderStore::for_user(self.root.as_ref(), dir).ok()),
                     root: self.root.clone(),
                 })
             })

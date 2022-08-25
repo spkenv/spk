@@ -20,6 +20,7 @@ use crate::{encoding, Error, Result};
 #[path = "./hash_store_test.rs"]
 mod hash_store_test;
 
+pub(crate) const PROXY_DIRNAME: &str = "proxy";
 const WORK_DIRNAME: &str = "work";
 
 pub(crate) enum PersistableObject {
@@ -56,6 +57,12 @@ impl FSHashStore {
         }
     }
 
+    /// The folder where payloads are copied to have the expected ownership
+    /// and permissions suitable for hard-linking into a render.
+    pub fn proxydir(&self) -> PathBuf {
+        self.root.join(&PROXY_DIRNAME)
+    }
+
     /// Return the root directory of this storage.
     pub fn root(&self) -> &Path {
         self.root.as_ref()
@@ -72,7 +79,7 @@ impl FSHashStore {
     ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send + 'static>> {
         let entry_filename = entry.file_name();
         let entry_filename = entry_filename.to_string_lossy().into_owned();
-        if entry_filename == WORK_DIRNAME {
+        if entry_filename == WORK_DIRNAME || entry_filename == PROXY_DIRNAME {
             return Box::pin(futures::stream::empty());
         }
 
