@@ -15,7 +15,10 @@ use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::Ident;
 use spk_schema::SpecRecipe;
 
-use super::Repository;
+use super::{
+    repository::{PublishPolicy, Storage},
+    Repository,
+};
 use crate::{Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -80,9 +83,86 @@ impl RuntimeRepository {
 }
 
 #[async_trait::async_trait]
-impl Repository for RuntimeRepository {
+impl Storage for RuntimeRepository {
     type Recipe = SpecRecipe;
 
+    async fn publish_package_to_storage(
+        &self,
+        _package: &<Self::Recipe as spk_schema::Recipe>::Output,
+        _components: &HashMap<Component, spfs::encoding::Digest>,
+    ) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a runtime repository".into(),
+        ))
+    }
+
+    async fn publish_recipe_to_storage(
+        &self,
+        _spec: &Self::Recipe,
+        _publish_policy: PublishPolicy,
+    ) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a runtime repository".into(),
+        ))
+    }
+
+    async fn read_components_from_storage(
+        &self,
+        pkg: &Ident,
+    ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
+        let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
+        let components: Vec<Component> = entries
+            .into_iter()
+            .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
+            .map(Component::parse)
+            .collect::<spk_schema::foundation::ident_component::Result<_>>()?;
+
+        let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
+        path.push(pkg.to_string());
+
+        let mut mapped = HashMap::with_capacity(components.len());
+        for name in components.into_iter() {
+            let digest = find_layer_by_filename(path.join(format!("{}.cmpt", &name)))
+                .await
+                .map_err(|err| {
+                    if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
+                        Error::SpkValidatorsError(
+                            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                        )
+                    } else {
+                        err
+                    }
+                })?;
+            mapped.insert(name, digest);
+        }
+
+        if mapped.is_empty() {
+            // This is package was published before component support
+            // was added. It does not have distinct components. So add
+            // default Build and Run components that point at the full
+            // package digest.
+            let digest = find_layer_by_filename(path).await.map_err(|err| {
+                if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                        pkg.clone(),
+                    ))
+                } else {
+                    err
+                }
+            })?;
+            mapped.insert(Component::Run, digest);
+            mapped.insert(Component::Build, digest);
+        }
+        Ok(mapped)
+    }
+
+    async fn remove_package_from_storage(&self, _pkg: &Ident) -> Result<()> {
+        Err(Error::String("Cannot modify a runtime repository".into()))
+    }
+}
+
+#[async_trait::async_trait]
+impl Repository for RuntimeRepository {
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -177,66 +257,6 @@ impl Repository for RuntimeRepository {
         ))
     }
 
-    async fn read_components(
-        &self,
-        pkg: &Ident,
-    ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
-        let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
-        let components: Vec<Component> = entries
-            .into_iter()
-            .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
-            .map(|c| Component::parse(c).map_err(|err| err.into()))
-            .collect::<Result<_>>()?;
-
-        let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
-        path.push(pkg.to_string());
-
-        let mut mapped = HashMap::with_capacity(components.len());
-        for name in components.into_iter() {
-            let digest = find_layer_by_filename(path.join(format!("{}.cmpt", &name)))
-                .await
-                .map_err(|err| {
-                    if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                        Error::SpkValidatorsError(
-                            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
-                        )
-                    } else {
-                        err
-                    }
-                })?;
-            mapped.insert(name, digest);
-        }
-
-        if mapped.is_empty() {
-            // This is package was published before component support
-            // was added. It does not have distinct components. So add
-            // default Build and Run components that point at the full
-            // package digest.
-            let digest = find_layer_by_filename(path).await.map_err(|err| {
-                if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.clone(),
-                    ))
-                } else {
-                    err
-                }
-            })?;
-            mapped.insert(Component::Run, digest);
-            mapped.insert(Component::Build, digest);
-        }
-        Ok(mapped)
-    }
-
-    async fn force_publish_recipe(&self, _spec: &Self::Recipe) -> Result<()> {
-        Err(Error::String("Cannot modify a runtime repository".into()))
-    }
-
-    async fn publish_recipe(&self, _spec: &Self::Recipe) -> Result<()> {
-        Err(Error::String(
-            "Cannot publish to a runtime repository".into(),
-        ))
-    }
-
     async fn remove_recipe(&self, _pkg: &Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
@@ -260,20 +280,6 @@ impl Repository for RuntimeRepository {
         serde_yaml::from_reader(&mut reader)
             .map(Arc::new)
             .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
-    }
-
-    async fn publish_package(
-        &self,
-        _spec: &<Self::Recipe as spk_schema::Recipe>::Output,
-        _components: &HashMap<Component, spfs::encoding::Digest>,
-    ) -> Result<()> {
-        Err(Error::String(
-            "Cannot publish to a runtime repository".into(),
-        ))
-    }
-
-    async fn remove_package(&self, _pkg: &Ident) -> Result<()> {
-        Err(Error::String("Cannot modify a runtime repository".into()))
     }
 }
 

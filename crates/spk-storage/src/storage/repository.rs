@@ -3,11 +3,12 @@
 // https://github.com/imageworks/spk
 use std::{collections::HashMap, sync::Arc};
 
-use crate::Result;
+use crate::{Error, Result};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Version;
+use spk_schema::ident_build::{Build, InvalidBuildError};
 use spk_schema::Ident;
 use spk_schema::Package;
 
@@ -28,10 +29,64 @@ impl CachePolicy {
     }
 }
 
+/// Policy for publishing recipes.
+#[derive(Clone, Copy, Debug)]
+pub enum PublishPolicy {
+    OverwriteVersion,
+    DoNotOverwriteVersion,
+}
+
+/// Low level storage operations.
+///
+/// These methods are expected to have different implementations for different
+/// storage types, but perform the same logical operation for any storage type.
 #[async_trait::async_trait]
-pub trait Repository: Sync {
+pub trait Storage: Sync {
     type Recipe: spk_schema::Recipe;
 
+    /// Publish a package to this repository.
+    ///
+    /// The provided component digests are expected to each identify an spfs
+    /// layer which contains properly constructed binary package files and metadata.
+    async fn publish_package_to_storage(
+        &self,
+        package: &<Self::Recipe as spk_schema::Recipe>::Output,
+        components: &HashMap<Component, spfs::encoding::Digest>,
+    ) -> Result<()>;
+
+    /// Publish a package spec to this repository.
+    ///
+    /// The published spec represents all builds of a single version.
+    /// The source package, or at least one binary package should be
+    /// published as well in order to make the spec usable in environments.
+    ///
+    /// # Errors:
+    /// - VersionExistsError: if the spec version is already present and
+    ///   `publish_policy` does not allow overwrite.
+    async fn publish_recipe_to_storage(
+        &self,
+        spec: &Self::Recipe,
+        publish_policy: PublishPolicy,
+    ) -> Result<()>;
+
+    /// Identify the payloads for the identified package's components.
+    async fn read_components_from_storage(
+        &self,
+        pkg: &Ident,
+    ) -> Result<HashMap<Component, spfs::encoding::Digest>>;
+
+    /// Remove a package from this repository.
+    ///
+    /// The given package identifier must identify a full package build.
+    async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()>;
+}
+
+/// High level repository concepts.
+///
+/// An abstraction for interacting with different storage backends as a
+/// repository for spk packages.
+#[async_trait::async_trait]
+pub trait Repository: Storage + Sync {
     /// A repository's address should identify it uniquely. It's
     /// expected that two handles to the same logical repository
     /// share an address
@@ -66,7 +121,10 @@ pub trait Repository: Sync {
     ///
     /// # Errors:
     /// - VersionExistsError: if the recipe version is already present
-    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()>;
+    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
+        self.publish_recipe_to_storage(spec, PublishPolicy::DoNotOverwriteVersion)
+            .await
+    }
 
     /// Remove a package recipe from this repository.
     ///
@@ -79,7 +137,10 @@ pub trait Repository: Sync {
     ///
     /// Same as [`Self::publish_recipe`] except that it clobbers any existing
     /// recipe with the same version.
-    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()>;
+    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
+        self.publish_recipe_to_storage(spec, PublishPolicy::OverwriteVersion)
+            .await
+    }
 
     /// Read package information for a specific version and build.
     ///
@@ -97,9 +158,32 @@ pub trait Repository: Sync {
     /// layer which contains properly constructed binary package files and metadata.
     async fn publish_package(
         &self,
-        package: &<Self::Recipe as spk_schema::Recipe>::Output,
+        package: &<<Self as Storage>::Recipe as spk_schema::Recipe>::Output,
         components: &HashMap<Component, spfs::encoding::Digest>,
-    ) -> Result<()>;
+    ) -> Result<()>
+    where
+        <<Self as Storage>::Recipe as spk_schema::Recipe>::Output:
+            spk_schema::Package<Ident = Ident> + Send + Sync,
+    {
+        let build = match &package.ident().build {
+            Some(b) => b.to_owned(),
+            None => {
+                return Err(Error::String(format!(
+                    "Package must include a build in order to be published: {}",
+                    package.ident()
+                )))
+            }
+        };
+
+        if let Build::Embedded = build {
+            return Err(Error::SpkIdentBuildError(InvalidBuildError::new_error(
+                "Cannot publish embedded package".to_string(),
+            )));
+        }
+
+        self.publish_package_to_storage(package, components).await?;
+        Ok(())
+    }
 
     /// Modify a package in this repository.
     ///
@@ -125,14 +209,25 @@ pub trait Repository: Sync {
         &self,
         // TODO: use an ident type that must have a build
         pkg: &Ident,
-    ) -> Result<()>;
+    ) -> Result<()> {
+        if pkg.build.is_none() {
+            return Err(Error::String(format!(
+                "Package must include a build in order to be removed: {}",
+                pkg
+            )));
+        }
+
+        self.remove_package_from_storage(pkg).await
+    }
 
     /// Identify the payloads for the identified package's components.
     async fn read_components(
         &self,
         // TODO: use an ident type that must have a build
         pkg: &Ident,
-    ) -> Result<HashMap<Component, spfs::encoding::Digest>>;
+    ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
+        self.read_components_from_storage(pkg).await
+    }
 
     /// Perform any upgrades that are pending on this repository.
     ///

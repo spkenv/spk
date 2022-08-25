@@ -14,6 +14,7 @@ use spk_schema::Ident;
 use spk_schema::SpecRecipe;
 use tokio::sync::RwLock;
 
+use super::repository::{PublishPolicy, Storage};
 use super::Repository;
 use crate::{Error, Result};
 
@@ -104,13 +105,118 @@ where
 }
 
 #[async_trait::async_trait]
-impl<Recipe> Repository for MemRepository<Recipe>
+impl<Recipe> Storage for MemRepository<Recipe>
 where
     Recipe: spk_schema::Recipe<Ident = Ident> + Clone + Send + Sync,
     Recipe::Output: spk_schema::Package<Ident = Ident> + Clone + Send + Sync,
 {
     type Recipe = Recipe;
 
+    async fn publish_package_to_storage(
+        &self,
+        package: &<Self::Recipe as spk_schema::Recipe>::Output,
+        components: &ComponentMap,
+    ) -> Result<()> {
+        // Caller has already proven that build is `Some`.
+        let build = package.ident().build.as_ref().unwrap().clone();
+
+        let mut packages = self.packages.write().await;
+        let versions = packages.entry(package.name().to_owned()).or_default();
+        let builds = versions.entry(package.version().clone()).or_default();
+
+        builds.insert(build, (Arc::new(package.clone()), components.clone()));
+        Ok(())
+    }
+
+    async fn publish_recipe_to_storage(
+        &self,
+        spec: &Self::Recipe,
+        publish_policy: PublishPolicy,
+    ) -> Result<()> {
+        let mut specs = self.specs.write().await;
+        let versions = specs.entry(spec.name().to_owned()).or_default();
+        if matches!(publish_policy, PublishPolicy::DoNotOverwriteVersion)
+            && versions.contains_key(spec.version())
+        {
+            Err(Error::SpkValidatorsError(
+                spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
+            ))
+        } else {
+            versions.insert(spec.version().clone(), Arc::new(spec.clone()));
+            Ok(())
+        }
+    }
+
+    async fn read_components_from_storage(&self, pkg: &Ident) -> Result<ComponentMap> {
+        match &pkg.build {
+            None => Err(Error::SpkValidatorsError(
+                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+            )),
+            Some(build) => self
+                .packages
+                .read()
+                .await
+                .get(&pkg.name)
+                .ok_or_else(|| {
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                        pkg.clone(),
+                    ))
+                })?
+                .get(&pkg.version)
+                .ok_or_else(|| {
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                        pkg.clone(),
+                    ))
+                })?
+                .get(build)
+                .map(|(_, d)| d.to_owned())
+                .ok_or_else(|| {
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                        pkg.clone(),
+                    ))
+                }),
+        }
+    }
+
+    async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()> {
+        // Caller has already proven that build is `Some`.
+        let build = pkg.build.as_ref().unwrap();
+
+        let mut packages = self.packages.write().await;
+        let versions = match packages.get_mut(&pkg.name) {
+            Some(v) => v,
+            None => {
+                return Err(Error::SpkValidatorsError(
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                ))
+            }
+        };
+
+        let builds = match versions.get_mut(&pkg.version) {
+            Some(v) => v,
+            None => {
+                return Err(Error::SpkValidatorsError(
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                ))
+            }
+        };
+
+        if builds.remove(build).is_none() {
+            Err(Error::SpkValidatorsError(
+                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl<Recipe> Repository for MemRepository<Recipe>
+where
+    Recipe: spk_schema::Recipe<Ident = Ident> + Clone + Send + Sync,
+    Recipe::Output: spk_schema::Package<Ident = Ident> + Clone + Send + Sync,
+{
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -170,6 +276,7 @@ where
     fn name(&self) -> &RepositoryName {
         self.name.as_ref()
     }
+
     async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
         if pkg.build.is_some() {
             return Err(format!("cannot read a recipe for a package build: {pkg}").into());
@@ -190,58 +297,6 @@ where
                     pkg.clone(),
                 ))
             })
-    }
-
-    async fn read_components(&self, pkg: &Ident) -> Result<ComponentMap> {
-        match &pkg.build {
-            None => Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
-            )),
-            Some(build) => self
-                .packages
-                .read()
-                .await
-                .get(&pkg.name)
-                .ok_or_else(|| {
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.clone(),
-                    ))
-                })?
-                .get(&pkg.version)
-                .ok_or_else(|| {
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.clone(),
-                    ))
-                })?
-                .get(build)
-                .map(|(_, d)| d.to_owned())
-                .ok_or_else(|| {
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.clone(),
-                    ))
-                }),
-        }
-    }
-
-    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        let mut specs = self.specs.write().await;
-        let versions = specs.entry(spec.name().to_owned()).or_default();
-        versions.remove(spec.version());
-        drop(specs); // this lock will be needed to publish
-        self.publish_recipe(spec).await
-    }
-
-    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        let mut specs = self.specs.write().await;
-        let versions = specs.entry(spec.name().to_owned()).or_default();
-        if versions.contains_key(spec.version()) {
-            Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
-            ))
-        } else {
-            versions.insert(spec.version().clone(), Arc::new(spec.clone()));
-            Ok(())
-        }
     }
 
     async fn remove_recipe(&self, pkg: &Ident) -> Result<()> {
@@ -295,67 +350,5 @@ where
                 ))
             })
             .map(|found| Arc::clone(&found.0))
-    }
-
-    async fn publish_package(
-        &self,
-        spec: &<Self::Recipe as spk_schema::Recipe>::Output,
-        components: &ComponentMap,
-    ) -> Result<()> {
-        let build = match &spec.ident().build {
-            Some(b) => b.to_owned(),
-            None => {
-                return Err(Error::String(format!(
-                    "Package must include a build in order to be published: {}",
-                    spec.ident()
-                )))
-            }
-        };
-
-        let mut packages = self.packages.write().await;
-        let versions = packages.entry(spec.name().to_owned()).or_default();
-        let builds = versions.entry(spec.version().clone()).or_default();
-
-        builds.insert(build, (Arc::new(spec.clone()), components.clone()));
-        Ok(())
-    }
-
-    async fn remove_package(&self, pkg: &Ident) -> Result<()> {
-        let build = match &pkg.build {
-            Some(b) => b,
-            None => {
-                return Err(Error::String(format!(
-                    "Package must include a build in order to be removed: {}",
-                    pkg
-                )))
-            }
-        };
-
-        let mut packages = self.packages.write().await;
-        let versions = match packages.get_mut(&pkg.name) {
-            Some(v) => v,
-            None => {
-                return Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
-                ))
-            }
-        };
-
-        let builds = match versions.get_mut(&pkg.version) {
-            Some(v) => v,
-            None => {
-                return Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
-                ))
-            }
-        };
-
-        if builds.remove(build).is_none() {
-            Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
-            ))
-        } else {
-            Ok(())
-        }
     }
 }

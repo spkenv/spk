@@ -26,7 +26,10 @@ use spk_schema::Ident;
 use spk_schema::{Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
-use super::{CachePolicy, Repository};
+use super::{
+    repository::{PublishPolicy, Storage},
+    CachePolicy, Repository,
+};
 use crate::{with_cache_policy, Error, Result};
 
 #[cfg(test)]
@@ -194,9 +197,127 @@ std::thread_local! {
 }
 
 #[async_trait::async_trait]
-impl Repository for SPFSRepository {
+impl Storage for SPFSRepository {
     type Recipe = SpecRecipe;
 
+    async fn publish_package_to_storage(
+        &self,
+        package: &<Self::Recipe as spk_schema::Recipe>::Output,
+        components: &HashMap<Component, spfs::encoding::Digest>,
+    ) -> Result<()> {
+        let tag_path = self.build_package_tag(package.ident())?;
+
+        // We will also publish the 'run' component in the old style
+        // for compatibility with older versions of the spk command.
+        // It's not perfect but at least the package will be visible
+        let legacy_tag = spfs::tracking::TagSpec::parse(&tag_path)?;
+        let legacy_component = if let Some(Build::Source) = package.ident().build {
+            *components.get(&Component::Source).ok_or_else(|| {
+                Error::String("Package must have a source component to be published".to_string())
+            })?
+        } else {
+            *components.get(&Component::Run).ok_or_else(|| {
+                Error::String("Package must have a run component to be published".to_string())
+            })?
+        };
+
+        self.inner.push_tag(&legacy_tag, &legacy_component).await?;
+
+        let components: std::result::Result<Vec<_>, _> = components
+            .iter()
+            .map(|(name, digest)| {
+                spfs::tracking::TagSpec::parse(tag_path.join(name.as_str()))
+                    .map(|spec| (spec, digest))
+            })
+            .collect();
+        for (tag_spec, digest) in components?.into_iter() {
+            self.inner.push_tag(&tag_spec, digest).await?;
+        }
+
+        // TODO: dedupe this part with force_publish_recipe
+        let tag_path = self.build_spec_tag(package.ident());
+        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
+        let payload = serde_yaml::to_vec(&package)
+            .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
+        let digest = self
+            .inner
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .await?;
+        self.inner.push_tag(&tag_spec, &digest).await?;
+        self.invalidate_caches();
+        Ok(())
+    }
+
+    async fn publish_recipe_to_storage(
+        &self,
+        spec: &Self::Recipe,
+        publish_policy: PublishPolicy,
+    ) -> Result<()> {
+        let tag_path = self.build_spec_tag(&spec.to_ident());
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+        if matches!(publish_policy, PublishPolicy::DoNotOverwriteVersion)
+            && self.inner.has_tag(&tag_spec).await
+        {
+            // BUG(rbottriell): this creates a race condition but is not super dangerous
+            // because of the non-destructive tag history
+            return Err(Error::SpkValidatorsError(
+                spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
+            ));
+        }
+
+        let payload = serde_yaml::to_vec(&spec)
+            .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
+        let digest = self
+            .inner
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .await?;
+        self.inner.push_tag(&tag_spec, &digest).await?;
+        self.invalidate_caches();
+        Ok(())
+    }
+
+    async fn read_components_from_storage(
+        &self,
+        pkg: &Ident,
+    ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
+        let package = self.lookup_package(pkg).await?;
+        let component_tags = package.into_components();
+        let mut components = HashMap::with_capacity(component_tags.len());
+        for (name, tag_spec) in component_tags.into_iter() {
+            let tag = self.resolve_tag(pkg, &tag_spec).await?;
+            components.insert(name, tag.target);
+        }
+        Ok(components)
+    }
+
+    async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()> {
+        for tag_spec in
+            with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
+                .await?
+                .tags()
+        {
+            match self.inner.remove_tag_stream(tag_spec).await {
+                Err(spfs::Error::UnknownReference(_)) => (),
+                res => res?,
+            }
+        }
+        // because we double-publish packages to be visible/compatible
+        // with the old repo tag structure, we must also try to remove
+        // the legacy version of the tag after removing the discovered
+        // as it may still be there and cause the removal to be ineffective
+        if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)?) {
+            match self.inner.remove_tag_stream(&legacy_tag).await {
+                Err(spfs::Error::UnknownReference(_)) => (),
+                res => res?,
+            }
+        }
+        self.invalidate_caches();
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Repository for SPFSRepository {
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -339,20 +460,6 @@ impl Repository for SPFSRepository {
         r
     }
 
-    async fn read_components(
-        &self,
-        pkg: &Ident,
-    ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
-        let package = self.lookup_package(pkg).await?;
-        let component_tags = package.into_components();
-        let mut components = HashMap::with_capacity(component_tags.len());
-        for (name, tag_spec) in component_tags.into_iter() {
-            let tag = self.resolve_tag(pkg, &tag_spec).await?;
-            components.insert(name, tag.target);
-        }
-        Ok(components)
-    }
-
     async fn read_package(
         &self,
         pkg: &Ident,
@@ -387,20 +494,6 @@ impl Repository for SPFSRepository {
         r
     }
 
-    async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        let tag_path = self.build_spec_tag(&spec.to_ident());
-        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
-        if self.inner.has_tag(&tag_spec).await {
-            // BUG(rbottriell): this creates a race condition but is not super dangerous
-            // because of the non-destructive tag history
-            Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
-            ))
-        } else {
-            self.force_publish_recipe(spec).await
-        }
-    }
-
     async fn remove_recipe(&self, pkg: &Ident) -> Result<()> {
         let tag_path = self.build_spec_tag(pkg);
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
@@ -414,99 +507,6 @@ impl Repository for SPFSRepository {
                 Ok(())
             }
         }
-    }
-
-    async fn force_publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
-        let tag_path = self.build_spec_tag(&spec.to_ident());
-        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
-
-        let payload = serde_yaml::to_vec(&spec).map_err(spk_schema::Error::SpecEncodingError)?;
-        let digest = self
-            .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
-            .await?;
-        self.inner.push_tag(&tag_spec, &digest).await?;
-        self.invalidate_caches();
-        Ok(())
-    }
-
-    async fn publish_package(
-        &self,
-        spec: &Spec,
-        components: &HashMap<Component, spfs::encoding::Digest>,
-    ) -> Result<()> {
-        let tag_path = self.build_package_tag(spec.ident())?;
-
-        // We will also publish the 'run' component in the old style
-        // for compatibility with older versions of the spk command.
-        // It's not perfect but at least the package will be visible
-        let legacy_tag = spfs::tracking::TagSpec::parse(&tag_path)?;
-        let legacy_component = if let Some(Build::Source) = spec.ident().build {
-            *components.get(&Component::Source).ok_or_else(|| {
-                Error::String("Package must have a source component to be published".to_string())
-            })?
-        } else {
-            *components.get(&Component::Run).ok_or_else(|| {
-                Error::String("Package must have a run component to be published".to_string())
-            })?
-        };
-
-        self.inner.push_tag(&legacy_tag, &legacy_component).await?;
-
-        let components: std::result::Result<Vec<_>, _> = components
-            .iter()
-            .map(|(name, digest)| {
-                spfs::tracking::TagSpec::parse(tag_path.join(name.as_str()))
-                    .map(|spec| (spec, digest))
-            })
-            .collect();
-        for (tag_spec, digest) in components?.into_iter() {
-            self.inner.push_tag(&tag_spec, digest).await?;
-        }
-
-        if let Some(Build::Embedded) = spec.ident().build {
-            return Err(Error::SpkIdentBuildError(InvalidBuildError::new_error(
-                "Cannot publish embedded package".to_string(),
-            )));
-        }
-
-        // TODO: dedupe this part with force_publish_recipe
-        let tag_path = self.build_spec_tag(spec.ident());
-        let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
-        let payload = serde_yaml::to_vec(&spec)
-            .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
-        let digest = self
-            .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
-            .await?;
-        self.inner.push_tag(&tag_spec, &digest).await?;
-        self.invalidate_caches();
-        Ok(())
-    }
-
-    async fn remove_package(&self, pkg: &Ident) -> Result<()> {
-        for tag_spec in
-            with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
-                .await?
-                .tags()
-        {
-            match self.inner.remove_tag_stream(tag_spec).await {
-                Err(spfs::Error::UnknownReference(_)) => (),
-                res => res?,
-            }
-        }
-        // because we double-publish packages to be visible/compatible
-        // with the old repo tag structure, we must also try to remove
-        // the legacy version of the tag after removing the discovered
-        // as it may still be there and cause the removal to be ineffective
-        if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)?) {
-            match self.inner.remove_tag_stream(&legacy_tag).await {
-                Err(spfs::Error::UnknownReference(_)) => (),
-                res => res?,
-            }
-        }
-        self.invalidate_caches();
-        Ok(())
     }
 
     async fn upgrade(&self) -> Result<String> {
