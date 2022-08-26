@@ -5,7 +5,7 @@ name = "spfs-cli-common"
 version = "0.34.6"
 
 [features]
-sentry = ["dep:sentry"]
+sentry = ["dep:sentry", "dep:whoami"]
 
 [dependencies]
 clap = { version = "3.2", features = ["derive", "env"] }
@@ -13,3 +13,4 @@ sentry = { version = "0.27.0", optional = true }
 spfs = { path = "../../spfs" }
 tracing = "0.1.22"
 tracing-subscriber = { version = "0.3.14", features = ["env-filter"] }
+whoami = { version = "1.2", optional = true }

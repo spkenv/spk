@@ -2680,6 +2680,7 @@ dependencies = [
  "spfs",
  "tracing",
  "tracing-subscriber 0.3.14",
+ "whoami",
 ]
 
 [[package]]
