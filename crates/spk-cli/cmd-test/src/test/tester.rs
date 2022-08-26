@@ -48,7 +48,6 @@ pub trait Tester: Send {
             rt,
             OsString::from("bash"),
             &[OsString::from("-ex"), script_path.into_os_string()],
-            // TODO: this should be more easily configurable on the spfs side
             Some("bash"),
         )?;
         let mut cmd = cmd.into_std();
