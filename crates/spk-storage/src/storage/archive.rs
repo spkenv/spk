@@ -12,7 +12,9 @@ use crate::{Error, Result};
 pub async fn export_package<P: AsRef<Path>>(pkg: &Ident, filename: P) -> Result<()> {
     // Make filename absolute as spfs::runtime::makedirs_with_perms does not handle
     // relative paths properly.
-    let filename = std::env::current_dir()?.join(filename);
+    let filename = std::env::current_dir()
+        .map_err(|err| Error::String(format!("Failed to get current directory: {err}")))?
+        .join(filename);
 
     if let Err(err) = std::fs::remove_file(&filename) {
         match err.kind() {
@@ -23,7 +25,10 @@ pub async fn export_package<P: AsRef<Path>>(pkg: &Ident, filename: P) -> Result<
 
     filename
         .parent()
-        .map(std::fs::create_dir_all)
+        .map(|dir| {
+            std::fs::create_dir_all(dir)
+                .map_err(|err| Error::DirectoryCreateError(dir.to_owned(), err))
+        })
         .unwrap_or_else(|| Ok(()))?;
 
     // Don't require the "origin" repo to exist here.

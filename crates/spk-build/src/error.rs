@@ -12,8 +12,14 @@ pub enum Error {
     Build(#[from] crate::build::BuildError),
     #[error(transparent)]
     Collection(#[from] crate::build::CollectionError),
+    #[error("Failed to create directory {0}")]
+    DirectoryCreateError(std::path::PathBuf, #[source] std::io::Error),
+    #[error("Failed to open file {0}")]
+    FileOpenError(std::path::PathBuf, #[source] std::io::Error),
+    #[error("Failed to write file {0}")]
+    FileWriteError(std::path::PathBuf, #[source] std::io::Error),
     #[error(transparent)]
-    IO(#[from] std::io::Error),
+    ProcessSpawnError(spfs::Error),
     #[error(transparent)]
     SPFS(#[from] spfs::Error),
     #[error(transparent)]

@@ -87,11 +87,11 @@ impl CmdEnter {
             Ok(0)
         } else {
             let mut terminate = signal(SignalKind::terminate())
-                .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
+                .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
             let mut interrupt = signal(SignalKind::interrupt())
-                .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
+                .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
             let mut quit = signal(SignalKind::quit())
-                .map_err(|err| Error::ProcessSpawnError("signal()".into(), err))?;
+                .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
             let owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
 
             // At this point, our pid is owned by root and has not moved into
@@ -165,7 +165,9 @@ impl CmdEnter {
             };
 
             Ok(res
-                .map_err(|err| Error::ProcessSpawnError("exec_runtime_command".into(), err))?
+                .map_err(|err| {
+                    Error::process_spawn_error("exec_runtime_command".into(), err, None)
+                })?
                 .code()
                 .unwrap_or(1))
         }
@@ -293,6 +295,6 @@ impl CmdEnter {
         let mut proc = cmd.into_tokio();
         tracing::debug!("{:?}", proc);
         proc.spawn()
-            .map_err(|err| Error::ProcessSpawnError("exec_runtime_command".into(), err))
+            .map_err(|err| Error::process_spawn_error("exec_runtime_command".into(), err, None))
     }
 }

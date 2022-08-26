@@ -446,7 +446,10 @@ impl Repository for SPFSRepository {
 
             let (mut reader, _) = self.inner.open_payload(tag.target).await?;
             let mut yaml = String::new();
-            reader.read_to_string(&mut yaml).await?;
+            reader
+                .read_to_string(&mut yaml)
+                .await
+                .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
             serde_yaml::from_str(&yaml)
                 .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
                 .map(Arc::new)
@@ -480,7 +483,10 @@ impl Repository for SPFSRepository {
 
             let (mut reader, _) = self.inner.open_payload(tag.target).await?;
             let mut yaml = String::new();
-            reader.read_to_string(&mut yaml).await?;
+            reader
+                .read_to_string(&mut yaml)
+                .await
+                .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
             serde_yaml::from_str(&yaml)
                 .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
                 .map(Arc::new)
@@ -639,7 +645,10 @@ impl SPFSRepository {
         };
         let (mut reader, _) = self.inner.open_payload(digest).await?;
         let mut yaml = String::new();
-        reader.read_to_string(&mut yaml).await?;
+        reader
+            .read_to_string(&mut yaml)
+            .await
+            .map_err(|err| Error::FileReadError(digest.to_string().into(), err))?;
         let meta: RepositoryMetadata =
             serde_yaml::from_str(&yaml).map_err(Error::InvalidRepositoryMetadata)?;
         Ok(meta)

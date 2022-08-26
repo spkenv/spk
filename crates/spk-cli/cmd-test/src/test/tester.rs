@@ -31,11 +31,19 @@ pub trait Tester: Send {
                 .to_string(),
         );
 
-        let tmpdir = tempfile::Builder::new().prefix("spk-test").tempdir()?;
+        let tmpdir = tempfile::Builder::new()
+            .prefix("spk-test")
+            .tempdir()
+            .map_err(Error::TempDirError)?;
         let script_path = tmpdir.path().join("test.sh");
-        let mut script_file = std::fs::File::create(&script_path)?;
-        script_file.write_all(self.script().as_bytes())?;
-        script_file.sync_data()?;
+        let mut script_file = std::fs::File::create(&script_path)
+            .map_err(|err| Error::FileWriteError(script_path.to_owned(), err))?;
+        script_file
+            .write_all(self.script().as_bytes())
+            .map_err(|err| Error::FileWriteError(script_path.to_owned(), err))?;
+        script_file
+            .sync_data()
+            .map_err(|err| Error::FileWriteError(script_path.to_owned(), err))?;
         // TODO: this should be more easily configurable on the spfs side
         std::env::set_var("SHELL", "bash");
         let cmd = spfs::build_shell_initialized_command(
@@ -44,7 +52,17 @@ pub trait Tester: Send {
             &[OsString::from("-ex"), script_path.into_os_string()],
         )?;
         let mut cmd = cmd.into_std();
-        let status = cmd.envs(env).current_dir(source_dir).status()?;
+        let status = cmd
+            .envs(env)
+            .current_dir(source_dir)
+            .status()
+            .map_err(|err| {
+                Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                    "bash".to_owned(),
+                    err,
+                    Some(source_dir.to_owned()),
+                ))
+            })?;
         if !status.success() {
             Err(TestError::new_error(format!(
                 "Test script returned non-zero exit status: {}",

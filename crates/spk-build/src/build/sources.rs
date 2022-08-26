@@ -14,24 +14,23 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::Ident;
 use spk_solve::PackageOps;
 use spk_storage::{self as storage};
-use thiserror::Error;
 
-use crate::Result;
+use crate::{Error, Result};
 
 #[cfg(test)]
 #[path = "./sources_test.rs"]
 mod sources_test;
 
 /// Denotes an error during the build process.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 #[error("Collection error: {message}")]
 pub struct CollectionError {
     pub message: String,
 }
 
 impl CollectionError {
-    pub fn new_error(format_args: std::fmt::Arguments) -> crate::Error {
-        crate::Error::Collection(Self {
+    pub fn new_error(format_args: std::fmt::Arguments) -> Error {
+        Error::Collection(Self {
             message: std::fmt::format(format_args),
         })
     }
@@ -90,7 +89,7 @@ where
         let package = self.recipe.generate_source_build(root.as_ref())?;
         let layer = self.collect_and_commit_sources(&package).await?;
         if !package.ident().is_source() {
-            return Err(crate::Error::String(format!(
+            return Err(Error::String(format!(
                 "Recipe generate source package with non-source identifier {}",
                 package.ident()
             )));
@@ -134,7 +133,8 @@ where
     Package: spk_schema::Package<Ident = Ident>,
 {
     let source_dir = source_dir.as_ref();
-    std::fs::create_dir_all(&source_dir)?;
+    std::fs::create_dir_all(&source_dir)
+        .map_err(|err| Error::DirectoryCreateError(source_dir.to_owned(), err))?;
 
     let env = super::binary::get_package_build_env(spec);
     for source in spec.sources().iter() {
@@ -142,7 +142,8 @@ where
             Some(subdir) => subdir.to_path(source_dir),
             None => source_dir.into(),
         };
-        std::fs::create_dir_all(&target_dir)?;
+        std::fs::create_dir_all(&target_dir)
+            .map_err(|err| Error::DirectoryCreateError(target_dir.to_owned(), err))?;
         source.collect(&target_dir, &env).map_err(|err| {
             CollectionError::new_error(format_args!(
                 "Failed to collect source: {}\n{:?}",

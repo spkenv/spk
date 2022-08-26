@@ -98,7 +98,10 @@ impl LocalSource {
     pub fn collect(&self, dirname: &Path) -> Result<()> {
         let mut rsync = std::process::Command::new("rsync");
         rsync.arg("--archive");
-        let mut path = self.path.canonicalize()?;
+        let mut path = self
+            .path
+            .canonicalize()
+            .map_err(|err| Error::InvalidPath(self.path.clone(), err))?;
         if path.is_dir() {
             // if the source path is a directory then we require
             // a trailing '/' so that rsync doesn't create new subdirectories
@@ -123,7 +126,17 @@ impl LocalSource {
         rsync.args(&[&path, &dirname]);
         tracing::debug!(cmd = ?rsync, "running");
         rsync.current_dir(&dirname);
-        match rsync.status()?.code() {
+        match rsync
+            .status()
+            .map_err(|err| {
+                Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                    "rsync".to_owned(),
+                    err,
+                    Some(dirname.to_owned()),
+                ))
+            })?
+            .code()
+        {
             Some(0) => Ok(()),
             code => Err(Error::String(format!(
                 "rsync command failed with exit code {:?}",
@@ -180,7 +193,17 @@ impl GitSource {
         for mut cmd in vec![git_cmd, submodule_cmd].into_iter() {
             tracing::debug!(?cmd, "running");
             cmd.current_dir(&dirname);
-            match cmd.status()?.code() {
+            match cmd
+                .status()
+                .map_err(|err| {
+                    Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                        "git".to_owned(),
+                        err,
+                        Some(dirname.to_owned()),
+                    ))
+                })?
+                .code()
+            {
                 Some(0) => (),
                 code => {
                     return Err(Error::String(format!(
@@ -205,7 +228,10 @@ pub struct TarSource {
 impl TarSource {
     /// Collect the represented sources files into the given directory.
     pub fn collect(&self, dirname: &Path) -> Result<()> {
-        let tmpdir = tempfile::Builder::new().prefix("spk-untar").tempdir()?;
+        let tmpdir = tempfile::Builder::new()
+            .prefix("spk-untar")
+            .tempdir()
+            .map_err(Error::TempDirError)?;
         let tarfile = relative_path::RelativePathBuf::from(&self.tar);
         let filename = tarfile.file_name().unwrap_or_default();
         let mut tarfile = tmpdir.path().join(filename);
@@ -215,7 +241,17 @@ impl TarSource {
             wget.arg(&self.tar);
             wget.current_dir(tmpdir.path());
             tracing::debug!(cmd=?wget, "running");
-            match wget.status()?.code() {
+            match wget
+                .status()
+                .map_err(|err| {
+                    Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                        "wget".to_owned(),
+                        err,
+                        Some(tmpdir.path().to_owned()),
+                    ))
+                })?
+                .code()
+            {
                 Some(0) => (),
                 code => {
                     return Err(Error::String(format!(
@@ -225,7 +261,10 @@ impl TarSource {
                 }
             }
         } else {
-            tarfile = std::path::PathBuf::from(&self.tar).canonicalize()?;
+            let tar_path = std::path::PathBuf::from(&self.tar);
+            tarfile = tar_path
+                .canonicalize()
+                .map_err(|err| Error::InvalidPath(tar_path, err))?;
         }
 
         let mut cmd = std::process::Command::new("tar");
@@ -233,7 +272,17 @@ impl TarSource {
         cmd.arg(&tarfile);
         cmd.current_dir(&dirname);
         tracing::debug!(?cmd, "running");
-        match cmd.status()?.code() {
+        match cmd
+            .status()
+            .map_err(|err| {
+                Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                    "tar".to_owned(),
+                    err,
+                    Some(dirname.to_owned()),
+                ))
+            })?
+            .code()
+        {
             Some(0) => Ok(()),
             code => Err(Error::String(format!(
                 "tar command failed with exit code {:?}",
@@ -281,7 +330,13 @@ impl ScriptSource {
         bash.current_dir(dirname);
 
         tracing::debug!("running sources script");
-        let mut child = bash.spawn()?;
+        let mut child = bash.spawn().map_err(|err| {
+            Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                "bash".to_owned(),
+                err,
+                Some(dirname.to_owned()),
+            ))
+        })?;
         let stdin = match child.stdin.as_mut() {
             Some(s) => s,
             None => {
@@ -294,7 +349,7 @@ impl ScriptSource {
             return Err(Error::wrap_io("failed to write source script to bash", err));
         }
 
-        match child.wait()?.code() {
+        match child.wait().map_err(Error::ProcessWaitError)?.code() {
             Some(0) => Ok(()),
             code => Err(Error::String(format!(
                 "source script failed with exit code {:?}",
