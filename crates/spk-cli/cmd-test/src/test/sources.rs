@@ -2,13 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::ffi::OsString;
-use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use spk_build::source_package_path;
-use spk_cli_common::{Error, Result, TestError};
+use spk_cli_common::Result;
 use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
@@ -19,6 +17,8 @@ use spk_schema::SpecRecipe;
 use spk_solve::graph::Graph;
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_storage::{self as storage};
+
+use super::Tester;
 
 pub struct PackageSourceTester<'a> {
     prefix: PathBuf,
@@ -128,16 +128,7 @@ impl<'a> PackageSourceTester<'a> {
         rt.save_state_to_storage().await?;
         spfs::remount_runtime(&rt).await?;
 
-        let mut env = solution.to_environment(Some(std::env::vars()));
-        env.insert(
-            "PREFIX".to_string(),
-            self.prefix
-                .to_str()
-                .ok_or_else(|| {
-                    Error::String("Test prefix must be a valid unicode string".to_string())
-                })?
-                .to_string(),
-        );
+        let env = solution.to_environment(Some(std::env::vars()));
 
         let source_dir = match &self.source {
             Some(source) => source.clone(),
@@ -145,27 +136,19 @@ impl<'a> PackageSourceTester<'a> {
                 .to_path(&self.prefix),
         };
 
-        let tmpdir = tempfile::Builder::new().prefix("spk-test").tempdir()?;
-        let script_path = tmpdir.path().join("test.sh");
-        let mut script_file = std::fs::File::create(&script_path)?;
-        script_file.write_all(self.script.as_bytes())?;
-        script_file.sync_data()?;
-        // TODO: this should be more easily configurable on the spfs side
-        std::env::set_var("SHELL", "bash");
-        let cmd = spfs::build_shell_initialized_command(
-            &rt,
-            OsString::from("bash"),
-            &[OsString::from("-ex"), script_path.into_os_string()],
-        )?;
-        let mut cmd = cmd.into_std();
-        let status = cmd.envs(env).current_dir(source_dir).status()?;
-        if !status.success() {
-            Err(TestError::new_error(format!(
-                "Test script returned non-zero exit status: {}",
-                status.code().unwrap_or(1)
-            )))
-        } else {
-            Ok(())
-        }
+        self.execute_test_script(&source_dir, env, &rt)
+    }
+}
+
+#[async_trait::async_trait]
+impl<'a> Tester for PackageSourceTester<'a> {
+    async fn test(&mut self) -> Result<()> {
+        self.test().await
+    }
+    fn prefix(&self) -> &Path {
+        &self.prefix
+    }
+    fn script(&self) -> &String {
+        &self.script
     }
 }

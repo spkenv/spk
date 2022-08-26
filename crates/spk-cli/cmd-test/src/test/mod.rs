@@ -5,7 +5,9 @@
 mod build;
 mod install;
 mod sources;
+mod tester;
 
 pub use build::PackageBuildTester;
 pub use install::PackageInstallTester;
 pub use sources::PackageSourceTester;
+pub use tester::Tester;
