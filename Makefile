@@ -49,7 +49,7 @@ debug:
 
 debug-spfs:
 	cd $(SOURCE_ROOT)
-	cargo build -p spfs $(cargo_features_arg)
+	cargo build -p spfs -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render $(cargo_features_arg)
 
 release:
 	cd $(SOURCE_ROOT)
