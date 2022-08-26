@@ -46,9 +46,9 @@ pub trait Tester: Send {
             .map_err(|err| Error::FileWriteError(script_path.to_owned(), err))?;
         let cmd = spfs::build_shell_initialized_command(
             rt,
+            Some("bash"),
             OsString::from("bash"),
             &[OsString::from("-ex"), script_path.into_os_string()],
-            Some("bash"),
         )?;
         let mut cmd = cmd.into_std();
         let status = cmd

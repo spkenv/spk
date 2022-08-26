@@ -98,9 +98,9 @@ pub fn build_interactive_shell_command(
 /// If `shell` is not specified, `$SHELL` will be read from the environment.
 pub fn build_shell_initialized_command<E, A, S>(
     runtime: &runtime::Runtime,
+    shell: Option<&str>,
     command: E,
     args: A,
-    shell: Option<&str>,
 ) -> Result<Command>
 where
     E: Into<OsString>,

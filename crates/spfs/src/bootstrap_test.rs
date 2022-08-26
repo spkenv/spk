@@ -84,7 +84,7 @@ async fn test_shell_initialization_startup_scripts(
         _ => {}
     }
 
-    let cmd = build_shell_initialized_command(&rt, "printenv", vec!["TEST_VALUE"], None).unwrap();
+    let cmd = build_shell_initialized_command(&rt, None, "printenv", vec!["TEST_VALUE"]).unwrap();
     let mut cmd = cmd.into_std();
     setenv(&mut cmd);
     println!("{cmd:?}");
@@ -139,7 +139,7 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempf
     }
 
     std::env::set_var("SHELL", &shell_path);
-    let cmd = build_shell_initialized_command(&rt, "echo", Option::<OsString>::None, None).unwrap();
+    let cmd = build_shell_initialized_command(&rt, None, "echo", Option::<OsString>::None).unwrap();
     let mut cmd = cmd.into_std();
     setenv(&mut cmd);
     println!("{cmd:?}");

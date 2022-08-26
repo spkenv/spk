@@ -78,7 +78,7 @@ impl Run for Env {
         } else {
             let cmd = self.command.get(0).unwrap();
             let args = &self.command[1..];
-            spfs::build_shell_initialized_command(&rt, cmd, args, None)?
+            spfs::build_shell_initialized_command(&rt, None, cmd, args)?
         };
         self.run_command(command.executable, command.args)
     }

@@ -470,9 +470,9 @@ where
             use std::ffi::OsString;
             spfs::build_shell_initialized_command(
                 &runtime,
+                Some("bash"),
                 OsString::from("bash"),
                 &[OsString::from("-ex"), build_script.into_os_string()],
-                Some("bash"),
             )?
         };
 

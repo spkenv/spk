@@ -284,7 +284,7 @@ impl CmdEnter {
         let cmd = match self.command.take() {
             Some(exe) if !exe.is_empty() => {
                 tracing::debug!("executing runtime command");
-                spfs::build_shell_initialized_command(rt, exe, self.args.drain(..), None)?
+                spfs::build_shell_initialized_command(rt, None, exe, self.args.drain(..))?
             }
             _ => {
                 tracing::debug!("starting interactive shell environment");
