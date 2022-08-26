@@ -410,7 +410,7 @@ impl Storage {
     /// Access a runtime in this storage.
     ///
     /// # Errors:
-    /// - [`spfs::Error::UnknownRuntime`] if the named runtime does not exist
+    /// - [`crate::Error::UnknownRuntime`] if the named runtime does not exist
     /// - if there are filesystem errors while reading the runtime on disk
     pub fn read_runtime<R: AsRef<Path>>(&self, reference: R) -> Result<Runtime> {
         let runtime_dir = self.root.join(reference.as_ref());

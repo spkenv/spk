@@ -49,10 +49,34 @@ class RustCrate(spdev.stdlib.components.RustCrate):
     schema = {}
 
     def compile_lint_script(self) -> spdev.shell.Script:
-        return inject_credentials(super().compile_lint_script())
+        if self.name != "spk":
+            return inject_credentials(super().compile_lint_script())
+
+        return inject_credentials(
+            [
+                spdev.shell.Chdir(self.path()),
+                spdev.shell.Command("make", "lint"),
+            ]
+        )
 
     def compile_build_script(self) -> spdev.shell.Script:
-        return inject_credentials(super().compile_build_script())
+        if self.name != "spk":
+            return inject_credentials(super().compile_build_script())
+
+        return inject_credentials(
+            [
+                spdev.shell.Command("mkdir", "-p", self.build_dir("debug")),
+                spdev.shell.Chdir(self.path()),
+                spdev.shell.Command(
+                    "cargo",
+                    "build",
+                    "--target-dir",
+                    self.build_dir(),
+                    "--features",
+                    "$FEATURES",
+                ),
+            ]
+        )
 
     def compile_package_script(self) -> spdev.shell.Script:
         # we are not actually publishing this one so don't bother packing it
