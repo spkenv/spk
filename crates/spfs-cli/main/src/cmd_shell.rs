@@ -4,8 +4,8 @@
 
 use clap::Args;
 
-use spfs_cli_common as cli;
 use super::cmd_run;
+use spfs_cli_common as cli;
 
 /// Enter a subshell in a configured spfs environment
 #[derive(Debug, Args)]

@@ -2658,6 +2658,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "spfs-cli-clean"
+version = "0.34.6"
+dependencies = [
+ "chrono",
+ "clap 3.2.11",
+ "colored",
+ "question",
+ "spfs",
+ "spfs-cli-common",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "spfs-cli-common"
 version = "0.34.6"
 dependencies = [
@@ -2715,61 +2729,67 @@ dependencies = [
 ]
 
 [[package]]
+name = "spfs-cli-enter"
+version = "0.34.6"
+dependencies = [
+ "clap 3.2.11",
+ "spfs",
+ "spfs-cli-common",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "spfs-cli-join"
+version = "0.34.6"
+dependencies = [
+ "clap 3.2.11",
+ "spfs",
+ "spfs-cli-common",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "spfs-cli-main"
 version = "0.34.6"
 dependencies = [
- "async-recursion",
- "async-stream",
- "async-trait",
- "caps",
- "chrono",
  "clap 3.2.11",
- "close-err",
- "cnproc",
  "colored",
- "config",
- "data-encoding",
- "expanduser",
- "faccess",
  "futures",
- "gitignore",
- "glob",
- "hyper",
- "indicatif",
  "itertools",
- "lazy_static",
- "libc",
  "nix",
- "once_cell",
- "procfs",
- "prost",
- "question",
- "rand 0.8.5",
  "relative-path",
- "ring",
- "semver",
- "sentry",
- "serde",
- "serde_derive",
  "serde_json",
- "serde_qs",
  "spfs",
  "spfs-cli-common",
- "spfs-encoding",
- "strum_macros",
- "tar",
- "tempfile",
- "thiserror",
  "tokio",
  "tokio-stream",
- "tokio-util",
- "tonic",
  "tracing",
- "tracing-subscriber 0.3.14",
+]
+
+[[package]]
+name = "spfs-cli-monitor"
+version = "0.34.6"
+dependencies = [
+ "clap 3.2.11",
+ "spfs",
+ "spfs-cli-common",
+ "tokio",
+ "tracing",
  "url",
- "uuid",
- "walkdir",
- "whoami",
+]
+
+[[package]]
+name = "spfs-cli-render"
+version = "0.34.6"
+dependencies = [
+ "clap 3.2.11",
+ "spfs",
+ "spfs-cli-common",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

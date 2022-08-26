@@ -13,7 +13,6 @@ path = "src/cli.rs"
 migration-to-components = ["spk-schema/migration-to-components"]
 sentry = ["dep:sentry", "dep:sentry-anyhow", "spk-cli-common/sentry", "spk-solve/sentry"]
 
-
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"

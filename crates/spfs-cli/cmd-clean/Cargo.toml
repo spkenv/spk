@@ -1,27 +1,22 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
-default-run = "spfs"
 edition = "2021"
-name = "spfs-cli-main"
+name = "spfs-cli-clean"
 version = "0.34.6"
 
 [[bin]]
-name = "spfs"
-path = "src/bin.rs"
+name = "spfs-clean"
+path = "src/cmd_clean.rs"
 
 [features]
 sentry = ["spfs-cli-common/sentry"]
 
 [dependencies]
+chrono = { version = "0.4.19", features = ["serde"] }
 clap = { version = "3.2", features = ["derive", "env"] }
 colored = "2.0"
-futures = "0.3.9"
-itertools = "0.10.3"
-nix = "0.24.1"
-relative-path = "1.3"
-serde_json = "1.0"
+question = "0.2.2"
 spfs = { path = "../../spfs" }
 spfs-cli-common = { path = "../common" }
-tokio = { version = "1.20", features = ["io-util", "rt", "rt-multi-thread"] }
-tokio-stream = { version = "0.1", features = ["net"] }
+tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
 tracing = "0.1.22"

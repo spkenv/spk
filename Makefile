@@ -44,21 +44,15 @@ build: debug
 
 debug:
 	cd $(SOURCE_ROOT)
-	cargo build --workspace $(cargo_features_arg) --features spfs/cli
-
-# This target is for building with no extra features enabled.
-# Ignores $FEATURES; doesn't enable spfs/cli.
-debug-slim:
-	cd $(SOURCE_ROOT)
-	cargo build --workspace
+	cargo build --workspace $(cargo_features_arg)
 
 debug-spfs:
 	cd $(SOURCE_ROOT)
-	cargo build -p spfs $(cargo_features_arg) --features spfs/cli
+	cargo build -p spfs $(cargo_features_arg)
 
 release:
 	cd $(SOURCE_ROOT)
-	cargo build --workspace --release $(cargo_features_arg) --features spfs/cli
+	cargo build --workspace --release $(cargo_features_arg)
 
 .PHONY: test
 test:
