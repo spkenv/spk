@@ -73,8 +73,8 @@ import:
 %: $</$<.spk
 
 %.spk : %.spk.yaml
-	spk info -l $<@source > /dev/null 2>&1 || spk make-source -v $<
-	spk mkb -r origin -lv $<
+	spk info -r local $<@source > /dev/null 2>&1 || spk make-source -v $<
+	spk mkb -r origin -v $<
 	spk export $< $@
 
 .PRECIOUS: bootstrap/*.spk.yaml
@@ -87,11 +87,6 @@ bootstrap/%.spk.yaml : bootstrap/spk.yaml.in
 docker.%:
 	if [ ! -f ../dist/rpm/RPMS/x86_64/spk-*.rpm ]; then \
 	echo "Please run 'make rpm' or download the latest spk rpm from github"; \
-	echo "and place it into dist/rpm/RPMS/x86_64/ before continuing"; \
-	exit 1; \
-	fi
-	if [ ! -f ../dist/rpm/RPMS/x86_64/spfs-*.rpm ]; then \
-	echo "Please build the spfs rpm or download the latest spfs rpm from github"; \
 	echo "and place it into dist/rpm/RPMS/x86_64/ before continuing"; \
 	exit 1; \
 	fi
