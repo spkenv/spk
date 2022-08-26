@@ -30,6 +30,7 @@ packages.%:
 clean: packages.clean
 
 .PHONY: lint
+lint: FEATURES?=server,spfs/server
 lint:
 	cargo fmt --check
 	cargo clippy --tests $(cargo_features_arg) -- -Dwarnings
@@ -55,6 +56,7 @@ release:
 	cargo build --workspace --release $(cargo_features_arg)
 
 .PHONY: test
+test: FEATURES?=server,spfs/server
 test:
 	spfs run - -- cargo test --workspace $(cargo_features_arg)
 

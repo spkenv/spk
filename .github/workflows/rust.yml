@@ -28,22 +28,20 @@ jobs:
           apt-get install -y libcap2-bin sudo nodejs cmake tcsh rsync protobuf-compiler
           rustup component add clippy rustfmt
       - uses: Swatinem/rust-cache@v2
-      - name: Build Slim
-        run: make debug-slim
       - name: Build Default
         run: make debug
       - name: Build Server
-        run: make debug FEATURES=spfs/server
+        run: make debug FEATURES=server
       - name: Install Debug Binaries
-        run: make install-debug-spfs FEATURES=spfs/server
+        run: make install-debug-spfs FEATURES=server
       - name: Setup a local origin repo
         run: SPFS_REMOTE_origin_ADDRESS="${SPFS_REMOTE_origin_ADDRESS}?create=true" spfs ls-tags -r origin
         # Run test before lint, lint takes a while and it is useful to know that
         # the tests are failing before knowing if the lints are passing.
       - name: Run Unit Tests
-        run: make test FEATURES=spfs/server
+        run: make test
       - name: Lint
-        run: make lint FEATURES=spfs/server
+        run: make lint
       - name: SPFS Integration Tests
         run: |
           # Run tests as a normal user to verify privilege escalation

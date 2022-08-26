@@ -2758,6 +2758,7 @@ dependencies = [
  "clap 3.2.11",
  "colored",
  "futures",
+ "hyper",
  "itertools",
  "nix",
  "relative-path",
@@ -2766,7 +2767,9 @@ dependencies = [
  "spfs-cli-common",
  "tokio",
  "tokio-stream",
+ "tonic",
  "tracing",
+ "url",
 ]
 
 [[package]]
