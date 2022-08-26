@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use futures::stream::{FuturesUnordered, TryStreamExt};
 use once_cell::sync::OnceCell;
@@ -16,6 +17,7 @@ use crate::{graph, storage, tracking, Error, Result};
 mod sync_test;
 
 /// Methods for syncing data between repositories
+#[derive(Copy, Clone, Debug)]
 pub enum SyncPolicy {
     /// Starting at the top-most requested item, sync and
     /// descend only into objects that are missing in the
@@ -57,14 +59,16 @@ impl SyncPolicy {
 }
 
 /// Handles the syncing of data between repositories
+///
+/// The syncer can be cloned efficiently
 pub struct Syncer<'src, 'dst, Reporter: SyncReporter = SilentSyncReporter> {
     src: &'src storage::RepositoryHandle,
     dest: &'dst storage::RepositoryHandle,
-    reporter: Reporter,
+    reporter: Arc<Reporter>,
     policy: SyncPolicy,
-    manifest_semaphore: Semaphore,
-    payload_semaphore: Semaphore,
-    processed_digests: RwLock<HashSet<encoding::Digest>>,
+    manifest_semaphore: Arc<Semaphore>,
+    payload_semaphore: Arc<Semaphore>,
+    processed_digests: Arc<RwLock<HashSet<encoding::Digest>>>,
 }
 
 impl<'src, 'dst> Syncer<'src, 'dst> {
@@ -75,11 +79,11 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         Self {
             src,
             dest,
-            reporter: SilentSyncReporter::default(),
+            reporter: Arc::new(SilentSyncReporter::default()),
             policy: SyncPolicy::default(),
-            manifest_semaphore: Semaphore::new(100),
-            payload_semaphore: Semaphore::new(100),
-            processed_digests: RwLock::new(HashSet::new()),
+            manifest_semaphore: Arc::new(Semaphore::new(100)),
+            payload_semaphore: Arc::new(Semaphore::new(100)),
+            processed_digests: Arc::new(RwLock::new(HashSet::new())),
         }
     }
 }
@@ -88,6 +92,25 @@ impl<'src, 'dst, Reporter> Syncer<'src, 'dst, Reporter>
 where
     Reporter: SyncReporter,
 {
+    /// Creates a new syncer pulling from the provided source
+    ///
+    /// This new instance shares the same resource pool and cache
+    /// as the one that is was cloned from. This allows them to more
+    /// safely run concurrently, and to sync more efficiently
+    /// by avoiding re-syncing the same objects.
+    pub fn clone_with_source<'src2>(&self, source: &'src2 storage::RepositoryHandle) -> Syncer<'src2, 'dst, Reporter> {
+        Syncer{
+            src: source,
+            dest: self.dest,
+            reporter: Arc::clone(&self.reporter),
+            policy: self.policy,
+            manifest_semaphore: Arc::clone(&self.manifest_semaphore),
+            payload_semaphore: Arc::clone(&self.payload_semaphore),
+            processed_digests: Arc::clone(&self.processed_digests),
+
+        }
+    }
+
     /// Specifies how the Syncer should deal with different types of data
     /// during the sync process, replacing any existing one.
     /// See [`SyncPolicy`].
@@ -101,7 +124,7 @@ where
     /// The possible total concurrent sync tasks will be the
     /// layer concurrency plus the payload concurrency.
     pub fn with_max_concurrent_manifests(mut self, concurrency: usize) -> Self {
-        self.manifest_semaphore = Semaphore::new(concurrency);
+        self.manifest_semaphore = Arc::new(Semaphore::new(concurrency));
         self
     }
 
@@ -110,19 +133,20 @@ where
     /// The possible total concurrent sync tasks will be the
     /// layer concurrency plus the payload concurrency.
     pub fn with_max_payload_concurrency(mut self, concurrency: usize) -> Self {
-        self.payload_semaphore = Semaphore::new(concurrency);
+        self.payload_semaphore = Arc::new(Semaphore::new(concurrency));
         self
     }
 
     /// Report progress to the given instance, replacing any existing one
-    pub fn with_reporter<R>(self, reporter: R) -> Syncer<'src, 'dst, R>
+    pub fn with_reporter<T, R>(self, reporter: T) -> Syncer<'src, 'dst, R>
     where
-        R: SyncReporter,
+        T: Into<Arc<R>>,
+        R: SyncReporter
     {
         Syncer {
             src: self.src,
             dest: self.dest,
-            reporter,
+            reporter: reporter.into(),
             policy: self.policy,
             manifest_semaphore: self.manifest_semaphore,
             payload_semaphore: self.payload_semaphore,

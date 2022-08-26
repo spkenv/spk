@@ -4,7 +4,7 @@
 
 use anyhow::{Context, Result};
 use clap::Args;
-use futures::{TryFutureExt, TryStreamExt};
+use futures::{TryStreamExt};
 
 use spk_cli_common::{CommandArgs, Run};
 
@@ -24,11 +24,12 @@ pub struct Import {
 impl Run for Import {
     async fn run(&mut self) -> Result<i32> {
         let mut summary = spfs::sync::SyncSummary::default();
+        let local_repo = spk_storage::local_repository().await?;
+        let syncer = spfs::Syncer::new(&local_repo, &local_repo)
+                .with_reporter(spfs::sync::ConsoleSyncReporter::default());
         for filename in self.files.iter() {
-            let open_tar =
-                spfs::storage::tar::TarRepository::open(&filename).map_err(|err| err.into());
-            let open_local = spk_storage::local_repository();
-            let (tar_repo, local_repo) = tokio::try_join!(open_tar, open_local)?;
+            let tar_repo =
+                spfs::storage::tar::TarRepository::open(&filename).await?;
             let tar_repo: spfs::storage::RepositoryHandle = tar_repo.into();
             let env_spec = tar_repo
                 .iter_tags()
@@ -37,8 +38,8 @@ impl Run for Import {
                 .await
                 .context("Failed to collect tags from archive")?;
             tracing::info!(archive = ?filename, "importing");
-            summary += spfs::Syncer::new(&tar_repo, &local_repo)
-                .with_reporter(spfs::sync::ConsoleSyncReporter::default())
+            summary += syncer
+                .clone_with_source(&tar_repo)
                 .sync_env(env_spec)
                 .await
                 .context("Failed to sync archived data")?
