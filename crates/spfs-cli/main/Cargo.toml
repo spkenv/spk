@@ -1,8 +1,34 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+default-run = "spfs"
 edition = "2021"
-name = "spfs-cli-common"
+name = "spfs-cli-main"
 version = "0.34.6"
+
+[[bin]]
+name = "spfs"
+path = "src/bin.rs"
+
+[[bin]]
+name = "spfs-clean"
+path = "src/cmd_clean.rs"
+
+[[bin]]
+name = "spfs-enter"
+path = "src/cmd_enter.rs"
+
+[[bin]]
+name = "spfs-join"
+path = "src/cmd_join.rs"
+
+[[bin]]
+name = "spfs-render"
+path = "src/cmd_render.rs"
+
+[[bin]]
+name = "spfs-monitor"
+path = "src/cmd_monitor.rs"
+
 
 [features]
 sentry = ["dep:sentry"]
@@ -44,6 +70,7 @@ serde_derive = "1.0"
 serde_json = "1.0"
 serde_qs = "0.10.1"
 spfs = { path = "../../spfs" }
+spfs-cli-common = { path = "../common" }
 spfs-encoding = { path = "../../spfs-encoding" }
 strum_macros = "0.24.2"
 tar = "0.4.30"

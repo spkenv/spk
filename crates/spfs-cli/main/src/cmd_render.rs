@@ -5,16 +5,14 @@
 use clap::Parser;
 
 use spfs::{prelude::*, Error};
+use spfs_cli_common as cli;
 
-#[macro_use]
-mod args;
-
-main!(CmdRender);
+cli::main!(CmdRender);
 
 #[derive(Debug, Parser)]
 pub struct CmdRender {
     #[clap(flatten)]
-    sync: args::Sync,
+    sync: cli::Sync,
 
     #[clap(short, long, parse(from_occurrences))]
     verbose: usize,

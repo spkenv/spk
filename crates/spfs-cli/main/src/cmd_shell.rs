@@ -4,13 +4,14 @@
 
 use clap::Args;
 
-use super::{args, cmd_run};
+use spfs_cli_common as cli;
+use super::cmd_run;
 
 /// Enter a subshell in a configured spfs environment
 #[derive(Debug, Args)]
 pub struct CmdShell {
     #[clap(flatten)]
-    sync: args::Sync,
+    sync: cli::Sync,
 
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,

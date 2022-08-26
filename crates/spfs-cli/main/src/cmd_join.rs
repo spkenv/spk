@@ -3,13 +3,12 @@
 // https://github.com/imageworks/spk
 
 use clap::Parser;
-use spfs::{Error, Result};
 use std::ffi::OsString;
 
-#[macro_use]
-mod args;
+use spfs::{Error, Result};
+use spfs_cli_common as cli;
 
-main!(CmdJoin, sentry = false, sync = true);
+cli::main!(CmdJoin, sentry = false, sync = true);
 
 /// Enter an existing runtime that is still active
 #[derive(Parser, Debug)]

@@ -7,11 +7,9 @@ use clap::Parser;
 use colored::*;
 
 use spfs::prelude::*;
+use spfs_cli_common as cli;
 
-#[macro_use]
-mod args;
-
-main!(CmdClean);
+cli::main!(CmdClean);
 
 /// Clean the repository storage of any untracked data
 ///

@@ -5,17 +5,16 @@
 use std::time::Duration;
 
 use clap::Parser;
-use spfs::Error;
 use tokio::{
     io::AsyncReadExt,
     signal::unix::{signal, SignalKind},
     time::timeout,
 };
 
-#[macro_use]
-mod args;
+use spfs::Error;
+use spfs_cli_common as cli;
 
-main!(CmdMonitor);
+cli::main!(CmdMonitor);
 
 /// Takes ownership of, and is responsible for monitoring an active runtime.
 ///

@@ -4,7 +4,7 @@
 
 use tracing_subscriber::prelude::*;
 
-pub const SPFS_LOG: &str = "SPFS_LOG";
+const SPFS_LOG: &str = "SPFS_LOG";
 
 /// Command line flags for configuring sync operations
 #[derive(Debug, Clone, clap::Args)]
@@ -139,7 +139,7 @@ pub fn configure_logging(verbosity: usize) {
 #[macro_export]
 macro_rules! main {
     ($cmd:ident) => {
-        main!($cmd, sentry = true, sync = false);
+        $crate::main!($cmd, sentry = true, sync = false);
     };
     ($cmd:ident, sentry = $sentry:literal, sync = true) => {
         fn main() {
@@ -150,11 +150,11 @@ macro_rules! main {
         }
         fn main2() -> i32 {
             let mut opt = $cmd::parse();
-            let config = configure!(opt, $sentry);
+            let config = $crate::configure!(opt, $sentry);
 
             let result = opt.run(&config);
 
-            handle_result!(result)
+            $crate::handle_result!(result)
         }
     };
     ($cmd:ident, sentry = $sentry:literal, sync = false) => {
@@ -166,7 +166,7 @@ macro_rules! main {
         }
         fn main2() -> i32 {
             let mut opt = $cmd::parse();
-            let config = configure!(opt, $sentry);
+            let config = $crate::configure!(opt, $sentry);
 
             let rt = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -186,19 +186,20 @@ macro_rules! main {
             // when the runtime is dropped.
             rt.shutdown_timeout(std::time::Duration::from_millis(250));
 
-            handle_result!(result)
+            $crate::handle_result!(result)
         }
     };
 }
 
+#[macro_export(local_inner_macros)]
 macro_rules! configure {
     ($opt:ident, $sentry:literal) => {{
         // sentry makes this process multithreaded, and must be disabled
         // for commands that use system calls which are bothered by this
         #[cfg(feature = "sentry")]
-        if $sentry { args::configure_sentry() }
-        args::configure_logging($opt.verbose);
-        args::configure_spops($opt.verbose);
+        if $sentry { $crate::configure_sentry() }
+        $crate::configure_logging($opt.verbose);
+        $crate::configure_spops($opt.verbose);
 
         match spfs::get_config() {
             Err(err) => {
@@ -210,11 +211,12 @@ macro_rules! configure {
     }};
 }
 
+#[macro_export(local_inner_macros)]
 macro_rules! handle_result {
     ($result:ident) => {
         match $result {
             Err(err) => {
-                args::capture_if_relevant(&err);
+                $crate::capture_if_relevant(&err);
                 tracing::error!("{err}");
                 1
             }

@@ -5,20 +5,19 @@
 use std::ffi::OsString;
 
 use clap::Parser;
-use spfs::env::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
-use spfs::Error;
 use tokio::{
     io::AsyncWriteExt,
     signal::unix::{signal, SignalKind},
 };
 
-#[macro_use]
-mod args;
+use spfs::env::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
+use spfs::Error;
+use spfs_cli_common as cli;
 
 // The runtime setup process manages the current namespace
 // which operates only on the current thread. For this reason
 // we must use a single threaded async runtime, if any.
-main!(CmdEnter, sentry = false, sync = true);
+cli::main!(CmdEnter, sentry = false, sync = true);
 
 /// Run a command in a configured spfs runtime
 #[derive(Debug, Parser)]
