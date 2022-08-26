@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+#![deny(unsafe_op_in_unsafe_fn)]
+#![warn(clippy::fn_params_excessive_bools)]
+
 mod build_key;
 mod error;
 mod package_iterator;

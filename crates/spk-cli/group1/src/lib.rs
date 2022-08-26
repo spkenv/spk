@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 #![deny(unsafe_op_in_unsafe_fn)]
+#![warn(clippy::fn_params_excessive_bools)]
 
 pub mod cmd_bake;
 pub mod cmd_deprecate;

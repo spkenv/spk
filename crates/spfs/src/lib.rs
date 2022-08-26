@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-//! Filesystem isolation, capture and distribution.
-
 #![deny(unsafe_op_in_unsafe_fn)]
+#![warn(clippy::fn_params_excessive_bools)]
+
+//! Filesystem isolation, capture and distribution.
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

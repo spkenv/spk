@@ -1,3 +1,6 @@
+#![deny(unsafe_op_in_unsafe_fn)]
+#![warn(clippy::fn_params_excessive_bools)]
+
 //! Common macros and argument structures for the spfs command line
 
 mod args;
