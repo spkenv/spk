@@ -68,7 +68,7 @@ clean:
 
 .PHONY: import
 import:
-	find . -name "bootstrap" -prune -o -name "*.spk" -exec spk import {} \;
+	find . -name "bootstrap" -prune -o -name "*.spk" -exec cargo run --bin spk import {} \;
 
 %: $</$<.spk
 

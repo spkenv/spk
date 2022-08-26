@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 use std::{convert::TryFrom, path::Path};
 
-use futures::{TryFutureExt, TryStreamExt};
 use spk_schema::Ident;
 
 use super::{Repository, SPFSRepository};
@@ -97,26 +96,6 @@ pub async fn export_package<P: AsRef<Path>>(pkg: &Ident, filename: P) -> Result<
         tar.flush()?;
     }
     Ok(())
-}
-
-pub async fn import_package<P: AsRef<Path>>(filename: P) -> Result<spfs::sync::SyncEnvResult> {
-    let (tar_repo, local_repo) = tokio::try_join!(
-        spfs::storage::tar::TarRepository::open(filename.as_ref()).map_err(|err| err.into()),
-        super::local_repository()
-    )?;
-    let tar_repo: spfs::storage::RepositoryHandle = tar_repo.into();
-
-    let env_spec = tar_repo
-        .iter_tags()
-        .map_ok(|(spec, _)| spec)
-        .try_collect()
-        .await?;
-    tracing::info!(archive = ?filename.as_ref(), "importing");
-    let result = spfs::Syncer::new(&tar_repo, &local_repo)
-        .with_reporter(spfs::sync::ConsoleSyncReporter::default())
-        .sync_env(env_spec)
-        .await?;
-    Ok(result)
 }
 
 async fn copy_package(
