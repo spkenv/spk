@@ -43,6 +43,7 @@ mv %{buildroot}/usr/local/bin/spk %{buildroot}/usr/local/bin/spk-%{version}
 %files
 /usr/local/bin/spfs
 /usr/local/bin/spk-%{version}
+%caps(cap_fowner+ep) /usr/local/bin/spfs-clean
 %caps(cap_net_admin+ep) /usr/local/bin/spfs-monitor
 %caps(cap_chown,cap_fowner+ep) /usr/local/bin/spfs-render
 %caps(cap_sys_chroot,cap_sys_admin+ep) /usr/local/bin/spfs-join
