@@ -2607,7 +2607,6 @@ dependencies = [
  "async-trait",
  "caps",
  "chrono",
- "clap 3.2.11",
  "close-err",
  "cnproc",
  "colored",
@@ -2629,7 +2628,6 @@ dependencies = [
  "procfs",
  "prost",
  "protobuf-src",
- "question",
  "rand 0.8.5",
  "relative-path",
  "ring",
@@ -2642,7 +2640,6 @@ dependencies = [
  "serde_qs",
  "serial_test",
  "spfs-encoding",
- "strum",
  "strum_macros",
  "tar",
  "tempfile",
@@ -2661,11 +2658,67 @@ dependencies = [
 ]
 
 [[package]]
+name = "spfs-cli-common"
+version = "0.34.6"
+dependencies = [
+ "async-recursion",
+ "async-stream",
+ "async-trait",
+ "caps",
+ "chrono",
+ "clap 3.2.11",
+ "close-err",
+ "cnproc",
+ "colored",
+ "config",
+ "data-encoding",
+ "expanduser",
+ "faccess",
+ "futures",
+ "gitignore",
+ "glob",
+ "hyper",
+ "indicatif",
+ "itertools",
+ "lazy_static",
+ "libc",
+ "nix",
+ "once_cell",
+ "procfs",
+ "prost",
+ "question",
+ "rand 0.8.5",
+ "relative-path",
+ "ring",
+ "semver",
+ "sentry",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_qs",
+ "spfs",
+ "spfs-encoding",
+ "strum_macros",
+ "tar",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tonic",
+ "tracing",
+ "tracing-subscriber 0.3.14",
+ "url",
+ "uuid",
+ "walkdir",
+ "whoami",
+]
+
+[[package]]
 name = "spfs-encoding"
 version = "0.34.6"
 dependencies = [
  "data-encoding",
- "rand 0.8.5",
  "ring",
  "rstest",
  "serde",
@@ -2747,6 +2800,7 @@ dependencies = [
  "lazy_static",
  "nix",
  "once_cell",
+ "rstest",
  "sentry",
  "sentry-anyhow",
  "sentry-tracing",
@@ -2776,6 +2830,7 @@ dependencies = [
  "colored",
  "futures",
  "itertools",
+ "rstest",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -2799,11 +2854,13 @@ dependencies = [
  "itertools",
  "nom",
  "nom-supreme",
+ "rstest",
  "spfs",
  "spk-cli-common",
  "spk-schema",
  "spk-solve",
  "spk-storage",
+ "tempfile",
  "tokio",
  "tracing",
 ]
@@ -2966,9 +3023,11 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap 3.2.11",
+ "rstest",
  "spfs",
  "spk-build",
  "spk-cli-common",
+ "spk-cmd-build",
  "spk-exec",
  "spk-schema",
  "spk-solve",
@@ -3248,12 +3307,6 @@ name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
-
-[[package]]
-name = "strum"
-version = "0.24.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "063e6045c0e62079840579a7e47a355ae92f60eb74daaf156fb1e84ba164e63f"
 
 [[package]]
 name = "strum_macros"

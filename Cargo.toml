@@ -8,6 +8,7 @@ members = [
     "crates/spfs",
     "crates/spk-build",
     "crates/spk-cli/*",
+    "crates/spfs-cli/*",
     "crates/spk-exec",
     "crates/spk-launcher",
     "crates/spk-schema",
