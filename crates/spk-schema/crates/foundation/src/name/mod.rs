@@ -9,8 +9,6 @@ pub use error::{Error, Result};
 
 use std::{borrow::Borrow, convert::TryFrom};
 
-use paste::paste;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[cfg(test)]
@@ -54,222 +52,6 @@ macro_rules! opt_name {
     };
 }
 
-/// Generate a pair of types to represent a name.
-///
-/// A `$typ_name::new()` method must be manually implemented.
-macro_rules! name {
-    ($typ_name:ident, $owned_typ_name:ident, $comment:tt) => {
-        paste! {
-            #[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
-            #[doc = "A borrowed " $comment " name"]
-            pub struct $typ_name(str);
-        }
-
-        paste! {
-            #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize)]
-            #[doc = "An owned, mutable " $comment " name"]
-            pub struct $owned_typ_name(String);
-        }
-
-        impl $typ_name {
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-
-            paste! {
-                #[doc = "Wrap a str as a `" $typ_name "`"]
-                #[doc = ""]
-                #[doc = "# Safety:"]
-                #[doc = ""]
-                #[doc = "This function bypasses validation and should not be used"]
-                #[doc = "unless the given argument is known to be valid"]
-                pub(crate) const unsafe fn from_str(inner: &str) -> &Self {
-                    unsafe { &*(inner as *const str as *const $typ_name) }
-                }
-            }
-
-            pub fn is_empty(&self) -> bool {
-                self.0.is_empty()
-            }
-
-            pub fn len(&self) -> usize {
-                self.0.len()
-            }
-        }
-
-        // Allow tests to manufacture owned instances with known good values.
-        #[allow(dead_code)]
-        impl $owned_typ_name {
-            paste! {
-                #[doc = "Create a `" $owned_typ_name "` from a `String`"]
-                #[doc = ""]
-                #[doc = "# Safety"]
-                #[doc = ""]
-                #[doc = "No validation is performed on `name`."]
-                pub unsafe fn from_string(name: String) -> Self {
-                    Self(name)
-                }
-            }
-
-            paste! {
-                #[doc = "Consume the `" $owned_typ_name "`, returning the inner `String`."]
-                pub fn into_inner(self) -> String {
-                    self.0
-                }
-            }
-        }
-
-        impl std::borrow::Borrow<$typ_name> for $owned_typ_name {
-            fn borrow(&self) -> &$typ_name {
-                self.as_ref()
-            }
-        }
-
-        impl std::borrow::Borrow<String> for $owned_typ_name {
-            fn borrow(&self) -> &String {
-                &self.0
-            }
-        }
-
-        impl std::borrow::ToOwned for $typ_name {
-            type Owned = $owned_typ_name;
-
-            fn to_owned(&self) -> Self::Owned {
-                $owned_typ_name(self.0.to_owned())
-            }
-        }
-
-        impl std::cmp::PartialEq<$typ_name> for $owned_typ_name {
-            fn eq(&self, other: &$typ_name) -> bool {
-                &**self == other
-            }
-        }
-
-        impl std::cmp::PartialEq<$owned_typ_name> for $typ_name {
-            fn eq(&self, other: &$owned_typ_name) -> bool {
-                &self.0 == other.as_str()
-            }
-        }
-
-        impl std::cmp::PartialEq<$owned_typ_name> for &$typ_name {
-            fn eq(&self, other: &$owned_typ_name) -> bool {
-                &self.0 == other.as_str()
-            }
-        }
-
-        impl std::cmp::PartialEq<str> for $typ_name {
-            fn eq(&self, other: &str) -> bool {
-                self.as_str() == other
-            }
-        }
-
-        impl std::cmp::PartialEq<str> for $owned_typ_name {
-            fn eq(&self, other: &str) -> bool {
-                &**self == other
-            }
-        }
-
-        impl std::convert::AsRef<$typ_name> for $typ_name {
-            fn as_ref(&self) -> &$typ_name {
-                self
-            }
-        }
-
-        impl std::convert::AsRef<$typ_name> for $owned_typ_name {
-            fn as_ref(&self) -> &$typ_name {
-                // Safety: from_str bypasses validation but the contents
-                // of owned instance must already be valid
-                unsafe { $typ_name::from_str(&self.0) }
-            }
-        }
-
-        impl std::convert::AsRef<std::ffi::OsStr> for $typ_name {
-            fn as_ref(&self) -> &std::ffi::OsStr {
-                std::ffi::OsStr::new(&self.0)
-            }
-        }
-
-        impl std::convert::AsRef<std::path::Path> for $typ_name {
-            fn as_ref(&self) -> &std::path::Path {
-                std::path::Path::new(&self.0)
-            }
-        }
-
-        impl std::convert::AsRef<std::path::Path> for $owned_typ_name {
-            fn as_ref(&self) -> &std::path::Path {
-                std::path::Path::new(&self.0)
-            }
-        }
-
-        impl std::convert::AsRef<str> for $owned_typ_name {
-            fn as_ref(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl std::convert::From<&$typ_name> for $owned_typ_name {
-            fn from(name: &$typ_name) -> Self {
-                name.to_owned()
-            }
-        }
-
-        impl std::convert::From<$owned_typ_name> for String {
-            fn from(val: $owned_typ_name) -> Self {
-                val.0
-            }
-        }
-
-        impl std::convert::TryFrom<&str> for $owned_typ_name {
-            type Error = $crate::name::Error;
-
-            fn try_from(s: &str) -> Result<Self> {
-                s.parse()
-            }
-        }
-
-        impl std::ops::Deref for $typ_name {
-            type Target = str;
-
-            fn deref(&self) -> &Self::Target {
-                &self.0
-            }
-        }
-
-        impl std::ops::Deref for $owned_typ_name {
-            type Target = $typ_name;
-
-            fn deref(&self) -> &Self::Target {
-                self.as_ref()
-            }
-        }
-
-        impl std::fmt::Display for $typ_name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                self.0.fmt(f)
-            }
-        }
-
-        impl std::fmt::Display for $owned_typ_name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                self.0.fmt(f)
-            }
-        }
-
-        impl std::str::FromStr for $owned_typ_name {
-            type Err = $crate::name::Error;
-
-            fn from_str(s: &str) -> Result<Self> {
-                $typ_name::new(&s).map(std::borrow::ToOwned::to_owned)
-            }
-        }
-    };
-    ($typ_name:ident, $comment:tt) => {
-        paste! {
-            name!($typ_name, [<$typ_name Buf>], $comment);
-        }
-    };
-}
-
 /// Denotes that an invalid package name was given.
 #[derive(Debug, Error)]
 #[error("Invalid name: {message}")]
@@ -283,18 +65,9 @@ impl InvalidNameError {
     }
 }
 
-name!(OptName, "option");
-name!(PkgName, "package");
-name!(RepositoryName, "repository");
-
-impl TryFrom<String> for PkgNameBuf {
-    type Error = Error;
-
-    fn try_from(s: String) -> Result<Self> {
-        validate_pkg_name(&s)?;
-        Ok(Self(s))
-    }
-}
+parsedbuf::parsed!(OptName, Error, "option");
+parsedbuf::parsed!(PkgName, Error, "package");
+parsedbuf::parsed!(RepositoryName, Error, "repository");
 
 impl Borrow<OptName> for PkgName {
     fn borrow(&self) -> &OptName {
@@ -312,10 +85,9 @@ impl PkgName {
     pub const MIN_LEN: usize = 2;
     pub const MAX_LEN: usize = 64;
 
-    pub fn new<S: AsRef<str> + ?Sized>(s: &S) -> Result<&PkgName> {
-        validate_pkg_name(s)?;
-        // Safety: from_str bypasses validation but we've just done that
-        Ok(unsafe { Self::from_str(s.as_ref()) })
+    /// Validate the given string as a package name
+    pub fn validate<S: AsRef<str> + ?Sized>(s: &S) -> Result<()> {
+        validate_pkg_name(s)
     }
 
     /// Interpret this package name as an option name
@@ -379,15 +151,6 @@ fn is_valid_pkg_name_char(c: char) -> bool {
     c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'
 }
 
-impl TryFrom<String> for OptNameBuf {
-    type Error = Error;
-
-    fn try_from(s: String) -> Result<Self> {
-        validate_opt_name(&s)?;
-        Ok(Self(s))
-    }
-}
-
 impl OptName {
     const SEP: char = '.';
     // all valid package names are assumed to/must be
@@ -414,11 +177,9 @@ impl OptName {
         unsafe { Self::from_str("distro") }
     }
 
-    /// Validate and wrap the given string as an OptName.
-    pub fn new<S: AsRef<str> + ?Sized>(s: &S) -> Result<&OptName> {
-        validate_opt_name(s)?;
-        // Safety: from_str skips validation but we've just done that
-        Ok(unsafe { Self::from_str(s.as_ref()) })
+    /// Validate the given string as an option name
+    pub fn validate<S: AsRef<str> + ?Sized>(s: &S) -> Result<()> {
+        validate_opt_name(s)
     }
 
     /// The non-namespace portion of this option. To get an [`OptName`]
@@ -568,11 +329,10 @@ where
 }
 
 impl RepositoryName {
-    pub fn new<S: AsRef<str> + ?Sized>(s: &S) -> Result<&RepositoryName> {
+    /// Validate the given string as a repository name
+    pub fn validate<S: AsRef<str> + ?Sized>(s: &S) -> Result<()> {
         // Using the same validation strategy as package names.
-        validate_pkg_name(s)?;
-        // Safety: from_str bypasses validation but we've just done that
-        Ok(unsafe { Self::from_str(s.as_ref()) })
+        validate_pkg_name(s)
     }
 }
 

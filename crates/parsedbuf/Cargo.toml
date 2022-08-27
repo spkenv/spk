@@ -1,0 +1,8 @@
+[package]
+authors = ["Ryan Bottriell <ryan@bottriell.ca>"]
+edition = "2021"
+name = "parsedbuf"
+version = "0.1.0"
+
+[dependencies]
+paste = "1.0"
