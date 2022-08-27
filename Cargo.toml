@@ -3,5 +3,17 @@ lto = true
 codegen-units = 1
 
 [workspace]
-members = ["crates/*", "crates/spk-cli/*", "crates/spk-solve/crates/*"]
-exclude = ["crates/spk-cli"]
+members = [
+    "crates/spfs-encoding",
+    "crates/spfs",
+    "crates/spk-build",
+    "crates/spk-cli/*",
+    "crates/spfs-cli/*",
+    "crates/spk-exec",
+    "crates/spk-launcher",
+    "crates/spk-schema",
+    "crates/spk-solve",
+    "crates/spk-solve/crates/*",
+    "crates/spk-storage",
+    "crates/spk",
+]

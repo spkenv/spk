@@ -7,13 +7,13 @@ use std::os::unix::ffi::OsStrExt;
 
 use clap::Args;
 
-use super::args;
+use spfs_cli_common as cli;
 
 /// Run a program in a configured spfs environment
 #[derive(Debug, Args)]
 pub struct CmdRun {
     #[clap(flatten)]
-    pub sync: args::Sync,
+    pub sync: cli::Sync,
 
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,

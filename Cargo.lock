@@ -2607,7 +2607,6 @@ dependencies = [
  "async-trait",
  "caps",
  "chrono",
- "clap 3.2.11",
  "close-err",
  "cnproc",
  "colored",
@@ -2629,7 +2628,6 @@ dependencies = [
  "procfs",
  "prost",
  "protobuf-src",
- "question",
  "rand 0.8.5",
  "relative-path",
  "ring",
@@ -2642,7 +2640,6 @@ dependencies = [
  "serde_qs",
  "serial_test",
  "spfs-encoding",
- "strum",
  "strum_macros",
  "tar",
  "tempfile",
@@ -2658,6 +2655,99 @@ dependencies = [
  "uuid",
  "walkdir",
  "whoami",
+]
+
+[[package]]
+name = "spfs-cli-clean"
+version = "0.34.6"
+dependencies = [
+ "chrono",
+ "clap 3.2.11",
+ "colored",
+ "question",
+ "spfs",
+ "spfs-cli-common",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spfs-cli-common"
+version = "0.34.6"
+dependencies = [
+ "clap 3.2.11",
+ "sentry",
+ "spfs",
+ "tracing",
+ "tracing-subscriber 0.3.14",
+ "whoami",
+]
+
+[[package]]
+name = "spfs-cli-enter"
+version = "0.34.6"
+dependencies = [
+ "clap 3.2.11",
+ "spfs",
+ "spfs-cli-common",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "spfs-cli-join"
+version = "0.34.6"
+dependencies = [
+ "clap 3.2.11",
+ "spfs",
+ "spfs-cli-common",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spfs-cli-main"
+version = "0.34.6"
+dependencies = [
+ "clap 3.2.11",
+ "colored",
+ "futures",
+ "hyper",
+ "itertools",
+ "nix",
+ "relative-path",
+ "serde_json",
+ "spfs",
+ "spfs-cli-common",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "spfs-cli-monitor"
+version = "0.34.6"
+dependencies = [
+ "clap 3.2.11",
+ "spfs",
+ "spfs-cli-common",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "spfs-cli-render"
+version = "0.34.6"
+dependencies = [
+ "clap 3.2.11",
+ "spfs",
+ "spfs-cli-common",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2747,6 +2837,7 @@ dependencies = [
  "lazy_static",
  "nix",
  "once_cell",
+ "rstest",
  "sentry",
  "sentry-anyhow",
  "sentry-tracing",
@@ -2776,6 +2867,7 @@ dependencies = [
  "colored",
  "futures",
  "itertools",
+ "rstest",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -2799,11 +2891,13 @@ dependencies = [
  "itertools",
  "nom",
  "nom-supreme",
+ "rstest",
  "spfs",
  "spk-cli-common",
  "spk-schema",
  "spk-solve",
  "spk-storage",
+ "tempfile",
  "tokio",
  "tracing",
 ]
@@ -2966,9 +3060,11 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap 3.2.11",
+ "rstest",
  "spfs",
  "spk-build",
  "spk-cli-common",
+ "spk-cmd-build",
  "spk-exec",
  "spk-schema",
  "spk-solve",
@@ -3248,12 +3344,6 @@ name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
-
-[[package]]
-name = "strum"
-version = "0.24.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "063e6045c0e62079840579a7e47a355ae92f60eb74daaf156fb1e84ba164e63f"
 
 [[package]]
 name = "strum_macros"

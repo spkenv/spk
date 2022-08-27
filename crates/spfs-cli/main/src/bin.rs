@@ -5,8 +5,6 @@
 use clap::{Parser, Subcommand};
 use spfs::Error;
 
-#[macro_use]
-mod args;
 mod cmd_check;
 mod cmd_commit;
 mod cmd_config;
@@ -38,7 +36,9 @@ mod cmd_untag;
 mod cmd_version;
 mod cmd_write;
 
-main!(Opt);
+use spfs_cli_common as cli;
+
+cli::main!(Opt);
 
 /// Filesystem isolation, capture and distribution.
 #[derive(Debug, Parser)]

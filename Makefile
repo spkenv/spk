@@ -30,6 +30,7 @@ packages.%:
 clean: packages.clean
 
 .PHONY: lint
+lint: FEATURES?=server,spfs/server
 lint:
 	cargo fmt --check
 	cargo clippy --tests $(cargo_features_arg) -- -Dwarnings
@@ -44,23 +45,18 @@ build: debug
 
 debug:
 	cd $(SOURCE_ROOT)
-	cargo build --workspace $(cargo_features_arg) --features spfs/cli
-
-# This target is for building with no extra features enabled.
-# Ignores $FEATURES; doesn't enable spfs/cli.
-debug-slim:
-	cd $(SOURCE_ROOT)
-	cargo build --workspace
+	cargo build --workspace $(cargo_features_arg)
 
 debug-spfs:
 	cd $(SOURCE_ROOT)
-	cargo build -p spfs $(cargo_features_arg) --features spfs/cli
+	cargo build -p spfs -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render $(cargo_features_arg)
 
 release:
 	cd $(SOURCE_ROOT)
-	cargo build --workspace --release $(cargo_features_arg) --features spfs/cli
+	cargo build --workspace --release $(cargo_features_arg)
 
 .PHONY: test
+test: FEATURES?=server,spfs/server
 test:
 	spfs run - -- cargo test --workspace $(cargo_features_arg)
 

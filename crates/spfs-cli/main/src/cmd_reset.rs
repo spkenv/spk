@@ -4,13 +4,13 @@
 
 use clap::Args;
 
-use super::args;
+use spfs_cli_common as cli;
 
 /// Reset changes, or rebuild the entire spfs directory
 #[derive(Args, Debug)]
 pub struct CmdReset {
     #[clap(flatten)]
-    sync: args::Sync,
+    sync: cli::Sync,
 
     /// Mount the resulting runtime in edit mode
     ///

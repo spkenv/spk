@@ -1,0 +1,20 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spfs-cli-monitor"
+version = "0.34.6"
+
+[[bin]]
+name = "spfs-monitor"
+path = "src/cmd_monitor.rs"
+
+[features]
+sentry = ["spfs-cli-common/sentry"]
+
+[dependencies]
+clap = { version = "3.2", features = ["derive", "env"] }
+spfs = { path = "../../spfs" }
+spfs-cli-common = { path = "../common" }
+tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
+tracing = "0.1.22"
+url = "2.2"

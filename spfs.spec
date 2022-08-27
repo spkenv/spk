@@ -22,7 +22,7 @@ Filesystem isolation, capture, and distribution.
 %setup -q
 
 %build
-cargo build --release -p spfs --verbose --all --features=spfs/server,spfs/cli,spfs/protobuf-src
+cargo build --release -p spfs -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render --verbose --all --features=server,spfs/protobuf-src
 
 %install
 mkdir -p %{buildroot}/usr/local/bin
