@@ -37,28 +37,80 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    pub async fn ensure_active_runtime(&self) -> Result<spfs::runtime::Runtime> {
+    /// Unless `--no-runtime` is present, relaunch the current process inside
+    /// a new spfs runtime.
+    ///
+    /// The caller is expected to pass in a list of subcommand alises that can
+    /// be used to find an appropriate place on the command line to insert a
+    /// `--no-runtime` argument, to avoid recursively creating a runtime.
+    pub async fn ensure_active_runtime(
+        &self,
+        sub_command_aliases: &[&str],
+    ) -> Result<spfs::runtime::Runtime> {
         if self.no_runtime {
             return Ok(spfs::active_runtime().await?);
         }
-        self.relaunch_with_runtime()
+        // Find where to insert a `--no-runtime` flag into the existing
+        // command line.
+        let no_runtime_arg_insertion_index = std::env::args()
+            // Skip the first arg because it is the application name and
+            // could be anything, including something that matches one of the
+            // subcommand aliases given.
+            .skip(1)
+            .position(|arg| sub_command_aliases.iter().any(|command| arg == *command))
+            // Add 2 to the index if we found it since the first element was
+            // skipped and we're supposed to give the insertion index which
+            // is after the position of the element we found.
+            .map(|index| index + 2)
+            // Default to 2 because that's the correct position on most cases.
+            .unwrap_or(2);
+        self.relaunch_with_runtime(no_runtime_arg_insertion_index)
     }
 
+    /// Relaunch the current process inside a new spfs runtime.
+    ///
+    /// To prevent the relaunched process from attempting to relaunch itself
+    /// again recursively, the caller must be a process that accept the
+    /// command line flag `--no-runtime`, and must specify what argument
+    /// position is appropriate to insert this flag.
+    ///
+    /// For example:
+    ///
+    /// ["spk", "env", "pkg1", "pkg2"]
+    ///  0      1      2       3
+    ///
+    /// `relaunch_with_runtime(2)` becomes:
+    ///
+    /// ["spfs", "run", "-", "--", "spk", "env", "--no-runtime", "pkg1", "pkg2"]
     #[cfg(target_os = "linux")]
-    pub fn relaunch_with_runtime(&self) -> Result<spfs::runtime::Runtime> {
+    pub fn relaunch_with_runtime(
+        &self,
+        no_runtime_arg_insertion_index: usize,
+    ) -> Result<spfs::runtime::Runtime> {
         use std::os::unix::ffi::OsStrExt;
 
         let args = std::env::args_os();
 
-        // ensure that we don't go into an infinite loop
-        // by disabling this process in the next command
-        std::env::set_var(SPK_NO_RUNTIME, "true");
-
         let spfs = std::ffi::CString::new("spfs").expect("should never fail");
+        let mut found_insertion_index = false;
         let mut args = args
-            .map(|arg| std::ffi::CString::new(arg.as_bytes()))
+            .enumerate()
+            .flat_map(|(index, arg)| {
+                if index == no_runtime_arg_insertion_index {
+                    found_insertion_index = true;
+                    vec![
+                        std::ffi::CString::new("--no-runtime"),
+                        std::ffi::CString::new(arg.as_bytes()),
+                    ]
+                } else {
+                    vec![std::ffi::CString::new(arg.as_bytes())]
+                }
+            })
             .collect::<std::result::Result<Vec<_>, _>>()
             .context("One or more arguments was not a valid c-string")?;
+        if !found_insertion_index {
+            args.push(std::ffi::CString::new("--no-runtime").expect("--no-runtime is valid UTF-8"));
+        }
         args.insert(0, std::ffi::CString::new("--").expect("should never fail"));
         args.insert(0, std::ffi::CString::new("-").expect("should never fail"));
         args.insert(0, std::ffi::CString::new("run").expect("should never fail"));
