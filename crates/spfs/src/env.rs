@@ -83,7 +83,6 @@ pub fn join_runtime(rt: &runtime::Runtime) -> Result<()> {
         });
     }
 
-    std::env::set_var("SPFS_RUNTIME", rt.name());
     drop_all_capabilities()?;
     Ok(())
 }

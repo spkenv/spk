@@ -148,7 +148,6 @@ impl CmdEnter {
             };
 
             owned.ensure_startup_scripts(&self.tmpdir)?;
-            std::env::set_var("SPFS_RUNTIME", owned.name());
 
             let mut child = self.exec_runtime_command(&owned).await?;
             let res = loop {
@@ -293,6 +292,7 @@ impl CmdEnter {
             }
         };
         let mut proc = cmd.into_tokio();
+        proc.env("SPFS_RUNTIME", rt.name());
         tracing::debug!("{:?}", proc);
         proc.spawn()
             .map_err(|err| Error::process_spawn_error("exec_runtime_command".into(), err, None))

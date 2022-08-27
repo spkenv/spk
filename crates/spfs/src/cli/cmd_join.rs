@@ -70,6 +70,7 @@ impl CmdJoin {
             }
         };
         let mut proc = cmd.into_std();
+        proc.env("SPFS_RUNTIME", rt.name());
         tracing::debug!("{:?}", proc);
         Ok(proc
             .status()
