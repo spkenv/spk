@@ -1,0 +1,24 @@
+pkg: tcl/8.6.3
+
+sources: 
+  - tar: https://sourceforge.net/projects/tcl/files/Tcl/8.6.3/tcl8.6.3-src.tar.gz/download
+
+build:
+
+  options:
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+
+    - pkg: gcc
+    - pkg: binutils
+    - pkg: stdfs 
+  script:
+    - cd tcl8.6.3/unix
+    - ./configure --prefix=/spfs
+    - make install
+
+install:
+  requirements:
+    - pkg: gcc 
+      fromBuildEnv: x.x

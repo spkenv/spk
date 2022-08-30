@@ -15,6 +15,7 @@ build:
     - pkg: binutils
     - pkg: libffi
     - pkg: openssl
+    - pkg: tcl
     - pkg: zlib/1.2
     - var: abi
       default: cp37m
@@ -97,6 +98,7 @@ install:
     - pkg: libffi
     - pkg: ncurses
     - pkg: bzip2
+    - pkg: tcl
       fromBuildEnv: Binary
     - pkg: zlib
       fromBuildEnv: Binary
