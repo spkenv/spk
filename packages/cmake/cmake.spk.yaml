@@ -1,4 +1,4 @@
-pkg: cmake/3.16.4
+pkg: cmake/3.18.2
 api: v0/package
 
 sources:
@@ -7,8 +7,8 @@ sources:
   # the tar file.
   - path: ./
   - script:
-    - export TARFILE=cmake-3.16.4-Linux-x86_64.tar.gz
-    - if [ ! -e ./$TARFILE ] ; then wget https://github.com/Kitware/CMake/releases/download/v3.16.4/$TARFILE ; fi
+    - export TARFILE=cmake-3.18.2-Linux-x86_64.tar.gz
+    - if [ ! -e ./$TARFILE ] ; then wget https://github.com/Kitware/CMake/releases/download/v3.18.2/$TARFILE ; fi
 
 build:
   options:
@@ -17,7 +17,7 @@ build:
   script:
     - mkdir -p build; cd build
     - tar -xvf
-        ../cmake-3.16.4-Linux-x86_64.tar.gz
+        ../cmake-3.18.2-Linux-x86_64.tar.gz
         --strip-components=1
         --exclude=doc
         --exclude=Help
