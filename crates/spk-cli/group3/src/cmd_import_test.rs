@@ -65,6 +65,8 @@ async fn test_archive_io() {
         sync: spfs_cli_common::Sync {
             sync: true,
             resync: true,
+            max_concurrent_manifests: None,
+            max_concurrent_payloads: None,
         },
         files: vec![filename],
     }
