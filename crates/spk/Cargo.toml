@@ -8,10 +8,35 @@ default-run = "spk"
 [[bin]]
 name = "spk"
 path = "src/cli.rs"
+required-features = ["cli"]
 
 [features]
+default = ["cli"]
 migration-to-components = ["spk-schema/migration-to-components"]
-sentry = ["dep:sentry", "dep:sentry-anyhow", "spk-cli-common/sentry", "spk-solve/sentry"]
+sentry = [
+    "dep:sentry",
+    "dep:sentry-anyhow",
+    "spk-cli-common/sentry",
+    "spk-solve/sentry",
+]
+spk-cli-common = ["dep:spk-cli-common"]
+cli = [
+    "dep:spk-cli-common",
+    "dep:spk-cli-group1",
+    "dep:spk-cli-group2",
+    "dep:spk-cli-group3",
+    "dep:spk-cli-group4",
+    "dep:spk-cmd-build",
+    "dep:spk-cmd-convert",
+    "dep:spk-cmd-env",
+    "dep:spk-cmd-explain",
+    "dep:spk-cmd-install",
+    "dep:spk-cmd-make-binary",
+    "dep:spk-cmd-make-source",
+    "dep:spk-cmd-render",
+    "dep:spk-cmd-repo",
+    "dep:spk-cmd-test",
+]
 
 [dependencies]
 anyhow = "1.0"
@@ -21,21 +46,21 @@ colored = "2.0.0"
 sentry = { version = "0.27.0", optional = true }
 sentry-anyhow = { version = "0.27.0", optional = true }
 spk-build = { path = '../spk-build' }
-spk-cli-common = { path = '../spk-cli/common' }
-spk-cli-group1 = { path = '../spk-cli/group1' }
-spk-cli-group2 = { path = '../spk-cli/group2' }
-spk-cli-group3 = { path = '../spk-cli/group3' }
-spk-cli-group4 = { path = '../spk-cli/group4' }
-spk-cmd-build = { path = '../spk-cli/cmd-build' }
-spk-cmd-convert = { path = '../spk-cli/cmd-convert' }
-spk-cmd-env = { path = '../spk-cli/cmd-env' }
-spk-cmd-explain = { path = '../spk-cli/cmd-explain' }
-spk-cmd-install = { path = '../spk-cli/cmd-install' }
-spk-cmd-make-binary = { path = '../spk-cli/cmd-make-binary' }
-spk-cmd-make-source = { path = '../spk-cli/cmd-make-source' }
-spk-cmd-render = { path = '../spk-cli/cmd-render' }
-spk-cmd-repo = { path = '../spk-cli/cmd-repo' }
-spk-cmd-test = { path = '../spk-cli/cmd-test' }
+spk-cli-common = { path = '../spk-cli/common', optional = true }
+spk-cli-group1 = { path = '../spk-cli/group1', optional = true }
+spk-cli-group2 = { path = '../spk-cli/group2', optional = true }
+spk-cli-group3 = { path = '../spk-cli/group3', optional = true }
+spk-cli-group4 = { path = '../spk-cli/group4', optional = true }
+spk-cmd-build = { path = '../spk-cli/cmd-build', optional = true }
+spk-cmd-convert = { path = '../spk-cli/cmd-convert', optional = true }
+spk-cmd-env = { path = '../spk-cli/cmd-env', optional = true }
+spk-cmd-explain = { path = '../spk-cli/cmd-explain', optional = true }
+spk-cmd-install = { path = '../spk-cli/cmd-install', optional = true }
+spk-cmd-make-binary = { path = '../spk-cli/cmd-make-binary', optional = true }
+spk-cmd-make-source = { path = '../spk-cli/cmd-make-source', optional = true }
+spk-cmd-render = { path = '../spk-cli/cmd-render', optional = true }
+spk-cmd-repo = { path = '../spk-cli/cmd-repo', optional = true }
+spk-cmd-test = { path = '../spk-cli/cmd-test', optional = true }
 spk-exec = { path = '../spk-exec' }
 spk-schema = { path = '../spk-schema' }
 spk-solve = { path = '../spk-solve' }
