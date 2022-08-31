@@ -12,6 +12,9 @@ use tokio::sync::{RwLock, Semaphore};
 use crate::{encoding, prelude::*};
 use crate::{graph, storage, tracking, Error, Result};
 
+const DEFAULT_MAX_CONCURRENT_MANIFESTS: usize = 100;
+const DEFAULT_MAX_CONCURRENT_PAYLOADS: usize = 100;
+
 #[cfg(test)]
 #[path = "./sync_test.rs"]
 mod sync_test;
@@ -81,8 +84,8 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             dest,
             reporter: Arc::new(SilentSyncReporter::default()),
             policy: SyncPolicy::default(),
-            manifest_semaphore: Arc::new(Semaphore::new(100)),
-            payload_semaphore: Arc::new(Semaphore::new(100)),
+            manifest_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_MANIFESTS)),
+            payload_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_PAYLOADS)),
             processed_digests: Arc::new(RwLock::new(HashSet::new())),
         }
     }
