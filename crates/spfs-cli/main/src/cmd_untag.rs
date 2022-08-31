@@ -38,6 +38,7 @@ impl CmdUntag {
         }
         if !self.all && !has_version {
             tracing::error!("You must specify one of --all, --latest or provide a tag with an explicit version number (eg: path/name~0)");
+            return Ok(1);
         }
 
         if self.all {
