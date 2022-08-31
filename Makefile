@@ -2,7 +2,11 @@ SPK_VERSION = $(shell grep Version spk.spec | cut -d ' ' -f 2)
 SPFS_VERSION = $(shell cat spfs.spec | grep Version | cut -d ' ' -f 2)
 SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
+comma := ,
 cargo_features_arg = $(if $(FEATURES),--features $(FEATURES))
+cargo_packages_arg := $(if $(CRATES),-p=$(CRATES))
+cargo_packages_arg := $(subst $(comma), -p=,$(cargo_packages_arg))
+
 
 # Create a file called "config.mak" to configure variables.
 -include config.mak
@@ -33,8 +37,8 @@ clean: packages.clean
 lint: FEATURES?=server,spfs/server
 lint:
 	cargo fmt --check
-	cargo clippy --tests $(cargo_features_arg) -- -Dwarnings
-	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps $(cargo_features_arg)
+	cargo clippy --tests $(cargo_features_arg) $(cargo_packages_arg) -- -Dwarnings
+	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps $(cargo_features_arg) $(cargo_packages_arg)
 
 .PHONY: format
 format:
@@ -58,7 +62,7 @@ release:
 .PHONY: test
 test: FEATURES?=server,spfs/server
 test:
-	spfs run - -- cargo test --workspace $(cargo_features_arg)
+	spfs run - -- cargo test --workspace $(cargo_features_arg) $(cargo_packages_arg)
 
 .PHONY: converters
 converters:

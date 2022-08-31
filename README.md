@@ -85,11 +85,18 @@ make rpms
 
 ### Testing
 
-Both projecs have a number of unit and integration tests as well as testable examples that can all be executed with `make test`. The tests for spk need to be executed under an spfs runtime in order to properly execute.
+Both projecs have a number of unit and integration tests as well as testable examples that can all be executed with `make test`. The tests for spk need to be executed under an spfs runtime in order to properly execute. We also have configured linting rules that must pass for all contributions.
+
+Our repository is broken down into a number of smaller crates for easier development, and they can be individually targeted in the makefile which can greatly reduce the time it takes for testing and linting.
 
 ```sh
 # run the unit test suite
 make test
+# check the code for lint
+make lint
+
+# only lint and test two specific crates
+make lint test CRATES=spfs-encoding,spfs-cli-common
 ```
 
 ### Bootstrapping
