@@ -49,7 +49,7 @@ impl Sync {
             syncer = syncer.with_max_concurrent_manifests(count)
         }
         if let Some(count) = self.max_concurrent_payloads {
-            syncer = syncer.with_max_payload_concurrency(count)
+            syncer = syncer.with_max_concurrent_payloads(count)
         }
         syncer
     }

@@ -98,8 +98,11 @@ where
     /// as the one that is was cloned from. This allows them to more
     /// safely run concurrently, and to sync more efficiently
     /// by avoiding re-syncing the same objects.
-    pub fn clone_with_source<'src2>(&self, source: &'src2 storage::RepositoryHandle) -> Syncer<'src2, 'dst, Reporter> {
-        Syncer{
+    pub fn clone_with_source<'src2>(
+        &self,
+        source: &'src2 storage::RepositoryHandle,
+    ) -> Syncer<'src2, 'dst, Reporter> {
+        Syncer {
             src: source,
             dest: self.dest,
             reporter: Arc::clone(&self.reporter),
@@ -107,7 +110,6 @@ where
             manifest_semaphore: Arc::clone(&self.manifest_semaphore),
             payload_semaphore: Arc::clone(&self.payload_semaphore),
             processed_digests: Arc::clone(&self.processed_digests),
-
         }
     }
 
@@ -132,7 +134,7 @@ where
     ///
     /// The possible total concurrent sync tasks will be the
     /// layer concurrency plus the payload concurrency.
-    pub fn with_max_payload_concurrency(mut self, concurrency: usize) -> Self {
+    pub fn with_max_concurrent_payloads(mut self, concurrency: usize) -> Self {
         self.payload_semaphore = Arc::new(Semaphore::new(concurrency));
         self
     }
@@ -141,7 +143,7 @@ where
     pub fn with_reporter<T, R>(self, reporter: T) -> Syncer<'src, 'dst, R>
     where
         T: Into<Arc<R>>,
-        R: SyncReporter
+        R: SyncReporter,
     {
         Syncer {
             src: self.src,
