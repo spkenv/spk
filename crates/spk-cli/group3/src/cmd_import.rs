@@ -19,7 +19,7 @@ pub struct Import {
     sync: spfs_cli_common::Sync,
 
     /// The archive to import from
-    #[clap(name = "FILE")]
+    #[clap(name = "FILE", required = true)]
     pub files: Vec<std::path::PathBuf>,
 }
 
