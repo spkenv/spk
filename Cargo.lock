@@ -2920,6 +2920,7 @@ dependencies = [
  "futures",
  "rstest",
  "spfs",
+ "spfs-cli-common",
  "spk-build",
  "spk-cli-common",
  "spk-schema",

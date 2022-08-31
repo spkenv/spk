@@ -62,6 +62,10 @@ async fn test_archive_io() {
         ]
     );
     let result = super::Import {
+        sync: spfs_cli_common::Sync {
+            sync: true,
+            resync: true,
+        },
         files: vec![filename],
     }
     .run()

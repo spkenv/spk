@@ -4,7 +4,7 @@
 
 use anyhow::{Context, Result};
 use clap::Args;
-use futures::{TryStreamExt};
+use futures::TryStreamExt;
 
 use spk_cli_common::{CommandArgs, Run};
 
@@ -15,6 +15,9 @@ mod cmd_import_test;
 /// Import a previously exported package/archive
 #[derive(Args)]
 pub struct Import {
+    #[clap(flatten)]
+    sync: spfs_cli_common::Sync,
+
     /// The archive to import from
     #[clap(name = "FILE")]
     pub files: Vec<std::path::PathBuf>,
@@ -25,11 +28,11 @@ impl Run for Import {
     async fn run(&mut self) -> Result<i32> {
         let mut summary = spfs::sync::SyncSummary::default();
         let local_repo = spk_storage::local_repository().await?;
-        let syncer = spfs::Syncer::new(&local_repo, &local_repo)
-                .with_reporter(spfs::sync::ConsoleSyncReporter::default());
+        // src and dst are the same here which is useless, but we will
+        // be using this syncer to create more useful ones for each archive
+        let syncer = self.sync.get_syncer(&local_repo, &local_repo);
         for filename in self.files.iter() {
-            let tar_repo =
-                spfs::storage::tar::TarRepository::open(&filename).await?;
+            let tar_repo = spfs::storage::tar::TarRepository::open(&filename).await?;
             let tar_repo: spfs::storage::RepositoryHandle = tar_repo.into();
             let env_spec = tar_repo
                 .iter_tags()
