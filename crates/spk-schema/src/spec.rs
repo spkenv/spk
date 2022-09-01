@@ -80,7 +80,7 @@ macro_rules! spec {
 pub struct SpecTemplate {
     name: PkgNameBuf,
     file_path: std::path::PathBuf,
-    inner: serde_yaml::Mapping,
+    template: String,
 }
 
 impl Named for SpecTemplate {
@@ -97,11 +97,11 @@ impl Template for SpecTemplate {
     }
 
     fn render(&self, _options: &OptionMap) -> Result<Self::Output> {
-        serde_yaml::from_value(self.inner.clone().into()).map_err(|err| {
-            Error::String(format!(
-                "failed to parse rendered template for {}: {err}",
-                self.file_path.display()
-            ))
+        serde_yaml::from_str(&self.template).map_err(|err| {
+            Error::InvalidYaml(crate::error::InvalidYamlError{
+                yaml: self.template.clone(),
+                err,
+            })
         })
     }
 }
@@ -113,19 +113,22 @@ impl TemplateExt for SpecTemplate {
             .map_err(|err| Error::InvalidPath(path.to_owned(), err))?;
         let file = std::fs::File::open(&file_path)
             .map_err(|err| Error::FileOpenError(file_path.to_owned(), err))?;
-            let mut yaml = String::new();
-        std::io::BufReader::new(file).read_to_string(&mut yaml).map_err(|err| {
+        let mut template = String::new();
+        std::io::BufReader::new(file).read_to_string(&mut template).map_err(|err| {
             Error::String(format!("Failed to read file {path:?}: {err}"))
         })?;
 
-        let inner: serde_yaml::Mapping = serde_yaml::from_str(&yaml).map_err(|err| {
-            Error::InvalidYaml(crate::error::InvalidYamlError{
-                yaml,
+        // validate that the template is still a valid yaml mapping even
+        // though we will need to re-process it again later on
+        let template_value: serde_yaml::Mapping = match serde_yaml::from_str(&template) {
+            Err(err) => return Err(Error::InvalidYaml(crate::error::InvalidYamlError{
+                yaml: template,
                 err,
-            })
-        })?;
+            })),
+            Ok(v) => v,
+        };
 
-        let pkg = inner
+        let pkg = template_value
             .get(&serde_yaml::Value::String("pkg".to_string()))
             .ok_or_else(|| {
                 crate::Error::String(format!("Missing pkg field in spec file: {file_path:?}"))
@@ -141,7 +144,7 @@ impl TemplateExt for SpecTemplate {
             pkg.split('/').next().unwrap_or(pkg),
         )?;
 
-        if inner
+        if template_value
             .get(&serde_yaml::Value::String("api".to_string()))
             .is_none()
         {
@@ -154,7 +157,7 @@ impl TemplateExt for SpecTemplate {
         Ok(Self {
             file_path,
             name,
-            inner,
+            template,
         })
     }
 }
