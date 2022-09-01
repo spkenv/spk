@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -112,10 +113,16 @@ impl TemplateExt for SpecTemplate {
             .map_err(|err| Error::InvalidPath(path.to_owned(), err))?;
         let file = std::fs::File::open(&file_path)
             .map_err(|err| Error::FileOpenError(file_path.to_owned(), err))?;
-        let reader = std::io::BufReader::new(file);
+            let mut yaml = String::new();
+        std::io::BufReader::new(file).read_to_string(&mut yaml).map_err(|err| {
+            Error::String(format!("Failed to read file {path:?}: {err}"))
+        })?;
 
-        let inner: serde_yaml::Mapping = serde_yaml::from_reader(reader).map_err(|err| {
-            Error::String(format!("Invalid yaml in template file {path:?}: {err}"))
+        let inner: serde_yaml::Mapping = serde_yaml::from_str(&yaml).map_err(|err| {
+            Error::InvalidYaml(crate::error::InvalidYamlError{
+                yaml,
+                err,
+            })
         })?;
 
         let pkg = inner
