@@ -295,7 +295,11 @@ impl Requests {
             req.add_requester(RequestedBy::CommandLine);
 
             if req.pkg.components.is_empty() {
-                req.pkg.components.insert(Component::default_for_run());
+                if req.pkg.is_source() {
+                    req.pkg.components.insert(Component::Source);
+                } else {
+                    req.pkg.components.insert(Component::default_for_run());
+                }
             }
             if req.required_compat.is_none() {
                 req.required_compat = Some(CompatRule::API);
