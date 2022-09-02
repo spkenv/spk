@@ -16,6 +16,8 @@ colored = { workspace = true }
 futures = "0.3.9"
 glob = "0.3.0"
 lazy_static = { workspace = true }
+nom = { workspace = true }
+nom-supreme = { workspace = true }
 once_cell = { workspace = true }
 serde_json = "1.0.57"
 serde_yaml = "0.8.17"

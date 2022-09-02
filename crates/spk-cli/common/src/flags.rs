@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::convert::From;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -23,6 +22,9 @@ use spk_solve::{self as solve};
 #[cfg(feature = "statsd")]
 use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
 use spk_storage::{self as storage};
+
+use crate::parsing::stage_specifier;
+use crate::Error;
 
 #[cfg(test)]
 #[path = "./flags_test.rs"]
@@ -424,13 +426,15 @@ pub async fn parse_stage_specifier(
     options: &OptionMap,
     repos: &[Arc<storage::RepositoryHandle>],
 ) -> Result<(Arc<SpecRecipe>, std::path::PathBuf, TestStage)> {
-    let (package, stage) = specifier.split_once('@').ok_or_else(|| {
-        anyhow!(
-            "Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
-        )
-    })?;
+    use nom::combinator::all_consuming;
 
-    let stage = TestStage::from_str(stage)?;
+    let (package, stage) =
+        all_consuming::<_, _, nom_supreme::error::ErrorTree<_>, _>(stage_specifier)(specifier)
+            .map(|(_, (package, stage))| (package, stage))
+            .map_err(|err| match err {
+                nom::Err::Error(e) | nom::Err::Failure(e) => Error::String(e.to_string()),
+                nom::Err::Incomplete(_) => unreachable!(),
+            })?;
 
     let (spec, filename) =
         find_package_recipe_from_template_or_repo(&Some(package), options, repos).await?;
