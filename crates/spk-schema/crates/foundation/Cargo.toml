@@ -11,6 +11,7 @@ migration-to-components = []
 colored = "2.0"
 data-encoding = "2.3"
 enum_dispatch = "0.3.8"
+format_serde_error = {version = "0.3", default_features = false, features = ["serde_yaml", "colored"]}
 ignore = "0.4.18"
 itertools = "0.10"
 nom = "7.1"

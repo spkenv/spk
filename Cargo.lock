@@ -3144,6 +3144,7 @@ dependencies = [
  "colored",
  "data-encoding",
  "enum_dispatch",
+ "format_serde_error",
  "ignore",
  "itertools",
  "nom",
