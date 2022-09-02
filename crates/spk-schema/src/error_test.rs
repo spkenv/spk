@@ -3,19 +3,10 @@
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
-use super::InvalidYamlError;
-
 #[rstest]
 fn test_yaml_error_empty() {
     static YAML: &str = r#""#;
-    let res = serde_yaml::from_str::<crate::Spec>(YAML);
-    let err = match res {
-        Err(err) => InvalidYamlError {
-            yaml: YAML.to_string(),
-            err,
-        },
-        Ok(_) => panic!("expected yaml parsing to fail"),
-    };
+    let err = crate::Spec::from_yaml(YAML).expect_err("expected yaml parsing to fail");
 
     let message = err.to_string();
     assert_eq!(
@@ -27,16 +18,9 @@ fn test_yaml_error_empty() {
 #[rstest]
 fn test_yaml_short() {
     static YAML: &str = r#"short and wrong"#;
-    let res = serde_yaml::from_str::<crate::Spec>(YAML);
-    let err = match res {
-        Err(err) => InvalidYamlError {
-            yaml: YAML.to_string(),
-            err,
-        },
-        Ok(_) => panic!("expected yaml parsing to fail"),
-    };
+    let err = crate::Spec::from_yaml(YAML).expect_err("expected yaml parsing to fail");
 
-    let expected = r#"invalid type: string "short and wrong", expected a YAML mapping at line 1 column 1
+    let expected = r#"invalid type: string "short and wrong", expected struct YamlMapping at line 1 column 1
 000 | short and wrong
     | ^
 "#;
@@ -61,16 +45,15 @@ install:
 test:
   - stage: 1
 "#;
-    let res = serde_yaml::from_str::<crate::Spec>(YAML);
-    let err = match res {
-        Err(err) => InvalidYamlError {
-            yaml: YAML.to_string(),
-            err,
-        },
-        Ok(_) => panic!("expected yaml parsing to fail"),
-    };
-
-    let expected = r#"invalid type: map, expected a sequence"#;
+    let err = crate::Spec::from_yaml(YAML).expect_err("expected yaml parsing to fail");
+    let expected = r#"install.requirements: invalid type: map, expected a sequence at line 10 column 17
+007 |     - "hello, world"
+008 | install:
+009 |   requirements: {}
+    |                 ^
+010 | test:
+011 |   - stage: 1
+"#;
 
     let message = err.to_string();
     assert_eq!(message, expected);
