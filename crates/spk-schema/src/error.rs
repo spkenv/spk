@@ -91,18 +91,21 @@ impl std::fmt::Display for InvalidYamlError {
         let reader = std::io::BufReader::new(std::io::Cursor::new(&self.yaml));
         let lines = reader.lines().enumerate();
         let mut lines = match loc.line() {
+            // loc.line starts at 1, so 0 is not technically possible
             0 | 1 | 2 => lines.skip(0),
-            pos => lines.skip(pos - 2),
+            pos => lines.skip(pos - 3),
         };
         if loc.line() > 1 {
             let (line_no, line) = lines.next().unwrap();
             f.write_fmt(format_args!("{line_no:03} | "))?;
             f.write_str(&line.unwrap())?;
+            f.write_char('\n')?;
         }
         if loc.line() > 2 {
             let (line_no, line) = lines.next().unwrap();
             f.write_fmt(format_args!("{line_no:03} | "))?;
             f.write_str(&line.unwrap())?;
+            f.write_char('\n')?;
         }
         let (line_no, target_line) = lines.next().expect("reported error location was wrong");
         f.write_fmt(format_args!("{line_no:03} | "))?;
@@ -112,10 +115,12 @@ impl std::fmt::Display for InvalidYamlError {
         if let Some((line_no, Ok(line))) = lines.next() {
             f.write_fmt(format_args!("{line_no:03} | "))?;
             f.write_str(&line)?;
+            f.write_char('\n')?;
         }
         if let Some((line_no, Ok(line))) = lines.next() {
             f.write_fmt(format_args!("{line_no:03} | "))?;
             f.write_str(&line)?;
+            f.write_char('\n')?;
         }
         Ok(())
     }
