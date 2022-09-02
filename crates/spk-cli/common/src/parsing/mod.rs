@@ -4,4 +4,4 @@
 
 mod stage;
 
-pub use stage::stage_specifier;
+pub use stage::{stage_specifier, VariantIndex};
