@@ -6,7 +6,8 @@ use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
 use relative_path::RelativePathBuf;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use spk_schema_foundation::ident_ops::MetadataPath;
+use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
+use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
 
 use crate::{parsing, RangeIdent, Result};
 use spk_schema_foundation::ident_build::Build;
@@ -72,6 +73,17 @@ impl Ident {
             version: Default::default(),
             build: Default::default(),
         }
+    }
+
+    /// Return if this identifier can possibly have embedded packages.
+    pub fn can_embed(&self) -> bool {
+        // Only builds can have embeds.
+        matches!(self.build, Some(Build::Digest(_)))
+    }
+
+    /// Return true if this identifier is for an embedded package.
+    pub fn is_embedded(&self) -> bool {
+        matches!(self.build, Some(Build::Embedded(_)))
     }
 
     /// Return true if this identifier is for a source package.
@@ -148,10 +160,42 @@ impl Ident {
 impl MetadataPath for Ident {
     fn metadata_path(&self) -> RelativePathBuf {
         let path = RelativePathBuf::from(self.name.as_str());
-        if let Some(vb) = self.version_and_build() {
-            path.join(vb.as_str())
-        } else {
-            path
+        match &self.build {
+            Some(build) => path
+                .join(self.version.metadata_path())
+                .join(build.metadata_path()),
+            None => {
+                if self.version.is_zero() {
+                    path
+                } else {
+                    path.join(self.version.metadata_path())
+                }
+            }
+        }
+    }
+}
+
+impl PartialEq<&Ident> for IdentPartsBuf {
+    fn eq(&self, other: &&Ident) -> bool {
+        self.repository_name.is_none()
+            && self.pkg_name == other.name.as_str()
+            && self.version_str == Some(other.version.to_string())
+            && self.build_str == other.build.as_ref().map(|b| b.to_string())
+    }
+}
+
+impl TagPath for Ident {
+    fn tag_path(&self) -> RelativePathBuf {
+        let path = RelativePathBuf::from(self.name.as_str());
+        match &self.build {
+            Some(build) => path.join(self.version.tag_path()).join(build.tag_path()),
+            None => {
+                if self.version.is_zero() {
+                    path
+                } else {
+                    path.join(self.version.tag_path())
+                }
+            }
         }
     }
 }
@@ -212,17 +256,59 @@ impl TryFrom<String> for Ident {
     }
 }
 
+impl TryFrom<&IdentPartsBuf> for Ident {
+    type Error = crate::Error;
+
+    fn try_from(parts: &IdentPartsBuf) -> Result<Self> {
+        if parts.repository_name.is_some() {
+            return Err("Ident may not have a repository name".into());
+        }
+
+        let name: PkgNameBuf = parts.pkg_name.parse()?;
+        let version = parts
+            .version_str
+            .as_ref()
+            .map(|v| v.parse::<Version>())
+            .transpose()?
+            .unwrap_or_default();
+        let build = parts
+            .build_str
+            .as_ref()
+            .map(|v| v.parse::<Build>())
+            .transpose()?;
+
+        Ok(Self {
+            name,
+            version,
+            build,
+        })
+    }
+}
+
 impl FromStr for Ident {
     type Err = crate::Error;
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> Result<Self> {
-        parsing::ident::<nom_supreme::error::ErrorTree<_>>(source)
+        use nom::combinator::all_consuming;
+
+        all_consuming(parsing::ident::<nom_supreme::error::ErrorTree<_>>)(source)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
                 nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
                 nom::Err::Incomplete(_) => unreachable!(),
             })
+    }
+}
+
+impl From<&Ident> for IdentPartsBuf {
+    fn from(ident: &Ident) -> Self {
+        IdentPartsBuf {
+            repository_name: None,
+            pkg_name: ident.name.to_string(),
+            version_str: Some(ident.version.to_string()),
+            build_str: ident.build.as_ref().map(|b| b.to_string()),
+        }
     }
 }
 
@@ -275,8 +361,17 @@ impl MetadataPath for BuildIdent {
     fn metadata_path(&self) -> RelativePathBuf {
         // The data path *does not* include the repository name.
         RelativePathBuf::from(self.name.as_str())
-            .join(self.version.to_string())
-            .join(self.build.to_string())
+            .join(self.version.metadata_path())
+            .join(self.build.metadata_path())
+    }
+}
+
+impl TagPath for BuildIdent {
+    fn tag_path(&self) -> RelativePathBuf {
+        // The data path *does not* include the repository name.
+        RelativePathBuf::from(self.name.as_str())
+            .join(self.version.tag_path())
+            .join(self.build.tag_path())
     }
 }
 

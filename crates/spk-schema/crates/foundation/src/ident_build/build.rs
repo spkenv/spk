@@ -1,11 +1,15 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::convert::TryInto;
-use std::str::FromStr;
+use std::{collections::BTreeSet, str::FromStr};
 
-use itertools::Itertools;
+use relative_path::RelativePathBuf;
 use thiserror::Error;
+
+use crate::{
+    ident_component::{Component, Components},
+    ident_ops::{parsing::IdentPartsBuf, MetadataPath, TagPath},
+};
 
 #[cfg(test)]
 #[path = "./build_test.rs"]
@@ -27,11 +31,64 @@ impl InvalidBuildError {
     }
 }
 
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct EmbeddedSourcePackage {
+    pub ident: IdentPartsBuf,
+    pub components: BTreeSet<Component>,
+}
+
+/// An embedded package's source (if known).
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum EmbeddedSource {
+    // Boxed to keep enum size down for enums that use this enum.
+    Package(Box<EmbeddedSourcePackage>),
+    Unknown,
+}
+
+impl MetadataPath for EmbeddedSource {
+    fn metadata_path(&self) -> RelativePathBuf {
+        match self {
+            package @ EmbeddedSource::Package { .. } => RelativePathBuf::from(format!(
+                "embedded-by-{}",
+                // Encode the parent ident into base32 to have a unique value
+                // per unique parent that is a valid filename. The trailing
+                // '=' are not allowed in tag names (use NOPAD).
+                data_encoding::BASE32_NOPAD.encode(package.to_string().as_bytes())
+            )),
+            EmbeddedSource::Unknown => RelativePathBuf::from("embedded"),
+        }
+    }
+}
+
+impl std::fmt::Display for EmbeddedSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{EMBEDDED}")?;
+        match self {
+            EmbeddedSource::Package(package) => {
+                // XXX this is almost the same code as `RangeIdent::fmt()`.
+                write!(f, "[")?;
+                package.ident.pkg_name.fmt(f)?;
+                package.components.fmt_component_set(f)?;
+                if let Some(version) = &package.ident.version_str {
+                    write!(f, "/")?;
+                    version.fmt(f)?;
+                }
+                if let Some(build) = &package.ident.build_str {
+                    write!(f, "/")?;
+                    build.fmt(f)?;
+                }
+                write!(f, "]")
+            }
+            EmbeddedSource::Unknown => Ok(()),
+        }
+    }
+}
+
 /// Build represents a package build identifier.
 #[derive(Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum Build {
     Source,
-    Embedded,
+    Embedded(EmbeddedSource),
     Digest([char; crate::option_map::DIGEST_SIZE]),
 }
 
@@ -40,7 +97,7 @@ impl Build {
     pub fn digest(&self) -> String {
         match self {
             Build::Source => SRC.to_string(),
-            Build::Embedded => EMBEDDED.to_string(),
+            Build::Embedded(by) => by.to_string(),
             Build::Digest(d) => d.iter().collect(),
         }
     }
@@ -50,7 +107,26 @@ impl Build {
     }
 
     pub fn is_embedded(&self) -> bool {
-        matches!(self, Build::Embedded)
+        matches!(self, Build::Embedded(_))
+    }
+
+    pub fn is_embed_stub(&self) -> bool {
+        matches!(self, Build::Embedded(EmbeddedSource::Package { .. }))
+    }
+}
+
+impl MetadataPath for Build {
+    fn metadata_path(&self) -> RelativePathBuf {
+        match self {
+            Build::Source | Build::Digest(_) => RelativePathBuf::from(self.digest()),
+            Build::Embedded(embedded) => embedded.metadata_path(),
+        }
+    }
+}
+
+impl TagPath for Build {
+    fn tag_path(&self) -> RelativePathBuf {
+        self.metadata_path()
     }
 }
 
@@ -70,27 +146,16 @@ impl FromStr for Build {
     type Err = super::Error;
 
     fn from_str(source: &str) -> super::Result<Self> {
-        match source {
-            SRC => Ok(Build::Source),
-            EMBEDDED => Ok(Build::Embedded),
-            _ => {
-                if let Err(err) = data_encoding::BASE32.decode(source.as_bytes()) {
-                    return Err(InvalidBuildError::new_error(format!(
-                        "Invalid build digest '{}': {:?}",
-                        source, err
-                    )));
-                }
+        use nom::combinator::all_consuming;
 
-                match source.chars().collect_vec().try_into() {
-                    Ok(chars) => Ok(Build::Digest(chars)),
-
-                    Err(err) => Err(InvalidBuildError::new_error(format!(
-                        "Invalid build digest '{}': {:?}",
-                        source, err
-                    ))),
+        all_consuming(super::parsing::build::<nom_supreme::error::ErrorTree<_>>)(source)
+            .map(|(_, build)| build)
+            .map_err(|err| match err {
+                nom::Err::Error(e) | nom::Err::Failure(e) => {
+                    InvalidBuildError::new_error(e.to_string())
                 }
-            }
-        }
+                nom::Err::Incomplete(_) => unreachable!(),
+            })
     }
 }
 

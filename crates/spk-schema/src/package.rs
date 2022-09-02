@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use crate::foundation::ident_component::Component;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::PackageOps;
 use crate::foundation::version::{Compat, Compatibility};
@@ -12,7 +13,11 @@ mod package_test;
 
 /// Can be resolved into an environment.
 #[enum_dispatch::enum_dispatch]
-pub trait Package: PackageOps + super::Deprecate + Sync + Send {
+pub trait Package:
+    PackageOps + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
+{
+    type Package;
+
     /// The compatibility guaranteed by this package's version
     fn compat(&self) -> &Compat;
 
@@ -27,6 +32,16 @@ pub trait Package: PackageOps + super::Deprecate + Sync + Send {
 
     /// The packages that are embedded within this one
     fn embedded(&self) -> &super::EmbeddedPackagesList;
+
+    /// The packages that are embedded within this one.
+    ///
+    /// Return both top-level embedded packages and packages that are
+    /// embedded inside a component. The returned list is a pair of the
+    /// embedded package and the component it came from, if any.
+    #[allow(clippy::type_complexity)]
+    fn embedded_as_packages(
+        &self,
+    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str>;
 
     /// The components defined by this package
     fn components(&self) -> &super::ComponentSpecList;
@@ -74,6 +89,8 @@ pub trait Package: PackageOps + super::Deprecate + Sync + Send {
 }
 
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
+    type Package = T::Package;
+
     fn compat(&self) -> &Compat {
         (**self).compat()
     }
@@ -92,6 +109,12 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 
     fn embedded(&self) -> &super::EmbeddedPackagesList {
         (**self).embedded()
+    }
+
+    fn embedded_as_packages(
+        &self,
+    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
+        (**self).embedded_as_packages()
     }
 
     fn components(&self) -> &super::ComponentSpecList {
@@ -120,6 +143,8 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 }
 
 impl<T: Package + Send + Sync> Package for &T {
+    type Package = T::Package;
+
     // TODO: use or find a macro for this
     fn compat(&self) -> &Compat {
         (**self).compat()
@@ -139,6 +164,12 @@ impl<T: Package + Send + Sync> Package for &T {
 
     fn embedded(&self) -> &super::EmbeddedPackagesList {
         (**self).embedded()
+    }
+
+    fn embedded_as_packages(
+        &self,
+    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
+        (**self).embedded_as_packages()
     }
 
     fn components(&self) -> &super::ComponentSpecList {

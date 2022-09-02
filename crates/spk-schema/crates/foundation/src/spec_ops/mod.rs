@@ -14,6 +14,6 @@ pub use component_ops::ComponentOps;
 pub use error::{Error, Result};
 pub use file_matcher::FileMatcher;
 pub use named::Named;
-pub use package_ops::PackageOps;
+pub use package_ops::{PackageMutOps, PackageOps};
 pub use recipe_ops::RecipeOps;
 pub use versioned::Versioned;

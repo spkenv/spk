@@ -7,15 +7,13 @@ use std::{collections::BTreeSet, fmt::Write};
 use anyhow::{anyhow, Result};
 use clap::Args;
 use colored::Colorize;
+use nom::combinator::all_consuming;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
-use spk_schema::ident::{
-    parse_ident,
-    parsing::{ident_parts, IdentParts},
-    Ident, KNOWN_REPOSITORY_NAMES,
-};
+use spk_schema::ident::{parse_ident, Ident};
+use spk_schema::ident_ops::parsing::{ident_parts, IdentParts, KNOWN_REPOSITORY_NAMES};
 use spk_schema::{Deprecate, Package, Spec};
 use spk_storage::{self as storage};
 
@@ -240,14 +238,16 @@ impl<T: Output> Ls<T> {
             .package
             .as_ref()
             .map(|ident| {
-                ident_parts::<nom_supreme::error::ErrorTree<_>>(&KNOWN_REPOSITORY_NAMES, ident)
-                    .map(|(_, parts)| parts)
-                    .map_err(|err| match err {
-                        nom::Err::Error(e) | nom::Err::Failure(e) => {
-                            anyhow!(e.to_string())
-                        }
-                        nom::Err::Incomplete(_) => unreachable!(),
-                    })
+                all_consuming(ident_parts::<nom_supreme::error::ErrorTree<_>>(
+                    &KNOWN_REPOSITORY_NAMES,
+                ))(ident)
+                .map(|(_, parts)| parts)
+                .map_err(|err| match err {
+                    nom::Err::Error(e) | nom::Err::Failure(e) => {
+                        anyhow!(e.to_string())
+                    }
+                    nom::Err::Incomplete(_) => unreachable!(),
+                })
             })
             .transpose()?;
 

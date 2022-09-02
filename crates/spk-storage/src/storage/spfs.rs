@@ -17,12 +17,18 @@ use itertools::Itertools;
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 use spfs::{storage::EntryType, tracking};
-use spk_schema::foundation::ident_build::{parse_build, Build, InvalidBuildError};
-use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::Ident;
+use spk_schema::{
+    foundation::ident_build::{parse_build, Build, InvalidBuildError},
+    ident_ops::TagPath,
+};
+use spk_schema::{foundation::ident_component::Component, ident_build::EmbeddedSource};
+use spk_schema::{
+    foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf},
+    ident_build::parsing::embedded_source_package,
+};
 use spk_schema::{Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
@@ -30,7 +36,7 @@ use super::{
     repository::{PublishPolicy, Storage},
     CachePolicy, Repository,
 };
-use crate::{with_cache_policy, Error, Result};
+use crate::{storage::repository::internal::RepositoryExt, with_cache_policy, Error, Result};
 
 #[cfg(test)]
 #[path = "./spfs_test.rs"]
@@ -199,6 +205,106 @@ std::thread_local! {
 #[async_trait::async_trait]
 impl Storage for SPFSRepository {
     type Recipe = SpecRecipe;
+    type Package = Spec;
+
+    async fn get_concrete_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>> {
+        let pkg = pkg.with_build(Some(Build::Source));
+        let mut base = self.build_package_tag(&pkg)?;
+        // the package tag contains the name and build, but we need to
+        // remove the trailing build in order to list the containing 'folder'
+        // eg: pkg/1.0.0/src => pkg/1.0.0
+        base.pop();
+
+        let builds: HashSet<_> = self
+            .ls_tags(&base)
+            .await
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Ok(EntryType::Tag(name)) => Some(name),
+                Ok(EntryType::Folder(name)) => Some(name),
+                Err(_) => None,
+            })
+            .filter_map(|b| match parse_build(&b) {
+                Ok(v) => Some(v),
+                Err(_) => {
+                    tracing::warn!("Invalid build found in spfs tags: {}", b);
+                    None
+                }
+            })
+            .map(|b| pkg.with_build(Some(b)))
+            .collect();
+
+        Ok(builds)
+    }
+
+    async fn get_embedded_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>> {
+        let pkg = pkg.with_build(Some(Build::Source));
+        let mut base = self.build_spec_tag(&pkg);
+        // the package tag contains the name and build, but we need to
+        // remove the trailing build in order to list the containing 'folder'
+        // eg: pkg/1.0.0/src => pkg/1.0.0
+        base.pop();
+
+        let builds: HashSet<_> = self
+            .ls_tags(&base)
+            .await
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Ok(EntryType::Tag(name)) => Some(name),
+                Ok(EntryType::Folder(_)) => None,
+                Err(_) => None,
+            })
+            .filter_map(|b| {
+                b.strip_prefix("embedded-by-")
+                    .and_then(|encoded_ident| {
+                        data_encoding::BASE32_NOPAD
+                            .decode(encoded_ident.as_bytes())
+                            .ok()
+                    })
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .and_then(|ident_str| {
+                        // The decoded BASE32 value will look something like this:
+                        //
+                        //     "embedded[embed-projection:run/1.0/3I42H3S6]"
+                        //
+                        // The `embedded_source_package` parser knows how to
+                        // parse the "[...]" part and return the type we want,
+                        // but we need to strip the "embedded" prefix.
+                        ident_str
+                            .strip_prefix("embedded")
+                            .and_then(|ident_str| {
+                                use nom::combinator::all_consuming;
+
+                                all_consuming(
+                                        embedded_source_package::<(_, nom::error::ErrorKind)>,
+                                    )(ident_str)
+                                    .map(|(_, ident_with_components)| ident_with_components)
+                                    .ok()
+                            })
+                            .map(Build::Embedded)
+                    })
+            })
+            .map(|b| pkg.with_build(Some(b)))
+            .collect();
+
+        Ok(builds)
+    }
+
+    async fn publish_embed_stub_to_storage(&self, spec: &Self::Package) -> Result<()> {
+        let ident = spec.ident();
+        let tag_path = self.build_spec_tag(ident);
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+
+        let payload = serde_yaml::to_vec(&spec)
+            .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
+        let digest = self
+            .inner
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .await?;
+        self.inner.push_tag(&tag_spec, &digest).await?;
+        self.invalidate_caches();
+        Ok(())
+    }
 
     async fn publish_package_to_storage(
         &self,
@@ -253,7 +359,8 @@ impl Storage for SPFSRepository {
         spec: &Self::Recipe,
         publish_policy: PublishPolicy,
     ) -> Result<()> {
-        let tag_path = self.build_spec_tag(&spec.to_ident());
+        let ident = spec.to_ident();
+        let tag_path = self.build_spec_tag(&ident);
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
         if matches!(publish_policy, PublishPolicy::DoNotOverwriteVersion)
             && self.inner.has_tag(&tag_spec).await
@@ -261,7 +368,7 @@ impl Storage for SPFSRepository {
             // BUG(rbottriell): this creates a race condition but is not super dangerous
             // because of the non-destructive tag history
             return Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
+                spk_schema::validators::Error::VersionExistsError(ident),
             ));
         }
 
@@ -280,6 +387,9 @@ impl Storage for SPFSRepository {
         &self,
         pkg: &Ident,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
+        if matches!(pkg.build, Some(Build::Embedded(_))) {
+            return Ok(HashMap::new());
+        }
         let package = self.lookup_package(pkg).await?;
         let component_tags = package.into_components();
         let mut components = HashMap::with_capacity(component_tags.len());
@@ -288,6 +398,48 @@ impl Storage for SPFSRepository {
             components.insert(name, tag.target);
         }
         Ok(components)
+    }
+
+    async fn read_package_from_storage(
+        &self,
+        pkg: &Ident,
+    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
+        // TODO: reduce duplicate code with read_recipe
+        let address = self.address();
+        if self.cached_result_permitted() {
+            let r = PACKAGE_CACHE
+                .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
+            if let Some(r) = r {
+                return r.into();
+            }
+        }
+        let r: Result<Arc<Spec>> = async {
+            let tag_path = self.build_spec_tag(pkg);
+            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+            let tag = self.resolve_tag(pkg, &tag_spec).await?;
+
+            let (mut reader, filename) = self.inner.open_payload(tag.target).await?;
+            let mut yaml = String::new();
+            reader
+                .read_to_string(&mut yaml)
+                .await
+                .map_err(|err| Error::FileReadError(filename, err))?;
+            serde_yaml::from_str(&yaml)
+                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+                .map(Arc::new)
+        }
+        .await;
+        PACKAGE_CACHE.with(|hm| {
+            let mut hm = hm.borrow_mut();
+            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
+            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
+        });
+        r
+    }
+
+    async fn remove_embed_stub_from_storage(&self, pkg: &Ident) -> Result<()> {
+        // Same as removing a recipe for now...
+        self.remove_recipe(pkg).await
     }
 
     async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()> {
@@ -383,37 +535,10 @@ impl Repository for SPFSRepository {
         r
     }
 
-    async fn list_package_builds(&self, pkg: &Ident) -> Result<Vec<Ident>> {
-        let pkg = pkg.with_build(Some(Build::Source));
-        let mut base = self.build_package_tag(&pkg)?;
-        // the package tag contains the name and build, but we need to
-        // remove the trailing build in order to list the containing 'folder'
-        // eg: pkg/1.0.0/src => pkg/1.0.0
-        base.pop();
-
-        let builds: HashSet<_> = self
-            .ls_tags(&base)
-            .await
-            .into_iter()
-            .filter_map(|entry| match entry {
-                Ok(EntryType::Tag(name)) => Some(name),
-                Ok(EntryType::Folder(name)) => Some(name),
-                Err(_) => None,
-            })
-            .filter_map(|b| match parse_build(&b) {
-                Ok(v) => Some(v),
-                Err(_) => {
-                    tracing::warn!("Invalid build found in spfs tags: {}", b);
-                    None
-                }
-            })
-            .map(|b| pkg.with_build(Some(b)))
-            .collect();
-        // XXX: infallible vs return type
-        Ok(builds.into_iter().collect_vec())
-    }
-
     async fn list_build_components(&self, pkg: &Ident) -> Result<Vec<Component>> {
+        if matches!(pkg.build, Some(Build::Embedded(_))) {
+            return Ok(Vec::new());
+        }
         match self.lookup_package(pkg).await {
             Ok(p) => Ok(p.into_components().into_keys().collect()),
             Err(Error::SpkValidatorsError(
@@ -427,48 +552,18 @@ impl Repository for SPFSRepository {
         &self.name
     }
 
-    async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
+    async fn read_embed_stub(&self, pkg: &Ident) -> Result<Arc<Self::Package>> {
+        // This is similar to read_recipe but it returns a package and uses the
+        // package cache.
         let address = self.address();
-        if pkg.build.is_some() {
-            return Err(format!("cannot read a recipe for a package build: {pkg}").into());
-        }
-        if self.cached_result_permitted() {
-            let r = RECIPE_CACHE
-                .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
-            if let Some(r) = r {
-                return r.into();
+        match pkg.build {
+            Some(Build::Embedded(EmbeddedSource::Package { .. })) => {
+                // Allow embedded stubs to be read as a "package"
             }
-        }
-        let r: Result<Arc<SpecRecipe>> = async {
-            let tag_path = self.build_spec_tag(pkg);
-            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
-            let tag = self.resolve_tag(pkg, &tag_spec).await?;
-
-            let (mut reader, _) = self.inner.open_payload(tag.target).await?;
-            let mut yaml = String::new();
-            reader
-                .read_to_string(&mut yaml)
-                .await
-                .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
-            serde_yaml::from_str(&yaml)
-                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
-                .map(Arc::new)
-        }
-        .await;
-        RECIPE_CACHE.with(|hm| {
-            let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
-        });
-        r
-    }
-
-    async fn read_package(
-        &self,
-        pkg: &Ident,
-    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
-        // TODO: reduce duplicate code with read_recipe
-        let address = self.address();
+            _ => {
+                return Err(format!("Cannot read this ident as an embed stub: {pkg}").into());
+            }
+        };
         if self.cached_result_permitted() {
             let r = PACKAGE_CACHE
                 .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
@@ -493,6 +588,45 @@ impl Repository for SPFSRepository {
         }
         .await;
         PACKAGE_CACHE.with(|hm| {
+            let mut hm = hm.borrow_mut();
+            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
+            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
+        });
+        r
+    }
+
+    async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
+        let address = self.address();
+        match pkg.build {
+            Some(_) => {
+                return Err(format!("cannot read a recipe for a package build: {pkg}").into());
+            }
+            None => {}
+        };
+        if self.cached_result_permitted() {
+            let r = RECIPE_CACHE
+                .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
+            if let Some(r) = r {
+                return r.into();
+            }
+        }
+        let r: Result<Arc<SpecRecipe>> = async {
+            let tag_path = self.build_spec_tag(pkg);
+            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+            let tag = self.resolve_tag(pkg, &tag_spec).await?;
+
+            let (mut reader, _) = self.inner.open_payload(tag.target).await?;
+            let mut yaml = String::new();
+            reader
+                .read_to_string(&mut yaml)
+                .await
+                .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
+            serde_yaml::from_str(&yaml)
+                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+                .map(Arc::new)
+        }
+        .await;
+        RECIPE_CACHE.with(|hm| {
             let mut hm = hm.borrow_mut();
             let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
             hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
@@ -526,18 +660,38 @@ impl Repository for SPFSRepository {
             return Ok("Nothing to do.".to_string());
         }
         for name in self.list_packages().await? {
-            tracing::info!("replicating old tags for {}...", name);
+            tracing::info!("Processing {name}...");
             let mut pkg = Ident::new(name.to_owned());
             for version in self.list_package_versions(&name).await?.iter() {
                 pkg.version = (**version).clone();
                 for build in self.list_package_builds(&pkg).await? {
+                    if build.is_embedded() {
+                        // XXX `lookup_package` isn't able to read embed stubs.
+                        // Should it be able to?
+                        continue;
+                    }
                     let stored = with_cache_policy!(self, CachePolicy::BypassCache, {
                         self.lookup_package(&build)
                     })
                     .await?;
+
+                    // [Re-]create embedded stubs.
+                    if build.can_embed() {
+                        let spec = self.read_package(&build).await?;
+                        let providers = self.get_embedded_providers(&*spec)?;
+                        if !providers.is_empty() {
+                            tracing::info!("Creating embedded stubs for {name}...");
+                            for (embedded, components) in providers.into_iter() {
+                                self.create_embedded_stub_for_spec(&*spec, &embedded, components)
+                                    .await?
+                            }
+                        }
+                    }
+
                     if stored.has_components() {
                         continue;
                     }
+                    tracing::info!("Replicating old tags for {name}...");
                     let components = stored.into_components();
                     for (name, tag_spec) in components.into_iter() {
                         let tag = self.inner.resolve_tag(&tag_spec).await?;
@@ -564,7 +718,7 @@ impl Repository for SPFSRepository {
         meta.version = target_version;
         self.write_metadata(&meta).await?;
         // Note caches are already invalidated in `write_metadata`
-        Ok("All packages were re-tagged for components".to_string())
+        Ok("Repo up to date".to_string())
     }
 
     fn set_cache_policy(&self, cache_policy: CachePolicy) -> CachePolicy {
@@ -742,10 +896,7 @@ impl SPFSRepository {
 
         let mut tag = RelativePathBuf::from("spk");
         tag.push("pkg");
-        // the "+" character is not a valid spfs tag character,
-        // so we 'encode' it with two dots, which is not a valid sequence
-        // for spk package names
-        tag.push(pkg.to_string().replace('+', ".."));
+        tag.push(pkg.tag_path());
 
         Ok(tag)
     }
@@ -754,9 +905,8 @@ impl SPFSRepository {
     fn build_spec_tag(&self, pkg: &Ident) -> RelativePathBuf {
         let mut tag = RelativePathBuf::from("spk");
         tag.push("spec");
-        // the "+" character is not a valid spfs tag character,
-        // see above ^
-        tag.push(pkg.to_string().replace('+', ".."));
+        tag.push(pkg.tag_path());
+
         tag
     }
 

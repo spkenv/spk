@@ -1,11 +1,13 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
+use std::convert::TryInto;
 use std::path::Path;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::spec_ops::PackageMutOps;
 
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
@@ -191,6 +193,8 @@ impl DeprecateMut for Spec {
 }
 
 impl Package for Spec {
+    type Package = Self;
+
     fn compat(&self) -> &Compat {
         &self.compat
     }
@@ -215,6 +219,22 @@ impl Package for Spec {
 
     fn embedded(&self) -> &EmbeddedPackagesList {
         &self.install.embedded
+    }
+
+    fn embedded_as_packages(
+        &self,
+    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
+        self.install
+            .embedded
+            .iter()
+            .map(|embed| (embed.clone(), None))
+            .chain(self.install.components.iter().flat_map(|cs| {
+                cs.embedded
+                    .iter()
+                    .map(move |embed| (embed.clone(), Some(cs.name.clone())))
+            }))
+            .map(|(recipe, component)| recipe.try_into().map(|r| (r, component)))
+            .collect()
     }
 
     fn components(&self) -> &ComponentSpecList {
@@ -420,7 +440,7 @@ impl RecipeOps for Spec {
             let required_components = self
                 .components()
                 .resolve_uses(range_ident.components.iter());
-            let available_components: HashSet<_> =
+            let available_components: BTreeSet<_> =
                 self.components_iter().map(|c| c.name.clone()).collect();
             let missing_components = required_components
                 .difference(&available_components)
@@ -543,6 +563,14 @@ impl PackageOps for Spec {
                 }
             }
         }
+    }
+}
+
+impl PackageMutOps for Spec {
+    type Ident = Ident;
+
+    fn ident_mut(&mut self) -> &mut Self::Ident {
+        &mut self.pkg
     }
 }
 

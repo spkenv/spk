@@ -19,6 +19,8 @@ pub enum Error {
     #[error(transparent)]
     SpkIdentComponentError(#[from] spk_schema::foundation::ident_component::Error),
     #[error(transparent)]
+    SpkIdentError(#[from] spk_schema::ident::Error),
+    #[error(transparent)]
     GraphError(#[from] spk_solve_graph::Error),
     #[error(transparent)]
     GraphGraphError(#[from] spk_solve_graph::GraphError),

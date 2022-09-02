@@ -13,6 +13,12 @@ pub enum Error {
     #[error("Invalid InclusionPolicy: {0}")]
     InvalidInclusionPolicy(#[source] serde_yaml::Error),
     #[error(transparent)]
+    SpkIdentBuildError(#[from] spk_schema_foundation::ident_build::Error),
+    #[error(transparent)]
+    SpkNameError(#[from] spk_schema_foundation::name::Error),
+    #[error(transparent)]
+    SpkVersionError(#[from] spk_schema_foundation::version::Error),
+    #[error(transparent)]
     SpkVersionRangeError(#[from] spk_schema_foundation::version_range::Error),
     #[error("Error: {0}")]
     String(String),

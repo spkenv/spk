@@ -2,18 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::str::FromStr;
+use std::convert::TryInto;
 
 use nom::{
     branch::alt,
     bytes::complete::take_while_m_n,
-    combinator::map_res,
+    combinator::{cut, map, map_res, opt, verify},
     error::{ContextError, FromExternalError, ParseError},
+    sequence::{delimited, preceded},
     IResult,
 };
 use nom_supreme::tag::{complete::tag, TagError};
 
-use crate::ident_build::Build;
+use crate::{
+    ident_build::{
+        build::{EmbeddedSource, EmbeddedSourcePackage},
+        Build, InvalidBuildError,
+    },
+    ident_ops::parsing::ident_parts_with_components,
+};
 
 /// Parse a base32 build.
 ///
@@ -24,41 +31,85 @@ pub(crate) fn base32_build<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
-    take_while_m_n(
-        crate::option_map::DIGEST_SIZE,
-        crate::option_map::DIGEST_SIZE,
-        is_base32_digit,
+    verify(
+        take_while_m_n(
+            crate::option_map::DIGEST_SIZE,
+            crate::option_map::DIGEST_SIZE,
+            is_base32_digit,
+        ),
+        |bytes: &str| data_encoding::BASE32.decode(bytes.as_bytes()).is_ok(),
     )(input)
 }
 
 /// Parse a build into a [`Build`].
 ///
-/// See [build_str] for examples of valid build strings.
+/// Examples:
+/// - `"src"`
+/// - `"embedded[pkg/1.0/CU7ZWOIF]"`
+/// - `"embedded"` (legacy format)
+/// - `"CU7ZWOIF"`
 pub fn build<'a, E>(input: &'a str) -> IResult<&'a str, Build, E>
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
+        + FromExternalError<&'a str, crate::version::Error>
         + FromExternalError<&'a str, crate::ident_build::error::Error>
+        + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
-    map_res(build_str, Build::from_str)(input)
+    alt((
+        map(tag(crate::ident_build::SRC), |_| Build::Source),
+        map(
+            preceded(tag(crate::ident_build::EMBEDDED), cut(embedded_source)),
+            Build::Embedded,
+        ),
+        map_res(base32_build, |digest| {
+            digest
+                .chars()
+                .collect::<Vec<_>>()
+                .try_into()
+                .map_err(|err| {
+                    InvalidBuildError::new_error(format!(
+                        "Invalid build digest '{digest}': {err:?}"
+                    ))
+                })
+                .map(Build::Digest)
+        }),
+    ))(input)
 }
 
-/// Parse a build.
-///
-/// Examples:
-/// - `"src"`
-/// - `"embedded"`
-/// - `"CU7ZWOIF"`
-pub fn build_str<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+fn embedded_source<'b, E>(input: &'b str) -> IResult<&'b str, EmbeddedSource, E>
 where
-    E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
+    E: ParseError<&'b str>
+        + ContextError<&'b str>
+        + FromExternalError<&'b str, crate::version::Error>
+        + FromExternalError<&'b str, crate::ident_build::Error>
+        + FromExternalError<&'b str, std::num::ParseIntError>
+        + TagError<&'b str, &'static str>,
 {
-    alt((
-        tag(crate::ident_build::SRC),
-        tag(crate::ident_build::EMBEDDED),
-        base32_build,
-    ))(input)
+    map(opt(embedded_source_package), |ident_and_components| {
+        ident_and_components.unwrap_or(EmbeddedSource::Unknown)
+    })(input)
+}
+
+pub fn embedded_source_package<'b, E>(input: &'b str) -> IResult<&'b str, EmbeddedSource, E>
+where
+    E: ParseError<&'b str>
+        + ContextError<&'b str>
+        + FromExternalError<&'b str, crate::ident_build::Error>
+        + FromExternalError<&'b str, crate::version::Error>
+        + FromExternalError<&'b str, std::num::ParseIntError>
+        + TagError<&'b str, &'static str>,
+{
+    map(
+        delimited(tag("["), cut(ident_parts_with_components), cut(tag("]"))),
+        |(ident, components)| {
+            EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
+                ident: ident.to_owned(),
+                components,
+            }))
+        },
+    )(input)
 }
 
 #[inline]

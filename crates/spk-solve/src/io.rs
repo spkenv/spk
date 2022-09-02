@@ -244,7 +244,7 @@ where
                         use Change::*;
                         match change {
                             SetPackage(change) => {
-                                if change.spec.ident().build == Some(Build::Embedded) {
+                                if matches!(change.spec.ident().build, Some(Build::Embedded(_))) {
                                     fill = ".";
                                 } else {
                                     fill = ">";

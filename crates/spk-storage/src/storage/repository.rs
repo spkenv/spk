@@ -1,16 +1,22 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use crate::{Error, Result};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
-use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Version;
+use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::ident_build::{Build, InvalidBuildError};
 use spk_schema::Ident;
-use spk_schema::Package;
+use spk_schema::{foundation::spec_ops::PackageOps, spec_ops::PackageMutOps};
+use spk_schema::{Deprecate, DeprecateMut, Package};
+
+use self::internal::RepositoryExt;
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -42,7 +48,24 @@ pub enum PublishPolicy {
 /// storage types, but perform the same logical operation for any storage type.
 #[async_trait::async_trait]
 pub trait Storage: Sync {
-    type Recipe: spk_schema::Recipe;
+    type Recipe: spk_schema::Recipe<Output = Self::Package, Ident = Ident>;
+    type Package: Package<Ident = Ident, Package = Self::Package>;
+
+    /// Return the set of concrete builds for the given package name and version.
+    ///
+    /// This method should not return any embedded package stub builds.
+    async fn get_concrete_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>>;
+
+    /// Return the set of embedded stub builds for the given package name and version.
+    ///
+    /// This method should only return embedded package stub builds.
+    async fn get_embedded_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>>;
+
+    /// Publish an embed stub to this repository.
+    ///
+    /// An embed stub represents an embedded portion of some other package.
+    /// The stub exists to advertise the existence of the embedded package.
+    async fn publish_embed_stub_to_storage(&self, spec: &Self::Package) -> Result<()>;
 
     /// Publish a package to this repository.
     ///
@@ -75,11 +98,141 @@ pub trait Storage: Sync {
         pkg: &Ident,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>>;
 
+    /// Read package information for a specific version and build.
+    ///
+    /// # Errors:
+    /// - PackageNotFoundError: If the package, version, or build does not exist
+    async fn read_package_from_storage(
+        &self,
+        // TODO: use an ident type that must have a build
+        pkg: &Ident,
+    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>>;
+
+    /// Remove an embed stub from this repository.
+    ///
+    /// The given package identifier must identify an [`Build::Embedded`].
+    async fn remove_embed_stub_from_storage(&self, pkg: &Ident) -> Result<()>;
+
     /// Remove a package from this repository.
     ///
     /// The given package identifier must identify a full package build.
     async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()>;
 }
+
+pub(in crate::storage) mod internal {
+    use std::collections::{BTreeSet, HashMap};
+
+    use spk_schema::{
+        foundation::{
+            ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage},
+            ident_component::Component,
+            spec_ops::{PackageMutOps, PackageOps},
+        },
+        Ident,
+    };
+    use spk_schema::{Deprecate, DeprecateMut, Package, Recipe};
+
+    use crate::{with_cache_policy, CachePolicy, Result};
+
+    /// Reusable methods for [`super::Repository`] that are not intended to be
+    /// part of its public interface.
+    #[async_trait::async_trait]
+    pub trait RepositoryExt: super::Repository {
+        /// Add a [`Package`] to a repository to represent an embedded package.
+        ///
+        /// This spec is a link back to the package that embeds it, and allows
+        /// the repository to advertise its existence.
+        async fn create_embedded_stub_for_spec(
+            &self,
+            spec_for_parent: &Self::Package,
+            spec_for_embedded_pkg: &Self::Package,
+            components_that_embed_this_pkg: BTreeSet<Component>,
+        ) -> Result<()>
+        where
+            Self::Package: PackageMutOps<Ident = Ident> + DeprecateMut,
+        {
+            let mut spec_for_embedded_pkg = spec_for_embedded_pkg.clone();
+            spec_for_embedded_pkg
+                .ident_mut()
+                .set_build(Some(Build::Embedded(EmbeddedSource::Package(Box::new(
+                    EmbeddedSourcePackage {
+                        ident: spec_for_parent.ident().into(),
+                        components: components_that_embed_this_pkg,
+                    },
+                )))));
+            spec_for_embedded_pkg.set_deprecated(spec_for_parent.is_deprecated())?;
+            self.publish_embed_stub_to_storage(&spec_for_embedded_pkg)
+                .await
+        }
+
+        /// Get all the embedded packages described by a [`Package`] and
+        /// return what [`Component`]s are providing each one.
+        fn get_embedded_providers(
+            &self,
+            package: &<Self::Recipe as Recipe>::Output,
+        ) -> Result<HashMap<<Self as super::Storage>::Package, BTreeSet<Component>>> {
+            let mut embedded_providers = HashMap::new();
+            for (embed, component) in package.embedded_as_packages()?.into_iter() {
+                // "top level" embedded as assumed to be provided by the "run"
+                // component.
+                (*embedded_providers
+                    .entry(embed)
+                    .or_insert_with(BTreeSet::new))
+                .insert(component.unwrap_or(Component::Run));
+            }
+            Ok(embedded_providers)
+        }
+
+        /// Remove the [`Package`] from a repository that represents the
+        /// embedded package of some other package.
+        ///
+        /// The stub should be removed when the package that had been embedding
+        /// the package is removed or modified such that it no longer embeds
+        /// this package.
+        async fn remove_embedded_stub_for_spec(
+            &self,
+            spec_for_parent: &Self::Package,
+            spec_for_embedded_pkg: &Self::Package,
+            components_that_embed_this_pkg: BTreeSet<Component>,
+        ) -> Result<()> {
+            let spec_for_embedded_pkg =
+                spec_for_embedded_pkg
+                    .ident()
+                    .with_build(Some(Build::Embedded(EmbeddedSource::Package(Box::new(
+                        EmbeddedSourcePackage {
+                            ident: spec_for_parent.ident().into(),
+                            components: components_that_embed_this_pkg,
+                        },
+                    )))));
+            self.remove_embed_stub_from_storage(&spec_for_embedded_pkg)
+                .await?;
+
+            // If this was the last stub and there are no other builds, remove
+            // the "version spec".
+            if let Ok(builds) = with_cache_policy!(self, CachePolicy::BypassCache, {
+                self.list_package_builds(&spec_for_embedded_pkg)
+            })
+            .await
+            {
+                if builds.is_empty() {
+                    let version_spec = spec_for_embedded_pkg.with_build(None);
+                    if let Err(err) = self.remove_recipe(&version_spec).await {
+                        tracing::warn!(
+                            ?spec_for_embedded_pkg,
+                            ?err,
+                            "Failed to remove version spec after removing last embed stub"
+                        );
+                    }
+                }
+            }
+
+            Ok(())
+        }
+    }
+}
+
+/// Blanket implementation.
+impl<T> internal::RepositoryExt for T where T: Repository + ?Sized {}
 
 /// High level repository concepts.
 ///
@@ -99,13 +252,25 @@ pub trait Repository: Storage + Sync {
     async fn list_package_versions(&self, name: &PkgName) -> Result<Arc<Vec<Arc<Version>>>>;
 
     /// Return the set of builds for the given package name and version.
-    async fn list_package_builds(&self, pkg: &Ident) -> Result<Vec<Ident>>;
+    async fn list_package_builds(&self, pkg: &Ident) -> Result<Vec<Ident>> {
+        let concrete_builds = self.get_concrete_package_builds(pkg);
+        let embedded_builds = self.get_embedded_package_builds(pkg);
+        let (mut concrete, embedded) = tokio::try_join!(concrete_builds, embedded_builds)?;
+        concrete.extend(embedded.into_iter());
+        Ok(concrete.into_iter().collect())
+    }
 
     /// Returns the set of components published for a package build
     async fn list_build_components(&self, pkg: &Ident) -> Result<Vec<Component>>;
 
     /// Return the repository's name, as in "local" or its name in the config file.
     fn name(&self) -> &RepositoryName;
+
+    /// Read an embed stub.
+    ///
+    /// # Errors:
+    /// - PackageNotFoundError: If the package, or version does not exist
+    async fn read_embed_stub(&self, pkg: &Ident) -> Result<Arc<Self::Package>>;
 
     /// Read a package recipe for the given package, and version.
     ///
@@ -150,7 +315,12 @@ pub trait Repository: Storage + Sync {
         &self,
         // TODO: use an ident type that must have a build
         pkg: &Ident,
-    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>>;
+    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
+        match pkg.build.as_ref() {
+            Some(b) if b.is_embed_stub() => self.read_embed_stub(pkg).await,
+            _ => self.read_package_from_storage(pkg).await,
+        }
+    }
 
     /// Publish a package to this repository.
     ///
@@ -162,8 +332,7 @@ pub trait Repository: Storage + Sync {
         components: &HashMap<Component, spfs::encoding::Digest>,
     ) -> Result<()>
     where
-        <<Self as Storage>::Recipe as spk_schema::Recipe>::Output:
-            spk_schema::Package<Ident = Ident> + Send + Sync,
+        Self::Package: PackageMutOps<Ident = Ident> + DeprecateMut,
     {
         let build = match &package.ident().build {
             Some(b) => b.to_owned(),
@@ -175,13 +344,25 @@ pub trait Repository: Storage + Sync {
             }
         };
 
-        if let Build::Embedded = build {
+        if let Build::Embedded(_) = build {
             return Err(Error::SpkIdentBuildError(InvalidBuildError::new_error(
                 "Cannot publish embedded package".to_string(),
             )));
         }
 
         self.publish_package_to_storage(package, components).await?;
+
+        // After successfully publishing a package, also publish stubs for any
+        // embedded packages in this package.
+        if package.ident().can_embed() {
+            let embedded_providers = self.get_embedded_providers(package)?;
+
+            for (embed, components) in embedded_providers.into_iter() {
+                self.create_embedded_stub_for_spec(package, &embed, components)
+                    .await?;
+            }
+        }
+
         Ok(())
     }
 
@@ -196,10 +377,103 @@ pub trait Repository: Storage + Sync {
         package: &<Self::Recipe as spk_schema::Recipe>::Output,
     ) -> Result<()>
     where
-        <Self::Recipe as spk_schema::Recipe>::Output: Package<Ident = Ident>,
+        Self::Package: PackageMutOps<Ident = Ident> + DeprecateMut,
     {
+        // Read the contents of the existing spec, if any, before it is
+        // overwritten.
+        let original_spec = if package.ident().can_embed() {
+            Some(
+                crate::with_cache_policy!(self, CachePolicy::BypassCache, {
+                    self.read_package(package.ident())
+                })
+                .await,
+            )
+        } else {
+            None
+        };
+
         let components = self.read_components(package.ident()).await?;
-        self.publish_package(package, &components).await
+        if let Err(err) = self.publish_package_to_storage(package, &components).await {
+            return Err(err);
+        }
+
+        // Changes that affect embedded stubs:
+        // - change in deprecation status
+        // - adding/removing embedded packages
+        if let Some(Ok(original_spec)) = original_spec {
+            let original_embedded_providers = self.get_embedded_providers(&*original_spec)?;
+            let new_embedded_providers = self.get_embedded_providers(package)?;
+            // No change case #1: no embedded packages involved.
+            if original_embedded_providers.is_empty() && new_embedded_providers.is_empty() {
+                return Ok(());
+            }
+            // No change case #2: no embedded packages changes and no deprecation
+            // status changes.
+            let embedded_providers_have_changed =
+                original_embedded_providers != new_embedded_providers;
+            if !embedded_providers_have_changed
+                && original_spec.is_deprecated() != package.is_deprecated()
+            {
+                // Update all stubs to change their deprecation status too.
+                for (embed, components) in new_embedded_providers.into_iter() {
+                    self.create_embedded_stub_for_spec(package, &embed, components)
+                        .await?
+                }
+            } else if embedded_providers_have_changed {
+                let original_keys: HashSet<&Self::Package> =
+                    original_embedded_providers.keys().collect();
+                let new_keys: HashSet<&Self::Package> = new_embedded_providers.keys().collect();
+
+                // First deal with embeds that appeared or disappeared.
+                for added_or_removed_spec in original_keys.symmetric_difference(&new_keys) {
+                    if original_keys.contains(added_or_removed_spec) {
+                        // This embed was removed
+                        if let Some(components) =
+                            original_embedded_providers.get(*added_or_removed_spec)
+                        {
+                            self.remove_embedded_stub_for_spec(
+                                package,
+                                *added_or_removed_spec,
+                                components.clone(),
+                            )
+                            .await?
+                        }
+                    } else {
+                        // This embed was added
+                        if let Some(components) = new_embedded_providers.get(*added_or_removed_spec)
+                        {
+                            self.create_embedded_stub_for_spec(
+                                package,
+                                *added_or_removed_spec,
+                                components.clone(),
+                            )
+                            .await?
+                        }
+                    }
+                }
+
+                // For any embeds that are unchanged, update the deprecation
+                // status if it has changed.
+                if original_spec.is_deprecated() == package.is_deprecated() {
+                    return Ok(());
+                }
+
+                for returning_spec in original_keys.intersection(&new_keys) {
+                    if let Some(components) = new_embedded_providers.get(*returning_spec) {
+                        self.create_embedded_stub_for_spec(
+                            package,
+                            *returning_spec,
+                            components.clone(),
+                        )
+                        .await?
+                    }
+                }
+            }
+        }
+        // else if there was no original spec, assume there is nothing needed
+        // to do.
+
+        Ok(())
     }
 
     /// Remove a package from this repository.
@@ -217,15 +491,39 @@ pub trait Repository: Storage + Sync {
             )));
         }
 
+        // Attempt to find and remove any related embedded package stubs.
+        if let Ok(spec) = self.read_package(pkg).await {
+            if spec.ident().can_embed() {
+                let embedded_providers = self.get_embedded_providers(&*spec)?;
+
+                for (embed, components) in embedded_providers.into_iter() {
+                    self.remove_embedded_stub_for_spec(&*spec, &embed, components)
+                        .await?
+                }
+            }
+        }
+
         self.remove_package_from_storage(pkg).await
     }
 
-    /// Identify the payloads for the identified package's components.
+    /// Identify the payloads for this identified package's components.
     async fn read_components(
         &self,
         // TODO: use an ident type that must have a build
         pkg: &Ident,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
+        if let Some(Build::Embedded(EmbeddedSource::Package(package))) = &pkg.build {
+            let parent = self
+                .read_components_from_storage(&(&package.ident).try_into()?)
+                .await?;
+            // XXX Do embedded packages always/only have the Run component?
+            // XXX Supplying a "random" digest here.
+            if let Some((_, digest)) = parent.into_iter().next() {
+                return Ok(HashMap::from([(Component::Run, digest)]));
+            } else {
+                return Ok(HashMap::default());
+            }
+        }
         self.read_components_from_storage(pkg).await
     }
 

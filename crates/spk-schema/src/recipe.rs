@@ -18,7 +18,9 @@ pub trait BuildEnv {
 
 /// Can be used to build a package.
 #[enum_dispatch::enum_dispatch]
-pub trait Recipe: RecipeOps + Named + Versioned + super::Deprecate + Sync + Send {
+pub trait Recipe:
+    RecipeOps + Named + Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
+{
     type Output: super::Package;
 
     /// Return the default variants to be built for this recipe

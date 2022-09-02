@@ -8,42 +8,18 @@ use nom::{
     character::complete::char,
     combinator::{all_consuming, cut, map, opt},
     error::{ContextError, FromExternalError, ParseError},
-    sequence::{pair, preceded},
+    sequence::preceded,
     IResult,
 };
 use nom_supreme::tag::TagError;
-use spk_schema_foundation::ident_build::{parsing::build, Build};
-use spk_schema_foundation::ident_component::{parsing::components, Component};
-use spk_schema_foundation::name::{parsing::package_name, PkgName};
+use spk_schema_foundation::ident_ops::parsing::{range_ident_pkg_name, version_and_optional_build};
 use spk_schema_foundation::version_range::{parsing::version_range, VersionFilter};
+use spk_schema_foundation::{
+    ident_build::{parsing::build, Build},
+    ident_ops::parsing::repo_name_in_ident,
+};
 
 use crate::RangeIdent;
-
-use super::{repo_name_in_ident, version_and_optional_build};
-
-/// Parse a package name in the context of a range identity.
-///
-/// The package name must either be followed by a `/` or the end of input.
-///
-/// Examples:
-/// - `"package-name"`
-/// - `"package-name/"`
-/// - `"package-name:comp"`
-/// - `"package-name:{comp1,comp2}/"`
-fn range_ident_pkg_name<'a, E>(
-    input: &'a str,
-) -> IResult<&'a str, (&PkgName, HashSet<Component>), E>
-where
-    E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
-{
-    pair(
-        package_name,
-        map(
-            opt(preceded(char(':'), cut(components))),
-            |opt_components| opt_components.unwrap_or_default(),
-        ),
-    )(input)
-}
 
 /// Parse a version filter in the context of a range identity.
 ///

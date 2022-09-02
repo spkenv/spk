@@ -20,10 +20,14 @@ use std::{
     str::FromStr,
 };
 
+use relative_path::RelativePathBuf;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
-use crate::name::validate_tag_name;
+use crate::{
+    ident_ops::{MetadataPath, TagPath},
+    name::validate_tag_name,
+};
 
 #[cfg(test)]
 #[path = "./version_test.rs"]
@@ -358,6 +362,21 @@ impl Version {
             return false;
         }
         !self.parts.iter().any(|x| x > &0)
+    }
+}
+
+impl MetadataPath for Version {
+    fn metadata_path(&self) -> RelativePathBuf {
+        RelativePathBuf::from(self.to_string())
+    }
+}
+
+impl TagPath for Version {
+    fn tag_path(&self) -> RelativePathBuf {
+        // the "+" character is not a valid spfs tag character,
+        // so we 'encode' it with two dots, which is not a valid sequence
+        // for spk package names
+        RelativePathBuf::from(self.to_string().replace('+', ".."))
     }
 }
 

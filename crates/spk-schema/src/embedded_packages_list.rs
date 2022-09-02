@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::ident_build::EmbeddedSource;
 
 use super::{BuildSpec, InstallSpec, Spec};
 use crate::foundation::ident_build::Build;
@@ -51,8 +52,10 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
                 ));
             }
             match &mut embedded.pkg.build {
-                Some(Build::Embedded) => continue,
-                None => embedded.pkg.set_build(Some(Build::Embedded)),
+                Some(Build::Embedded(EmbeddedSource::Unknown)) => continue,
+                None => embedded
+                    .pkg
+                    .set_build(Some(Build::Embedded(EmbeddedSource::Unknown))),
                 Some(_) => {
                     return Err(serde::de::Error::custom(format!(
                         "embedded package should not specify a build, got: {}",

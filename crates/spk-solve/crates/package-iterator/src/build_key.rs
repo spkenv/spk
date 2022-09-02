@@ -11,6 +11,8 @@ use spk_schema::foundation::name::OptNameBuf;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Version;
 use spk_schema::foundation::version_range::{parse_version_range, Ranged};
+use spk_schema::ident_build::{Build, EmbeddedSource};
+use spk_schema::ident_ops::parsing::IdentPartsBuf;
 use spk_schema::Ident;
 
 use crate::Result;
@@ -100,6 +102,8 @@ pub enum BuildKey {
     /// reverse sort with binary builds, /src builds are always placed
     /// last among sorted builds.
     Src,
+    /// Sort embedded stubs second last.
+    Embed(IdentPartsBuf),
     /// A binary build key. These build's keys are an importance
     /// ordered list of key entry components.
     Binary(Vec<BuildKeyEntry>),
@@ -109,6 +113,7 @@ impl std::fmt::Display for BuildKey {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             BuildKey::Src => f.write_str("Src"),
+            BuildKey::Embed(_) => f.write_str("Embed"),
             BuildKey::Binary(v) => f.write_str(
                 &v.iter()
                     .map(ToString::to_string)
@@ -132,6 +137,9 @@ impl BuildKey {
         if pkg.is_source() {
             // All '/src' builds use the same simplified key
             return BuildKey::Src;
+        }
+        if let Some(Build::Embedded(EmbeddedSource::Package(package))) = pkg.build.as_ref() {
+            return BuildKey::Embed(package.ident.clone());
         }
 
         // Binary builds (non-/src) use a compound key of option

@@ -8,6 +8,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, VarRequest};
+use spk_schema::ident_build::{Build, EmbeddedSource};
 use spk_schema::{Ident, Package, Recipe, Spec};
 use spk_solve_graph::{CachedHash, GetMergedRequestError, State};
 use spk_solve_solution::PackageSource;
@@ -131,14 +132,17 @@ impl ValidatorT for BinaryOnlyValidator {
 pub struct EmbeddedPackageValidator {}
 
 impl ValidatorT for EmbeddedPackageValidator {
-    fn validate_package<P: Package>(
+    fn validate_package<P>(
         &self,
         state: &State,
         spec: &P,
         _source: &PackageSource,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::Result<Compatibility>
+    where
+        P: Package<Ident = Ident>,
+    {
         for embedded in spec.embedded().iter() {
-            let compat = Self::validate_embedded_package_against_state(embedded, state)?;
+            let compat = Self::validate_embedded_package_against_state(spec, embedded, state)?;
             if !&compat {
                 return Ok(compat);
             }
@@ -157,11 +161,34 @@ impl ValidatorT for EmbeddedPackageValidator {
 }
 
 impl EmbeddedPackageValidator {
-    fn validate_embedded_package_against_state(
+    fn validate_embedded_package_against_state<P>(
+        spec: &P,
         embedded: &Spec,
         state: &State,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::Result<Compatibility>
+    where
+        P: Package<Ident = Ident>,
+    {
         use Compatibility::{Compatible, Incompatible};
+
+        // There may not be a "real" instance of the embedded package in the
+        // solve already.
+        if let Some((existing, _)) = state.get_resolved_packages().get(&embedded.ident().name) {
+            // If found, it must be the stub of the package now being embedded
+            // to be okay.
+            match &existing.ident().build {
+                Some(Build::Embedded(EmbeddedSource::Package(package)))
+                    if package.ident == spec.ident() => {}
+                _ => {
+                    return Ok(Incompatible(format!(
+                        "embedded package '{}' conflicts with existing package in solve: {}",
+                        embedded.ident(),
+                        existing.ident()
+                    )));
+                }
+            }
+        }
+
         let existing = match state.get_merged_request(embedded.name()) {
             Ok(request) => request,
             Err(spk_solve_graph::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
@@ -330,13 +357,20 @@ pub struct ComponentsValidator {}
 
 impl ValidatorT for ComponentsValidator {
     #[allow(clippy::nonminimal_bool)]
-    fn validate_package<P: Package>(
+    fn validate_package<P>(
         &self,
         state: &State,
         spec: &P,
         source: &PackageSource,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::Result<Compatibility>
+    where
+        P: Package<Ident = Ident>,
+    {
         use Compatibility::Compatible;
+        if matches!(spec.ident().build, Some(Build::Embedded(_))) {
+            // Allow embedded stubs to validate.
+            return Ok(Compatible);
+        }
         let available_components: std::collections::HashSet<_> = match source {
             PackageSource::Repository { components, .. } => components.keys().collect(),
             PackageSource::BuildFromSource { .. } => spec.components().names(),
@@ -373,7 +407,7 @@ impl ValidatorT for ComponentsValidator {
 
             for embedded in component.embedded.iter() {
                 let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
-                    embedded, state,
+                    spec, embedded, state,
                 )?;
                 if !&compat {
                     return Ok(compat);
@@ -489,7 +523,9 @@ impl PkgRequirementsValidator {
             }
             for embedded in component.embedded.iter() {
                 let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
-                    embedded, state,
+                    &**resolved,
+                    embedded,
+                    state,
                 )?;
                 if !&compat {
                     return Ok(Compatibility::Incompatible(format!(
@@ -528,12 +564,22 @@ impl PkgRequirementsValidator {
             .collect();
         if !missing_components.is_empty() {
             return Ok(Incompatible(format!(
-                "resolved package does not provide all required components: needed {}, have {}",
+                "resolved package {} does not provide all required components: needed {}, have {}",
+                request.pkg.name,
                 missing_components
                     .into_iter()
                     .map(Component::to_string)
                     .join("\n"),
-                request.pkg.name,
+                {
+                    if provided_components.is_empty() {
+                        "none".to_owned()
+                    } else {
+                        provided_components
+                            .into_iter()
+                            .map(Component::to_string)
+                            .join("\n")
+                    }
+                }
             )));
         }
 

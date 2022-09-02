@@ -3,16 +3,19 @@
 // https://github.com/imageworks/spk
 use std::{
     cmp::min,
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet},
     fmt::{Display, Write},
     str::FromStr,
 };
 
 use colored::Colorize;
 use itertools::Itertools;
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::format::{FormatBuild, FormatComponents, FormatRequest};
+use spk_schema_foundation::{
+    format::{FormatBuild, FormatComponents, FormatRequest},
+    ident_component::Components,
+    ident_ops::parsing::KNOWN_REPOSITORY_NAMES,
+};
 
 use super::Ident;
 use crate::{BuildIdent, Error, Result};
@@ -29,36 +32,14 @@ use spk_schema_foundation::version_range::{
 #[path = "./request_test.rs"]
 mod request_test;
 
-pub static KNOWN_REPOSITORY_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-    let mut known_repositories = HashSet::from(["local"]);
-    if let Ok(config) = spfs::get_config() {
-        for name in config.list_remote_names() {
-            // Leak these Strings; they require 'static lifetime.
-            let name = Box::leak(Box::new(name));
-            known_repositories.insert(name);
-        }
-    }
-    known_repositories
-});
-
 /// Identifies a range of package versions and builds.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct RangeIdent {
     pub repository_name: Option<RepositoryNameBuf>,
     pub name: PkgNameBuf,
-    pub components: HashSet<Component>,
+    pub components: BTreeSet<Component>,
     pub version: VersionFilter,
     pub build: Option<Build>,
-}
-
-#[allow(clippy::derive_hash_xor_eq)]
-impl std::hash::Hash for RangeIdent {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-        self.components.iter().sorted().collect_vec().hash(state);
-        self.version.hash(state);
-        self.build.hash(state);
-    }
 }
 
 impl Ord for RangeIdent {
@@ -261,19 +242,7 @@ impl Display for RangeIdent {
             f.write_char('/')?;
         }
         self.name.fmt(f)?;
-        match self.components.len() {
-            0 => (),
-            1 => {
-                f.write_char(':')?;
-                self.components.iter().sorted().join(",").fmt(f)?;
-            }
-            _ => {
-                f.write_char(':')?;
-                f.write_char('{')?;
-                self.components.iter().sorted().join(",").fmt(f)?;
-                f.write_char('}')?;
-            }
-        }
+        self.components.fmt_component_set(f)?;
         if !self.version.is_empty() {
             f.write_char('/')?;
             self.version.fmt(f)?;
@@ -292,7 +261,7 @@ impl From<BuildIdent> for RangeIdent {
             repository_name: Some(ident.repository_name),
             name: ident.name,
             version: ident.version.into(),
-            components: HashSet::default(),
+            components: BTreeSet::default(),
             build: Some(ident.build),
         }
     }
@@ -304,7 +273,7 @@ impl From<Ident> for RangeIdent {
             repository_name: None,
             name: ident.name,
             version: ident.version.into(),
-            components: HashSet::default(),
+            components: BTreeSet::default(),
             build: ident.build,
         }
     }

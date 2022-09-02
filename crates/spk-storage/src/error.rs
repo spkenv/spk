@@ -22,6 +22,8 @@ pub enum Error {
     #[error(transparent)]
     SPFS(#[from] spfs::Error),
     #[error(transparent)]
+    SpkIdentError(#[from] spk_schema::ident::Error),
+    #[error(transparent)]
     SpkIdentBuildError(#[from] spk_schema::foundation::ident_build::Error),
     #[error(transparent)]
     SpkIdentComponentError(#[from] spk_schema::foundation::ident_component::Error),
@@ -38,5 +40,11 @@ pub enum Error {
 impl From<String> for Error {
     fn from(err: String) -> Error {
         Error::String(err)
+    }
+}
+
+impl From<&str> for Error {
+    fn from(err: &str) -> Error {
+        Error::String(err.to_owned())
     }
 }

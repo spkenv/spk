@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::{
     borrow::Cow,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     mem::take,
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -11,16 +11,16 @@ use std::{
     },
 };
 
-use crate::option_map::OptionMap;
+use crate::{error::OutOfOptions, option_map::OptionMap};
 use async_stream::stream;
 use futures::{Stream, TryStreamExt};
 use priority_queue::priority_queue::PriorityQueue;
-use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::{foundation::ident_build::Build, ident_build::EmbeddedSource};
 use spk_schema::{Deprecate, Ident, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
     Change, Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SkipPackageNote,
@@ -214,6 +214,39 @@ impl Solver {
         let request = if let Some(request) = node.state.get_next_request()? {
             request
         } else {
+            // May have a valid solution, but verify that all embedded packages
+            // that are part of the solve also have their source packages
+            // present in the solve.
+            let mut non_embeds = HashSet::new();
+            let mut embeds = HashMap::new();
+            for (spec, _) in node.state.get_resolved_packages().values() {
+                match &spec.ident().build {
+                    Some(Build::Embedded(EmbeddedSource::Package(package))) => {
+                        let ident: Ident = (&package.ident).try_into()?;
+                        embeds.insert(ident, spec.ident().clone());
+                    }
+                    _ => {
+                        non_embeds.insert(spec.ident().clone());
+                    }
+                }
+            }
+            let embeds_set: HashSet<Ident> = embeds.keys().cloned().collect();
+            let mut difference = embeds_set.difference(&non_embeds);
+            if let Some(missing_embed_provider) = difference.next() {
+                // This is an invalid solve!
+                // Safety: All members of `difference` must also exist in `embeds`.
+                let unprovided_embedded =
+                    unsafe { embeds.get(missing_embed_provider).unwrap_unchecked() };
+
+                notes.push(Note::Other(format!("Embedded package {unprovided_embedded} missing its provider {missing_embed_provider}")));
+                return Err(Error::OutOfOptions(OutOfOptions {
+                    request: PkgRequest::new(
+                        missing_embed_provider.clone().into(),
+                        RequestedBy::PackageBuild(unprovided_embedded.clone()),
+                    ),
+                    notes,
+                }));
+            }
             return Ok(None);
         };
 

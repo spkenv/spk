@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     convert::{TryFrom, TryInto},
     sync::Arc,
 };
@@ -13,7 +13,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::Ident;
-use spk_schema::SpecRecipe;
+use spk_schema::{Spec, SpecRecipe};
 
 use super::{
     repository::{PublishPolicy, Storage},
@@ -85,6 +85,46 @@ impl RuntimeRepository {
 #[async_trait::async_trait]
 impl Storage for RuntimeRepository {
     type Recipe = SpecRecipe;
+    type Package = Spec;
+
+    async fn get_concrete_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>> {
+        let mut base = self.root.join(&pkg.name);
+        base.push(pkg.version.to_string());
+        Ok(get_all_filenames(&base)?
+            .into_iter()
+            .filter_map(|entry| {
+                if entry.ends_with('/') {
+                    Some(entry[0..entry.len() - 1].to_string())
+                } else {
+                    None
+                }
+            })
+            .filter(|entry| base.join(entry).join("spec.yaml").exists())
+            .filter_map(|candidate| match parse_build(&candidate) {
+                Ok(b) => Some(pkg.with_build(Some(b))),
+                Err(err) => {
+                    tracing::debug!(
+                        "Skipping invalid build in {:?}: [{}] {:?}",
+                        self.root,
+                        candidate,
+                        err
+                    );
+                    None
+                }
+            })
+            .collect())
+    }
+
+    async fn get_embedded_package_builds(&self, _pkg: &Ident) -> Result<HashSet<Ident>> {
+        // Can't publish packages to a runtime so there can't be any stubs
+        Ok(HashSet::default())
+    }
+
+    async fn publish_embed_stub_to_storage(&self, _spec: &Self::Package) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a runtime repository".into(),
+        ))
+    }
 
     async fn publish_package_to_storage(
         &self,
@@ -156,6 +196,31 @@ impl Storage for RuntimeRepository {
         Ok(mapped)
     }
 
+    async fn read_package_from_storage(
+        &self,
+        pkg: &Ident,
+    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
+        let mut path = self.root.join(pkg.to_string());
+        path.push("spec.yaml");
+
+        let mut reader = std::fs::File::open(&path).map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.clone(),
+                ))
+            } else {
+                Error::FileOpenError(path.to_owned(), err)
+            }
+        })?;
+        serde_yaml::from_reader(&mut reader)
+            .map(Arc::new)
+            .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+    }
+
+    async fn remove_embed_stub_from_storage(&self, _pkg: &Ident) -> Result<()> {
+        Err(Error::String("Cannot modify a runtime repository".into()))
+    }
+
     async fn remove_package_from_storage(&self, _pkg: &Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
@@ -211,34 +276,6 @@ impl Repository for RuntimeRepository {
         ))
     }
 
-    async fn list_package_builds(&self, pkg: &Ident) -> Result<Vec<Ident>> {
-        let mut base = self.root.join(&pkg.name);
-        base.push(pkg.version.to_string());
-        Ok(get_all_filenames(&base)?
-            .into_iter()
-            .filter_map(|entry| {
-                if entry.ends_with('/') {
-                    Some(entry[0..entry.len() - 1].to_string())
-                } else {
-                    None
-                }
-            })
-            .filter(|entry| base.join(entry).join("spec.yaml").exists())
-            .filter_map(|candidate| match parse_build(&candidate) {
-                Ok(b) => Some(pkg.with_build(Some(b))),
-                Err(err) => {
-                    tracing::debug!(
-                        "Skipping invalid build in {:?}: [{}] {:?}",
-                        self.root,
-                        candidate,
-                        err
-                    );
-                    None
-                }
-            })
-            .collect())
-    }
-
     async fn list_build_components(&self, pkg: &Ident) -> Result<Vec<Component>> {
         if pkg.build.is_none() {
             return Ok(Vec::new());
@@ -251,6 +288,12 @@ impl Repository for RuntimeRepository {
             .collect()
     }
 
+    async fn read_embed_stub(&self, pkg: &Ident) -> Result<Arc<Self::Package>> {
+        Err(Error::SpkValidatorsError(
+            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+        ))
+    }
+
     async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
         Err(Error::SpkValidatorsError(
             spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
@@ -259,27 +302,6 @@ impl Repository for RuntimeRepository {
 
     async fn remove_recipe(&self, _pkg: &Ident) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
-    }
-
-    async fn read_package(
-        &self,
-        pkg: &Ident,
-    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
-        let mut path = self.root.join(pkg.to_string());
-        path.push("spec.yaml");
-
-        let mut reader = std::fs::File::open(&path).map_err(|err| {
-            if err.kind() == std::io::ErrorKind::NotFound {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
-                ))
-            } else {
-                Error::FileOpenError(path.to_owned(), err)
-            }
-        })?;
-        serde_yaml::from_reader(&mut reader)
-            .map(Arc::new)
-            .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
     }
 }
 

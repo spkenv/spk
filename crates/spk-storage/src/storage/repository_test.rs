@@ -7,7 +7,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::pkg_name;
 use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps};
 use spk_schema::ident::parse_ident;
-use spk_schema::{recipe, spec};
+use spk_schema::{recipe, spec, Deprecate, DeprecateMut, Ident, Spec, SpecRecipe};
 
 use crate::{fixtures::*, Error};
 
@@ -158,4 +158,234 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
         .await
         .unwrap()
         .is_empty());
+}
+
+async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> (SpecRecipe, Spec) {
+    let recipe = recipe!({
+        "pkg": "my-pkg/1.0.0",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg/1.0.0"}
+            ]
+        }
+    });
+    repo.publish_recipe(&recipe).await.unwrap();
+    let spec = spec!({
+        "pkg": "my-pkg/1.0.0/7CI5R7Y4",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg/1.0.0/embedded"}
+            ]
+        }
+    });
+    repo.publish_package(
+        &spec,
+        &vec![(Component::Run, empty_layer_digest())]
+            .into_iter()
+            .collect(),
+    )
+    .await
+    .unwrap();
+    (recipe, spec)
+}
+
+#[rstest]
+#[case::mem(RepoKind::Mem)]
+#[case::spfs(RepoKind::Spfs)]
+#[tokio::test]
+async fn test_repo_publish_spec_updates_embed_stubs(#[case] repo: RepoKind) {
+    let repo = make_repo(repo).await;
+    let _ = create_repo_for_embed_stubs_test(&repo).await;
+    // `test_repo_publish_package_creates_embed_stubs` proves that the stub
+    // would exist at this point.
+    //
+    // Change the embedded package to a different name.
+    let recipe = recipe!({
+        "pkg": "my-pkg/1.0.0",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg2/1.0.0"}
+            ]
+        }
+    });
+    repo.force_publish_recipe(&recipe).await.unwrap();
+    let spec = spec!({
+        "pkg": "my-pkg/1.0.0/7CI5R7Y4",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg2/1.0.0/embedded"}
+            ]
+        }
+    });
+    repo.update_package(&spec).await.unwrap();
+    // The original stub should be gone.
+    assert!(!repo
+        .list_packages()
+        .await
+        .unwrap()
+        .iter()
+        .any(|pkg| pkg == "my-embedded-pkg"));
+    // The new stub should exist.
+    assert!(repo
+        .list_packages()
+        .await
+        .unwrap()
+        .iter()
+        .any(|pkg| pkg == "my-embedded-pkg2"));
+}
+
+#[rstest]
+#[case::mem(RepoKind::Mem)]
+#[case::spfs(RepoKind::Spfs)]
+#[tokio::test]
+async fn test_repo_deprecate_spec_updates_embed_stubs(#[case] repo: RepoKind) {
+    let repo = make_repo(repo).await;
+    let (_, mut package) = create_repo_for_embed_stubs_test(&repo).await;
+    // `test_repo_publish_package_creates_embed_stubs` proves that the stub
+    // would exist at this point.
+    //
+    // Deprecate the package.
+    package.deprecate().unwrap();
+    repo.update_package(&package).await.unwrap();
+    // The stub should be deprecated too.
+    let builds = repo
+        .list_package_builds(&Ident {
+            name: "my-embedded-pkg".parse().unwrap(),
+            version: "1.0.0".parse().unwrap(),
+            build: None,
+        })
+        .await
+        .unwrap();
+    assert!(!builds.is_empty());
+    assert!(repo
+        .read_embed_stub(&builds[0])
+        .await
+        .unwrap()
+        .is_deprecated())
+}
+
+#[rstest]
+#[case::mem(RepoKind::Mem)]
+#[case::spfs(RepoKind::Spfs)]
+#[tokio::test]
+async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: RepoKind) {
+    let repo = make_repo(repo).await;
+    let recipe = recipe!({
+        "pkg": "my-pkg/1.0.0",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg/1.0.0"},
+                {"pkg": "my-embedded-pkg2/1.0.0"}
+            ]
+        }
+    });
+    repo.publish_recipe(&recipe).await.unwrap();
+    let spec = spec!({
+        "pkg": "my-pkg/1.0.0/7CI5R7Y4",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg/1.0.0"},
+                {"pkg": "my-embedded-pkg2/1.0.0"}
+            ]
+        }
+    });
+    repo.publish_package(
+        &spec,
+        &vec![(Component::Run, empty_layer_digest())]
+            .into_iter()
+            .collect(),
+    )
+    .await
+    .unwrap();
+    // `test_repo_publish_package_creates_embed_stubs` proves that the stub
+    // would exist at this point.
+    //
+    // Remove one of the original specs and introduce a new spec, but leave
+    // an existing one in place. This exercises a different code path.
+    let recipe = recipe!({
+        "pkg": "my-pkg/1.0.0",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg2/1.0.0"},
+                {"pkg": "my-embedded-pkg3/1.0.0"}
+            ]
+        }
+    });
+    repo.force_publish_recipe(&recipe).await.unwrap();
+    let mut spec = spec!({
+        "pkg": "my-pkg/1.0.0/7CI5R7Y4",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg2/1.0.0"},
+                {"pkg": "my-embedded-pkg3/1.0.0"}
+            ]
+        }
+    });
+    // Also deprecate the package.
+    spec.deprecate().unwrap();
+    repo.update_package(&spec).await.unwrap();
+    // The original stub should be gone.
+    assert!(!repo
+        .list_packages()
+        .await
+        .unwrap()
+        .iter()
+        .any(|pkg| pkg == "my-embedded-pkg"));
+    for pkg_name in ["my-embedded-pkg2", "my-embedded-pkg3"] {
+        // The new stubs should exist.
+        assert!(repo
+            .list_packages()
+            .await
+            .unwrap()
+            .iter()
+            .any(|pkg| pkg == pkg_name));
+        // The new stubs should be deprecated.
+        let builds = repo
+            .list_package_builds(&Ident {
+                name: pkg_name.parse().unwrap(),
+                version: "1.0.0".parse().unwrap(),
+                build: None,
+            })
+            .await
+            .unwrap();
+        assert!(!builds.is_empty());
+        assert!(repo
+            .read_embed_stub(&builds[0])
+            .await
+            .unwrap()
+            .is_deprecated())
+    }
+}
+
+#[rstest]
+#[case::mem(RepoKind::Mem)]
+#[case::spfs(RepoKind::Spfs)]
+#[tokio::test]
+async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
+    let repo = make_repo(repo).await;
+    let _ = create_repo_for_embed_stubs_test(&repo).await;
+    assert!(repo
+        .list_packages()
+        .await
+        .unwrap()
+        .iter()
+        .any(|pkg| pkg == "my-embedded-pkg"));
+}
+
+#[rstest]
+#[case::mem(RepoKind::Mem)]
+#[case::spfs(RepoKind::Spfs)]
+#[tokio::test]
+async fn test_repo_remove_package_removes_embed_stubs(#[case] repo: RepoKind) {
+    let repo = make_repo(repo).await;
+    let (_, spec) = create_repo_for_embed_stubs_test(&repo).await;
+    // `test_repo_publish_package_creates_embed_stubs` proves that the stub
+    // would exist at this point.
+    repo.remove_package(spec.ident()).await.unwrap();
+    assert!(!repo
+        .list_packages()
+        .await
+        .unwrap()
+        .iter()
+        .any(|pkg| pkg == "my-embedded-pkg"));
 }

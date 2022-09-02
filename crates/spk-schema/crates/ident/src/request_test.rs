@@ -1,7 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 use rstest::rstest;
 use spk_schema_foundation::ident_component::Component;
@@ -22,7 +22,7 @@ use crate::parse_ident;
 #[case("python.lib,bin/3.1.0", &[""])]
 fn test_parse_ident_range_components(#[case] source: &str, #[case] expected: &[&str]) {
     let actual = parse_ident_range(source).unwrap();
-    let expected: HashSet<_> = expected
+    let expected: BTreeSet<_> = expected
         .iter()
         .map(Component::parse)
         .map(Result::unwrap)

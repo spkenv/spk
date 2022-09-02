@@ -9,8 +9,9 @@ use std::{
 
 use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
-use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::{env::data_path, spec_ops::PackageMutOps};
+use spk_schema::DeprecateMut;
 use spk_schema::Ident;
 use spk_solve::PackageOps;
 use spk_storage::{self as storage};
@@ -75,6 +76,7 @@ where
         P: AsRef<Path>,
         R: std::ops::Deref<Target = T>,
         T: storage::Repository<Recipe = Recipe> + ?Sized,
+        <T as storage::Storage>::Package: PackageMutOps<Ident = Ident> + DeprecateMut,
     {
         let (package, components) = self.build(root).await?;
         repo.publish_package(&package, &components).await?;
