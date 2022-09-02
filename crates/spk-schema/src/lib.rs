@@ -9,6 +9,7 @@ mod deprecate;
 mod embedded_packages_list;
 mod environ;
 mod error;
+mod from_yaml;
 mod install_spec;
 mod meta;
 mod option;
@@ -26,6 +27,7 @@ mod validation;
 // Re-export for macros
 pub use serde_json;
 
+pub use from_yaml::FromYaml;
 pub use spk_schema_foundation::{
     self as foundation, env, ident_build, ident_component, ident_ops, name,
     option_map::{self, OptionMap},

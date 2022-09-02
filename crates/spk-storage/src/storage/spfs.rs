@@ -29,7 +29,7 @@ use spk_schema::{
     foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf},
     ident_build::parsing::embedded_source_package,
 };
-use spk_schema::{Spec, SpecRecipe};
+use spk_schema::{FromYaml, Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
 use super::{
@@ -140,10 +140,7 @@ enum CacheValue<T> {
 impl<T> From<CacheValue<T>> for Result<T> {
     fn from(cv: CacheValue<T>) -> Self {
         match cv {
-            CacheValue::InvalidPackageSpec(i, err) => Err(crate::Error::InvalidPackageSpec(
-                i,
-                serde::ser::Error::custom(err),
-            )),
+            CacheValue::InvalidPackageSpec(i, err) => Err(crate::Error::InvalidPackageSpec(i, err)),
             CacheValue::PackageNotFoundError(i) => Err(crate::Error::SpkValidatorsError(
                 spk_schema::validators::Error::PackageNotFoundError(i),
             )),
@@ -424,8 +421,8 @@ impl Storage for SPFSRepository {
                 .read_to_string(&mut yaml)
                 .await
                 .map_err(|err| Error::FileReadError(filename, err))?;
-            serde_yaml::from_str(&yaml)
-                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+            Spec::from_yaml(&yaml)
+                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err.to_string()))
                 .map(Arc::new)
         }
         .await;
@@ -582,8 +579,8 @@ impl Repository for SPFSRepository {
                 .read_to_string(&mut yaml)
                 .await
                 .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
-            serde_yaml::from_str(&yaml)
-                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+            Spec::from_yaml(yaml)
+                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err.to_string()))
                 .map(Arc::new)
         }
         .await;
@@ -621,8 +618,8 @@ impl Repository for SPFSRepository {
                 .read_to_string(&mut yaml)
                 .await
                 .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
-            serde_yaml::from_str(&yaml)
-                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+            SpecRecipe::from_yaml(yaml)
+                .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err.to_string()))
                 .map(Arc::new)
         }
         .await;

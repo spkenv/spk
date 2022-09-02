@@ -10,7 +10,7 @@ use crate::{prelude::*, spec::SpecRecipe};
 
 #[rstest]
 fn test_resolve_options_package_option() {
-    let recipe: SpecRecipe = serde_yaml::from_str(
+    let recipe = SpecRecipe::from_yaml(
         r#"{
             api: v0/package,
             pkg: my-pkg/1.0.0,

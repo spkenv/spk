@@ -16,7 +16,13 @@ pub enum Error {
     #[error("Failed to read file {0}")]
     FileReadError(std::path::PathBuf, #[source] std::io::Error),
     #[error("Invalid package spec for {0}: {1}")]
-    InvalidPackageSpec(Ident, #[source] serde_yaml::Error),
+    InvalidPackageSpec(
+        Ident,
+        // ideally this would contain the original format_serde_error instance
+        // but they are not clone-able and we need to be able to cache and duplicate
+        // this error type
+        String,
+    ),
     #[error("Invalid repository metadata: {0}")]
     InvalidRepositoryMetadata(#[source] serde_yaml::Error),
     #[error(transparent)]
