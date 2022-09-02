@@ -169,27 +169,45 @@ fn test_resolve_options_variant_treated_as_new_pkg() {
 }
 
 macro_rules! assert_requests_contains {
-    ( $requests:expr, var, $expected_key:expr, $expected_value:expr ) => {{
+    ( $requests:expr, var, $expected_key:expr, $expected_value:expr, index = $expected_index:expr ) => {{
         if !$requests
             .iter()
-            .any(|r| matches!(r, $crate::Request::Var(var) if var.var == $expected_key && var.value == $expected_value))
+            .enumerate()
+            .any(|(index, r)| matches!(r, $crate::Request::Var(var) if var.var == $expected_key && var.value == $expected_value && ($expected_index.is_none() || $expected_index.unwrap() == index)))
         {
             panic!(
-                "requests did not contain var with {} and {}",
-                $expected_key, $expected_value
+                "requests did not contain var with {} and {}{}",
+                $expected_key, $expected_value, {
+                    match $expected_index {
+                        Some(index) => format!(" at index {}", index),
+                        None => format!(""),
+                    }
+                }
             );
         }
     }};
-    ( $requests:expr, pkg, $expected_key:expr, $expected_value:expr ) => {{
+    ( $requests:expr, pkg, $expected_key:expr, $expected_value:expr, index = $expected_index:expr ) => {{
         if !$requests
             .iter()
-            .any(|r| matches!(r, $crate::Request::Pkg(pkg) if pkg.pkg.name == $expected_key && pkg.pkg.version.to_string() == $expected_value))
+            .enumerate()
+            .any(|(index, r)| matches!(r, $crate::Request::Pkg(pkg) if pkg.pkg.name == $expected_key && pkg.pkg.version.to_string() == $expected_value && ($expected_index.is_none() || $expected_index.unwrap() == index)))
         {
             panic!(
-                "requests did not contain pkg with {} and {}",
-                $expected_key, $expected_value
+                "requests did not contain pkg with {} and {}{}",
+                $expected_key, $expected_value, {
+                    match $expected_index {
+                        Some(index) => format!(" at index {}", index),
+                        None => format!(""),
+                    }
+                }
             );
         }
+    }};
+    ( $requests:expr, var, $expected_key:expr, $expected_value:expr ) => {{
+        assert_requests_contains!($requests, var, $expected_key, $expected_value, index = None::<usize>);
+    }};
+    ( $requests:expr, pkg, $expected_key:expr, $expected_value:expr ) => {{
+        assert_requests_contains!($requests, pkg, $expected_key, $expected_value, index = None::<usize>);
     }};
 }
 
@@ -277,4 +295,64 @@ fn test_get_build_requirements_variant_treated_as_new_pkg() {
     // value.
     assert_requests_contains!(build_requirements_variant_2, pkg, "a-package", "2.3.4");
     assert_requests_contains!(build_requirements_variant_2, var, "a-var", "1.2.3");
+}
+
+#[rstest]
+fn test_get_build_requirements_pkg_in_variant_preserves_order() {
+    // The override of `a-package` should not alter the order of the packages
+    // as defined in `options`.
+    let spec = recipe!({
+        "pkg": "test/1.0.0",
+        "build": {
+            "options": [
+                {
+                    "pkg": "a-package/1.2.3",
+                },
+                {
+                    "pkg": "b-package/1.2.3",
+                },
+                {
+                    "pkg": "c-package/1.2.3",
+                },
+                {
+                    "var": "a-var/1.2.3",
+                }
+            ],
+            "variants": [
+                // 0
+                {
+                    "a-package": "2.3.4",
+                }
+            ]
+        },
+    });
+
+    let resolved_options_variant_0 = spec
+        .resolve_options(&BuildVariant::Variant(0), &OptionMap::default())
+        .unwrap();
+
+    // XXX: Is it "cheating" to pass in the resolved options to
+    // `get_build_requirements`?
+
+    let build_requirements_variant_0 = spec
+        .get_build_requirements(&BuildVariant::Variant(0), &resolved_options_variant_0)
+        .unwrap();
+
+    // Variant 0...
+    // Expect the variant content to match the pkg in options and override its
+    // value. It is expected to remain in position 0.
+    assert_requests_contains!(
+        build_requirements_variant_0,
+        pkg,
+        "a-package",
+        "2.3.4",
+        index = Some(0)
+    );
+    assert_requests_contains!(
+        build_requirements_variant_0,
+        var,
+        "a-var",
+        "1.2.3",
+        index = Some(3)
+    );
 }

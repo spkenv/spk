@@ -1,7 +1,8 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::{BTreeSet, HashMap};
+
+use std::collections::{hash_map, BTreeSet, HashMap};
 use std::convert::TryInto;
 use std::path::Path;
 use std::str::FromStr;
@@ -161,7 +162,30 @@ impl<Ident> Spec<Ident> {
             }
         }
 
-        Ok(options)
+        // Prune duplicates by retaining the value of the latest entry, most
+        // likely coming from a variant and intended to override a default
+        // value, but retain the original order since the order can matter for
+        // optimal solver pathfinding.
+        let mut option_position_index = HashMap::new();
+
+        let mut filtered_options = Vec::with_capacity(options.len());
+
+        for opt in options.into_iter() {
+            let key = (std::mem::discriminant(&opt), opt.full_name().to_owned());
+            match option_position_index.entry(key) {
+                hash_map::Entry::Occupied(entry) => {
+                    // Overwrite existing element
+                    filtered_options[*entry.get()] = opt;
+                }
+                hash_map::Entry::Vacant(entry) => {
+                    // Append new element and remember its index
+                    entry.insert(filtered_options.len());
+                    filtered_options.push(opt);
+                }
+            }
+        }
+
+        Ok(filtered_options)
     }
 
     /// Remove requirements and other package data that
