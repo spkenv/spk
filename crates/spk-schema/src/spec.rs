@@ -98,10 +98,10 @@ impl Template for SpecTemplate {
 
     fn render(&self, _options: &OptionMap) -> Result<Self::Output> {
         serde_yaml::from_str(&self.template).map_err(|err| {
-            Error::InvalidYaml(crate::error::InvalidYamlError {
-                yaml: self.template.clone(),
+            Error::InvalidYaml(format_serde_error::SerdeError::new(
+                self.template.clone(),
                 err,
-            })
+            ))
         })
     }
 }
@@ -122,10 +122,9 @@ impl TemplateExt for SpecTemplate {
         // though we will need to re-process it again later on
         let template_value: serde_yaml::Mapping = match serde_yaml::from_str(&template) {
             Err(err) => {
-                return Err(Error::InvalidYaml(crate::error::InvalidYamlError {
-                    yaml: template,
-                    err,
-                }))
+                return Err(Error::InvalidYaml(format_serde_error::SerdeError::new(
+                    template, err,
+                )))
             }
             Ok(v) => v,
         };
@@ -589,10 +588,9 @@ impl Spec {
             // to understand that we only pass ownership of 'yaml' if
             // the function is returning
             Err(err) => {
-                return Err(Error::InvalidYaml(crate::error::InvalidYamlError {
-                    err,
-                    yaml,
-                }))
+                return Err(Error::InvalidYaml(format_serde_error::SerdeError::new(
+                    yaml, err,
+                )));
             }
             Ok(m) => m,
         };
@@ -600,7 +598,7 @@ impl Spec {
         match with_version.api {
             ApiVersion::V0Package => {
                 let inner = serde_yaml::from_str(&yaml).map_err(|err| {
-                    Error::InvalidYaml(crate::error::InvalidYamlError { err, yaml })
+                    Error::InvalidYaml(format_serde_error::SerdeError::new(yaml, err))
                 })?;
                 Ok(Self::V0Package(inner))
             }
