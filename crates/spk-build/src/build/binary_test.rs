@@ -11,6 +11,7 @@ use spk_schema::foundation::opt_name;
 use spk_schema::foundation::option_map;
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::ident::{PkgRequest, RangeIdent, Request};
+use spk_schema::FromYaml;
 use spk_schema::{recipe, ComponentSpecList, Inheritance, Opt, Package, Recipe, SpecRecipe};
 use spk_solve::Solution;
 use spk_storage::{self as storage, fixtures::*, Repository};
@@ -47,7 +48,7 @@ fn test_split_manifest_permissions() {
 #[rstest]
 #[tokio::test]
 async fn test_empty_var_option_is_not_a_request() {
-    let recipe: SpecRecipe = serde_yaml::from_str(
+    let recipe = SpecRecipe::from_yaml(
         r#"{
             pkg: mypackage/1.0.0,
             build: {
@@ -67,7 +68,7 @@ async fn test_empty_var_option_is_not_a_request() {
 
 #[rstest]
 fn test_var_with_build_assigns_build() {
-    let recipe: SpecRecipe = serde_yaml::from_str(
+    let recipe = SpecRecipe::from_yaml(
         r#"{
         pkg: mypackage/1.0.0,
         build: {

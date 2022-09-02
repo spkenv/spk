@@ -4,6 +4,7 @@
 use std::{
     collections::{HashMap, HashSet},
     convert::{TryFrom, TryInto},
+    io::Read,
     sync::Arc,
 };
 
@@ -12,8 +13,7 @@ use spk_schema::foundation::ident_build::parse_build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::{parse_version, Version};
-use spk_schema::Ident;
-use spk_schema::{Spec, SpecRecipe};
+use spk_schema::{FromYaml, Ident, Spec, SpecRecipe};
 
 use super::{
     repository::{PublishPolicy, Storage},
@@ -212,9 +212,13 @@ impl Storage for RuntimeRepository {
                 Error::FileOpenError(path.to_owned(), err)
             }
         })?;
-        serde_yaml::from_reader(&mut reader)
+        let mut yaml = String::new();
+        reader
+            .read_to_string(&mut yaml)
+            .map_err(|err| Error::FileReadError(path.to_owned(), err))?;
+        <Self::Recipe as spk_schema::Recipe>::Output::from_yaml(yaml)
             .map(Arc::new)
-            .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err))
+            .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err.to_string()))
     }
 
     async fn remove_embed_stub_from_storage(&self, _pkg: &Ident) -> Result<()> {

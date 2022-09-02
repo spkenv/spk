@@ -19,7 +19,7 @@ pub enum Error {
     #[error("Invalid inheritance: {0}")]
     InvalidInheritance(#[source] serde_yaml::Error),
     #[error("Invalid package spec file {0}: {1}")]
-    InvalidPackageSpecFile(std::path::PathBuf, #[source] serde_yaml::Error),
+    InvalidPackageSpecFile(std::path::PathBuf, #[source] format_serde_error::SerdeError),
     #[error("Invalid path {0}")]
     InvalidPath(std::path::PathBuf, #[source] std::io::Error),
     #[error(transparent)]
@@ -44,7 +44,7 @@ pub enum Error {
     TempDirError(#[source] std::io::Error),
 
     #[error(transparent)]
-    InvalidYaml(format_serde_error::SerdeError),
+    InvalidYaml(#[from] format_serde_error::SerdeError),
 }
 
 impl Error {

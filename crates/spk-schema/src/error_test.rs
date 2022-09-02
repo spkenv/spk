@@ -3,6 +3,8 @@
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
+use crate::FromYaml;
+
 #[rstest]
 fn test_yaml_error_empty() {
     format_serde_error::never_color();

@@ -3328,6 +3328,7 @@ dependencies = [
  "colored",
  "data-encoding",
  "enum_dispatch",
+ "format_serde_error",
  "futures",
  "glob",
  "ignore",

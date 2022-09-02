@@ -7,6 +7,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use enum_dispatch::enum_dispatch;
+use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::spec_ops::PackageMutOps;
@@ -17,7 +18,7 @@ use crate::foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{Ident, PkgRequest, RangeIdent, Request, VarRequest};
 use crate::{test_spec::TestSpec, Deprecate, DeprecateMut, Error, Package, Result};
-use crate::{BuildEnv, ComponentSpec, Recipe, Template, TemplateExt};
+use crate::{BuildEnv, ComponentSpec, FromYaml, Recipe, Template, TemplateExt};
 
 /// Create a spec recipe from a json structure.
 ///
@@ -41,8 +42,9 @@ use crate::{BuildEnv, ComponentSpec, Recipe, Template, TemplateExt};
 #[macro_export]
 macro_rules! recipe {
     ($($spec:tt)+) => {{
+        use $crate::FromYaml;
         let value = $crate::serde_json::json!($($spec)+);
-        let spec: $crate::SpecRecipe = $crate::serde_json::from_value(value).unwrap();
+        let spec = $crate::SpecRecipe::from_yaml(value.to_string()).expect("invalid recipe data");
         spec
     }};
 }
@@ -69,6 +71,7 @@ macro_rules! recipe {
 #[macro_export]
 macro_rules! spec {
     ($($spec:tt)+) => {{
+        use $crate::FromYaml;
         let value = $crate::serde_json::json!($($spec)+);
         let spec = $crate::Spec::from_yaml(value.to_string()).expect("invalid spec");
         spec
@@ -97,12 +100,7 @@ impl Template for SpecTemplate {
     }
 
     fn render(&self, _options: &OptionMap) -> Result<Self::Output> {
-        serde_yaml::from_str(&self.template).map_err(|err| {
-            Error::InvalidYaml(format_serde_error::SerdeError::new(
-                self.template.clone(),
-                err,
-            ))
-        })
+        Ok(SpecRecipe::from_yaml(&self.template)?)
     }
 }
 
@@ -121,11 +119,7 @@ impl TemplateExt for SpecTemplate {
         // validate that the template is still a valid yaml mapping even
         // though we will need to re-process it again later on
         let template_value: serde_yaml::Mapping = match serde_yaml::from_str(&template) {
-            Err(err) => {
-                return Err(Error::InvalidYaml(format_serde_error::SerdeError::new(
-                    template, err,
-                )))
-            }
+            Err(err) => return Err(Error::InvalidYaml(SerdeError::new(template, err))),
             Ok(v) => v,
         };
 
@@ -306,32 +300,40 @@ impl Versioned for SpecRecipe {
     }
 }
 
-impl<'de> Deserialize<'de> for SpecRecipe {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let mut value = serde_yaml::Mapping::deserialize(deserializer)?;
-        let api_field = serde_yaml::Value::String(String::from("api"));
+impl FromYaml for SpecRecipe {
+    fn from_yaml<S: Into<String>>(yaml: S) -> std::result::Result<Self, SerdeError> {
+        let yaml = yaml.into();
+
         // unfortunately, serde does not have a derive mechanism which
         // would allow us to specify a default enum variant for when
-        // the 'api' field does not exist in a spec. This small setup will not
-        // create as nice of error messages in some cases, but is the
-        // best implementation that I could think of without adding a
-        // non-trivial maintenance burden to the setup.
-        let variant = value
-            .remove(&api_field)
-            .unwrap_or_else(|| serde_yaml::Value::String(String::from("v0/package")));
-        match variant.as_str() {
-            Some("v0/package") => Ok(Self::V0Package(
-                serde_yaml::from_value(value.into()).map_err(serde::de::Error::custom)?,
-            )),
-            Some(variant) => Err(serde::de::Error::custom(format!(
-                "Unknown api variant: '{variant}'"
-            ))),
-            None => Err(serde::de::Error::custom(
-                "Invalid value for field 'api', expected string type",
-            )),
+        // the 'api' field does not exist in a spec. To do this properly
+        // and still be able to maintain source location data for
+        // yaml errors, we need to deserialize twice: once to get the
+        // api version, and a second time to deserialize that version
+
+        // the name of this struct appears in error messages when the
+        // root of the yaml doc is not a mapping, so we use something
+        // fairly generic, eg: 'expected struct YamlMapping'
+        #[derive(Deserialize)]
+        struct YamlMapping {
+            #[serde(default = "ApiVersion::default")]
+            api: ApiVersion,
+        }
+
+        let with_version = match serde_yaml::from_str::<YamlMapping>(&yaml) {
+            // we cannot simply use map_err because we need the compiler
+            // to understand that we only pass ownership of 'yaml' if
+            // the function is returning
+            Err(err) => return Err(SerdeError::new(yaml, err)),
+            Ok(m) => m,
+        };
+
+        match with_version.api {
+            ApiVersion::V0Package => {
+                let inner =
+                    serde_yaml::from_str(&yaml).map_err(|err| SerdeError::new(yaml, err))?;
+                Ok(Self::V0Package(inner))
+            }
         }
     }
 }
@@ -563,8 +565,8 @@ impl Package for Spec {
     }
 }
 
-impl Spec {
-    pub fn from_yaml<S: Into<String>>(yaml: S) -> Result<Self> {
+impl FromYaml for Spec {
+    fn from_yaml<S: Into<String>>(yaml: S) -> std::result::Result<Self, SerdeError> {
         let yaml = yaml.into();
 
         // unfortunately, serde does not have a derive mechanism which
@@ -587,19 +589,14 @@ impl Spec {
             // we cannot simply use map_err because we need the compiler
             // to understand that we only pass ownership of 'yaml' if
             // the function is returning
-            Err(err) => {
-                return Err(Error::InvalidYaml(format_serde_error::SerdeError::new(
-                    yaml, err,
-                )));
-            }
+            Err(err) => return Err(SerdeError::new(yaml, err)),
             Ok(m) => m,
         };
 
         match with_version.api {
             ApiVersion::V0Package => {
-                let inner = serde_yaml::from_str(&yaml).map_err(|err| {
-                    Error::InvalidYaml(format_serde_error::SerdeError::new(yaml, err))
-                })?;
+                let inner =
+                    serde_yaml::from_str(&yaml).map_err(|err| SerdeError::new(yaml, err))?;
                 Ok(Self::V0Package(inner))
             }
         }

@@ -10,6 +10,7 @@ migration-to-components = ["spk-schema-foundation/migration-to-components"]
 [dependencies]
 data-encoding = "2.3"
 enum_dispatch = "0.3.8"
+format_serde_error = {version = "0.3", default_features = false, features = ["serde_yaml", "colored"]}
 ignore = "0.4.18"
 indexmap = "1.7"
 itertools = "0.10"
@@ -28,7 +29,6 @@ sys-info = "0.9.0"
 tempfile = "3.3"
 thiserror = "1.0"
 tracing = "0.1.35"
-format_serde_error = {version = "0.3", default_features = false, features = ["serde_yaml", "colored"]}
 
 [dev-dependencies]
 proptest = "1.0.0"
