@@ -454,11 +454,6 @@ where
             BuildSource::LocalPath(path) => path.clone(),
         };
 
-        // force the base environment to be setup using bash, so that the
-        // spfs startup and build environment are predictable and consistent
-        // (eg in case the user's shell does not have startup scripts in
-        //  the dependencies, is not supported by spfs, etc)
-        std::env::set_var("SHELL", "bash");
         let runtime = spfs::active_runtime().await?;
         let cmd = if self.interactive {
             println!("\nNow entering an interactive build shell");
@@ -470,11 +465,12 @@ where
             );
             println!(" - to cancel and discard this build, run `exit 1`");
             println!(" - to finalize and save the package, run `exit 0`");
-            spfs::build_interactive_shell_command(&runtime)?
+            spfs::build_interactive_shell_command(&runtime, Some("bash"))?
         } else {
             use std::ffi::OsString;
             spfs::build_shell_initialized_command(
                 &runtime,
+                Some("bash"),
                 OsString::from("bash"),
                 &[OsString::from("-ex"), build_script.into_os_string()],
             )?
@@ -485,6 +481,11 @@ where
         cmd.envs(options.to_environment());
         cmd.envs(get_package_build_env(package));
         cmd.env("PREFIX", &self.prefix);
+        // force the base environment to be setup using bash, so that the
+        // spfs startup and build environment are predictable and consistent
+        // (eg in case the user's shell does not have startup scripts in
+        //  the dependencies, is not supported by spfs, etc)
+        cmd.env("SHELL", "bash");
         cmd.current_dir(&source_dir);
 
         match cmd

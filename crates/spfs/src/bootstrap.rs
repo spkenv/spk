@@ -63,8 +63,13 @@ where
 ///
 /// The returned command properly sets up and runs an interactive
 /// shell session in the current runtime.
-pub fn build_interactive_shell_command(rt: &runtime::Runtime) -> Result<Command> {
-    let shell = find_best_shell()?;
+///
+/// If `shell` is not specified, `$SHELL` will be read from the environment.
+pub fn build_interactive_shell_command(
+    rt: &runtime::Runtime,
+    shell: Option<&str>,
+) -> Result<Command> {
+    let shell = find_best_shell(shell)?;
     match shell {
         Shell::Tcsh { tcsh, expect } => Ok(Command {
             executable: expect.into(),
@@ -89,8 +94,11 @@ pub fn build_interactive_shell_command(rt: &runtime::Runtime) -> Result<Command>
 ///
 /// The returned command properly calls through a shell which sets up
 /// the current runtime appropriately before calling the desired command.
+///
+/// If `shell` is not specified, `$SHELL` will be read from the environment.
 pub fn build_shell_initialized_command<E, A, S>(
     runtime: &runtime::Runtime,
+    shell: Option<&str>,
     command: E,
     args: A,
 ) -> Result<Command>
@@ -99,7 +107,7 @@ where
     A: IntoIterator<Item = S>,
     S: Into<OsString>,
 {
-    let shell = find_best_shell()?;
+    let shell = find_best_shell(shell)?;
     let startup_file = match shell.kind() {
         ShellKind::Bash => &runtime.config.sh_startup_file,
         ShellKind::Tcsh => &runtime.config.csh_startup_file,
@@ -230,12 +238,19 @@ impl Shell {
 
 /// Looks for the most desired shell to use for bootstrapping.
 ///
+/// If `shell` is not provided, read the value of `$SHELL` from the
+/// environment.
+///
 /// In general, this strategy uses the value of SHELL before
 /// searching for viable entries in PATH and then falling back
 /// to whatever it can find listed in /etc/shells
-fn find_best_shell() -> Result<Shell> {
+fn find_best_shell(shell: Option<&str>) -> Result<Shell> {
+    let shell = shell
+        .map(|s| s.to_string())
+        .or_else(|| std::env::var("SHELL").ok());
+
     let mut desired = None;
-    if let Ok(name) = std::env::var("SHELL") {
+    if let Some(name) = shell {
         if Path::new(&name).is_absolute() {
             desired = Some(PathBuf::from(name));
         } else {

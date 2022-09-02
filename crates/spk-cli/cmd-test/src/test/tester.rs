@@ -44,10 +44,9 @@ pub trait Tester: Send {
         script_file
             .sync_data()
             .map_err(|err| Error::FileWriteError(script_path.to_owned(), err))?;
-        // TODO: this should be more easily configurable on the spfs side
-        std::env::set_var("SHELL", "bash");
         let cmd = spfs::build_shell_initialized_command(
             rt,
+            Some("bash"),
             OsString::from("bash"),
             &[OsString::from("-ex"), script_path.into_os_string()],
         )?;
@@ -55,6 +54,7 @@ pub trait Tester: Send {
         let status = cmd
             .envs(env)
             .current_dir(source_dir)
+            .env("SHELL", "bash")
             .status()
             .map_err(|err| {
                 Error::ProcessSpawnError(spfs::Error::process_spawn_error(
