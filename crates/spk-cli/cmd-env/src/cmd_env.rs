@@ -45,7 +45,10 @@ pub struct Env {
 #[async_trait::async_trait]
 impl Run for Env {
     async fn run(&mut self) -> Result<i32> {
-        let mut rt = self.runtime.ensure_active_runtime().await?;
+        let mut rt = self
+            .runtime
+            .ensure_active_runtime(&["env", "run", "shell"])
+            .await?;
 
         let (mut solver, requests) = tokio::try_join!(
             self.solver.get_solver(&self.options),

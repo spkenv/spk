@@ -41,7 +41,10 @@ impl Run for MakeSource {
 
 impl MakeSource {
     pub async fn make_source(&mut self) -> Result<Vec<BuildIdent>> {
-        let _runtime = self.runtime.ensure_active_runtime().await?;
+        let _runtime = self
+            .runtime
+            .ensure_active_runtime(&["make-source", "mksource", "mksrc", "mks"])
+            .await?;
         let local: storage::RepositoryHandle = storage::local_repository().await?.into();
         let options = self.options.get_options()?;
 

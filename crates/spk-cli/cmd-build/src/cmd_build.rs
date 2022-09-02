@@ -50,7 +50,9 @@ pub struct Build {
 #[async_trait::async_trait]
 impl Run for Build {
     async fn run(&mut self) -> Result<i32> {
-        self.runtime.ensure_active_runtime().await?;
+        self.runtime
+            .ensure_active_runtime(&["build", "make", "mk"])
+            .await?;
 
         // divide our packages into one for each iteration of mks/mkb
         let mut runs: Vec<_> = self.packages.iter().map(|f| vec![f.to_owned()]).collect();

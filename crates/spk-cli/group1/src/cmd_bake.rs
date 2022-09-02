@@ -77,7 +77,7 @@ impl Run for Bake {
             self.get_active_runtime_info().await?
         } else {
             let (_, layers) = tokio::try_join!(
-                self.runtime.ensure_active_runtime(),
+                self.runtime.ensure_active_runtime(&["bake"]),
                 self.get_new_solve_info()
             )?;
             layers

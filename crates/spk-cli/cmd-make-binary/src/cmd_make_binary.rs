@@ -96,7 +96,7 @@ impl Run for MakeBinary {
         let options = self.options.get_options()?;
         #[rustfmt::skip]
         let (_runtime, local, repos) = tokio::try_join!(
-            self.runtime.ensure_active_runtime(),
+            self.runtime.ensure_active_runtime(&["make-binary", "mkbinary", "mkbin", "mkb"]),
             storage::local_repository().map_ok(storage::RepositoryHandle::from).map_err(anyhow::Error::from),
             async { self.repos.get_repos_for_non_destructive_operation().await }
         )?;
