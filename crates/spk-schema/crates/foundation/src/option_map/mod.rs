@@ -236,25 +236,115 @@ impl<'de> Deserialize<'de> for OptionMap {
     where
         D: serde::Deserializer<'de>,
     {
-        use serde_yaml::Value;
-        let value = Value::deserialize(deserializer)?;
-        let mapping = match value {
-            Value::Mapping(m) => m,
-            _ => {
-                return Err(serde::de::Error::custom(
-                    "expected yaml mapping for OptionMap",
-                ))
-            }
-        };
-        let mut options = OptionMap::default();
-        for (name, value) in mapping.into_iter() {
-            let name = OptNameBuf::deserialize(name)
-                .map_err(|err| serde::de::Error::custom(err.to_string()))?;
-            let value = string_from_scalar(value)
-                .map_err(|err| serde::de::Error::custom(err.to_string()))?;
-            options.options.insert(name, value);
+        #[derive(Default)]
+        pub struct OptionMapVisitor {
+            inner: OptionMap,
         }
-        Ok(options)
+
+        impl<'de> serde::de::Visitor<'de> for OptionMapVisitor {
+            type Value = OptionMap;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a mapping of option values")
+            }
+
+            fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                while let Some((name, value)) = map.next_entry::<OptNameBuf, Stringified>()? {
+                    self.inner.insert(name, value.0);
+                }
+                Ok(self.inner)
+            }
+        }
+
+        deserializer.deserialize_map(OptionMapVisitor::default())
+    }
+}
+
+pub struct Stringified(pub String);
+
+impl<'de> Deserialize<'de> for Stringified {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(StringifyVisitor::default())
+    }
+}
+
+#[derive(Default)]
+pub struct StringifyVisitor;
+
+impl<'de> serde::de::Visitor<'de> for StringifyVisitor {
+    type Value = Stringified;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a scalar value")
+    }
+
+    fn visit_bool<E>(self, v: bool) -> std::result::Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Stringified(v.to_string()))
+    }
+
+    fn visit_i64<E>(self, v: i64) -> std::result::Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Stringified(v.to_string()))
+    }
+
+    fn visit_i128<E>(self, v: i128) -> std::result::Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Stringified(v.to_string()))
+    }
+
+    fn visit_u64<E>(self, v: u64) -> std::result::Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Stringified(v.to_string()))
+    }
+
+    fn visit_u128<E>(self, v: u128) -> std::result::Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Stringified(v.to_string()))
+    }
+
+    fn visit_f64<E>(self, v: f64) -> std::result::Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Stringified(v.to_string()))
+    }
+
+    fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Stringified(v.to_string()))
+    }
+
+    fn visit_string<E>(self, v: String) -> std::result::Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Stringified(v))
+    }
+
+    fn visit_unit<E>(self) -> std::result::Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Stringified(String::new()))
     }
 }
 
@@ -263,12 +353,7 @@ pub fn string_from_scalar<'de, D>(deserializer: D) -> std::result::Result<String
 where
     D: serde::Deserializer<'de>,
 {
-    use serde_yaml::Value;
-    let value = Value::deserialize(deserializer)?;
-    match value {
-        Value::Bool(b) => Ok(b.to_string()),
-        Value::Number(n) => Ok(n.to_string()),
-        Value::String(s) => Ok(s),
-        _ => Err(serde::de::Error::custom("expected scalar value")),
-    }
+    deserializer
+        .deserialize_any(StringifyVisitor::default())
+        .map(|s| s.0)
 }
