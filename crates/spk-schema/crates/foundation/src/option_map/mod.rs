@@ -263,7 +263,20 @@ impl<'de> Deserialize<'de> for OptionMap {
     }
 }
 
+/// A type that deserializes a string from any scalar value
+///
+/// This allows non-string fields in yaml, such as `true`, to be
+/// read-in as a string (eg: `"true"`) without getting an
+/// unexpected or invalid type error
 pub struct Stringified(pub String);
+
+impl std::ops::Deref for Stringified {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl<'de> Deserialize<'de> for Stringified {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>

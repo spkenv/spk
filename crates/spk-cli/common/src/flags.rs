@@ -342,8 +342,10 @@ impl Requests {
                 request_data.insert(prerelease_policy_key, "IncludeAll".into());
             }
 
-            let mut req: PkgRequest = serde_yaml::from_value(request_data.into())
-                .context(format!("Failed to parse request {}", r))?;
+            let mut req = serde_yaml::from_value::<Request>(request_data.into())
+                .context(format!("Failed to parse request {r}"))?
+                .into_pkg()
+                .context(format!("Expected a package request, got {r}"))?;
             req.add_requester(RequestedBy::CommandLine);
 
             if req.pkg.components.is_empty() {

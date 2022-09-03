@@ -4,7 +4,8 @@
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::opt_name;
-use spk_schema::spec;
+use spk_schema::ident::Request;
+use spk_schema::{spec, FromYaml};
 use spk_solve_graph::State;
 use spk_solve_solution::PackageSource;
 use std::sync::Arc;
@@ -50,8 +51,14 @@ fn test_qualified_var_supersedes_unqualified() {
     let state = State::new(
         vec![],
         vec![
-            serde_yaml::from_str("{var: debug/off}").unwrap(),
-            serde_yaml::from_str("{var: my-package.debug/on}").unwrap(),
+            Request::from_yaml("{var: debug/off}")
+                .unwrap()
+                .into_var()
+                .unwrap(),
+            Request::from_yaml("{var: my-package.debug/on}")
+                .unwrap()
+                .into_var()
+                .unwrap(),
         ],
         vec![],
         vec![],

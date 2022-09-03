@@ -3170,6 +3170,7 @@ version = "0.36.0"
 dependencies = [
  "colored",
  "data-encoding",
+ "format_serde_error",
  "itertools",
  "nom",
  "nom-supreme",
