@@ -15,6 +15,7 @@ use spk_schema_foundation::{
     format::{FormatBuild, FormatComponents, FormatRequest},
     ident_component::Components,
     ident_ops::parsing::KNOWN_REPOSITORY_NAMES,
+    option_map::Stringified,
 };
 
 use super::Ident;
@@ -310,11 +311,24 @@ impl<'de> Deserialize<'de> for RangeIdent {
     where
         D: serde::Deserializer<'de>,
     {
-        let ident = String::deserialize(deserializer)?;
-        match parse_ident_range(ident) {
-            Err(err) => Err(serde::de::Error::custom(format!("{}", err))),
-            Ok(ident) => Ok(ident),
+        struct RangeIdentVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for RangeIdentVisitor {
+            type Value = RangeIdent;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a package and version range (eg: python/3, boost/>=2.5)")
+            }
+
+            fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                parse_ident_range(v).map_err(serde::de::Error::custom)
+            }
         }
+
+        deserializer.deserialize_str(RangeIdentVisitor)
     }
 }
 
@@ -411,8 +425,22 @@ impl Request {
         matches!(self, Self::Pkg(_))
     }
 
+    pub fn into_pkg(self) -> Option<PkgRequest> {
+        match self {
+            Self::Pkg(p) => Some(p),
+            _ => None,
+        }
+    }
+
     pub fn is_var(&self) -> bool {
         matches!(self, Self::Var(_))
+    }
+
+    pub fn into_var(self) -> Option<VarRequest> {
+        match self {
+            Self::Var(v) => Some(v),
+            _ => None,
+        }
     }
 }
 
@@ -433,27 +461,114 @@ impl<'de> Deserialize<'de> for Request {
     where
         D: serde::Deserializer<'de>,
     {
-        use serde_yaml::Value;
-        let value = Value::deserialize(deserializer)?;
-        let mapping = match value {
-            Value::Mapping(m) => m,
-            _ => return Err(serde::de::Error::custom("expected mapping")),
-        };
-        if mapping.get(&Value::String("var".to_string())).is_some() {
-            Ok(Request::Var(
-                VarRequest::deserialize(Value::Mapping(mapping))
-                    .map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?,
-            ))
-        } else if mapping.get(&Value::String("pkg".to_string())).is_some() {
-            Ok(Request::Pkg(
-                PkgRequest::deserialize(Value::Mapping(mapping))
-                    .map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?,
-            ))
-        } else {
-            Err(serde::de::Error::custom(
-                "failed to determine request type: must have one of 'var' or 'pkg' fields",
-            ))
+        /// This visitor captures all fields that could be valid
+        /// for any option, before deciding at the end which variant
+        /// to actually build. We ignore any unrecognized field anyway,
+        /// but additionally any field that's recognized must be valid
+        /// even if it's not going to be used.
+        ///
+        /// The purpose of this setup is to enable more menaingful errors
+        /// for invalid values that contain original source positions. In
+        /// order to achieve this we must parse and validate each field with
+        /// the appropriate type as they are visited - which disqualifies the
+        /// existing approach to untagged enums which read all fields first
+        /// and then goes back and checks them once the variant is determined
+        #[derive(Default)]
+        struct RequestVisitor {
+            // PkgRequest
+            pkg: Option<RangeIdent>,
+            prerelease_policy: Option<PreReleasePolicy>,
+            inclusion_policy: Option<InclusionPolicy>,
+
+            // VarRequest
+            var: Option<OptNameBuf>,
+            value: Option<String>,
+
+            // Both
+            pin: Option<PinValue>,
         }
+
+        impl<'de> serde::de::Visitor<'de> for RequestVisitor {
+            type Value = Request;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a pkg or var request")
+            }
+
+            fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                while let Some(key) = map.next_key::<Stringified>()? {
+                    match key.as_str() {
+                        "pkg" => self.pkg = Some(map.next_value::<RangeIdent>()?),
+                        "prereleasePolicy" => {
+                            self.prerelease_policy = Some(map.next_value::<PreReleasePolicy>()?)
+                        }
+                        "include" => {
+                            self.inclusion_policy = Some(map.next_value::<InclusionPolicy>()?)
+                        }
+                        "fromBuildEnv" => self.pin = Some(map.next_value::<PinValue>()?),
+                        "var" => {
+                            let OptNameAndValue(name, value) = map.next_value()?;
+                            self.var = Some(name);
+                            self.value = value;
+                        }
+                        "value" => self.value = Some(map.next_value::<String>()?),
+                        _ => {
+                            // unrecognized fields are explicity ignored in case
+                            // they were added in a newer version of spk. We assume
+                            // that if the api has not been versioned then the desire
+                            // is to continue working in this older version
+                            let _ = map.next_value::<()>();
+                            continue;
+                        }
+                    }
+                }
+
+                match (self.pkg, self.var) {
+                    (Some(pkg), None) if self.pin.as_ref().map(PinValue::is_some).unwrap_or_default() && !pkg.version.is_empty() => {
+                        Err(serde::de::Error::custom(
+                            format!("request for `{}` cannot specify a value `/{}` when `fromBuildEnv` is specified", pkg.name, pkg.version)
+                        ))
+                    },
+                    (Some(pkg), None) => Ok(Request::Pkg(PkgRequest {
+                        pkg,
+                        prerelease_policy: self.prerelease_policy.unwrap_or_default(),
+                        inclusion_policy: self.inclusion_policy.unwrap_or_default(),
+                        pin: self.pin.unwrap_or_default().into_pkg_pin(),
+                        required_compat: None,
+                        requested_by: Default::default(),
+                    })),
+                    (None, Some(var)) => {
+                        match self.value.as_ref() {
+                            Some(value) if self.pin.as_ref().map(PinValue::is_some).unwrap_or_default() => {
+                                Err(serde::de::Error::custom(
+                                    format!("request for `{var}` cannot specify a value `/{value}` when `fromBuildEnv` is true")
+                                ))
+                            }
+                            None if self.pin.is_none() => Err(serde::de::Error::custom(
+                                format!("request for `{var}` must specify a value (eg: {var}/<value>) when `fromBuildEnv` is false or omitted")
+                            )),
+                            _ => Ok(Request::Var(VarRequest {
+                                var,
+                                pin: self.pin.unwrap_or_default().into_var_pin()?,
+                                value: self.value.unwrap_or_default(),
+                            }))
+                        }
+                    },
+                    (Some(_), Some(_)) => Err(serde::de::Error::custom(
+                        "could not determine request type, it may only contain one of the `pkg` or `var` fields"
+                    )),
+                    (None, None) => Err(serde::de::Error::custom(
+                        "could not determine request type, it must include either a `pkg` or `var` field"
+                    )
+                    ),
+                }
+            }
+        }
+
+        deserializer.deserialize_any(RequestVisitor::default())
     }
 }
 
@@ -515,47 +630,6 @@ impl VarRequest {
         Package: PackageOps<VarRequest = VarRequest>,
     {
         spec.is_satisfied_by_var_request(self)
-    }
-}
-
-impl<'de> Deserialize<'de> for VarRequest {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let res = {
-            let spec = VarRequestSchema::deserialize(deserializer)?;
-
-            let mut parts = spec.var.splitn(2, '/');
-            let mut out = Self {
-                var: parts
-                    .next()
-                    .unwrap()
-                    .parse()
-                    .map_err(serde::de::Error::custom)?,
-                value: Default::default(),
-                pin: spec.pin,
-            };
-            match (parts.next(), spec.pin) {
-                (Some(_), true) => {
-                    return Err(serde::de::Error::custom(format!(
-                        "var request {} cannot have value when fromBuildEnv is true",
-                        out.var
-                    )));
-                }
-                (Some(value), false) => out.value = value.to_string(),
-                (None, true) => (),
-                (None, false) => {
-                    return Err(serde::de::Error::custom(format!(
-                        "var request must be in the form name/value, got '{}'",
-                        spec.var
-                    )));
-                }
-            }
-
-            Ok(out)
-        };
-        res
     }
 }
 
@@ -962,55 +1036,123 @@ impl FormatRequest for PkgRequest {
     }
 }
 
-impl<'de> Deserialize<'de> for PkgRequest {
+pub fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+struct OptNameAndValue(OptNameBuf, Option<String>);
+
+impl<'de> Deserialize<'de> for OptNameAndValue {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        #[derive(Deserialize)]
-        struct Unchecked {
-            pkg: RangeIdent,
-            #[serde(rename = "prereleasePolicy", default)]
-            prerelease_policy: PreReleasePolicy,
-            #[serde(rename = "include", default)]
-            inclusion_policy: InclusionPolicy,
-            #[serde(rename = "fromBuildEnv", default)]
-            pin: Option<serde_yaml::Value>,
-        }
-        let unchecked = Unchecked::deserialize(deserializer)?;
+        struct OptNameAndValueVisitor;
 
-        // fromBuildEnv can either be a boolean or some other scalar.
-        // really only a string makes sense, but some other scalar
-        let pin = match unchecked.pin {
-            Some(serde_yaml::Value::Bool(b)) => match b {
-                true => Some(BINARY_STR.to_string()),
-                false => None,
-            },
-            Some(serde_yaml::Value::String(s)) => Some(s),
-            Some(v) => {
-                return Err(serde::de::Error::custom(format!(
-                    "expected boolean or string value in 'fromBuildEnv', got {:?}",
-                    v,
-                )));
+        impl<'de> serde::de::Visitor<'de> for OptNameAndValueVisitor {
+            type Value = (OptNameBuf, Option<String>);
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a var name an optional value (eg, `my-var`, `my-var/value`)")
             }
-            None => None,
-        };
-        if pin.is_some() && !unchecked.pkg.version.is_empty() {
-            return Err(serde::de::Error::custom(
-                "Package request cannot include both a version number and fromBuildEnv",
-            ));
+
+            fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let mut parts = v.splitn(2, '/');
+                let name = parts
+                    .next()
+                    .unwrap()
+                    .parse()
+                    .map_err(serde::de::Error::custom)?;
+                Ok((name, parts.next().map(String::from)))
+            }
         }
-        Ok(Self {
-            pkg: unchecked.pkg,
-            prerelease_policy: unchecked.prerelease_policy,
-            inclusion_policy: unchecked.inclusion_policy,
-            pin,
-            required_compat: None,
-            requested_by: BTreeMap::new(),
-        })
+
+        deserializer
+            .deserialize_str(OptNameAndValueVisitor)
+            .map(|(n, v)| OptNameAndValue(n, v))
     }
 }
 
-pub fn is_false(value: &bool) -> bool {
-    !*value
+/// An ambiguous pin value that could be for either a var or
+/// pkg request. It represents all the possible values of both,
+/// and so may not be valid depending on the final context
+enum PinValue {
+    None,
+    True,
+    String(String),
+}
+
+impl Default for PinValue {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+impl PinValue {
+    /// Transform this pin into the appropriate value for a pkg request
+    fn into_pkg_pin(self) -> Option<String> {
+        match self {
+            Self::None => None,
+            Self::True => Some(BINARY_STR.into()),
+            Self::String(s) => Some(s),
+        }
+    }
+
+    /// Transform this pin into the appropriate value for a var request, if possible
+    fn into_var_pin<E>(self) -> std::result::Result<bool, E>
+    where
+        E: serde::de::Error,
+    {
+        match self {
+            Self::None => Ok(false),
+            Self::True => Ok(true),
+            Self::String(s) => Err(E::custom(format!(
+                "`fromBuildEnv` for var requests must be a boolean, found `{s}`"
+            ))),
+        }
+    }
+
+    /// True if this pin has a value
+    fn is_some(&self) -> bool {
+        !matches!(self, Self::None)
+    }
+}
+
+impl<'de> Deserialize<'de> for PinValue {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct PinValueVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for PinValueVisitor {
+            type Value = PinValue;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a string or boolean (eg, `true`, `Binary`, `x.x.x`)")
+            }
+
+            fn visit_bool<E>(self, v: bool) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match v {
+                    true => Ok(PinValue::True),
+                    false => Ok(PinValue::None),
+                }
+            }
+
+            fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(PinValue::String(v.into()))
+            }
+        }
+
+        deserializer.deserialize_any(PinValueVisitor)
+    }
 }
