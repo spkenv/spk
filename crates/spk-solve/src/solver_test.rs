@@ -1321,6 +1321,43 @@ async fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
 
 #[rstest]
 #[tokio::test]
+async fn test_solver_option_compat_intersection(mut solver: Solver) {
+    // A var option for spi-platform/~2022.4.1.4 should be able to resolve
+    // with a build of openimageio that requires spi-platform/~2022.4.1.3.
+
+    let spi_platform_1_0 = make_build!({"pkg": "spi-platform/1.0", "compat": "x.x.a.b"});
+    let spi_platform_2022_4_1_3 =
+        make_build!({"pkg": "spi-platform/2022.4.1.3", "compat": "x.x.a.b"});
+    let spi_platform_2022_4_1_4 =
+        make_build!({"pkg": "spi-platform/2022.4.1.4", "compat": "x.x.a.b"});
+    let openimageio_1_2_3 = make_build!(
+            {
+                "pkg": "openimageio/1.2.3",
+                "build": {
+                    "options": [
+                        { "pkg": "spi-platform/~2022.4.1.3" },
+                    ],
+                },
+            },
+            [spi_platform_2022_4_1_3]
+    );
+
+    let repo = make_repo!([
+        spi_platform_1_0,
+        spi_platform_2022_4_1_3,
+        spi_platform_2022_4_1_4,
+        openimageio_1_2_3,
+    ]);
+
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(request!({"var": "spi-platform/~2022.4.1.4"}));
+    solver.add_request(request!({"pkg": "openimageio"}));
+
+    let _ = run_and_print_resolve_for_tests(&solver).await.unwrap();
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_solver_components(mut solver: Solver) {
     // test when a package is requested with specific components
     // - all the aggregated components are selected in the resolve
