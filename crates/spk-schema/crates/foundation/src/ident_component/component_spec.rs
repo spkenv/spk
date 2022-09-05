@@ -168,8 +168,22 @@ impl<'de> Deserialize<'de> for Component {
     where
         D: serde::Deserializer<'de>,
     {
-        let value = String::deserialize(deserializer)?;
-        Component::try_from(value).map_err(|err| serde::de::Error::custom(err.to_string()))
+        struct ComponentVisitor;
+        impl<'de> serde::de::Visitor<'de> for ComponentVisitor {
+            type Value = Component;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a component name")
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Component, E>
+            where
+                E: serde::de::Error,
+            {
+                Component::parse(value).map_err(serde::de::Error::custom)
+            }
+        }
+        deserializer.deserialize_str(ComponentVisitor)
     }
 }
 

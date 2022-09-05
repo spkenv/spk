@@ -55,7 +55,7 @@ test:
     |     - "hello, world"
     | install:
  10 |   requirements: {}
-    |                 ^ install.requirements: invalid type: map, expected a sequence at line 10 column 17
+    |                 ^ install.requirements: invalid type: map, expected a list of requirements at line 10 column 17
     | test:
     |   - stage: 1
 "#;

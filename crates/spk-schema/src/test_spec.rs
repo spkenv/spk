@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::foundation::option_map::OptionMap;
 use crate::ident::Request;
+use crate::Script;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum TestStage {
@@ -19,6 +20,7 @@ pub enum TestStage {
 const BUILD_NAME: &str = "build";
 const INSTALL_NAME: &str = "install";
 const SOURCES_NAME: &str = "sources";
+const TEST_STAGES: &[&str] = &[BUILD_NAME, INSTALL_NAME, SOURCES_NAME];
 
 impl std::fmt::Display for TestStage {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -49,8 +51,23 @@ impl<'de> Deserialize<'de> for TestStage {
     where
         D: serde::Deserializer<'de>,
     {
-        let value = String::deserialize(deserializer)?;
-        Self::from_str(&value).map_err(serde::de::Error::custom)
+        struct TestStageVisitor;
+        impl<'de> serde::de::Visitor<'de> for TestStageVisitor {
+            type Value = TestStage;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a test stage (build, install, sources)")
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<TestStage, E>
+            where
+                E: serde::de::Error,
+            {
+                TestStage::from_str(value)
+                    .map_err(|_| serde::de::Error::unknown_variant(value, TEST_STAGES))
+            }
+        }
+        deserializer.deserialize_str(TestStageVisitor)
     }
 }
 
@@ -74,8 +91,7 @@ impl FromStr for TestStage {
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct TestSpec {
     pub stage: TestStage,
-    #[serde(deserialize_with = "super::build_spec::deserialize_script")]
-    pub script: Vec<String>,
+    pub script: Script,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub selectors: Vec<OptionMap>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

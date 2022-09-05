@@ -34,7 +34,7 @@ pub use spk_schema_foundation::{
 pub use spk_schema_ident::{self as ident, Ident};
 pub use spk_schema_validators as validators;
 
-pub use build_spec::BuildSpec;
+pub use build_spec::{BuildSpec, Script};
 pub use component_spec::ComponentSpec;
 pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};

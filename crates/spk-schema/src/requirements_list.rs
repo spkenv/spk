@@ -107,19 +107,37 @@ impl<'de> Deserialize<'de> for RequirementsList {
     where
         D: serde::Deserializer<'de>,
     {
-        let unchecked = Vec::<Request>::deserialize(deserializer)?;
+        struct RequirementsListVisitor;
 
-        let mut requirement_names = HashSet::with_capacity(unchecked.len());
-        for name in unchecked.iter().map(Request::name) {
-            if requirement_names.contains(&name) {
-                return Err(serde::de::Error::custom(format!(
-                    "found multiple install requirements for '{}'",
-                    name
-                )));
+        impl<'de> serde::de::Visitor<'de> for RequirementsListVisitor {
+            type Value = RequirementsList;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a list of requirements")
             }
-            requirement_names.insert(name);
+
+            fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let size_hint = seq.size_hint().unwrap_or(0);
+                let mut requirements = Vec::with_capacity(size_hint);
+                let mut requirement_names = HashSet::with_capacity(size_hint);
+                while let Some(request) = seq.next_element::<Request>()? {
+                    let name = request.name();
+                    if requirement_names.contains(name) {
+                        return Err(serde::de::Error::custom(format!(
+                            "found multiple install requirements for '{}'",
+                            name
+                        )));
+                    }
+                    requirement_names.insert(name.to_owned());
+                    requirements.push(request);
+                }
+                Ok(RequirementsList(requirements))
+            }
         }
 
-        Ok(RequirementsList(unchecked))
+        deserializer.deserialize_seq(RequirementsListVisitor)
     }
 }

@@ -444,8 +444,9 @@ impl<'de> Deserialize<'de> for Digest {
         D: serde::Deserializer<'de>,
     {
         /// Visits a serialized string, decoding it as a digest
-        struct StringVisitor<'de>(&'de u8);
-        impl<'de> serde::de::Visitor<'de> for StringVisitor<'de> {
+        struct StringVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for StringVisitor {
             type Value = Digest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -456,16 +457,10 @@ impl<'de> Deserialize<'de> for Digest {
             where
                 E: serde::de::Error,
             {
-                match Digest::try_from(value) {
-                    Ok(digest) => Ok(digest),
-                    Err(_) => Err(serde::de::Error::invalid_value(
-                        serde::de::Unexpected::Str(value),
-                        &self,
-                    )),
-                }
+                Digest::try_from(value).map_err(serde::de::Error::custom)
             }
         }
-        deserializer.deserialize_str(StringVisitor(&0))
+        deserializer.deserialize_str(StringVisitor)
     }
 }
 
