@@ -112,8 +112,28 @@ impl<'de> Deserialize<'de> for FileMatcher {
     where
         D: serde::Deserializer<'de>,
     {
-        let files = Vec::<String>::deserialize(deserializer)?;
-        FileMatcher::new(files.into_iter()).map_err(|err| serde::de::Error::custom(err.to_string()))
+        struct FileMatcherVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for FileMatcherVisitor {
+            type Value = FileMatcher;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a list of file patterns")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut rules = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+                while let Some(element) = seq.next_element::<String>()? {
+                    rules.push(element);
+                }
+                FileMatcher::new(rules.into_iter()).map_err(serde::de::Error::custom)
+            }
+        }
+
+        deserializer.deserialize_seq(FileMatcherVisitor)
     }
 }
 

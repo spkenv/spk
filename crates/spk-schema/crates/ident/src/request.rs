@@ -467,7 +467,7 @@ impl<'de> Deserialize<'de> for Request {
         /// but additionally any field that's recognized must be valid
         /// even if it's not going to be used.
         ///
-        /// The purpose of this setup is to enable more menaingful errors
+        /// The purpose of this setup is to enable more meaningful errors
         /// for invalid values that contain original source positions. In
         /// order to achieve this we must parse and validate each field with
         /// the appropriate type as they are visited - which disqualifies the
@@ -520,8 +520,7 @@ impl<'de> Deserialize<'de> for Request {
                             // they were added in a newer version of spk. We assume
                             // that if the api has not been versioned then the desire
                             // is to continue working in this older version
-                            let _ = map.next_value::<()>();
-                            continue;
+                            map.next_value::<serde::de::IgnoredAny>()?;
                         }
                     }
                 }

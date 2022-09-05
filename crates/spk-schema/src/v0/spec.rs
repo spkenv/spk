@@ -7,8 +7,10 @@ use std::path::Path;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::spec_ops::PackageMutOps;
 
+use crate::build_spec::UncheckedBuildSpec;
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
 use crate::foundation::name::PkgName;
@@ -579,53 +581,88 @@ impl<'de> Deserialize<'de> for Spec {
     where
         D: serde::de::Deserializer<'de>,
     {
-        #[derive(Deserialize)]
-        struct SpecSchema {
-            pkg: Ident,
-            #[serde(default)]
-            meta: Meta,
-            #[serde(default)]
-            compat: Compat,
-            #[serde(default)]
-            deprecated: bool,
-            #[serde(default)]
+        #[derive(Default)]
+        struct SpecVisitor {
+            pkg: Option<Ident>,
+            meta: Option<Meta>,
+            compat: Option<Compat>,
+            deprecated: Option<bool>,
             sources: Option<Vec<SourceSpec>>,
-            #[serde(default)]
-            build: serde_yaml::Mapping,
-            #[serde(default)]
-            tests: Vec<TestSpec>,
-            #[serde(default)]
-            install: InstallSpec,
+            build: Option<UncheckedBuildSpec>,
+            tests: Option<Vec<TestSpec>>,
+            install: Option<InstallSpec>,
         }
-        let unchecked = SpecSchema::deserialize(deserializer)?;
-        let build_spec_result = if unchecked.pkg.build.is_none() {
-            BuildSpec::deserialize(serde_yaml::Value::Mapping(unchecked.build))
-        } else {
-            // if the build is set, we assume that this is a rendered spec
-            // and we do not want to make an existing rendered build spec unloadable
-            BuildSpec::deserialize_unsafe(serde_yaml::Value::Mapping(unchecked.build))
-        };
-        let build_spec = build_spec_result
-            .map_err(|err| serde::de::Error::custom(format!("spec.build: {err}")))?;
 
-        let mut spec = Spec {
-            pkg: unchecked.pkg,
-            meta: unchecked.meta,
-            compat: unchecked.compat,
-            deprecated: unchecked.deprecated,
-            sources: unchecked
-                .sources
-                .unwrap_or_else(|| vec![SourceSpec::Local(LocalSource::default())]),
-            build: build_spec,
-            tests: unchecked.tests,
-            install: unchecked.install,
-        };
-        if spec.pkg.is_source() {
-            // for backward-compatibility with older publishes, prune out anything
-            // that is not relevant to a source package, since now source packages
-            // can technically have their own requirements, etc.
-            spec.prune_for_source_build();
+        impl<'de> serde::de::Visitor<'de> for SpecVisitor {
+            type Value = Spec;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a package specification")
+            }
+
+            fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                while let Some(key) = map.next_key::<Stringified>()? {
+                    println!("doing {}", key.0);
+                    match key.as_str() {
+                        "pkg" => self.pkg = Some(map.next_value::<Ident>()?),
+                        "meta" => self.meta = Some(map.next_value::<Meta>()?),
+                        "compat" => self.compat = Some(map.next_value::<Compat>()?),
+                        "deprecated" => self.deprecated = Some(map.next_value::<bool>()?),
+                        "sources" => self.sources = Some(map.next_value::<Vec<SourceSpec>>()?),
+                        "build" => self.build = Some(map.next_value::<UncheckedBuildSpec>()?),
+                        "tests" => self.tests = Some(map.next_value::<Vec<TestSpec>>()?),
+                        "install" => self.install = Some(map.next_value::<InstallSpec>()?),
+                        _ => {
+                            // ignore any unrecognized field, but consume the value anyway
+                            // TODO: could we warn about fields that look like typos?
+                            map.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+
+                let pkg = self
+                    .pkg
+                    .take()
+                    .ok_or_else(|| serde::de::Error::missing_field("pkg"))?;
+                let mut spec = Spec {
+                    meta: self.meta.take().unwrap_or_default(),
+                    compat: self.compat.take().unwrap_or_default(),
+                    deprecated: self.deprecated.take().unwrap_or_default(),
+                    sources: self
+                        .sources
+                        .take()
+                        .unwrap_or_else(|| vec![SourceSpec::Local(LocalSource::default())]),
+                    build: match self.build.take() {
+                        Some(build_spec) if pkg.build.is_some() => {
+                            // Safety: into_inner bypasses additional checks, but if the build is set,
+                            // we assume that this is a rendered spec and we do not want to make an
+                            // existing rendered build spec unloadable
+                            unsafe { build_spec.into_inner() }
+                        }
+                        Some(build_spec) => {
+                            build_spec.try_into().map_err(serde::de::Error::custom)?
+                        }
+                        None => Default::default(),
+                    },
+                    tests: self.tests.take().unwrap_or_default(),
+                    install: self.install.take().unwrap_or_default(),
+                    pkg,
+                };
+
+                if spec.pkg.is_source() {
+                    // for backward-compatibility with older publishes, prune out anything
+                    // that is not relevant to a source package, since now source packages
+                    // can technically have their own requirements, etc.
+                    spec.prune_for_source_build();
+                }
+
+                Ok(spec)
+            }
         }
-        Ok(spec)
+
+        deserializer.deserialize_map(SpecVisitor::default())
     }
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use rstest::rstest;
+
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::opt_name;
 use spk_schema::ident::Request;
