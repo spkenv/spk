@@ -236,10 +236,7 @@ impl<'de> Deserialize<'de> for OptionMap {
     where
         D: serde::Deserializer<'de>,
     {
-        #[derive(Default)]
-        pub struct OptionMapVisitor {
-            inner: OptionMap,
-        }
+        pub struct OptionMapVisitor;
 
         impl<'de> serde::de::Visitor<'de> for OptionMapVisitor {
             type Value = OptionMap;
@@ -252,10 +249,11 @@ impl<'de> Deserialize<'de> for OptionMap {
             where
                 A: serde::de::MapAccess<'de>,
             {
+                let mut options = OptionMap::default();
                 while let Some((name, value)) = map.next_entry::<OptNameBuf, Stringified>()? {
-                    self.inner.insert(name, value.0);
+                    options.insert(name, value.0);
                 }
-                Ok(self.inner)
+                Ok(options)
             }
         }
 
