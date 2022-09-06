@@ -63,7 +63,7 @@ pub struct Solver {
     // For accumulating the frequency of error messages generated
     // during the solver. Used in end-of-solve stats or if the solve
     // is interrupted by the user or timeout.
-    error_frequency: HashMap<String, u64>,
+    error_frequency: HashMap<String, ErrorFreq>,
     // For counting the number of times packages are involved in
     // blocked requests for other packages during the search. Used to
     // highlight problem areas in a solve and help user home in on
@@ -85,6 +85,66 @@ impl Default for Solver {
             number_of_steps_back: Arc::new(AtomicU64::new(0)),
             error_frequency: HashMap::new(),
             problem_packages: HashMap::new(),
+        }
+    }
+}
+
+/// The kinds of internal error encountered during a solve that are tracked for frequency
+#[derive(Debug, Clone)]
+pub(crate) enum ErrorDetails {
+    Message(String),
+    CouldNotSatisfy(String, Vec<RequestedBy>),
+}
+
+/// The details of a 'could not satisfy' error
+#[derive(Debug, Clone)]
+pub struct CouldNotSatisfyRecord {
+    /// The unique set of requesters involved in all instances of the error
+    pub requesters: HashSet<RequestedBy>,
+    // The
+    pub first_example: Vec<RequestedBy>,
+}
+
+/// Frequency counter for solver internal errors
+#[derive(Debug, Clone)]
+pub struct ErrorFreq {
+    pub counter: u64,
+    /// Extra data for 'could not satisfy' error messages
+    pub record: Option<CouldNotSatisfyRecord>,
+}
+
+impl ErrorFreq {
+    /// Given the key under which the this error is stored in the
+    /// solver, generate a combined message for original error.
+    pub fn get_message(&self, error_key: String) -> String {
+        match &self.record {
+            Some(r) => {
+                // Reconstruct an example of the error message
+                let mut message = format!(
+                    "could not satisfy '{error_key}' as required by: {}",
+                    r.first_example
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                );
+
+                // Count of any other requesters involved in this
+                // error (excluding the requesters from the first
+                // instance of the error
+                let num_others = r
+                    .requesters
+                    .iter()
+                    .filter(|&reqby| !r.first_example.contains(reqby))
+                    .count();
+                if num_others > 0 {
+                    let plural = if num_others > 1 { "others" } else { "other" };
+                    message = format!("{message} and {num_others} {plural}");
+                }
+                message
+            }
+            // The error_key is used as the message for in this case
+            None => error_key,
         }
     }
 }
@@ -126,13 +186,48 @@ impl Solver {
     }
 
     /// Increment the number of occurrences of the given error message
-    pub fn increment_error_count(&mut self, error_message: String) {
-        let counter = self.error_frequency.entry(error_message).or_insert(0);
-        *counter += 1;
+    pub(crate) fn increment_error_count(&mut self, error_message: ErrorDetails) {
+        match error_message {
+            ErrorDetails::Message(message) => {
+                // Store the full message as the key and keep a count
+                // of how many times it has been seen
+                let counter = self.error_frequency.entry(message).or_insert(ErrorFreq {
+                    counter: 0,
+                    record: None,
+                });
+                counter.counter += 1;
+            }
+            ErrorDetails::CouldNotSatisfy(request_string, requesters) => {
+                // Store the request string as the key, and record:
+                // - the number of times this request has been seen,
+                // - the set of things that it has been requested by,
+                //   (across all the times it has been seen),
+                // - the requesters from the first occurrence of the error
+                let counter = self
+                    .error_frequency
+                    .entry(request_string)
+                    .or_insert(ErrorFreq {
+                        counter: 0,
+                        record: Some(CouldNotSatisfyRecord {
+                            requesters: HashSet::new(),
+                            first_example: requesters.clone(),
+                        }),
+                    });
+                counter.counter += 1;
+                for requester in requesters {
+                    counter
+                        .record
+                        .as_mut()
+                        .unwrap()
+                        .requesters
+                        .insert(requester);
+                }
+            }
+        }
     }
 
     /// Get the error to frequency mapping
-    pub fn error_frequency(&self) -> &HashMap<String, u64> {
+    pub fn error_frequency(&self) -> &HashMap<String, ErrorFreq> {
         &self.error_frequency
     }
 
@@ -790,7 +885,6 @@ impl SolverRuntime {
                             err.request.pkg,
                             requirers.join(", ")
                         );
-                        self.solver.increment_error_count(cause.clone());
 
                         SolverRuntime::take_a_step_back(
                             &mut self.history,
@@ -799,7 +893,7 @@ impl SolverRuntime {
                             &cause,
                         ).await;
 
-                        self.solver.increment_error_count(cause);
+                        self.solver.increment_error_count(ErrorDetails::CouldNotSatisfy(err.request.pkg.to_string(), requested_by));
 
                         if let Some(d) = self.decision.as_mut() {
                             Arc::make_mut(d).add_notes(err.notes.iter().cloned())
@@ -835,7 +929,7 @@ impl SolverRuntime {
                             &cause,
                         ).await;
 
-                        self.solver.increment_error_count(cause);
+                        self.solver.increment_error_count(ErrorDetails::Message(cause));
 
                         // This doesn't halt the solve because the missing
                         // package might only have been requested by one
@@ -851,7 +945,7 @@ impl SolverRuntime {
                     }
                     Err(err) => {
                         let cause = format!("{}", err);
-                        self.solver.increment_error_count(cause);
+                        self.solver.increment_error_count(ErrorDetails::Message(cause));
                         yield Err(err);
                         continue 'outer;
                     }
