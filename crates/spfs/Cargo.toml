@@ -20,6 +20,7 @@ async-compression = { version = "0.3.15", features = ["tokio", "bzip2"] }
 async-trait = "0.1.52"
 async-recursion = "1.0"
 async-stream = "0.3"
+cached = { workspace = true }
 caps = "0.5.3"
 chrono = { workspace = true }
 close-err = "1.0"
