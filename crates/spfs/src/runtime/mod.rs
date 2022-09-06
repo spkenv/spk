@@ -5,7 +5,7 @@
 //! Handles the setup and initialization of runtime environments
 
 mod csh_exp;
-mod overlayfs;
+pub mod overlayfs;
 mod startup_csh;
 mod startup_sh;
 mod storage;

@@ -22,7 +22,10 @@ pub const SPFS_MONITOR_FOREGROUND_LOGGING_VAR: &str = "SPFS_MONITOR_FOREGROUND_L
 const SPFS_MONITOR_DISABLE_CNPROC_VAR: &str = "SPFS_MONITOR_DISABLE_CNPROC";
 
 const OVERLAY_ARGS_RO_PREFIX: &str = "ro";
+const OVERLAY_ARGS_INDEX: &str = "index";
 const OVERLAY_ARGS_INDEX_ON: &str = "index=on";
+const OVERLAY_ARGS_METACOPY: &str = "metacopy";
+const OVERLAY_ARGS_METACOPY_ON: &str = "metacopy=on";
 
 /// A struct for holding the options that will be included
 /// in the overlayfs mount command when mounting an environment.
@@ -39,7 +42,11 @@ pub(crate) struct OverlayMountOptions {
     /// spfs, since we rely on hardlinks for deduplication but
     /// expect that file to be able to appear in mutliple places
     /// as separate files that just so happen to share the same content.
-    pub break_hardlinks: bool,
+    break_hardlinks: bool,
+    /// When true, overlayfs will use extended file attributes to avoid
+    /// copying file data when only the metadata of a file has changed.
+    /// https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#metadata-only-copy-up
+    metadata_copy_up: bool,
 }
 
 impl OverlayMountOptions {
@@ -48,17 +55,30 @@ impl OverlayMountOptions {
         Self {
             read_only: !rt.status.editable,
             break_hardlinks: true,
+            metadata_copy_up: true,
         }
     }
 
     /// Return the options that should be included in the mount request.
-    pub(crate) fn options(&self) -> Vec<&str> {
+    pub fn into_options(self) -> Vec<&'static str> {
+        // consume self in this function since there is more work going on
+        // than just a mapping of settings to values and we don't want this warning
+        // to appear many times
+        let params = runtime::overlayfs::overlayfs_available_options().unwrap_or_else(|err| {
+            tracing::warn!("Failed to detect supported overlayfs params: {err}");
+            tracing::warn!(" > Falling back to the most conservative set, which is undesirable");
+            Default::default()
+        });
+
         let mut opts = Vec::new();
         if self.read_only {
             opts.push(OVERLAY_ARGS_RO_PREFIX);
         }
-        if self.break_hardlinks {
+        if self.break_hardlinks && params.contains(OVERLAY_ARGS_INDEX) {
             opts.push(OVERLAY_ARGS_INDEX_ON);
+        }
+        if self.metadata_copy_up && params.contains(OVERLAY_ARGS_METACOPY) {
+            opts.push(OVERLAY_ARGS_METACOPY_ON);
         }
         opts
     }
@@ -641,7 +661,7 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
     let mut args = String::with_capacity(4096);
 
     let mount_options = OverlayMountOptions::new(rt);
-    for option in mount_options.options() {
+    for option in mount_options.into_options() {
         args.push_str(option);
         args.push(',');
     }

@@ -103,6 +103,10 @@ pub enum Error {
     #[error("No supported shell found, or no support for current shell")]
     NoSupportedShell,
 
+    #[cfg(target_os = "linux")]
+    #[error("OverlayFS kernel module does not appear to be installed")]
+    OverlayFSNotInstalled,
+
     #[error("{}, and {} more errors during clean", errors.get(0).unwrap(), errors.len() - 1)]
     IncompleteClean { errors: Vec<Self> },
 }
