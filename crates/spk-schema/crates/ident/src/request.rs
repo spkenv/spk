@@ -5,6 +5,7 @@ use std::{
     cmp::min,
     collections::{BTreeMap, BTreeSet},
     fmt::{Display, Write},
+    marker::PhantomData,
     str::FromStr,
 };
 
@@ -462,7 +463,7 @@ impl<'de> Deserialize<'de> for Request {
         D: serde::Deserializer<'de>,
     {
         /// This visitor captures all fields that could be valid
-        /// for any option, before deciding at the end which variant
+        /// for any request, before deciding at the end which variant
         /// to actually build. We ignore any unrecognized field anyway,
         /// but additionally any field that's recognized must be valid
         /// even if it's not going to be used.
@@ -510,13 +511,13 @@ impl<'de> Deserialize<'de> for Request {
                         }
                         "fromBuildEnv" => self.pin = Some(map.next_value::<PinValue>()?),
                         "var" => {
-                            let OptNameAndValue(name, value) = map.next_value()?;
+                            let NameAndValue(name, value) = map.next_value()?;
                             self.var = Some(name);
                             self.value = value;
                         }
                         "value" => self.value = Some(map.next_value::<String>()?),
                         _ => {
-                            // unrecognized fields are explicity ignored in case
+                            // unrecognized fields are explicitly ignored in case
                             // they were added in a newer version of spk. We assume
                             // that if the api has not been versioned then the desire
                             // is to continue working in this older version
@@ -1039,17 +1040,34 @@ pub fn is_false(value: &bool) -> bool {
     !*value
 }
 
-struct OptNameAndValue(OptNameBuf, Option<String>);
+/// A deserializable name and optional value where
+/// the value it identified by it's position following
+/// a forward slash (eg: '/<value>')
+pub struct NameAndValue<Name = OptNameBuf>(pub Name, pub Option<String>)
+where
+    Name: FromStr,
+    <Name as FromStr>::Err: std::fmt::Display;
 
-impl<'de> Deserialize<'de> for OptNameAndValue {
+impl<'de, Name> Deserialize<'de> for NameAndValue<Name>
+where
+    Name: FromStr,
+    <Name as FromStr>::Err: std::fmt::Display,
+{
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        struct OptNameAndValueVisitor;
+        struct NameAndValueVisitor<Name>(PhantomData<dyn Fn() -> Name>)
+        where
+            Name: FromStr,
+            <Name as FromStr>::Err: std::fmt::Display;
 
-        impl<'de> serde::de::Visitor<'de> for OptNameAndValueVisitor {
-            type Value = (OptNameBuf, Option<String>);
+        impl<'de, Name> serde::de::Visitor<'de> for NameAndValueVisitor<Name>
+        where
+            Name: FromStr,
+            <Name as FromStr>::Err: std::fmt::Display,
+        {
+            type Value = (Name, Option<String>);
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("a var name an optional value (eg, `my-var`, `my-var/value`)")
@@ -1070,8 +1088,8 @@ impl<'de> Deserialize<'de> for OptNameAndValue {
         }
 
         deserializer
-            .deserialize_str(OptNameAndValueVisitor)
-            .map(|(n, v)| OptNameAndValue(n, v))
+            .deserialize_str(NameAndValueVisitor::<Name>(PhantomData))
+            .map(|(n, v)| NameAndValue(n, v))
     }
 }
 

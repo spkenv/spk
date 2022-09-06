@@ -88,6 +88,23 @@ tests:
    |            ^ tests[0].stage: unknown variant `other`, expected one of `build`, `install`, `sources` at line 3 column 12
 "#
 )]
+#[case(
+    r#"pkg: python
+build:
+  options:
+    - pkg: python/3.4
+    - var  arch
+    - var: os
+"#,
+    r#"
+   | build:
+   |   options:
+   |     - pkg: python/3.4
+ 5 |     - var  arch
+   |       ^ build.options[1]: invalid type: string "var  arch", expected a pkg or var option at line 5 column 7
+   |     - var: os
+"#
+)]
 fn test_yaml_error_context(#[case] yaml: &str, #[case] expected: &str) {
     // validate that some common and/or deep(ish) errors in the spec format
     // still show errors that are well placed and reasonably worded
