@@ -331,6 +331,7 @@ impl<'de> Deserialize<'de> for Ident {
         D: Deserializer<'de>,
     {
         struct IdentVisitor;
+
         impl<'de> serde::de::Visitor<'de> for IdentVisitor {
             type Value = Ident;
 

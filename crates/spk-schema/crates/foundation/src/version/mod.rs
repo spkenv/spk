@@ -521,6 +521,7 @@ impl<'de> Deserialize<'de> for Version {
         D: Deserializer<'de>,
     {
         struct VersionVisitor;
+
         impl<'de> serde::de::Visitor<'de> for VersionVisitor {
             type Value = Version;
 

@@ -52,6 +52,7 @@ impl<'de> Deserialize<'de> for TestStage {
         D: serde::Deserializer<'de>,
     {
         struct TestStageVisitor;
+
         impl<'de> serde::de::Visitor<'de> for TestStageVisitor {
             type Value = TestStage;
 
