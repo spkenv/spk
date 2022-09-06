@@ -24,6 +24,7 @@ RUN yum install -y \
     sed \
     tar \
     texinfo \
+    unzip \
     wget \
     which \
     zip
