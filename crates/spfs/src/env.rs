@@ -21,11 +21,25 @@ const NONE: Option<&str> = None;
 pub const SPFS_MONITOR_FOREGROUND_LOGGING_VAR: &str = "SPFS_MONITOR_FOREGROUND_LOGGING";
 const SPFS_MONITOR_DISABLE_CNPROC_VAR: &str = "SPFS_MONITOR_DISABLE_CNPROC";
 
+const OVERLAY_ARGS_RO_PREFIX: &str = "ro";
+const OVERLAY_ARGS_INDEX_ON: &str = "index=on";
+
 /// A struct for holding the options that will be included
 /// in the overlayfs mount command when mounting an environment.
 #[derive(Default)]
 pub(crate) struct OverlayMountOptions {
-    pub(crate) read_only: bool,
+    /// Specifies that the overlay file system is mounted as read-only
+    pub read_only: bool,
+    /// When true, inodes are indexed in the mount so that
+    /// files which share the same inode (hardlinks) are broken
+    /// in the final mount and changes to one file don't affect
+    /// the other.
+    ///
+    /// This is the desired default behavior for
+    /// spfs, since we rely on hardlinks for deduplication but
+    /// expect that file to be able to appear in mutliple places
+    /// as separate files that just so happen to share the same content.
+    pub break_hardlinks: bool,
 }
 
 impl OverlayMountOptions {
@@ -33,16 +47,20 @@ impl OverlayMountOptions {
     fn new(rt: &runtime::Runtime) -> Self {
         Self {
             read_only: !rt.status.editable,
+            break_hardlinks: true,
         }
     }
 
     /// Return the options that should be included in the mount request.
     pub(crate) fn options(&self) -> Vec<&str> {
+        let mut opts = Vec::new();
         if self.read_only {
-            vec![OVERLAY_ARGS_RO_PREFIX]
-        } else {
-            Vec::default()
+            opts.push(OVERLAY_ARGS_RO_PREFIX);
         }
+        if self.break_hardlinks {
+            opts.push(OVERLAY_ARGS_INDEX_ON);
+        }
+        opts
     }
 }
 
@@ -655,8 +673,6 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
     };
     Ok(args)
 }
-
-pub(crate) const OVERLAY_ARGS_RO_PREFIX: &str = "ro";
 
 pub(crate) fn mount_env<P: AsRef<Path>>(
     rt: &runtime::Runtime,
