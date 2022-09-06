@@ -245,7 +245,7 @@ impl<'de> Deserialize<'de> for OptionMap {
                 f.write_str("a mapping of option values")
             }
 
-            fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+            fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
             where
                 A: serde::de::MapAccess<'de>,
             {
@@ -257,7 +257,7 @@ impl<'de> Deserialize<'de> for OptionMap {
             }
         }
 
-        deserializer.deserialize_map(OptionMapVisitor::default())
+        deserializer.deserialize_map(OptionMapVisitor)
     }
 }
 

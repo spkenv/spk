@@ -87,7 +87,6 @@ impl<'de> Deserialize<'de> for ComponentSpecList {
     where
         D: serde::Deserializer<'de>,
     {
-        #[derive(Default)]
         struct ComponentSpecListVisitor;
 
         impl<'de> serde::de::Visitor<'de> for ComponentSpecListVisitor {

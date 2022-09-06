@@ -267,8 +267,7 @@ impl<'de> Deserialize<'de> for Opt {
                             // they were added in a newer version of spk. We assume
                             // that if the api has not been versioned then the desire
                             // is to continue working in this older version
-                            let _ = map.next_value::<serde::de::IgnoredAny>();
-                            continue;
+                            map.next_value::<serde::de::IgnoredAny>()?;
                         }
                     }
                 }
@@ -598,23 +597,5 @@ impl Serialize for PkgOpt {
         }
 
         out.serialize(serializer)
-    }
-}
-
-/// Deserialize any reasonable scalar option (int, float, str, null) to an Option<String> value
-pub(crate) fn optional_string_from_scalar<'de, D>(
-    deserializer: D,
-) -> std::result::Result<Option<String>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde_yaml::Value;
-    let value = Value::deserialize(deserializer)?;
-    match value {
-        Value::Bool(b) => Ok(Some(b.to_string())),
-        Value::Number(n) => Ok(Some(n.to_string())),
-        Value::String(s) => Ok(Some(s)),
-        Value::Null => Ok(None),
-        _ => Err(serde::de::Error::custom("expected scalar value")),
     }
 }
