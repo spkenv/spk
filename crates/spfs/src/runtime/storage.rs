@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 ///! Definition and persistent storage of runtimes.
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 
 use super::{csh_exp, startup_csh, startup_sh};
+use crate::filesystem;
 use crate::{
     encoding::{self, Encodable},
     graph, storage, tracking, Error, Result,
@@ -24,9 +25,6 @@ mod storage_test;
 
 /// The location in spfs where shell files can be placed be sourced at startup
 pub const STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
-
-/// The environment variable that can be used to specify the runtime fs size
-const SPFS_FILESYSTEM_TMPFS_SIZE: &str = "SPFS_FILESYSTEM_TMPFS_SIZE";
 
 /// Information about the source of a runtime
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -79,34 +77,15 @@ pub struct Status {
 /// Configuration parameters for the execution of a runtime
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Config {
-    /// The location of the temporary filesystem holding the runtime
-    ///
-    /// A single set of configured paths can be used for runtime data
-    /// as long as they all share this common root, because the in-memory
-    /// filesystem will exist within the mount namespace for the runtime
-    ///
-    /// The temporary filesystem also ensures that the runtime leaves no
-    /// working data behind when exiting
-    pub runtime_dir: Option<PathBuf>,
-    /// The size of the temporary filesystem being mounted for runtime data
-    ///
-    /// Defaults to the value of SPFS_FILESYSTEM_TMPFS_SIZE. When empty,
-    /// tempfs limits itself to half of the RAM of the current
-    /// machine. This has no effect when the runtime_dir is not provided.
-    pub tmpfs_size: Option<String>,
-    /// The location of the overlayfs upper directory for this runtime
-    pub upper_dir: PathBuf,
-    /// The location of the overlayfs lower directory for this runtime
-    ///
-    /// This is the lowest directory in the stack of filesystem layers
-    /// and is usually empty. Especially in the case of an empty runtime
-    /// we still need at least one layer for overlayfs and this is it.
-    pub lower_dir: PathBuf,
-    /// The location of the overlayfs working directory for this runtime
-    ///
-    /// The filesystem uses this working directory as needed so it should not
-    /// be accessed or used by any other processes on the local machine
-    pub work_dir: PathBuf,
+    /// For backwards-compatibility, the legacy overlayfs config
+    /// can be mixed in with the runtime config
+    #[deprecated(
+        since = "0.34.7",
+        note = "this is to support interoperability with older versions, use the runtime mount field instead"
+    )]
+    #[serde(flatten, default)]
+    pub mount: Option<filesystem::overlayfs::Config>,
+
     /// The location of the startup script for sh-based shells
     pub sh_startup_file: PathBuf,
     /// The location of the startup script for csh-based shells
@@ -117,51 +96,40 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self::from_root(&Path::new(Self::RUNTIME_DIR))
+        Self::from_root(&Path::new(filesystem::overlayfs::Config::RUNTIME_DIR))
     }
 }
 
 impl Config {
-    const RUNTIME_DIR: &'static str = "/tmp/spfs-runtime";
-    const UPPER_DIR: &'static str = "upper";
-    const LOWER_DIR: &'static str = "lower";
-    const WORK_DIR: &'static str = "work";
     const SH_STARTUP_FILE: &'static str = "startup.sh";
     const CSH_STARTUP_FILE: &'static str = "startup.csh";
     const CSH_EXPECT_FILE: &'static str = "_csh.exp";
 
     fn from_root<P: Into<PathBuf>>(root: P) -> Self {
         let root = root.into();
-        let tmpfs_size = std::env::var(SPFS_FILESYSTEM_TMPFS_SIZE)
-            .ok()
-            .and_then(|v| if v.is_empty() { None } else { Some(v) });
+        #[allow(deprecated, /*reason = "we are instantiating it's default value"*/)]
         Self {
-            upper_dir: root.join(Self::UPPER_DIR),
-            lower_dir: root.join(Self::LOWER_DIR),
-            work_dir: root.join(Self::WORK_DIR),
             sh_startup_file: root.join(Self::SH_STARTUP_FILE),
             csh_startup_file: root.join(Self::CSH_STARTUP_FILE),
             csh_expect_file: root.join(Self::CSH_EXPECT_FILE),
-            runtime_dir: Some(root),
-            tmpfs_size,
+            mount: None,
         }
     }
 
     #[cfg(test)]
     fn set_root<P: Into<PathBuf>>(&mut self, path: P) {
         let root = path.into();
-        self.upper_dir = root.join(Self::UPPER_DIR);
-        self.lower_dir = root.join(Self::LOWER_DIR);
-        self.work_dir = root.join(Self::WORK_DIR);
         self.sh_startup_file = root.join(Self::SH_STARTUP_FILE);
         self.csh_startup_file = root.join(Self::CSH_STARTUP_FILE);
         self.csh_expect_file = root.join(Self::CSH_EXPECT_FILE);
-        self.runtime_dir = Some(root);
+        if let Some(m) = self.mount.as_mut() {
+            m.set_root(root)
+        }
     }
 }
 
 /// Stores the complete information of a single runtime.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct Data {
     /// The name used to identify this runtime
     name: String,
@@ -171,6 +139,8 @@ pub struct Data {
     pub status: Status,
     /// Parameters for this runtime's execution (should not change over time)
     pub config: Config,
+    /// Parameters for this runtime's filesystem mount
+    pub filesystem: filesystem::MountStrategy,
 }
 
 impl Data {
@@ -180,12 +150,73 @@ impl Data {
             status: Default::default(),
             author: Default::default(),
             config: Default::default(),
+            filesystem: Default::default(),
         }
     }
 
     /// The unique name used to identify this runtime
     pub fn name(&self) -> &String {
         &self.name
+    }
+}
+
+impl<'de> Deserialize<'de> for Data {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct DataVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for DataVisitor {
+            type Value = Data;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a runtime")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut name = Option::<String>::None;
+                let mut author = Option::<Author>::None;
+                let mut status = Option::<Status>::None;
+                let mut config = Option::<Config>::None;
+                let mut filesystem = Option::<filesystem::MountStrategy>::None;
+
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "name" => name = map.next_value::<String>().map(Some)?,
+                        "author" => author = map.next_value::<Author>().map(Some)?,
+                        "status" => status = map.next_value::<Status>().map(Some)?,
+                        "config" => config = map.next_value::<Config>().map(Some)?,
+                        "filesystem" => {
+                            filesystem = map.next_value::<filesystem::MountStrategy>().map(Some)?
+                        }
+                    }
+                }
+
+                let mut config = config.unwrap_or_default();
+                #[allow(
+                    deprecated,
+                    /*reason = "for backwards-compatibility, we fall back to
+                    embedded overlay options in the config"*/
+                )]
+                let fallback = config
+                    .mount
+                    .take()
+                    .map(filesystem::MountStrategy::OverlayFS);
+                Ok(Self::Value {
+                    name: name.ok_or_else(|| serde::de::Error::missing_field("name"))?,
+                    author: author.unwrap_or_default(),
+                    status: status.unwrap_or_default(),
+                    filesystem: filesystem.or(fallback).unwrap_or_default(),
+                    config,
+                })
+            }
+        }
+
+        deserializer.deserialize_map(DataVisitor)
     }
 }
 
@@ -323,64 +354,6 @@ impl Runtime {
 
     pub fn storage(&self) -> &Storage {
         &self.storage
-    }
-
-    /// Clear all working changes in this runtime's upper dir
-    pub fn reset_all(&self) -> Result<()> {
-        self.reset(&["*"])
-    }
-
-    /// Remove working changes from this runtime's upper dir.
-    ///
-    /// If no paths are specified, nothing is done.
-    pub fn reset<S: AsRef<str>>(&self, paths: &[S]) -> Result<()> {
-        let paths = paths
-            .iter()
-            .map(|pat| gitignore::Pattern::new(pat.as_ref(), &self.config.upper_dir))
-            .map(|res| match res {
-                Err(err) => Err(Error::from(err)),
-                Ok(pat) => Ok(pat),
-            })
-            .collect::<Result<Vec<gitignore::Pattern>>>()?;
-        for entry in walkdir::WalkDir::new(&self.config.upper_dir) {
-            let entry = entry.map_err(|err| {
-                Error::RuntimeReadError(self.config.upper_dir.clone(), err.into())
-            })?;
-            let fullpath = entry.path();
-            if fullpath == self.config.upper_dir {
-                continue;
-            }
-            for pattern in paths.iter() {
-                let is_dir = entry
-                    .metadata()
-                    .map_err(|err| Error::RuntimeReadError(entry.path().to_owned(), err.into()))?
-                    .file_type()
-                    .is_dir();
-                if pattern.is_excluded(fullpath, is_dir) {
-                    if is_dir {
-                        std::fs::remove_dir_all(&fullpath)
-                            .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
-                    } else {
-                        std::fs::remove_file(&fullpath)
-                            .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// Return true if the upper dir of this runtime has changes.
-    pub fn is_dirty(&self) -> bool {
-        match std::fs::metadata(&self.config.upper_dir) {
-            Ok(meta) => meta.size() != 0,
-            Err(err) => {
-                // Treating other error types as dirty is not strictly
-                // accurate, but it is not worth the trouble of needing
-                // to return an error from this function
-                !matches!(err.kind(), std::io::ErrorKind::NotFound)
-            }
-        }
     }
 
     /// Push an object id onto this runtime's stack.

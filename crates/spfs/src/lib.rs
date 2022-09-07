@@ -18,6 +18,7 @@ pub mod config;
 mod diff;
 pub mod env;
 mod error;
+pub mod filesystem;
 pub mod graph;
 pub mod io;
 mod ls_tags;

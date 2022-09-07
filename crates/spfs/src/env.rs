@@ -11,7 +11,8 @@ use std::path::Path;
 use futures::StreamExt;
 use tokio_stream::wrappers::IntervalStream;
 
-use super::runtime;
+use crate::filesystem;
+use crate::runtime;
 use crate::{Error, Result};
 
 const PROC_DIR: &str = "/proc";
@@ -64,7 +65,7 @@ impl OverlayMountOptions {
         // consume self in this function since there is more work going on
         // than just a mapping of settings to values and we don't want this warning
         // to appear many times
-        let params = runtime::overlayfs::overlayfs_available_options().unwrap_or_else(|err| {
+        let params = filesystem::overlayfs::overlayfs_available_options().unwrap_or_else(|err| {
             tracing::warn!("Failed to detect supported overlayfs params: {err}");
             tracing::warn!(" > Falling back to the most conservative set, which is undesirable");
             Default::default()
@@ -581,7 +582,7 @@ pub fn mask_files(
         let fullpath = node.path.to_path("/");
         let existing = fullpath.symlink_metadata().ok();
         if let Some(meta) = existing {
-            if runtime::is_removed_entry(&meta) {
+            if filesystem::overlayfs::is_removed_entry(&meta) {
                 continue;
             }
             if meta.is_file() {

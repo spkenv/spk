@@ -2620,6 +2620,7 @@ dependencies = [
  "config",
  "criterion",
  "data-encoding",
+ "enum_dispatch",
  "expanduser",
  "faccess",
  "futures",

@@ -15,7 +15,7 @@ use tokio::fs::DirEntry;
 
 use super::entry::{Entry, EntryKind};
 use crate::encoding;
-use crate::runtime;
+use crate::filesystem;
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -383,7 +383,7 @@ where
                 .await?;
         } else if file_type.is_dir() {
             entry = Self::compute_tree_node(mb, path, entry).await?;
-        } else if runtime::is_removed_entry(&stat_result) {
+        } else if filesystem::overlayfs::is_removed_entry(&stat_result) {
             entry.kind = EntryKind::Mask;
             entry.object = encoding::NULL_DIGEST.into();
         } else if !stat_result.is_file() {
