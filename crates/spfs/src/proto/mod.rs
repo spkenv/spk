@@ -10,9 +10,9 @@ mod generated {
     tonic::include_proto!("spfs");
 }
 
-pub use conversions::*;
+pub(crate) use conversions::{convert_digest, convert_from_datetime};
 pub use generated::*;
 pub(crate) use result::RpcResult;
 
 #[cfg(feature = "server")]
-pub(crate) use result::handle_error;
+pub(crate) use {conversions::convert_to_datetime, result::handle_error};

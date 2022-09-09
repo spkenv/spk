@@ -45,8 +45,8 @@ pub use bootstrap::{
     build_command_for_runtime, build_interactive_shell_command, build_shell_initialized_command,
 };
 pub use clean::{
-    clean_untagged_objects, get_all_attached_objects, get_all_unattached_objects,
-    get_all_unattached_payloads, purge_objects,
+    clean_untagged_objects, get_all_attached_and_unattached_objects, get_all_attached_objects,
+    get_all_unattached_objects, get_all_unattached_payloads, purge_objects,
 };
 pub use commit::{commit_dir, commit_layer, commit_platform};
 pub use diff::diff;

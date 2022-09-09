@@ -4,7 +4,11 @@
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 
+use async_stream::try_stream;
+use chrono::{DateTime, Utc};
+use futures::Stream;
 use tokio::io::AsyncReadExt;
 
 use super::FSRepository;
@@ -33,6 +37,17 @@ impl ManifestViewer for FSRepository {
         };
         let rendered_dir = renders.build_digest_path(&digest);
         was_render_completed(&rendered_dir)
+    }
+
+    fn iter_rendered_manifests<'db>(
+        &'db self,
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + 'db>> {
+        Box::pin(try_stream! {
+            let renders = self.get_render_storage()?;
+            for await digest in renders.iter() {
+                yield digest?;
+            }
+        })
     }
 
     /// Return the path that the manifest would be rendered to.
@@ -104,6 +119,34 @@ impl ManifestViewer for FSRepository {
 
         unmark_render_completed(&rendered_dirpath).await?;
         open_perms_and_remove_all(&working_dirpath).await
+    }
+
+    async fn remove_rendered_manifest_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<()> {
+        let renders = match &self.renders {
+            Some(render_store) => &render_store.renders,
+            None => return Ok(()),
+        };
+        let rendered_dirpath = renders.build_digest_path(&digest);
+
+        let metadata = match tokio::fs::symlink_metadata(&rendered_dirpath).await {
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(err) => return Err(Error::StorageReadError(rendered_dirpath.clone(), err)),
+            Ok(metadata) => metadata,
+        };
+
+        let mtime = metadata
+            .modified()
+            .map_err(|err| Error::StorageReadError(rendered_dirpath.clone(), err))?;
+
+        if DateTime::<Utc>::from(mtime) >= older_than {
+            return Ok(());
+        }
+
+        self.remove_rendered_manifest(digest).await
     }
 }
 

@@ -4,6 +4,7 @@
 
 use std::pin::Pin;
 
+use chrono::{DateTime, Utc};
 use futures::Stream;
 use relative_path::RelativePath;
 
@@ -115,6 +116,17 @@ impl graph::Database for ProxyRepository {
     async fn remove_object(&self, digest: encoding::Digest) -> Result<()> {
         self.primary.remove_object(digest).await?;
         Ok(())
+    }
+
+    async fn remove_object_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        Ok(self
+            .primary
+            .remove_object_if_older_than(older_than, digest)
+            .await?)
     }
 }
 

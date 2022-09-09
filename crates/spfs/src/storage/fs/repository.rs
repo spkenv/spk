@@ -215,7 +215,7 @@ impl Repository for FSRepository {
             None => Err("repository has not been setup for rendering manifests".into()),
         }
     }
-    fn renders_for_all_users(&self) -> Result<Vec<Box<dyn ManifestViewer>>> {
+    fn renders_for_all_users(&self) -> Result<Vec<(String, Box<dyn ManifestViewer>)>> {
         if self.renders.is_none() {
             return Err("repository has not been setup for rendering manifests".into());
         }
@@ -232,21 +232,31 @@ impl Repository for FSRepository {
             if !dir.is_dir() {
                 continue;
             }
-            render_dirs.push(dir);
+            render_dirs.push((
+                entry
+                    .file_name()
+                    .to_str()
+                    .expect("filename is valid utf8")
+                    .to_string(),
+                dir,
+            ));
         }
 
         Ok(render_dirs
             .into_iter()
-            .map(|dir| -> Box<dyn ManifestViewer> {
-                Box::new(Self {
-                    objects: FSHashStore::open_unchecked(self.root.join("objects")),
-                    payloads: FSHashStore::open_unchecked(self.root.join("payloads")),
-                    renders: self
-                        .renders
-                        .as_ref()
-                        .and_then(|_| RenderStore::for_user(self.root.as_ref(), dir).ok()),
-                    root: self.root.clone(),
-                })
+            .map(|(username, dir)| -> (String, Box<dyn ManifestViewer>) {
+                (
+                    username,
+                    Box::new(Self {
+                        objects: FSHashStore::open_unchecked(self.root.join("objects")),
+                        payloads: FSHashStore::open_unchecked(self.root.join("payloads")),
+                        renders: self
+                            .renders
+                            .as_ref()
+                            .and_then(|_| RenderStore::for_user(self.root.as_ref(), dir).ok()),
+                        root: self.root.clone(),
+                    }),
+                )
             })
             .collect())
     }

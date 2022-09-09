@@ -32,6 +32,10 @@ pub struct CmdClean {
     #[clap(long, short)]
     yes: bool,
 
+    /// Don't delete anything, just print what would be deleted (assumes --yes).
+    #[clap(long)]
+    dry_run: bool,
+
     /// Prune tags older that the given age (eg: 1y, 8w, 10d, 3h, 4m, 8s) (default: 9w)
     #[clap(long = "prune-if-older-than")]
     prune_if_older_than: Option<String>,
@@ -61,17 +65,22 @@ impl CmdClean {
             self.prune(&repo).await?;
         }
 
-        let (mut unattached, payloads) = tokio::try_join!(
-            spfs::get_all_unattached_objects(&repo),
+        let time_before_inventory = Utc::now() - chrono::Duration::minutes(15);
+
+        let (mut attached_and_unattached, payloads) = tokio::try_join!(
+            spfs::get_all_attached_and_unattached_objects(&repo),
             spfs::get_all_unattached_payloads(&repo)
         )?;
-        unattached.extend(payloads);
-        if unattached.is_empty() {
+        attached_and_unattached.unattached.extend(payloads);
+        if attached_and_unattached.unattached.is_empty() {
             tracing::info!("no objects to remove");
             return Ok(0);
         }
-        tracing::info!("found {} objects to remove", unattached.len());
-        if !self.yes {
+        tracing::info!(
+            "found {} objects to remove",
+            attached_and_unattached.unattached.len()
+        );
+        if !self.dry_run && !self.yes {
             let answer = question::Question::new(
                 "  >--> Do you wish to proceed with the removal of these objects?",
             )
@@ -84,7 +93,18 @@ impl CmdClean {
             }
         }
 
-        match spfs::purge_objects(&unattached.iter().collect::<Vec<_>>(), &repo).await {
+        match spfs::purge_objects(
+            time_before_inventory,
+            &attached_and_unattached
+                .unattached
+                .iter()
+                .collect::<Vec<_>>(),
+            &repo,
+            Some(&attached_and_unattached.attached),
+            self.dry_run,
+        )
+        .await
+        {
             Err(err) => Err(err),
             Ok(_) => {
                 tracing::info!("clean successful");

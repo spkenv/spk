@@ -7,6 +7,7 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use chrono::{DateTime, Utc};
 use futures::Stream;
 use relative_path::RelativePath;
 use tar::{Archive, Builder};
@@ -185,6 +186,21 @@ impl graph::Database for TarRepository {
         self.repo.remove_object(digest).await?;
         self.up_to_date.store(false, Ordering::Release);
         Ok(())
+    }
+
+    async fn remove_object_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        let deleted = self
+            .repo
+            .remove_object_if_older_than(older_than, digest)
+            .await?;
+        if deleted {
+            self.up_to_date.store(false, Ordering::Release);
+        }
+        Ok(deleted)
     }
 }
 

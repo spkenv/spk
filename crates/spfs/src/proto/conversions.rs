@@ -6,7 +6,9 @@ use std::ops::Not;
 
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
-fn convert_to_datetime(source: Option<super::DateTime>) -> Result<chrono::DateTime<chrono::Utc>> {
+pub(crate) fn convert_to_datetime(
+    source: Option<super::DateTime>,
+) -> Result<chrono::DateTime<chrono::Utc>> {
     use std::str::FromStr;
     let source =
         source.ok_or_else(|| Error::String("Expected non-null digest in rpc message".into()))?;
@@ -14,7 +16,7 @@ fn convert_to_datetime(source: Option<super::DateTime>) -> Result<chrono::DateTi
         .map_err(|err| Error::String(format!("Received invalid timestamp string: {:?}", err)))
 }
 
-fn convert_from_datetime(source: &chrono::DateTime<chrono::Utc>) -> super::DateTime {
+pub(crate) fn convert_from_datetime(source: &chrono::DateTime<chrono::Utc>) -> super::DateTime {
     super::DateTime {
         iso_timestamp: source.to_string(),
     }

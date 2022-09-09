@@ -5,11 +5,13 @@ use std::convert::TryInto;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt};
 use tonic::{Request, Response, Status};
 
 use crate::proto::{
-    self, convert_digest, database_service_server::DatabaseServiceServer, RpcResult,
+    self, convert_digest, convert_to_datetime, database_service_server::DatabaseServiceServer,
+    RpcResult,
 };
 use crate::storage;
 
@@ -96,6 +98,23 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
         let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
         proto::handle_error!(self.repo.remove_object(digest).await);
         let result = proto::RemoveObjectResponse::ok(proto::Ok {});
+        Ok(Response::new(result))
+    }
+
+    async fn remove_object_if_older_than(
+        &self,
+        request: Request<proto::RemoveObjectIfOlderThanRequest>,
+    ) -> Result<Response<proto::RemoveObjectIfOlderThanResponse>, Status> {
+        let request = request.into_inner();
+        let older_than: DateTime<Utc> =
+            proto::handle_error!(convert_to_datetime(request.older_than));
+        let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
+        let deleted = proto::handle_error!(
+            self.repo
+                .remove_object_if_older_than(older_than, digest)
+                .await
+        );
+        let result = proto::RemoveObjectIfOlderThanResponse::ok(deleted);
         Ok(Response::new(result))
     }
 }

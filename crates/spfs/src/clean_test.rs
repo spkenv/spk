@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use chrono::Utc;
 use rstest::rstest;
+use tokio::time::sleep;
 
 use super::{
     clean_untagged_objects, get_all_attached_objects, get_all_unattached_objects,
@@ -13,6 +15,7 @@ use crate::encoding::Encodable;
 use crate::{graph, storage, tracking, Error};
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::Duration;
 use storage::prelude::*;
 
 use crate::fixtures::*;
@@ -117,19 +120,20 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
     init_logging();
     let tmprepo = tmprepo.await;
 
+    // Group 1: untagged objects
     let data_dir_1 = tmpdir.path().join("data");
     ensure(data_dir_1.join("dir/dir/test.file"), "1 hello");
     ensure(data_dir_1.join("dir/dir/test.file2"), "1 hello, world");
     ensure(data_dir_1.join("dir/dir/test.file4"), "1 hello, world");
-    ensure(data_dir_1.join("dir/dir/test.file4"), "1 hello, other");
-    ensure(data_dir_1.join("dir/dir/test.file4"), "1 cleanme");
-    let data_dir_2 = tmpdir.path().join("data2");
-    ensure(data_dir_2.join("dir/dir/test.file"), "2 hello");
-    ensure(data_dir_2.join("dir/dir/test.file2"), "2 hello, world");
 
     let manifest1 = crate::commit_dir(tmprepo.repo(), data_dir_1.as_path())
         .await
         .unwrap();
+
+    // Group 2: tagged objects
+    let data_dir_2 = tmpdir.path().join("data2");
+    ensure(data_dir_2.join("dir/dir/test.file"), "2 hello");
+    ensure(data_dir_2.join("dir/dir/test.file2"), "2 hello, world");
 
     let manifest2 = crate::commit_dir(tmprepo.repo(), data_dir_2.as_path())
         .await
@@ -144,7 +148,25 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
         .await
         .unwrap();
 
-    clean_untagged_objects(&tmprepo)
+    // Note current time now.
+    let time_before_group_three = Utc::now();
+
+    // Ensure these new files are created a measurable amount of time after
+    // the noted time.
+    sleep(Duration::from_millis(250)).await;
+
+    // Group 3: untagged objects created after grabbing time.
+    let data_dir_3 = tmpdir.path().join("data");
+    ensure(data_dir_3.join("dir/dir/test.file"), "3 hello");
+    ensure(data_dir_3.join("dir/dir/test.file2"), "3 hello, world");
+    ensure(data_dir_3.join("dir/dir/test.file4"), "3 hello, world");
+
+    let manifest3 = crate::commit_dir(tmprepo.repo(), data_dir_3.as_path())
+        .await
+        .unwrap();
+
+    // Clean objects older than group 3.
+    clean_untagged_objects(time_before_group_three, &tmprepo, false)
         .await
         .expect("failed to clean objects");
 
@@ -174,6 +196,18 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
             .await
             .expect("expected payload not to be cleaned");
     }
+
+    // Group 3 should not have been cleaned...
+
+    for node in manifest3.walk() {
+        if !node.entry.kind.is_blob() {
+            continue;
+        }
+        tmprepo
+            .open_payload(node.entry.object)
+            .await
+            .expect("expected payload not to be cleaned");
+    }
 }
 
 #[rstest]
@@ -190,7 +224,7 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
         .await
         .unwrap();
 
-    clean_untagged_objects(&tmprepo)
+    clean_untagged_objects(Utc::now(), &tmprepo, false)
         .await
         .expect("failed to clean objects");
 
@@ -247,7 +281,7 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
     let files = list_files(tmprepo.objects.root());
     assert!(!files.is_empty(), "should have stored data");
 
-    clean_untagged_objects(&tmprepo.clone().into())
+    clean_untagged_objects(Utc::now(), &tmprepo.clone().into(), false)
         .await
         .expect("failed to clean repo");
 
