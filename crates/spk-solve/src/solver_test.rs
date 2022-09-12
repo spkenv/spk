@@ -145,7 +145,32 @@ async fn test_solver_package_with_no_recipe(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-pkg"));
 
-    run_and_print_resolve_for_tests(&solver).await.unwrap();
+    // Test
+    let res = run_and_print_resolve_for_tests(&solver).await;
+    if cfg!(feature = "migration-to-components") {
+        // with the 'migration-to-components' feature this will fail
+        // because it turns the initial request into my-pkg:all, which
+        // requires a :build and a :run component to pass the
+        // pre-resolve validation checks, and the package only has a
+        // :run component.
+        assert!(
+            matches!(
+                res,
+                Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(
+                    _
+                )))
+            ),
+            "{:?} should be a FailedToResolve(_) error",
+            res
+        );
+    } else {
+        // without the 'migration-to-components' feature, this will succeed
+        assert!(
+            matches!(res, Ok(_)),
+            "'{:?}' should be an Ok(_) solution not an error.')",
+            res
+        );
+    }
 }
 
 #[rstest]
@@ -169,7 +194,32 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(mut solver: Solver) {
     ));
     solver.add_request(req);
 
-    run_and_print_resolve_for_tests(&solver).await.unwrap();
+    // Test
+    let res = run_and_print_resolve_for_tests(&solver).await;
+    if cfg!(feature = "migration-to-components") {
+        // with the 'migration-to-components' feature checks this will
+        // fail because it turns the initial request into my-pkg:all,
+        // which requires a :build and a :run component to pass the
+        // pre-resolve validation checks and the package only has a
+        // :run component.
+        assert!(
+            matches!(
+                res,
+                Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(
+                    _
+                )))
+            ),
+            "{:?} should be a FailedToResolve(_) error",
+            res
+        );
+    } else {
+        // without the 'migration-to-components' feature, this will succeed
+        assert!(
+            matches!(res, Ok(_)),
+            "'{:?}' should be an Ok(_) solution not an error.')",
+            res
+        );
+    }
 }
 
 #[rstest]
@@ -1030,6 +1080,7 @@ async fn test_solver_embedded_package_replaces_real_package(mut solver: Solver) 
     // - the embedded package is added to the solution
     // - any dependencies from the "real" package aren't part of the solution
 
+    init_logging();
     let repo = make_repo!(
         [
             {

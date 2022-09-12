@@ -6,6 +6,7 @@ version = "0.36.0"
 
 [features]
 sentry = ["dep:sentry", "spfs/sentry"]
+migration-to-components = []
 
 [dependencies]
 async-recursion = "1.0"

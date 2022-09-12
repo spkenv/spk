@@ -12,7 +12,7 @@ required-features = ["cli"]
 
 [features]
 default = ["cli"]
-migration-to-components = ["spk-schema/migration-to-components"]
+migration-to-components = ["spk-schema/migration-to-components", "spk-solve/migration-to-components"]
 sentry = [
     "dep:sentry",
     "dep:sentry-anyhow",
