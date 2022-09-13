@@ -3349,6 +3349,7 @@ dependencies = [
  "console",
  "crossterm",
  "ctrlc",
+ "dyn-clone",
  "futures",
  "itertools",
  "once_cell",
@@ -3435,10 +3436,15 @@ dependencies = [
  "itertools",
  "rstest",
  "serde_yaml",
+ "spfs",
  "spk-schema",
+ "spk-solve",
  "spk-solve-graph",
  "spk-solve-solution",
+ "spk-storage",
  "thiserror",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

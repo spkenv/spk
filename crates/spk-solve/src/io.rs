@@ -955,6 +955,83 @@ impl DecisionFormatter {
             out.push_str(" Solver hit no problems\n");
         }
 
+        // Show impossible requests stats
+        let checker = solver.get_request_validator();
+        if checker.get_num_impossible_requests_found() > 0 {
+            // Display impossible request stats
+
+            let num_ifalreadypresent = checker.get_num_ifalreadypresent_requests();
+            let mut times = if num_ifalreadypresent != 1 {
+                "times"
+            } else {
+                "time"
+            };
+            let _ = writeln!(
+                out,
+                " Solver checks found an IfAlreadyPresent request {num_ifalreadypresent} {times}"
+            );
+
+            let num_possible = checker.get_num_possible_requests_found();
+            times = if num_possible != 1 { "times" } else { "time" };
+            let _ = writeln!(
+                out,
+                " Solver checks found a possible request {num_possible} {times}"
+            );
+
+            let num_impossible = checker.get_num_impossible_requests_found();
+            times = if num_impossible != 1 { "times" } else { "time" };
+            let _ = writeln!(
+                out,
+                " Solver checks found an impossible request {num_impossible} {times}"
+            );
+
+            let num_impossible_hits = checker.get_num_impossible_hits();
+            times = if num_impossible_hits != 1 {
+                "times"
+            } else {
+                "time"
+            };
+            let _ = writeln!(
+                out,
+                " Solver hit cached impossible requests {num_impossible_hits} {times}"
+            );
+
+            let impossible_total = num_impossible + num_impossible_hits;
+            requests = if impossible_total != 1 {
+                "requests"
+            } else {
+                "request"
+            };
+            let _ = writeln!(
+                out,
+                " Solver hit a total of impossible {impossible_total} {requests}",
+            );
+
+            let total = impossible_total + num_possible + checker.get_num_possible_hits();
+            requests = if total != 1 { "requests" } else { "request" };
+            let _ = writeln!(out, " Solver examined a total of {total} {requests}");
+
+            let specs_read = checker.get_num_build_specs_read();
+            let specs = if specs_read != 1 { "specs" } else { "spec" };
+            let _ = writeln!(
+                out,
+                " Solver impossible checks read a total of {specs_read} build {specs}"
+            );
+
+            let _ = writeln!(
+                out,
+                " Solver's Impossible Cache:\n    {}",
+                checker
+                    .get_impossible_requests()
+                    .iter()
+                    .map(|(r, c)| format!("{r} => {c}"))
+                    .collect::<Vec<String>>()
+                    .join("\n    "),
+            );
+        } else {
+            out.push_str(" Solver hit no impossible requests");
+        }
+
         out
     }
 }

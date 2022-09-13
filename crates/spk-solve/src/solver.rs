@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::mem::take;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 use async_stream::stream;
 use futures::{Stream, TryStreamExt};
@@ -38,24 +39,55 @@ use spk_solve_package_iterator::{
     SortedBuildIterator,
 };
 use spk_solve_solution::{PackageSource, Solution};
-use spk_solve_validation::{default_validators, BinaryOnlyValidator, ValidatorT, Validators};
+use spk_solve_validation::{
+    default_validators,
+    BinaryOnlyValidator,
+    ImpossibleRequestsChecker,
+    ValidatorT,
+    Validators,
+    IMPOSSIBLE_REQUEST_TARGET,
+};
 use spk_storage::RepositoryHandle;
 
 use super::error;
 use crate::error::OutOfOptions;
 use crate::option_map::OptionMap;
-use crate::{Error, Result};
+use crate::{make_build, Error, Result};
 
 // Public to allow other tests to use its macros
 #[cfg(test)]
 #[path = "./solver_test.rs"]
 mod solver_test;
 
+/// Structure to hold whether the three kinds of impossible checks are
+/// enabled or disabled in a solver.
+#[derive(Clone, Default)]
+struct ImpossibleChecksSettings {
+    /// If true, impossible request checks will be carried out on the
+    /// initial requests
+    check_initial_requests: bool,
+    /// If true, impossible request checks will be part of the
+    /// validation carried out on a build's dependencies before using
+    /// the build to resolve the current request (and thus before adding
+    /// the dependencies to the search)
+    check_before_resolving: bool,
+    /// If true, impossible request checks will be carried out on all
+    /// builds and the results used to construct their BuildKeys prior
+    /// to sorting them for selection.
+    use_in_build_keys: bool,
+}
+
 #[derive(Clone)]
 pub struct Solver {
     repos: Vec<Arc<RepositoryHandle>>,
     initial_state_builders: Vec<Change>,
     validators: Cow<'static, [Validators]>,
+    // For validating candidate requests and builds by checking the
+    // merged requests they will create against the builds available
+    // in the repos to see if any are impossible to satisfy.
+    request_validator: ImpossibleRequestsChecker,
+    // For holding the settings that say which impossible checks are enabled
+    impossible_checks: ImpossibleChecksSettings,
     // For counting the number of steps (forward) taken in a solve
     number_of_steps: usize,
     // For counting number of builds skipped for some reason
@@ -86,6 +118,8 @@ impl Default for Solver {
             repos: Vec::default(),
             initial_state_builders: Vec::default(),
             validators: Cow::from(default_validators()),
+            request_validator: ImpossibleRequestsChecker::default(),
+            impossible_checks: ImpossibleChecksSettings::default(),
             number_of_steps: 0,
             number_builds_skipped: 0,
             number_incompat_versions: 0,
@@ -263,6 +297,11 @@ impl Solver {
         &self.problem_packages
     }
 
+    /// Get the impossible requests checker
+    pub fn get_request_validator(&self) -> &ImpossibleRequestsChecker {
+        &self.request_validator
+    }
+
     async fn get_iterator(
         &self,
         node: &mut Arc<Node>,
@@ -408,9 +447,60 @@ impl Solver {
             }
 
             let builds = if !builds.lock().await.is_sorted_build_iterator() {
+                // TODO: this could be a HashSet if build key generation
+                // only looks at the idents in the hashmap.
+                let mut builds_with_impossible_requests: HashMap<Ident, Compatibility> =
+                    HashMap::new();
+
+                if self.impossible_checks.use_in_build_keys {
+                    // Check all the builds to which ones would
+                    // generate an impossible request. This info is
+                    // then used by SortedBuildIterator in its build
+                    // key processing below.
+                    let impossible_check_start = Instant::now();
+
+                    let unresolved = node.state.get_unresolved_requests();
+                    let start_number = self.request_validator.get_num_build_specs_read();
+                    let mut build_count = 0;
+
+                    let builds_lock = builds.lock().await;
+                    let mut builds_copy = dyn_clone::clone_box(&*builds_lock);
+                    while let Some(repos_builds) = builds_copy.next().await? {
+                        for (_key, data) in repos_builds.iter() {
+                            let build_spec = &data.0;
+                            build_count += 1;
+
+                            // Builds that generate any impossible
+                            // requests are recorded for later use.
+                            if let Ok(compat) = self
+                                .request_validator
+                                .validate_pkg_requests(build_spec, unresolved, &self.repos)
+                                .await
+                            {
+                                if !&compat {
+                                    builds_with_impossible_requests
+                                        .insert(build_spec.ident().clone(), compat);
+                                }
+                            };
+                        }
+                    }
+                    tracing::debug!(
+                        target: IMPOSSIBLE_REQUEST_TARGET,
+                        "Impossible request checks for build sorting took: {} secs for {} builds ({} specs read)",
+                        impossible_check_start.elapsed().as_secs_f64(),
+                        build_count,
+                        self.request_validator.get_num_build_specs_read() - start_number,
+                    );
+                }
+
+                // Order the current version's builds
                 let builds = Arc::new(tokio::sync::Mutex::new(
-                    SortedBuildIterator::new(node.state.get_option_map().clone(), builds.clone())
-                        .await?,
+                    SortedBuildIterator::new(
+                        node.state.get_option_map().clone(),
+                        builds.clone(),
+                        builds_with_impossible_requests,
+                    )
+                    .await?,
                 ));
                 iterator_lock.set_builds(pkg.version(), builds.clone());
                 builds
@@ -440,6 +530,42 @@ impl Solver {
                             self.number_builds_skipped += 1;
                             continue;
                         }
+
+                        if self.impossible_checks.check_before_resolving {
+                            // The unresolved requests from the state
+                            // are used to check the new requests this
+                            // build would add, if it was used to
+                            // resolve the current request.
+                            let unresolved = node.state.get_unresolved_requests();
+                            tracing::debug!(
+                                "Unresolved requests for this state: {}",
+                                unresolved
+                                    .keys()
+                                    .map(|pkgname| format!("{pkgname}"))
+                                    .collect::<Vec<String>>()
+                                    .join(", ")
+                            );
+
+                            let compat = self
+                                .request_validator
+                                .validate_pkg_requests(&spec, unresolved, &self.repos)
+                                .await?;
+                            if !&compat {
+                                // This build would add an impossible
+                                // request, which is a bad choice for
+                                // any solve, so discard this build
+                                // and try another.
+                                notes.push(Note::SkipPackageNote(SkipPackageNote::new(
+                                    spec.ident().clone(),
+                                    compat,
+                                )));
+                                self.number_builds_skipped += 1;
+                                continue;
+                            };
+                        }
+
+                        // This build has passed all the checks and
+                        // can be used to resolve the current request
                         Decision::builder(&node.state)
                             .with_components(&request.pkg.components)
                             .resolve_package(&spec, source.clone())
@@ -532,6 +658,7 @@ impl Solver {
                             }
                         }
                     };
+
                     decision.add_notes(notes.iter().cloned());
                     return Ok(Some(decision));
                 }
@@ -572,11 +699,67 @@ impl Solver {
         Ok(Compatibility::Compatible)
     }
 
+    async fn validate_initial_requests(&mut self, initial_state: &State) -> Result<()> {
+        // Check the initial requests for impossible requests, warning
+        // the user about each one that is impossible, and error if
+        // any of them are impossible.
+        let mut impossible_request_count = 0;
+
+        let initial_requests = initial_state.get_unresolved_requests();
+        for req in initial_requests.values() {
+            // Have to make a dummy spec for an "initialrequest"
+            // package to interact with the request_validator's
+            // interface. It expects a package with install
+            // requirements (i.e. the 'req' being checked here).
+            let dummy_spec = make_build!({"pkg": "initialrequest",
+                                          "install": {
+                                              "requirements": [
+                                                  {"pkg": format!("{}", req.pkg )}
+                                              ]
+                                          }
+            });
+            // All the initial_requests are passed in as well to
+            // handle situations when same package is requested
+            // multiple times in the initial requests.
+            let compat = self
+                .request_validator
+                .validate_pkg_requests(&dummy_spec, initial_requests, &self.repos)
+                .await?;
+            if !&compat {
+                tracing::warn!(
+                    "Impossible initial request, no builds in the repos [{}] satisfy: {}",
+                    self.repos
+                        .iter()
+                        .map(|r| format!("{}", r.name()))
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                    req.pkg
+                );
+                impossible_request_count += 1;
+            }
+        }
+
+        // Error if any initial request is impossible
+        if impossible_request_count > 0 {
+            let plural = if impossible_request_count == 1 {
+                ""
+            } else {
+                "s"
+            };
+            return Err(Error::String(format!(
+                "Initial requests contain {impossible_request_count} impossible request{plural}."
+            )));
+        }
+
+        Ok(())
+    }
+
     /// Put this solver back into its default state
     pub fn reset(&mut self) {
         self.repos.truncate(0);
         self.initial_state_builders.truncate(0);
         self.validators = Cow::from(default_validators());
+        self.request_validator.reset();
         self.number_of_steps = 0;
         self.number_builds_skipped = 0;
         self.number_incompat_versions = 0;
@@ -600,6 +783,8 @@ impl Solver {
     /// These packages are not actually built as part of the solver process but their
     /// build environments are fully resolved and dependencies included
     pub fn set_binary_only(&mut self, binary_only: bool) {
+        self.request_validator.set_binary_only(binary_only);
+
         let has_binary_only = self
             .validators
             .iter()
@@ -623,6 +808,24 @@ impl Solver {
                 .filter(|v| !matches!(v, Validators::BinaryOnly(_)))
                 .collect();
         }
+    }
+
+    /// Enable or disable running impossible checks on the initial requests
+    /// before the solve starts
+    pub fn set_initial_request_impossible_checks(&mut self, enabled: bool) {
+        self.impossible_checks.check_initial_requests = enabled;
+    }
+
+    /// Enable or disable running impossible checks before using a build to
+    /// resolve a request
+    pub fn set_resolve_validation_impossible_checks(&mut self, enabled: bool) {
+        self.impossible_checks.check_before_resolving = enabled;
+    }
+
+    /// Enable or disable running impossible checks for build key generation
+    /// when ordering builds for selection
+    pub fn set_build_key_impossible_checks(&mut self, enabled: bool) {
+        self.impossible_checks.use_in_build_keys = enabled;
     }
 
     pub async fn solve(&mut self) -> Result<Solution> {
@@ -822,6 +1025,7 @@ impl SolverRuntime {
     /// Iterate through each step of this runtime, trying to converge on a solution
     pub fn iter(&mut self) -> impl Stream<Item = Result<(Arc<Node>, Arc<Decision>)>> + Send + '_ {
         stream! {
+            let mut first_iter = true;
             'outer: loop {
                 if self.decision.is_none()
                     || (self.current_node.is_some()
@@ -881,6 +1085,22 @@ impl SolverRuntime {
                     .expect("current_node always `is_some` here");
                 let mut current_node_lock = current_node.write().await;
                 let current_level = current_node_lock.state.state_depth;
+
+                if first_iter {
+                    // Check for impossible requests only the first
+                    // time this is reached. The current node will
+                    // have the initial state and the initial requests.
+                    first_iter = false;
+                    if self.solver.impossible_checks.check_initial_requests {
+                        if let Err(err) = self.solver.validate_initial_requests(&current_node_lock.state).await {
+                            let cause = format!("{err}");
+                            self.solver.increment_error_count(cause);
+                            yield Err(err);
+                            continue 'outer;
+                        }
+                    }
+                }
+
                 self.decision = match self.solver.step_state(&mut current_node_lock).await
                 {
                     Ok(decision) => decision.map(Arc::new),

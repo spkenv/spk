@@ -135,6 +135,25 @@ pub struct Solver {
     /// If true, build packages from source if needed
     #[clap(long)]
     pub allow_builds: bool,
+
+    /// If true, the solver will run impossible request checks on the initial requests
+    #[clap(long, env = "SPK_USE_IMPOSSIBLE_INITIAL")]
+    pub impossible_initial: bool,
+
+    /// If true, the solver will run impossible request checks before
+    /// using a package build to resolve a request
+    #[clap(long, env = "SPK_USE_IMPOSSIBLE_VALIDATION")]
+    pub impossible_validation: bool,
+
+    /// If true, the solver will run impossible request checks to
+    /// use in the build keys for ordering builds during the solve
+    #[clap(long, env = "SPK_USE_IMPOSSIBLE_BUILD_KEYS")]
+    pub impossible_build_keys: bool,
+
+    /// If true, the solver will run all three impossible request checks: initial
+    /// requests, build validation before a resolve, and for build keys
+    #[clap(long, env = "SPK_USE_IMPOSSIBLE_ALL_CHECKS")]
+    pub impossible_all_checks: bool,
 }
 
 impl Solver {
@@ -147,6 +166,16 @@ impl Solver {
             solver.add_repository(repo);
         }
         solver.set_binary_only(!self.allow_builds);
+        solver.set_initial_request_impossible_checks(
+            self.impossible_initial || self.impossible_all_checks,
+        );
+        solver.set_resolve_validation_impossible_checks(
+            self.impossible_validation || self.impossible_all_checks,
+        );
+        solver.set_build_key_impossible_checks(
+            self.impossible_build_keys || self.impossible_all_checks,
+        );
+
         for r in options.get_var_requests()? {
             solver.add_request(r.into());
         }

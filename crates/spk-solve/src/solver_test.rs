@@ -169,6 +169,58 @@ async fn test_solver_package_with_no_recipe(mut solver: Solver) {
 
 #[rstest]
 #[tokio::test]
+async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(mut solver: Solver) {
+    init_logging();
+    let repo = RepositoryHandle::new_mem();
+
+    let options = option_map! {};
+    let mut spec = v0::Spec::new(ident!("my-pkg/1.0.0"));
+    spec.pkg.set_build(Some(Build::Digest(options.digest())));
+
+    // publish package without publishing spec
+    let components = vec![(Component::Run, EMPTY_DIGEST.into())]
+        .into_iter()
+        .collect();
+    repo.publish_package(&spec.into(), &components)
+        .await
+        .unwrap();
+
+    solver.update_options(options);
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(request!("my-pkg"));
+    solver.set_initial_request_impossible_checks(true);
+
+    // Test
+    let res = run_and_print_resolve_for_tests(&solver).await;
+    if cfg!(feature = "migration-to-components") {
+        match res {
+            Err(Error::String(_)) => {
+                // Success, when the 'migration-to-components' feature
+                // is enabled because the initial checks for
+                // impossible requests fail because the package does
+                // not have a :build component, it only has a :run
+                // component and the request was transformed into
+                // my-pkg:all, which requires :build and :run to pass
+                // validation under the feature.
+            }
+            Err(err) => panic!("expected a solver Error::String error, got: {err}"),
+            Ok(_) => panic!("expected a solver Error::String error, got an Ok(_) solution"),
+        }
+    } else {
+        match res {
+            Ok(_) => {
+                // Success, when the 'migration-to-components' feature is
+                // disabled because: the initial checks for impossible
+                // requests pass and this allows the solver to run and
+                // find a solution.
+            }
+            Err(err) => panic!("expected an Ok(_) soluation, got: {err}"),
+        }
+    }
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_solver_package_with_no_recipe_from_cmd_line(mut solver: Solver) {
     let repo = RepositoryHandle::new_mem();
 
@@ -197,6 +249,57 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(mut solver: Solver) {
         matches!(res, Ok(_)),
         "'{res:?}' should be an Ok(_) solution not an error.')"
     );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial_checks(
+    mut solver: Solver,
+) {
+    init_logging();
+    let repo = RepositoryHandle::new_mem();
+
+    let spec = spec!({"pkg": "my-pkg/1.0.0/4OYMIQUY"});
+
+    // publish package without publishing recipe
+    let components = vec![(Component::Run, EMPTY_DIGEST.into())]
+        .into_iter()
+        .collect();
+    repo.publish_package(&spec, &components).await.unwrap();
+
+    solver.add_repository(Arc::new(repo));
+    // Create this one as requested by the command line, rather than the tests
+    let req = Request::Pkg(PkgRequest::new(
+        parse_ident_range("my-pkg").unwrap(),
+        RequestedBy::CommandLine,
+    ));
+    solver.add_request(req);
+    solver.set_initial_request_impossible_checks(true);
+
+    // Test
+    let res = run_and_print_resolve_for_tests(&solver).await;
+    if cfg!(feature = "migration-to-components") {
+        // with the 'migration-to-components' feature and impossible
+        // request initial checks will fail because the feature turns
+        // the initial request into my-pkg:all, which requires a
+        // :build and a :run component to pass and it only has a :run
+        // component
+        assert!(
+            matches!(res, Err(Error::String(_))),
+            "'{:?}' should be a Error::String('Initial requests contain 1 impossible request.')",
+            res
+        );
+    } else {
+        // without the 'migration-to-components' feature, the
+        // impossible request initial checks will succeed because
+        // because the initial request is turned into my-pkg:run,
+        // which will pass validation
+        assert!(
+            matches!(res, Ok(_)),
+            "'{:?}' should be an Ok(_) solution not an error.')",
+            res
+        );
+    }
 }
 
 #[rstest]
@@ -961,8 +1064,69 @@ async fn test_solver_build_from_source_deprecated(mut solver: Solver) {
     let res = run_and_print_resolve_for_tests(&solver).await;
     match res {
         Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(_))) => {}
-        Err(err) => panic!("expected solve error, got {err:?}"),
-        _ => panic!("expected solve error, got successful solution"),
+        Err(err) => {
+            panic!("expected solver spk_solver_graph::Error::FailedToResolve, got: '{err:?}'")
+        }
+        _ => panic!("expected a solver error, got successful solution"),
+    }
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
+    mut solver: Solver,
+) {
+    // test when no appropriate build exists and the main package
+    // has been deprecated, no source build should be allowed
+    init_logging();
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "my-tool/1.2.0/src",
+                "deprecated": false,
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+            },
+            {
+                "pkg": "my-tool/1.2.0",
+                "deprecated": true,
+                "build": {"options": [{"var": "debug"}], "script": "echo BUILD"},
+            },
+        ],
+        options = {"debug" => "off"}
+    );
+    let spec = repo
+        .read_recipe(&parse_ident("my-tool/1.2.0").unwrap())
+        .await
+        .unwrap();
+    repo.force_publish_recipe(&spec).await.unwrap();
+
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(request!({"var": "debug/on"}));
+    solver.add_request(request!("my-tool"));
+    solver.set_initial_request_impossible_checks(true);
+
+    let res = run_and_print_resolve_for_tests(&solver).await;
+    match res {
+        Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(_))) => {
+            // Success, when the 'migration-to-components' feature is
+            // enabled because: the initial checks for impossible
+            // requests pass because the :all component matches the
+            // :src component of the non-deprecated build and this allows
+            // the solver to run. The solver finds the package/verison
+            // recipe is deprecated and refuses to build a binary from
+            // the source package.
+        }
+        Err(Error::String(_)) => {
+            // Success, when the 'migration-to-components' feature is
+            // disabled because: the initial checks for impossible
+            // requests fail to find a possible build because the
+            // default :run component does not match the :src
+            // component of the non-deprecated package
+        }
+        Err(err) => {
+            panic!("expected different solver error, got: '{err:?}'")
+        }
+        _ => panic!("expected a solver error, got a successful solution"),
     }
 }
 
@@ -1128,6 +1292,172 @@ async fn test_solver_embedded_package_replaces_real_package(mut solver: Solver) 
         build = Build::Embedded(EmbeddedSource::Unknown)
     );
     assert_not_resolved!(solution, "unwanted-dep");
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
+    mut solver: Solver,
+) {
+    // test when an embedded package and its parent package are
+    // requested and impossible checks are enabled for initial
+    // requests
+    // - the embedded package will be found during the impossible checks
+    // - the solver will find a solution using the embedded package
+    init_logging();
+
+    // Needs a repo with an embedded package, it's parent package, and
+    // a non-embedded different version of the same package name as
+    // the embedded package.
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "maya/2019.2",
+                "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
+            },
+            {
+                "pkg": "qt/5.13.0",
+            },
+        ]
+    );
+
+    solver.add_repository(Arc::new(repo));
+    // Ask for the embedded qt package first to ensure the embedded
+    // package support and the impossible checks on the initial
+    // requests work correctly.
+    solver.add_request(request!("qt/5.12.6"));
+    solver.add_request(request!("maya"));
+    solver.set_initial_request_impossible_checks(true);
+
+    match run_and_print_resolve_for_tests(&solver).await {
+        Ok(solution) => {
+            assert_resolved!(solution, "qt", "5.12.6");
+            assert_resolved!(
+                solution,
+                "qt",
+                build = Some(Build::Embedded(EmbeddedSource::Unknown))
+            );
+        }
+        Err(err) => {
+            panic!("Expected a solution but solver errored with: {err}");
+        }
+    };
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_solver_impossible_request_but_embedded_package_makes_solvable(mut solver: Solver) {
+    // test when there is an embedded package
+    // - the initial request depends on the same package as the embedded package
+    // - an impossible request is found for the same package first
+    // - one of the dependency branches leads to a package that has an embedded package that
+    //   resolves the first requests
+    // - the solution includes the embedded packages
+
+    // needs/1.0.0 -> something
+    //             -> somethingelse
+    // something/2.4.0 -> maya
+    // somethingelse/3.2.1 -> qt/5.12.6
+    // qt/5.13.0
+    // maya/2019.2 -> embeds qt/5.12.6
+    init_logging();
+
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "maya/2019.2",
+                "build": {"script": "echo BUILD"},
+                "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
+            },
+            {
+                "pkg": "qt/5.13.0",
+                "build": {"script": "echo BUILD"},
+            },
+            {
+                "pkg": "something/2.4.0",
+                "build": {"script": "echo BUILD"},
+                "install": {"requirements": [ {"pkg": "maya"}]},
+            },
+            {
+                "pkg": "somethingelse/3.2.1",
+                "build": {"script": "echo BUILD"},
+                "install": {"requirements": [ {"pkg": "qt/5.12.6"}]},
+            },
+            {
+                "pkg": "needs/1.0.0",
+                "build": {"script": "echo BUILD"},
+                "install": {"requirements": [ {"pkg": "something"}, {"pkg": "somethingelse"}]},
+            }
+        ]
+    );
+
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(request!("needs"));
+    solver.set_resolve_validation_impossible_checks(true);
+
+    // The solutions is: needs/1.0.0 -> something/2.4.0 -> maya/2019.2 (embeds qt/5.12.6)
+    //                               -> somethingelse/3.2.1 ----------------------^
+    //
+    // But the request for 'somethingelse' (made by needs/1.0.0) will
+    // be found to generate an impossible request because there's no
+    // qt that matches 5.12.6 among the non-embedded published
+    // packages. And the lack of other choices will halt the search at
+    // that point because the solver does not process all unresolved
+    // requests before stopping and this is not an embedded package
+    // cache for it to check.
+    match run_and_print_resolve_for_tests(&solver).await {
+        Ok(solution) => {
+            assert_resolved!(solution, "qt", "5.12.6");
+            assert_resolved!(
+                solution,
+                "qt",
+                build = Some(Build::Embedded(EmbeddedSource::Unknown))
+            );
+        }
+        Err(err) => {
+            // This should not happen
+            panic!("Expected a solution, but got this error: {}", err);
+        }
+    };
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_solver_with_impossible_checks_in_build_keys(mut solver: Solver) {
+    let options1 = option_map! {"dep" => "1.0.0"};
+    let options2 = option_map! {"dep" => "2.0.0"};
+
+    let dep1 = spec!({"pkg": "dep/1.0.0"});
+    let dep2 = spec!({"pkg": "dep/2.0.0"});
+
+    let a_spec = recipe!({
+        "pkg": "pkg-a/1.0.0",
+        "build": {"options": [{"pkg": "dep/1.0.0"}],
+                  "variants": [{"pkg": "dep/=1.0.0"}, {"pkg": "dep/=2.0.0"}],
+        },
+        "install": {"requirements": [{"pkg": "dep", "fromBuildEnv": "x.x.x"}]},
+    });
+
+    let build1 = make_build!(a_spec, [dep1], options1);
+    let build2 = make_build!(a_spec, [dep2], options2);
+    // dep2 is deliberately not in the repo to generate an impossible
+    // request when build2 is examined
+    let repo = make_repo!([{"pkg": "pkg-top/1.2.3",
+                            "install": { "requirements": [{"pkg": "pkg-a"}] }},
+                           {"pkg": "dep/1.0.0"},
+                           build1,
+                           build2]);
+    repo.publish_recipe(&a_spec).await.unwrap();
+
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(request!("pkg-top"));
+    // This is to exercise the check. The missing dep2 package will
+    // ensure that the package that depends on dep1 is chosen.
+    solver.set_build_key_impossible_checks(true);
+
+    let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
+    assert_resolved!(packages, "pkg-a", "1.0.0");
+    assert_resolved!(packages, "dep", "1.0.0");
 }
 
 #[rstest]
@@ -1783,6 +2113,16 @@ async fn test_solver_component_embedded(mut solver: Solver) {
     let res = run_and_print_resolve_for_tests(&solver).await;
 
     assert!(res.is_err());
+}
+
+#[rstest]
+fn test_solver_get_request_validator() {
+    let solver = Solver::default();
+    let resolve_validator = solver.get_request_validator();
+    assert!(
+        resolve_validator.get_num_possible_hits() == 0,
+        "A new solver should return a new resolve validator"
+    )
 }
 
 #[rstest]

@@ -19,6 +19,8 @@ pub enum Error {
     SpkIdentError(#[from] spk_schema::ident::Error),
     #[error(transparent)]
     SpkSolverGraphGetMergedRequestError(#[from] spk_solve_graph::GetMergedRequestError),
+    #[error(transparent)]
+    SpkStorageError(#[from] spk_storage::Error),
 }
 
 impl FormatError for Error {

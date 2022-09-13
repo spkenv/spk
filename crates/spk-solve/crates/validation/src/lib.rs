@@ -6,4 +6,7 @@ mod error;
 mod validation;
 
 pub use error::{Error, Result};
-pub use validation::{default_validators, BinaryOnlyValidator, ValidatorT, Validators};
+pub use validation::{
+    default_validators, BinaryOnlyValidator, ImpossibleRequestsChecker, ValidatorT, Validators,
+    IMPOSSIBLE_REQUEST_TARGET,
+};

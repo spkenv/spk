@@ -186,8 +186,8 @@ pub fn configure_logging(verbosity: u32) -> Result<()> {
         0 => "spk=info,spfs=warn",
         1 => "spk=debug,spfs=info",
         2 => "spk=trace,spfs=debug",
-        3..=6 => "spk=trace,spfs=trace,build_sort=info",
-        _ => "spk=trace,spfs=trace,build_sort=debug",
+        3..=6 => "spk=trace,spfs=trace,build_sort=info,impossible_requests=debug",
+        _ => "spk=trace,spfs=trace,build_sort=debug,impossible_requests=debug",
     }
     .to_string();
     if let Ok(overrides) = std::env::var("SPK_LOG") {

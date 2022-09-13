@@ -8,11 +8,16 @@ version = { workspace = true }
 colored = "2.0"
 enum_dispatch = "0.3.8"
 itertools = "0.10"
+spfs = { version = '0.34.6', path = "../../../spfs" }
 spk-solve-graph = { path = "../graph" }
 spk-solve-solution = { path = "../solution" }
 spk-schema = { path = "../../../spk-schema" }
+spk-storage = { path = "../../../spk-storage" }
 thiserror = "1.0"
+tokio = { version = "1.20", features = ["rt"] }
+tracing = "0.1.35"
 
 [dev-dependencies]
 rstest = "0.15.0"
 serde_yaml = "0.8.17"
+spk-solve = { path = "../.." }

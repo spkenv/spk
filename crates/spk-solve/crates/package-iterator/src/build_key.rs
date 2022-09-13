@@ -133,7 +133,12 @@ impl BuildKey {
     /// for the matching build (pkg AnyIdent). If not, it will make a
     /// strange build key that could be unrelated to the build. See
     /// SortedBuildIterator for more details.
-    pub fn new(pkg: &BuildIdent, ordering: &Vec<OptNameBuf>, name_values: &OptionMap) -> BuildKey {
+    pub fn new(
+        pkg: &BuildIdent,
+        ordering: &Vec<OptNameBuf>,
+        name_values: &OptionMap,
+        makes_an_impossible_request: bool,
+    ) -> BuildKey {
         if pkg.is_source() {
             // All '/src' builds use the same simplified key
             return BuildKey::Src;
@@ -143,8 +148,17 @@ impl BuildKey {
         }
 
         // Binary builds (non-/src) use a compound key of option
-        // values assembled using the given ordering (of option names).
-        let mut key_entries: Vec<BuildKeyEntry> = Vec::with_capacity(ordering.len());
+        // values assembled using the given ordering (of option
+        // names). There are 2 extra special entries added, the first
+        // and the last. The first is for the impossible requests
+        // flag, and the last is for consistent tie-breaking.
+        let mut key_entries: Vec<BuildKeyEntry> = Vec::with_capacity(ordering.len() + 2);
+
+        // The "does this request generate only possible requests?"
+        // flag entry is first to give the most influence in the build key.
+        let possible_requests = !makes_an_impossible_request;
+        key_entries.push(BuildKeyEntry::PossibleRequests(possible_requests));
+
         for name in ordering {
             // Generate this entry based on the value for this name
             let entry: BuildKeyEntry = match name_values.get(name) {
@@ -219,6 +233,12 @@ impl BuildKey {
 // dependencies first, maybe?
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BuildKeyEntry {
+    /// This value is a boolean that indicates whether this build
+    /// would only generate possible requests when its dependencies
+    /// are added to the current state. It will be true if it would
+    /// generate no impossible requests. It will be false if it would
+    /// generate even one impossible request.
+    PossibleRequests(bool),
     /// This value is not set because the build option did not have a
     /// value for the name this entry is generated from. This can
     /// happen when one build has different options set than another
@@ -236,6 +256,7 @@ pub enum BuildKeyEntry {
 impl std::fmt::Display for BuildKeyEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            BuildKeyEntry::PossibleRequests(b) => f.write_str(&format!("All possible: {b}")),
             BuildKeyEntry::NotSet => f.write_str("NotSet"),
             BuildKeyEntry::Text(s) => f.write_str(s),
             BuildKeyEntry::ExpandedVersion(v) => f.write_str(&format!("{v}")),
