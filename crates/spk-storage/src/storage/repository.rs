@@ -504,16 +504,12 @@ pub trait Repository: Storage + Sync {
             // not store embedded components on disk and won't return
             // the correct components for the embedded package's spec.
             let embedded_spec = self.read_package(pkg).await?;
-            let embedded_components = embedded_spec
+            let components = embedded_spec
                 .components()
                 .iter()
-                .map(|c| c.name.clone())
-                .collect::<Vec<Component>>();
+                .map(|c| (c.name.clone(), spfs::encoding::EMPTY_DIGEST.into()))
+                .collect::<HashMap<Component, spfs::encoding::Digest>>();
 
-            let mut components = HashMap::with_capacity(embedded_components.len());
-            for c in embedded_components {
-                components.insert(c, spfs::encoding::EMPTY_DIGEST.into());
-            }
             return Ok(components);
         }
         self.read_components_from_storage(pkg).await
