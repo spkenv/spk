@@ -102,7 +102,7 @@ def main() -> int:
         cmd = [spk_exe(), "publish", "-r", args.target_repo]
         if args.force:
             cmd.append("--force")
-        args.extend([spec["pkg"] for spec in specs])
+        cmd.extend([spec["pkg"] for spec in specs])
         subprocess.check_call(cmd)
 
 
