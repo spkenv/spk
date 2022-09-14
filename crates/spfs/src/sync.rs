@@ -12,8 +12,15 @@ use tokio::sync::{RwLock, Semaphore};
 use crate::{encoding, prelude::*};
 use crate::{graph, storage, tracking, Error, Result};
 
-const DEFAULT_MAX_CONCURRENT_MANIFESTS: usize = 100;
-const DEFAULT_MAX_CONCURRENT_PAYLOADS: usize = 100;
+/// The default limit for concurrent manifest sync operations
+/// per-syncer if not otherwise specified using
+/// [`Syncer::with_max_concurrent_manifests`]
+pub const DEFAULT_MAX_CONCURRENT_MANIFESTS: usize = 100;
+
+/// The default limit for concurrent payload sync operations
+/// per-syncer if not otherwise specified using
+/// [`Syncer::with_max_concurrent_payloads`]
+pub const DEFAULT_MAX_CONCURRENT_PAYLOADS: usize = 100;
 
 #[cfg(test)]
 #[path = "./sync_test.rs"]

@@ -19,12 +19,20 @@ pub struct Sync {
     pub resync: bool,
 
     /// The total number of manifests that can be synced concurrently
-    #[clap(long, env = "SPFS_SYNC_MAX_CONCURRENT_MANIFESTS")]
-    pub max_concurrent_manifests: Option<usize>,
+    #[clap(
+        long,
+        env = "SPFS_SYNC_MAX_CONCURRENT_MANIFESTS",
+        default_value_t = spfs::sync::DEFAULT_MAX_CONCURRENT_MANIFESTS
+    )]
+    pub max_concurrent_manifests: usize,
 
     /// The total number of file payloads that can be synced concurrently
-    #[clap(long, env = "SPFS_SYNC_MAX_CONCURRENT_PAYLOADS")]
-    pub max_concurrent_payloads: Option<usize>,
+    #[clap(
+        long,
+        env = "SPFS_SYNC_MAX_CONCURRENT_PAYLOADS",
+        default_value_t = spfs::sync::DEFAULT_MAX_CONCURRENT_PAYLOADS
+    )]
+    pub max_concurrent_payloads: usize,
 }
 
 impl Sync {
@@ -42,16 +50,11 @@ impl Sync {
         } else {
             spfs::sync::SyncPolicy::default()
         };
-        let mut syncer = spfs::Syncer::new(src, dest)
+        spfs::Syncer::new(src, dest)
             .with_policy(policy)
-            .with_reporter(spfs::sync::ConsoleSyncReporter::default());
-        if let Some(count) = self.max_concurrent_manifests {
-            syncer = syncer.with_max_concurrent_manifests(count)
-        }
-        if let Some(count) = self.max_concurrent_payloads {
-            syncer = syncer.with_max_concurrent_payloads(count)
-        }
-        syncer
+            .with_max_concurrent_manifests(self.max_concurrent_manifests)
+            .with_max_concurrent_payloads(self.max_concurrent_payloads)
+            .with_reporter(spfs::sync::ConsoleSyncReporter::default())
     }
 }
 
