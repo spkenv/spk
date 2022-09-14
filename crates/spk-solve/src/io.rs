@@ -316,7 +316,7 @@ pub struct DecisionFormatterBuilder {
     show_solution: bool,
     heading_prefix: String,
     long_solves_threshold: u64,
-    top_n_display_limit: usize,
+    max_frequent_errors: usize,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -335,7 +335,7 @@ impl DecisionFormatterBuilder {
             show_solution: false,
             heading_prefix: String::from(""),
             long_solves_threshold: 0,
-            top_n_display_limit: 0,
+            max_frequent_errors: 0,
         }
     }
 
@@ -374,8 +374,8 @@ impl DecisionFormatterBuilder {
         self
     }
 
-    pub fn with_top_n_display_limit(&mut self, top_n_display_limit: usize) -> &mut Self {
-        self.top_n_display_limit = top_n_display_limit;
+    pub fn with_max_frequent_errors(&mut self, max_frequent_errors: usize) -> &mut Self {
+        self.max_frequent_errors = max_frequent_errors;
         self
     }
 
@@ -413,7 +413,7 @@ impl DecisionFormatterBuilder {
                 show_solution: self.show_solution || self.verbosity > 0,
                 heading_prefix: String::from(""),
                 long_solves_threshold: self.long_solves_threshold,
-                top_n_display_limit: self.top_n_display_limit,
+                max_frequent_errors: self.max_frequent_errors,
             },
         }
     }
@@ -437,7 +437,7 @@ pub(crate) struct DecisionFormatterSettings {
     /// This is followed immediately by "Installed Packages"
     pub(crate) heading_prefix: String,
     pub(crate) long_solves_threshold: u64,
-    pub(crate) top_n_display_limit: usize,
+    pub(crate) max_frequent_errors: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -779,11 +779,14 @@ impl DecisionFormatter {
 
             sorted_by_count.sort_by(|a, b| b.1.counter.cmp(&a.1.counter));
 
-            // Output the top N most frequent errors
+            // The numer of errors shown is limited by
+            // max_frequent_errors setting to ensure the user isn't
+            // unexpectedly overwhelmed by large volumes of low
+            // frequency errors.
             let mut max_width = 0;
             for (error, error_freq) in sorted_by_count
                 .iter()
-                .take(self.settings.top_n_display_limit)
+                .take(self.settings.max_frequent_errors)
             {
                 let width = format!("{}", error_freq.counter).len();
                 if max_width == 0 {

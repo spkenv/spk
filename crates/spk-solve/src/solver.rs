@@ -101,7 +101,7 @@ pub(crate) enum ErrorDetails {
 pub struct CouldNotSatisfyRecord {
     /// The unique set of requesters involved in all instances of the error
     pub requesters: HashSet<RequestedBy>,
-    // The
+    /// The requesters from the first occurance of the error
     pub first_example: Vec<RequestedBy>,
 }
 
@@ -119,7 +119,9 @@ impl ErrorFreq {
     pub fn get_message(&self, error_key: String) -> String {
         match &self.record {
             Some(r) => {
-                // Reconstruct an example of the error message
+                // The requesters from the first_example data help
+                // reconstruct the first occurance of the error to use
+                // as a base for the combined message
                 let mut message = format!(
                     "could not satisfy '{error_key}' as required by: {}",
                     r.first_example
@@ -129,9 +131,10 @@ impl ErrorFreq {
                         .join(", ")
                 );
 
-                // Count of any other requesters involved in this
-                // error (excluding the requesters from the first
-                // instance of the error
+                // A count of any other requesters involved in later
+                // occurances needs to be added to the combined
+                // message to show the volume of requesters involved
+                // in this particular "could not satisfy" error.
                 let num_others = r
                     .requesters
                     .iter()
@@ -143,7 +146,9 @@ impl ErrorFreq {
                 }
                 message
             }
-            // The error_key is used as the message for in this case
+            // Errors stored with no additional data use their full
+            // error message as their error_key, so that can be
+            // returned as the "combined" message.
             None => error_key,
         }
     }
@@ -189,8 +194,9 @@ impl Solver {
     pub(crate) fn increment_error_count(&mut self, error_message: ErrorDetails) {
         match error_message {
             ErrorDetails::Message(message) => {
-                // Store the full message as the key and keep a count
-                // of how many times it has been seen
+                // Store errors that are just a message as a count
+                // only, using the full message as the key because
+                // there are no other distinguishing details.
                 let counter = self.error_frequency.entry(message).or_insert(ErrorFreq {
                     counter: 0,
                     record: None,
@@ -198,11 +204,12 @@ impl Solver {
                 counter.counter += 1;
             }
             ErrorDetails::CouldNotSatisfy(request_string, requesters) => {
-                // Store the request string as the key, and record:
-                // - the number of times this request has been seen,
-                // - the set of things that it has been requested by,
-                //   (across all the times it has been seen),
-                // - the requesters from the first occurrence of the error
+                // Store counts of "could not satisfy" errors keyed by
+                // their request_strings, and keep information on each
+                // request_string to summarise these errors later: the
+                // requesters from the first occuring example of the
+                // request_string error, and a set of all the requesters
+                // so they can be examined once the solve has finished.
                 let counter = self
                     .error_frequency
                     .entry(request_string)

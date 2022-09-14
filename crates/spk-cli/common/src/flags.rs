@@ -665,7 +665,7 @@ impl DecisionFormatterSettings {
             .with_timeout(self.timeout)
             .with_solution(self.show_solution)
             .with_long_solves_threshold(self.long_solves)
-            .with_top_n_display_limit(self.top_n_display_limit)
+            .with_max_frequent_errors(self.max_frequent_errors)
             .clone()
     }
 }
