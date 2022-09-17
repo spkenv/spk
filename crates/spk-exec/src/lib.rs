@@ -12,4 +12,5 @@ pub use exec::{
     setup_current_runtime,
     setup_runtime,
     solution_to_resolved_runtime_layers,
+    ResolvedLayer,
 };

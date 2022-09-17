@@ -2,15 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map, HashMap, HashSet};
 use std::convert::TryInto;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use futures::TryStreamExt;
 use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::*;
-use spk_exec::resolve_runtime_layers;
+use spfs::tracking::EntryKind;
+use spk_exec::{
+    pull_resolved_runtime_layers,
+    resolve_runtime_layers,
+    solution_to_resolved_runtime_layers,
+    ResolvedLayer,
+};
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
@@ -24,6 +31,7 @@ use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, ResolverCallback, Solver};
 use spk_storage::{self as storage};
+use tokio::pin;
 
 use crate::{Error, Result};
 
@@ -277,10 +285,63 @@ where
             all_options.extend(opts);
         }
 
-        runtime
-            .status
-            .stack
-            .extend(resolve_runtime_layers(&solution).await?);
+        let resolved_layers = solution_to_resolved_runtime_layers(&solution)?;
+
+        let resolved_layers_copy = resolved_layers.clone();
+        let pull_task =
+            tokio::spawn(async move { pull_resolved_runtime_layers(&resolved_layers_copy).await });
+
+        // Warn about possibly unexpected shadowed files in the layer stack.
+        let mut warning_found = false;
+        let entries = resolved_layers.iter_entries();
+        pin!(entries);
+        let mut seen = HashMap::<_, &ResolvedLayer>::new();
+        while let Some((path, entry, resolved_layer)) = entries.try_next().await? {
+            if !matches!(entry.kind, EntryKind::Blob) {
+                continue;
+            }
+            match seen.entry(path.clone()) {
+                hash_map::Entry::Occupied(entry) => {
+                    // This file has already been seen by a lower layer.
+                    //
+                    // Ignore when the shadowing is from different components
+                    // of the same package.
+                    if entry.get().spec.ident() == resolved_layer.spec.ident() {
+                        continue;
+                    }
+                    // The layer order isn't necessarily meaningful in terms
+                    // of spk package dependency ordering (at the time of
+                    // writing), so phrase this in a way that doesn't suggest
+                    // one layer "owns" the file more than the other.
+                    warning_found = true;
+                    tracing::warn!(
+                        "File {path} found in more than one package: {}:{} and {}:{}",
+                        entry.get().spec.ident(),
+                        entry.get().component,
+                        resolved_layer.spec.ident(),
+                        resolved_layer.component,
+                    );
+                }
+                hash_map::Entry::Vacant(entry) => {
+                    // This is the first layer that has this file.
+                    entry.insert(resolved_layer);
+                }
+            };
+        }
+        if warning_found {
+            tracing::warn!("Conflicting files were detected");
+            tracing::warn!(" > This can cause undefined runtime behavior");
+            tracing::warn!(" > It should be addressed by:");
+            tracing::warn!("   - not using these packages together");
+            tracing::warn!("   - removing the file from one of them");
+            tracing::warn!("   - using alternate versions or components");
+        }
+
+        runtime.status.stack.extend(
+            pull_task
+                .await
+                .map_err(|err| Error::String(err.to_string()))??,
+        );
         runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
 

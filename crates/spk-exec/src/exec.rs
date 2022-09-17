@@ -5,7 +5,12 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use async_stream::try_stream;
+use futures::Stream;
+use relative_path::RelativePathBuf;
 use spfs::encoding::Digest;
+use spfs::graph::Object;
+use spfs::tracking::Entry;
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::{Package, Recipe, Spec};
@@ -16,6 +21,7 @@ use spk_storage::{self as storage};
 use crate::{Error, Result};
 
 /// A single layer of a resolved solution.
+#[derive(Clone)]
 pub struct ResolvedLayer {
     pub digest: Digest,
     pub spec: Arc<Spec>,
@@ -24,7 +30,42 @@ pub struct ResolvedLayer {
 }
 
 /// A stack of layers of a resolved solution.
+#[derive(Clone)]
 pub struct ResolvedLayers(Vec<ResolvedLayer>);
+
+impl ResolvedLayers {
+    /// Return a stream over all the file objects described by the resolved
+    /// layers.
+    pub fn iter_entries(
+        &self,
+    ) -> impl Stream<Item = Result<(RelativePathBuf, Entry, &ResolvedLayer)>> + '_ {
+        try_stream! {
+            for resolved_layer in self.0.iter() {
+                let manifest = match &*resolved_layer.repo {
+                    RepositoryHandle::SPFS(repo) => {
+                        let object = repo.read_object(resolved_layer.digest).await?;
+                        match object {
+                            Object::Layer(obj) => {
+                                match repo.read_object(obj.manifest).await? {
+                                    Object::Manifest(obj) => obj,
+                                    _ => continue,
+                                }
+                            }
+                            Object::Manifest(obj) => obj,
+                            _ => continue,
+                        }
+                    }
+                    _ => continue,
+                };
+                let unlock = manifest.unlock();
+                let walker = unlock.walk();
+                for node in walker {
+                    yield (node.path, node.entry.clone(), resolved_layer)
+                }
+            }
+        }
+    }
+}
 
 /// Return the necessary layers to have all solution packages.
 pub fn solution_to_resolved_runtime_layers(solution: &Solution) -> Result<ResolvedLayers> {
