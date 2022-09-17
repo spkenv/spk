@@ -6,4 +6,10 @@ mod error;
 mod exec;
 
 pub use error::{Error, Result};
-pub use exec::{resolve_runtime_layers, setup_current_runtime, setup_runtime};
+pub use exec::{
+    pull_resolved_runtime_layers,
+    resolve_runtime_layers,
+    setup_current_runtime,
+    setup_runtime,
+    solution_to_resolved_runtime_layers,
+};
