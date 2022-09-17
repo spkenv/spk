@@ -99,8 +99,22 @@ impl Template for SpecTemplate {
         &self.file_path
     }
 
-    fn render(&self, _options: &OptionMap) -> Result<Self::Output> {
-        Ok(SpecRecipe::from_yaml(&self.template)?)
+    fn render(&self, options: &OptionMap) -> Result<Self::Output> {
+        let mut template = handlebars::Template::compile(&self.template)
+            .map_err(|err| Error::String(format!("Package spec is not a valid template: {err}")))?;
+        let name = self.file_path.display().to_string();
+        template.name = Some(name.clone());
+        let mut reg = handlebars::Handlebars::new();
+        // do not allow unresolved template variables when rendering,
+        // all template items must be filled in.
+        reg.set_strict_mode(true);
+        reg.register_template(&name, template);
+        let rendered = reg.render(&name, &options).map_err(|err| {
+            Error::String(format!(
+                "Failed to render template variables in spec: {err}"
+            ))
+        })?;
+        Ok(SpecRecipe::from_yaml(&rendered)?)
     }
 }
 
