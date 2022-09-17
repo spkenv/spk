@@ -295,6 +295,7 @@ where
         let mut warning_found = false;
         let entries = resolved_layers.iter_entries();
         pin!(entries);
+        let mut conflicting_packages = HashMap::<(String, String), HashSet<RelativePathBuf>>::new();
         let mut seen = HashMap::<_, &ResolvedLayer>::new();
         while let Some(entry) = entries.next().await {
             let (path, entry, resolved_layer) = match entry {
@@ -326,6 +327,19 @@ where
                         resolved_layer.spec.ident(),
                         resolved_layer.component,
                     );
+
+                    // Track the packages involved for later use
+                    let pkg_a = format!("{}", entry.get().spec.ident());
+                    let pkg_b = format!("{}", resolved_layer.spec.ident());
+                    let packages_key = if pkg_a < pkg_b {
+                        (pkg_a, pkg_b)
+                    } else {
+                        (pkg_b, pkg_a)
+                    };
+                    let counter = conflicting_packages
+                        .entry(packages_key)
+                        .or_insert_with(HashSet::new);
+                    counter.insert(path.clone());
                 }
                 hash_map::Entry::Vacant(entry) => {
                     // This is the first layer that has this file.
@@ -352,7 +366,7 @@ where
 
         let package = self.recipe.generate_binary_build(&all_options, &solution)?;
         let components = self
-            .build_and_commit_artifacts(&package, &all_options)
+            .build_and_commit_artifacts(&package, &all_options, &seen, &conflicting_packages)
             .await?;
         Ok((package, components))
     }
@@ -436,6 +450,8 @@ where
         &mut self,
         package: &Recipe::Output,
         options: &OptionMap,
+        files_to_layers: &HashMap<RelativePathBuf, &ResolvedLayer>,
+        conflicting_packages: &HashMap<(String, String), HashSet<RelativePathBuf>>,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
         self.build_artifacts(package, options).await?;
 
@@ -455,9 +471,19 @@ where
         spfs::remount_runtime(&runtime).await?;
 
         tracing::info!("Validating package contents...");
-        let changed_files = package
+
+        // TODO: not correct
+        let changed_files = package;
+
+        // Simplify this for use during the validation errors and to
+        // avoid having to pass ResolvedLayers down into the validation.
+        let files_to_packages: HashMap<RelativePathBuf, Ident> = files_to_layers
+            .iter()
+            .map(|(f, l)| (f.clone(), l.spec.ident().clone()))
+            .collect();
+        package
             .validation()
-            .validate_build_changeset(package)
+            .validate_build_changeset(package, &files_to_packages, conflicting_packages)
             .await
             .map_err(|err| BuildError::new_error(format_args!("{err}")))?;
 

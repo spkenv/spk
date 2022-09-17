@@ -13,7 +13,7 @@ use super::{Entry, EntryKind, Manifest};
 mod diff_test;
 
 /// Identifies a difference between two file system entries
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum DiffMode {
     Unchanged(Entry),
     Changed(Entry, Entry),

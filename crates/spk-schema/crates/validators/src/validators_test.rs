@@ -10,7 +10,7 @@ use crate::validators::must_collect_all_files;
 #[test]
 fn test_validate_build_changeset_nothing() {
     let res = must_install_something(&[], "/spfs");
-    assert!(res.is_some())
+    assert!(res.is_err())
 }
 
 #[test]
@@ -22,7 +22,7 @@ fn test_validate_build_changeset_modified() {
         }],
         "/spfs",
     );
-    assert!(res.is_some())
+    assert!(res.is_err())
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn test_validate_build_changeset_collected() {
         }],
     );
     assert!(
-        res.is_some(),
+        res.is_err(),
         "should get error when a file is created that was not in a component spec"
     )
 }
