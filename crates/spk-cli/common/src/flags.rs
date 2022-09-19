@@ -639,6 +639,11 @@ pub struct DecisionFormatterSettings {
     ///
     #[clap(long, env = "SPK_LONG_SOLVE_THRESHOLD", default_value_t = 15)]
     pub long_solves: u64,
+
+    /// Set the limit for how many of the most frequent errors are
+    /// displayed in solve stats reports
+    #[clap(long, env = "SPK_MAX_FREQUENT_ERRORS", default_value_t = 15)]
+    pub max_frequent_errors: usize,
 }
 
 impl DecisionFormatterSettings {
@@ -660,6 +665,7 @@ impl DecisionFormatterSettings {
             .with_timeout(self.timeout)
             .with_solution(self.show_solution)
             .with_long_solves_threshold(self.long_solves)
+            .with_max_frequent_errors(self.max_frequent_errors)
             .clone()
     }
 }

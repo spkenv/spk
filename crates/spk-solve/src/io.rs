@@ -26,6 +26,7 @@ use spk_solve_graph::{
     Change, Decision, Node, Note, DUPLICATE_REQUESTS_COUNT, REQUESTS_FOR_SAME_PACKAGE_COUNT,
 };
 
+use crate::solver::ErrorFreq;
 use crate::{Error, ResolverCallback, Result, Solution, Solver, SolverRuntime};
 
 static USER_CANCELLED: Lazy<AtomicBool> = Lazy::new(|| {
@@ -315,6 +316,7 @@ pub struct DecisionFormatterBuilder {
     show_solution: bool,
     heading_prefix: String,
     long_solves_threshold: u64,
+    max_frequent_errors: usize,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -333,6 +335,7 @@ impl DecisionFormatterBuilder {
             show_solution: false,
             heading_prefix: String::from(""),
             long_solves_threshold: 0,
+            max_frequent_errors: 0,
         }
     }
 
@@ -371,6 +374,11 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_max_frequent_errors(&mut self, max_frequent_errors: usize) -> &mut Self {
+        self.max_frequent_errors = max_frequent_errors;
+        self
+    }
+
     pub fn build(&self) -> DecisionFormatter {
         let too_long_seconds = if self.verbosity_increase_seconds == 0
             || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
@@ -405,6 +413,7 @@ impl DecisionFormatterBuilder {
                 show_solution: self.show_solution || self.verbosity > 0,
                 heading_prefix: String::from(""),
                 long_solves_threshold: self.long_solves_threshold,
+                max_frequent_errors: self.max_frequent_errors,
             },
         }
     }
@@ -428,6 +437,7 @@ pub(crate) struct DecisionFormatterSettings {
     /// This is followed immediately by "Installed Packages"
     pub(crate) heading_prefix: String,
     pub(crate) long_solves_threshold: u64,
+    pub(crate) max_frequent_errors: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -755,26 +765,45 @@ impl DecisionFormatter {
             out.push_str(" Solver encountered no problem requests\n");
         }
 
-        // Show all errors sorted by highest to lowest frequency
+        // Show the errors sorted by highest to lowest frequency
         let errors = solver.error_frequency();
         if !errors.is_empty() {
-            // TODO: there can be lots of low count problems, might want a
-            // minimum count cutoff, perhaps a couple of orders of
-            // magnitude below the highest count one, or just the top 20 errors?
             out.push_str(" Solver hit these problems:");
 
             // Get a reverse sorted list (by count/frequency) of the error
             // messages
-            let mut sorted_by_count: Vec<(&String, &u64)> = errors.iter().collect();
-            sorted_by_count.sort_by(|a, b| b.1.cmp(a.1));
+            let mut sorted_by_count: Vec<(&String, &ErrorFreq)> = errors
+                .iter()
+                .filter(|(mesg, _)| *mesg != "Exception: Branch already attempted")
+                .collect();
 
-            for (error_mesg, count) in sorted_by_count {
-                if error_mesg == "Exception: Branch already attempted" {
-                    // Skip these, they don't help the user isolate the problem
-                    continue;
+            sorted_by_count.sort_by(|a, b| b.1.counter.cmp(&a.1.counter));
+
+            // The numer of errors shown is limited by
+            // max_frequent_errors setting to ensure the user isn't
+            // unexpectedly overwhelmed by large volumes of low
+            // frequency errors.
+            let mut max_width = 0;
+            for (error, error_freq) in sorted_by_count
+                .iter()
+                .take(self.settings.max_frequent_errors)
+            {
+                let width = format!("{}", error_freq.counter).len();
+                if max_width == 0 {
+                    max_width = width;
                 }
-                let times = if *count > 1 { "times" } else { "time" };
-                let _ = write!(out, "\n   {count} {times} {error_mesg}");
+                let padding = " ".repeat(max_width - width);
+                let times = if error_freq.counter > 1_u64 {
+                    "times"
+                } else {
+                    "time"
+                };
+                let _ = write!(
+                    out,
+                    "\n   {padding}{} {times} {}",
+                    error_freq.counter,
+                    error_freq.get_message(error.to_string())
+                );
             }
         } else {
             out.push_str(" Solver hit no problems");

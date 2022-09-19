@@ -11,18 +11,19 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::opt_name;
 use spk_schema::foundation::spec_ops::{PackageOps, Versioned};
 use spk_schema::ident::{
-    ident, parse_ident, parse_ident_range, PkgRequest, RangeIdent, Request, RequestedBy, VarRequest,
+    ident, parse_ident_range, PkgRequest, RangeIdent, Request, RequestedBy, VarRequest,
 };
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::{recipe, v0, Package};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 
+use super::ErrorDetails;
 use super::Solver;
 use crate::io::DecisionFormatterBuilder;
-use crate::{request, Error, Result};
-// macros
-use crate::{make_build, make_build_and_components, make_repo, option_map, spec};
+use crate::{make_build, make_build_and_components, make_repo};
+use crate::{option_map, request, spec};
+use crate::{Error, Result};
 
 #[fixture]
 fn solver() -> Solver {
@@ -891,10 +892,7 @@ async fn test_solver_build_from_source_deprecated(mut solver: Solver) {
         ],
         options = {"debug" => "off"}
     );
-    let spec = repo
-        .read_recipe(&parse_ident("my-tool/1.2.0").unwrap())
-        .await
-        .unwrap();
+    let spec = repo.read_recipe(&ident!("my-tool/1.2.0")).await.unwrap();
     repo.force_publish_recipe(&spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
@@ -1743,4 +1741,126 @@ async fn test_request_default_component() {
         vec![Component::default_for_run()].into_iter().collect(),
         "solver should inject a default run component if not otherwise given"
     )
+}
+
+#[rstest]
+fn test_error_frequency() {
+    let mut solver = Solver::default();
+
+    let mut errors = solver.error_frequency();
+    assert!(errors.is_empty());
+
+    let an_error: String = "An error".to_string();
+    solver.increment_error_count(ErrorDetails::Message(an_error.clone()));
+    errors = solver.error_frequency();
+    assert!(errors.len() == 1);
+
+    solver.increment_error_count(ErrorDetails::Message(an_error.clone()));
+    errors = solver.error_frequency();
+    assert!(errors.len() == 1);
+
+    match errors.get(&an_error) {
+        Some(error_freq) => assert!(
+            error_freq.counter == 2,
+            " error frequency count for error was incorrect, it should be 2 not {}",
+            error_freq.counter
+        ),
+        None => panic!("error frequency count for error was missing, should have been 2"),
+    }
+}
+
+#[rstest]
+fn test_error_frequency_get_message_for_string_error() {
+    let mut solver = Solver::default();
+
+    let an_error: String = "An error".to_string();
+    solver.increment_error_count(ErrorDetails::Message(an_error.clone()));
+    let errors = solver.error_frequency();
+
+    match errors.get(&an_error) {
+        Some(error_freq) => assert!(
+            error_freq.get_message(an_error.clone()) == an_error,
+            " error frequency get_message for a string error should be the same as the error key not: {}",
+            an_error.clone()
+        ),
+        None => panic!("error frequency for an_error was missing"),
+    }
+}
+
+#[rstest]
+fn test_error_frequency_get_message_for_couldnotsatisfy_error() {
+    let mut solver = Solver::default();
+
+    let error = "my-pkg";
+    let request = PkgRequest::new(parse_ident_range(error).unwrap(), RequestedBy::CommandLine);
+
+    solver.increment_error_count(ErrorDetails::CouldNotSatisfy(
+        request.pkg.to_string(),
+        request.get_requesters(),
+    ));
+    let errors: &std::collections::HashMap<String, super::ErrorFreq> = solver.error_frequency();
+
+    match errors.get(&request.pkg.to_string()) {
+        Some(error_freq) => assert!(
+            error_freq.get_message(request.pkg.to_string()) != request.pkg.to_string(),
+            " error frequency get_message for a 'could not satisfy' error should be more than the error key not: {}",
+            error_freq.get_message(request.pkg.to_string())
+        ),
+        None => panic!("error frequency for a 'could not satisfy' error was missing"),
+    }
+}
+
+#[rstest]
+fn test_error_frequency_get_message_for_couldnotsatisfy_error_multiple() {
+    let mut solver = Solver::default();
+
+    let error = "my-pkg";
+    let request = PkgRequest::new(parse_ident_range(error).unwrap(), RequestedBy::CommandLine);
+
+    solver.increment_error_count(ErrorDetails::CouldNotSatisfy(
+        request.pkg.to_string(),
+        request.get_requesters(),
+    ));
+    solver.increment_error_count(ErrorDetails::CouldNotSatisfy(
+        request.pkg.to_string(),
+        vec![RequestedBy::SpkInternalTest],
+    ));
+    let errors: &std::collections::HashMap<String, super::ErrorFreq> = solver.error_frequency();
+
+    match errors.get(&request.pkg.to_string()) {
+        Some(error_freq) => {
+            assert!(error_freq.counter == 2, "error frequency counter for 2 occurances of the same 'could not satisfy' error should be 2, not: {}", error_freq.counter );
+            assert!(error_freq.get_message(request.pkg.to_string()) != request.pkg.to_string(),
+            " error frequency get_message for a 'could not satisfy' error should be more than the error key not: {}",
+            error_freq.get_message(request.pkg.to_string())
+            )
+        }
+        None => panic!("error frequency for a 'could not satisfy error' was missing"),
+    }
+}
+
+#[rstest]
+fn test_problem_packages() {
+    let mut solver = Solver::default();
+
+    let mut problems = solver.problem_packages();
+    assert!(problems.is_empty());
+
+    let a_package: String = "package".to_string();
+    solver.increment_problem_package_count(a_package.clone());
+    problems = solver.problem_packages();
+    assert!(problems.len() == 1);
+
+    solver.increment_problem_package_count(a_package.clone());
+    problems = solver.problem_packages();
+    assert!(problems.len() == 1);
+
+    match problems.get(&a_package) {
+        Some(count) => assert!(
+            *count == 2,
+            " problem package count was incorrect, it should be 2 not {}",
+            count
+        ),
+        None => panic!("problem package count was missing, should have been 2"),
+    };
 }
