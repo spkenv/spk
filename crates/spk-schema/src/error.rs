@@ -45,6 +45,8 @@ pub enum Error {
 
     #[error(transparent)]
     InvalidYaml(#[from] format_serde_error::SerdeError),
+    #[error(transparent)]
+    InvalidTemplate(format_serde_error::SerdeError),
 }
 
 impl Error {

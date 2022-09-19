@@ -20,6 +20,10 @@ use crate::ident::{Ident, PkgRequest, RangeIdent, Request, VarRequest};
 use crate::{test_spec::TestSpec, Deprecate, DeprecateMut, Error, Package, Result};
 use crate::{BuildEnv, ComponentSpec, FromYaml, Recipe, Template, TemplateExt};
 
+#[cfg(test)]
+#[path = "./spec_test.rs"]
+mod spec_test;
+
 /// Create a spec recipe from a json structure.
 ///
 /// This will panic if the given struct
@@ -110,8 +114,14 @@ impl Template for SpecTemplate {
         reg.set_strict_mode(true);
         reg.register_template(&name, template);
         let rendered = reg.render(&name, &options).map_err(|err| {
-            Error::String(format!(
-                "Failed to render template variables in spec: {err}"
+            let custom_err = format_serde_error::ErrorTypes::Custom {
+                line: err.line_no,
+                column: err.column_no,
+                error: err.into(),
+            };
+            Error::InvalidTemplate(format_serde_error::SerdeError::new(
+                self.template.clone(),
+                custom_err,
             ))
         })?;
         Ok(SpecRecipe::from_yaml(&rendered)?)
