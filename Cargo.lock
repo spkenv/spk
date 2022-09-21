@@ -3187,6 +3187,7 @@ dependencies = [
  "rstest",
  "serde",
  "serde_json",
+ "spk-schema-foundation",
  "tracing",
 ]
 
