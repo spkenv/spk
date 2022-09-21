@@ -57,8 +57,14 @@ perl: gnu perl/perl.spk
 
 .PHONY: python python2 python3
 python: python2 python3
-python2: bootstrap bzip2/bzip2.spk zlib/zlib.spk python/python2.spk
-python3: bootstrap bzip2/bzip2.spk zlib/zlib.spk libffi/libffi.spk openssl/openssl.spk python/python3.spk
+python2: bootstrap bzip2/bzip2.spk zlib/zlib.spk
+	spk info -r local python/2.7.5/src > /dev/null 2>&1 || spk make-source -v python/python.spk.yaml -o version=2.7.5
+	spk mkb -r origin -v -o version=2.7.5
+	spk export python/2.7.5 python27.spk.yaml
+python3: bootstrap bzip2/bzip2.spk zlib/zlib.spk libffi/libffi.spk openssl/openssl.spk
+	spk info -r local python/3.7.3/src > /dev/null 2>&1 || spk make-source -v python/python.spk.yaml -o version=3.7.3
+	spk mkb -r origin -v -o version=3.7.3
+	spk export python/3.7.3 python27.spk.yaml
 
 zlib/zlib.spk: cmake/cmake.spk
 

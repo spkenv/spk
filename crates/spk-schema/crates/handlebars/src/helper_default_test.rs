@@ -16,8 +16,8 @@ sources:
   - git: https://downloads.testing/{{ name }}/v{{ version }}
 "#;
     static EXPECTED: &str = r#"
-
-
+set default: name="my-package" [default: "my-package"]
+set default: version="2.3.4" [default: "ignore-me"]
 pkg: my-package/2.3.4
 sources:
   - git: https://downloads.testing/my-package/v2.3.4
@@ -41,8 +41,8 @@ sources:
   - git: https://downloads.testing/{{ name }}/v{{ version }}
 "#;
     static EXPECTED: &str = r#"
-
-
+set default: name="my-package" [default: "my-package"]
+set default: version="2.3.4" [default: "2.3.4"]
 pkg: my-package/2.3.4
 sources:
   - git: https://downloads.testing/my-package/v2.3.4

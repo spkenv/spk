@@ -19,7 +19,7 @@ sources:
 {{/if-version}}
 "#;
     static EXPECTED: &str = r#"
-
+set default: version="1.2.3" [default: "1.2.3"]
 pkg: package/1.2.3
 sources:
   - git: https://downloads.testing/package/v1.2.3
@@ -47,7 +47,7 @@ sources:
 {{/unless-version}}
 "#;
     static EXPECTED: &str = r#"
-
+set default: version="1.2.3" [default: "1.2.3"]
 pkg: package/1.2.3
 sources:
   - git: https://olddownloads.testing/package/v1.2.3

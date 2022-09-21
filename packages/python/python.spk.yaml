@@ -1,8 +1,10 @@
-pkg: python/3.7.3
+# {{ default version "3.7.3" }}
+# {{ #with-version version as |v| }}
+pkg: python/{{ version }}
 api: v0/package
 sources:
   - git: https://github.com/python/cpython
-    ref: v3.7.3
+    ref: v{{ version }}
 build:
   options:
     - var: os
@@ -11,32 +13,44 @@ build:
     - pkg: gcc
     - pkg: stdfs
     - pkg: bzip2
+    # {{ #if-version version ">=3" }}
     - pkg: ncurses
     - pkg: binutils
     - pkg: libffi
     - pkg: openssl
     - pkg: zlib/1.2
+    # {{ /if-version }}
     - var: abi
-      default: cp37m
-      choices: [cp37m, cp37dm]
+      default: "cp{{v.major}}{{v.minor}}m"
+      choices: [
+        "cp{{v.major}}{{v.minor}}m",
+        "cp{{v.major}}{{v.minor}}dm",
+    # {{ #if-version version "<3" }}
+        "cp{{v.major}}{{v.minor}}mu",
+        "cp{{v.major}}{{v.minor}}dmu",
+    # {{ /if-version }}
+      ]
       inheritance: Strong
     - var: debug
       default: off
       choices: [on, off]
+    - var: optimize
+      default: on
+      choices: [on, off]
   variants:
-    - { gcc: 6.3, abi: cp37m, debug: off }
+    - { gcc: 6.3, abi: "cp{{v.major}}{{v.minor}}m", debug: off }
   script:
     - |
       case "$SPK_OPT_debug" in
         on)
-          if ! [[ "$SPK_OPT_abi" =~ ^cp37.*d ]]; then
+          if ! [[ "$SPK_OPT_abi" =~ ^cp{{v.major}}{{v.minor}}.*d ]]; then
             echo "Must use an abi with debug when building with debug enabled!"
             exit 1
           fi
           DEBUG="--with-pydebug"
           ;;
         off)
-          if [[ "$SPK_OPT_abi" =~ ^cp37.*d ]]; then
+          if [[ "$SPK_OPT_abi" =~ ^cp{{v.major}}{{v.minor}}.*d ]]; then
             echo "Must not use an abi with debug when building with debug disabled!"
             exit 1
           fi
@@ -46,7 +60,34 @@ build:
           echo "Unsupported debug: $SPK_OPT_debug"
           ;;
       esac
-    - ./configure
+    # {{#if-version version "<3" }}
+    - |
+      case "$SPK_OPT_abi" in
+        cp27m)
+          UNICODE="--enable-unicode=ucs2"
+          ;;
+        cp27mu)
+          UNICODE="--enable-unicode=ucs4"
+          ;;
+        *)
+          echo "Unsupported abi: $SPK_OPT_abi"
+          ;;
+      esac
+    # on systems where python3 is the default, we can
+    # see syntax errors unless we ensure that 'python' runs python2
+    - echo "#!/bin/bash" > /spfs/bin/python
+    - echo 'exec python2 "$@"' >> /spfs/bin/python
+    - chmod +x /spfs/bin/python
+    # {{ /if-version }}
+    # {{#if-version version ">2" }}
+    - |
+      OPTIMIZE=""
+      if [[ "${SPK_OPT_optimize}" == "on" ]]; then
+          OPTIMIZE="--enable-optimiations"
+      fi
+    # {{ /if-version }}
+    - >
+      ./configure
       --prefix=${PREFIX}
       CC=$CC
       CXX=$CXX
@@ -55,14 +96,15 @@ build:
       CPPFLAGS='-I/spfs/include/ncurses'
       --enable-shared
       --with-ensurepip=no
-      --enable-optimizations
+      {{#if-version version ">2"}}--enable-optimizations{{/if-version}}
+      {{#if-version version "<3"}}"$UNICODE"{{/if-version}}
       $DEBUG
     - make -j$(nproc)
     - make install
     # remove test files that are just bloat
     - find /spfs/lib/python* -name "test" -type d | xargs -r rm -rv
     - find /spfs/lib/python* -name "*_test" -type d | xargs -r rm -rv
-    - ln -sf python3 /spfs/bin/python
+    - ln -sf python{{#with-version version}}{{major}}{{/with-version}} /spfs/bin/python
     # python is best in spfs when pyc files are not used at all
     - find /spfs -type f -name "*.pyc" | xargs rm
 
@@ -70,7 +112,8 @@ tests:
   - stage: install
     script:
       # Verify we built a python with the requested ABI
-      - python_abi=$(/spfs/bin/python -c 'import wheel.bdist_wheel; print(wheel.bdist_wheel.get_abi_tag())')
+      - python_abi=$(/spfs/bin/python -c 'import wheel.bdist_wheel;
+        print(wheel.bdist_wheel.get_abi_tag())')
       - |
         if [ "$python_abi" != "$SPK_OPT_abi" ]; then
           echo "Python binary ABI does not match spk options: $python_abi != $SPK_OPT_abi"
@@ -117,3 +160,4 @@ install:
     - name: man
       files:
         - /share/man
+# {{ /with-version }}

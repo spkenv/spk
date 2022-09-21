@@ -12,8 +12,8 @@ sources:
   - git: https://downloads.testing/{{ package }}/v{{ underscore_version }}
 "#;
     static EXPECTED: &str = r#"
-
-
+set default: version="1.2.3" [default: "1.2.3"]
+set default: underscore_version="1_2_3" [default: "1_2_3"]
 pkg: my-package/1.2.3
 sources:
   - git: https://downloads.testing/my_package/v1_2_3
