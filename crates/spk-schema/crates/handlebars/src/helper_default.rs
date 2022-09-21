@@ -18,7 +18,7 @@ impl handlebars::HelperDef for DefaultHelper {
         _: &handlebars::Handlebars,
         ctx: &handlebars::Context,
         rc: &mut handlebars::RenderContext,
-        _: &mut dyn handlebars::Output,
+        out: &mut dyn handlebars::Output,
     ) -> handlebars::HelperResult {
         let variable_name_param = match h.param(0) {
             Some(v) => v,
@@ -105,17 +105,20 @@ impl handlebars::HelperDef for DefaultHelper {
         };
         current_path.push(final_step.clone());
         if let Some(v) = json_object.get(&final_step) {
-            tracing::debug!(
-                "no default needed for '{}', which is set to {v}",
+            let message = format!(
+                "set default: {}={v} [default: {}]",
                 current_path.join("."),
+                default_value_param.value()
             );
+            out.write(&message)?;
             return Ok(());
         }
-        tracing::debug!(
-            "using default value for '{}': {}",
+        let message = format!(
+            "set default: {}={1} [default: {1}]",
             current_path.join("."),
-            default_value_param.value().to_string()
+            default_value_param.value()
         );
+        out.write(&message)?;
         json_object.insert(final_step, default_value_param.value().clone());
         rc.set_context(context);
         Ok(())

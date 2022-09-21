@@ -1,7 +1,10 @@
 use std::str::FromStr;
 
 use handlebars::Renderable;
-use spk_schema_foundation::version_range::Ranged;
+use spk_schema_foundation::{
+    version::Version,
+    version_range::{Ranged, VersionFilter},
+};
 
 use crate::params::string_param;
 
@@ -36,19 +39,17 @@ impl handlebars::HelperDef for IfVersionHelper {
             None => "",
         };
 
-        let lhs = spk_schema_foundation::version::Version::from_str(lhs_param).map_err(|err| {
+        let lhs = Version::from_str(lhs_param).map_err(|err| {
             handlebars::RenderError::new(format!(
                 "expected a valid spk version number, got '{lhs_param}': {err}"
             ))
         })?;
         let range = format!("{op_param}{rhs_param}");
-        let rhs = spk_schema_foundation::version_range::VersionFilter::from_str(&range).map_err(
-            |err| {
-                handlebars::RenderError::new(format!(
-                    "expected a valid spk version range, got '{range}': {err}"
-                ))
-            },
-        )?;
+        let rhs = VersionFilter::from_str(&range).map_err(|err| {
+            handlebars::RenderError::new(format!(
+                "expected a valid spk version range, got '{range}': {err}"
+            ))
+        })?;
         let tpl = if rhs.is_applicable(&lhs).is_ok() {
             h.template()
         } else {
@@ -88,19 +89,17 @@ impl handlebars::HelperDef for UnlessVersionHelper {
             None => "",
         };
 
-        let lhs = spk_schema_foundation::version::Version::from_str(lhs_param).map_err(|err| {
+        let lhs = Version::from_str(lhs_param).map_err(|err| {
             handlebars::RenderError::new(format!(
                 "expected a valid spk version number, got '{lhs_param}': {err}"
             ))
         })?;
         let range = format!("{op_param}{rhs_param}");
-        let rhs = spk_schema_foundation::version_range::VersionFilter::from_str(&range).map_err(
-            |err| {
-                handlebars::RenderError::new(format!(
-                    "expected a valid spk version range, got '{range}': {err}"
-                ))
-            },
-        )?;
+        let rhs = VersionFilter::from_str(&range).map_err(|err| {
+            handlebars::RenderError::new(format!(
+                "expected a valid spk version range, got '{range}': {err}"
+            ))
+        })?;
         let tpl = if rhs.is_applicable(&lhs).is_ok() {
             h.inverse()
         } else {

@@ -3,6 +3,7 @@
 mod helper_default;
 mod helper_replace;
 mod helper_version_compare;
+mod helper_with_version;
 mod params;
 
 /// Build the default handlebars registry for spk
@@ -23,6 +24,10 @@ pub fn default_registry() -> handlebars::Handlebars<'static> {
     reg.register_helper(
         "unless-version",
         Box::new(helper_version_compare::UnlessVersionHelper),
+    );
+    reg.register_helper(
+        "with-version",
+        Box::new(helper_with_version::WithVersionHelper),
     );
     reg
 }
