@@ -16,7 +16,7 @@ impl handlebars::HelperDef for DefaultHelper {
         &self,
         h: &handlebars::Helper,
         _: &handlebars::Handlebars,
-        context: &handlebars::Context,
+        ctx: &handlebars::Context,
         rc: &mut handlebars::RenderContext,
         _: &mut dyn handlebars::Output,
     ) -> handlebars::HelperResult {
@@ -42,7 +42,7 @@ impl handlebars::HelperDef for DefaultHelper {
             ));
         }
 
-        let variable_name = match variable_name_param.relative_path() {
+        let mut variable_name = match variable_name_param.relative_path() {
             // if a developer passes an un-quoted variable name, which is
             // the documented 'right way' to use this helper, then we want
             // to capture the actual name of the passed variable, not it's value
@@ -59,14 +59,19 @@ impl handlebars::HelperDef for DefaultHelper {
             },
         };
 
-        let path_length = variable_name.len();
         let mut context = match rc.context() {
             Some(ctx) => (*ctx).clone(),
-            None => context.clone(),
+            None => ctx.clone(),
         };
         let mut json_data = context.data_mut();
-        let mut current_path = Vec::with_capacity(path_length);
-        for (step_count, step_name) in variable_name.into_iter().enumerate() {
+        let mut current_path = Vec::with_capacity(variable_name.len());
+        let final_step = variable_name.pop().ok_or_else(|| {
+            handlebars::RenderError::new(format!(
+                "first parameter cannot be an empty string or end with '.', got {}",
+                variable_name.join(".")
+            ))
+        })?;
+        for step_name in variable_name.into_iter() {
             if json_data.is_null() {
                 *json_data = serde_json::Value::Object(Default::default());
             }
@@ -79,33 +84,40 @@ impl handlebars::HelperDef for DefaultHelper {
                     )))
                 }
             };
-            if step_count + 1 < path_length {
-                if json_object.get(&step_name).is_none() {
-                    json_object.insert(
-                        step_name.clone(),
-                        serde_json::Value::Object(Default::default()),
-                    );
-                }
-                json_data = json_object.get_mut(&step_name).unwrap();
-                current_path.push(step_name);
-                continue;
+            if json_object.get(&step_name).is_none() {
+                json_object.insert(
+                    step_name.clone(),
+                    serde_json::Value::Object(Default::default()),
+                );
             }
-
-            tracing::debug!(
-                "using default value for '{}.{step_name}': {}",
-                current_path.join("."),
-                default_value_param.value().to_string()
-            );
-            json_object.insert(step_name, default_value_param.value().clone());
-            rc.set_context(context);
-            return Ok(());
+            json_data = json_object.get_mut(&step_name).unwrap();
+            current_path.push(step_name);
         }
 
+        let json_object = match json_data.as_object_mut() {
+            Some(v) => v,
+            None => {
+                return Err(handlebars::RenderError::new(format!(
+                    "failed to set default: cannot descend into '{}' as it is not a mapping",
+                    current_path.join(".")
+                )))
+            }
+        };
+        current_path.push(final_step.clone());
+        if let Some(v) = json_object.get(&final_step) {
+            tracing::debug!(
+                "no default needed for '{}', which is set to {v}",
+                current_path.join("."),
+            );
+            return Ok(());
+        }
         tracing::debug!(
-            "no default needed for '{}', which is set to {}",
+            "using default value for '{}': {}",
             current_path.join("."),
-            json_data.to_string()
+            default_value_param.value().to_string()
         );
+        json_object.insert(final_step, default_value_param.value().clone());
+        rc.set_context(context);
         Ok(())
     }
 }

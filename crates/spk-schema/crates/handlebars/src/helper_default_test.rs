@@ -10,11 +10,13 @@ fn test_template_rendering_default_value() {
     let options = json!({"version": "2.3.4"});
     static TPL: &str = r#"
 {{ default name "my-package" }}
+{{ default version "ignore-me" }}
 pkg: {{ name }}/{{ version }}
 sources:
   - git: https://downloads.testing/{{ name }}/v{{ version }}
 "#;
     static EXPECTED: &str = r#"
+
 
 pkg: my-package/2.3.4
 sources:

@@ -605,7 +605,6 @@ impl<'de> Deserialize<'de> for Spec {
                 A: serde::de::MapAccess<'de>,
             {
                 while let Some(key) = map.next_key::<Stringified>()? {
-                    println!("doing {}", key.0);
                     match key.as_str() {
                         "pkg" => self.pkg = Some(map.next_value::<Ident>()?),
                         "meta" => self.meta = Some(map.next_value::<Meta>()?),
