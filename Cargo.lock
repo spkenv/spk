@@ -2816,6 +2816,7 @@ dependencies = [
  "spk-cmd-explain",
  "spk-cmd-install",
  "spk-cmd-make-binary",
+ "spk-cmd-make-recipe",
  "spk-cmd-make-source",
  "spk-cmd-render",
  "spk-cmd-repo",
@@ -3035,6 +3036,19 @@ dependencies = [
  "spk-schema",
  "spk-storage",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-cmd-make-recipe"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "spk-cli-common",
+ "spk-schema",
+ "spk-schema-handlebars",
  "tracing",
 ]
 

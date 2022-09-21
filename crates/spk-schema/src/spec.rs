@@ -90,6 +90,13 @@ pub struct SpecTemplate {
     template: String,
 }
 
+impl SpecTemplate {
+    /// The complete source string for this template
+    pub fn source(&self) -> &str {
+        &self.template
+    }
+}
+
 impl Named for SpecTemplate {
     fn name(&self) -> &PkgName {
         &self.name
