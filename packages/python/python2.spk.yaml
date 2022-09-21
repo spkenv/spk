@@ -1,8 +1,9 @@
-pkg: python/2.7.5
+{{ default version "2.7.5" }}
+pkg: python/{{ version }}
 api: v0/package
 sources:
   - git: https://github.com/python/cpython
-    ref: v2.7.5
+    ref: v{{ version }}
 build:
   options:
     - var: os

@@ -3129,7 +3129,6 @@ dependencies = [
  "data-encoding",
  "enum_dispatch",
  "format_serde_error",
- "handlebars",
  "ignore",
  "indexmap",
  "itertools",
@@ -3144,6 +3143,7 @@ dependencies = [
  "serde_yaml",
  "spfs",
  "spk-schema-foundation",
+ "spk-schema-handlebars",
  "spk-schema-ident",
  "spk-schema-validators",
  "sys-info",
@@ -3177,6 +3177,17 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-subscriber 0.2.25",
+]
+
+[[package]]
+name = "spk-schema-handlebars"
+version = "0.36.0"
+dependencies = [
+ "handlebars",
+ "rstest",
+ "serde",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]

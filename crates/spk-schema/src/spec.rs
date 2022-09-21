@@ -104,27 +104,19 @@ impl Template for SpecTemplate {
     }
 
     fn render(&self, options: &OptionMap) -> Result<Self::Output> {
-        let mut template = handlebars::Template::compile(&self.template)
-            .map_err(|err| Error::String(format!("Package spec is not a valid template: {err}")))?;
         let name = self.file_path.display().to_string();
-        template.name = Some(name.clone());
-        let mut reg = handlebars::Handlebars::new();
-        // do not allow unresolved template variables when rendering,
-        // all template items must be filled in.
-        reg.set_strict_mode(true);
-        reg.register_helper("default", Box::new(DefaultHelper));
-        reg.register_template(&name, template);
-        let rendered = reg.render(&name, &options).map_err(|err| {
-            let custom_err = format_serde_error::ErrorTypes::Custom {
-                line: err.line_no,
-                column: err.column_no,
-                error: err.into(),
-            };
-            Error::InvalidTemplate(format_serde_error::SerdeError::new(
-                self.template.clone(),
-                custom_err,
-            ))
-        })?;
+        let rendered = spk_schema_handlebars::render_template(name, &self.template, &options)
+            .map_err(|err| {
+                let custom_err = format_serde_error::ErrorTypes::Custom {
+                    line: err.line_no,
+                    column: err.column_no,
+                    error: err.into(),
+                };
+                Error::InvalidTemplate(format_serde_error::SerdeError::new(
+                    self.template.clone(),
+                    custom_err,
+                ))
+            })?;
         Ok(SpecRecipe::from_yaml(&rendered)?)
     }
 }
@@ -643,105 +635,5 @@ pub enum ApiVersion {
 impl Default for ApiVersion {
     fn default() -> Self {
         Self::V0Package
-    }
-}
-
-// Allows for specifying default values to templates
-#[derive(Clone, Copy)]
-struct DefaultHelper;
-
-impl handlebars::HelperDef for DefaultHelper {
-    fn call<'reg: 'rc, 'rc>(
-        &self,
-        h: &handlebars::Helper,
-        _: &handlebars::Handlebars,
-        context: &handlebars::Context,
-        rc: &mut handlebars::RenderContext,
-        _: &mut dyn handlebars::Output,
-    ) -> handlebars::HelperResult {
-        let variable_name_param = match h.param(0) {
-            Some(v) => v,
-            None => {
-                return Err(handlebars::RenderError::new(
-                    "the default helper takes exactly two parameters: NAME and VALUE",
-                ))
-            }
-        };
-        let default_value_param = match h.param(1) {
-            Some(v) => v,
-            None => {
-                return Err(handlebars::RenderError::new(
-                    "the default helper takes exactly two parameters: NAME and VALUE",
-                ))
-            }
-        };
-        if h.param(2).is_some() {
-            return Err(handlebars::RenderError::new(
-                "the default helper takes exactly two parameters, found 3+",
-            ));
-        }
-
-        let variable_name = match variable_name_param.relative_path() {
-            // if a developer passes an un-quoted variable name, which is
-            // the documented 'right way' to use this helper, then we want
-            // to capture the actual name of the passed variable, not it's value
-            Some(v) => v.split('.').map(str::to_string).collect::<Vec<_>>(),
-            // but if no path is available, then it's assumed that a literal value
-            // was passed (likely a quoted string)
-            None => match variable_name_param.value().as_str() {
-                Some(name) => name.split('.').map(str::to_string).collect(),
-                None => {
-                    return Err(handlebars::RenderError::new(
-                        "expected a variable name or string literal as first parameter",
-                    ));
-                }
-            },
-        };
-
-        let path_length = variable_name.len();
-        let mut context = context.clone();
-        let mut json_data = context.data_mut();
-        let mut current_path = Vec::with_capacity(path_length);
-        for (step_count, step_name) in variable_name.into_iter().enumerate() {
-            if json_data.is_null() {
-                *json_data = serde_json::Value::Object(Default::default());
-            }
-            let json_object = match json_data.as_object_mut() {
-                Some(v) => v,
-                None => {
-                    return Err(handlebars::RenderError::new(format!(
-                        "failed to set default: cannot descend into '{}' as it is not a mapping",
-                        current_path.join(".")
-                    )))
-                }
-            };
-            if step_count + 1 < path_length {
-                if json_object.get(&step_name).is_none() {
-                    json_object.insert(
-                        step_name.clone(),
-                        serde_json::Value::Object(Default::default()),
-                    );
-                }
-                json_data = json_object.get_mut(&step_name).unwrap();
-                current_path.push(step_name);
-                continue;
-            }
-
-            tracing::debug!(
-                "using default value for '{}.{step_name}': {}",
-                current_path.join("."),
-                default_value_param.value().to_string()
-            );
-            json_object.insert(step_name, default_value_param.value().clone());
-            rc.set_context(context);
-            return Ok(());
-        }
-
-        tracing::debug!(
-            "no default needed for '{}', which is set to {}",
-            current_path.join("."),
-            json_data.to_string()
-        );
-        Ok(())
     }
 }
