@@ -60,7 +60,10 @@ impl handlebars::HelperDef for DefaultHelper {
         };
 
         let path_length = variable_name.len();
-        let mut context = context.clone();
+        let mut context = match rc.context() {
+            Some(ctx) => (*ctx).clone(),
+            None => context.clone(),
+        };
         let mut json_data = context.data_mut();
         let mut current_path = Vec::with_capacity(path_length);
         for (step_count, step_name) in variable_name.into_iter().enumerate() {
