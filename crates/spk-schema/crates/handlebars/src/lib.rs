@@ -1,6 +1,8 @@
 //! Defines the default configuration for processing spec file templates in spk
 
 mod helper_default;
+mod helper_replace;
+mod params;
 
 /// Build the default handlebars registry for spk
 ///
@@ -12,6 +14,7 @@ pub fn default_registry() -> handlebars::Handlebars<'static> {
     // all template items must be filled in.
     reg.set_strict_mode(true);
     reg.register_helper("default", Box::new(helper_default::DefaultHelper));
+    reg.register_helper("replace", Box::new(helper_replace::ReplaceHelper));
     reg
 }
 
