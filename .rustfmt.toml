@@ -1,0 +1,10 @@
+
+use_field_init_shorthand = true
+
+# these import formatting directives have been
+# chosen to avoid merge conflicts in import statements
+# as much as possible or at least make them easier
+# to understand and resolve
+imports_granularity = "Module"
+imports_layout = "HorizontalVertical"
+group_imports = "StdExternalCrate"

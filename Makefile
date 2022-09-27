@@ -36,13 +36,13 @@ clean: packages.clean
 .PHONY: lint
 lint: FEATURES?=server,spfs/server
 lint:
-	cargo fmt --check
+	cargo +nightly fmt --check
 	cargo clippy --tests $(cargo_features_arg) $(cargo_packages_arg) -- -Dwarnings
 	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps $(cargo_features_arg) $(cargo_packages_arg)
 
 .PHONY: format
 format:
-	cargo fmt
+	cargo +nightly fmt
 
 .PHONY: build
 build: debug
