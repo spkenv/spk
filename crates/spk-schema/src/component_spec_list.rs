@@ -142,8 +142,8 @@ impl<'de> Deserialize<'de> for ComponentSpecList {
                     for name in component.uses.iter() {
                         if !seen.contains(name) {
                             return Err(serde::de::Error::custom(format!(
-                                "component '{}' uses '{}', but it does not exist",
-                                component.name, name
+                                "component '{}' uses '{name}', but it does not exist",
+                                component.name
                             )));
                         }
                     }
