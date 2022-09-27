@@ -17,6 +17,22 @@ pub struct Sync {
     /// already exists
     #[clap(long)]
     pub resync: bool,
+
+    /// The total number of manifests that can be synced concurrently
+    #[clap(
+        long,
+        env = "SPFS_SYNC_MAX_CONCURRENT_MANIFESTS",
+        default_value_t = spfs::sync::DEFAULT_MAX_CONCURRENT_MANIFESTS
+    )]
+    pub max_concurrent_manifests: usize,
+
+    /// The total number of file payloads that can be synced concurrently
+    #[clap(
+        long,
+        env = "SPFS_SYNC_MAX_CONCURRENT_PAYLOADS",
+        default_value_t = spfs::sync::DEFAULT_MAX_CONCURRENT_PAYLOADS
+    )]
+    pub max_concurrent_payloads: usize,
 }
 
 impl Sync {
@@ -36,6 +52,8 @@ impl Sync {
         };
         spfs::Syncer::new(src, dest)
             .with_policy(policy)
+            .with_max_concurrent_manifests(self.max_concurrent_manifests)
+            .with_max_concurrent_payloads(self.max_concurrent_payloads)
             .with_reporter(spfs::sync::ConsoleSyncReporter::default())
     }
 }

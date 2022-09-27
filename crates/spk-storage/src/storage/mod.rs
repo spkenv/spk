@@ -10,7 +10,7 @@ mod runtime;
 mod spfs;
 
 pub use self::spfs::{local_repository, remote_repository, SPFSRepository};
-pub use archive::{export_package, import_package};
+pub use archive::export_package;
 pub use handle::RepositoryHandle;
 pub use mem::MemRepository;
 pub use repository::{CachePolicy, Repository, Storage};

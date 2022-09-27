@@ -2917,9 +2917,16 @@ dependencies = [
  "async-trait",
  "clap 3.2.11",
  "colored",
+ "futures",
+ "rstest",
+ "spfs",
+ "spfs-cli-common",
+ "spk-build",
  "spk-cli-common",
  "spk-schema",
  "spk-storage",
+ "tar",
+ "tokio",
  "tracing",
 ]
 
