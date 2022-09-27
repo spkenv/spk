@@ -123,7 +123,7 @@ impl std::ops::Drop for SPFSRepository {
     fn drop(&mut self) {
         // Safety: We only put valid `Box` pointers into `self.cache_policy`.
         unsafe {
-            Box::from_raw(self.cache_policy.load(Ordering::Relaxed));
+            let _ = Box::from_raw(self.cache_policy.load(Ordering::Relaxed));
         }
     }
 }
@@ -597,11 +597,8 @@ impl Repository for SPFSRepository {
 
     async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
         let address = self.address();
-        match pkg.build {
-            Some(_) => {
-                return Err(format!("cannot read a recipe for a package build: {pkg}").into());
-            }
-            None => {}
+        if pkg.build.is_some() {
+            return Err(format!("cannot read a recipe for a package build: {pkg}").into());
         };
         if self.cached_result_permitted() {
             let r = RECIPE_CACHE

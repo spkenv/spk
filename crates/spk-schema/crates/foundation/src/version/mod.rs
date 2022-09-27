@@ -249,9 +249,8 @@ impl std::cmp::Eq for VersionParts {}
 impl std::hash::Hash for VersionParts {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // trailing zeros do not alter the hash/cmp for a version
-        match self.parts.iter().rposition(|d| d != &0) {
-            Some(last_nonzero) => self.parts[..=last_nonzero].hash(state),
-            None => {}
+        if let Some(last_nonzero) = self.parts.iter().rposition(|d| d != &0) {
+            self.parts[..=last_nonzero].hash(state)
         };
         self.plus_epsilon.hash(state);
     }

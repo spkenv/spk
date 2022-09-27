@@ -30,12 +30,9 @@ impl Tree {
     }
 
     pub fn get<S: AsRef<str>>(&self, name: S) -> Option<&Entry> {
-        for entry in self.entries.iter() {
-            if entry.name == name.as_ref() {
-                return Some(entry);
-            }
-        }
-        None
+        self.entries
+            .iter()
+            .find(|&entry| entry.name == name.as_ref())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -64,12 +61,9 @@ impl Tree {
     }
 
     pub fn remove<S: AsRef<str>>(&mut self, name: S) -> Option<&Entry> {
-        for entry in self.entries.iter() {
-            if entry.name == name.as_ref() {
-                return Some(entry);
-            }
-        }
-        None
+        self.entries
+            .iter()
+            .find(|&entry| entry.name == name.as_ref())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Entry> {
