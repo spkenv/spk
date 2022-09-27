@@ -63,7 +63,7 @@ impl TryFrom<Option<super::Tag>> for tracking::Tag {
 impl TryFrom<super::Tag> for tracking::Tag {
     type Error = Error;
     fn try_from(source: super::Tag) -> Result<Self> {
-        let org = source.org.is_empty().not().then(|| source.org);
+        let org = source.org.is_empty().not().then_some(source.org);
         let mut tag = Self::new(org, source.name, convert_digest(source.target)?)?;
         tag.parent = convert_digest(source.parent)?;
         tag.user = source.user;

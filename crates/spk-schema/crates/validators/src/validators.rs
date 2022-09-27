@@ -29,23 +29,20 @@ where
     let mut diffs: Vec<_> = diffs.iter().filter(|d| d.mode.is_added()).collect();
     let data_path = data_path(spec.ident()).to_path("/");
     for component in spec.components_iter() {
-        diffs = diffs
-            .into_iter()
-            .filter(|d| {
-                let entry = match &d.mode {
-                    spfs::tracking::DiffMode::Unchanged(e) => e,
-                    spfs::tracking::DiffMode::Changed(_, e) => e,
-                    spfs::tracking::DiffMode::Added(e) => e,
-                    spfs::tracking::DiffMode::Removed(_) => return false,
-                };
-                let path = d.path.to_path("/");
-                // either part of a component explicitly or implicitly
-                // because it's a data file
-                let is_explicit = component.files().matches(&path, entry.is_dir());
-                let is_collected = is_explicit || path.starts_with(&data_path);
-                !is_collected
-            })
-            .collect();
+        diffs.retain(|d| {
+            let entry = match &d.mode {
+                spfs::tracking::DiffMode::Unchanged(e) => e,
+                spfs::tracking::DiffMode::Changed(_, e) => e,
+                spfs::tracking::DiffMode::Added(e) => e,
+                spfs::tracking::DiffMode::Removed(_) => return false,
+            };
+            let path = d.path.to_path("/");
+            // either part of a component explicitly or implicitly
+            // because it's a data file
+            let is_explicit = component.files().matches(&path, entry.is_dir());
+            let is_collected = is_explicit || path.starts_with(&data_path);
+            !is_collected
+        });
         if diffs.is_empty() {
             return None;
         }

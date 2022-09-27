@@ -72,10 +72,7 @@ async fn test_manifest_parity(
         .expect("stored manifest was not written");
     let actual = out.unlock();
     let mut diffs = tracking::compute_diff(&expected, &actual);
-    diffs = diffs
-        .into_iter()
-        .filter(|d| !d.mode.is_unchanged())
-        .collect();
+    diffs.retain(|d| !d.mode.is_unchanged());
 
     for diff in diffs.iter() {
         println!("{diff}, {:?}", diff.mode);

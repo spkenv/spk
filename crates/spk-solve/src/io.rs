@@ -105,9 +105,7 @@ where
     }
 
     fn check_for_interruptions(&mut self) -> Result<()> {
-        if let Err(err) = self.check_if_taking_too_long() {
-            return Err(err);
-        };
+        self.check_if_taking_too_long()?;
         self.check_if_user_hit_ctrlc()
     }
 

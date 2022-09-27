@@ -393,9 +393,8 @@ pub trait Repository: Storage + Sync {
         };
 
         let components = self.read_components(package.ident()).await?;
-        if let Err(err) = self.publish_package_to_storage(package, &components).await {
-            return Err(err);
-        }
+        self.publish_package_to_storage(package, &components)
+            .await?;
 
         // Changes that affect embedded stubs:
         // - change in deprecation status
