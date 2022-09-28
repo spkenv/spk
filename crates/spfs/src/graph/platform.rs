@@ -3,8 +3,7 @@
 // https://github.com/imageworks/spk
 
 use crate::encoding::Encodable;
-use crate::Result;
-use crate::{encoding, Error};
+use crate::{encoding, Error, Result};
 
 #[cfg(test)]
 #[path = "./platform_test.rs"]

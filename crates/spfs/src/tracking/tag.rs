@@ -6,9 +6,8 @@ use std::io::BufRead;
 
 use chrono::prelude::*;
 
-use crate::encoding;
 use crate::encoding::Encodable;
-use crate::{Error, Result};
+use crate::{encoding, Error, Result};
 
 #[cfg(test)]
 #[path = "./tag_test.rs"]

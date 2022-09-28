@@ -8,7 +8,8 @@ use futures::TryStreamExt;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 
-use crate::proto::{self, convert_digest, tag_service_server::TagServiceServer, RpcResult};
+use crate::proto::tag_service_server::TagServiceServer;
+use crate::proto::{self, convert_digest, RpcResult};
 use crate::storage;
 
 #[derive(Debug, Clone)]

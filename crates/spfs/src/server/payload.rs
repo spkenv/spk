@@ -9,7 +9,8 @@ use futures::{Stream, StreamExt};
 use prost::Message;
 use tonic::{Request, Response, Status};
 
-use crate::proto::{self, convert_digest, payload_service_server::PayloadServiceServer, RpcResult};
+use crate::proto::payload_service_server::PayloadServiceServer;
+use crate::proto::{self, convert_digest, RpcResult};
 use crate::storage;
 
 /// The payload service is both a gRPC service AND an http server

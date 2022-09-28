@@ -10,7 +10,10 @@ use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::spec;
 
 use super::{
-    BuildKey, BuildKeyEntry, BuildKeyExpandedVersionRange, BuildKeyVersionNumber,
+    BuildKey,
+    BuildKeyEntry,
+    BuildKeyExpandedVersionRange,
+    BuildKeyVersionNumber,
     BuildKeyVersionNumberPiece,
 };
 

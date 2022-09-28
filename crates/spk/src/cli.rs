@@ -6,6 +6,8 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
+#[cfg(feature = "sentry")]
+use spk_cli_common::configure_sentry;
 use spk_cli_common::{configure_logging, CommandArgs, Error, Run};
 use spk_cli_group1::{cmd_bake, cmd_deprecate, cmd_undeprecate};
 use spk_cli_group2::{cmd_ls, cmd_new, cmd_num_variants, cmd_publish, cmd_remove};
@@ -22,9 +24,6 @@ use spk_cmd_render::cmd_render;
 use spk_cmd_repo::cmd_repo;
 use spk_cmd_test::cmd_test;
 use spk_schema::foundation::format::FormatError;
-
-#[cfg(feature = "sentry")]
-use spk_cli_common::configure_sentry;
 
 /// A Package Manager for SPFS
 #[derive(Parser)]

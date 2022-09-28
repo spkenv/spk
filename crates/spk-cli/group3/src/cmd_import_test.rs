@@ -1,5 +1,4 @@
 use rstest::rstest;
-
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::Run;
 use spk_schema::foundation::spec_ops::PackageOps;

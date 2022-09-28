@@ -4,26 +4,23 @@
 
 use std::collections::HashSet;
 
-use nom::{
-    branch::alt,
-    bytes::complete::take_while1,
-    character::complete::char,
-    combinator::{cut, eof, fail, opt, peek},
-    error::{ContextError, FromExternalError, ParseError},
-    sequence::{pair, preceded, terminated},
-    IResult, Parser,
-};
-use nom_supreme::tag::{complete::tag, TagError};
+use nom::branch::alt;
+use nom::bytes::complete::take_while1;
+use nom::character::complete::char;
+use nom::combinator::{cut, eof, fail, opt, peek};
+use nom::error::{ContextError, FromExternalError, ParseError};
+use nom::sequence::{pair, preceded, terminated};
+use nom::{IResult, Parser};
+use nom_supreme::tag::complete::tag;
+use nom_supreme::tag::TagError;
 use once_cell::sync::Lazy;
 
-use crate::{
-    ident_build::{parsing::build, Build},
-    name::{
-        parsing::{is_legal_package_name_chr, known_repository_name, repository_name},
-        RepositoryName,
-    },
-    version::{parsing::version, Version},
-};
+use crate::ident_build::parsing::build;
+use crate::ident_build::Build;
+use crate::name::parsing::{is_legal_package_name_chr, known_repository_name, repository_name};
+use crate::name::RepositoryName;
+use crate::version::parsing::version;
+use crate::version::Version;
 
 mod ident;
 mod request;

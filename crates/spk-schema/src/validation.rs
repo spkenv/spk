@@ -11,7 +11,9 @@ use serde::{Deserialize, Serialize};
 use crate::foundation::ident_ops::MetadataPath;
 use crate::foundation::spec_ops::{ComponentOps, PackageOps};
 use crate::validators::{
-    must_collect_all_files, must_install_something, must_not_alter_existing_files,
+    must_collect_all_files,
+    must_install_something,
+    must_not_alter_existing_files,
 };
 use crate::{Error, Result};
 
@@ -120,8 +122,9 @@ pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
     diffs: &mut [spfs::tracking::Diff],
     prefix: P,
 ) -> Result<()> {
-    use spfs::tracking::DiffMode;
     use std::os::unix::prelude::PermissionsExt;
+
+    use spfs::tracking::DiffMode;
 
     for diff in diffs.iter_mut() {
         match &diff.mode {

@@ -1,20 +1,17 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{
-    collections::{BTreeSet, HashSet},
-    convert::TryFrom,
-    fmt::{Display, Write},
-};
+use std::collections::{BTreeSet, HashSet};
+use std::convert::TryFrom;
+use std::fmt::{Display, Write};
 
 use colored::Colorize;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+use super::{Error, Result};
 use crate::format::FormatComponents;
 use crate::name::PkgName;
-
-use super::{Error, Result};
 
 #[cfg(test)]
 #[path = "./component_spec_test.rs"]

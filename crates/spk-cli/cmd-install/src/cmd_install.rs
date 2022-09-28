@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::HashSet, io::Write};
+use std::collections::HashSet;
+use std::io::Write;
 
 use anyhow::{Context, Result};
 use clap::Args;

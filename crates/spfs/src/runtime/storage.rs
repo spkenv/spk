@@ -13,10 +13,8 @@ use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 
 use super::{csh_exp, startup_csh, startup_sh};
-use crate::{
-    encoding::{self, Encodable},
-    graph, storage, tracking, Error, Result,
-};
+use crate::encoding::{self, Encodable};
+use crate::{graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./storage_test.rs"]

@@ -14,9 +14,7 @@ use relative_path::RelativePathBuf;
 use tokio::fs::DirEntry;
 
 use super::entry::{Entry, EntryKind};
-use crate::encoding;
-use crate::runtime;
-use crate::{Error, Result};
+use crate::{encoding, runtime, Error, Result};
 
 #[cfg(test)]
 #[path = "./manifest_test.rs"]
@@ -409,9 +407,10 @@ pub struct ManifestNode<'a> {
 
 impl<'a> Ord for ManifestNode<'a> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+
         use itertools::EitherOrBoth::{Both, Left, Right};
         use relative_path::Component::Normal;
-        use std::cmp::Ordering;
 
         let self_path = self.path.normalize();
         let other_path = other.path.normalize();

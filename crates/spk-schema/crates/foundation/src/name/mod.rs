@@ -5,10 +5,10 @@
 mod error;
 pub mod parsing;
 
+use std::borrow::Borrow;
+use std::convert::TryFrom;
+
 pub use error::{Error, Result};
-
-use std::{borrow::Borrow, convert::TryFrom};
-
 use thiserror::Error;
 
 #[cfg(test)]

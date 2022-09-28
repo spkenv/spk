@@ -6,10 +6,9 @@ use rstest::rstest;
 
 use super::{Entry, Tree};
 use crate::encoding::{self, Encodable};
+use crate::fixtures::*;
 use crate::graph::Object;
 use crate::tracking::EntryKind;
-
-use crate::fixtures::*;
 
 #[rstest(entries, digest,
     case(vec![

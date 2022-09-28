@@ -1,15 +1,15 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{collections::BTreeSet, str::FromStr};
+use std::collections::BTreeSet;
+use std::str::FromStr;
 
 use relative_path::RelativePathBuf;
 use thiserror::Error;
 
-use crate::{
-    ident_component::{Component, Components},
-    ident_ops::{parsing::IdentPartsBuf, MetadataPath, TagPath},
-};
+use crate::ident_component::{Component, Components};
+use crate::ident_ops::parsing::IdentPartsBuf;
+use crate::ident_ops::{MetadataPath, TagPath};
 
 #[cfg(test)]
 #[path = "./build_test.rs"]

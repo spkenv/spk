@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::HashMap, ffi::OsString, io::Write, path::Path};
+use std::collections::HashMap;
+use std::ffi::OsString;
+use std::io::Write;
+use std::path::Path;
 
 use spfs::runtime::Runtime;
 use spk_cli_common::{Error, Result, TestError};

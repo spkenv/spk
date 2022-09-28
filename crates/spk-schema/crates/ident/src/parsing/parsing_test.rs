@@ -2,27 +2,34 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{
-    collections::{BTreeSet, HashSet},
-    convert::TryFrom,
-    str::FromStr,
-};
+use std::collections::{BTreeSet, HashSet};
+use std::convert::TryFrom;
+use std::str::FromStr;
 
 use itertools::Itertools;
-use nom::{combinator::all_consuming, error::ErrorKind};
-use proptest::{
-    collection::{btree_map, btree_set, vec},
-    option::weighted,
-    prelude::*,
-};
+use nom::combinator::all_consuming;
+use nom::error::ErrorKind;
+use proptest::collection::{btree_map, btree_set, vec};
+use proptest::option::weighted;
+use proptest::prelude::*;
 use spk_schema_foundation::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::name::{PkgNameBuf, RepositoryNameBuf};
 use spk_schema_foundation::version::{CompatRule, TagSet, Version};
 use spk_schema_foundation::version_range::{
-    CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
-    GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
-    LowestSpecifiedRange, NotEqualsVersion, SemverRange, VersionFilter, VersionRange,
+    CompatRange,
+    DoubleEqualsVersion,
+    DoubleNotEqualsVersion,
+    EqualsVersion,
+    GreaterThanOrEqualToRange,
+    GreaterThanRange,
+    LessThanOrEqualToRange,
+    LessThanRange,
+    LowestSpecifiedRange,
+    NotEqualsVersion,
+    SemverRange,
+    VersionFilter,
+    VersionRange,
     WildcardRange,
 };
 

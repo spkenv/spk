@@ -6,28 +6,28 @@ mod compat;
 mod error;
 pub mod parsing;
 
+use std::cmp::{Ord, Ordering};
+use std::convert::TryFrom;
+use std::fmt::Write;
+use std::ops::{Deref, DerefMut};
+use std::str::FromStr;
+
 pub use compat::{
-    parse_compat, Compat, CompatRule, CompatRuleSet, Compatibility, API_STR, BINARY_STR,
+    parse_compat,
+    Compat,
+    CompatRule,
+    CompatRuleSet,
+    Compatibility,
+    API_STR,
+    BINARY_STR,
 };
-
 pub use error::{Error, Result};
-
-use std::{
-    cmp::{Ord, Ordering},
-    convert::TryFrom,
-    fmt::Write,
-    ops::{Deref, DerefMut},
-    str::FromStr,
-};
-
 use relative_path::RelativePathBuf;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
-use crate::{
-    ident_ops::{MetadataPath, TagPath},
-    name::validate_tag_name,
-};
+use crate::ident_ops::{MetadataPath, TagPath};
+use crate::name::validate_tag_name;
 
 #[cfg(test)]
 #[path = "./version_test.rs"]

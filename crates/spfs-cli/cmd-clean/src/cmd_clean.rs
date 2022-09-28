@@ -5,7 +5,6 @@
 use chrono::prelude::*;
 use clap::Parser;
 use colored::*;
-
 use spfs::prelude::*;
 use spfs_cli_common as cli;
 

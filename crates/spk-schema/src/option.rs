@@ -13,7 +13,12 @@ use crate::foundation::name::{OptName, OptNameBuf, PkgName, PkgNameBuf};
 use crate::foundation::version::{CompatRule, Compatibility};
 use crate::foundation::version_range::{Ranged, VersionRange};
 use crate::ident::{
-    parse_ident_range, InclusionPolicy, PkgRequest, PreReleasePolicy, Request, RequestedBy,
+    parse_ident_range,
+    InclusionPolicy,
+    PkgRequest,
+    PreReleasePolicy,
+    Request,
+    RequestedBy,
     VarRequest,
 };
 use crate::{Error, Result};

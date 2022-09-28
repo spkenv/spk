@@ -8,11 +8,10 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 use relative_path::RelativePath;
 
-use crate::graph;
+use crate::prelude::*;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::EntryType;
-use crate::Result;
-use crate::{encoding, prelude::*, storage, tracking};
+use crate::{encoding, graph, storage, tracking, Result};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]

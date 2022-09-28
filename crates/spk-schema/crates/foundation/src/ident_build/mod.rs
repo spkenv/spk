@@ -8,6 +8,12 @@ mod format;
 pub mod parsing;
 
 pub use build::{
-    parse_build, Build, EmbeddedSource, EmbeddedSourcePackage, InvalidBuildError, EMBEDDED, SRC,
+    parse_build,
+    Build,
+    EmbeddedSource,
+    EmbeddedSourcePackage,
+    InvalidBuildError,
+    EMBEDDED,
+    SRC,
 };
 pub use error::{Error, Result};

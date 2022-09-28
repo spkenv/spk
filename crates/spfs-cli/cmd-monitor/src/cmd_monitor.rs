@@ -5,14 +5,11 @@
 use std::time::Duration;
 
 use clap::Parser;
-use tokio::{
-    io::AsyncReadExt,
-    signal::unix::{signal, SignalKind},
-    time::timeout,
-};
-
 use spfs::Error;
 use spfs_cli_common as cli;
+use tokio::io::AsyncReadExt;
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::time::timeout;
 
 cli::main!(CmdMonitor);
 

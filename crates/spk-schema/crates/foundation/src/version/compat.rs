@@ -9,8 +9,7 @@ use std::str::FromStr;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use super::{Error, Result};
-use super::{Version, VERSION_SEP};
+use super::{Error, Result, Version, VERSION_SEP};
 use crate::version;
 
 #[cfg(test)]

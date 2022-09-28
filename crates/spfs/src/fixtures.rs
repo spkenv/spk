@@ -4,9 +4,10 @@
 
 use std::sync::Arc;
 
-use crate as spfs;
 use rstest::fixture;
 use tempfile::TempDir;
+
+use crate as spfs;
 
 pub enum TempRepo {
     FS(Arc<spfs::storage::RepositoryHandle>, TempDir),

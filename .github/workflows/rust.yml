@@ -26,7 +26,9 @@ jobs:
           apt-get update
           # nodejs is needed for rust-cache (when using `act`)
           apt-get install -y libcap2-bin sudo nodejs cmake tcsh rsync protobuf-compiler
-          rustup component add clippy rustfmt
+          rustup install nightly
+          rustup component add clippy
+          rustup component add rustfmt --toolchain nightly
       - uses: Swatinem/rust-cache@v2
       - name: Build Default
         run: make debug

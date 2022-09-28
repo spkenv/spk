@@ -7,8 +7,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use super::status::remount_runtime;
+use crate::prelude::*;
 use crate::tracking::ManifestBuilderHasher;
-use crate::{encoding, graph, prelude::*, runtime, tracking, Error, Result};
+use crate::{encoding, graph, runtime, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./commit_test.rs"]

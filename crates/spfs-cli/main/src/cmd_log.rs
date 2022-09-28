@@ -5,7 +5,6 @@
 use clap::Args;
 use colored::*;
 use futures::StreamExt;
-
 use spfs::{self};
 
 /// Log the history of a given tag over time

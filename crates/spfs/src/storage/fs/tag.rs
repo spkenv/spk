@@ -2,32 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{
-    convert::TryInto,
-    ffi::OsStr,
-    mem::size_of,
-    os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
-    pin::Pin,
-    task::Poll,
-};
+use std::convert::TryInto;
+use std::ffi::OsStr;
+use std::mem::size_of;
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::task::Poll;
 
 use close_err::Closable;
+use encoding::{Decodable, Encodable};
 use futures::{Future, Stream};
 use relative_path::RelativePath;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 use tokio_stream::StreamExt;
 
 use super::FSRepository;
-use crate::{
-    encoding,
-    storage::{
-        tag::{EntryType, TagSpecAndTagStream, TagStream},
-        TagStorage,
-    },
-    tracking, Error, Result,
-};
-use encoding::{Decodable, Encodable};
+use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
+use crate::storage::TagStorage;
+use crate::{encoding, tracking, Error, Result};
 
 const TAG_EXT: &str = "tag";
 
@@ -451,6 +444,7 @@ impl Stream for TagIter {
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         use std::io::SeekFrom;
+
         use Poll::*;
         use TagIterState::*;
 

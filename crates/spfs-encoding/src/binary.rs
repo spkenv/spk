@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{
-    io::{BufRead, Read, Write},
-    iter::FromIterator,
-};
+use std::io::{BufRead, Read, Write};
+use std::iter::FromIterator;
 
 use super::hash::{Digest, DIGEST_SIZE, NULL_DIGEST};
 use crate::{Error, Result};

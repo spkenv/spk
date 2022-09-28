@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
-
 use spfs_cli_common as cli;
 
 /// Reset changes, or rebuild the entire spfs directory

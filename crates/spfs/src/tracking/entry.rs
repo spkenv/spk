@@ -6,8 +6,7 @@ use std::io::BufRead;
 use std::str::FromStr;
 use std::string::ToString;
 
-use crate::encoding;
-use crate::{Error, Result};
+use crate::{encoding, Error, Result};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum EntryKind {

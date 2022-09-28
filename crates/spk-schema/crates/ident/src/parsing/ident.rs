@@ -2,16 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use nom::{
-    character::complete::char,
-    combinator::{map, opt},
-    error::{ContextError, FromExternalError, ParseError},
-    sequence::preceded,
-    IResult,
-};
+use nom::character::complete::char;
+use nom::combinator::{map, opt};
+use nom::error::{ContextError, FromExternalError, ParseError};
+use nom::sequence::preceded;
+use nom::IResult;
 use nom_supreme::tag::TagError;
-
-use spk_schema_foundation::{ident_ops::parsing::version_and_build, name::parsing::package_name};
+use spk_schema_foundation::ident_ops::parsing::version_and_build;
+use spk_schema_foundation::name::parsing::package_name;
 
 use crate::Ident;
 

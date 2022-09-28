@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
-
 use spfs::prelude::*;
 
 /// Check a repositories internal integrity

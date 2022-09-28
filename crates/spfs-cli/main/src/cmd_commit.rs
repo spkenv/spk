@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
+use std::sync::Arc;
 
 use clap::Args;
-
 use spfs::encoding::Encodable;
 
 /// Commit the current runtime state or a directory to storage

@@ -9,10 +9,8 @@ use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt};
 use tonic::{Request, Response, Status};
 
-use crate::proto::{
-    self, convert_digest, convert_to_datetime, database_service_server::DatabaseServiceServer,
-    RpcResult,
-};
+use crate::proto::database_service_server::DatabaseServiceServer;
+use crate::proto::{self, convert_digest, convert_to_datetime, RpcResult};
 use crate::storage;
 
 #[derive(Debug, Clone)]

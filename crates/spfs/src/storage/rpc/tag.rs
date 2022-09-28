@@ -8,13 +8,11 @@ use std::pin::Pin;
 use futures::{Stream, TryStreamExt};
 use relative_path::RelativePath;
 
-use crate::proto::{self, tag_service_client::TagServiceClient, RpcResult};
-use crate::storage::EntryType;
-use crate::{
-    encoding,
-    storage::{self, tag::TagSpecAndTagStream},
-    tracking, Result,
-};
+use crate::proto::tag_service_client::TagServiceClient;
+use crate::proto::{self, RpcResult};
+use crate::storage::tag::TagSpecAndTagStream;
+use crate::storage::{self, EntryType};
+use crate::{encoding, tracking, Result};
 
 #[async_trait::async_trait]
 impl storage::TagStorage for super::RpcRepository {

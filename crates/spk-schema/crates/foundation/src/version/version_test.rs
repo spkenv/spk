@@ -1,8 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::cmp::Ord;
-use std::cmp::Ordering;
+use std::cmp::{Ord, Ordering};
 
 use rstest::rstest;
 

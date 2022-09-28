@@ -1,41 +1,51 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-    mem::take,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
-};
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::mem::take;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
-use crate::{error::OutOfOptions, option_map::OptionMap};
 use async_stream::stream;
 use futures::{Stream, TryStreamExt};
 use priority_queue::priority_queue::PriorityQueue;
+use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, VarRequest};
-use spk_schema::{foundation::ident_build::Build, ident_build::EmbeddedSource};
+use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::{Deprecate, Ident, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
-    Change, Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions, SkipPackageNote,
-    State, StepBack, DEAD_STATE,
+    Change,
+    Decision,
+    Graph,
+    Node,
+    Note,
+    RequestPackage,
+    RequestVar,
+    SetOptions,
+    SkipPackageNote,
+    State,
+    StepBack,
+    DEAD_STATE,
 };
 use spk_solve_package_iterator::{
-    EmptyBuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator,
+    EmptyBuildIterator,
+    PackageIterator,
+    RepositoryPackageIterator,
+    SortedBuildIterator,
 };
 use spk_solve_solution::{PackageSource, Solution};
 use spk_solve_validation::{default_validators, BinaryOnlyValidator, ValidatorT, Validators};
 use spk_storage::RepositoryHandle;
 
-use crate::{Error, Result};
-
 use super::error;
+use crate::error::OutOfOptions;
+use crate::option_map::OptionMap;
+use crate::{Error, Result};
 
 // Public to allow other tests to use its macros
 #[cfg(test)]

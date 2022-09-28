@@ -1,42 +1,34 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    convert::{TryFrom, TryInto},
-    str::FromStr,
-    sync::{
-        atomic::{AtomicPtr, Ordering},
-        Arc,
-    },
-};
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
+use std::convert::{TryFrom, TryInto};
+use std::str::FromStr;
+use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::Arc;
 
 use futures::StreamExt;
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
-use spfs::{storage::EntryType, tracking};
+use spfs::storage::EntryType;
+use spfs::tracking;
+use spk_schema::foundation::ident_build::{parse_build, Build, InvalidBuildError};
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::spec_ops::{PackageOps, RecipeOps};
 use spk_schema::foundation::version::{parse_version, Version};
-use spk_schema::Ident;
-use spk_schema::{
-    foundation::ident_build::{parse_build, Build, InvalidBuildError},
-    ident_ops::TagPath,
-};
-use spk_schema::{foundation::ident_component::Component, ident_build::EmbeddedSource};
-use spk_schema::{
-    foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf},
-    ident_build::parsing::embedded_source_package,
-};
-use spk_schema::{FromYaml, Spec, SpecRecipe};
+use spk_schema::ident_build::parsing::embedded_source_package;
+use spk_schema::ident_build::EmbeddedSource;
+use spk_schema::ident_ops::TagPath;
+use spk_schema::{FromYaml, Ident, Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
-use super::{
-    repository::{PublishPolicy, Storage},
-    CachePolicy, Repository,
-};
-use crate::{storage::repository::internal::RepositoryExt, with_cache_policy, Error, Result};
+use super::repository::{PublishPolicy, Storage};
+use super::{CachePolicy, Repository};
+use crate::storage::repository::internal::RepositoryExt;
+use crate::{with_cache_policy, Error, Result};
 
 #[cfg(test)]
 #[path = "./spfs_test.rs"]

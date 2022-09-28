@@ -6,9 +6,9 @@ use std::convert::TryInto;
 use std::pin::Pin;
 
 use futures::{Stream, TryStreamExt};
+use proto::RpcResult;
 
 use crate::{encoding, graph, proto, storage, Result};
-use proto::RpcResult;
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for super::RpcRepository {

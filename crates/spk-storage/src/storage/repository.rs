@@ -1,22 +1,19 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
-use crate::{Error, Result};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
+use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Version;
-use spk_schema::ident_build::EmbeddedSource;
-use spk_schema::ident_build::{Build, InvalidBuildError};
-use spk_schema::Ident;
-use spk_schema::{foundation::spec_ops::PackageOps, spec_ops::PackageMutOps};
-use spk_schema::{Deprecate, DeprecateMut, Package};
+use spk_schema::ident_build::{Build, EmbeddedSource, InvalidBuildError};
+use spk_schema::spec_ops::PackageMutOps;
+use spk_schema::{Deprecate, DeprecateMut, Ident, Package};
 
 use self::internal::RepositoryExt;
+use crate::{Error, Result};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -122,15 +119,10 @@ pub trait Storage: Sync {
 pub(in crate::storage) mod internal {
     use std::collections::{BTreeSet, HashMap};
 
-    use spk_schema::{
-        foundation::{
-            ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage},
-            ident_component::Component,
-            spec_ops::{PackageMutOps, PackageOps},
-        },
-        Ident,
-    };
-    use spk_schema::{Deprecate, DeprecateMut, Package, Recipe};
+    use spk_schema::foundation::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage};
+    use spk_schema::foundation::ident_component::Component;
+    use spk_schema::foundation::spec_ops::{PackageMutOps, PackageOps};
+    use spk_schema::{Deprecate, DeprecateMut, Ident, Package, Recipe};
 
     use crate::{with_cache_policy, CachePolicy, Result};
 

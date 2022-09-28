@@ -9,8 +9,8 @@ use futures::stream::{FuturesUnordered, TryStreamExt};
 use once_cell::sync::OnceCell;
 use tokio::sync::{RwLock, Semaphore};
 
-use crate::{encoding, prelude::*};
-use crate::{graph, storage, tracking, Error, Result};
+use crate::prelude::*;
+use crate::{encoding, graph, storage, tracking, Error, Result};
 
 /// The default limit for concurrent manifest sync operations
 /// per-syncer if not otherwise specified using

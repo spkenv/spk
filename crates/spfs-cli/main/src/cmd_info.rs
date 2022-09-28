@@ -4,9 +4,9 @@
 
 use clap::Args;
 use colored::*;
-
 use spfs::io::{self, DigestFormat};
-use spfs::{self, prelude::*};
+use spfs::prelude::*;
+use spfs::{self};
 
 /// Display information about the current environment, or specific items
 #[derive(Debug, Args)]

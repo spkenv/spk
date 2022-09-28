@@ -6,7 +6,6 @@ use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt;
 
 use clap::Args;
-
 use spfs_cli_common as cli;
 
 /// Run a program in a configured spfs environment

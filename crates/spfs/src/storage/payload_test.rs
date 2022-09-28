@@ -1,10 +1,9 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use tokio::io::AsyncReadExt;
-
 use futures::TryStreamExt;
 use rstest::rstest;
+use tokio::io::AsyncReadExt;
 
 use crate::fixtures::*;
 

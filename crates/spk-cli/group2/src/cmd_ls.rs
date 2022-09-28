@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::BTreeSet, fmt::Write};
+use std::collections::BTreeSet;
+use std::fmt::Write;
 
 use anyhow::{anyhow, Result};
 use clap::Args;

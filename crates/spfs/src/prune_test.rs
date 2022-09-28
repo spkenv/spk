@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashMap;
+
 use chrono::{TimeZone, Utc};
 use rstest::rstest;
 use tokio_stream::StreamExt;
 
 use super::{get_prunable_tags, prune_tags, PruneParameters};
-use crate::{encoding, storage, tracking, Error};
-use std::collections::HashMap;
-
 use crate::fixtures::*;
+use crate::{encoding, storage, tracking, Error};
 
 #[rstest]
 #[tokio::test]

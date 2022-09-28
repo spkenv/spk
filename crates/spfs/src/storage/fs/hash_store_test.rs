@@ -6,7 +6,9 @@ use futures::TryStreamExt;
 use rstest::rstest;
 use tokio_stream::StreamExt;
 
-use crate::{fixtures::*, graph::DigestSearchCriteria, storage::fs::hash_store::PersistableObject};
+use crate::fixtures::*;
+use crate::graph::DigestSearchCriteria;
+use crate::storage::fs::hash_store::PersistableObject;
 
 #[rstest]
 #[tokio::test]

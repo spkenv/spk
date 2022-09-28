@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use clap::Parser;
 use std::ffi::OsString;
 
+use clap::Parser;
 use spfs::{Error, Result};
 use spfs_cli_common as cli;
 

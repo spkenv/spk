@@ -4,9 +4,8 @@
 
 use clap::Args;
 use colored::Colorize;
-use tokio_stream::StreamExt;
-
 use spfs::io::{self, DigestFormat};
+use tokio_stream::StreamExt;
 
 /// List all tags in an spfs repository
 #[derive(Debug, Args)]

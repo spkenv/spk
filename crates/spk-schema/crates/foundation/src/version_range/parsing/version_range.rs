@@ -4,25 +4,32 @@
 
 use std::convert::TryFrom;
 
-use nom::{
-    branch::alt,
-    character::complete::{char, digit1},
-    combinator::{cut, map, map_res, verify},
-    error::{ContextError, FromExternalError, ParseError},
-    multi::separated_list1,
-    sequence::{pair, preceded, terminated},
-    IResult,
-};
-use nom_supreme::tag::{complete::tag, TagError};
+use nom::branch::alt;
+use nom::character::complete::{char, digit1};
+use nom::combinator::{cut, map, map_res, verify};
+use nom::error::{ContextError, FromExternalError, ParseError};
+use nom::multi::separated_list1;
+use nom::sequence::{pair, preceded, terminated};
+use nom::IResult;
+use nom_supreme::tag::complete::tag;
+use nom_supreme::tag::TagError;
 
-use crate::version::{
-    parsing::{version, version_str},
-    CompatRule,
-};
+use crate::version::parsing::{version, version_str};
+use crate::version::CompatRule;
 use crate::version_range::{
-    CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
-    GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
-    LowestSpecifiedRange, NotEqualsVersion, SemverRange, VersionFilter, VersionRange,
+    CompatRange,
+    DoubleEqualsVersion,
+    DoubleNotEqualsVersion,
+    EqualsVersion,
+    GreaterThanOrEqualToRange,
+    GreaterThanRange,
+    LessThanOrEqualToRange,
+    LessThanRange,
+    LowestSpecifiedRange,
+    NotEqualsVersion,
+    SemverRange,
+    VersionFilter,
+    VersionRange,
     WildcardRange,
 };
 

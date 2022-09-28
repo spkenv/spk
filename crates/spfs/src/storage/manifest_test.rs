@@ -5,10 +5,10 @@
 use rstest::rstest;
 use tokio_stream::StreamExt;
 
-use crate::graph::Manifest;
-use crate::{encoding::Encodable, tracking};
-
+use crate::encoding::Encodable;
 use crate::fixtures::*;
+use crate::graph::Manifest;
+use crate::tracking;
 
 #[rstest]
 #[case::fs(tmprepo("fs"))]

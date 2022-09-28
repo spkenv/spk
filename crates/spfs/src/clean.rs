@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::HashSet, os::linux::fs::MetadataExt, sync::Arc};
+use std::collections::HashSet;
+use std::os::linux::fs::MetadataExt;
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use futures::FutureExt;

@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use crate::encoding;
-
 use super::entry::Entry;
 use super::manifest::Manifest;
 use super::tag::Tag;
+use crate::encoding;
 
 /// Object is the base class for all storable data types.
 ///

@@ -3,9 +3,8 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
-use tokio_stream::StreamExt;
-
 use spfs::io::{self, DigestFormat};
+use tokio_stream::StreamExt;
 
 /// List all platforms in an spfs repository
 #[derive(Debug, Args)]

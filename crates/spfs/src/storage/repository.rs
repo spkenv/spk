@@ -1,15 +1,16 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{collections::HashSet, pin::Pin};
+use std::collections::HashSet;
+use std::pin::Pin;
 
 use async_trait::async_trait;
+use encoding::Encodable;
+use graph::Blob;
 use tokio_stream::StreamExt;
 
 use super::ManifestViewer;
 use crate::{encoding, graph, tracking, Error, Result};
-use encoding::Encodable;
-use graph::Blob;
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]

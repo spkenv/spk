@@ -4,21 +4,19 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use nom::{
-    branch::alt,
-    character::complete::{char, digit1},
-    combinator::{eof, map, map_res, opt, peek, recognize},
-    error::{ContextError, FromExternalError, ParseError},
-    multi::separated_list1,
-    sequence::{pair, preceded, separated_pair, terminated},
-    IResult,
-};
-use nom_supreme::tag::{complete::tag, TagError};
-
-use crate::version::{InvalidVersionError, TagSet, Version};
+use nom::branch::alt;
+use nom::character::complete::{char, digit1};
+use nom::combinator::{eof, map, map_res, opt, peek, recognize};
+use nom::error::{ContextError, FromExternalError, ParseError};
+use nom::multi::separated_list1;
+use nom::sequence::{pair, preceded, separated_pair, terminated};
+use nom::IResult;
+use nom_supreme::tag::complete::tag;
+use nom_supreme::tag::TagError;
 
 use super::separated_list1_with_cut;
 use crate::name::parsing::tag_name;
+use crate::version::{InvalidVersionError, TagSet, Version};
 
 /// Parse a valid version pre- or post-tag.
 ///

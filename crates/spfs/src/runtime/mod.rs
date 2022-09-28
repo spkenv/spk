@@ -14,6 +14,13 @@ pub mod storage_033;
 
 pub use overlayfs::is_removed_entry;
 pub use storage::{
-    makedirs_with_perms, Author, Config, Data, OwnedRuntime, Runtime, Status, Storage,
+    makedirs_with_perms,
+    Author,
+    Config,
+    Data,
+    OwnedRuntime,
+    Runtime,
+    Status,
+    Storage,
     STARTUP_FILES_LOCATION,
 };

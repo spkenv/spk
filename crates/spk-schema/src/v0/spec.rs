@@ -19,13 +19,37 @@ use crate::foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
 use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
 use crate::foundation::version_range::Ranged;
 use crate::ident::{
-    is_false, Ident, PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy, VarRequest,
+    is_false,
+    Ident,
+    PkgRequest,
+    PreReleasePolicy,
+    RangeIdent,
+    Request,
+    RequestedBy,
+    VarRequest,
 };
-use crate::BuildEnv;
+use crate::meta::Meta;
+use crate::test_spec::TestSpec;
 use crate::{
-    meta::Meta, test_spec::TestSpec, BuildSpec, ComponentSpec, ComponentSpecList, Deprecate,
-    DeprecateMut, EmbeddedPackagesList, EnvOp, Error, Inheritance, InstallSpec, LocalSource, Opt,
-    Package, Recipe, RequirementsList, Result, SourceSpec, ValidationSpec,
+    BuildEnv,
+    BuildSpec,
+    ComponentSpec,
+    ComponentSpecList,
+    Deprecate,
+    DeprecateMut,
+    EmbeddedPackagesList,
+    EnvOp,
+    Error,
+    Inheritance,
+    InstallSpec,
+    LocalSource,
+    Opt,
+    Package,
+    Recipe,
+    RequirementsList,
+    Result,
+    SourceSpec,
+    ValidationSpec,
 };
 
 #[cfg(test)]

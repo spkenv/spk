@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{io::ErrorKind, pin::Pin};
+use std::io::ErrorKind;
+use std::pin::Pin;
 
 use futures::Stream;
 

@@ -4,9 +4,9 @@
 
 use rstest::rstest;
 
-use crate::foundation::opt_name;
-use crate::foundation::option_map;
-use crate::{prelude::*, spec::SpecRecipe};
+use crate::foundation::{opt_name, option_map};
+use crate::prelude::*;
+use crate::spec::SpecRecipe;
 
 #[rstest]
 fn test_resolve_options_package_option() {

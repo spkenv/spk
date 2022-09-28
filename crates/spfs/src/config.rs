@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 use lazy_static::lazy_static;
@@ -9,7 +10,6 @@ use storage::{FromConfig, FromUrl};
 use tokio_stream::StreamExt;
 
 use crate::{runtime, storage, Result};
-use std::path::PathBuf;
 
 #[cfg(test)]
 #[path = "./config_test.rs"]
@@ -294,7 +294,8 @@ pub fn get_config() -> Result<Arc<Config>> {
 ///
 /// This includes the default, user and system configurations, if they exist.
 pub fn load_config() -> Result<Config> {
-    use config::{Config as RawConfig, Environment, File, FileFormat::Ini};
+    use config::FileFormat::Ini;
+    use config::{Config as RawConfig, Environment, File};
 
     let user_config_dir = "~/.config/spfs/spfs";
     let user_config = expanduser::expanduser(&user_config_dir)

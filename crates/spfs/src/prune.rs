@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashSet;
+use std::convert::TryInto;
+
 use chrono::prelude::*;
 use tokio_stream::StreamExt;
 
 use crate::{storage, tracking, Result};
-use std::{collections::HashSet, convert::TryInto};
 
 #[cfg(test)]
 #[path = "./prune_test.rs"]

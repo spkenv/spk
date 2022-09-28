@@ -8,12 +8,11 @@ use rstest::rstest;
 
 use super::was_render_completed;
 use crate::encoding::Encodable;
-use crate::graph::Manifest;
-use crate::storage::{fs::FSRepository, ManifestViewer};
-use crate::storage::{Repository, RepositoryHandle};
-use crate::tracking;
-
 use crate::fixtures::*;
+use crate::graph::Manifest;
+use crate::storage::fs::FSRepository;
+use crate::storage::{ManifestViewer, Repository, RepositoryHandle};
+use crate::tracking;
 
 #[rstest]
 #[tokio::test]

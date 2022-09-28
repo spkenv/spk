@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use crate::ident_ops::MetadataPath;
 use relative_path::RelativePathBuf;
+
+use crate::ident_ops::MetadataPath;
 
 #[cfg(test)]
 #[path = "./env_test.rs"]

@@ -5,8 +5,7 @@
 use rstest::rstest;
 
 use super::OptionMap;
-use crate::option_map;
-use crate::{opt_name, pkg_name, FromYaml};
+use crate::{opt_name, option_map, pkg_name, FromYaml};
 
 #[rstest]
 fn test_package_options() {

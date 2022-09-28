@@ -1,12 +1,10 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{
-    collections::{HashMap, HashSet},
-    convert::{TryFrom, TryInto},
-    io::Read,
-    sync::Arc,
-};
+use std::collections::{HashMap, HashSet};
+use std::convert::{TryFrom, TryInto};
+use std::io::Read;
+use std::sync::Arc;
 
 use spfs::prelude::*;
 use spk_schema::foundation::ident_build::parse_build;
@@ -15,10 +13,8 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, Reposito
 use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::{FromYaml, Ident, Spec, SpecRecipe};
 
-use super::{
-    repository::{PublishPolicy, Storage},
-    Repository,
-};
+use super::repository::{PublishPolicy, Storage};
+use super::Repository;
 use crate::{Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

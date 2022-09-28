@@ -4,20 +4,19 @@
 
 use std::collections::BTreeSet;
 
-use nom::{
-    branch::alt,
-    bytes::complete::take_while_m_n,
-    character::complete::char,
-    combinator::{cut, map},
-    error::{ContextError, ParseError},
-    multi::separated_list1,
-    sequence::delimited,
-    IResult,
-};
+use nom::branch::alt;
+use nom::bytes::complete::take_while_m_n;
+use nom::character::complete::char;
+use nom::combinator::{cut, map};
+use nom::error::{ContextError, ParseError};
+use nom::multi::separated_list1;
+use nom::sequence::delimited;
+use nom::IResult;
 use nom_supreme::tag::TagError;
 
 use crate::ident_component::Component;
-use crate::name::{parsing::is_legal_package_name_chr, PkgName};
+use crate::name::parsing::is_legal_package_name_chr;
+use crate::name::PkgName;
 
 /// Parse a component name into a [`Component`].
 ///

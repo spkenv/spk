@@ -7,9 +7,8 @@ use std::sync::Arc;
 use rstest::rstest;
 
 use super::{commit_layer, commit_platform};
-use crate::Error;
-
 use crate::fixtures::*;
+use crate::Error;
 #[rstest]
 #[tokio::test]
 async fn test_commit_empty(tmpdir: tempfile::TempDir) {

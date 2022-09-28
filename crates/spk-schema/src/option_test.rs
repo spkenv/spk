@@ -3,9 +3,8 @@
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
-use crate::foundation::FromYaml;
-
 use super::Opt;
+use crate::foundation::FromYaml;
 
 #[rstest]
 #[case("{pkg: my-pkg}", "1", false)]

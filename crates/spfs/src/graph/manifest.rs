@@ -5,11 +5,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::BufRead;
 
+use encoding::Decodable;
+
 use super::{Entry, Tree};
 use crate::encoding::Encodable;
-use crate::{encoding, tracking};
-use crate::{Error, Result};
-use encoding::Decodable;
+use crate::{encoding, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./manifest_test.rs"]

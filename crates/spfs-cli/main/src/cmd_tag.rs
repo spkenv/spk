@@ -3,8 +3,8 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
-
-use spfs::{self, prelude::*};
+use spfs::prelude::*;
+use spfs::{self};
 
 /// Tag an object
 #[derive(Debug, Args)]

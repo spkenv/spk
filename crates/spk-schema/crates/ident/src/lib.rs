@@ -11,6 +11,14 @@ mod request;
 pub use error::{Error, Result};
 pub use ident::{parse_ident, BuildIdent, Ident};
 pub use request::{
-    is_false, parse_ident_range, InclusionPolicy, NameAndValue, PkgRequest, PreReleasePolicy,
-    RangeIdent, Request, RequestedBy, VarRequest,
+    is_false,
+    parse_ident_range,
+    InclusionPolicy,
+    NameAndValue,
+    PkgRequest,
+    PreReleasePolicy,
+    RangeIdent,
+    Request,
+    RequestedBy,
+    VarRequest,
 };

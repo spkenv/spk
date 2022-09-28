@@ -6,9 +6,8 @@ use rstest::rstest;
 
 use super::Entry;
 use crate::encoding::{self, Encodable};
-use crate::tracking::EntryKind;
-
 use crate::fixtures::*;
+use crate::tracking::EntryKind;
 
 #[rstest(entry, digest,
     case(Entry{
