@@ -23,7 +23,6 @@ mod test_spec;
 pub mod v0;
 mod validation;
 
-// Re-export for macros
 pub use build_spec::{BuildSpec, Script};
 pub use component_spec::ComponentSpec;
 pub use component_spec_list::ComponentSpecList;

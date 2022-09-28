@@ -9,8 +9,6 @@ mod solver;
 
 pub use error::{Error, Result};
 pub use io::{DecisionFormatter, DecisionFormatterBuilder};
-// Re-export for macros
-pub use serde_json;
 pub use solver::{Solver, SolverRuntime};
 pub use spk_schema::foundation::ident_component::Component;
 pub use spk_schema::foundation::option_map;
@@ -20,6 +18,7 @@ pub use spk_schema::{recipe, spec, v0, Package, Recipe, Spec};
 pub use spk_solve_solution::{PackageSource, Solution};
 pub use spk_storage::RepositoryHandle;
 pub use {
+    serde_json,
     spfs,
     spk_solve_graph as graph,
     spk_solve_package_iterator as package_iterator,
