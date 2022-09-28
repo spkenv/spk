@@ -50,6 +50,8 @@ pub enum Error {
 
     #[error(transparent)]
     InvalidYaml(#[from] format_serde_error::SerdeError),
+    #[error(transparent)]
+    InvalidTemplate(spk_schema_liquid::Error),
 }
 
 impl Error {
