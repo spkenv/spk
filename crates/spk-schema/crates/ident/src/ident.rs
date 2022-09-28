@@ -5,7 +5,7 @@
 use std::{convert::TryFrom, fmt::Write, str::FromStr};
 
 use relative_path::RelativePathBuf;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
 use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
 
@@ -330,8 +330,23 @@ impl<'de> Deserialize<'de> for Ident {
     where
         D: Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
-        Self::from_str(&s).map_err(de::Error::custom)
+        struct IdentVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for IdentVisitor {
+            type Value = Ident;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a package identifier (<NAME>[/<VERSION>[/<BUILD>]])")
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Ident, E>
+            where
+                E: serde::de::Error,
+            {
+                Ident::from_str(value).map_err(serde::de::Error::custom)
+            }
+        }
+        deserializer.deserialize_str(IdentVisitor)
     }
 }
 

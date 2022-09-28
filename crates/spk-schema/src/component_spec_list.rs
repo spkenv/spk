@@ -87,45 +87,73 @@ impl<'de> Deserialize<'de> for ComponentSpecList {
     where
         D: serde::Deserializer<'de>,
     {
-        let mut unchecked = Vec::<ComponentSpec>::deserialize(deserializer)?;
+        struct ComponentSpecListVisitor;
 
-        let mut components = std::collections::HashSet::new();
-        for component in unchecked.iter() {
-            if !components.insert(&component.name) {
-                return Err(serde::de::Error::custom(format!(
-                    "found multiple components with the name '{}'",
-                    component.name
-                )));
+        impl<'de> serde::de::Visitor<'de> for ComponentSpecListVisitor {
+            type Value = ComponentSpecList;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a list of component definitions")
             }
-        }
 
-        for component in unchecked.iter() {
-            for name in component.uses.iter() {
-                if !components.contains(&name) {
-                    return Err(serde::de::Error::custom(format!(
-                        "component '{}' uses '{}', but it does not exist",
-                        component.name, name
-                    )));
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(ComponentSpecList::default())
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let size_hint = seq.size_hint().unwrap_or(0);
+                let mut seen = std::collections::HashSet::with_capacity(size_hint);
+                let mut components = Vec::with_capacity(size_hint);
+                while let Some(component) = seq.next_element::<ComponentSpec>()? {
+                    if !seen.insert(component.name.clone()) {
+                        return Err(serde::de::Error::custom(format!(
+                            "found multiple components with the name '{}'",
+                            component.name
+                        )));
+                    }
+                    components.push(component)
                 }
+
+                // we guarantee that these default components are
+                // present in all specs, using a default setup if needed
+                if !seen.contains(&Component::Build) {
+                    components.push(ComponentSpec::default_build());
+                }
+                if !seen.contains(&Component::Run) {
+                    components.push(ComponentSpec::default_run());
+                }
+
+                if seen.contains(&Component::All) {
+                    return Err(serde::de::Error::custom(
+                        "The 'all' component is reserved, and cannot be defined in a spec"
+                            .to_string(),
+                    ));
+                }
+
+                // all referenced components must have been defined
+                // within the spec as well
+                for component in components.iter() {
+                    for name in component.uses.iter() {
+                        if !seen.contains(name) {
+                            return Err(serde::de::Error::custom(format!(
+                                "component '{}' uses '{name}', but it does not exist",
+                                component.name
+                            )));
+                        }
+                    }
+                }
+
+                components.sort_by(|a, b| a.name.cmp(&b.name));
+                Ok(ComponentSpecList(components))
             }
         }
 
-        let mut additional = Vec::new();
-        if !components.contains(&Component::Build) {
-            additional.push(ComponentSpec::default_build());
-        }
-        if !components.contains(&Component::Run) {
-            additional.push(ComponentSpec::default_run());
-        }
-        if components.contains(&Component::All) {
-            return Err(serde::de::Error::custom(
-                "The 'all' component is reserved, and cannot be defined in a spec".to_string(),
-            ));
-        }
-        unchecked.append(&mut additional);
-
-        unchecked.sort_by(|a, b| a.name.cmp(&b.name));
-
-        Ok(ComponentSpecList(unchecked))
+        deserializer.deserialize_seq(ComponentSpecListVisitor)
     }
 }

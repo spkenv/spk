@@ -445,10 +445,21 @@ impl<'de> Deserialize<'de> for Compat {
     where
         D: serde::Deserializer<'de>,
     {
-        let value = String::deserialize(deserializer)?;
-        match parse_compat(value) {
-            Err(err) => Err(serde::de::Error::custom(err.to_string())),
-            Ok(compat) => Ok(compat),
+        struct CompatVisitor;
+        impl<'de> serde::de::Visitor<'de> for CompatVisitor {
+            type Value = Compat;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a compatibility specifier (eg: 'x.a.b', 'x.ab')")
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Compat, E>
+            where
+                E: serde::de::Error,
+            {
+                Compat::from_str(value).map_err(serde::de::Error::custom)
+            }
         }
+        deserializer.deserialize_str(CompatVisitor)
     }
 }

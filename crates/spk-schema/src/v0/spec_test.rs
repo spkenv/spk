@@ -8,6 +8,7 @@ use rstest::rstest;
 
 use crate::foundation::fixtures::*;
 use crate::foundation::option_map::OptionMap;
+use crate::foundation::FromYaml;
 use crate::{spec::SpecTemplate, Recipe, Template, TemplateExt};
 
 use super::Spec;
@@ -43,4 +44,78 @@ fn test_sources_relative_to_spec_file(tmpdir: tempfile::TempDir) {
     } else {
         panic!("expected spec to have one local source spec");
     }
+}
+
+#[rstest]
+#[case(
+    r#"pkg: python
+install:
+  components:
+    - name: Component
+"#,
+    r#"
+   | pkg: python
+   | install:
+   |   components:
+ 4 |     - name: Component
+   |             ^ install.components[0].name: Invalid name: Invalid package name at pos 0:  > C < omponent at line 4 column 13
+"#
+)]
+#[case(
+    r#"pkg: python
+install:
+  components:
+    - name: run
+      files:
+        - {'***'}
+"#,
+    r#"
+   | components:
+   |   - name: run
+   |     files:
+ 6 |       - {'***'}
+   |         ^ install.components[0].files[0]: invalid type: map, expected a string at line 6 column 11
+"#
+)]
+#[case(
+    r#"pkg: python
+tests:
+  - stage: other"#,
+    r#"
+   | pkg: python
+   | tests:
+ 3 |   - stage: other
+   |            ^ tests[0].stage: unknown variant `other`, expected one of `build`, `install`, `sources` at line 3 column 12
+"#
+)]
+#[case(
+    r#"pkg: python
+build:
+  options:
+    - pkg: python/3.4
+    - var  arch
+    - var: os
+"#,
+    r#"
+   | build:
+   |   options:
+   |     - pkg: python/3.4
+ 5 |     - var  arch
+   |       ^ build.options[1]: invalid type: string "var  arch", expected a pkg or var option at line 5 column 7
+   |     - var: os
+"#
+)]
+fn test_yaml_error_context(#[case] yaml: &str, #[case] expected: &str) {
+    // validate that some common and/or deep(ish) errors in the spec format
+    // still show errors that are well placed and reasonably worded
+
+    format_serde_error::never_color();
+    let err = Spec::from_yaml(yaml).expect_err("expected yaml parsing to fail");
+    let message = err.to_string();
+    assert_eq!(
+        message, expected,
+        "error message does not match expected
+    ERROR:{message}EXPECTED:{expected}
+    "
+    );
 }

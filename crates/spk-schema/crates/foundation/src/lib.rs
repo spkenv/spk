@@ -7,6 +7,7 @@
 pub mod env;
 pub mod fixtures;
 pub mod format;
+mod from_yaml;
 pub mod ident_build;
 pub mod ident_component;
 pub mod ident_ops;
@@ -15,5 +16,7 @@ pub mod option_map;
 pub mod spec_ops;
 pub mod version;
 pub mod version_range;
+
+pub use from_yaml::FromYaml;
 
 pub use fixtures::*;

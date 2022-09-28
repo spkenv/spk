@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{Error, Result};
+use crate::{Error, Result, Script};
 
 #[cfg(test)]
 #[path = "./source_spec_test.rs"]
@@ -295,8 +295,7 @@ impl TarSource {
 /// Package source files collected via arbitrary shell script.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct ScriptSource {
-    #[serde(deserialize_with = "super::build_spec::deserialize_script")]
-    pub script: Vec<String>,
+    pub script: Script,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subdir: Option<String>,
 }
@@ -309,7 +308,7 @@ impl ScriptSource {
         S: Into<String>,
     {
         Self {
-            script: script.into_iter().map(Into::into).collect(),
+            script: Script::new(script),
             subdir: None,
         }
     }

@@ -6,6 +6,8 @@ use std::str::FromStr;
 
 use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::option_map::Stringified;
+use spk_schema_ident::NameAndValue;
 
 use crate::foundation::name::{OptName, OptNameBuf, PkgName, PkgNameBuf};
 use crate::foundation::version::{CompatRule, Compatibility};
@@ -120,6 +122,28 @@ impl Opt {
             (None, None) => "".to_string(),
         }
     }
+
+    pub fn is_pkg(&self) -> bool {
+        matches!(self, Self::Pkg(_))
+    }
+
+    pub fn into_pkg(self) -> Option<PkgOpt> {
+        match self {
+            Self::Pkg(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    pub fn is_var(&self) -> bool {
+        matches!(self, Self::Var(_))
+    }
+
+    pub fn into_var(self) -> Option<VarOpt> {
+        match self {
+            Self::Var(v) => Some(v),
+            _ => None,
+        }
+    }
 }
 
 impl TryFrom<Request> for Opt {
@@ -156,27 +180,124 @@ impl<'de> Deserialize<'de> for Opt {
     where
         D: serde::Deserializer<'de>,
     {
-        use serde_yaml::Value;
-        let value = Value::deserialize(deserializer)?;
-        let mapping = match value {
-            Value::Mapping(m) => m,
-            _ => return Err(serde::de::Error::custom("expected mapping")),
-        };
-        if mapping.get(&Value::String("var".to_string())).is_some() {
-            Ok(Opt::Var(
-                VarOpt::deserialize(Value::Mapping(mapping))
-                    .map_err(|e| serde::de::Error::custom(e.to_string()))?,
-            ))
-        } else if mapping.get(&Value::String("pkg".to_string())).is_some() {
-            Ok(Opt::Pkg(
-                PkgOpt::deserialize(Value::Mapping(mapping))
-                    .map_err(|e| serde::de::Error::custom(e.to_string()))?,
-            ))
-        } else {
-            Err(serde::de::Error::custom(
-                "failed to determine option type: must have one of 'var' or 'pkg' fields",
-            ))
+        /// This visitor captures all fields that could be valid
+        /// for any option, before deciding at the end which variant
+        /// to actually build. We ignore any unrecognized field anyway,
+        /// but additionally any field that's recognized must be valid
+        /// even if it's not going to be used.
+        ///
+        /// The purpose of this setup is to enable more meaningful errors
+        /// for invalid values that contain original source positions. In
+        /// order to achieve this we must parse and validate each field with
+        /// the appropriate type as they are visited - which disqualifies the
+        /// existing approach to untagged enums which read all fields first
+        /// and then goes back and checks them once the variant is determined
+        #[derive(Default)]
+        struct OptVisitor {
+            // PkgOpt
+            pkg: Option<PkgNameBuf>,
+            prerelease_policy: Option<PreReleasePolicy>,
+
+            // VarOpt
+            var: Option<OptNameBuf>,
+            choices: Option<IndexSet<String>>,
+            inheritance: Option<Inheritance>,
+
+            // Both
+            default: Option<String>,
+            value: Option<String>,
         }
+
+        impl<'de> serde::de::Visitor<'de> for OptVisitor {
+            type Value = Opt;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a pkg or var option")
+            }
+
+            fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let check_existing_default = |v: &OptVisitor| -> std::result::Result<(), A::Error> {
+                    if v.value.is_some() {
+                        Err(serde::de::Error::custom("option cannot specify "))
+                    } else {
+                        Ok(())
+                    }
+                };
+
+                while let Some(key) = map.next_key::<Stringified>()? {
+                    match key.as_str() {
+                        "pkg" => {
+                            let NameAndValue::<PkgNameBuf>(name, value) = map.next_value()?;
+                            self.pkg = Some(name);
+                            if value.is_some() {
+                                check_existing_default(&self)?;
+                            }
+                            self.default = value;
+                        }
+                        "prereleasePolicy" => {
+                            self.prerelease_policy = Some(map.next_value::<PreReleasePolicy>()?)
+                        }
+                        "var" => {
+                            let NameAndValue(name, value) = map.next_value()?;
+                            self.var = Some(name);
+                            if value.is_some() {
+                                check_existing_default(&self)?;
+                            }
+                            self.default = value;
+                        }
+                        "choices" => {
+                            self.choices = Some(
+                                map.next_value::<Vec<Stringified>>()?
+                                    .into_iter()
+                                    .map(|s| s.0)
+                                    .collect(),
+                            )
+                        }
+                        "inheritance" => self.inheritance = Some(map.next_value::<Inheritance>()?),
+                        "default" => {
+                            check_existing_default(&self)?;
+                            self.default = Some(map.next_value::<Stringified>()?.0);
+                        }
+                        "static" => self.value = Some(map.next_value::<Stringified>()?.0),
+                        _ => {
+                            // unrecognized fields are explicitly ignored in case
+                            // they were added in a newer version of spk. We assume
+                            // that if the api has not been versioned then the desire
+                            // is to continue working in this older version
+                            map.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+
+                match (self.pkg, self.var) {
+                    (Some(pkg), None) => Ok(Opt::Pkg(PkgOpt {
+                        pkg,
+                        prerelease_policy: self.prerelease_policy.unwrap_or_default(),
+                        required_compat: Default::default(),
+                        default: self.default.unwrap_or_default(),
+                        value: self.value,
+                    })),
+                    (None, Some(var)) =>Ok(Opt::Var(VarOpt {
+                        var,
+                        choices: self.choices.unwrap_or_default(),
+                        inheritance: self.inheritance.unwrap_or_default(),
+                        default: self.default.unwrap_or_default(),
+                        value: self.value,
+                    })),
+                    (Some(_), Some(_)) => Err(serde::de::Error::custom(
+                        "could not determine option type, it may only contain one of the `pkg` or `var` fields"
+                    )),
+                    (None, None) => Err(serde::de::Error::custom(
+                        "could not determine option type, it must include either a `pkg` or `var` field"
+                    )),
+                }
+            }
+        }
+
+        deserializer.deserialize_map(OptVisitor::default())
     }
 }
 
@@ -312,31 +433,15 @@ impl VarOpt {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct VarOptSchema {
     var: String,
-    #[serde(
-        default,
-        skip_serializing_if = "Vec::is_empty",
-        deserialize_with = "strings_from_scalars"
-    )]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     choices: Vec<String>,
-    #[serde(default, skip_serializing_if = "Inheritance::is_default")]
+    #[serde(skip_serializing_if = "Inheritance::is_default")]
     inheritance: Inheritance,
-    #[serde(
-        default,
-        rename = "static",
-        skip_serializing_if = "String::is_empty",
-        deserialize_with = "crate::foundation::option_map::string_from_scalar"
-    )]
+    #[serde(rename = "static", skip_serializing_if = "String::is_empty")]
     value: String,
-    // the default field can be loaded for legacy compatibility but is deprecated
-    #[serde(
-        default,
-        skip_serializing,
-        deserialize_with = "crate::foundation::option_map::string_from_scalar"
-    )]
-    default: String,
 }
 
 impl Serialize for VarOpt {
@@ -349,44 +454,12 @@ impl Serialize for VarOpt {
             choices: self.choices.iter().map(String::to_owned).collect(),
             inheritance: self.inheritance,
             value: self.value.clone().unwrap_or_default(),
-            default: String::new(),
         };
         if !self.default.is_empty() {
             out.var = format!("{}/{}", self.var, self.default);
         }
 
         out.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for VarOpt {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let mut data = VarOptSchema::deserialize(deserializer)?;
-
-        if data.default.is_empty() {
-            let index = data.var.find('/');
-            if let Some(i) = index {
-                data.default = data.var[i + 1..].to_string();
-                data.var.truncate(i);
-            }
-        }
-
-        let mut out = VarOpt {
-            var: data.var.parse().map_err(serde::de::Error::custom)?,
-            default: data.default,
-            choices: data.choices.into_iter().collect(),
-            inheritance: data.inheritance,
-            value: None,
-        };
-
-        if !data.value.is_empty() {
-            out.value = Some(data.value);
-        }
-
-        Ok(out)
     }
 }
 
@@ -505,20 +578,8 @@ struct PkgOptSchema {
         skip_serializing_if = "PreReleasePolicy::is_default"
     )]
     prerelease_policy: PreReleasePolicy,
-    #[serde(
-        default,
-        rename = "static",
-        skip_serializing_if = "String::is_empty",
-        deserialize_with = "crate::foundation::option_map::string_from_scalar"
-    )]
+    #[serde(default, rename = "static", skip_serializing_if = "String::is_empty")]
     value: String,
-    // the default field can be loaded for legacy compatibility but is deprecated
-    #[serde(
-        default,
-        skip_serializing,
-        deserialize_with = "optional_string_from_scalar"
-    )]
-    default: Option<String>,
 }
 
 impl Serialize for PkgOpt {
@@ -530,93 +591,11 @@ impl Serialize for PkgOpt {
             pkg: self.pkg.to_string(),
             prerelease_policy: self.prerelease_policy,
             value: self.value.clone().unwrap_or_default(),
-            default: None,
         };
         if !self.default.is_empty() {
             out.pkg = format!("{}/{}", self.pkg, self.default);
         }
 
         out.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for PkgOpt {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let data = PkgOptSchema::deserialize(deserializer)?;
-
-        let (pkg, default) = if let Some(default) = data.default {
-            // the default field is deprecated, but we support it for existing packages
-            (data.pkg.parse().map_err(serde::de::Error::custom)?, default)
-        } else {
-            let mut split = data.pkg.split('/');
-            (
-                split
-                    .next()
-                    .unwrap()
-                    .parse()
-                    .map_err(serde::de::Error::custom)?,
-                split.collect::<Vec<_>>().join(""),
-            )
-        };
-
-        let mut out = PkgOpt {
-            pkg,
-            default,
-            prerelease_policy: data.prerelease_policy,
-            value: None,
-            required_compat: None,
-        };
-
-        if let Compatibility::Incompatible(err) = out.validate(Some(&out.default)) {
-            return Err(serde::de::Error::custom(err));
-        }
-
-        if !data.value.is_empty() {
-            out.value = Some(data.value.to_owned());
-            if let Compatibility::Incompatible(err) = out.validate(Some(&data.value)) {
-                return Err(serde::de::Error::custom(err));
-            }
-        }
-        Ok(out)
-    }
-}
-
-/// Deserialize any reasonable scalar option (int, float, str, null) to an Option<String> value
-pub(crate) fn optional_string_from_scalar<'de, D>(
-    deserializer: D,
-) -> std::result::Result<Option<String>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde_yaml::Value;
-    let value = Value::deserialize(deserializer)?;
-    match value {
-        Value::Bool(b) => Ok(Some(b.to_string())),
-        Value::Number(n) => Ok(Some(n.to_string())),
-        Value::String(s) => Ok(Some(s)),
-        Value::Null => Ok(None),
-        _ => Err(serde::de::Error::custom("expected scalar value")),
-    }
-}
-
-/// Deserialize a list of any reasonable scalar option (int, float, str) to an Vec<String> value
-pub(crate) fn strings_from_scalars<'de, D>(
-    deserializer: D,
-) -> std::result::Result<Vec<String>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde_yaml::Value;
-    let value = Value::deserialize(deserializer)?;
-    match value {
-        Value::Sequence(b) => b
-            .into_iter()
-            .map(crate::foundation::option_map::string_from_scalar)
-            .collect::<serde_yaml::Result<Vec<String>>>()
-            .map_err(|err| serde::de::Error::custom(format!("expected list of scalars: {}", err))),
-        _ => Err(serde::de::Error::custom("expected list of scalars")),
     }
 }

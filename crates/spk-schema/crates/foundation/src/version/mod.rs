@@ -21,7 +21,7 @@ use std::{
 };
 
 use relative_path::RelativePathBuf;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
 use crate::{
@@ -513,13 +513,29 @@ impl Serialize for Version {
         serializer.serialize_str(&self.to_string())
     }
 }
+
 impl<'de> Deserialize<'de> for Version {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
-        Self::from_str(&s).map_err(de::Error::custom)
+        struct VersionVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for VersionVisitor {
+            type Value = Version;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a version number (eg: 1.0.0, 1.0.0-pre.1, 1.2.3.4+post.0)")
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Version, E>
+            where
+                E: serde::de::Error,
+            {
+                Version::from_str(value).map_err(serde::de::Error::custom)
+            }
+        }
+        deserializer.deserialize_str(VersionVisitor)
     }
 }
 

@@ -3,7 +3,9 @@
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
-use super::{PkgOpt, VarOpt};
+use crate::foundation::FromYaml;
+
+use super::Opt;
 
 #[rstest]
 #[case("{pkg: my-pkg}", "1", false)]
@@ -19,7 +21,7 @@ use super::{PkgOpt, VarOpt};
 #[case("{pkg: my-pkg}", "<3", false)]
 #[case("{pkg: my-pkg}", ">3", false)]
 fn test_pkg_opt_validation(#[case] spec: &str, #[case] value: &str, #[case] expect_err: bool) {
-    let mut opt: PkgOpt = serde_yaml::from_str(spec).unwrap();
+    let mut opt = Opt::from_yaml(spec).unwrap().into_pkg().unwrap();
     let res = opt.set_value(value.to_string());
     assert_eq!(res.is_err(), expect_err, "{:?}", res);
 }
@@ -29,7 +31,7 @@ fn test_pkg_opt_validation(#[case] spec: &str, #[case] value: &str, #[case] expe
 #[case("{var: my-var, choices: [hello, world]}", "bad", true)]
 #[case("{var: my-var, choices: [hello, world]}", "", false)]
 fn test_var_opt_validation(#[case] spec: &str, #[case] value: &str, #[case] expect_err: bool) {
-    let mut opt: VarOpt = serde_yaml::from_str(spec).unwrap();
+    let mut opt = Opt::from_yaml(spec).unwrap().into_var().unwrap();
     let res = opt.set_value(value.to_string());
     assert_eq!(res.is_err(), expect_err);
 }
@@ -40,7 +42,49 @@ fn test_var_opt_validation(#[case] spec: &str, #[case] value: &str, #[case] expe
 #[case("{var: my-var}", None)]
 #[case("{var: my-var/}", None)] // empty is mapped to none
 fn test_var_opt_parse_default(#[case] spec: &str, #[case] expected: Option<&str>) {
-    let opt: VarOpt = serde_yaml::from_str(spec).unwrap();
+    let opt = Opt::from_yaml(spec).unwrap().into_var().unwrap();
     let actual = opt.get_value(None);
     assert_eq!(actual.as_deref(), expected);
+}
+
+/// Confirm that the error provided when both 'var' or 'pkg' field
+/// exist is meaningful and positioned reasonably
+#[rstest]
+fn test_yaml_error_ambiguous() {
+    format_serde_error::never_color();
+    // use a vector of options just to confirm the error positioning
+    static YAML: &str = r#"- var: os/linux
+- var: hello
+  pkg: hello
+"#;
+    let err = Vec::<Opt>::from_yaml(YAML).expect_err("expected yaml parsing to fail");
+    let expected = r#"
+   | - var: os/linux
+ 2 | - var: hello
+   |      ^ .[1]: could not determine option type, it may only contain one of the `pkg` or `var` fields at line 2 column 6
+   |   pkg: hello
+"#;
+    let message = err.to_string();
+    assert_eq!(message, expected);
+}
+
+/// Confirm that the error provided when no 'var' or 'pkg' field
+/// exists is meaningful and positioned reasonably
+#[rstest]
+fn test_yaml_error_undetermined() {
+    format_serde_error::never_color();
+    // use a vector of options just to confirm the error positioning
+    static YAML: &str = r#"- var: os/linux
+- static: value
+  prereleasePolicy: IncludeAll
+"#;
+    let err = Vec::<Opt>::from_yaml(YAML).expect_err("expected yaml parsing to fail");
+    let expected = r#"
+   | - var: os/linux
+ 2 | - static: value
+   |         ^ .[1]: could not determine option type, it must include either a `pkg` or `var` field at line 2 column 9
+   |   prereleasePolicy: IncludeAll
+"#;
+    let message = err.to_string();
+    assert_eq!(message, expected);
 }

@@ -6,6 +6,10 @@ version = "0.36.0"
 
 [dependencies]
 colored = "2.0"
+format_serde_error = { version = "0.3", default_features = false, features = [
+    "serde_yaml",
+    "colored",
+] }
 itertools = "0.10"
 nom = "7.1"
 nom-supreme = "0.8"

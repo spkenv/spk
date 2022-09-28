@@ -6,7 +6,7 @@ use rstest::rstest;
 
 use super::OptionMap;
 use crate::option_map;
-use crate::{opt_name, pkg_name};
+use crate::{opt_name, pkg_name, FromYaml};
 
 #[rstest]
 fn test_package_options() {
@@ -46,4 +46,17 @@ fn test_option_map_deserialize_scalar() {
         opts.options.get(opt_name!("four")).map(String::to_owned),
         Some("4.4".to_string())
     );
+}
+
+#[rstest]
+fn test_yaml_error_context() {
+    format_serde_error::never_color();
+    static YAML: &str = r#"{option1: value, option2: oops: value}"#;
+    let err = OptionMap::from_yaml(YAML).expect_err("expected yaml parsing to fail");
+    let expected = r#"
+ 1 | {option1: value, option2: oops: value}
+   |                               ^ while parsing a flow mapping, did not find expected ',' or '}' at line 1 column 31
+"#;
+    let message = err.to_string();
+    assert_eq!(message, expected);
 }

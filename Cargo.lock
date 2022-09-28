@@ -826,6 +826,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "format_serde_error"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5837b8e6a4001f99fe4746767fb7379e8510c508a843caa136cc12ed9c0bad0"
+dependencies = [
+ "colored",
+ "serde",
+ "serde_yaml",
+]
+
+[[package]]
 name = "fuchsia-cprng"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3117,6 +3128,7 @@ version = "0.36.0"
 dependencies = [
  "data-encoding",
  "enum_dispatch",
+ "format_serde_error",
  "ignore",
  "indexmap",
  "itertools",
@@ -3146,6 +3158,7 @@ dependencies = [
  "colored",
  "data-encoding",
  "enum_dispatch",
+ "format_serde_error",
  "ignore",
  "itertools",
  "nom",
@@ -3172,6 +3185,7 @@ version = "0.36.0"
 dependencies = [
  "colored",
  "data-encoding",
+ "format_serde_error",
  "itertools",
  "nom",
  "nom-supreme",
@@ -3316,6 +3330,7 @@ dependencies = [
  "colored",
  "data-encoding",
  "enum_dispatch",
+ "format_serde_error",
  "futures",
  "glob",
  "ignore",
