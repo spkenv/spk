@@ -2,14 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{
-    collections::BTreeSet,
-    convert::{TryFrom, TryInto},
-    fmt::{Display, Write},
-    hash::Hash,
-    ops::Sub,
-    str::FromStr,
-};
+use std::collections::BTreeSet;
+use std::convert::{TryFrom, TryInto};
+use std::fmt::{Display, Write};
+use std::hash::Hash;
+use std::ops::Sub;
+use std::str::FromStr;
 
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
@@ -305,11 +303,9 @@ impl std::str::FromStr for VersionRange {
     type Err = Error;
 
     fn from_str(rule_str: &str) -> Result<Self> {
-        use nom::{
-            branch::alt,
-            combinator::{all_consuming, eof, map},
-            error::convert_error,
-        };
+        use nom::branch::alt;
+        use nom::combinator::{all_consuming, eof, map};
+        use nom::error::convert_error;
 
         all_consuming(alt((
             parsing::version_range,

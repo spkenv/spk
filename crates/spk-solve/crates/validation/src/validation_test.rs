@@ -1,15 +1,15 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use rstest::rstest;
+use std::sync::Arc;
 
+use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::opt_name;
 use spk_schema::ident::Request;
 use spk_schema::{spec, FromYaml};
 use spk_solve_graph::State;
 use spk_solve_solution::PackageSource;
-use std::sync::Arc;
 
 use super::{OptionsValidator, VarRequirementsValidator};
 use crate::validation::ValidatorT;

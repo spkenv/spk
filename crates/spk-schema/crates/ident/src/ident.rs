@@ -2,17 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{convert::TryFrom, fmt::Write, str::FromStr};
+use std::convert::TryFrom;
+use std::fmt::Write;
+use std::str::FromStr;
 
 use relative_path::RelativePathBuf;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
 use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
-
-use crate::{parsing, RangeIdent, Result};
-use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::name::{PkgNameBuf, RepositoryNameBuf};
 use spk_schema_foundation::version::Version;
+
+use crate::{parsing, RangeIdent, Result};
 
 #[cfg(test)]
 #[path = "./ident_test.rs"]

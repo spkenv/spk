@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{
-    ffi::{OsStr, OsString},
-    sync::Arc,
-};
+use std::ffi::{OsStr, OsString};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;

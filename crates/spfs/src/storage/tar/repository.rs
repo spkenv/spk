@@ -12,10 +12,10 @@ use futures::Stream;
 use relative_path::RelativePath;
 use tar::{Archive, Builder};
 
-use crate::graph;
-use crate::storage::{tag::TagSpecAndTagStream, EntryType};
-use crate::{encoding, prelude::*, storage, tracking};
-use crate::{Error, Result};
+use crate::prelude::*;
+use crate::storage::tag::TagSpecAndTagStream;
+use crate::storage::EntryType;
+use crate::{encoding, graph, storage, tracking, Error, Result};
 
 /// Configuration for a tar repository
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]

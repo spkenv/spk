@@ -3,9 +3,8 @@
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
-use crate::{encoding, graph};
-
 use crate::fixtures::*;
+use crate::{encoding, graph};
 
 #[rstest]
 #[case::fs(tmprepo("fs"))]

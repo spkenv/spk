@@ -5,11 +5,12 @@
 use std::fmt::Display;
 use std::pin::Pin;
 
-use crate::{encoding, tracking, Error, Result};
 use encoding::Encodable;
 use futures::Stream;
 use relative_path::RelativePath;
 use tokio_stream::StreamExt;
+
+use crate::{encoding, tracking, Error, Result};
 
 pub(crate) type TagStream = Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>;
 pub(crate) type TagSpecAndTagStream = (tracking::TagSpec, TagStream);

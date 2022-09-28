@@ -5,7 +5,8 @@
 use rstest::rstest;
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::recipe;
-use spk_storage::{export_package, fixtures::*};
+use spk_storage::export_package;
+use spk_storage::fixtures::*;
 
 use crate::{BinaryPackageBuilder, BuildSource};
 

@@ -1,18 +1,18 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use chrono::prelude::*;
 use std::os::unix::fs::MetadataExt;
 
+use chrono::prelude::*;
 use futures::TryStreamExt;
+use relative_path::RelativePathBuf;
 use rstest::rstest;
 use tokio_stream::StreamExt;
 
-use crate::storage::{fs::FSRepository, EntryType, TagStorage};
-use crate::{encoding, tracking, Result};
-use relative_path::RelativePathBuf;
-
 use crate::fixtures::*;
+use crate::storage::fs::FSRepository;
+use crate::storage::{EntryType, TagStorage};
+use crate::{encoding, tracking, Result};
 
 #[rstest]
 #[case::fs(tmprepo("fs"))]

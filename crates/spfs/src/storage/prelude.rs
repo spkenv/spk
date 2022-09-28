@@ -4,7 +4,14 @@
 
 pub use super::config::{FromConfig, FromUrl};
 pub use super::{
-    BlobStorage, LayerStorage, ManifestStorage, ManifestViewer, PayloadStorage, PlatformStorage,
-    Repository, RepositoryHandle, TagStorage,
+    BlobStorage,
+    LayerStorage,
+    ManifestStorage,
+    ManifestViewer,
+    PayloadStorage,
+    PlatformStorage,
+    Repository,
+    RepositoryHandle,
+    TagStorage,
 };
 pub use crate::graph::{Database, DatabaseView};

@@ -15,7 +15,11 @@ mod tree;
 
 pub use blob::Blob;
 pub use database::{
-    Database, DatabaseIterator, DatabaseView, DatabaseWalker, DigestSearchCriteria,
+    Database,
+    DatabaseIterator,
+    DatabaseView,
+    DatabaseWalker,
+    DigestSearchCriteria,
 };
 pub use entry::Entry;
 pub use layer::Layer;

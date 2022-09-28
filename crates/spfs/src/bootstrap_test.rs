@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::ffi::OsString;
+use std::process::Command;
+
 use rstest::rstest;
 
 use super::build_shell_initialized_command;
-use crate::{resolve::which, runtime};
-use std::{ffi::OsString, process::Command};
-
 use crate::fixtures::*;
+use crate::resolve::which;
+use crate::runtime;
 
 #[rstest(
     shell,

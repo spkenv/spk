@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::HashSet, path::Path};
+use std::collections::HashSet;
+use std::path::Path;
 
+use encoding::Encodable;
 use itertools::Itertools;
+use storage::{ManifestStorage, Repository};
 use tokio_stream::StreamExt;
 
 use super::config::get_config;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
-use encoding::Encodable;
-use storage::{ManifestStorage, Repository};
 
 #[cfg(test)]
 #[path = "./resolve_test.rs"]

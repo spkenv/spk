@@ -1,7 +1,8 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{convert::TryFrom, path::Path};
+use std::convert::TryFrom;
+use std::path::Path;
 
 use spk_schema::Ident;
 

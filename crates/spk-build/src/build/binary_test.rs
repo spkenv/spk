@@ -3,18 +3,27 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spfs::{encoding::EMPTY_DIGEST, prelude::*};
+use spfs::encoding::EMPTY_DIGEST;
+use spfs::prelude::*;
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::opt_name;
-use spk_schema::foundation::option_map;
 use spk_schema::foundation::spec_ops::PackageOps;
+use spk_schema::foundation::{opt_name, option_map};
 use spk_schema::ident::{PkgRequest, RangeIdent, Request};
-use spk_schema::FromYaml;
-use spk_schema::{recipe, ComponentSpecList, Inheritance, Opt, Package, Recipe, SpecRecipe};
+use spk_schema::{
+    recipe,
+    ComponentSpecList,
+    FromYaml,
+    Inheritance,
+    Opt,
+    Package,
+    Recipe,
+    SpecRecipe,
+};
 use spk_solve::Solution;
-use spk_storage::{self as storage, fixtures::*, Repository};
+use spk_storage::fixtures::*;
+use spk_storage::{self as storage, Repository};
 
 use super::{BinaryPackageBuilder, BuildSource};
 use crate::build::SourcePackageBuilder;

@@ -4,14 +4,12 @@
 
 use std::collections::HashSet;
 
-use nom::{
-    bytes::complete::{is_not, take_till, take_while1, take_while_m_n},
-    character::complete::char,
-    combinator::{fail, map, not, peek, recognize, verify},
-    error::{ContextError, ParseError},
-    multi::many1,
-    IResult,
-};
+use nom::bytes::complete::{is_not, take_till, take_while1, take_while_m_n};
+use nom::character::complete::char;
+use nom::combinator::{fail, map, not, peek, recognize, verify};
+use nom::error::{ContextError, ParseError};
+use nom::multi::many1;
+use nom::IResult;
 
 use crate::name::{PkgName, RepositoryName};
 

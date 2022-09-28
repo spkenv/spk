@@ -24,16 +24,6 @@ pub mod v0;
 mod validation;
 
 // Re-export for macros
-pub use serde_json;
-
-pub use spk_schema_foundation::{
-    self as foundation, env, ident_build, ident_component, ident_ops, name,
-    option_map::{self, OptionMap},
-    spec_ops, version, version_range, FromYaml,
-};
-pub use spk_schema_ident::{self as ident, Ident};
-pub use spk_schema_validators as validators;
-
 pub use build_spec::{BuildSpec, Script};
 pub use component_spec::ComponentSpec;
 pub use component_spec_list::ComponentSpecList;
@@ -48,9 +38,24 @@ pub use recipe::{BuildEnv, Recipe};
 pub use requirements_list::RequirementsList;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::{Spec, SpecRecipe, SpecTemplate};
+pub use spk_schema_foundation::option_map::{self, OptionMap};
+pub use spk_schema_foundation::{
+    self as foundation,
+    env,
+    ident_build,
+    ident_component,
+    ident_ops,
+    name,
+    spec_ops,
+    version,
+    version_range,
+    FromYaml,
+};
+pub use spk_schema_ident::{self as ident, Ident};
 pub use template::{Template, TemplateExt};
 pub use test_spec::TestStage;
 pub use validation::{default_validators, ValidationSpec, Validator};
+pub use {serde_json, spk_schema_validators as validators};
 
 #[cfg(test)]
 #[path = "./version_range_test.rs"]

@@ -2,12 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use rand::{
-    distributions::{Alphanumeric, DistString},
-    Rng,
-};
 use std::io::{BufRead, Cursor, Read, Seek, SeekFrom, Write};
 
+use rand::distributions::{Alphanumeric, DistString};
+use rand::Rng;
 use rstest::rstest;
 
 use super::{consume_header, read_int, read_string, write_header, write_int, write_string};

@@ -1,19 +1,29 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use proptest::{
-    collection::{btree_map, vec},
-    option::weighted,
-    prelude::*,
-};
+use proptest::collection::{btree_map, vec};
+use proptest::option::weighted;
+use proptest::prelude::*;
 use rstest::rstest;
 
 use super::{spec, Spec};
 use crate::foundation::version::{parse_version, CompatRule, TagSet, Version, VersionParts};
 use crate::foundation::version_range::{
-    parse_version_range, CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
-    GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
-    LowestSpecifiedRange, NotEqualsVersion, Ranged, SemverRange, VersionRange, WildcardRange,
+    parse_version_range,
+    CompatRange,
+    DoubleEqualsVersion,
+    DoubleNotEqualsVersion,
+    EqualsVersion,
+    GreaterThanOrEqualToRange,
+    GreaterThanRange,
+    LessThanOrEqualToRange,
+    LessThanRange,
+    LowestSpecifiedRange,
+    NotEqualsVersion,
+    Ranged,
+    SemverRange,
+    VersionRange,
+    WildcardRange,
 };
 
 #[rstest]

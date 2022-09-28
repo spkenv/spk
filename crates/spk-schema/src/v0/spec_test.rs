@@ -6,12 +6,12 @@ use std::io::Write;
 
 use rstest::rstest;
 
+use super::Spec;
 use crate::foundation::fixtures::*;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::FromYaml;
-use crate::{spec::SpecTemplate, Recipe, Template, TemplateExt};
-
-use super::Spec;
+use crate::spec::SpecTemplate;
+use crate::{Recipe, Template, TemplateExt};
 
 #[rstest]
 fn test_spec_is_valid_with_only_name() {

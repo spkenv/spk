@@ -4,9 +4,8 @@
 
 use colored::Colorize;
 
-use crate::format::FormatBuild;
-
 use super::Build;
+use crate::format::FormatBuild;
 
 impl FormatBuild for Build {
     fn format_build(&self) -> String {

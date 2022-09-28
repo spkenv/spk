@@ -6,8 +6,7 @@ use std::pin::Pin;
 
 use futures::Stream;
 
-use crate::encoding;
-use crate::Result;
+use crate::{encoding, Result};
 
 #[cfg(test)]
 #[path = "payload_test.rs"]

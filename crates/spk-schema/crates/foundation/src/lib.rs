@@ -17,6 +17,5 @@ pub mod spec_ops;
 pub mod version;
 pub mod version_range;
 
-pub use from_yaml::FromYaml;
-
 pub use fixtures::*;
+pub use from_yaml::FromYaml;

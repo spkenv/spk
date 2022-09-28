@@ -7,11 +7,8 @@ use std::pin::Pin;
 use futures::{Stream, TryStreamExt};
 use prost::Message;
 
-use crate::{
-    encoding,
-    proto::{self, RpcResult},
-    storage, Result,
-};
+use crate::proto::{self, RpcResult};
+use crate::{encoding, storage, Result};
 
 #[async_trait::async_trait]
 impl storage::PayloadStorage for super::RpcRepository {

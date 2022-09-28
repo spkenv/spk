@@ -6,9 +6,8 @@ use relative_path::RelativePath;
 use rstest::rstest;
 
 use super::{compute_diff, Diff, DiffMode};
-use crate::tracking::{compute_manifest, Manifest};
-
 use crate::fixtures::*;
+use crate::tracking::{compute_manifest, Manifest};
 
 #[rstest]
 fn test_diff_str() {

@@ -9,8 +9,7 @@ use spk_schema::foundation::ident_build::{Build, EmbeddedSource};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::Version;
-use spk_schema::Ident;
-use spk_schema::{Spec, SpecRecipe};
+use spk_schema::{Ident, Spec, SpecRecipe};
 use tokio::sync::RwLock;
 
 use super::repository::{PublishPolicy, Storage};

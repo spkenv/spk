@@ -5,7 +5,6 @@
 use anyhow::Result;
 use clap::Args;
 use spk_cli_common::{flags, CommandArgs, Run};
-
 use spk_cmd_make_binary::cmd_make_binary::PackageSpecifier;
 
 /// Build a binary package from a spec file or source package.

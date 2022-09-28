@@ -5,14 +5,11 @@
 use std::ffi::OsString;
 
 use clap::Parser;
-use tokio::{
-    io::AsyncWriteExt,
-    signal::unix::{signal, SignalKind},
-};
-
 use spfs::env::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
 use spfs::Error;
 use spfs_cli_common as cli;
+use tokio::io::AsyncWriteExt;
+use tokio::signal::unix::{signal, SignalKind};
 
 // The runtime setup process manages the current namespace
 // which operates only on the current thread. For this reason

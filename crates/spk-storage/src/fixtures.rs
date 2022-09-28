@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::convert::TryInto;
+use std::ops::DerefMut;
 use std::sync::Arc;
-use std::{convert::TryInto, ops::DerefMut};
 
 use rstest::fixture;
-use spfs::{config::Remote, prelude::*, Result};
+use spfs::config::Remote;
+use spfs::prelude::*;
+use spfs::Result;
 use spk_schema::foundation::fixtures::*;
 use tokio::sync::{Mutex, MutexGuard};
 

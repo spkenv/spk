@@ -2,15 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::sync::Arc;
+use std::time::Duration;
+
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use spfs::prelude::*;
-
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-    sync::Arc,
-    time::Duration,
-};
 
 pub fn commit_benchmark(c: &mut Criterion) {
     const NUM_FILES: usize = 1024;

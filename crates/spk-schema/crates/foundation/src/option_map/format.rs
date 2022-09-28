@@ -4,9 +4,8 @@
 
 use colored::Colorize;
 
-use crate::format::FormatOptionMap;
-
 use super::OptionMap;
+use crate::format::FormatOptionMap;
 
 impl FormatOptionMap for OptionMap {
     fn format_option_map(&self) -> String {

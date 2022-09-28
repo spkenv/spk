@@ -2,24 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::{HashMap, VecDeque};
+use std::convert::TryFrom;
+use std::ffi::OsString;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
 use spk_schema::foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Version;
-use spk_schema::Ident;
-use spk_schema::{Package, Spec, SpecRecipe};
+use spk_schema::{Ident, Package, Spec, SpecRecipe};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
-use std::ffi::OsString;
-use std::time::{Duration, Instant};
-use std::{
-    collections::{HashMap, VecDeque},
-    convert::TryFrom,
-    pin::Pin,
-    sync::Arc,
-};
 
 use crate::build_key::BuildKey;
 use crate::{Error, Result};

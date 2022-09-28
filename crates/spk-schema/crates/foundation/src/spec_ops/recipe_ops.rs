@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use crate::version::{CompatRule, Compatibility, Version};
-
 use super::{Named, Versioned};
+use crate::version::{CompatRule, Compatibility, Version};
 
 pub trait RecipeOps: Named + Versioned {
     type Ident;

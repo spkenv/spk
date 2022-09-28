@@ -4,10 +4,7 @@
 
 use std::io::BufRead;
 
-use crate::encoding;
-use crate::tracking;
-use crate::Error;
-use crate::Result;
+use crate::{encoding, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./entry_test.rs"]

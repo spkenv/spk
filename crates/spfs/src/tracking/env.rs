@@ -5,8 +5,7 @@
 use std::str::FromStr;
 
 use super::tag::TagSpec;
-use crate::encoding;
-use crate::{Error, Result};
+use crate::{encoding, Error, Result};
 
 #[cfg(test)]
 #[path = "./env_test.rs"]

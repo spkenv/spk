@@ -3,7 +3,8 @@
 // https://github.com/imageworks/spk
 
 use clap::Parser;
-use spfs::{config::Remote, RemoteAddress};
+use spfs::config::Remote;
+use spfs::RemoteAddress;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::recipe;
 use spk_solve::spec;

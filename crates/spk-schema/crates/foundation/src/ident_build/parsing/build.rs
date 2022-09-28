@@ -4,23 +4,18 @@
 
 use std::convert::TryInto;
 
-use nom::{
-    branch::alt,
-    bytes::complete::take_while_m_n,
-    combinator::{cut, map, map_res, opt, verify},
-    error::{ContextError, FromExternalError, ParseError},
-    sequence::{delimited, preceded},
-    IResult,
-};
-use nom_supreme::tag::{complete::tag, TagError};
+use nom::branch::alt;
+use nom::bytes::complete::take_while_m_n;
+use nom::combinator::{cut, map, map_res, opt, verify};
+use nom::error::{ContextError, FromExternalError, ParseError};
+use nom::sequence::{delimited, preceded};
+use nom::IResult;
+use nom_supreme::tag::complete::tag;
+use nom_supreme::tag::TagError;
 
-use crate::{
-    ident_build::{
-        build::{EmbeddedSource, EmbeddedSourcePackage},
-        Build, InvalidBuildError,
-    },
-    ident_ops::parsing::ident_parts_with_components,
-};
+use crate::ident_build::build::{EmbeddedSource, EmbeddedSourcePackage};
+use crate::ident_build::{Build, InvalidBuildError};
+use crate::ident_ops::parsing::ident_parts_with_components;
 
 /// Parse a base32 build.
 ///

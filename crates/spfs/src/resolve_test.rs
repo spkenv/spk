@@ -6,9 +6,9 @@ use std::sync::Arc;
 use rstest::rstest;
 
 use super::resolve_stack_to_layers;
-use crate::{encoding, graph, prelude::*};
-
 use crate::fixtures::*;
+use crate::prelude::*;
+use crate::{encoding, graph};
 
 #[rstest]
 #[tokio::test]

@@ -5,14 +5,13 @@
 use std::sync::Arc;
 
 use rstest::{fixture, rstest};
+use storage::RepositoryHandle;
 
 use super::Syncer;
 use crate::config::Config;
+use crate::fixtures::*;
 use crate::prelude::*;
 use crate::{encoding, graph, storage, tracking, Error};
-use storage::RepositoryHandle;
-
-use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]

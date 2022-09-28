@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use proto::repository_server::RepositoryServer;
 use tonic::{Request, Response, Status};
 
 use crate::proto;
-use proto::repository_server::RepositoryServer;
 
 #[derive(Debug, Default, Clone)]
 pub struct Repository {}

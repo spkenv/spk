@@ -1,15 +1,16 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Write,
-    iter::FromIterator,
-    sync::Arc,
-};
+use std::collections::{HashMap, HashSet};
+use std::fmt::Write;
+use std::iter::FromIterator;
+use std::sync::Arc;
 
 use spk_schema::foundation::format::{
-    FormatChangeOptions, FormatOptionMap, FormatRequest, FormatSolution,
+    FormatChangeOptions,
+    FormatOptionMap,
+    FormatRequest,
+    FormatSolution,
 };
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::PkgNameBuf;
@@ -59,6 +60,7 @@ impl PackageSource {
 impl Ord for PackageSource {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         use std::cmp::Ordering;
+
         use PackageSource::*;
         match (self, other) {
             (this @ Repository { .. }, other @ Repository { .. }) => this.cmp(other),

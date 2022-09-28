@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{collections::VecDeque, pin::Pin, task::Poll};
+use std::collections::VecDeque;
+use std::pin::Pin;
+use std::task::Poll;
 
 use chrono::{DateTime, Utc};
 use futures::{Future, Stream, StreamExt, TryStreamExt};

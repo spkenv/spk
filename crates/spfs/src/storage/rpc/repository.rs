@@ -4,10 +4,10 @@
 
 use storage::FromUrl;
 
-use crate::proto::{
-    database_service_client::DatabaseServiceClient, payload_service_client::PayloadServiceClient,
-    repository_client::RepositoryClient, tag_service_client::TagServiceClient,
-};
+use crate::proto::database_service_client::DatabaseServiceClient;
+use crate::proto::payload_service_client::PayloadServiceClient;
+use crate::proto::repository_client::RepositoryClient;
+use crate::proto::tag_service_client::TagServiceClient;
 use crate::{proto, storage, Error, Result};
 
 /// Configures an rpc repository connection

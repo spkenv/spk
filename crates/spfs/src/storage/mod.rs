@@ -17,7 +17,6 @@ pub mod proxy;
 pub mod rpc;
 pub mod tar;
 
-pub use self::config::{FromConfig, FromUrl};
 pub use blob::BlobStorage;
 pub use layer::LayerStorage;
 pub use manifest::{ManifestStorage, ManifestViewer};
@@ -26,6 +25,8 @@ pub use platform::PlatformStorage;
 pub use proxy::{Config, ProxyRepository};
 pub use repository::Repository;
 pub use tag::{EntryType, TagStorage};
+
+pub use self::config::{FromConfig, FromUrl};
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]

@@ -2,6 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::hash_map::{DefaultHasher, Entry};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+use std::hash::{Hash, Hasher};
+use std::iter::FromIterator;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
 use async_stream::stream;
 use colored::Colorize;
 use futures::Stream;
@@ -9,21 +16,22 @@ use once_cell::sync::{Lazy, OnceCell};
 use spk_schema::foundation::format::{FormatChange, FormatIdent, FormatOptionMap, FormatRequest};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{OptNameBuf, PkgName, PkgNameBuf};
+use spk_schema::foundation::option_map;
+use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::foundation::{option_map, option_map::OptionMap};
 use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::{
-    ComponentSpecList, EmbeddedPackagesList, Ident, Package, RequirementsList, Spec, SpecRecipe,
+    ComponentSpecList,
+    EmbeddedPackagesList,
+    Ident,
+    Package,
+    RequirementsList,
+    Spec,
+    SpecRecipe,
 };
 use spk_solve_package_iterator::PackageIterator;
 use spk_solve_solution::{PackageSource, Solution};
-use std::collections::hash_map::{DefaultHasher, Entry};
-use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
-use std::hash::{Hash, Hasher};
-use std::iter::FromIterator;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 
 #[cfg(test)]

@@ -6,9 +6,8 @@ use std::collections::BTreeSet;
 use std::io::BufRead;
 
 use super::Entry;
-use crate::encoding;
 use crate::encoding::Encodable;
-use crate::{Error, Result};
+use crate::{encoding, Error, Result};
 
 #[cfg(test)]
 #[path = "./tree_test.rs"]

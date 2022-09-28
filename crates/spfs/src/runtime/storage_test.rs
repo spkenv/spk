@@ -9,7 +9,6 @@ use rstest::rstest;
 
 use super::{makedirs_with_perms, Data, Storage};
 use crate::encoding;
-
 use crate::fixtures::*;
 
 #[rstest]

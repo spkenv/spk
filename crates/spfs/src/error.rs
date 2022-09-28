@@ -1,7 +1,8 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::{io, str::Utf8Error};
+use std::io;
+use std::str::Utf8Error;
 
 use thiserror::Error;
 

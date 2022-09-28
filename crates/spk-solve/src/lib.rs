@@ -7,14 +7,11 @@ mod io;
 mod macros;
 mod solver;
 
-pub use spk_solve_graph as graph;
-pub use spk_solve_package_iterator as package_iterator;
-pub use spk_solve_solution as solution;
-pub use spk_solve_validation as validation;
-
+pub use error::{Error, Result};
+pub use io::{DecisionFormatter, DecisionFormatterBuilder};
 // Re-export for macros
 pub use serde_json;
-pub use spfs;
+pub use solver::{Solver, SolverRuntime};
 pub use spk_schema::foundation::ident_component::Component;
 pub use spk_schema::foundation::option_map;
 pub use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
@@ -22,10 +19,13 @@ pub use spk_schema::ident::{parse_ident_range, PkgRequest, Request, RequestedBy}
 pub use spk_schema::{recipe, spec, v0, Package, Recipe, Spec};
 pub use spk_solve_solution::{PackageSource, Solution};
 pub use spk_storage::RepositoryHandle;
-
-pub use error::{Error, Result};
-pub use io::{DecisionFormatter, DecisionFormatterBuilder};
-pub use solver::{Solver, SolverRuntime};
+pub use {
+    spfs,
+    spk_solve_graph as graph,
+    spk_solve_package_iterator as package_iterator,
+    spk_solve_solution as solution,
+    spk_solve_validation as validation,
+};
 
 #[async_trait::async_trait]
 pub trait ResolverCallback: Send + Sync {

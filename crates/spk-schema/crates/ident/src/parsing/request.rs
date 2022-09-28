@@ -4,20 +4,21 @@
 
 use std::collections::HashSet;
 
-use nom::{
-    character::complete::char,
-    combinator::{all_consuming, cut, map, opt},
-    error::{ContextError, FromExternalError, ParseError},
-    sequence::preceded,
-    IResult,
-};
+use nom::character::complete::char;
+use nom::combinator::{all_consuming, cut, map, opt};
+use nom::error::{ContextError, FromExternalError, ParseError};
+use nom::sequence::preceded;
+use nom::IResult;
 use nom_supreme::tag::TagError;
-use spk_schema_foundation::ident_ops::parsing::{range_ident_pkg_name, version_and_optional_build};
-use spk_schema_foundation::version_range::{parsing::version_range, VersionFilter};
-use spk_schema_foundation::{
-    ident_build::{parsing::build, Build},
-    ident_ops::parsing::repo_name_in_ident,
+use spk_schema_foundation::ident_build::parsing::build;
+use spk_schema_foundation::ident_build::Build;
+use spk_schema_foundation::ident_ops::parsing::{
+    range_ident_pkg_name,
+    repo_name_in_ident,
+    version_and_optional_build,
 };
+use spk_schema_foundation::version_range::parsing::version_range;
+use spk_schema_foundation::version_range::VersionFilter;
 
 use crate::RangeIdent;
 

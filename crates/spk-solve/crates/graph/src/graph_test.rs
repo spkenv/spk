@@ -6,8 +6,8 @@ use std::sync::Arc;
 use rstest::rstest;
 use spk_schema::foundation::format::{FormatChange, FormatChangeOptions};
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::option_map;
-use spk_schema::foundation::{name::PkgName, opt_name};
+use spk_schema::foundation::name::PkgName;
+use spk_schema::foundation::{opt_name, option_map};
 use spk_schema::{recipe, spec};
 use spk_solve_solution::PackageSource;
 

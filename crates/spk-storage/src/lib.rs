@@ -8,6 +8,11 @@ mod storage;
 
 pub use error::{Error, Result};
 pub use storage::{
-    export_package, local_repository, remote_repository, CachePolicy, Repository, RepositoryHandle,
+    export_package,
+    local_repository,
+    remote_repository,
+    CachePolicy,
+    Repository,
+    RepositoryHandle,
     Storage,
 };

@@ -4,11 +4,11 @@
 
 use std::pin::Pin;
 
+use encoding::Encodable;
 use futures::Stream;
 use tokio_stream::StreamExt;
 
 use crate::{encoding, graph, Result};
-use encoding::Encodable;
 
 pub type LayerStreamItem = Result<(encoding::Digest, graph::Layer)>;
 

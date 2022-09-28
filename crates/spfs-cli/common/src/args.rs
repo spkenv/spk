@@ -60,8 +60,9 @@ impl Sync {
 
 #[cfg(feature = "sentry")]
 pub fn configure_sentry() {
-    use sentry::IntoDsn;
     use std::borrow::Cow;
+
+    use sentry::IntoDsn;
     let mut opts = sentry::ClientOptions {
         dsn: "http://3dd72e3b4b9a4032947304fabf29966e@sentry.k8s.spimageworks.com/4"
             .into_dsn()

@@ -4,7 +4,8 @@
 
 use super::config::get_config;
 use super::resolve::{resolve_and_render_overlay_dirs, resolve_stack_to_layers};
-use crate::{bootstrap, env, prelude::*, runtime, tracking, Error, Result};
+use crate::prelude::*;
+use crate::{bootstrap, env, runtime, tracking, Error, Result};
 
 static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
 

@@ -5,9 +5,8 @@
 use rstest::rstest;
 
 use super::{compute_manifest, EntryKind, Manifest};
-use crate::graph;
-
 use crate::fixtures::*;
+use crate::graph;
 
 #[rstest]
 #[tokio::test]

@@ -2,23 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use chrono::Utc;
-use rstest::rstest;
-use tokio::time::sleep;
-
-use super::{
-    clean_untagged_objects, get_all_attached_objects, get_all_unattached_objects,
-    get_all_unattached_payloads,
-};
-
-use crate::encoding::Encodable;
-use crate::{graph, storage, tracking, Error};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
-use storage::prelude::*;
 
+use chrono::Utc;
+use rstest::rstest;
+use storage::prelude::*;
+use tokio::time::sleep;
+
+use super::{
+    clean_untagged_objects,
+    get_all_attached_objects,
+    get_all_unattached_objects,
+    get_all_unattached_payloads,
+};
+use crate::encoding::Encodable;
 use crate::fixtures::*;
+use crate::{graph, storage, tracking, Error};
 
 #[rstest]
 #[tokio::test]

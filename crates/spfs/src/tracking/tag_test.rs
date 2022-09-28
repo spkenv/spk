@@ -5,10 +5,8 @@
 use rstest::rstest;
 
 use super::{split_tag_spec, Tag, TagSpec};
-use crate::{
-    encoding,
-    encoding::{Decodable, Encodable},
-};
+use crate::encoding;
+use crate::encoding::{Decodable, Encodable};
 
 #[rstest(org, name, case("vfx", "2019"))]
 fn test_tag_encoding(org: &str, name: &str) {

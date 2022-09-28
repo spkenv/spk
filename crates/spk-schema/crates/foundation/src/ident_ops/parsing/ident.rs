@@ -4,25 +4,24 @@
 
 use std::collections::{BTreeSet, HashSet};
 
-use nom::{
-    character::complete::char,
-    combinator::{opt, recognize},
-    error::{ContextError, FromExternalError, ParseError},
-    sequence::preceded,
-    IResult,
-};
+use nom::character::complete::char;
+use nom::combinator::{opt, recognize};
+use nom::error::{ContextError, FromExternalError, ParseError};
+use nom::sequence::preceded;
+use nom::IResult;
 use nom_supreme::tag::TagError;
 
-use crate::{
-    ident_build::parsing::build,
-    ident_component::Component,
-    name::{parsing::package_name, RepositoryName},
-    version::parsing::version_str,
-};
-
 use super::{
-    range_ident_pkg_name, repo_name_in_ident, version_and_build, version_and_optional_build,
+    range_ident_pkg_name,
+    repo_name_in_ident,
+    version_and_build,
+    version_and_optional_build,
 };
+use crate::ident_build::parsing::build;
+use crate::ident_component::Component;
+use crate::name::parsing::package_name;
+use crate::name::RepositoryName;
+use crate::version::parsing::version_str;
 
 #[derive(Debug)]
 pub struct IdentParts<'s> {

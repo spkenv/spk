@@ -11,8 +11,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::{csh_exp, startup_csh, startup_sh};
-use crate::encoding;
-use crate::{Error, Result};
+use crate::{encoding, Error, Result};
 
 #[cfg(test)]
 #[path = "./storage_033_test.rs"]

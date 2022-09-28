@@ -4,8 +4,8 @@
 
 mod version;
 
-use nom::{error::ParseError, IResult, InputLength, Parser};
-
+use nom::error::ParseError;
+use nom::{IResult, InputLength, Parser};
 pub use version::{version, version_str};
 
 /// A clone of `separated_list1` but uses `cut` on the 2nd and later elements.
@@ -19,7 +19,8 @@ where
     G: Parser<I, O2, E>,
     E: ParseError<I>,
 {
-    use nom::{error::ErrorKind, Err};
+    use nom::error::ErrorKind;
+    use nom::Err;
 
     move |mut i: I| {
         let mut res = Vec::new();

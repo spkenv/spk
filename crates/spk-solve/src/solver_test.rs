@@ -11,19 +11,31 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::opt_name;
 use spk_schema::foundation::spec_ops::{PackageOps, Versioned};
 use spk_schema::ident::{
-    ident, parse_ident_range, PkgRequest, RangeIdent, Request, RequestedBy, VarRequest,
+    ident,
+    parse_ident_range,
+    PkgRequest,
+    RangeIdent,
+    Request,
+    RequestedBy,
+    VarRequest,
 };
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::{recipe, v0, Package};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 
-use super::ErrorDetails;
-use super::Solver;
+use super::{ErrorDetails, Solver};
 use crate::io::DecisionFormatterBuilder;
-use crate::{make_build, make_build_and_components, make_repo};
-use crate::{option_map, request, spec};
-use crate::{Error, Result};
+use crate::{
+    make_build,
+    make_build_and_components,
+    make_repo,
+    option_map,
+    request,
+    spec,
+    Error,
+    Result,
+};
 
 #[fixture]
 fn solver() -> Solver {

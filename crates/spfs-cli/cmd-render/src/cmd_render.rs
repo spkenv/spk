@@ -3,8 +3,8 @@
 // https://github.com/imageworks/spk
 
 use clap::Parser;
-
-use spfs::{prelude::*, Error};
+use spfs::prelude::*;
+use spfs::Error;
 use spfs_cli_common as cli;
 
 cli::main!(CmdRender);

@@ -4,18 +4,18 @@
 
 use std::collections::HashSet;
 use std::iter::FromIterator;
-use std::os::unix::fs::MetadataExt;
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::sync::Arc;
 
 use rstest::rstest;
 
 use super::Ref;
-use crate::graph::Manifest;
-use crate::storage::{fs, prelude::*};
-use crate::{encoding::Encodable, tracking::TagSpec};
-
+use crate::encoding::Encodable;
 use crate::fixtures::*;
+use crate::graph::Manifest;
+use crate::storage::fs;
+use crate::storage::prelude::*;
+use crate::tracking::TagSpec;
 
 #[rstest]
 #[case::fs(tmprepo("fs"))]

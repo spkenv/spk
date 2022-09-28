@@ -2,18 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::{anyhow, bail, Context, Result};
-use nix::unistd::execv;
-use spfs::prelude::*;
 use std::env::{args_os, var_os};
 use std::ffi::{CString, OsStr, OsString};
-use std::os::unix::{
-    ffi::{OsStrExt, OsStringExt},
-    fs::symlink,
-};
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 
+use anyhow::{anyhow, bail, Context, Result};
+use nix::unistd::execv;
 use spfs::encoding::Digest;
+use spfs::prelude::*;
 use spfs::storage::RepositoryHandle;
 use spfs::tracking::EnvSpec;
 

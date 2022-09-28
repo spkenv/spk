@@ -12,12 +12,10 @@ use futures::Stream;
 use tokio::io::AsyncReadExt;
 
 use super::FSRepository;
-use crate::{
-    encoding::{self, Encodable},
-    runtime::makedirs_with_perms,
-    storage::{ManifestViewer, PayloadStorage, Repository},
-    tracking, Error, Result,
-};
+use crate::encoding::{self, Encodable};
+use crate::runtime::makedirs_with_perms;
+use crate::storage::{ManifestViewer, PayloadStorage, Repository};
+use crate::{tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./renderer_test.rs"]

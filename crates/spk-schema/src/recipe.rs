@@ -7,7 +7,8 @@ use std::path::Path;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, RecipeOps, Versioned};
 use crate::ident::{Ident, Request};
-use crate::{test_spec::TestSpec, Package, Result};
+use crate::test_spec::TestSpec;
+use crate::{Package, Result};
 
 /// Return the resolved packages from a solution.
 pub trait BuildEnv {

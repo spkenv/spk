@@ -2,28 +2,34 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::{
-    collections::VecDeque,
-    fmt::Write,
-    pin::Pin,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    time::{Duration, Instant},
-};
+use std::collections::VecDeque;
+use std::fmt::Write;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use async_stream::stream;
 use colored::Colorize;
 use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
 use spk_schema::foundation::format::{
-    FormatChange, FormatChangeOptions, FormatIdent, FormatOptionMap, FormatRequest, FormatSolution,
+    FormatChange,
+    FormatChangeOptions,
+    FormatIdent,
+    FormatOptionMap,
+    FormatRequest,
+    FormatSolution,
 };
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_solve_graph::{
-    Change, Decision, Node, Note, DUPLICATE_REQUESTS_COUNT, REQUESTS_FOR_SAME_PACKAGE_COUNT,
+    Change,
+    Decision,
+    Node,
+    Note,
+    DUPLICATE_REQUESTS_COUNT,
+    REQUESTS_FOR_SAME_PACKAGE_COUNT,
 };
 
 use crate::solver::ErrorFreq;

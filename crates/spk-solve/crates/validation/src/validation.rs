@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashSet;
+
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
 use spk_schema::foundation::ident_component::Component;
@@ -12,7 +14,6 @@ use spk_schema::ident_build::{Build, EmbeddedSource};
 use spk_schema::{Ident, Package, Recipe, Spec};
 use spk_solve_graph::{CachedHash, GetMergedRequestError, State};
 use spk_solve_solution::PackageSource;
-use std::collections::HashSet;
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]

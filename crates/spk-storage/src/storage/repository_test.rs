@@ -9,7 +9,8 @@ use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps};
 use spk_schema::ident::parse_ident;
 use spk_schema::{recipe, spec, Deprecate, DeprecateMut, Ident, Spec, SpecRecipe};
 
-use crate::{fixtures::*, Error};
+use crate::fixtures::*;
+use crate::Error;
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]

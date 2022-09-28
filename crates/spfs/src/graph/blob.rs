@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use crate::encoding;
-use crate::Error;
-use crate::Result;
+use crate::{encoding, Error, Result};
 
 /// Blobs represent an arbitrary chunk of binary data, usually a file.
 #[derive(Debug, Eq, PartialEq, Clone)]

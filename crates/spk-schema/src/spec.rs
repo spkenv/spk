@@ -17,8 +17,20 @@ use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{Ident, PkgRequest, RangeIdent, Request, VarRequest};
-use crate::{test_spec::TestSpec, Deprecate, DeprecateMut, Error, Package, Result};
-use crate::{BuildEnv, ComponentSpec, FromYaml, Recipe, Template, TemplateExt};
+use crate::test_spec::TestSpec;
+use crate::{
+    BuildEnv,
+    ComponentSpec,
+    Deprecate,
+    DeprecateMut,
+    Error,
+    FromYaml,
+    Package,
+    Recipe,
+    Result,
+    Template,
+    TemplateExt,
+};
 
 /// Create a spec recipe from a json structure.
 ///

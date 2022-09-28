@@ -4,14 +4,10 @@
 
 use std::io::BufRead;
 
-use super::Blob;
-use super::Layer;
-use super::Manifest;
-use super::Platform;
-use super::Tree;
-use crate::encoding;
-use crate::Error;
 use strum_macros::Display;
+
+use super::{Blob, Layer, Manifest, Platform, Tree};
+use crate::{encoding, Error};
 
 #[derive(Debug, Display, Eq, PartialEq)]
 pub enum Object {

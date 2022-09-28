@@ -4,16 +4,17 @@
 
 use std::collections::BTreeSet;
 
-use crate::ident_component::{parsing::components, Component};
-use crate::name::{parsing::package_name, PkgName};
-use nom::{
-    character::complete::char,
-    combinator::{cut, map, opt},
-    error::{ContextError, ParseError},
-    sequence::{pair, preceded},
-    IResult,
-};
+use nom::character::complete::char;
+use nom::combinator::{cut, map, opt};
+use nom::error::{ContextError, ParseError};
+use nom::sequence::{pair, preceded};
+use nom::IResult;
 use nom_supreme::tag::TagError;
+
+use crate::ident_component::parsing::components;
+use crate::ident_component::Component;
+use crate::name::parsing::package_name;
+use crate::name::PkgName;
 
 /// Parse a package name in the context of a range identity.
 ///
