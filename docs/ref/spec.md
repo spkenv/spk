@@ -141,13 +141,21 @@ A test spec defines one test script that should be run against the package to va
 
 The component spec defines a single component of a package. Components can be individually requested for a package. The `build` and `run` components are generated automatically unless they are defined explicitly for a package.
 
-| Field        | Type                        | Description                                                                                                                                             |
-| ------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| name         | _string_                    | The name of this component                                                                                                                              |
-| files        | _List[string]_              | A list of patterns that identify which files belong to this component. Patterns follow the same syntax as gitignore files                               |
-| uses         | _List[string]_              | A list of other components from this package that this component uses, and are therefore also included whenever this component is included.             |
-| requirements | _List[[Request](#request)]_ | A list of requirements that this component has. These requirements are **in addition to** any requirements defined at the `install.requirements` level. |
-| embedded     | _List[[Spec](#spec)]_       | A list of packages that are embedded in this component                                                                                                  |
+| Field        | Type                                               | Description                                                                                                                                             |
+| ------------ | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| name         | _string_                                           | The name of this component                                                                                                                              |
+| files        | _List[string]_                                     | A list of patterns that identify which files belong to this component. Patterns follow the same syntax as gitignore files                               |
+| uses         | _List[string]_                                     | A list of other components from this package that this component uses, and are therefore also included whenever this component is included.             |
+| requirements | _List[[Request](#request)]_                        | A list of requirements that this component has. These requirements are **in addition to** any requirements defined at the `install.requirements` level. |
+| embedded     | _List[[Spec](#spec)]_                              | A list of packages that are embedded in this component                                                                                                  |
+| filter_mode  | _List[[ComponentFilterMode](#componentfiltermode)] | Control how the file filters are applied.                                                                                                               |             
+
+#### ComponentFilterMode
+
+| Value               | Description                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| Inclusive (default) | Matching files are always included                                                                      |
+| Exclusive           | Matching files are only included if they haven't already been matched by a previously defined component |
 
 ### EnvOp
 
