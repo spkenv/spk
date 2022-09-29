@@ -205,52 +205,7 @@ where
                         }
                     };
 
-                    if let StatusBarStatus::Active(status_line) = &mut self.status_bar {
-                        let resolved_packages_hash = node.state.get_resolved_packages_hash();
-                        if resolved_packages_hash != self.status_line_rendered_hash {
-                            let packages = node.state.get_ordered_resolved_packages();
-                            let mut renders = Vec::with_capacity(packages.len());
-                            for package in packages.iter() {
-                                let name = package.name().as_str();
-                                let version = package.version().to_string();
-                                let build = package.ident().build.as_ref().unwrap().to_string();
-                                let max_len = name.len().max(version.len()).max(build.len());
-                                renders.push((name, version, build, max_len));
-                            }
-                            for row in 0..3 {
-                                status_line.set_status(
-                                    row,
-                                    renders
-                                        .iter()
-                                        .map(|item| {
-                                            format!(
-                                                "{:width$}",
-                                                match row {
-                                                    0 => item.0,
-                                                    1 => &item.1,
-                                                    2 => &item.2,
-                                                    _ => unreachable!(),
-                                                },
-                                                width = item.3
-                                            )
-                                        })
-                                        .join(" |"),
-                                )?;
-                            }
-                            status_line.flush()?;
-                            self.status_line_rendered_hash = resolved_packages_hash
-                        }
-                    } else if !matches!(self.status_bar, StatusBarStatus::Disabled)
-                        && self.start.elapsed() >= STATUS_BAR_DELAY
-                    {
-                        // Don't create the status bar if the terminal is unattended.
-                        let stdout = std::io::stdout();
-                        self.status_bar = if stdout.is_tty() {
-                            StatusBarStatus::Active(StatusLine::new(stdout, 3)?)
-                        } else {
-                            StatusBarStatus::Disabled
-                        };
-                    }
+                    self.render_statusbar(&node)?;
 
                     if self.verbosity > 5 {
                         // Show the state's package requests and resolved
@@ -378,6 +333,58 @@ where
                 }
             }
         }
+    }
+
+    /// Update the solver statusbar with the current solve state.
+    fn render_statusbar(&mut self, node: &Arc<Node>) -> Result<()> {
+        if let StatusBarStatus::Active(status_line) = &mut self.status_bar {
+            let resolved_packages_hash = node.state.get_resolved_packages_hash();
+            if resolved_packages_hash != self.status_line_rendered_hash {
+                let packages = node.state.get_ordered_resolved_packages();
+                let mut renders = Vec::with_capacity(packages.len());
+                for package in packages.iter() {
+                    let name = package.name().as_str();
+                    let version = package.version().to_string();
+                    let build = package.ident().build.as_ref().unwrap().to_string();
+                    let max_len = name.len().max(version.len()).max(build.len());
+                    renders.push((name, version, build, max_len));
+                }
+                for row in 0..3 {
+                    status_line.set_status(
+                        row,
+                        renders
+                            .iter()
+                            .map(|item| {
+                                format!(
+                                    "{:width$}",
+                                    match row {
+                                        0 => item.0,
+                                        1 => &item.1,
+                                        2 => &item.2,
+                                        _ => unreachable!(),
+                                    },
+                                    width = item.3
+                                )
+                            })
+                            .join(" |"),
+                    )?;
+                }
+                status_line.flush()?;
+                self.status_line_rendered_hash = resolved_packages_hash
+            }
+        } else if !matches!(self.status_bar, StatusBarStatus::Disabled)
+            && self.start.elapsed() >= STATUS_BAR_DELAY
+        {
+            // Don't create the status bar if the terminal is unattended.
+            let stdout = std::io::stdout();
+            self.status_bar = if stdout.is_tty() {
+                StatusBarStatus::Active(StatusLine::new(stdout, 3)?)
+            } else {
+                StatusBarStatus::Disabled
+            };
+        }
+
+        Ok(())
     }
 }
 
