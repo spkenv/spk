@@ -15,13 +15,13 @@ mod component_spec_test;
 
 /// Control how files are filtered between components.
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub enum ComponentFilterMode {
+pub enum ComponentFileMatchMode {
     /// Matching files are always included.
     #[default]
-    Inclusive,
+    All,
     /// Matching files are only included if they haven't already been matched
     /// by a previously defined component.
-    Exclusive,
+    Remaining,
 }
 
 /// Defines a named package component.
@@ -37,7 +37,7 @@ pub struct ComponentSpec {
     #[serde(default)]
     pub embedded: super::EmbeddedPackagesList,
     #[serde(default)]
-    pub filter_mode: ComponentFilterMode,
+    pub file_match_mode: ComponentFileMatchMode,
 }
 
 impl ComponentSpec {
@@ -52,7 +52,7 @@ impl ComponentSpec {
             files: Default::default(),
             requirements: Default::default(),
             embedded: Default::default(),
-            filter_mode: Default::default(),
+            file_match_mode: Default::default(),
         })
     }
 
@@ -65,7 +65,7 @@ impl ComponentSpec {
             files: FileMatcher::all(),
             requirements: Default::default(),
             embedded: Default::default(),
-            filter_mode: Default::default(),
+            file_match_mode: Default::default(),
         }
     }
 
@@ -78,7 +78,7 @@ impl ComponentSpec {
             files: FileMatcher::all(),
             requirements: Default::default(),
             embedded: Default::default(),
-            filter_mode: Default::default(),
+            file_match_mode: Default::default(),
         }
     }
 }

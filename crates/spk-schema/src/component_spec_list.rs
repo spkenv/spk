@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use super::ComponentSpec;
 use crate::foundation::ident_component::Component;
-use crate::ComponentFilterMode;
+use crate::ComponentFileMatchMode;
 
 #[cfg(test)]
 #[path = "./component_spec_list_test.rs"]
@@ -142,7 +142,7 @@ impl<'de> Deserialize<'de> for ComponentSpecList {
                 // all referenced components must have been defined
                 // within the spec as well
                 for component in components.iter() {
-                    if matches!(component.filter_mode, ComponentFilterMode::Exclusive) {
+                    if matches!(component.file_match_mode, ComponentFileMatchMode::Remaining) {
                         using_exclusive_filter_mode = true;
                     }
 

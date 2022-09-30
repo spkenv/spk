@@ -25,7 +25,7 @@ mod validation;
 
 // Re-export for macros
 pub use build_spec::{BuildSpec, Script};
-pub use component_spec::{ComponentFilterMode, ComponentSpec};
+pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
 pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};
 pub use embedded_packages_list::EmbeddedPackagesList;
