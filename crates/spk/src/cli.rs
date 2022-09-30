@@ -19,6 +19,7 @@ use spk_cli_group3::{cmd_export, cmd_import};
 use spk_cli_group4::{cmd_lint, cmd_search, cmd_version, cmd_view};
 use spk_cmd_build::cmd_build;
 use spk_cmd_convert::cmd_convert;
+use spk_cmd_debug::cmd_debug;
 use spk_cmd_env::cmd_env;
 use spk_cmd_explain::cmd_explain;
 use spk_cmd_install::cmd_install;
@@ -120,6 +121,7 @@ pub enum Command {
     Bake(cmd_bake::Bake),
     Build(cmd_build::Build),
     Convert(cmd_convert::Convert),
+    Debug(cmd_debug::Debug),
     Deprecate(cmd_deprecate::DeprecateCmd),
     Env(cmd_env::Env),
     Explain(cmd_explain::Explain),
@@ -154,6 +156,7 @@ impl Run for Command {
             Command::Bake(cmd) => cmd.run().await,
             Command::Build(cmd) => cmd.run().await,
             Command::Convert(cmd) => cmd.run().await,
+            Command::Debug(cmd) => cmd.run().await,
             Command::Deprecate(cmd) => cmd.run().await,
             Command::Env(cmd) => cmd.run().await,
             Command::Explain(cmd) => cmd.run().await,
@@ -185,6 +188,7 @@ impl CommandArgs for Command {
             Command::Bake(cmd) => cmd.get_positional_args(),
             Command::Build(cmd) => cmd.get_positional_args(),
             Command::Convert(cmd) => cmd.get_positional_args(),
+            Command::Debug(cmd) => cmd.get_positional_args(),
             Command::Deprecate(cmd) => cmd.get_positional_args(),
             Command::Env(cmd) => cmd.get_positional_args(),
             Command::Explain(cmd) => cmd.get_positional_args(),
