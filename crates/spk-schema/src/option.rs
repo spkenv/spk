@@ -226,7 +226,7 @@ impl<'de> Deserialize<'de> for Opt {
             {
                 let check_existing_default = |v: &OptVisitor| -> std::result::Result<(), A::Error> {
                     if v.value.is_some() {
-                        Err(serde::de::Error::custom("option cannot specify "))
+                        Err(serde::de::Error::custom("option cannot specify both the 'default' field and a default value in the form <name>/<default>"))
                     } else {
                         Ok(())
                     }
