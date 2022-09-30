@@ -40,7 +40,9 @@ fn test_var_opt_validation(#[case] spec: &str, #[case] value: &str, #[case] expe
 #[case("{var: my-var/value}", Some("value"))]
 #[case("{var: my-var}", None)]
 #[case("{var: my-var/}", None)] // empty is mapped to none
-fn test_var_opt_parse_default(#[case] spec: &str, #[case] expected: Option<&str>) {
+#[case("{static: static, var: my-var}", Some("static"))] // static instead of default
+#[case("{static: static, var: my-var/default}", Some("static"))] // static supercedes default
+fn test_var_opt_parse_value(#[case] spec: &str, #[case] expected: Option<&str>) {
     let opt = Opt::from_yaml(spec).unwrap().into_var().unwrap();
     let actual = opt.get_value(None);
     assert_eq!(actual.as_deref(), expected);
