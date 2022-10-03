@@ -5,6 +5,7 @@
 
 mod filter_compare_version;
 mod filter_parse_version;
+mod filter_replace_regex;
 mod tag_default;
 
 pub use liquid::Error;
@@ -19,6 +20,7 @@ pub fn default_parser() -> liquid::Parser {
         .tag(tag_default::DefaultTag)
         .filter(filter_parse_version::ParseVersion)
         .filter(filter_compare_version::CompareVersion)
+        .filter(filter_replace_regex::ReplaceRegex)
         .build();
     debug_assert!(matches!(res, Ok(_)), "default template parser is valid");
     res.unwrap()

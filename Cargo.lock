@@ -3588,6 +3588,7 @@ version = "0.36.0"
 dependencies = [
  "liquid",
  "liquid-core",
+ "regex",
  "rstest",
  "serde",
  "serde_json",
