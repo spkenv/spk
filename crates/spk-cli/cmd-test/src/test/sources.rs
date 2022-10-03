@@ -96,9 +96,6 @@ impl<'a> PackageSourceTester<'a> {
 
         let mut solver = Solver::default();
         solver.set_binary_only(true);
-        for request in self.additional_requirements.drain(..) {
-            solver.add_request(request)
-        }
         solver.update_options(self.options.clone());
         for repo in self.repos.iter().cloned() {
             solver.add_repository(repo);
@@ -115,6 +112,10 @@ impl<'a> PackageSourceTester<'a> {
                 .with_pin(None)
                 .with_compat(None);
             solver.add_request(request.into());
+        }
+
+        for request in self.additional_requirements.drain(..) {
+            solver.add_request(request)
         }
 
         let mut runtime = solver.run();

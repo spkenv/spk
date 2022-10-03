@@ -120,14 +120,14 @@ impl<'a> PackageBuildTester<'a> {
 
         let mut solver = Solver::default();
         solver.set_binary_only(true);
-        for request in self.additional_requirements.drain(..) {
-            solver.add_request(request)
-        }
         solver.update_options(self.options.clone());
         for repo in self.repos.iter().cloned() {
             solver.add_repository(repo);
         }
         solver.configure_for_build_environment(&self.recipe)?;
+        for request in self.additional_requirements.drain(..) {
+            solver.add_request(request)
+        }
         let mut runtime = solver.run();
         let solution = self.build_resolver.solve(&mut runtime).await;
         self.last_solve_graph = runtime.graph();
