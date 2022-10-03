@@ -32,6 +32,8 @@ pub enum Error {
     ValidationError(#[from] spk_solve_validation::Error),
     #[error(transparent)]
     SpkSpecError(#[from] spk_schema::Error),
+    #[error("Status bar IO error: {0}")]
+    StatusBarIOError(#[source] std::io::Error),
     #[error("Error: {0}")]
     String(String),
 }

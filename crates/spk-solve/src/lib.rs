@@ -6,6 +6,7 @@ mod error;
 mod io;
 mod macros;
 mod solver;
+mod status_line;
 
 pub use error::{Error, Result};
 pub use io::{DecisionFormatter, DecisionFormatterBuilder};
@@ -17,6 +18,7 @@ pub use spk_schema::ident::{parse_ident_range, PkgRequest, Request, RequestedBy}
 pub use spk_schema::{recipe, spec, v0, Package, Recipe, Spec};
 pub use spk_solve_solution::{PackageSource, Solution};
 pub use spk_storage::RepositoryHandle;
+pub(crate) use status_line::StatusLine;
 pub use {
     serde_json,
     spfs,
