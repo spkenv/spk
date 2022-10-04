@@ -13,6 +13,17 @@ use crate::Result;
 #[path = "./component_spec_test.rs"]
 mod component_spec_test;
 
+/// Control how files are filtered between components.
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub enum ComponentFileMatchMode {
+    /// Matching files are always included.
+    #[default]
+    All,
+    /// Matching files are only included if they haven't already been matched
+    /// by a previously defined component.
+    Remaining,
+}
+
 /// Defines a named package component.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct ComponentSpec {
@@ -25,6 +36,8 @@ pub struct ComponentSpec {
     pub requirements: super::RequirementsList,
     #[serde(default)]
     pub embedded: super::EmbeddedPackagesList,
+    #[serde(default)]
+    pub file_match_mode: ComponentFileMatchMode,
 }
 
 impl ComponentSpec {
@@ -39,6 +52,7 @@ impl ComponentSpec {
             files: Default::default(),
             requirements: Default::default(),
             embedded: Default::default(),
+            file_match_mode: Default::default(),
         })
     }
 
@@ -51,6 +65,7 @@ impl ComponentSpec {
             files: FileMatcher::all(),
             requirements: Default::default(),
             embedded: Default::default(),
+            file_match_mode: Default::default(),
         }
     }
 
@@ -63,6 +78,7 @@ impl ComponentSpec {
             files: FileMatcher::all(),
             requirements: Default::default(),
             embedded: Default::default(),
+            file_match_mode: Default::default(),
         }
     }
 }

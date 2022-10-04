@@ -24,7 +24,7 @@ pub mod v0;
 mod validation;
 
 pub use build_spec::{BuildSpec, Script};
-pub use component_spec::ComponentSpec;
+pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
 pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};
 pub use embedded_packages_list::EmbeddedPackagesList;

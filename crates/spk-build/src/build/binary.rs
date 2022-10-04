@@ -20,7 +20,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::{ComponentOps, PackageMutOps, PackageOps};
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
-use spk_schema::{ComponentSpecList, DeprecateMut, Ident, Package};
+use spk_schema::{ComponentFileMatchMode, ComponentSpecList, DeprecateMut, Ident, Package};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
@@ -622,6 +622,7 @@ fn split_manifest_by_component(
     manifest: &spfs::tracking::Manifest,
     components: &ComponentSpecList,
 ) -> Result<HashMap<Component, spfs::tracking::Manifest>> {
+    let mut seen = HashSet::new();
     let mut manifests = HashMap::with_capacity(components.len());
     for component in components.iter() {
         let mut component_manifest = spfs::tracking::Manifest::default();
@@ -647,7 +648,10 @@ fn split_manifest_by_component(
                 .files
                 .matches(&node.path.to_path("/"), node.entry.is_dir())
             {
-                relevant_paths.extend(path_and_parents(node.path.to_owned()));
+                let is_new_file = seen.insert(node.path.to_owned());
+                if matches!(component.file_match_mode, ComponentFileMatchMode::All) || is_new_file {
+                    relevant_paths.extend(path_and_parents(node.path.to_owned()));
+                }
             }
         }
         for node in manifest.walk() {

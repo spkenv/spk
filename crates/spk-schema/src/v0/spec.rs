@@ -184,6 +184,7 @@ impl Spec {
             uses: Default::default(),
             requirements: Default::default(),
             embedded: Default::default(),
+            file_match_mode: Default::default(),
         });
     }
 }
