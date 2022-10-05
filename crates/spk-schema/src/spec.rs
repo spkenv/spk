@@ -128,7 +128,8 @@ impl Template for SpecTemplate {
     }
 
     fn render(&self, options: &OptionMap) -> Result<Self::Output> {
-        let rendered = spk_schema_liquid::render_template(&self.template, &options)
+        let option_data = options.to_yaml_value_expanded();
+        let rendered = spk_schema_liquid::render_template(&self.template, &option_data)
             .map_err(Error::InvalidTemplate)?;
         Ok(SpecRecipe::from_yaml(rendered)?)
     }

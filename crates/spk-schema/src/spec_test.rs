@@ -308,7 +308,7 @@ fn test_get_build_requirements_pkg_in_variant_preserves_order() {
 }
 
 #[rstest]
-fn test_template_error_position() {
+fn test_template_error_message() {
     format_serde_error::never_color();
     static SPEC: &str = r#"pkg: mypackage/{{ version }}
 sources:
@@ -330,4 +330,26 @@ liquid: Unknown variable
 "#;
     let message = err.to_string();
     assert_eq!(message.trim(), expected.trim());
+}
+
+#[rstest]
+fn test_template_namespace_options() {
+    // options can have namespace values separated by a `.`
+    // which can be annoying to access when the actual key
+    // still has a `.` in it, so validate that these values
+    // can instead be accessed as a sub-object using the
+    // dot-notation built into templating
+
+    format_serde_error::never_color();
+    static SPEC: &str = r#"pkg: mypackage/{{ namespace.version }}"#;
+    let tpl = SpecTemplate {
+        name: PkgName::new("my-package").unwrap().to_owned(),
+        file_path: "my-package.spk.yaml".into(),
+        template: SPEC.to_string(),
+    };
+    let options = option_map! {"namespace.version" => "1.0.0"};
+    let recipe = tpl
+        .render(&options)
+        .expect("template should render with sub-object access");
+    assert_eq!(recipe.version().to_string(), "1.0.0");
 }
