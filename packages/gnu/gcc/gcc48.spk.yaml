@@ -1,8 +1,9 @@
-pkg: gcc/4.8.5
+# {{ default version = "4.8.5" }}
+pkg: gcc/{{ version }}
 api: v0/package
 
 sources:
-  - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-4.8.5/gcc-4.8.5.tar.gz
+  - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-{{ version }}/gcc-{{ version }}.tar.gz
   - path: patch-gcc46-texi.diff
 
 build:
@@ -24,10 +25,10 @@ build:
     - pkg: coreutils
     - pkg: binutils
     - pkg: make
-    - pkg: gcc/<=4.8.5
+    - pkg: gcc/<={{ version }}
   script:
-    - patch -d gcc-4.8.5 -p0 <patch-gcc46-texi.diff
-    - cd gcc-4.8.5
+    - patch -d gcc-{{ version }} -p0 <patch-gcc46-texi.diff
+    - cd gcc-{{ version }}
     - ./configure
       --prefix=/spfs
       --with-mpfr=/spfs

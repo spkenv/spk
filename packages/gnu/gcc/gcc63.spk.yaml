@@ -1,8 +1,9 @@
-pkg: gcc/6.3.0
+# {{ default version = "{{ version }}" }}
+pkg: gcc/{{ version }}
 api: v0/package
 
 sources:
-  - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-6.3.0/gcc-6.3.0.tar.gz
+  - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-{{ version }}/gcc-{{ version }}.tar.gz
 
 build:
   options:
@@ -22,9 +23,9 @@ build:
     - pkg: coreutils
     - pkg: make
     - pkg: zip
-    - pkg: gcc/<=6.3.0
+    - pkg: gcc/<={{ version }}
   script:
-    - cd gcc-6.3.0
+    - cd gcc-{{ version }}
     - ./configure
       --prefix=/spfs
       --with-mpfr=/spfs
