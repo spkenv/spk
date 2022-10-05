@@ -1,4 +1,4 @@
-# {% default version = "3.7.3" %}
+# {% assign version =  opt.version | default: "3.7.3" %}
 # {% assign cpXX = version | replace_re: "(\d+)\.(\d+).*", "cp$1$2" %}
 pkg: python/{{ version }}
 api: v0/package

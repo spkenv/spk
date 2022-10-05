@@ -1,5 +1,6 @@
-# {% default version = "2.7.5" %}
-# {% assign cpXX = version | replace_re: "(\d+)\.(\d+).*", "cp$1$2" %}
+# {% assign version = env.VV | default: "2.7.5" %}
+# {% assign version = opt.version | default: "2.7.5" %}
+# {% assign cpXX = opt.version | replace_re: "(\d+)\.(\d+).*", "cp$1$2" %}
 pkg: python/{{ version }}
 api: v0/package
 sources:

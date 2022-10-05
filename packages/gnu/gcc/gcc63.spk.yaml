@@ -1,4 +1,4 @@
-# {{ default version = "{{ version }}" }}
+# {% assign version = opt.version | default: "6.3.3" %}
 pkg: gcc/{{ version }}
 api: v0/package
 

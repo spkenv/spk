@@ -56,7 +56,7 @@ pub use spk_schema_foundation::{
     FromYaml,
 };
 pub use spk_schema_ident::{self as ident, AnyIdent, BuildIdent, Request, VersionIdent};
-pub use template::{Template, TemplateExt};
+pub use template::{Template, TemplateData, TemplateExt};
 pub use test_spec::TestStage;
 pub use validation::{default_validators, ValidationSpec, Validator};
 pub use variant::{Variant, VariantExt};

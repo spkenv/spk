@@ -56,7 +56,9 @@ impl Run for MakeRecipe {
 
         tracing::info!("rendering template for {}", template.name());
         tracing::info!("using options {}", options.format_option_map());
-        let rendered = spk_schema_liquid::render_template(template.source(), &options)
+        let data = spk_schema::TemplateData::new(&options);
+        tracing::debug!("full template data: {data:#?}");
+        let rendered = spk_schema_liquid::render_template(template.source(), &data)
             .context("Failed to render template")?;
         print!("{rendered}");
 

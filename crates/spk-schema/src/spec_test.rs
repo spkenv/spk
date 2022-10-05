@@ -6,6 +6,7 @@ use rstest::rstest;
 use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::OptionMap;
+use spk_schema_foundation::spec_ops::HasVersion;
 
 use super::SpecTemplate;
 use crate::prelude::*;
