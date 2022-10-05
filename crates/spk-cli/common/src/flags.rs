@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashMap;
 use std::convert::From;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -14,7 +13,7 @@ use solve::{DecisionFormatter, DecisionFormatterBuilder, MultiSolverKind};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::name::{OptName, OptNameBuf};
+use spk_schema::foundation::name::OptName;
 use spk_schema::foundation::option_map::{host_options, OptionMap};
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
@@ -210,8 +209,15 @@ pub struct Options {
     /// an equals sign or colon (--opt name=value --opt other:value).
     /// Additionally, many options can be specified at once in yaml
     /// or json format (--opt '{name: value, other: value}').
+    ///
+    /// Options can also be given in a file via the --options-file/-f flag. If
+    /// given, --opt will supercede anything in the options file(s).
     #[clap(long = "opt", short)]
     pub options: Vec<String>,
+
+    /// Specify build/resolve options from a json or yaml file (see --opt/-o)
+    #[clap(long)]
+    pub options_file: Vec<std::path::PathBuf>,
 
     /// Do not add the default options for the current host system
     #[clap(long)]
@@ -225,23 +231,20 @@ impl Options {
             false => host_options().context("Failed to compute options for current host")?,
         };
 
-        for req in self.get_var_requests()? {
-            opts.insert(req.var, req.value);
+        for filename in self.options_file.iter() {
+            let reader =
+                std::fs::File::open(filename).context(format!("Failed to open: {filename:?}"))?;
+            let options: OptionMap = serde_yaml::from_reader(reader)
+                .context(format!("Failed to parse as option mapping: {filename:?}"))?;
+            opts.extend(options);
         }
 
-        Ok(opts)
-    }
-
-    pub fn get_var_requests(&self) -> Result<Vec<VarRequest>> {
-        let mut requests = Vec::with_capacity(self.options.len());
         for pair in self.options.iter() {
             let pair = pair.trim();
             if pair.starts_with('{') {
-                let given: HashMap<OptNameBuf, String> = serde_yaml::from_str(pair)
+                let given: OptionMap = serde_yaml::from_str(pair)
                     .context("--opt value looked like yaml, but could not be parsed")?;
-                for (name, value) in given.into_iter() {
-                    requests.push(VarRequest::new_with_value(name, value));
-                }
+                opts.extend(given);
                 continue;
             }
 
@@ -253,9 +256,19 @@ impl Options {
                 })
                 .and_then(|(name, value)| Ok((OptName::new(name)?, value)))?;
 
-            requests.push(VarRequest::new_with_value(name, value));
+            opts.insert(name.to_owned(), value.to_string());
         }
-        Ok(requests)
+
+        Ok(opts)
+    }
+
+    pub fn get_var_requests(&self) -> Result<Vec<VarRequest>> {
+        Ok(self
+            .get_options()?
+            .into_iter()
+            .filter(|(_name, value)| !value.is_empty())
+            .map(|(name, value)| VarRequest::new_with_value(name, value))
+            .collect())
     }
 }
 
@@ -332,23 +345,7 @@ impl Requests {
         S: AsRef<str>,
     {
         let mut out = Vec::<Request>::new();
-        let var_requests = options.get_var_requests()?;
-        let mut options = match options.no_host {
-            true => OptionMap::default(),
-            false => host_options()?,
-        };
-        // Insert var_requests, which includes requests specified on the command-line,
-        // into the map so that they can override values provided by host_options().
-        for req in var_requests {
-            options.insert(req.var, req.value);
-        }
-
-        for (name, value) in options.iter() {
-            if !value.is_empty() {
-                out.push(VarRequest::new_with_value(name.clone(), value).into());
-            }
-        }
-
+        let options = options.get_options()?;
         for r in requests.into_iter() {
             let r = r.as_ref();
             if r.contains('@') {

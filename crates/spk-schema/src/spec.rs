@@ -130,7 +130,7 @@ impl Template for SpecTemplate {
     fn render(&self, options: &OptionMap) -> Result<Self::Output> {
         let rendered = spk_schema_liquid::render_template(&self.template, &options)
             .map_err(Error::InvalidTemplate)?;
-        Ok(SpecRecipe::from_yaml(&rendered)?)
+        Ok(SpecRecipe::from_yaml(rendered)?)
     }
 }
 
