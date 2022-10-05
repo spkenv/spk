@@ -3,12 +3,13 @@
 // https://github.com/imageworks/spk
 //! Defines the default configuration for processing spec file templates in spk
 
+mod error;
 mod filter_compare_version;
 mod filter_parse_version;
 mod filter_replace_regex;
 mod tag_default;
 
-pub use liquid::Error;
+pub use format_serde_error::SerdeError as Error;
 
 /// Build the default template parser for spk
 ///
@@ -27,13 +28,16 @@ pub fn default_parser() -> liquid::Parser {
 }
 
 /// Render a template with the default configuration
-pub fn render_template<T, D>(tpl: T, data: &D) -> Result<String, liquid::Error>
+pub fn render_template<T, D>(tpl: T, data: &D) -> Result<String, Error>
 where
     T: AsRef<str>,
     D: serde::Serialize,
 {
+    let tpl = tpl.as_ref();
+    let map_err =
+        |err| format_serde_error::SerdeError::new(tpl.to_string(), error::to_error_types(err));
     let parser = default_parser();
-    let template = parser.parse(tpl.as_ref())?;
-    let globals = liquid::to_object(data)?;
-    template.render(&globals)
+    let template = parser.parse(tpl).map_err(map_err)?;
+    let globals = liquid::to_object(data).map_err(map_err)?;
+    template.render(&globals).map_err(map_err)
 }

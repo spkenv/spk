@@ -3586,6 +3586,8 @@ dependencies = [
 name = "spk-schema-liquid"
 version = "0.36.0"
 dependencies = [
+ "format_serde_error",
+ "lazy_static",
  "liquid",
  "liquid-core",
  "regex",
