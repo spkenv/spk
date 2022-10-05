@@ -134,9 +134,12 @@ async fn test_solver_package_with_no_recipe(mut solver: Solver) {
     spec.pkg.set_build(Some(Build::Digest(options.digest())));
 
     // publish package without publishing spec
-    let components = vec![(Component::Run, EMPTY_DIGEST.into())]
-        .into_iter()
-        .collect();
+    let components = vec![
+        (Component::Run, EMPTY_DIGEST.into()),
+        (Component::Build, EMPTY_DIGEST.into()),
+    ]
+    .into_iter()
+    .collect();
     repo.publish_package(&spec.into(), &components)
         .await
         .unwrap();
@@ -147,30 +150,11 @@ async fn test_solver_package_with_no_recipe(mut solver: Solver) {
 
     // Test
     let res = run_and_print_resolve_for_tests(&solver).await;
-    if cfg!(feature = "migration-to-components") {
-        // with the 'migration-to-components' feature this will fail
-        // because it turns the initial request into my-pkg:all, which
-        // requires a :build and a :run component to pass the
-        // pre-resolve validation checks, and the package only has a
-        // :run component.
-        assert!(
-            matches!(
-                res,
-                Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(
-                    _
-                )))
-            ),
-            "{:?} should be a FailedToResolve(_) error",
-            res
-        );
-    } else {
-        // without the 'migration-to-components' feature, this will succeed
-        assert!(
-            matches!(res, Ok(_)),
-            "'{:?}' should be an Ok(_) solution not an error.')",
-            res
-        );
-    }
+    assert!(
+        matches!(res, Ok(_)),
+        "'{:?}' should be an Ok(_) solution not an error.')",
+        res
+    );
 }
 
 #[rstest]
@@ -181,9 +165,12 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(mut solver: Solver) {
     let spec = spec!({"pkg": "my-pkg/1.0.0/4OYMIQUY"});
 
     // publish package without publishing recipe
-    let components = vec![(Component::Run, EMPTY_DIGEST.into())]
-        .into_iter()
-        .collect();
+    let components = vec![
+        (Component::Run, EMPTY_DIGEST.into()),
+        (Component::Build, EMPTY_DIGEST.into()),
+    ]
+    .into_iter()
+    .collect();
     repo.publish_package(&spec, &components).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
@@ -196,30 +183,11 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(mut solver: Solver) {
 
     // Test
     let res = run_and_print_resolve_for_tests(&solver).await;
-    if cfg!(feature = "migration-to-components") {
-        // with the 'migration-to-components' feature checks this will
-        // fail because it turns the initial request into my-pkg:all,
-        // which requires a :build and a :run component to pass the
-        // pre-resolve validation checks and the package only has a
-        // :run component.
-        assert!(
-            matches!(
-                res,
-                Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(
-                    _
-                )))
-            ),
-            "{:?} should be a FailedToResolve(_) error",
-            res
-        );
-    } else {
-        // without the 'migration-to-components' feature, this will succeed
-        assert!(
-            matches!(res, Ok(_)),
-            "'{:?}' should be an Ok(_) solution not an error.')",
-            res
-        );
-    }
+    assert!(
+        matches!(res, Ok(_)),
+        "'{:?}' should be an Ok(_) solution not an error.')",
+        res
+    );
 }
 
 #[rstest]
