@@ -7,15 +7,12 @@ use std::collections::HashMap;
 use clap::Args;
 use futures::TryFutureExt;
 use serde::Serialize;
-
 use spfs::Digest;
 use spk_cli_common::{current_env, flags, CommandArgs, Error, Result, Run};
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::ident::RequestedBy;
-use spk_solve::{
-    solution::{PackageSource, SolvedRequest},
-    Component,
-};
+use spk_solve::solution::{PackageSource, SolvedRequest};
+use spk_solve::Component;
 
 // Constants for the valid output formats
 const LAYER_FORMAT: &str = "layers";
@@ -175,7 +172,7 @@ impl Bake {
         let items = solution.items();
 
         // Get the layer(s) for the packages from their source repos
-        let mut layers_to_packages: HashMap<String, (String, String)> = HashMap::new();
+        let mut layers_to_packages: HashMap<Digest, (String, String)> = HashMap::new();
         for resolved in items {
             let spfs_layers = match self.get_spfs_component_layers(&resolved) {
                 Ok(layers) => layers,
@@ -188,21 +185,18 @@ impl Bake {
             // in the next loop. The component and package ident need
             // to be kept together as well.
             for (component, layer) in spfs_layers.iter() {
-                let key = layer.to_string();
                 let mut component_label = format!("{}", component.clone());
-                if layers_to_packages.contains_key(&key) {
+                if layers_to_packages.contains_key(layer) {
                     // Add the component name to the existing entry
                     // because this layer provides more than one
                     // component of the package.
-                    if let Some((_p, c)) = layers_to_packages.get(&key) {
+                    if let Some((_p, c)) = layers_to_packages.get(layer) {
                         component_label = format!("{},{}", c, component_label);
                     }
                 }
 
-                layers_to_packages.insert(
-                    layer.to_string(),
-                    (resolved.spec.ident().to_string(), component_label),
-                );
+                layers_to_packages
+                    .insert(*layer, (resolved.spec.ident().to_string(), component_label));
             }
         }
 
@@ -217,7 +211,7 @@ impl Bake {
         // merging for overlay fs mount commands.
         let mut layers: Vec<BakeLayer> = Vec::with_capacity(runtime.status.stack.len());
         for layer in runtime.status.stack.iter() {
-            let (spk_package, component) = match layers_to_packages.get(&layer.to_string()) {
+            let (spk_package, component) = match layers_to_packages.get(layer) {
                 Some((p, c)) => (p.to_string(), c.clone()),
                 None => (UNKNOWN_PACKAGE.to_string(), UNKNOWN_COMPONENT.to_string()),
             };
