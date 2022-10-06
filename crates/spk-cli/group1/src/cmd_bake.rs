@@ -6,12 +6,13 @@ use std::collections::HashMap;
 
 use clap::Args;
 use futures::TryFutureExt;
-use itertools::Itertools;
 use serde::Serialize;
+use spfs::Digest;
 use spk_cli_common::{current_env, flags, CommandArgs, Error, Result, Run};
 use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::ident::RequestedBy;
 use spk_solve::solution::{PackageSource, SolvedRequest};
+use spk_solve::Component;
 
 // Constants for the valid output formats
 const LAYER_FORMAT: &str = "layers";
@@ -59,6 +60,8 @@ struct BakeLayer {
     spfs_layer: String,
     #[serde(default)]
     spk_package: String,
+    #[serde(default)]
+    spk_component: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     spk_requester: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -67,6 +70,7 @@ struct BakeLayer {
 
 const EMPTY_TAG: &str = "";
 const UNKNOWN_PACKAGE: &str = "";
+const UNKNOWN_COMPONENT: &str = "";
 
 #[async_trait::async_trait]
 impl Run for Bake {
@@ -123,14 +127,17 @@ impl CommandArgs for Bake {
 }
 
 impl Bake {
-    /// Get the spfs layer for a resolved request from it's source
+    /// Get the spfs layers for a resolved request from its source
     /// repo, if possible. This returns a SkipEmbedded error if the
     /// resolved request is an embedded package. These can be skipped
     /// for the purposes of the Bake command. It returns a String
     /// message error if the request is for a src package, which the
     /// Bake command can do nothing with.
-    fn get_spfs_layer(&self, resolved: &SolvedRequest) -> Result<String> {
-        let spfs_layer = match &resolved.source {
+    fn get_spfs_component_layers(
+        &self,
+        resolved: &SolvedRequest,
+    ) -> Result<HashMap<Component, Digest>> {
+        let spfs_layers = match &resolved.source {
             PackageSource::Embedded => {
                 // Embedded builds are provided by another package
                 // in the solve. They don't have a layer of their
@@ -144,24 +151,10 @@ impl Bake {
             PackageSource::Repository {
                 repo: _,
                 components,
-            } => {
-                // Packages published before component support was
-                // added will have 'run:' and 'build:' components that
-                // point to the same layer, so the unique() call is
-                // used to reduce those to a single entry.
-                components
-                    .values()
-                    .map(ToString::to_string)
-                    .unique()
-                    .collect::<Vec<String>>()
-                    .join(", ")
-            }
+            } => components.clone(),
         };
 
-        // TODO: the join(", ") above can turn multiple layers into a
-        // single string blob that probably won't work well for
-        // component supporting spk commands
-        Ok(spfs_layer)
+        Ok(spfs_layers)
     }
 
     /// Get the layers from the active stack. These are digests for
@@ -179,17 +172,32 @@ impl Bake {
         let items = solution.items();
 
         // Get the layer(s) for the packages from their source repos
-        let mut layers_to_packages = HashMap::new();
+        let mut layers_to_packages: HashMap<Digest, (String, String)> = HashMap::new();
         for resolved in items {
-            let spfs_layer = match self.get_spfs_layer(&resolved) {
-                Ok(layer) => layer,
+            let spfs_layers = match self.get_spfs_component_layers(&resolved) {
+                Ok(layers) => layers,
                 Err(Error::SkipEmbedded) => continue,
                 Err(e) => return Err(e.into()),
             };
 
-            // Store in a map so they can be matched up with the
-            // layers in the runtime environment in the next loop.
-            layers_to_packages.insert(spfs_layer, resolved.spec.ident().to_string());
+            // Store in a map keyed by the layer so they can be
+            // matched up with the layers in the runtime environment
+            // in the next loop. The component and package ident need
+            // to be kept together as well.
+            for (component, layer) in spfs_layers.iter() {
+                let mut component_label = format!("{}", component.clone());
+                if layers_to_packages.contains_key(layer) {
+                    // Add the component name to the existing entry
+                    // because this layer provides more than one
+                    // component of the package.
+                    if let Some((_p, c)) = layers_to_packages.get(layer) {
+                        component_label = format!("{},{}", c, component_label);
+                    }
+                }
+
+                layers_to_packages
+                    .insert(*layer, (resolved.spec.ident().to_string(), component_label));
+            }
         }
 
         // Keep the runtime stack order with the first layer at the
@@ -203,9 +211,9 @@ impl Bake {
         // merging for overlay fs mount commands.
         let mut layers: Vec<BakeLayer> = Vec::with_capacity(runtime.status.stack.len());
         for layer in runtime.status.stack.iter() {
-            let spk_package = match layers_to_packages.get(&layer.to_string()) {
-                Some(p) => p.to_string(),
-                None => UNKNOWN_PACKAGE.to_string(),
+            let (spk_package, component) = match layers_to_packages.get(layer) {
+                Some((p, c)) => (p.to_string(), c.clone()),
+                None => (UNKNOWN_PACKAGE.to_string(), UNKNOWN_COMPONENT.to_string()),
             };
 
             // There's no "requested by" or "spfs tag" information in
@@ -213,6 +221,7 @@ impl Bake {
             // TODO: store this info in an active runtime, from the
             // solve that made it, so it can be properly accessed here.
             let requested_by = RequestedBy::CurrentEnvironment.to_string();
+
             // TODO: need to expose spfs's repository's find_aliases()
             // or find_tags() in spk to get the tag from a digest
             let spfs_tag = EMPTY_TAG.to_string();
@@ -220,6 +229,7 @@ impl Bake {
             layers.push(BakeLayer {
                 spfs_layer: layer.to_string(),
                 spk_package,
+                spk_component: component,
                 spk_requester: requested_by,
                 spfs_tag,
             });
@@ -255,8 +265,8 @@ impl Bake {
 
         let mut stack: Vec<BakeLayer> = Vec::with_capacity(items.len());
         for resolved in items {
-            let spfs_layer = match self.get_spfs_layer(&resolved) {
-                Ok(layer) => layer,
+            let spfs_layers = match self.get_spfs_component_layers(&resolved) {
+                Ok(layers) => layers,
                 Err(Error::SkipEmbedded) => continue,
                 Err(e) => return Err(e.into()),
             };
@@ -274,12 +284,15 @@ impl Bake {
             // find_aliases()/find_tags() in spk to get this from a digest
             let spfs_tag = EMPTY_TAG.to_string();
 
-            stack.push(BakeLayer {
-                spfs_layer,
-                spk_package: resolved.spec.ident().to_string(),
-                spk_requester: requested_by.join(", "),
-                spfs_tag,
-            });
+            for (component, layer) in spfs_layers.iter() {
+                stack.push(BakeLayer {
+                    spfs_layer: layer.to_string(),
+                    spk_package: resolved.spec.ident().to_string(),
+                    spk_component: component.to_string(),
+                    spk_requester: requested_by.join(", "),
+                    spfs_tag: spfs_tag.clone(),
+                });
+            }
         }
         Ok(stack)
     }
