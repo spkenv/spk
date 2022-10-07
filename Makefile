@@ -59,6 +59,10 @@ release:
 	cd $(SOURCE_ROOT)
 	cargo build --workspace --release $(cargo_features_arg)
 
+release-spfs:
+	cd $(SOURCE_ROOT)
+	cargo build --release -p spfs -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render $(cargo_features_arg)
+
 .PHONY: test
 test: FEATURES?=server,spfs/server
 test:
@@ -112,6 +116,8 @@ install-debug: install-debug-spfs install-debug-spk
 
 install: copy-release setcap
 
+install-spfs: copy-spfs setcap
+
 copy-debug-spfs: debug-spfs
 	cd $(SOURCE_ROOT)
 	sudo cp -f target/debug/spfs* /usr/local/bin/
@@ -125,6 +131,10 @@ copy-debug: copy-debug-spfs copy-debug-spk
 copy-release: release
 	cd $(SOURCE_ROOT)
 	sudo cp -f target/release/spk target/release/spfs* /usr/local/bin/
+
+copy-spfs: release-spfs
+	cd $(SOURCE_ROOT)
+	sudo cp -f target/release/spfs* /usr/local/bin/
 
 setcap:
 	sudo setcap 'cap_fowner+ep' /usr/local/bin/spfs-clean
