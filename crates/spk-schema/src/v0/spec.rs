@@ -443,16 +443,6 @@ impl RecipeOps for Spec {
     type PkgRequest = PkgRequest;
     type RangeIdent = RangeIdent;
 
-    fn is_api_compatible(&self, base: &crate::foundation::version::Version) -> Compatibility {
-        self.compat()
-            .is_api_compatible(base, Versioned::version(&self))
-    }
-
-    fn is_binary_compatible(&self, base: &crate::foundation::version::Version) -> Compatibility {
-        self.compat()
-            .is_binary_compatible(base, Versioned::version(&self))
-    }
-
     fn is_satisfied_by_range_ident(
         &self,
         range_ident: &RangeIdent,

@@ -3,15 +3,13 @@
 // https://github.com/imageworks/spk
 
 use super::{Named, Versioned};
-use crate::version::{CompatRule, Compatibility, Version};
+use crate::version::{CompatRule, Compatibility};
 
 pub trait RecipeOps: Named + Versioned {
     type Ident;
     type PkgRequest;
     type RangeIdent;
 
-    fn is_api_compatible(&self, base: &Version) -> Compatibility;
-    fn is_binary_compatible(&self, base: &Version) -> Compatibility;
     fn is_satisfied_by_range_ident(
         &self,
         range_ident: &Self::RangeIdent,
@@ -32,14 +30,6 @@ where
     type Ident = T::Ident;
     type PkgRequest = T::PkgRequest;
     type RangeIdent = T::RangeIdent;
-
-    fn is_api_compatible(&self, base: &Version) -> Compatibility {
-        (**self).is_api_compatible(base)
-    }
-
-    fn is_binary_compatible(&self, base: &Version) -> Compatibility {
-        (**self).is_binary_compatible(base)
-    }
 
     fn is_satisfied_by_range_ident(
         &self,
@@ -65,14 +55,6 @@ where
     type Ident = T::Ident;
     type PkgRequest = T::PkgRequest;
     type RangeIdent = T::RangeIdent;
-
-    fn is_api_compatible(&self, base: &Version) -> Compatibility {
-        (**self).is_api_compatible(base)
-    }
-
-    fn is_binary_compatible(&self, base: &Version) -> Compatibility {
-        (**self).is_binary_compatible(base)
-    }
 
     fn is_satisfied_by_range_ident(
         &self,

@@ -187,18 +187,6 @@ impl RecipeOps for SpecRecipe {
     type PkgRequest = PkgRequest;
     type RangeIdent = RangeIdent;
 
-    fn is_api_compatible(&self, base: &Version) -> Compatibility {
-        match self {
-            SpecRecipe::V0Package(r) => r.is_api_compatible(base),
-        }
-    }
-
-    fn is_binary_compatible(&self, base: &Version) -> Compatibility {
-        match self {
-            SpecRecipe::V0Package(r) => r.is_binary_compatible(base),
-        }
-    }
-
     fn is_satisfied_by_range_ident(
         &self,
         range_ident: &Self::RangeIdent,
@@ -372,18 +360,6 @@ impl RecipeOps for Spec {
     type Ident = Ident;
     type PkgRequest = PkgRequest;
     type RangeIdent = RangeIdent;
-
-    fn is_api_compatible(&self, base: &Version) -> Compatibility {
-        match self {
-            Spec::V0Package(r) => RecipeOps::is_api_compatible(r, base),
-        }
-    }
-
-    fn is_binary_compatible(&self, base: &Version) -> Compatibility {
-        match self {
-            Spec::V0Package(r) => RecipeOps::is_binary_compatible(r, base),
-        }
-    }
 
     fn is_satisfied_by_range_ident(
         &self,
