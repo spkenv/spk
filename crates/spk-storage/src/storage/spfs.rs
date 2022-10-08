@@ -17,12 +17,12 @@ use spfs::tracking;
 use spk_schema::foundation::ident_build::{parse_build, Build, InvalidBuildError};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
-use spk_schema::foundation::spec_ops::{PackageOps, RecipeOps};
+use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::ident_build::parsing::embedded_source_package;
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::ident_ops::TagPath;
-use spk_schema::{FromYaml, Ident, Spec, SpecRecipe};
+use spk_schema::{FromYaml, Ident, Recipe, Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
 use super::repository::{PublishPolicy, Storage};

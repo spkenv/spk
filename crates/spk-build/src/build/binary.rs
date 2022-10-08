@@ -93,7 +93,7 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
 
 impl<'a, Recipe> BinaryPackageBuilder<'a, Recipe>
 where
-    Recipe: spk_schema::Recipe<Ident = Ident>,
+    Recipe: spk_schema::Recipe,
     Recipe::Output: Package<Ident = Ident> + serde::Serialize,
     <Recipe::Output as PackageOps>::Ident: MetadataPath,
     <Recipe::Output as PackageOps>::Component: ComponentOps,

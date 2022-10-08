@@ -7,9 +7,9 @@ use std::collections::HashSet;
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps};
+use spk_schema::foundation::spec_ops::{Named, PackageOps};
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{PkgRequest, Request, VarRequest};
+use spk_schema::ident::{PkgRequest, Request, Satisfy, VarRequest};
 use spk_schema::ident_build::{Build, EmbeddedSource};
 use spk_schema::{Ident, Package, Recipe, Spec};
 use spk_solve_graph::{CachedHash, GetMergedRequestError, State};
@@ -42,9 +42,7 @@ pub trait ValidatorT {
         source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: RecipeOps<PkgRequest = PkgRequest>
-            + PackageOps<Ident = Ident, VarRequest = VarRequest>
-            + Package;
+        P: Satisfy<PkgRequest> + PackageOps<Ident = Ident, VarRequest = VarRequest> + Package;
 
     /// Check if the given recipe is appropriate as a source build for the provided state.
     ///
@@ -275,9 +273,7 @@ impl ValidatorT for PkgRequestValidator {
         source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: RecipeOps<PkgRequest = PkgRequest>
-            + PackageOps<Ident = Ident, VarRequest = VarRequest>
-            + Package,
+        P: Satisfy<PkgRequest> + PackageOps<Ident = Ident, VarRequest = VarRequest> + Package,
     {
         let request = match state.get_merged_request(spec.name()) {
             Ok(request) => request,

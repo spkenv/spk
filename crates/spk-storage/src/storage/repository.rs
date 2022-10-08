@@ -45,7 +45,7 @@ pub enum PublishPolicy {
 /// storage types, but perform the same logical operation for any storage type.
 #[async_trait::async_trait]
 pub trait Storage: Sync {
-    type Recipe: spk_schema::Recipe<Output = Self::Package, Ident = Ident>;
+    type Recipe: spk_schema::Recipe<Output = Self::Package>;
     type Package: Package<Ident = Ident, Package = Self::Package>;
 
     /// Return the set of concrete builds for the given package name and version.

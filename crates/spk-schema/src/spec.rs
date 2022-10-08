@@ -14,9 +14,9 @@ use spk_schema_foundation::spec_ops::PackageMutOps;
 
 use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
-use crate::foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
+use crate::foundation::spec_ops::{Named, PackageOps, Versioned};
 use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{Ident, PkgRequest, RangeIdent, Request, VarRequest};
+use crate::ident::{Ident, PkgRequest, Request, Satisfy, VarRequest};
 use crate::test_spec::TestSpec;
 use crate::{
     BuildEnv,
@@ -182,30 +182,10 @@ pub enum SpecRecipe {
     V0Package(super::v0::Spec),
 }
 
-impl RecipeOps for SpecRecipe {
-    type Ident = Ident;
-    type PkgRequest = PkgRequest;
-    type RangeIdent = RangeIdent;
-
-    fn is_satisfied_by_range_ident(
-        &self,
-        range_ident: &Self::RangeIdent,
-        required: crate::foundation::version::CompatRule,
-    ) -> Compatibility {
+impl Satisfy<PkgRequest> for SpecRecipe {
+    fn check_satisfies_request(&self, request: &PkgRequest) -> Compatibility {
         match self {
-            SpecRecipe::V0Package(r) => r.is_satisfied_by_range_ident(range_ident, required),
-        }
-    }
-
-    fn is_satisfied_by_pkg_request(&self, pkg_request: &Self::PkgRequest) -> Compatibility {
-        match self {
-            SpecRecipe::V0Package(r) => r.is_satisfied_by_pkg_request(pkg_request),
-        }
-    }
-
-    fn to_ident(&self) -> Self::Ident {
-        match self {
-            SpecRecipe::V0Package(r) => r.to_ident(),
+            SpecRecipe::V0Package(r) => r.check_satisfies_request(request),
         }
     }
 }
@@ -356,30 +336,10 @@ pub enum Spec {
     V0Package(super::v0::Spec),
 }
 
-impl RecipeOps for Spec {
-    type Ident = Ident;
-    type PkgRequest = PkgRequest;
-    type RangeIdent = RangeIdent;
-
-    fn is_satisfied_by_range_ident(
-        &self,
-        range_ident: &Self::RangeIdent,
-        required: crate::foundation::version::CompatRule,
-    ) -> Compatibility {
+impl Satisfy<PkgRequest> for Spec {
+    fn check_satisfies_request(&self, request: &PkgRequest) -> Compatibility {
         match self {
-            Spec::V0Package(r) => RecipeOps::is_satisfied_by_range_ident(r, range_ident, required),
-        }
-    }
-
-    fn is_satisfied_by_pkg_request(&self, pkg_request: &Self::PkgRequest) -> Compatibility {
-        match self {
-            Spec::V0Package(r) => RecipeOps::is_satisfied_by_pkg_request(r, pkg_request),
-        }
-    }
-
-    fn to_ident(&self) -> Self::Ident {
-        match self {
-            Spec::V0Package(r) => RecipeOps::to_ident(r),
+            Spec::V0Package(r) => r.check_satisfies_request(request),
         }
     }
 }

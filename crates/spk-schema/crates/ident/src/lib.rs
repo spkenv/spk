@@ -8,6 +8,7 @@ mod ident;
 pub mod parsing;
 mod range_ident;
 mod request;
+mod satisfy;
 
 pub use error::{Error, Result};
 pub use ident::{parse_ident, BuildIdent, Ident};
@@ -22,3 +23,8 @@ pub use request::{
     RequestedBy,
     VarRequest,
 };
+pub use satisfy::Satisfy;
+
+pub mod prelude {
+    pub use super::Satisfy;
+}

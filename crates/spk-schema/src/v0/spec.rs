@@ -15,7 +15,7 @@ use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
 use crate::foundation::name::PkgName;
 use crate::foundation::option_map::OptionMap;
-use crate::foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
+use crate::foundation::spec_ops::{Named, PackageOps, Versioned};
 use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
 use crate::foundation::version_range::Ranged;
 use crate::ident::{
@@ -26,6 +26,7 @@ use crate::ident::{
     RangeIdent,
     Request,
     RequestedBy,
+    Satisfy,
     VarRequest,
 };
 use crate::meta::Meta;
@@ -438,15 +439,11 @@ impl Recipe for Spec {
     }
 }
 
-impl RecipeOps for Spec {
-    type Ident = Ident;
-    type PkgRequest = PkgRequest;
-    type RangeIdent = RangeIdent;
-
-    fn is_satisfied_by_range_ident(
+impl Spec {
+    fn check_satisfies_version_range(
         &self,
         range_ident: &RangeIdent,
-        required: crate::foundation::version::CompatRule,
+        required: CompatRule,
     ) -> Compatibility {
         if self.name() != range_ident.name {
             return Compatibility::Incompatible("different package names".into());
@@ -494,8 +491,10 @@ impl RecipeOps for Spec {
 
         Compatibility::Compatible
     }
+}
 
-    fn is_satisfied_by_pkg_request(&self, pkg_request: &PkgRequest) -> Compatibility {
+impl Satisfy<PkgRequest> for Spec {
+    fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
         if self.is_deprecated() {
             // deprecated builds are only okay if their build
             // was specifically requested
@@ -512,18 +511,10 @@ impl RecipeOps for Spec {
             return Compatibility::Incompatible("prereleases not allowed".to_string());
         }
 
-        pkg_request.pkg.is_satisfied_by(
-            self,
+        self.check_satisfies_version_range(
+            &pkg_request.pkg,
             pkg_request.required_compat.unwrap_or(CompatRule::Binary),
         )
-    }
-
-    fn to_ident(&self) -> Self::Ident {
-        Self::Ident {
-            name: self.name().to_owned(),
-            version: self.version().clone(),
-            build: None,
-        }
     }
 }
 

@@ -12,7 +12,6 @@ use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::foundation::spec_ops::RecipeOps;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::{Ident, Recipe, SpecRecipe};
 use spk_solve::graph::Graph;

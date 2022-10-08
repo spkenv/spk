@@ -5,7 +5,7 @@
 use std::path::Path;
 
 use crate::foundation::option_map::OptionMap;
-use crate::foundation::spec_ops::{Named, RecipeOps, Versioned};
+use crate::foundation::spec_ops::{Named, Versioned};
 use crate::ident::{Ident, Request};
 use crate::test_spec::TestSpec;
 use crate::{Package, Result};
@@ -20,9 +20,20 @@ pub trait BuildEnv {
 /// Can be used to build a package.
 #[enum_dispatch::enum_dispatch]
 pub trait Recipe:
-    RecipeOps + Named + Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
+    Named + Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
 {
     type Output: super::Package;
+
+    /// Build an identifier to represent this recipe.
+    ///
+    /// The returned identifier will never have an associated build.
+    fn to_ident(&self) -> Ident {
+        Ident {
+            name: self.name().to_owned(),
+            version: self.version().clone(),
+            build: None,
+        }
+    }
 
     /// Return the default variants to be built for this recipe
     fn default_variants(&self) -> &[OptionMap];

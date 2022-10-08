@@ -13,7 +13,7 @@ use spk_schema_foundation::format::{FormatBuild, FormatComponents, FormatRequest
 use spk_schema_foundation::ident_component::ComponentSet;
 use spk_schema_foundation::name::{OptName, OptNameBuf, PkgName};
 use spk_schema_foundation::option_map::Stringified;
-use spk_schema_foundation::spec_ops::{PackageOps, RecipeOps};
+use spk_schema_foundation::spec_ops::PackageOps;
 use spk_schema_foundation::version::{CompatRule, Compatibility, Version, API_STR, BINARY_STR};
 use spk_schema_foundation::version_range::{
     DoubleEqualsVersion,
@@ -24,7 +24,7 @@ use spk_schema_foundation::version_range::{
 };
 
 use super::Ident;
-use crate::{Error, RangeIdent, Result};
+use crate::{Error, RangeIdent, Result, Satisfy};
 
 #[cfg(test)]
 #[path = "./request_test.rs"]
@@ -605,12 +605,12 @@ impl PkgRequest {
         }
     }
 
-    /// Return true if the given package spec satisfies this request.
-    pub fn is_satisfied_by<Spec>(&self, spec: &Spec) -> Compatibility
+    /// Return true if the given item satisfies this request.
+    pub fn is_satisfied_by<T>(&self, satisfy: &T) -> Compatibility
     where
-        Spec: RecipeOps<PkgRequest = Self>,
+        T: Satisfy<Self>,
     {
-        spec.is_satisfied_by_pkg_request(self)
+        satisfy.check_satisfies_request(self)
     }
 
     /// Reduce the scope of this request to the intersection with another.

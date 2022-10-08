@@ -12,7 +12,6 @@ use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::{Component, Components};
 use spk_schema_foundation::ident_ops::parsing::KNOWN_REPOSITORY_NAMES;
 use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
-use spk_schema_foundation::spec_ops::RecipeOps;
 use spk_schema_foundation::version::{CompatRule, Compatibility};
 use spk_schema_foundation::version_range::{
     DoubleEqualsVersion,
@@ -24,7 +23,7 @@ use spk_schema_foundation::version_range::{
 };
 
 use super::Ident;
-use crate::{BuildIdent, Error, Result};
+use crate::{BuildIdent, Error, Result, Satisfy};
 
 #[cfg(test)]
 #[path = "./range_ident_test.rs"]
@@ -212,11 +211,11 @@ impl RangeIdent {
     }
 
     /// Return true if the given package spec satisfies this request.
-    pub fn is_satisfied_by<Spec>(&self, spec: &Spec, required: CompatRule) -> Compatibility
+    pub fn is_satisfied_by<'a, T>(&'a self, spec: &T, required: CompatRule) -> Compatibility
     where
-        Spec: RecipeOps<RangeIdent = Self>,
+        T: Satisfy<(&'a RangeIdent, CompatRule)>,
     {
-        spec.is_satisfied_by_range_ident(self, required)
+        spec.check_satisfies_request(&(self, required))
     }
 
     pub fn with_components<I>(self, components: I) -> Self
