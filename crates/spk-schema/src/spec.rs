@@ -225,7 +225,7 @@ impl RecipeOps for SpecRecipe {
 impl Recipe for SpecRecipe {
     type Output = Spec;
 
-    fn default_variants(&self) -> &Vec<OptionMap> {
+    fn default_variants(&self) -> &[OptionMap] {
         match self {
             SpecRecipe::V0Package(r) => r.default_variants(),
         }
@@ -405,7 +405,7 @@ impl RecipeOps for Spec {
 impl Recipe for Spec {
     type Output = Spec;
 
-    fn default_variants(&self) -> &Vec<OptionMap> {
+    fn default_variants(&self) -> &[OptionMap] {
         match self {
             Spec::V0Package(r) => r.default_variants(),
         }

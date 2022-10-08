@@ -25,7 +25,7 @@ pub trait Recipe:
     type Output: super::Package;
 
     /// Return the default variants to be built for this recipe
-    fn default_variants(&self) -> &Vec<OptionMap>;
+    fn default_variants(&self) -> &[OptionMap];
 
     /// Produce the full set of build options given the inputs.
     ///
@@ -60,7 +60,7 @@ where
 {
     type Output = T::Output;
 
-    fn default_variants(&self) -> &Vec<OptionMap> {
+    fn default_variants(&self) -> &[OptionMap] {
         (**self).default_variants()
     }
 
@@ -99,7 +99,7 @@ where
 {
     type Output = T::Output;
 
-    fn default_variants(&self) -> &Vec<OptionMap> {
+    fn default_variants(&self) -> &[OptionMap] {
         (**self).default_variants()
     }
 

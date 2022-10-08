@@ -288,8 +288,8 @@ impl Package for Spec {
 impl Recipe for Spec {
     type Output = Self;
 
-    fn default_variants(&self) -> &Vec<OptionMap> {
-        &self.build.variants
+    fn default_variants(&self) -> &[OptionMap] {
+        self.build.variants.as_slice()
     }
 
     fn resolve_options(&self, given: &OptionMap) -> Result<OptionMap> {
