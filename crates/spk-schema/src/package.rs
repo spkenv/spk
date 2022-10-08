@@ -5,7 +5,7 @@
 use crate::foundation::ident_component::Component;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::PackageOps;
-use crate::foundation::version::{Compat, Compatibility};
+use crate::foundation::version::Compatibility;
 
 #[cfg(test)]
 #[path = "./package_test.rs"]
@@ -17,9 +17,6 @@ pub trait Package:
     PackageOps + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
 {
     type Package;
-
-    /// The compatibility guaranteed by this package's version
-    fn compat(&self) -> &Compat;
 
     /// The values for this packages options used for this build.
     fn option_values(&self) -> OptionMap;
@@ -91,10 +88,6 @@ pub trait Package:
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
     type Package = T::Package;
 
-    fn compat(&self) -> &Compat {
-        (**self).compat()
-    }
-
     fn option_values(&self) -> OptionMap {
         (**self).option_values()
     }
@@ -144,11 +137,6 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 
 impl<T: Package + Send + Sync> Package for &T {
     type Package = T::Package;
-
-    // TODO: use or find a macro for this
-    fn compat(&self) -> &Compat {
-        (**self).compat()
-    }
 
     fn option_values(&self) -> OptionMap {
         (**self).option_values()

@@ -310,6 +310,12 @@ impl Versioned for SpecRecipe {
             SpecRecipe::V0Package(r) => r.version(),
         }
     }
+
+    fn compat(&self) -> &Compat {
+        match self {
+            SpecRecipe::V0Package(spec) => spec.compat(),
+        }
+    }
 }
 
 impl FromYaml for SpecRecipe {
@@ -500,17 +506,17 @@ impl Versioned for Spec {
             Spec::V0Package(r) => r.version(),
         }
     }
-}
-
-// enum_dispatch does not support associated types.
-impl Package for Spec {
-    type Package = Self;
 
     fn compat(&self) -> &Compat {
         match self {
             Spec::V0Package(spec) => spec.compat(),
         }
     }
+}
+
+// enum_dispatch does not support associated types.
+impl Package for Spec {
+    type Package = Self;
 
     fn option_values(&self) -> OptionMap {
         match self {

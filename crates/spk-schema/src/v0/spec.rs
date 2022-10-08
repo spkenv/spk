@@ -199,6 +199,10 @@ impl Versioned for Spec {
     fn version(&self) -> &Version {
         &self.pkg.version
     }
+
+    fn compat(&self) -> &Compat {
+        &self.compat
+    }
 }
 
 impl Deprecate for Spec {
@@ -221,10 +225,6 @@ impl DeprecateMut for Spec {
 
 impl Package for Spec {
     type Package = Self;
-
-    fn compat(&self) -> &Compat {
-        &self.compat
-    }
 
     fn option_values(&self) -> OptionMap {
         let mut opts = OptionMap::default();
