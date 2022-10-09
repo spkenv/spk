@@ -33,7 +33,7 @@ use spk_schema_foundation::version_range::{
     WildcardRange,
 };
 
-use crate::{parse_ident, Ident, RangeIdent};
+use crate::{parse_ident, AnyIdent, RangeIdent, VersionIdent};
 
 macro_rules! arb_version_range_struct {
     ($arb_name:ident, $type_name:ident, $($var:ident in $strategy:expr),+ $(,)?) => {
@@ -377,8 +377,8 @@ prop_compose! {
         name in arb_pkg_legal_name(),
         version in arb_legal_version(),
         build in weighted(0.9, arb_non_embedded_build()),
-    ) -> Ident {
-        Ident { name, version, build }
+    ) -> AnyIdent {
+        VersionIdent::new(name, version).into_any(build)
     }
 }
 
@@ -458,9 +458,9 @@ proptest! {
         if name_is_legal && version_is_legal {
             assert!(parsed.is_ok(), "parse '{}' failure:\n{}", ident, parsed.unwrap_err());
             let parsed = parsed.unwrap();
-            assert_eq!(parsed.name.as_str(), name);
-            assert_eq!(parsed.version, version.unwrap_or_default());
-            assert_eq!(parsed.build, build);
+            assert_eq!(parsed.name().as_str(), name);
+            assert_eq!(parsed.version(), &version.unwrap_or_default());
+            assert_eq!(parsed.build(), build.as_ref());
         }
         else {
             assert!(parsed.is_err(), "expected '{}' to fail to parse", ident);

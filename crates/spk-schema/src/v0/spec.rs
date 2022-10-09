@@ -19,7 +19,7 @@ use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
 use crate::foundation::version_range::Ranged;
 use crate::ident::{
     is_false,
-    Ident,
+    AnyIdent,
     PkgRequest,
     PreReleasePolicy,
     RangeIdent,
@@ -59,7 +59,7 @@ mod spec_test;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize)]
 pub struct Spec {
-    pub pkg: Ident,
+    pub pkg: AnyIdent,
     #[serde(default, skip_serializing_if = "Meta::is_default")]
     pub meta: Meta,
     #[serde(default, skip_serializing_if = "Compat::is_default")]
@@ -78,7 +78,7 @@ pub struct Spec {
 
 impl Spec {
     /// Create an empty spec for the identified package
-    pub fn new(ident: Ident) -> Self {
+    pub fn new(ident: AnyIdent) -> Self {
         Self {
             pkg: ident,
             meta: Meta::default(),
@@ -101,7 +101,7 @@ impl Spec {
 
     /// Check if this package spec satisfies the given var request.
     pub fn satisfies_var_request(&self, request: &VarRequest) -> Compatibility {
-        let opt_required = request.var.namespace() == Some(&self.pkg.name);
+        let opt_required = request.var.namespace() == Some(self.pkg.name());
         let mut opt: Option<&Opt> = None;
         for o in self.build.options.iter() {
             let is_same_base_name = request.var.base_name() == o.base_name();
@@ -110,7 +110,7 @@ impl Spec {
             }
 
             let is_global = request.var.namespace().is_none();
-            let is_this_namespace = request.var.namespace() == Some(&*self.pkg.name);
+            let is_this_namespace = request.var.namespace() == Some(self.pkg.name());
             if is_this_namespace || is_global {
                 opt = Some(o);
                 break;
@@ -146,10 +146,11 @@ impl Spec {
 
     /// Check if this package spec satisfies the given pkg request.
     pub fn satisfies_pkg_request(&self, request: &PkgRequest) -> Compatibility {
-        if request.pkg.name != self.pkg.name {
+        if request.pkg.name != *self.pkg.name() {
             return Compatibility::Incompatible(format!(
                 "different package name: {} != {}",
-                request.pkg.name, self.pkg.name
+                request.pkg.name,
+                self.pkg.name()
             ));
         }
 
@@ -162,13 +163,14 @@ impl Spec {
             return Compatibility::Compatible;
         }
 
-        if request.pkg.build == self.pkg.build {
+        if request.pkg.build.as_ref() == self.pkg.build() {
             return Compatibility::Compatible;
         }
 
         Compatibility::Incompatible(format!(
             "Package and request differ in builds: requested {:?}, got {:?}",
-            request.pkg.build, self.pkg.build
+            request.pkg.build,
+            self.pkg.build()
         ))
     }
 
@@ -192,13 +194,13 @@ impl Spec {
 
 impl Named for Spec {
     fn name(&self) -> &PkgName {
-        &self.pkg.name
+        self.pkg.name()
     }
 }
 
 impl Versioned for Spec {
     fn version(&self) -> &Version {
-        &self.pkg.version
+        self.pkg.version()
     }
 
     fn compat(&self) -> &Compat {
@@ -227,7 +229,7 @@ impl DeprecateMut for Spec {
 impl Package for Spec {
     type Package = Self;
 
-    fn ident(&self) -> &Ident {
+    fn ident(&self) -> &AnyIdent {
         &self.pkg
     }
 
@@ -292,7 +294,7 @@ impl Package for Spec {
 
 impl PackageMut for Spec {
     fn set_build(&mut self, build: Build) {
-        self.pkg.build = Some(build)
+        self.pkg.set_target(Some(build));
     }
 }
 
@@ -360,7 +362,7 @@ impl Recipe for Spec {
 
     fn generate_source_build(&self, root: &Path) -> Result<Self> {
         let mut source = self.clone();
-        source.pkg.set_build(Some(Build::Source));
+        source.set_build(Build::Source);
         source.prune_for_source_build();
         for source in source.sources.iter_mut() {
             if let SourceSpec::Local(source) = source {
@@ -444,7 +446,7 @@ impl Recipe for Spec {
             .install
             .render_all_pins(options, specs.iter().map(|(_, p)| p.ident()))?;
         let digest = updated.resolve_options(options)?.digest();
-        updated.pkg.set_build(Some(Build::Digest(digest)));
+        updated.set_build(Build::Digest(digest));
         Ok(updated)
     }
 }
@@ -495,11 +497,11 @@ impl Spec {
             return c;
         }
 
-        if range_ident.build.is_some() && range_ident.build != self.ident().build {
+        if range_ident.build.is_some() && range_ident.build.as_ref() != self.ident().build() {
             return Compatibility::Incompatible(format!(
                 "requested build {:?} != {:?}",
                 range_ident.build,
-                self.ident().build
+                self.ident().build()
             ));
         }
 
@@ -512,7 +514,9 @@ impl Satisfy<PkgRequest> for Spec {
         if self.is_deprecated() {
             // deprecated builds are only okay if their build
             // was specifically requested
-            if pkg_request.pkg.build.is_none() || pkg_request.pkg.build != self.ident().build {
+            if pkg_request.pkg.build.is_none()
+                || pkg_request.pkg.build.as_ref() != self.ident().build()
+            {
                 return Compatibility::Incompatible(
                     "Build is deprecated and was not specifically requested".to_string(),
                 );
@@ -583,7 +587,7 @@ impl<'de> Deserialize<'de> for Spec {
     {
         #[derive(Default)]
         struct SpecVisitor {
-            pkg: Option<Ident>,
+            pkg: Option<AnyIdent>,
             meta: Option<Meta>,
             compat: Option<Compat>,
             deprecated: Option<bool>,
@@ -606,7 +610,7 @@ impl<'de> Deserialize<'de> for Spec {
             {
                 while let Some(key) = map.next_key::<Stringified>()? {
                     match key.as_str() {
-                        "pkg" => self.pkg = Some(map.next_value::<Ident>()?),
+                        "pkg" => self.pkg = Some(map.next_value::<AnyIdent>()?),
                         "meta" => self.meta = Some(map.next_value::<Meta>()?),
                         "compat" => self.compat = Some(map.next_value::<Compat>()?),
                         "deprecated" => self.deprecated = Some(map.next_value::<bool>()?),
@@ -635,7 +639,7 @@ impl<'de> Deserialize<'de> for Spec {
                         .take()
                         .unwrap_or_else(|| vec![SourceSpec::Local(LocalSource::default())]),
                     build: match self.build.take() {
-                        Some(build_spec) if pkg.build.is_some() => {
+                        Some(build_spec) if pkg.build().is_some() => {
                             // Safety: into_inner bypasses additional checks, but if the build is set,
                             // we assume that this is a rendered spec and we do not want to make an
                             // existing rendered build spec unloadable

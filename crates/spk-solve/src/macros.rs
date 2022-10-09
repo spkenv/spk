@@ -49,7 +49,7 @@ macro_rules! make_package {
             $crate::serde_json::from_value(json).expect("Invalid spec json");
         let build = spec.clone();
         if !spec.pkg.is_source() {
-            spec.pkg.set_build(None);
+            spec.pkg.set_target(None);
             $repo.force_publish_recipe(&spec.into()).await.unwrap();
         }
         let build = $crate::Spec::V0Package(build);

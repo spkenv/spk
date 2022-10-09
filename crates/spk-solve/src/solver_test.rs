@@ -69,7 +69,7 @@ macro_rules! assert_resolved {
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
-        assert_eq!(pkg.spec.ident().build, $build, $message);
+        assert_eq!(pkg.spec.ident().build(), $build.as_ref(), $message);
     }};
 
     ($solution:ident, $pkg:literal, components = [$($component:literal),+ $(,)?]) => {{
@@ -131,7 +131,7 @@ async fn test_solver_package_with_no_recipe(mut solver: Solver) {
 
     let options = option_map! {};
     let mut spec = v0::Spec::new(ident!("my-pkg/1.0.0"));
-    spec.pkg.set_build(Some(Build::Digest(options.digest())));
+    spec.pkg.set_target(Some(Build::Digest(options.digest())));
 
     // publish package without publishing spec
     let components = vec![
@@ -204,8 +204,8 @@ async fn test_solver_single_package_no_deps(mut solver: Solver) {
     assert_eq!(packages.len(), 1, "expected one resolved package");
     let resolved = packages.get("my-pkg").unwrap();
     assert_eq!(&resolved.spec.version().to_string(), "1.0.0");
-    assert!(resolved.spec.ident().build.is_some());
-    assert_ne!(resolved.spec.ident().build, Some(Build::Source));
+    assert!(resolved.spec.ident().build().is_some());
+    assert_ne!(resolved.spec.ident().build(), Some(&Build::Source));
 }
 
 #[rstest]

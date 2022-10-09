@@ -22,8 +22,7 @@ use spk_schema_foundation::version_range::{
     VersionRange,
 };
 
-use super::Ident;
-use crate::{BuildIdent, Error, Result, Satisfy};
+use crate::{AnyIdent, Error, LocatedBuildIdent, Result, Satisfy};
 
 #[cfg(test)]
 #[path = "./range_ident_test.rs"]
@@ -69,29 +68,29 @@ impl PartialOrd for RangeIdent {
 }
 
 impl RangeIdent {
-    fn new<I>(ident: &Ident, version_range: VersionRange, components: I) -> Self
+    fn new<I>(ident: &AnyIdent, version_range: VersionRange, components: I) -> Self
     where
         I: IntoIterator<Item = Component>,
     {
         Self {
             repository_name: None,
-            name: ident.name.clone(),
+            name: ident.name().to_owned(),
             version: VersionFilter::single(version_range),
             components: components.into_iter().collect(),
-            build: ident.build.clone(),
+            build: ident.build().map(Clone::clone),
         }
     }
 
     /// Create a range ident that requests the identified package using `==` semantics.
     ///
     /// The returned range will request the identified components of the given package.
-    pub fn double_equals<I>(ident: &Ident, components: I) -> Self
+    pub fn double_equals<I>(ident: &AnyIdent, components: I) -> Self
     where
         I: IntoIterator<Item = Component>,
     {
         Self::new(
             ident,
-            DoubleEqualsVersion::from(ident.version.clone()).into(),
+            DoubleEqualsVersion::from(ident.version().clone()).into(),
             components,
         )
     }
@@ -99,13 +98,13 @@ impl RangeIdent {
     /// Create a range ident that requests the identified package using `=` semantics.
     ///
     /// The returned range will request the identified components of the given package.
-    pub fn equals<I>(ident: &Ident, components: I) -> Self
+    pub fn equals<I>(ident: &AnyIdent, components: I) -> Self
     where
         I: IntoIterator<Item = Component>,
     {
         Self::new(
             ident,
-            EqualsVersion::from(ident.version.clone()).into(),
+            EqualsVersion::from(ident.version().clone()).into(),
             components,
         )
     }
@@ -127,16 +126,16 @@ impl RangeIdent {
     ///
     /// Versions that are applicable are not necessarily satisfactory, but
     /// this cannot be fully determined without a complete package spec.
-    pub fn is_applicable(&self, pkg: &Ident) -> bool {
-        if pkg.name != self.name {
+    pub fn is_applicable(&self, pkg: &AnyIdent) -> bool {
+        if pkg.name() != self.name {
             return false;
         }
 
-        if !self.version.is_applicable(&pkg.version).is_ok() {
+        if !self.version.is_applicable(pkg.version()).is_ok() {
             return false;
         }
 
-        if self.build.is_some() && self.build != pkg.build {
+        if self.build.is_some() && self.build.as_ref() != pkg.build() {
             return false;
         }
 
@@ -252,26 +251,31 @@ impl std::fmt::Display for RangeIdent {
     }
 }
 
-impl From<BuildIdent> for RangeIdent {
-    fn from(ident: BuildIdent) -> Self {
+impl From<LocatedBuildIdent> for RangeIdent {
+    fn from(ident: LocatedBuildIdent) -> Self {
+        let (repository_name, build_ident) = ident.into_inner();
+        let (version_ident, build) = build_ident.into_inner();
+        let (name, version) = version_ident.into_inner();
         Self {
-            repository_name: Some(ident.repository_name),
-            name: ident.name,
-            version: ident.version.into(),
+            repository_name: Some(repository_name),
+            name,
+            version: version.into(),
             components: BTreeSet::default(),
-            build: Some(ident.build),
+            build: Some(build),
         }
     }
 }
 
-impl From<Ident> for RangeIdent {
-    fn from(ident: Ident) -> Self {
+impl From<AnyIdent> for RangeIdent {
+    fn from(ident: AnyIdent) -> Self {
+        let (version_ident, build) = ident.into_inner();
+        let (name, version) = version_ident.into_inner();
         Self {
             repository_name: None,
-            name: ident.name,
-            version: ident.version.into(),
+            name,
+            version: version.into(),
             components: BTreeSet::default(),
-            build: ident.build,
+            build,
         }
     }
 }

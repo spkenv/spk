@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use spk_schema::foundation::format::{FormatComponents, FormatIdent};
 use spk_schema::foundation::ident_component::ComponentSet;
-use spk_schema::{Ident, Package, Recipe};
+use spk_schema::{AnyIdent, Package, Recipe};
 use spk_storage::{self as storage};
 use storage::{with_cache_policy, CachePolicy};
 
@@ -71,7 +71,7 @@ impl Publisher {
     }
 
     /// Publish the identified package as configured.
-    pub async fn publish(&self, pkg: &Ident) -> Result<Vec<Ident>> {
+    pub async fn publish(&self, pkg: &AnyIdent) -> Result<Vec<AnyIdent>> {
         let recipe_ident = pkg.with_build(None);
         tracing::info!("loading recipe: {}", recipe_ident.format_ident());
         match with_cache_policy!(self.from, CachePolicy::BypassCache, {
@@ -118,7 +118,7 @@ impl Publisher {
             }
         }
 
-        let builds = if pkg.build.is_none() {
+        let builds = if pkg.build().is_none() {
             with_cache_policy!(self.from, CachePolicy::BypassCache, {
                 self.from.list_package_builds(pkg)
             })

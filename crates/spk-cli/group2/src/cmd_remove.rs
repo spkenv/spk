@@ -9,7 +9,7 @@ use colored::Colorize;
 use itertools::Itertools;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::ident::{parse_ident, Ident};
+use spk_schema::ident::{parse_ident, AnyIdent};
 use spk_storage::{self as storage};
 
 /// Remove a package from a repository
@@ -66,7 +66,7 @@ impl Run for Remove {
                 let versions = if name.contains('/') {
                     vec![pkg]
                 } else {
-                    repo.list_package_versions(&pkg.name)
+                    repo.list_package_versions(pkg.name())
                         .await?
                         .iter()
                         .map(|v| pkg.with_version((**v).clone()))
@@ -74,7 +74,7 @@ impl Run for Remove {
                 };
 
                 for version in versions {
-                    if version.build.is_some() {
+                    if version.build().is_some() {
                         remove_build(repo_name, repo, &version).await?;
                     } else {
                         remove_all(repo_name, repo, &version).await?;
@@ -96,7 +96,7 @@ impl CommandArgs for Remove {
 async fn remove_build(
     repo_name: &str,
     repo: &storage::RepositoryHandle,
-    pkg: &Ident,
+    pkg: &AnyIdent,
 ) -> Result<()> {
     let repo_name = repo_name.bold();
     let pretty_pkg = pkg.format_ident();
@@ -126,7 +126,11 @@ async fn remove_build(
     Ok(())
 }
 
-async fn remove_all(repo_name: &str, repo: &storage::RepositoryHandle, pkg: &Ident) -> Result<()> {
+async fn remove_all(
+    repo_name: &str,
+    repo: &storage::RepositoryHandle,
+    pkg: &AnyIdent,
+) -> Result<()> {
     let pretty_pkg = pkg.format_ident();
     for build in repo.list_package_builds(pkg).await? {
         remove_build(repo_name, repo, &build).await?

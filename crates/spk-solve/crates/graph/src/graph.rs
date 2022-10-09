@@ -22,9 +22,9 @@ use spk_schema::foundation::spec_ops::{Named, Versioned};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::{
+    AnyIdent,
     ComponentSpecList,
     EmbeddedPackagesList,
-    Ident,
     Package,
     Recipe,
     RequirementsList,
@@ -1345,19 +1345,19 @@ impl std::fmt::Display for SkipPackageNoteReason {
 
 #[derive(Clone, Debug)]
 pub struct SkipPackageNote {
-    pub pkg: Ident,
+    pub pkg: AnyIdent,
     pub reason: SkipPackageNoteReason,
 }
 
 impl SkipPackageNote {
-    pub fn new(pkg: Ident, reason: Compatibility) -> Self {
+    pub fn new(pkg: AnyIdent, reason: Compatibility) -> Self {
         SkipPackageNote {
             pkg,
             reason: SkipPackageNoteReason::Compatibility(reason),
         }
     }
 
-    pub fn new_from_message<S: ToString>(pkg: Ident, reason: S) -> Self {
+    pub fn new_from_message<S: ToString>(pkg: AnyIdent, reason: S) -> Self {
         SkipPackageNote {
             pkg,
             reason: SkipPackageNoteReason::String(reason.to_string()),

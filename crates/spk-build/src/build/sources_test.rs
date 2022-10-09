@@ -141,6 +141,6 @@ async fn test_sources_environment(_tmpdir: tempfile::TempDir) {
     let actual = std::fs::read_to_string(out_file).unwrap();
     assert_eq!(
         actual, expected,
-        "should have access to package variables in sources script"
+        "should have access to package variables in sources script, want: {expected}, got: {actual}"
     );
 }

@@ -4,12 +4,12 @@
 use std::convert::TryFrom;
 use std::path::Path;
 
-use spk_schema::Ident;
+use spk_schema::AnyIdent;
 
 use super::{Repository, SPFSRepository};
 use crate::{Error, Result};
 
-pub async fn export_package<P: AsRef<Path>>(pkg: &Ident, filename: P) -> Result<()> {
+pub async fn export_package<P: AsRef<Path>>(pkg: &AnyIdent, filename: P) -> Result<()> {
     // Make filename absolute as spfs::runtime::makedirs_with_perms does not handle
     // relative paths properly.
     let filename = std::env::current_dir()
@@ -48,7 +48,7 @@ pub async fn export_package<P: AsRef<Path>>(pkg: &Ident, filename: P) -> Result<
     // before any build - it's only an error in testing, but still best practice
     let mut to_transfer = std::collections::BTreeSet::new();
     to_transfer.insert(pkg.clone());
-    if pkg.build.is_none() {
+    if pkg.build().is_none() {
         to_transfer.extend(local_repo.list_package_builds(pkg).await?);
         if remote_repo.is_err() {
             return remote_repo.map(|_| ());
@@ -100,11 +100,11 @@ pub async fn export_package<P: AsRef<Path>>(pkg: &Ident, filename: P) -> Result<
 }
 
 async fn copy_package(
-    pkg: &Ident,
+    pkg: &AnyIdent,
     src_repo: &SPFSRepository,
     dst_repo: &SPFSRepository,
 ) -> Result<()> {
-    if pkg.build.is_none() {
+    if pkg.build().is_none() {
         let spec = src_repo.read_recipe(pkg).await?;
         tracing::info!(%pkg, "exporting");
         dst_repo.publish_recipe(&spec).await?;

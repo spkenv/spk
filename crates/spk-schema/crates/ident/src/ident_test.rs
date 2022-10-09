@@ -11,7 +11,6 @@ use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::version::{parse_version, Version};
 use spk_schema_foundation::version_range::{CompatRange, VersionFilter, VersionRange};
 
-use super::{parse_ident, Ident};
 use crate::RangeIdent;
 
 trait IntoCompatRange {
@@ -24,23 +23,6 @@ impl IntoCompatRange for Version {
         // converts to a `Compat` instead.
         VersionFilter::single(VersionRange::Compat(CompatRange::new(self, None)))
     }
-}
-
-#[rstest]
-#[case("package")]
-#[case("package/1.1.0")]
-#[case("package/2.0.0.1")]
-fn test_ident_to_str(#[case] input: &str) {
-    let ident = parse_ident(input).unwrap();
-    let out = ident.to_string();
-    assert_eq!(out, input);
-}
-
-#[rstest]
-fn test_ident_to_yaml() {
-    let ident = Ident::from_str("package").unwrap();
-    let out = serde_yaml::to_string(&ident).unwrap();
-    assert_eq!(&out, "---\npackage\n");
 }
 
 #[rstest]

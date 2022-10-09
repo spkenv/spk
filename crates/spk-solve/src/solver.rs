@@ -16,7 +16,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
-use spk_schema::{Deprecate, Ident, Package, Recipe, Spec, SpecRecipe};
+use spk_schema::{AnyIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
     Change,
     Decision,
@@ -331,9 +331,9 @@ impl Solver {
             let mut non_embeds = HashSet::new();
             let mut embeds = HashMap::new();
             for (spec, _) in node.state.get_resolved_packages().values() {
-                match &spec.ident().build {
+                match &spec.ident().build() {
                     Some(Build::Embedded(EmbeddedSource::Package(package))) => {
-                        let ident: Ident = (&package.ident).try_into()?;
+                        let ident: AnyIdent = (&package.ident).try_into()?;
                         embeds.insert(ident, spec.ident().clone());
                     }
                     _ => {
@@ -341,7 +341,7 @@ impl Solver {
                     }
                 }
             }
-            let embeds_set: HashSet<Ident> = embeds.keys().cloned().collect();
+            let embeds_set: HashSet<AnyIdent> = embeds.keys().cloned().collect();
             let mut difference = embeds_set.difference(&non_embeds);
             if let Some(missing_embed_provider) = difference.next() {
                 // This is an invalid solve!
@@ -384,7 +384,7 @@ impl Solver {
                 Err(e) => return Err(e.into()),
             };
 
-            let mut compat = request.is_version_applicable(&pkg.version);
+            let mut compat = request.is_version_applicable(pkg.version());
             if !&compat {
                 // Count this version and its builds as incompatible
                 self.number_incompat_versions += 1;
@@ -392,7 +392,7 @@ impl Solver {
 
                 // Skip this version and move on the to next one
                 iterator_lock.set_builds(
-                    &pkg.version,
+                    pkg.version(),
                     Arc::new(tokio::sync::Mutex::new(EmptyBuildIterator::new())),
                 );
                 notes.push(Note::SkipPackageNote(SkipPackageNote::new(
@@ -407,7 +407,7 @@ impl Solver {
                     SortedBuildIterator::new(node.state.get_option_map().clone(), builds.clone())
                         .await?,
                 ));
-                iterator_lock.set_builds(&pkg.version, builds.clone());
+                iterator_lock.set_builds(pkg.version(), builds.clone());
                 builds
             } else {
                 builds
@@ -887,7 +887,7 @@ impl SolverRuntime {
                         for req in &requested_by {
                             if let RequestedBy::PackageBuild(problem_package) = req {
                                 self.solver
-                                    .increment_problem_package_count(problem_package.name.to_string())
+                                    .increment_problem_package_count(problem_package.name().to_string())
                             }
                         }
 
@@ -929,7 +929,7 @@ impl SolverRuntime {
                             // made the request for the blocked package.
                             if let RequestedBy::PackageBuild(problem_package) = req {
                                 self.solver
-                                    .increment_problem_package_count(problem_package.name.to_string())
+                                    .increment_problem_package_count(problem_package.name().to_string())
                             };
                         }
 

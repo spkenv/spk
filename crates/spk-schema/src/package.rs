@@ -8,7 +8,7 @@ use spk_schema_foundation::spec_ops::{Named, Versioned};
 use crate::foundation::ident_component::Component;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::version::Compatibility;
-use crate::ident::Ident;
+use crate::ident::AnyIdent;
 use crate::DeprecateMut;
 
 #[cfg(test)]
@@ -25,7 +25,7 @@ pub trait Package:
     /// The full identifier for this package
     ///
     /// This includes the version and optional build
-    fn ident(&self) -> &Ident;
+    fn ident(&self) -> &AnyIdent;
 
     /// The values for this packages options used for this build.
     fn option_values(&self) -> OptionMap;
@@ -102,7 +102,7 @@ pub trait PackageMut: Package + DeprecateMut {
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
     type Package = T::Package;
 
-    fn ident(&self) -> &Ident {
+    fn ident(&self) -> &AnyIdent {
         (**self).ident()
     }
 
@@ -156,7 +156,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 impl<T: Package + Send + Sync> Package for &T {
     type Package = T::Package;
 
-    fn ident(&self) -> &Ident {
+    fn ident(&self) -> &AnyIdent {
         (**self).ident()
     }
 
