@@ -116,7 +116,7 @@ macro_rules! make_build_and_components {
             let dep = Arc::new($dep.clone());
             solution.add(
                 &$crate::PkgRequest::from_ident(
-                    $dep.to_ident(),
+                    $dep.ident().to_owned(),
                     $crate::RequestedBy::SpkInternalTest,
                 ),
                 Arc::clone(&dep),

@@ -328,56 +328,6 @@ impl Satisfy<VarRequest> for Spec {
     }
 }
 
-impl Recipe for Spec {
-    type Output = Spec;
-
-    fn default_variants(&self) -> &[OptionMap] {
-        match self {
-            Spec::V0Package(r) => r.default_variants(),
-        }
-    }
-
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap> {
-        match self {
-            Spec::V0Package(r) => r.resolve_options(inputs),
-        }
-    }
-
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
-        match self {
-            Spec::V0Package(r) => r.get_build_requirements(options),
-        }
-    }
-
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
-        match self {
-            Spec::V0Package(r) => r.get_tests(options),
-        }
-    }
-
-    fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
-        match self {
-            Spec::V0Package(r) => r.generate_source_build(root).map(Spec::V0Package),
-        }
-    }
-
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Self::Output>
-    where
-        E: BuildEnv<Package = P>,
-        P: Package,
-    {
-        match self {
-            Spec::V0Package(r) => r
-                .generate_binary_build(options, build_env)
-                .map(Spec::V0Package),
-        }
-    }
-}
-
 impl Named for Spec {
     fn name(&self) -> &PkgName {
         match self {
