@@ -6,6 +6,7 @@ use spk_schema_foundation::ident_build::EmbeddedSource;
 
 use super::{BuildSpec, InstallSpec, Spec};
 use crate::foundation::ident_build::Build;
+use crate::PackageMut;
 
 #[cfg(test)]
 #[path = "./embedded_packages_list_test.rs"]
@@ -64,11 +65,9 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
                             "embedded packages can only specify install.components",
                         ));
                     }
-                    match &mut embedded.pkg.build {
+                    match embedded.pkg.build() {
                         Some(Build::Embedded(EmbeddedSource::Unknown)) => {}
-                        None => embedded
-                            .pkg
-                            .set_build(Some(Build::Embedded(EmbeddedSource::Unknown))),
+                        None => embedded.set_build(Build::Embedded(EmbeddedSource::Unknown)),
                         Some(_) => {
                             return Err(serde::de::Error::custom(format!(
                                 "embedded package should not specify a build, got: {}",

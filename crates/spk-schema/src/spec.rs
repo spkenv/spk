@@ -16,7 +16,7 @@ use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
 use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{Ident, PkgRequest, Request, Satisfy, VarRequest};
+use crate::ident::{AnyIdent, PkgRequest, Request, Satisfy, VarRequest};
 use crate::test_spec::TestSpec;
 use crate::{
     BuildEnv,
@@ -354,7 +354,7 @@ impl Versioned for Spec {
 impl Package for Spec {
     type Package = Self;
 
-    fn ident(&self) -> &Ident {
+    fn ident(&self) -> &AnyIdent {
         match self {
             Spec::V0Package(spec) => spec.ident(),
         }

@@ -13,7 +13,7 @@ use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
-use spk_schema::ident::{parse_ident, Ident};
+use spk_schema::ident::{parse_ident, AnyIdent};
 use spk_schema::ident_ops::parsing::{ident_parts, IdentParts, KNOWN_REPOSITORY_NAMES};
 use spk_schema::{Deprecate, Package, Spec};
 use spk_storage::{self as storage};
@@ -277,8 +277,8 @@ impl<T: Output> Ls<T> {
         for (package, index) in packages {
             let (repo_name, repo) = repos.get(index).unwrap();
             let mut versions = {
-                let base = Ident::from(package);
-                repo.list_package_versions(&base.name)
+                let base = AnyIdent::from(package);
+                repo.list_package_versions(base.name())
                     .await?
                     .iter()
                     .filter_map(|v| match search_term {
@@ -301,7 +301,7 @@ impl<T: Output> Ls<T> {
                         ..
                     }) = search_term
                     {
-                        if let Some(this_build) = &build.build {
+                        if let Some(this_build) = build.build() {
                             if search_build != this_build.to_string() {
                                 continue;
                             }
@@ -340,7 +340,7 @@ impl<T: Output> Ls<T> {
 
     async fn format_build(
         &self,
-        pkg: &Ident,
+        pkg: &AnyIdent,
         spec: &Spec,
         repo: &storage::RepositoryHandle,
     ) -> Result<String> {
@@ -351,7 +351,7 @@ impl<T: Output> Ls<T> {
 
         // Packages without builds, or /src packages have no further
         // info to display
-        if pkg.build.is_none() || pkg.is_source() {
+        if pkg.build().is_none() || pkg.is_source() {
             return Ok(item);
         }
 

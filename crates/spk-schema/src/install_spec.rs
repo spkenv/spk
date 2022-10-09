@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{ComponentSpecList, EmbeddedPackagesList, EnvOp, RequirementsList};
 use crate::foundation::option_map::OptionMap;
-use crate::ident::{Ident, Request};
+use crate::ident::{AnyIdent, Request};
 use crate::Result;
 
 #[cfg(test)]
@@ -42,7 +42,7 @@ impl InstallSpec {
     pub fn render_all_pins<'a>(
         &mut self,
         options: &OptionMap,
-        resolved: impl Iterator<Item = &'a Ident>,
+        resolved: impl Iterator<Item = &'a AnyIdent>,
     ) -> Result<()> {
         self.requirements.render_all_pins(options, resolved)
     }

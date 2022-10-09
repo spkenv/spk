@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 use std::collections::{hash_map, HashMap, HashSet};
 use std::convert::{TryFrom, TryInto};
+use std::ops::DerefMut;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::Arc;
@@ -19,10 +20,11 @@ use spk_schema::foundation::ident_build::{parse_build, Build, InvalidBuildError}
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::{parse_version, Version};
+use spk_schema::ident::VersionIdent;
 use spk_schema::ident_build::parsing::embedded_source_package;
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::ident_ops::TagPath;
-use spk_schema::{FromYaml, Ident, Package, Recipe, Spec, SpecRecipe};
+use spk_schema::{AnyIdent, FromYaml, Package, Recipe, Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
 use super::repository::{PublishPolicy, Storage};
@@ -127,8 +129,8 @@ impl std::ops::Drop for SPFSRepository {
 
 #[derive(Clone)]
 enum CacheValue<T> {
-    InvalidPackageSpec(Ident, String),
-    PackageNotFoundError(Ident),
+    InvalidPackageSpec(AnyIdent, String),
+    PackageNotFoundError(AnyIdent),
     StringError(String),
     StringifiedError(String),
     Success(T),
@@ -172,15 +174,15 @@ type ArcVecArcVersion = Arc<Vec<Arc<Version>>>;
 #[derive(Clone)]
 struct CachesForAddress {
     /// Components list cache for list_build_components()
-    list_build_components: Arc<DashMap<Ident, CacheValue<Vec<Component>>>>,
+    list_build_components: Arc<DashMap<AnyIdent, CacheValue<Vec<Component>>>>,
     /// EntryTypes list cache for ls_tags() caches
     ls_tags: Arc<DashMap<relative_path::RelativePathBuf, Vec<EntryType>>>,
     /// Package specs cache for read_component_from_storage() and read_embed_stub()
-    package: Arc<DashMap<Ident, CacheValue<Arc<Spec>>>>,
+    package: Arc<DashMap<AnyIdent, CacheValue<Arc<Spec>>>>,
     /// Versions list cache for list_packages_versions()
     package_versions: Arc<DashMap<PkgNameBuf, CacheValue<ArcVecArcVersion>>>,
     /// Recipe specs cache for read_recipe()
-    recipe: Arc<DashMap<Ident, CacheValue<Arc<spk_schema::SpecRecipe>>>>,
+    recipe: Arc<DashMap<AnyIdent, CacheValue<Arc<spk_schema::SpecRecipe>>>>,
     /// Recipe specs cache for read_recipe()
     tag_spec: Arc<DashMap<tracking::TagSpec, CacheValue<tracking::Tag>>>,
 }
@@ -218,7 +220,7 @@ impl Storage for SPFSRepository {
     type Recipe = SpecRecipe;
     type Package = Spec;
 
-    async fn get_concrete_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>> {
+    async fn get_concrete_package_builds(&self, pkg: &AnyIdent) -> Result<HashSet<AnyIdent>> {
         let pkg = pkg.with_build(Some(Build::Source));
         let mut base = self.build_package_tag(&pkg)?;
         // the package tag contains the name and build, but we need to
@@ -248,7 +250,7 @@ impl Storage for SPFSRepository {
         Ok(builds)
     }
 
-    async fn get_embedded_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>> {
+    async fn get_embedded_package_builds(&self, pkg: &AnyIdent) -> Result<HashSet<AnyIdent>> {
         let pkg = pkg.with_build(Some(Build::Source));
         let mut base = self.build_spec_tag(&pkg);
         // the package tag contains the name and build, but we need to
@@ -328,7 +330,7 @@ impl Storage for SPFSRepository {
         // for compatibility with older versions of the spk command.
         // It's not perfect but at least the package will be visible
         let legacy_tag = spfs::tracking::TagSpec::parse(&tag_path)?;
-        let legacy_component = if let Some(Build::Source) = package.ident().build {
+        let legacy_component = if let Some(Build::Source) = package.ident().build() {
             *components.get(&Component::Source).ok_or_else(|| {
                 Error::String("Package must have a source component to be published".to_string())
             })?
@@ -396,9 +398,9 @@ impl Storage for SPFSRepository {
 
     async fn read_components_from_storage(
         &self,
-        pkg: &Ident,
+        pkg: &AnyIdent,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
-        if matches!(pkg.build, Some(Build::Embedded(_))) {
+        if matches!(pkg.build(), Some(&Build::Embedded(_))) {
             return Ok(HashMap::new());
         }
         let package = self.lookup_package(pkg).await?;
@@ -413,7 +415,7 @@ impl Storage for SPFSRepository {
 
     async fn read_package_from_storage(
         &self,
-        pkg: &Ident,
+        pkg: &AnyIdent,
     ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
         // TODO: reduce duplicate code with read_recipe
         if self.cached_result_permitted() {
@@ -445,12 +447,12 @@ impl Storage for SPFSRepository {
         r
     }
 
-    async fn remove_embed_stub_from_storage(&self, pkg: &Ident) -> Result<()> {
+    async fn remove_embed_stub_from_storage(&self, pkg: &AnyIdent) -> Result<()> {
         // Same as removing a recipe for now...
         self.remove_recipe(pkg).await
     }
 
-    async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()> {
+    async fn remove_package_from_storage(&self, pkg: &AnyIdent) -> Result<()> {
         for tag_spec in
             with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
                 .await?
@@ -504,7 +506,7 @@ impl Repository for SPFSRepository {
             }
         }
         let r: Result<Arc<_>> = async {
-            let path = self.build_spec_tag(&name.to_owned().into());
+            let path = self.build_spec_tag(&VersionIdent::new_zero(name).into_any(None));
             let versions: HashSet<_> = self
                 .ls_tags(&path)
                 .await
@@ -536,14 +538,14 @@ impl Repository for SPFSRepository {
         r
     }
 
-    async fn list_build_components(&self, pkg: &Ident) -> Result<Vec<Component>> {
+    async fn list_build_components(&self, pkg: &AnyIdent) -> Result<Vec<Component>> {
         if self.cached_result_permitted() {
             if let Some(v) = self.caches.list_build_components.get(pkg) {
                 return v.value().clone().into();
             }
         }
 
-        let r = if matches!(pkg.build, Some(Build::Embedded(_))) {
+        let r = if matches!(pkg.build(), Some(Build::Embedded(_))) {
             Ok(Vec::new())
         } else {
             match self.lookup_package(pkg).await {
@@ -565,10 +567,10 @@ impl Repository for SPFSRepository {
         &self.name
     }
 
-    async fn read_embed_stub(&self, pkg: &Ident) -> Result<Arc<Self::Package>> {
+    async fn read_embed_stub(&self, pkg: &AnyIdent) -> Result<Arc<Self::Package>> {
         // This is similar to read_recipe but it returns a package and
         // uses the package cache.
-        match pkg.build {
+        match pkg.build() {
             Some(Build::Embedded(EmbeddedSource::Package { .. })) => {
                 // Allow embedded stubs to be read as a "package"
             }
@@ -604,8 +606,8 @@ impl Repository for SPFSRepository {
         r
     }
 
-    async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
-        if pkg.build.is_some() {
+    async fn read_recipe(&self, pkg: &AnyIdent) -> Result<Arc<Self::Recipe>> {
+        if pkg.build().is_some() {
             return Err(format!("cannot read a recipe for a package build: {pkg}").into());
         };
         if self.cached_result_permitted() {
@@ -636,7 +638,7 @@ impl Repository for SPFSRepository {
         r
     }
 
-    async fn remove_recipe(&self, pkg: &Ident) -> Result<()> {
+    async fn remove_recipe(&self, pkg: &AnyIdent) -> Result<()> {
         let tag_path = self.build_spec_tag(pkg);
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
         match self.inner.remove_tag_stream(&tag_spec).await {
@@ -663,9 +665,9 @@ impl Repository for SPFSRepository {
         }
         for name in self.list_packages().await? {
             tracing::info!("Processing {name}...");
-            let mut pkg = Ident::new(name.to_owned());
+            let mut pkg = VersionIdent::new_zero(&*name).into_any(None);
             for version in self.list_package_versions(&name).await?.iter() {
-                pkg.version = (**version).clone();
+                pkg.deref_mut().set_target((**version).clone());
                 for build in self.list_package_builds(&pkg).await? {
                     if build.is_embedded() {
                         // XXX `lookup_package` isn't able to read embed stubs.
@@ -739,7 +741,7 @@ impl SPFSRepository {
         unsafe { *self.cache_policy.load(Ordering::Relaxed) }.cached_result_permitted()
     }
 
-    async fn has_tag(&self, for_pkg: &Ident, tag: &tracking::TagSpec) -> bool {
+    async fn has_tag(&self, for_pkg: &AnyIdent, tag: &tracking::TagSpec) -> bool {
         // This goes through the cache!
         self.resolve_tag(for_pkg, tag).await.is_ok()
     }
@@ -804,7 +806,7 @@ impl SPFSRepository {
 
     async fn resolve_tag(
         &self,
-        for_pkg: &Ident,
+        for_pkg: &AnyIdent,
         tag_spec: &tracking::TagSpec,
     ) -> Result<tracking::Tag> {
         if self.cached_result_permitted() {
@@ -845,7 +847,7 @@ impl SPFSRepository {
     /// Find a package stored in this repo in either the new or old way of tagging
     ///
     /// (with or without package components)
-    async fn lookup_package(&self, pkg: &Ident) -> Result<StoredPackage> {
+    async fn lookup_package(&self, pkg: &AnyIdent) -> Result<StoredPackage> {
         use spfs::tracking::TagSpec;
         let tag_path = self.build_package_tag(pkg)?;
         let tag_specs: HashMap<Component, TagSpec> = self
@@ -873,8 +875,8 @@ impl SPFSRepository {
     }
 
     /// Construct an spfs tag string to represent a binary package layer.
-    fn build_package_tag(&self, pkg: &Ident) -> Result<RelativePathBuf> {
-        if pkg.build.is_none() {
+    fn build_package_tag(&self, pkg: &AnyIdent) -> Result<RelativePathBuf> {
+        if pkg.build().is_none() {
             return Err(InvalidBuildError::new_error(
                 "Package must have associated build digest".to_string(),
             )
@@ -889,7 +891,7 @@ impl SPFSRepository {
     }
 
     /// Construct an spfs tag string to represent a spec file blob.
-    fn build_spec_tag(&self, pkg: &Ident) -> RelativePathBuf {
+    fn build_spec_tag(&self, pkg: &AnyIdent) -> RelativePathBuf {
         let mut tag = RelativePathBuf::from("spk");
         tag.push("spec");
         tag.push(pkg.tag_path());

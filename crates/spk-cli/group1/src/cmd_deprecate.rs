@@ -9,7 +9,7 @@ use clap::Args;
 use colored::Colorize;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::ident::{parse_ident, Ident};
+use spk_schema::ident::{parse_ident, AnyIdent};
 use spk_schema::{Deprecate, DeprecateMut, Package, Recipe, Spec, SpecRecipe};
 use spk_storage::{self as storage};
 
@@ -167,7 +167,7 @@ pub(crate) async fn change_deprecation_state(
 
         let ident = parse_ident(name)?;
         for (repo_name, repo) in repos.iter() {
-            if ident.build.is_none() {
+            if ident.build().is_none() {
                 match repo.read_recipe(&ident).await {
                     Ok(recipe) => {
                         to_action.push((
@@ -355,7 +355,7 @@ impl DeprecateMut for DeprecationTarget {
 }
 
 impl DeprecationTarget {
-    fn ident(&self) -> Ident {
+    fn ident(&self) -> AnyIdent {
         match self {
             DeprecationTarget::Recipe(r) => r.to_ident(),
             DeprecationTarget::Package(r) => r.ident().clone(),

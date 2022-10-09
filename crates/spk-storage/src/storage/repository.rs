@@ -8,7 +8,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
 use spk_schema::foundation::version::Version;
 use spk_schema::ident_build::{Build, EmbeddedSource, InvalidBuildError};
-use spk_schema::{Deprecate, Ident, Package, PackageMut};
+use spk_schema::{AnyIdent, Deprecate, Package, PackageMut};
 
 use self::internal::RepositoryExt;
 use crate::{Error, Result};
@@ -49,12 +49,12 @@ pub trait Storage: Sync {
     /// Return the set of concrete builds for the given package name and version.
     ///
     /// This method should not return any embedded package stub builds.
-    async fn get_concrete_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>>;
+    async fn get_concrete_package_builds(&self, pkg: &AnyIdent) -> Result<HashSet<AnyIdent>>;
 
     /// Return the set of embedded stub builds for the given package name and version.
     ///
     /// This method should only return embedded package stub builds.
-    async fn get_embedded_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>>;
+    async fn get_embedded_package_builds(&self, pkg: &AnyIdent) -> Result<HashSet<AnyIdent>>;
 
     /// Publish an embed stub to this repository.
     ///
@@ -90,7 +90,7 @@ pub trait Storage: Sync {
     /// Identify the payloads for the identified package's components.
     async fn read_components_from_storage(
         &self,
-        pkg: &Ident,
+        pkg: &AnyIdent,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>>;
 
     /// Read package information for a specific version and build.
@@ -100,18 +100,18 @@ pub trait Storage: Sync {
     async fn read_package_from_storage(
         &self,
         // TODO: use an ident type that must have a build
-        pkg: &Ident,
+        pkg: &AnyIdent,
     ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>>;
 
     /// Remove an embed stub from this repository.
     ///
     /// The given package identifier must identify an [`Build::Embedded`].
-    async fn remove_embed_stub_from_storage(&self, pkg: &Ident) -> Result<()>;
+    async fn remove_embed_stub_from_storage(&self, pkg: &AnyIdent) -> Result<()>;
 
     /// Remove a package from this repository.
     ///
     /// The given package identifier must identify a full package build.
-    async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()>;
+    async fn remove_package_from_storage(&self, pkg: &AnyIdent) -> Result<()>;
 }
 
 pub(in crate::storage) mod internal {
@@ -239,7 +239,7 @@ pub trait Repository: Storage + Sync {
     async fn list_package_versions(&self, name: &PkgName) -> Result<Arc<Vec<Arc<Version>>>>;
 
     /// Return the set of builds for the given package name and version.
-    async fn list_package_builds(&self, pkg: &Ident) -> Result<Vec<Ident>> {
+    async fn list_package_builds(&self, pkg: &AnyIdent) -> Result<Vec<AnyIdent>> {
         // Note: This isn't cached. Neither get_concrete_package_builds() nor
         // get_embedded_package_builds() are cached. But the underlying
         // ls_tags() calls they both make are cached.
@@ -253,7 +253,7 @@ pub trait Repository: Storage + Sync {
     }
 
     /// Returns the set of components published for a package build
-    async fn list_build_components(&self, pkg: &Ident) -> Result<Vec<Component>>;
+    async fn list_build_components(&self, pkg: &AnyIdent) -> Result<Vec<Component>>;
 
     /// Return the repository's name, as in "local" or its name in the config file.
     fn name(&self) -> &RepositoryName;
@@ -262,13 +262,13 @@ pub trait Repository: Storage + Sync {
     ///
     /// # Errors:
     /// - PackageNotFoundError: If the package, or version does not exist
-    async fn read_embed_stub(&self, pkg: &Ident) -> Result<Arc<Self::Package>>;
+    async fn read_embed_stub(&self, pkg: &AnyIdent) -> Result<Arc<Self::Package>>;
 
     /// Read a package recipe for the given package, and version.
     ///
     /// # Errors:
     /// - PackageNotFoundError: If the package, or version does not exist
-    async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>>;
+    async fn read_recipe(&self, pkg: &AnyIdent) -> Result<Arc<Self::Recipe>>;
 
     /// Publish a package spec to this repository.
     ///
@@ -288,7 +288,7 @@ pub trait Repository: Storage + Sync {
     /// This will not remove builds for this package, but will make it unresolvable
     /// and unsearchable. It's recommended that you remove all existing builds
     /// before removing the recipe in order to keep the repository clean.
-    async fn remove_recipe(&self, pkg: &Ident) -> Result<()>;
+    async fn remove_recipe(&self, pkg: &AnyIdent) -> Result<()>;
 
     /// Publish a package spec to this repository.
     ///
@@ -306,9 +306,9 @@ pub trait Repository: Storage + Sync {
     async fn read_package(
         &self,
         // TODO: use an ident type that must have a build
-        pkg: &Ident,
+        pkg: &AnyIdent,
     ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
-        match pkg.build.as_ref() {
+        match pkg.build() {
             Some(b) if b.is_embed_stub() => self.read_embed_stub(pkg).await,
             _ => self.read_package_from_storage(pkg).await,
         }
@@ -326,7 +326,7 @@ pub trait Repository: Storage + Sync {
     where
         Self::Package: PackageMut,
     {
-        let build = match &package.ident().build {
+        let build = match package.ident().build() {
             Some(b) => b.to_owned(),
             None => {
                 return Err(Error::String(format!(
@@ -473,9 +473,9 @@ pub trait Repository: Storage + Sync {
     async fn remove_package(
         &self,
         // TODO: use an ident type that must have a build
-        pkg: &Ident,
+        pkg: &AnyIdent,
     ) -> Result<()> {
-        if pkg.build.is_none() {
+        if pkg.build().is_none() {
             return Err(Error::String(format!(
                 "Package must include a build in order to be removed: {}",
                 pkg
@@ -501,9 +501,9 @@ pub trait Repository: Storage + Sync {
     async fn read_components(
         &self,
         // TODO: use an ident type that must have a build
-        pkg: &Ident,
+        pkg: &AnyIdent,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
-        if let Some(Build::Embedded(EmbeddedSource::Package(_package))) = &pkg.build {
+        if let Some(Build::Embedded(EmbeddedSource::Package(_package))) = pkg.build() {
             // An embedded package's components are only accessible
             // via its package spec
             let embedded_spec = self.read_package(pkg).await?;

@@ -81,7 +81,7 @@ impl Run for Install {
         println!("  Requested:");
         for spec in primary {
             let mut end = String::new();
-            if spec.ident().build.is_none() {
+            if spec.ident().build().is_none() {
                 end = " [build from source]".magenta().to_string();
             }
             println!("    {}{end}", spec.ident().format_ident());
@@ -91,7 +91,7 @@ impl Run for Install {
         }
         for spec in tertiary {
             let mut end = String::new();
-            if spec.ident().build.is_none() {
+            if spec.ident().build().is_none() {
                 end = " [build from source]".magenta().to_string();
             }
             println!("    {}{end}", spec.ident().format_ident())

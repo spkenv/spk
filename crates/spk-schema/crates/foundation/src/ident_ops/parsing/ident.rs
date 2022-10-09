@@ -100,7 +100,7 @@ where
     }
 }
 
-/// Parse a package identity with components into an `Ident` and set of
+/// Parse a package identity with components into an `AnyIdent` and set of
 /// [`Component`].
 ///
 /// Examples:

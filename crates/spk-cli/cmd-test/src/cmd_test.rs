@@ -189,7 +189,7 @@ impl Run for Test {
                                                 BuildSource::SourcePackage(
                                                     recipe
                                                         .to_ident()
-                                                        .into_build(Build::Source)
+                                                        .with_target(Some(Build::Source))
                                                         .into(),
                                                 )
                                             },

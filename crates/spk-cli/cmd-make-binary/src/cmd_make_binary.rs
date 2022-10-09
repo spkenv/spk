@@ -187,7 +187,7 @@ impl Run for MakeBinary {
                         std::env::current_dir().context("Failed to get current directory")?;
                     builder.with_source(BuildSource::LocalPath(here));
                 } else if let Some(PackageSpecifier::WithSourceIdent((_, ref ident))) = package {
-                    // Use the source package `Ident` if the caller supplied one.
+                    // Use the source package `AnyIdent` if the caller supplied one.
                     builder.with_source(BuildSource::SourcePackage(ident.clone()));
                 }
                 let out = match builder.build_and_publish(&local).await {

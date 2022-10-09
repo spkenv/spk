@@ -14,7 +14,8 @@ use once_cell::sync::Lazy;
 use spk_schema::foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Version;
-use spk_schema::{Ident, Package, Spec, SpecRecipe};
+use spk_schema::ident::VersionIdent;
+use spk_schema::{AnyIdent, Package, Spec, SpecRecipe};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 
@@ -64,7 +65,7 @@ const BUILD_SORT_TARGET: &str = "build_sort";
 
 dyn_clone::clone_trait_object!(BuildIterator);
 
-type PackageIteratorItem = (Ident, Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>);
+type PackageIteratorItem = (AnyIdent, Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>);
 
 #[async_trait::async_trait]
 pub trait PackageIterator: Send + Sync + std::fmt::Debug {
@@ -182,8 +183,8 @@ impl PackageIterator for RepositoryPackageIterator {
                     "version not found in version_map".to_owned(),
                 ));
             };
-            let mut pkg = Ident::new(self.package_name.clone());
-            pkg.version = (**version).clone();
+            let pkg =
+                VersionIdent::new(self.package_name.clone(), (**version).clone()).into_any(None);
             if !self.builds_map.contains_key(version) {
                 match RepositoryBuildIterator::new(pkg.clone(), repos.clone()).await {
                     Ok(iter) => {
@@ -273,7 +274,7 @@ impl RepositoryPackageIterator {
 
 #[derive(Clone, Debug)]
 pub struct RepositoryBuildIterator {
-    builds: VecDeque<(Ident, HashMap<RepositoryNameBuf, Arc<RepositoryHandle>>)>,
+    builds: VecDeque<(AnyIdent, HashMap<RepositoryNameBuf, Arc<RepositoryHandle>>)>,
     recipe: Option<Arc<SpecRecipe>>,
 }
 
@@ -313,7 +314,7 @@ impl BuildIterator for RepositoryBuildIterator {
                 Err(err) => return Err(err.into()),
             };
 
-            if spec.ident().build.is_none() {
+            if spec.ident().build().is_none() {
                 tracing::warn!("Published spec is corrupt (has no associated build), pkg={build}",);
                 return self.next().await;
             }
@@ -344,11 +345,11 @@ impl BuildIterator for RepositoryBuildIterator {
 
 impl RepositoryBuildIterator {
     async fn new(
-        pkg: Ident,
+        pkg: AnyIdent,
         repos: HashMap<RepositoryNameBuf, Arc<RepositoryHandle>>,
     ) -> Result<Self> {
         let mut builds_and_repos: HashMap<
-            Ident,
+            AnyIdent,
             HashMap<RepositoryNameBuf, Arc<RepositoryHandle>>,
         > = HashMap::new();
 
@@ -486,7 +487,7 @@ impl SortedBuildIterator {
     fn make_option_values_build_key(
         spec: &Spec,
         ordered_names: &Vec<OptNameBuf>,
-        build_name_values: &HashMap<Ident, OptionMap>,
+        build_name_values: &HashMap<AnyIdent, OptionMap>,
     ) -> BuildKey {
         let build_id = spec.ident();
         let empty = OptionMap::default();
@@ -503,7 +504,7 @@ impl SortedBuildIterator {
         let start = Instant::now();
 
         let mut number_non_src_builds: u64 = 0;
-        let mut build_name_values: HashMap<Ident, OptionMap> = HashMap::default();
+        let mut build_name_values: HashMap<AnyIdent, OptionMap> = HashMap::default();
         let mut changes: HashMap<OptNameBuf, ChangeCounter> = HashMap::new();
 
         for (build, _) in self.builds.iter().flat_map(|hm| hm.values()) {
@@ -511,10 +512,8 @@ impl SortedBuildIterator {
             // won't use the build option values in their key, they
             // don't need to be looked at. They have a type of key
             // that always puts them last in the build order.
-            if let Some(b) = &build.ident().build {
-                if b.is_source() {
-                    continue;
-                }
+            if build.ident().is_source() {
+                continue;
             }
 
             // Count the number of binary builds for later. This will

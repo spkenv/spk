@@ -16,7 +16,7 @@ use spk_schema::foundation::name::{OptName, OptNameBuf};
 use spk_schema::foundation::option_map::{host_options, OptionMap};
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
-use spk_schema::ident::{parse_ident, Ident, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::ident::{parse_ident, AnyIdent, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::{Recipe, SpecTemplate, Template, TemplateExt, TestStage};
 use spk_solve::{self as solve};
 use spk_storage::{self as storage};
@@ -228,7 +228,7 @@ impl Requests {
         &self,
         options: &OptionMap,
         packages: I,
-    ) -> Result<Vec<Ident>> {
+    ) -> Result<Vec<AnyIdent>> {
         let mut idents = Vec::new();
         for package in packages {
             if package.contains('@') {
@@ -237,7 +237,7 @@ impl Requests {
 
                 match stage {
                     TestStage::Sources => {
-                        let ident = recipe.to_ident().into_build(Build::Source);
+                        let ident = recipe.to_ident().with_target(Some(Build::Source));
                         idents.push(ident);
                         continue;
                     }
@@ -307,7 +307,7 @@ impl Requests {
 
                 match stage {
                     TestStage::Sources => {
-                        let ident = recipe.to_ident().into_build(Build::Source);
+                        let ident = recipe.to_ident().with_target(Some(Build::Source));
                         out.push(PkgRequest::from_ident(ident, RequestedBy::CommandLine).into());
                     }
 

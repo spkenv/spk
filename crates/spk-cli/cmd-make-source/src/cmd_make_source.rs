@@ -11,7 +11,7 @@ use spk_build::SourcePackageBuilder;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::spec_ops::Named;
-use spk_schema::ident::BuildIdent;
+use spk_schema::ident::LocatedBuildIdent;
 use spk_schema::{Package, Recipe, SpecTemplate, Template, TemplateExt};
 use spk_storage::{self as storage};
 
@@ -41,7 +41,7 @@ impl Run for MakeSource {
 }
 
 impl MakeSource {
-    pub async fn make_source(&mut self) -> Result<Vec<BuildIdent>> {
+    pub async fn make_source(&mut self) -> Result<Vec<LocatedBuildIdent>> {
         let _runtime = self
             .runtime
             .ensure_active_runtime(&["make-source", "mksource", "mksrc", "mks"])
@@ -89,7 +89,7 @@ impl MakeSource {
             idents.push(
                 out.ident()
                     .clone()
-                    .try_into_build_ident(local.name().to_owned())?,
+                    .try_into_located_build_ident(local.name().to_owned())?,
             );
         }
         Ok(idents)

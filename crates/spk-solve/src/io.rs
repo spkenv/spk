@@ -23,7 +23,6 @@ use spk_schema::foundation::format::{
     FormatRequest,
     FormatSolution,
 };
-use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::spec_ops::{Named, Versioned};
 use spk_schema::Package;
 use spk_solve_graph::{
@@ -275,7 +274,7 @@ where
                         use Change::*;
                         match change {
                             SetPackage(change) => {
-                                if matches!(change.spec.ident().build, Some(Build::Embedded(_))) {
+                                if change.spec.ident().is_embedded() {
                                     fill = ".";
                                 } else {
                                     fill = ">";
@@ -346,7 +345,7 @@ where
                 for package in packages.iter() {
                     let name = package.name().as_str();
                     let version = package.version().to_string();
-                    let build = package.ident().build.as_ref().unwrap().to_string();
+                    let build = package.ident().build().unwrap().to_string();
                     let max_len = name.len().max(version.len()).max(build.len());
                     renders.push((name, version, build, max_len));
                 }

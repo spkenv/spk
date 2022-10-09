@@ -46,7 +46,7 @@ impl Run for Search {
                 let mut ident = parse_ident(&name)?;
                 let versions = repo.list_package_versions(&name).await?;
                 for v in versions.iter() {
-                    ident.version = (**v).clone();
+                    ident.set_version((**v).clone());
 
                     let builds = repo.list_package_builds(&ident).await?;
                     if builds.is_empty() {

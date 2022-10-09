@@ -6,7 +6,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use clap::Args;
 use spk_cli_common::{CommandArgs, Publisher, Run};
-use spk_schema::Ident;
+use spk_schema::AnyIdent;
 use spk_storage::{self as storage};
 
 /// Publish a package into a shared repository
@@ -38,7 +38,7 @@ pub struct Publish {
     /// This can be an entire package version with all builds or a
     /// single, specific build.
     #[clap(name = "PKG", required = true)]
-    pub packages: Vec<Ident>,
+    pub packages: Vec<AnyIdent>,
 }
 
 #[async_trait::async_trait]
