@@ -13,7 +13,6 @@ use priority_queue::priority_queue::PriorityQueue;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
-use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
@@ -558,9 +557,7 @@ impl Solver {
         source: &PackageSource,
     ) -> Result<Compatibility>
     where
-        P: Package<Ident = Ident>,
-        P: PackageOps<VarRequest = VarRequest>,
-        P: Satisfy<PkgRequest>,
+        P: Package + Satisfy<PkgRequest> + Satisfy<VarRequest>,
     {
         for validator in self.validators.as_ref() {
             let compat = validator.validate_package(node, spec, source)?;

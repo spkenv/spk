@@ -9,23 +9,23 @@ use std::str::FromStr;
 use enum_dispatch::enum_dispatch;
 use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::Component;
-use spk_schema_foundation::spec_ops::PackageMutOps;
 
 use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
-use crate::foundation::spec_ops::{Named, PackageOps, Versioned};
+use crate::foundation::spec_ops::{Named, Versioned};
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{Ident, PkgRequest, Request, Satisfy, VarRequest};
 use crate::test_spec::TestSpec;
 use crate::{
     BuildEnv,
-    ComponentSpec,
     Deprecate,
     DeprecateMut,
     Error,
     FromYaml,
     Package,
+    PackageMut,
     Recipe,
     Result,
     Template,
@@ -230,36 +230,12 @@ impl Recipe for SpecRecipe {
     ) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
-        P: Package<Ident = Ident>,
+        P: Package,
     {
         match self {
             SpecRecipe::V0Package(r) => r
                 .generate_binary_build(options, build_env)
                 .map(Spec::V0Package),
-        }
-    }
-}
-
-impl PackageOps for SpecRecipe {
-    type Ident = Ident;
-    type Component = ComponentSpec;
-    type VarRequest = VarRequest;
-
-    fn components_iter(&self) -> std::slice::Iter<'_, Self::Component> {
-        match self {
-            SpecRecipe::V0Package(r) => r.components_iter(),
-        }
-    }
-
-    fn ident(&self) -> &Self::Ident {
-        match self {
-            SpecRecipe::V0Package(r) => r.ident(),
-        }
-    }
-
-    fn is_satisfied_by_var_request(&self, var_request: &Self::VarRequest) -> Compatibility {
-        match self {
-            SpecRecipe::V0Package(r) => r.is_satisfied_by_var_request(var_request),
         }
     }
 }
@@ -344,6 +320,14 @@ impl Satisfy<PkgRequest> for Spec {
     }
 }
 
+impl Satisfy<VarRequest> for Spec {
+    fn check_satisfies_request(&self, request: &VarRequest) -> Compatibility {
+        match self {
+            Spec::V0Package(r) => r.check_satisfies_request(request),
+        }
+    }
+}
+
 impl Recipe for Spec {
     type Output = Spec;
 
@@ -384,46 +368,12 @@ impl Recipe for Spec {
     ) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
-        P: Package<Ident = Ident>,
+        P: Package,
     {
         match self {
             Spec::V0Package(r) => r
                 .generate_binary_build(options, build_env)
                 .map(Spec::V0Package),
-        }
-    }
-}
-
-impl PackageOps for Spec {
-    type Ident = Ident;
-    type Component = ComponentSpec;
-    type VarRequest = VarRequest;
-
-    fn components_iter(&self) -> std::slice::Iter<'_, Self::Component> {
-        match self {
-            Spec::V0Package(r) => PackageOps::components_iter(r),
-        }
-    }
-
-    fn ident(&self) -> &Self::Ident {
-        match self {
-            Spec::V0Package(r) => PackageOps::ident(r),
-        }
-    }
-
-    fn is_satisfied_by_var_request(&self, var_request: &Self::VarRequest) -> Compatibility {
-        match self {
-            Spec::V0Package(r) => PackageOps::is_satisfied_by_var_request(r, var_request),
-        }
-    }
-}
-
-impl PackageMutOps for Spec {
-    type Ident = Ident;
-
-    fn ident_mut(&mut self) -> &mut Self::Ident {
-        match self {
-            Spec::V0Package(r) => PackageMutOps::ident_mut(r),
         }
     }
 }
@@ -453,6 +403,12 @@ impl Versioned for Spec {
 // enum_dispatch does not support associated types.
 impl Package for Spec {
     type Package = Self;
+
+    fn ident(&self) -> &Ident {
+        match self {
+            Spec::V0Package(spec) => spec.ident(),
+        }
+    }
 
     fn option_values(&self) -> OptionMap {
         match self {
@@ -515,6 +471,14 @@ impl Package for Spec {
     fn build_script(&self) -> String {
         match self {
             Spec::V0Package(spec) => spec.build_script(),
+        }
+    }
+}
+
+impl PackageMut for Spec {
+    fn set_build(&mut self, build: Build) {
+        match self {
+            Spec::V0Package(spec) => spec.set_build(build),
         }
     }
 }

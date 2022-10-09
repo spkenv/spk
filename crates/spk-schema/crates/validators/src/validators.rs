@@ -7,28 +7,25 @@ use std::path::Path;
 use itertools::Itertools;
 use spfs::tracking::{Diff, DiffMode};
 use spk_schema_foundation::env::data_path;
-use spk_schema_foundation::ident_ops::MetadataPath;
-use spk_schema_foundation::spec_ops::{ComponentOps, PackageOps};
+use spk_schema_foundation::spec_ops::FileMatcher;
+use spk_schema_ident::Ident;
 
 #[cfg(test)]
 #[path = "./validators_test.rs"]
 mod validators_test;
 
 /// Validates that all remaining build files are collected into at least one component
-pub fn must_collect_all_files<Package, P>(
-    spec: &Package,
+pub fn must_collect_all_files<'a, Files>(
+    pkg: &Ident,
+    files: Files,
     diffs: &[Diff],
-    _prefix: P,
 ) -> Option<String>
 where
-    Package: PackageOps,
-    Package::Component: ComponentOps,
-    <Package as PackageOps>::Ident: MetadataPath,
-    P: AsRef<Path>,
+    Files: IntoIterator<Item = &'a FileMatcher>,
 {
     let mut diffs: Vec<_> = diffs.iter().filter(|d| d.mode.is_added()).collect();
-    let data_path = data_path(spec.ident()).to_path("/");
-    for component in spec.components_iter() {
+    let data_path = data_path(pkg).to_path("/");
+    for matcher in files.into_iter() {
         diffs.retain(|d| {
             let entry = match &d.mode {
                 spfs::tracking::DiffMode::Unchanged(e) => e,
@@ -39,7 +36,7 @@ where
             let path = d.path.to_path("/");
             // either part of a component explicitly or implicitly
             // because it's a data file
-            let is_explicit = component.files().matches(&path, entry.is_dir());
+            let is_explicit = matcher.matches(&path, entry.is_dir());
             let is_collected = is_explicit || path.starts_with(&data_path);
             !is_collected
         });

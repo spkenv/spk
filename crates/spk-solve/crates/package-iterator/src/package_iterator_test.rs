@@ -9,7 +9,6 @@ use rstest::rstest;
 use spk_schema::foundation::name::PkgName;
 use spk_schema::foundation::option_map;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::{recipe, spec, Package, Spec};
 use spk_solve::{make_build, make_repo};
 

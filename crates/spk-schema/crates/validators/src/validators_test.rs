@@ -34,12 +34,12 @@ fn test_validate_build_changeset_collected() {
     // so we remove them to ensure nothing is collected
     let _ = spec.install.components.drain(..);
     let res = must_collect_all_files(
-        &spec,
+        &spec.pkg,
+        spec.install.components.iter().map(|c| &c.files),
         &vec![spfs::tracking::Diff {
             path: "/spfs/file.txt".into(),
             mode: spfs::tracking::DiffMode::Changed(Default::default(), Default::default()),
         }],
-        "/spfs",
     );
     assert!(
         res.is_some(),

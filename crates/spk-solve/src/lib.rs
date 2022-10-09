@@ -13,7 +13,7 @@ pub use io::{DecisionFormatter, DecisionFormatterBuilder};
 pub use solver::{Solver, SolverRuntime};
 pub use spk_schema::foundation::ident_component::Component;
 pub use spk_schema::foundation::option_map;
-pub use spk_schema::foundation::spec_ops::{Named, PackageOps, Versioned};
+pub use spk_schema::foundation::spec_ops::{Named, Versioned};
 pub use spk_schema::ident::{parse_ident_range, PkgRequest, Request, RequestedBy};
 pub use spk_schema::{recipe, spec, v0, Package, Recipe, Spec};
 pub use spk_solve_solution::{PackageSource, Solution};

@@ -8,8 +8,6 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::foundation::ident_ops::MetadataPath;
-use crate::foundation::spec_ops::{ComponentOps, PackageOps};
 use crate::validators::{
     must_collect_all_files,
     must_install_something,
@@ -33,20 +31,22 @@ impl Validator {
     /// Validate the set of changes to spfs according to this validator
     pub fn validate<Package, P>(
         &self,
-        spec: &Package,
+        pkg: &Package,
         diffs: &[spfs::tracking::Diff],
         prefix: P,
     ) -> Option<String>
     where
-        Package: PackageOps,
-        Package::Component: ComponentOps,
-        <Package as PackageOps>::Ident: MetadataPath,
+        Package: crate::Package,
         P: AsRef<std::path::Path>,
     {
         match self {
             Self::MustInstallSomething => must_install_something(diffs, prefix),
             Self::MustNotAlterExistingFiles => must_not_alter_existing_files(diffs, prefix),
-            Self::MustCollectAllFiles => must_collect_all_files(spec, diffs, prefix),
+            Self::MustCollectAllFiles => must_collect_all_files(
+                pkg.ident(),
+                pkg.components().iter().map(|c| &c.files),
+                diffs,
+            ),
         }
     }
 }
@@ -86,9 +86,7 @@ impl ValidationSpec {
     /// Validate the current set of spfs changes as a build of this package
     pub async fn validate_build_changeset<Package>(&self, package: &Package) -> Result<()>
     where
-        Package: PackageOps,
-        Package::Component: ComponentOps,
-        <Package as PackageOps>::Ident: MetadataPath,
+        Package: crate::Package,
     {
         static SPFS: &str = "/spfs";
 

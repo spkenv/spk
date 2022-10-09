@@ -6,11 +6,9 @@ use std::sync::Arc;
 
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
-use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Version;
 use spk_schema::ident_build::{Build, EmbeddedSource, InvalidBuildError};
-use spk_schema::spec_ops::PackageMutOps;
-use spk_schema::{Deprecate, DeprecateMut, Ident, Package};
+use spk_schema::{Deprecate, Ident, Package, PackageMut};
 
 use self::internal::RepositoryExt;
 use crate::{Error, Result};
@@ -46,7 +44,7 @@ pub enum PublishPolicy {
 #[async_trait::async_trait]
 pub trait Storage: Sync {
     type Recipe: spk_schema::Recipe<Output = Self::Package>;
-    type Package: Package<Ident = Ident, Package = Self::Package>;
+    type Package: Package<Package = Self::Package>;
 
     /// Return the set of concrete builds for the given package name and version.
     ///
@@ -121,8 +119,7 @@ pub(in crate::storage) mod internal {
 
     use spk_schema::foundation::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage};
     use spk_schema::foundation::ident_component::Component;
-    use spk_schema::foundation::spec_ops::{PackageMutOps, PackageOps};
-    use spk_schema::{Deprecate, DeprecateMut, Ident, Package, Recipe};
+    use spk_schema::{Deprecate, DeprecateMut, Package, PackageMut, Recipe};
 
     use crate::{with_cache_policy, CachePolicy, Result};
 
@@ -141,17 +138,15 @@ pub(in crate::storage) mod internal {
             components_that_embed_this_pkg: BTreeSet<Component>,
         ) -> Result<()>
         where
-            Self::Package: PackageMutOps<Ident = Ident> + DeprecateMut,
+            Self::Package: PackageMut,
         {
             let mut spec_for_embedded_pkg = spec_for_embedded_pkg.clone();
-            spec_for_embedded_pkg
-                .ident_mut()
-                .set_build(Some(Build::Embedded(EmbeddedSource::Package(Box::new(
-                    EmbeddedSourcePackage {
-                        ident: spec_for_parent.ident().into(),
-                        components: components_that_embed_this_pkg,
-                    },
-                )))));
+            spec_for_embedded_pkg.set_build(Build::Embedded(EmbeddedSource::Package(Box::new(
+                EmbeddedSourcePackage {
+                    ident: spec_for_parent.ident().into(),
+                    components: components_that_embed_this_pkg,
+                },
+            ))));
             spec_for_embedded_pkg.set_deprecated(spec_for_parent.is_deprecated())?;
             self.publish_embed_stub_to_storage(&spec_for_embedded_pkg)
                 .await
@@ -324,7 +319,7 @@ pub trait Repository: Storage + Sync {
         components: &HashMap<Component, spfs::encoding::Digest>,
     ) -> Result<()>
     where
-        Self::Package: PackageMutOps<Ident = Ident> + DeprecateMut,
+        Self::Package: PackageMut,
     {
         let build = match &package.ident().build {
             Some(b) => b.to_owned(),
@@ -369,7 +364,7 @@ pub trait Repository: Storage + Sync {
         package: &<Self::Recipe as spk_schema::Recipe>::Output,
     ) -> Result<()>
     where
-        Self::Package: PackageMutOps<Ident = Ident> + DeprecateMut,
+        Self::Package: PackageMut,
     {
         // Read the contents of the existing spec, if any, before it is
         // overwritten.

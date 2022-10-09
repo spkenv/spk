@@ -62,7 +62,7 @@ pub trait Recipe:
     ) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
-        P: Package<Ident = Ident>;
+        P: Package;
 }
 
 impl<T> Recipe for std::sync::Arc<T>
@@ -98,7 +98,7 @@ where
     ) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
-        P: Package<Ident = Ident>,
+        P: Package,
     {
         (**self).generate_binary_build(options, build_env)
     }
@@ -137,7 +137,7 @@ where
     ) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
-        P: Package<Ident = Ident>,
+        P: Package,
     {
         (**self).generate_binary_build(options, build_env)
     }

@@ -11,9 +11,9 @@ use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{flags, spk_exe, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::option_map::{host_options, OptionMap};
-use spk_schema::foundation::spec_ops::{Named, PackageOps};
+use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::{PkgRequest, RangeIdent, RequestedBy};
-use spk_schema::{Recipe, SpecTemplate, Template, TemplateExt};
+use spk_schema::{Package, Recipe, SpecTemplate, Template, TemplateExt};
 use spk_storage::{self as storage};
 
 #[derive(Clone)]

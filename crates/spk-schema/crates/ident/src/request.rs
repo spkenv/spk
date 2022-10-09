@@ -13,7 +13,6 @@ use spk_schema_foundation::format::{FormatBuild, FormatComponents, FormatRequest
 use spk_schema_foundation::ident_component::ComponentSet;
 use spk_schema_foundation::name::{OptName, OptNameBuf, PkgName};
 use spk_schema_foundation::option_map::Stringified;
-use spk_schema_foundation::spec_ops::PackageOps;
 use spk_schema_foundation::version::{CompatRule, Compatibility, Version, API_STR, BINARY_STR};
 use spk_schema_foundation::version_range::{
     DoubleEqualsVersion,
@@ -312,11 +311,11 @@ impl VarRequest {
     }
 
     /// Check if this package spec satisfies the given var request.
-    pub fn is_satisfied_by<Package>(&self, spec: &Package) -> Compatibility
+    pub fn is_satisfied_by<T>(&self, spec: &T) -> Compatibility
     where
-        Package: PackageOps<VarRequest = VarRequest>,
+        T: Satisfy<VarRequest>,
     {
-        spec.is_satisfied_by_var_request(self)
+        spec.check_satisfies_request(self)
     }
 }
 

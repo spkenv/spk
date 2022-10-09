@@ -12,7 +12,8 @@ use futures::TryFutureExt;
 use spk_cli_common::{build_required_packages, current_env, flags, CommandArgs, Run};
 use spk_exec::setup_current_runtime;
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::foundation::spec_ops::{Named, PackageOps};
+use spk_schema::foundation::spec_ops::Named;
+use spk_schema::Package;
 
 /// Install a package into the current environment
 #[derive(Args)]

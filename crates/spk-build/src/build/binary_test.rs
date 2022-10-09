@@ -8,7 +8,6 @@ use spfs::prelude::*;
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::{opt_name, option_map};
 use spk_schema::ident::{PkgRequest, RangeIdent, Request};
 use spk_schema::{

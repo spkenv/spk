@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
-use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::ident::{parse_ident, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
+use spk_schema::Package;
 use spk_solve::solution::{PackageSource, Solution};
 use spk_storage::{self as storage};
 

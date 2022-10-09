@@ -7,11 +7,11 @@ use std::collections::HashSet;
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::spec_ops::{Named, PackageOps};
+use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, Satisfy, VarRequest};
 use spk_schema::ident_build::{Build, EmbeddedSource};
-use spk_schema::{Ident, Package, Recipe, Spec};
+use spk_schema::{Package, Recipe, Spec};
 use spk_solve_graph::{CachedHash, GetMergedRequestError, State};
 use spk_solve_solution::PackageSource;
 
@@ -42,7 +42,7 @@ pub trait ValidatorT {
         source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: Satisfy<PkgRequest> + PackageOps<Ident = Ident, VarRequest = VarRequest> + Package;
+        P: Satisfy<PkgRequest> + Satisfy<VarRequest> + Package;
 
     /// Check if the given recipe is appropriate as a source build for the provided state.
     ///
@@ -68,7 +68,7 @@ impl ValidatorT for DeprecationValidator {
         _source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: PackageOps<Ident = Ident> + Package,
+        P: Package,
     {
         if !spec.is_deprecated() {
             return Ok(Compatibility::Compatible);
@@ -138,7 +138,7 @@ impl ValidatorT for EmbeddedPackageValidator {
         _source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: Package<Ident = Ident>,
+        P: Package,
     {
         for embedded in spec.embedded().iter() {
             let compat = Self::validate_embedded_package_against_state(spec, embedded, state)?;
@@ -166,7 +166,7 @@ impl EmbeddedPackageValidator {
         state: &State,
     ) -> crate::Result<Compatibility>
     where
-        P: Package<Ident = Ident>,
+        P: Package,
     {
         use Compatibility::{Compatible, Incompatible};
 
@@ -217,7 +217,7 @@ impl ValidatorT for OptionsValidator {
         _source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: PackageOps<Ident = Ident, VarRequest = VarRequest> + Package,
+        P: Package + Satisfy<VarRequest>,
     {
         let requests = state.get_var_requests();
         let qualified_requests: HashSet<_> = requests
@@ -273,7 +273,7 @@ impl ValidatorT for PkgRequestValidator {
         source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: Satisfy<PkgRequest> + PackageOps<Ident = Ident, VarRequest = VarRequest> + Package,
+        P: Satisfy<PkgRequest> + Package,
     {
         let request = match state.get_merged_request(spec.name()) {
             Ok(request) => request,
@@ -361,7 +361,7 @@ impl ValidatorT for ComponentsValidator {
         source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: Package<Ident = Ident>,
+        P: Package,
     {
         use Compatibility::Compatible;
         if matches!(spec.ident().build, Some(Build::Embedded(_))) {
@@ -511,7 +511,7 @@ impl PkgRequirementsValidator {
         let required_components = resolved
             .components()
             .resolve_uses(request.pkg.components.iter());
-        for component in resolved.components_iter() {
+        for component in resolved.components().iter() {
             if existing_components.contains(&component.name) {
                 continue;
             }
