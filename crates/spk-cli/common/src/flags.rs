@@ -237,7 +237,7 @@ impl Requests {
 
                 match stage {
                     TestStage::Sources => {
-                        let ident = recipe.to_ident().with_target(Some(Build::Source));
+                        let ident = recipe.ident().to_any(Some(Build::Source));
                         idents.push(ident);
                         continue;
                     }
@@ -253,7 +253,7 @@ impl Requests {
             if path.is_file() {
                 let (_, template) = find_package_template(&Some(package))?.must_be_found();
                 let recipe = template.render(options)?;
-                idents.push(recipe.to_ident());
+                idents.push(recipe.ident().to_any(None));
             } else {
                 idents.push(parse_ident(package)?)
             }
@@ -307,7 +307,7 @@ impl Requests {
 
                 match stage {
                     TestStage::Sources => {
-                        let ident = recipe.to_ident().with_target(Some(Build::Source));
+                        let ident = recipe.ident().to_any(Some(Build::Source));
                         out.push(PkgRequest::from_ident(ident, RequestedBy::CommandLine).into());
                     }
 
@@ -316,8 +316,11 @@ impl Requests {
                         out.extend(requirements);
                     }
                     TestStage::Install => out.push(
-                        PkgRequest::from_ident_exact(recipe.to_ident(), RequestedBy::CommandLine)
-                            .into(),
+                        PkgRequest::from_ident_exact(
+                            recipe.ident().to_any(None),
+                            RequestedBy::CommandLine,
+                        )
+                        .into(),
                     ),
                 }
                 continue;

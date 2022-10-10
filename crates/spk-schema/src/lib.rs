@@ -50,7 +50,7 @@ pub use spk_schema_foundation::{
     version_range,
     FromYaml,
 };
-pub use spk_schema_ident::{self as ident, AnyIdent};
+pub use spk_schema_ident::{self as ident, AnyIdent, BuildIdent, VersionIdent};
 pub use template::{Template, TemplateExt};
 pub use test_spec::TestStage;
 pub use validation::{default_validators, ValidationSpec, Validator};

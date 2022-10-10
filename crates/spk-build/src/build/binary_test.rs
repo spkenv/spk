@@ -45,7 +45,7 @@ fn test_split_manifest_permissions() {
             },
         )
         .unwrap();
-    let pkg = "mypkg".parse().unwrap();
+    let pkg = "mypkg/1.0.0/3I42H3S6".parse().unwrap();
     let spec = ComponentSpecList::default();
     let components = super::split_manifest_by_component(&pkg, &manifest, &spec).unwrap();
     let run = components.get(&Component::Run).unwrap();

@@ -25,6 +25,7 @@ use crate::foundation::version_range::{
     VersionRange,
     WildcardRange,
 };
+use crate::{recipe, SpecRecipe};
 
 #[rstest]
 fn test_parse_version_range_carat() {
@@ -93,33 +94,45 @@ fn test_version_range_is_applicable(
 
 #[rstest]
 // exact version compatible with itself: YES
-#[case("=1.0.0", spec!({"pkg": "test/1.0.0"}), true)]
+#[case("=1.0.0", recipe!({"pkg": "test/1.0.0"}), true)]
 // shorter parts version compatible with itself: YES
-#[case("=1.0", spec!({"pkg": "test/1.0.0"}), true)]
+#[case("=1.0", recipe!({"pkg": "test/1.0.0"}), true)]
 // exact version compatible with different post-release: YES
-#[case("=1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+#[case("=1.0.0", recipe!({"pkg": "test/1.0.0+r.1"}), true)]
 // shorter parts version compatible with different post-release: YES
-#[case("=1.0", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+#[case("=1.0", recipe!({"pkg": "test/1.0.0+r.1"}), true)]
 // precise exact version compatible with different post-release: NO
-#[case("==1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), false)]
+#[case("==1.0.0", recipe!({"pkg": "test/1.0.0+r.1"}), false)]
 // precise shorter parts version compatible with same post-release: YES
-#[case("==1.0+r.1", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+#[case("==1.0+r.1", recipe!({"pkg": "test/1.0.0+r.1"}), true)]
 // exact post release compatible with different one: NO
-#[case("=1.0.0+r.2", spec!({"pkg": "test/1.0.0+r.1"}), false)]
+#[case("=1.0.0+r.2", recipe!({"pkg": "test/1.0.0+r.1"}), false)]
 // negative exact version compatible with itself: NO
-#[case("!=1.0.0", spec!({"pkg": "test/1.0.0"}), false)]
+#[case("!=1.0.0", recipe!({"pkg": "test/1.0.0"}), false)]
 // negative shorter parts version compatible with itself: NO
-#[case("!=1.0", spec!({"pkg": "test/1.0.0"}), false)]
+#[case("!=1.0", recipe!({"pkg": "test/1.0.0"}), false)]
 // negative exact version compatible with different post-release: NO
-#[case("!=1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), false)]
+#[case("!=1.0.0", recipe!({"pkg": "test/1.0.0+r.1"}), false)]
 // negative precise exact version compatible with different post-release: YES
-#[case("!==1.0.0", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+#[case("!==1.0.0", recipe!({"pkg": "test/1.0.0+r.1"}), true)]
 // negative precise shorter parts version compatible with different post-release: YES
-#[case("!==1.0", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+#[case("!==1.0", recipe!({"pkg": "test/1.0.0+r.1"}), true)]
 // negative precise shorter parts version compatible with same post-release: NO
-#[case("!==1.0+r.1", spec!({"pkg": "test/1.0.0+r.1"}), false)]
+#[case("!==1.0+r.1", recipe!({"pkg": "test/1.0.0+r.1"}), false)]
 // negative exact post release compatible with different one: YES
-#[case("!=1.0.0+r.2", spec!({"pkg": "test/1.0.0+r.1"}), true)]
+#[case("!=1.0.0+r.2", recipe!({"pkg": "test/1.0.0+r.1"}), true)]
+fn test_version_range_is_satisfied_recipe(
+    #[case] range: &str,
+    #[case] spec: SpecRecipe,
+    #[case] expected: bool,
+) {
+    let vr = parse_version_range(range).unwrap();
+    let actual = vr.is_satisfied_by(&spec, CompatRule::Binary);
+
+    assert_eq!(actual.is_ok(), expected, "{} -> {:?}", range, actual);
+}
+
+#[rstest]
 // default compat is contextual (given by test function)
 #[case("1.0.0", spec!({"pkg": "test/1.1.0/JRSXNRF4", "compat": "x.a.b"}), false)]
 // explicit api compat override
@@ -148,7 +161,7 @@ fn test_version_range_is_applicable(
 #[case("Binary:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x+ab"}), true)]
 // smaller numbers are not compatible
 #[case("Binary:5.12.2.1", spec!({"pkg": "test/5.12.2/JRSXNRF4", "compat": "x.x.ab"}), false)]
-fn test_version_range_is_satisfied(
+fn test_version_range_is_satisfied_spec(
     #[case] range: &str,
     #[case] spec: Spec,
     #[case] expected: bool,

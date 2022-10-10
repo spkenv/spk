@@ -9,5 +9,5 @@ mod request;
 #[path = "./parsing_test.rs"]
 mod parsing_test;
 
-pub use ident::ident;
+pub use ident::{build_ident, ident, version_ident};
 pub use request::{range_ident, range_ident_version_filter, version_filter_and_build};

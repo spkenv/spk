@@ -100,7 +100,7 @@ fn test_request_default_component() {
         }
     }));
     let spec = Arc::new(spec!({
-        "pkg": "parent/1.0.0",
+        "pkg": "parent/1.0.0/3I42H3S6",
         "install": {
           "requirements": [
             {"pkg": "dependency/1.0.0"}

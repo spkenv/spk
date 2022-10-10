@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
-use spk_schema::ident::ident;
+use spk_schema::ident::build_ident;
 use spk_schema::{v0, GitSource, LocalSource, ScriptSource, SourceSpec, Spec, TarSource};
 use spk_storage::fixtures::*;
 
@@ -83,7 +83,7 @@ async fn test_sources_subdir(_tmpdir: tempfile::TempDir) {
     let file_source = LocalSource::new(source_file).set_subdir("local");
 
     let dest_dir = rt.tmpdir.path().join("dest");
-    let mut spec = v0::Spec::new("test-pkg".parse().unwrap());
+    let mut spec = v0::Spec::new("test-pkg/1.0.0/src".parse().unwrap());
     spec.sources = vec![
         SourceSpec::Git(git_source),
         SourceSpec::Tar(tar_source),
@@ -108,7 +108,7 @@ async fn test_sources_subdir(_tmpdir: tempfile::TempDir) {
 #[tokio::test]
 async fn test_sources_environment(_tmpdir: tempfile::TempDir) {
     let rt = spfs_runtime().await;
-    let mut spec = v0::Spec::new(ident!("sources-test/0.1.0/src"));
+    let mut spec = v0::Spec::new(build_ident!("sources-test/0.1.0/src"));
     let expected = vec![
         "SPK_PKG=sources-test/0.1.0/src",
         "SPK_PKG_NAME=sources-test",

@@ -43,7 +43,8 @@ pub async fn current_env() -> crate::Result<Solution> {
                     }
                     Err(err) => return Err(err.into()),
                 };
-                let range_ident = RangeIdent::equals(spec.ident(), components.keys().cloned());
+                let range_ident =
+                    RangeIdent::equals(&spec.ident().to_any(), components.keys().cloned());
                 let mut request = PkgRequest::new(range_ident, RequestedBy::CurrentEnvironment);
                 request.prerelease_policy = PreReleasePolicy::IncludeAll;
                 let repo = repo.clone();

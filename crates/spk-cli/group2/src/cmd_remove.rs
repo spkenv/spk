@@ -9,8 +9,9 @@ use colored::Colorize;
 use itertools::Itertools;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::ident::{parse_ident, AnyIdent};
-use spk_storage::{self as storage};
+use spk_schema::ident::parse_ident;
+use spk_schema::{BuildIdent, VersionIdent};
+use spk_storage as storage;
 
 /// Remove a package from a repository
 #[derive(Args)]
@@ -74,10 +75,13 @@ impl Run for Remove {
                 };
 
                 for version in versions {
-                    if version.build().is_some() {
-                        remove_build(repo_name, repo, &version).await?;
-                    } else {
-                        remove_all(repo_name, repo, &version).await?;
+                    match version.into_inner() {
+                        (version, None) => {
+                            remove_all(repo_name, repo, &version).await?;
+                        }
+                        (version, Some(build)) => {
+                            remove_build(repo_name, repo, &version.into_build(build)).await?;
+                        }
                     }
                 }
             }
@@ -96,22 +100,22 @@ impl CommandArgs for Remove {
 async fn remove_build(
     repo_name: &str,
     repo: &storage::RepositoryHandle,
-    pkg: &AnyIdent,
+    pkg: &BuildIdent,
 ) -> Result<()> {
     let repo_name = repo_name.bold();
     let pretty_pkg = pkg.format_ident();
-    let (spec, package) = tokio::join!(repo.remove_recipe(pkg), repo.remove_package(pkg),);
+    let (recipe, package) = tokio::join!(repo.remove_recipe(pkg), repo.remove_package(pkg),);
     // First inform on the things that actually happened.
-    if spec.is_ok() {
-        tracing::info!("removed build spec {pretty_pkg} from {repo_name}")
+    if recipe.is_ok() {
+        tracing::info!("removed recipe {pretty_pkg: >25} from {repo_name}")
     }
     if package.is_ok() {
-        tracing::info!("removed build      {pretty_pkg} from {repo_name}")
+        tracing::info!("removed build  {pretty_pkg: >25} from {repo_name}")
     }
     // Treat "not found" problems as warnings unless both parts were not
     // found.
-    let spec_not_found = matches!(
-        spec,
+    let recipe_not_found = matches!(
+        recipe,
         Err(spk_storage::Error::SpkValidatorsError(
             spk_schema::validators::Error::PackageNotFoundError(_)
         ))
@@ -122,23 +126,23 @@ async fn remove_build(
             spk_schema::validators::Error::PackageNotFoundError(_)
         ))
     );
-    if spec_not_found && pkg_not_found {
+    if recipe_not_found && pkg_not_found {
         // Both parts were not found; this is a hard error so don't
         // emit warnings.
         return Err(package.unwrap_err().into());
     }
     // When not erroring above, emit a warning about the one that was missing.
-    if spec_not_found {
-        tracing::warn!("spec {pretty_pkg} not found in {repo_name}");
+    if recipe_not_found {
+        tracing::warn!("recipe {pretty_pkg: >25} not found in {repo_name}");
     } else if pkg_not_found {
-        tracing::warn!("build {pretty_pkg} not found in {repo_name}");
+        tracing::warn!("build  {pretty_pkg: >25} not found in {repo_name}");
     }
     // Now fail if anything errored for other reasons.
     if package.is_err() && !pkg_not_found {
         return Err(package.unwrap_err().into());
     }
-    if spec.is_err() && !spec_not_found {
-        return Err(spec.unwrap_err().into());
+    if recipe.is_err() && !recipe_not_found {
+        return Err(recipe.unwrap_err().into());
     }
     Ok(())
 }
@@ -146,7 +150,7 @@ async fn remove_build(
 async fn remove_all(
     repo_name: &str,
     repo: &storage::RepositoryHandle,
-    pkg: &AnyIdent,
+    pkg: &VersionIdent,
 ) -> Result<()> {
     let pretty_pkg = pkg.format_ident();
     for build in repo.list_package_builds(pkg).await? {
@@ -154,11 +158,11 @@ async fn remove_all(
     }
     let repo_name = repo_name.bold();
     match repo.remove_recipe(pkg).await {
-        Ok(()) => tracing::info!("removed spec       {pretty_pkg} from {repo_name}"),
+        Ok(()) => tracing::info!("removed recipe {pretty_pkg: >25} from {repo_name}"),
         Err(spk_storage::Error::SpkValidatorsError(
             spk_schema::validators::Error::PackageNotFoundError(_),
         )) => {
-            tracing::warn!("spec {pretty_pkg} not found in {repo_name}")
+            tracing::warn!("spec {pretty_pkg: >25} not found in {repo_name}")
         }
         Err(err) => return Err(err.into()),
     }

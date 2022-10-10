@@ -70,31 +70,31 @@ impl Run for Install {
         let mut tertiary = Vec::new();
         for solved in solution.items() {
             if requested.contains(solved.spec.name()) {
-                primary.push(solved.spec);
+                primary.push(solved);
                 continue;
             }
             if solution.get(&solved.request.pkg.name).is_none() {
-                tertiary.push(solved.spec)
+                tertiary.push(solved)
             }
         }
 
         println!("  Requested:");
-        for spec in primary {
+        for resolved in primary {
             let mut end = String::new();
-            if spec.ident().build().is_none() {
+            if resolved.is_source_build() {
                 end = " [build from source]".magenta().to_string();
             }
-            println!("    {}{end}", spec.ident().format_ident());
+            println!("    {}{end}", resolved.spec.ident().format_ident());
         }
         if !tertiary.is_empty() {
             println!("\n  Dependencies:");
         }
-        for spec in tertiary {
+        for resolved in tertiary {
             let mut end = String::new();
-            if spec.ident().build().is_none() {
+            if resolved.is_source_build() {
                 end = " [build from source]".magenta().to_string();
             }
-            println!("    {}{end}", spec.ident().format_ident())
+            println!("    {}{end}", resolved.spec.ident().format_ident())
         }
 
         println!();

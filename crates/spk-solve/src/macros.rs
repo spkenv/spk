@@ -18,10 +18,12 @@ macro_rules! make_repo {
         make_repo!([ $( $spec ),* ], options=options)
     }};
     ( [ $( $spec:tt ),+ $(,)? ], options=$options:expr ) => {{
+        tracing::debug!("creating in-memory repository");
         let repo = $crate::RepositoryHandle::new_mem();
         let _opts = $options;
         $(
             let (s, cmpts) = $crate::make_package!(repo, $spec, &_opts);
+            tracing::trace!(pkg=%$crate::Package::ident(&s), cmpts=?cmpts.keys(), "adding package to repo");
             repo.publish_package(&s, &cmpts).await.unwrap();
         )*
         repo
@@ -45,15 +47,25 @@ macro_rules! make_package {
     }};
     ($repo:ident, $spec:tt, $opts:expr) => {{
         let json = $crate::serde_json::json!($spec);
-        let mut spec: $crate::v0::Spec =
+        let spec: $crate::v0::Spec<$crate::AnyIdent> =
             $crate::serde_json::from_value(json).expect("Invalid spec json");
-        let build = spec.clone();
-        if !spec.pkg.is_source() {
-            spec.pkg.set_target(None);
-            $repo.force_publish_recipe(&spec.into()).await.unwrap();
+        match spec.pkg.build().map(|b| b.clone()) {
+            None => {
+                let recipe = spec.clone().map_ident(|i| i.into_base()).into();
+                $repo.force_publish_recipe(&recipe).await.unwrap();
+                make_build_and_components!(recipe, [], $opts, [])
+            }
+            Some($crate::Build::Source) => {
+                let recipe = spec.clone().map_ident(|i| i.into_base());
+                $repo.force_publish_recipe(&recipe.into()).await.unwrap();
+                let build = spec.map_ident(|i| i.into_base().into_build($crate::Build::Source));
+                make_build_and_components!(build, [], $opts, [])
+            }
+            Some(b) => {
+                let build = spec.map_ident(|i| i.into_base().into_build(b));
+                make_build_and_components!(build, [], $opts, [])
+            }
         }
-        let build = $crate::Spec::V0Package(build);
-        make_build_and_components!(build, [], $opts, [])
     }};
 }
 
@@ -102,45 +114,64 @@ macro_rules! make_build_and_components {
     ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
         #[allow(unused_imports)]
         use $crate::{Package, Recipe};
-        let spec = $crate::spec!($spec);
+        let json = $crate::serde_json::json!($spec);
+        let spec: $crate::v0::Spec<$crate::AnyIdent> =
+            $crate::serde_json::from_value(json).expect("Invalid spec json");
         let mut components = std::collections::HashMap::<$crate::Component, $crate::spfs::encoding::Digest>::new();
-        if spec.ident().is_source() {
-            components.insert($crate::Component::Source, $crate::spfs::encoding::EMPTY_DIGEST.into());
-            (spec, components)
-        } else {
-            let recipe = $crate::recipe!($spec);
-            let mut build_opts = $opts.clone();
-            #[allow(unused_mut)]
-            let mut solution = $crate::Solution::new(Some(build_opts.clone()));
-            $(
-            let dep = Arc::new($dep.clone());
-            solution.add(
-                &$crate::PkgRequest::from_ident(
-                    $dep.ident().to_owned(),
-                    $crate::RequestedBy::SpkInternalTest,
-                ),
-                Arc::clone(&dep),
-                // NOTE(rbottriell): this is not really appropriate, but
-                // is not usually used by the 'generate_binary_build' process.
-                // It might be necessary in the future to have a special enum
-                // value for manually injected packages, but it's preferable
-                // to avoid that.
-                $crate::PackageSource::Embedded,
-            );
-            )*
-            let mut resolved_opts = recipe.resolve_options(&build_opts).unwrap().into_iter();
-            build_opts.extend(&mut resolved_opts);
-            let spec = recipe.generate_binary_build(&build_opts, &solution)
-                .expect("Failed to generate build spec");
-            let mut names = std::vec![$($component.to_string()),*];
-            if names.is_empty() {
-                names = spec.components().iter().map(|c| c.name.to_string()).collect();
+        match spec.pkg.build().map(|b| b.clone()) {
+            None => {
+                let recipe = spec.clone().map_ident(|i| i.into_base());
+                let mut build_opts = $opts.clone();
+                #[allow(unused_mut)]
+                let mut solution = $crate::Solution::new(Some(build_opts.clone()));
+                $(
+                let dep = Arc::new($dep.clone());
+                solution.add(
+                    &$crate::PkgRequest::from_ident(
+                        $dep.ident().to_any(),
+                        $crate::RequestedBy::SpkInternalTest,
+                    ),
+                    Arc::clone(&dep),
+                    // NOTE(rbottriell): this is not really appropriate, but
+                    // is not usually used by the 'generate_binary_build' process.
+                    // It might be necessary in the future to have a special enum
+                    // value for manually injected packages, but it's preferable
+                    // to avoid that.
+                    $crate::PackageSource::Embedded,
+                );
+                )*
+                let mut resolved_opts = recipe.resolve_options(&build_opts).unwrap().into_iter();
+                build_opts.extend(&mut resolved_opts);
+                tracing::trace!(%build_opts, "generating build");
+                let build = recipe.generate_binary_build(&build_opts, &solution)
+                    .expect("Failed to generate build spec");
+                let mut names = std::vec![$($component.to_string()),*];
+                if names.is_empty() {
+                    names = build.components().iter().map(|c| c.name.to_string()).collect();
+                }
+                for name in names {
+                    let name = $crate::Component::parse(name).expect("invalid component name");
+                    components.insert(name, $crate::spfs::encoding::EMPTY_DIGEST.into());
+                }
+                ($crate::Spec::V0Package(build), components)
             }
-            for name in names {
-                let name = $crate::Component::parse(name).expect("invalid component name");
-                components.insert(name, $crate::spfs::encoding::EMPTY_DIGEST.into());
+            Some(b @ $crate::Build::Source) => {
+                let build = spec.map_ident(|i| i.into_base().into_build(b));
+                components.insert($crate::Component::Source, $crate::spfs::encoding::EMPTY_DIGEST.into());
+                ($crate::Spec::V0Package(build), components)
             }
-            (spec, components)
+            Some(b) => {
+                let build = spec.map_ident(|i| i.into_base().into_build(b));
+                let mut names = std::vec![$($component.to_string()),*];
+                if names.is_empty() {
+                    names = build.components().iter().map(|c| c.name.to_string()).collect();
+                }
+                for name in names {
+                    let name = $crate::Component::parse(name).expect("invalid component name");
+                    components.insert(name, $crate::spfs::encoding::EMPTY_DIGEST.into());
+                }
+                ($crate::Spec::V0Package(build), components)
+            }
         }
     }}
 }

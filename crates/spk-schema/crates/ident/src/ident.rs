@@ -11,7 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[path = "./ident_test.rs"]
 mod ident_test;
 
-/// Parse an identifier from a string.
+/// Parse a version identifier from a string.
 ///
 /// This will panic if the identifier is wrong,
 /// and should only be used for testing.
@@ -20,13 +20,32 @@ mod ident_test;
 /// # #[macro_use]
 /// # pub extern crate spk_schema_ident;
 /// # fn main() {
-/// ident!("my-pkg/1.0.0");
+/// version_ident!("my-pkg/1.0.0");
 /// # }
 /// ```
 #[macro_export]
-macro_rules! ident {
-    ($ident:literal) => {
-        $crate::parse_ident($ident).unwrap()
+macro_rules! version_ident {
+    ($ident:expr) => {
+        $crate::parse_version_ident($ident).unwrap()
+    };
+}
+
+/// Parse a build identifier from a string.
+///
+/// This will panic if the identifier is wrong,
+/// and should only be used for testing.
+///
+/// ```
+/// # #[macro_use]
+/// # pub extern crate spk_schema_ident;
+/// # fn main() {
+/// build_ident!("my-pkg/1.0.0/src");
+/// # }
+/// ```
+#[macro_export]
+macro_rules! build_ident {
+    ($ident:expr) => {
+        $crate::parse_build_ident($ident).unwrap()
     };
 }
 
@@ -106,6 +125,12 @@ impl<Base, T> std::ops::DerefMut for Ident<Base, T> {
 impl<Base, Target> AsRef<Base> for Ident<Base, Target> {
     fn as_ref(&self) -> &Base {
         self.base()
+    }
+}
+
+impl<Base, Target> AsRef<Self> for Ident<Base, Target> {
+    fn as_ref(&self) -> &Self {
+        self
     }
 }
 

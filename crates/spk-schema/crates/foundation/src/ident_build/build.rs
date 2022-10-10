@@ -93,6 +93,25 @@ pub enum Build {
 }
 
 impl Build {
+    /// An empty build is the build digest created from
+    /// an empty option map
+    pub fn empty() -> &'static Build {
+        static EMPTY: Build = Build::Digest(['3', 'I', '4', '2', 'H', '3', 'S', '6']);
+        &EMPTY
+    }
+
+    /// A null build is the build digest created by
+    /// encoded a series of all zeros (ie: [`spfs::encoding::NULL_DIGEST`])
+    pub fn null() -> &'static Build {
+        static NULL: Build = Build::Digest(['A', 'A', 'A', 'A', 'A', 'A', 'A', 'A']);
+        &NULL
+    }
+
+    /// True if this build is equal to the null one, see [`Build::null`]
+    pub fn is_null(&self) -> bool {
+        self == Self::null()
+    }
+
     /// The name or digest of this build as shown in a version
     pub fn digest(&self) -> String {
         match self {

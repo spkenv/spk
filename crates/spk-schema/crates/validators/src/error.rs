@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use spk_schema_ident::AnyIdent;
+use spk_schema_ident::{AnyIdent, VersionIdent};
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -26,7 +26,7 @@ pub enum Error {
     #[error("Package not found: {0}")]
     PackageNotFoundError(AnyIdent),
     #[error("Version exists: {0}")]
-    VersionExistsError(AnyIdent),
+    VersionExistsError(VersionIdent),
 
     // Bake Errors
     #[error("Skip embedded")]

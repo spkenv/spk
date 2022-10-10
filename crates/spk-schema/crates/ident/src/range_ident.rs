@@ -22,7 +22,7 @@ use spk_schema_foundation::version_range::{
     VersionRange,
 };
 
-use crate::{AnyIdent, Error, LocatedBuildIdent, Result, Satisfy};
+use crate::{AnyIdent, BuildIdent, Error, LocatedBuildIdent, Result, Satisfy, VersionIdent};
 
 #[cfg(test)]
 #[path = "./range_ident_test.rs"]
@@ -276,6 +276,33 @@ impl From<AnyIdent> for RangeIdent {
             version: version.into(),
             components: BTreeSet::default(),
             build,
+        }
+    }
+}
+
+impl From<VersionIdent> for RangeIdent {
+    fn from(ident: VersionIdent) -> Self {
+        let (name, version) = ident.into_inner();
+        Self {
+            repository_name: None,
+            name,
+            version: version.into(),
+            components: BTreeSet::default(),
+            build: None,
+        }
+    }
+}
+
+impl From<BuildIdent> for RangeIdent {
+    fn from(ident: BuildIdent) -> Self {
+        let (version_ident, build) = ident.into_inner();
+        let (name, version) = version_ident.into_inner();
+        Self {
+            repository_name: None,
+            name,
+            version: version.into(),
+            components: BTreeSet::default(),
+            build: Some(build),
         }
     }
 }

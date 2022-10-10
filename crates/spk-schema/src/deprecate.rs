@@ -38,6 +38,28 @@ where
     }
 }
 
+impl<T> Deprecate for Box<T>
+where
+    T: Deprecate,
+{
+    fn is_deprecated(&self) -> bool {
+        (**self).is_deprecated()
+    }
+}
+
+impl<T> DeprecateMut for Box<T>
+where
+    T: DeprecateMut,
+{
+    fn deprecate(&mut self) -> Result<()> {
+        (**self).deprecate()
+    }
+
+    fn undeprecate(&mut self) -> Result<()> {
+        (**self).undeprecate()
+    }
+}
+
 impl<T> Deprecate for &T
 where
     T: Deprecate,
