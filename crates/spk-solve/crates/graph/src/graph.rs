@@ -18,15 +18,13 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{OptNameBuf, PkgName, PkgNameBuf};
 use spk_schema::foundation::option_map;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::foundation::spec_ops::{Named, Versioned};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::prelude::*;
 use spk_schema::{
     AnyIdent,
     ComponentSpecList,
     EmbeddedPackagesList,
-    Package,
-    Recipe,
     RequirementsList,
     Spec,
     SpecRecipe,
@@ -144,7 +142,7 @@ impl FormatChange for Change {
                                 // display what requested them.
                                 match &c.source {
                                     PackageSource::BuildFromSource { recipe } => {
-                                        vec![RequestedBy::PackageBuild(recipe.to_ident())
+                                        vec![RequestedBy::PackageBuild(recipe.ident().clone())
                                             .to_string()]
                                     }
                                     PackageSource::Embedded => {
@@ -259,7 +257,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 Arc::clone(recipe),
             )))];
 
-            let requested_by = RequestedBy::PackageBuild(spec.ident().clone());
+            let requested_by = RequestedBy::PackageBuild(spec.ident().base().clone());
             changes
                 .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
             changes.extend(self.components_to_changes(spec.components(), &requested_by));
@@ -282,7 +280,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 source,
             )))];
 
-            let requested_by = RequestedBy::PackageBuild(spec.ident().clone());
+            let requested_by = RequestedBy::PackageBuild(spec.ident().base().clone());
             changes
                 .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
             changes.extend(self.components_to_changes(spec.components(), &requested_by));
@@ -376,7 +374,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             if !added_components.contains(&component.name) {
                 continue;
             }
-            let requested_by = RequestedBy::PackageBuild(spec.ident().clone());
+            let requested_by = RequestedBy::PackageBuild(spec.ident().base().clone());
             changes.extend(self.requirements_to_changes(&component.requirements, &requested_by));
         }
         changes
@@ -388,7 +386,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             .flat_map(|embedded| {
                 [
                     Change::RequestPackage(RequestPackage::new(PkgRequest::from_ident(
-                        embedded.ident().clone(),
+                        embedded.ident().to_any(),
                         RequestedBy::Embedded,
                     ))),
                     Change::SetPackage(Box::new(SetPackage::new(

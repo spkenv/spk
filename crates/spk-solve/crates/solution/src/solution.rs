@@ -15,10 +15,10 @@ use spk_schema::foundation::format::{
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::PkgNameBuf;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::foundation::spec_ops::{Named, Versioned};
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, RequestedBy};
-use spk_schema::{AnyIdent, BuildEnv, Package, Spec, SpecRecipe};
+use spk_schema::prelude::*;
+use spk_schema::{BuildEnv, Package, Spec, SpecRecipe, VersionIdent};
 use spk_storage::RepositoryHandle;
 
 use crate::{Error, Result};
@@ -45,7 +45,7 @@ impl PackageSource {
         matches!(self, Self::BuildFromSource { .. })
     }
 
-    pub async fn read_recipe(&self, ident: &AnyIdent) -> Result<Arc<SpecRecipe>> {
+    pub async fn read_recipe(&self, ident: &VersionIdent) -> Result<Arc<SpecRecipe>> {
         match self {
             PackageSource::BuildFromSource { recipe } => Ok(Arc::clone(recipe)),
             PackageSource::Repository { repo, .. } => Ok(repo.read_recipe(ident).await?),
@@ -212,10 +212,7 @@ impl Solution {
             );
             out.insert(
                 format!("SPK_PKG_{}_BUILD", spec.name()),
-                spec.ident()
-                    .build()
-                    .map(ToString::to_string)
-                    .unwrap_or_else(|| "None".to_owned()),
+                spec.ident().build().to_string(),
             );
             out.insert(
                 format!("SPK_PKG_{}_VERSION_MAJOR", spec.name()),
@@ -269,7 +266,7 @@ impl FormatSolution for Solution {
         let number_of_packages = required_items.len();
         for req in required_items {
             let mut installed =
-                PkgRequest::from_ident(req.spec.ident().clone(), RequestedBy::DoesNotMatter);
+                PkgRequest::from_ident(req.spec.ident().to_any(), RequestedBy::DoesNotMatter);
 
             if let PackageSource::Repository { components, .. } = req.source {
                 let mut installed_components = req.request.pkg.components.clone();

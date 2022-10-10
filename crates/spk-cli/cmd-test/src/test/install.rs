@@ -96,8 +96,8 @@ impl<'a> PackageInstallTester<'a> {
             solver.add_repository(repo);
         }
 
-        let pkg = RangeIdent::equals(&self.recipe.to_ident(), [Component::All]);
-        let request = PkgRequest::new(pkg, RequestedBy::InstallTest(self.recipe.to_ident()))
+        let pkg = RangeIdent::equals(&self.recipe.ident().to_any(None), [Component::All]);
+        let request = PkgRequest::new(pkg, RequestedBy::InstallTest(self.recipe.ident().clone()))
             .with_prerelease(PreReleasePolicy::IncludeAll)
             .with_pin(None)
             .with_compat(None);

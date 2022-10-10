@@ -123,7 +123,7 @@ impl Run for Test {
                         anyhow::bail!(
                             "--variant {index} is out of range; {} variant(s) found in {}",
                             recipe.default_variants().len(),
-                            recipe.to_ident().format_ident(),
+                            recipe.ident().format_ident(),
                         );
                     }
                     None => recipe.default_variants().iter().skip(0).take(usize::MAX),
@@ -188,8 +188,8 @@ impl Run for Test {
                                             || {
                                                 BuildSource::SourcePackage(
                                                     recipe
-                                                        .to_ident()
-                                                        .with_target(Some(Build::Source))
+                                                        .ident()
+                                                        .to_any(Some(Build::Source))
                                                         .into(),
                                                 )
                                             },

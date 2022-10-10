@@ -13,7 +13,7 @@ use spk_schema::foundation::version::Version;
 use spk_schema::foundation::version_range::{parse_version_range, Ranged};
 use spk_schema::ident_build::{Build, EmbeddedSource};
 use spk_schema::ident_ops::parsing::IdentPartsBuf;
-use spk_schema::AnyIdent;
+use spk_schema::BuildIdent;
 
 use crate::Result;
 
@@ -133,12 +133,12 @@ impl BuildKey {
     /// for the matching build (pkg AnyIdent). If not, it will make a
     /// strange build key that could be unrelated to the build. See
     /// SortedBuildIterator for more details.
-    pub fn new(pkg: &AnyIdent, ordering: &Vec<OptNameBuf>, name_values: &OptionMap) -> BuildKey {
+    pub fn new(pkg: &BuildIdent, ordering: &Vec<OptNameBuf>, name_values: &OptionMap) -> BuildKey {
         if pkg.is_source() {
             // All '/src' builds use the same simplified key
             return BuildKey::Src;
         }
-        if let Some(Build::Embedded(EmbeddedSource::Package(package))) = pkg.build() {
+        if let Build::Embedded(EmbeddedSource::Package(package)) = pkg.build() {
             return BuildKey::Embed(package.ident.clone());
         }
 
@@ -186,16 +186,7 @@ impl BuildKey {
         // filesystem accesses.  Non-deterministic sorting and
         // selection of builds is difficult to reason about and debug.
         // This avoids it.
-        //
-        let digest = match pkg.build() {
-            Some(build) => build.digest(),
-            None => {
-                // This should not happen, but if it does use a
-                // sentinel value for the digest
-                "notabuild".to_string()
-            }
-        };
-        key_entries.push(BuildKeyEntry::Text(digest));
+        key_entries.push(BuildKeyEntry::Text(pkg.build().digest()));
 
         // Assemble and return the build key
         BuildKey::Binary(key_entries)

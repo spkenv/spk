@@ -26,7 +26,7 @@ async fn test_archive_create_parents() {
         .await
         .unwrap();
     let filename = rt.tmpdir.path().join("deep/nested/path/archive.spk");
-    export_package(spec.ident(), filename)
+    export_package(&spec.ident().to_any(), filename)
         .await
         .expect("export should create dirs as needed");
 }

@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use serde::{Deserialize, Serialize};
+use spk_schema_ident::BuildIdent;
 
 use super::{ComponentSpecList, EmbeddedPackagesList, EnvOp, RequirementsList};
 use crate::foundation::option_map::OptionMap;
-use crate::ident::{AnyIdent, Request};
+use crate::ident::Request;
 use crate::Result;
 
 #[cfg(test)]
@@ -42,7 +43,7 @@ impl InstallSpec {
     pub fn render_all_pins<'a>(
         &mut self,
         options: &OptionMap,
-        resolved: impl Iterator<Item = &'a AnyIdent>,
+        resolved: impl Iterator<Item = &'a BuildIdent>,
     ) -> Result<()> {
         self.requirements.render_all_pins(options, resolved)
     }

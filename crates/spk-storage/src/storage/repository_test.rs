@@ -8,7 +8,7 @@ use rstest::rstest;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::pkg_name;
 use spk_schema::foundation::spec_ops::Named;
-use spk_schema::ident::parse_ident;
+use spk_schema::ident::{parse_build_ident, parse_ident};
 use spk_schema::{
     recipe,
     spec,
@@ -83,7 +83,7 @@ async fn test_repo_read_recipe_empty(#[case] repo: RepoKind) {
 #[tokio::test]
 async fn test_repo_read_package_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
-    let nothing = parse_ident("nothing/1.0.0/src").unwrap();
+    let nothing = parse_build_ident("nothing/1.0.0/src").unwrap();
     match repo.read_package(&nothing).await {
         Err(Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(_))) => {}
         res => panic!("expected package not found error, got {:?}", res),
@@ -138,7 +138,7 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
     let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
     repo.publish_recipe(&recipe).await.unwrap();
-    let spec = spec!({"pkg": "my-pkg/1.0.0/7CI5R7Y4"});
+    let spec = spec!({"pkg": "my-pkg/1.0.0/3I42H3S6"});
     repo.publish_package(
         &spec,
         &vec![(Component::Run, empty_layer_digest())]
@@ -148,10 +148,10 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
     .await
     .unwrap();
     assert_eq!(
-        repo.list_package_builds(spec.ident()).await.unwrap(),
+        repo.list_package_builds(spec.ident().base()).await.unwrap(),
         [spec.ident().clone()]
     );
-    assert_eq!(*repo.read_recipe(&recipe.to_ident()).await.unwrap(), recipe);
+    assert_eq!(*repo.read_recipe(recipe.ident()).await.unwrap(), recipe);
     repo.publish_package(
         &spec,
         &vec![(Component::Run, empty_layer_digest())]
@@ -164,7 +164,7 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
         repo.list_package_builds(spec.ident()).await.unwrap(),
         vec![spec.ident().clone()]
     );
-    assert_eq!(*repo.read_recipe(&recipe.to_ident()).await.unwrap(), recipe);
+    assert_eq!(*repo.read_recipe(recipe.ident()).await.unwrap(), recipe);
     repo.remove_package(spec.ident()).await.unwrap();
     assert!(repo
         .list_package_builds(spec.ident())
@@ -184,7 +184,7 @@ async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> (SpecRecipe, Spec)
     });
     repo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({
-        "pkg": "my-pkg/1.0.0/7CI5R7Y4",
+        "pkg": "my-pkg/1.0.0/3I42H3S6",
         "install": {
             "embedded": [
                 {"pkg": "my-embedded-pkg/1.0.0/embedded"}
@@ -223,7 +223,7 @@ async fn test_repo_publish_spec_updates_embed_stubs(#[case] repo: RepoKind) {
     });
     repo.force_publish_recipe(&recipe).await.unwrap();
     let spec = spec!({
-        "pkg": "my-pkg/1.0.0/7CI5R7Y4",
+        "pkg": "my-pkg/1.0.0/3I42H3S6",
         "install": {
             "embedded": [
                 {"pkg": "my-embedded-pkg2/1.0.0/embedded"}
@@ -290,7 +290,7 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
     });
     repo.publish_recipe(&recipe).await.unwrap();
     let spec = spec!({
-        "pkg": "my-pkg/1.0.0/7CI5R7Y4",
+        "pkg": "my-pkg/1.0.0/3I42H3S6",
         "install": {
             "embedded": [
                 {"pkg": "my-embedded-pkg/1.0.0"},
@@ -322,7 +322,7 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
     });
     repo.force_publish_recipe(&recipe).await.unwrap();
     let mut spec = spec!({
-        "pkg": "my-pkg/1.0.0/7CI5R7Y4",
+        "pkg": "my-pkg/1.0.0/3I42H3S6",
         "install": {
             "embedded": [
                 {"pkg": "my-embedded-pkg2/1.0.0"},

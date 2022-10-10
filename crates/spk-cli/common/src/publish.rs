@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use spk_schema::foundation::format::{FormatComponents, FormatIdent};
 use spk_schema::foundation::ident_component::ComponentSet;
-use spk_schema::{AnyIdent, Package, Recipe};
+use spk_schema::{AnyIdent, BuildIdent, Package, Recipe};
 use spk_storage::{self as storage};
 use storage::{with_cache_policy, CachePolicy};
 
@@ -71,7 +71,11 @@ impl Publisher {
     }
 
     /// Publish the identified package as configured.
-    pub async fn publish(&self, pkg: &AnyIdent) -> Result<Vec<AnyIdent>> {
+    pub async fn publish<I>(&self, pkg: I) -> Result<Vec<BuildIdent>>
+    where
+        I: AsRef<AnyIdent>,
+    {
+        let pkg = pkg.as_ref();
         let recipe_ident = pkg.with_build(None);
         tracing::info!("loading recipe: {}", recipe_ident.format_ident());
         match with_cache_policy!(self.from, CachePolicy::BypassCache, {
@@ -95,7 +99,7 @@ impl Publisher {
             }
             Err(err) => return Err(err.into()),
             Ok(recipe) => {
-                tracing::info!("publishing recipe: {}", recipe.to_ident().format_ident());
+                tracing::info!("publishing recipe: {}", recipe.ident().format_ident());
                 if self.force {
                     self.to.force_publish_recipe(&recipe).await?;
                 } else {
@@ -109,7 +113,7 @@ impl Publisher {
                         Err(err) => {
                             return Err(format!(
                                 "Failed to publish recipe {}: {err}",
-                                recipe.to_ident()
+                                recipe.ident()
                             )
                             .into());
                         }
@@ -118,13 +122,14 @@ impl Publisher {
             }
         }
 
-        let builds = if pkg.build().is_none() {
-            with_cache_policy!(self.from, CachePolicy::BypassCache, {
-                self.from.list_package_builds(pkg)
-            })
-            .await?
-        } else {
-            vec![pkg.to_owned()]
+        let builds = match pkg.build() {
+            None => {
+                with_cache_policy!(self.from, CachePolicy::BypassCache, {
+                    self.from.list_package_builds(pkg)
+                })
+                .await?
+            }
+            Some(build) => vec![pkg.to_build(build.clone())],
         };
 
         for build in builds.iter() {

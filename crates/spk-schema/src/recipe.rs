@@ -8,7 +8,7 @@ use spk_schema_ident::VersionIdent;
 
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
-use crate::ident::{AnyIdent, Request};
+use crate::ident::Request;
 use crate::test_spec::TestSpec;
 use crate::{Package, Result};
 
@@ -29,9 +29,7 @@ pub trait Recipe:
     /// Build an identifier to represent this recipe.
     ///
     /// The returned identifier will never have an associated build.
-    fn to_ident(&self) -> AnyIdent {
-        VersionIdent::new(self.name().to_owned(), self.version().clone()).into_any(None)
-    }
+    fn ident(&self) -> &VersionIdent;
 
     /// Return the default variants to be built for this recipe
     fn default_variants(&self) -> &[OptionMap];
@@ -68,6 +66,10 @@ where
     T: Recipe,
 {
     type Output = T::Output;
+
+    fn ident(&self) -> &VersionIdent {
+        (**self).ident()
+    }
 
     fn default_variants(&self) -> &[OptionMap] {
         (**self).default_variants()
@@ -107,6 +109,10 @@ where
     T: Recipe,
 {
     type Output = T::Output;
+
+    fn ident(&self) -> &VersionIdent {
+        (**self).ident()
+    }
 
     fn default_variants(&self) -> &[OptionMap] {
         (**self).default_variants()

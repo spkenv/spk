@@ -75,7 +75,7 @@ impl MakeSource {
 
             tracing::info!("rendering template for {}", template.name());
             let recipe = template.render(&options)?;
-            let ident = recipe.to_ident();
+            let ident = recipe.ident();
 
             tracing::info!("saving package recipe for {}", ident.format_ident());
             local.force_publish_recipe(&recipe).await?;
@@ -86,11 +86,7 @@ impl MakeSource {
                 .await
                 .context("Failed to collect sources")?;
             tracing::info!("created {}", out.ident().format_ident());
-            idents.push(
-                out.ident()
-                    .clone()
-                    .try_into_located_build_ident(local.name().to_owned())?,
-            );
+            idents.push(out.ident().clone().into_located(local.name().to_owned()));
         }
         Ok(idents)
     }

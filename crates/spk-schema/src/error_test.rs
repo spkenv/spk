@@ -49,7 +49,7 @@ install:
 test:
   - stage: 1
 "#;
-    let err = crate::Spec::from_yaml(YAML).expect_err("expected yaml parsing to fail");
+    let err = crate::SpecRecipe::from_yaml(YAML).expect_err("expected yaml parsing to fail");
     let expected = r#"
     |   script:
     |     - "hello, world"

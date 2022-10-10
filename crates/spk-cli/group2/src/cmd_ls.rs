@@ -206,7 +206,7 @@ impl<T: Output> Run for Ls<T> {
                             // Hide deprecated packages by default
                             continue;
                         }
-                        set.insert(self.format_build(&build, &spec, &repo).await?);
+                        set.insert(self.format_build(&spec, &repo).await?);
                     }
                 }
                 results = set.into_iter().collect();
@@ -301,10 +301,8 @@ impl<T: Output> Ls<T> {
                         ..
                     }) = search_term
                     {
-                        if let Some(this_build) = build.build() {
-                            if search_build != this_build.to_string() {
-                                continue;
-                            }
+                        if build.build().to_string() != search_build {
+                            continue;
                         }
                     }
 
@@ -331,41 +329,34 @@ impl<T: Output> Ls<T> {
                         );
                     }
                     self.output
-                        .println((self.format_build(&build, &spec, repo).await?).to_string());
+                        .println((self.format_build(&spec, repo).await?).to_string());
                 }
             }
         }
         Ok(0)
     }
 
-    async fn format_build(
-        &self,
-        pkg: &AnyIdent,
-        spec: &Spec,
-        repo: &storage::RepositoryHandle,
-    ) -> Result<String> {
-        let mut item = pkg.format_ident();
+    async fn format_build(&self, spec: &Spec, repo: &storage::RepositoryHandle) -> Result<String> {
+        let mut item = spec.ident().format_ident();
         if spec.is_deprecated() {
             let _ = write!(item, " {}", "DEPRECATED".red());
         }
 
-        // Packages without builds, or /src packages have no further
-        // info to display
-        if pkg.build().is_none() || pkg.is_source() {
+        // /src packages have no further info to display
+        if spec.ident().is_source() {
             return Ok(item);
         }
 
         // Based on the verbosity, display more details for the
         // package build.
         if self.verbose > 0 {
-            let spec = repo.read_package(pkg).await?;
             let options = spec.option_values();
             item.push(' ');
             item.push_str(&options.format_option_map());
         }
 
         if self.verbose > 1 || self.components {
-            let cmpts = repo.read_components(pkg).await?;
+            let cmpts = repo.read_components(spec.ident()).await?;
             item.push(' ');
             item.push_str(
                 &ComponentSet::from(cmpts.keys().into_iter().cloned()).format_components(),

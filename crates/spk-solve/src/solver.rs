@@ -16,7 +16,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
-use spk_schema::{AnyIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
+use spk_schema::{BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
     Change,
     Decision,
@@ -331,9 +331,9 @@ impl Solver {
             let mut non_embeds = HashSet::new();
             let mut embeds = HashMap::new();
             for (spec, _) in node.state.get_resolved_packages().values() {
-                match &spec.ident().build() {
-                    Some(Build::Embedded(EmbeddedSource::Package(package))) => {
-                        let ident: AnyIdent = (&package.ident).try_into()?;
+                match spec.ident().build() {
+                    Build::Embedded(EmbeddedSource::Package(package)) => {
+                        let ident: BuildIdent = (&package.ident).try_into()?;
                         embeds.insert(ident, spec.ident().clone());
                     }
                     _ => {
@@ -341,7 +341,7 @@ impl Solver {
                     }
                 }
             }
-            let embeds_set: HashSet<AnyIdent> = embeds.keys().cloned().collect();
+            let embeds_set: HashSet<BuildIdent> = embeds.keys().cloned().collect();
             let mut difference = embeds_set.difference(&non_embeds);
             if let Some(missing_embed_provider) = difference.next() {
                 // This is an invalid solve!
@@ -353,7 +353,7 @@ impl Solver {
                 return Err(Error::OutOfOptions(OutOfOptions {
                     request: PkgRequest::new(
                         missing_embed_provider.clone().into(),
-                        RequestedBy::PackageBuild(unprovided_embedded.clone()),
+                        RequestedBy::PackageBuild(unprovided_embedded.base().clone()),
                     ),
                     notes,
                 }));
@@ -429,7 +429,7 @@ impl Solver {
                         compat = self.validate_package(&node.state, &spec, source)?;
                         if !&compat {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                                spec.ident().clone(),
+                                spec.ident().to_any(),
                                 compat.clone(),
                             )));
                             self.number_builds_skipped += 1;
@@ -441,14 +441,13 @@ impl Solver {
                     } else {
                         if let PackageSource::Embedded = source {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.ident().clone(),
+                                spec.ident().to_any(),
                                 &compat,
                             )));
                             self.number_builds_skipped += 1;
                             continue;
                         }
-                        let recipe = match source.read_recipe(&spec.ident().with_build(None)).await
-                        {
+                        let recipe = match source.read_recipe(spec.ident().base()).await {
                             Ok(r) if r.is_deprecated() => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
@@ -477,7 +476,7 @@ impl Solver {
                         compat = self.validate_recipe(&node.state, &recipe)?;
                         if !&compat {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.ident().clone(),
+                                spec.ident().to_any(),
                                 format!("recipe is not valid: {compat}"),
                             )));
                             self.number_builds_skipped += 1;
@@ -488,7 +487,7 @@ impl Solver {
                             Err(err) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
-                                        spec.ident().clone(),
+                                        spec.ident().to_any(),
                                         format!("cannot resolve build env: {err}"),
                                     ),
                                 ));
@@ -504,7 +503,7 @@ impl Solver {
                         compat = self.validate_package(&node.state, &new_spec, &new_source)?;
                         if !&compat {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.ident().clone(),
+                                spec.ident().to_any(),
                                 format!("built package would still be invalid: {compat}"),
                             )));
                             self.number_builds_skipped += 1;
@@ -519,7 +518,7 @@ impl Solver {
                             Err(err) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
-                                        spec.ident().clone(),
+                                        spec.ident().to_any(),
                                         format!("cannot build package: {err}"),
                                     ),
                                 ));

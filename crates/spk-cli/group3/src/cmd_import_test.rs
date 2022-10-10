@@ -22,7 +22,7 @@ async fn test_archive_io() {
         .unwrap();
     let filename = rt.tmpdir.path().join("archive.spk");
     filename.ensure();
-    spk_storage::export_package(spec.ident(), &filename)
+    spk_storage::export_package(spec.ident().to_any(), &filename)
         .await
         .expect("failed to export");
     let mut actual = Vec::new();

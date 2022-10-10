@@ -15,7 +15,7 @@ use spk_schema::foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Version;
 use spk_schema::ident::VersionIdent;
-use spk_schema::{AnyIdent, Package, Spec, SpecRecipe};
+use spk_schema::{AnyIdent, BuildIdent, Package, Spec, SpecRecipe};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 
@@ -274,7 +274,10 @@ impl RepositoryPackageIterator {
 
 #[derive(Clone, Debug)]
 pub struct RepositoryBuildIterator {
-    builds: VecDeque<(AnyIdent, HashMap<RepositoryNameBuf, Arc<RepositoryHandle>>)>,
+    builds: VecDeque<(
+        BuildIdent,
+        HashMap<RepositoryNameBuf, Arc<RepositoryHandle>>,
+    )>,
     recipe: Option<Arc<SpecRecipe>>,
 }
 
@@ -314,11 +317,6 @@ impl BuildIterator for RepositoryBuildIterator {
                 Err(err) => return Err(err.into()),
             };
 
-            if spec.ident().build().is_none() {
-                tracing::warn!("Published spec is corrupt (has no associated build), pkg={build}",);
-                return self.next().await;
-            }
-
             result.insert(
                 repo_name.clone(),
                 (
@@ -349,7 +347,7 @@ impl RepositoryBuildIterator {
         repos: HashMap<RepositoryNameBuf, Arc<RepositoryHandle>>,
     ) -> Result<Self> {
         let mut builds_and_repos: HashMap<
-            AnyIdent,
+            BuildIdent,
             HashMap<RepositoryNameBuf, Arc<RepositoryHandle>>,
         > = HashMap::new();
 
@@ -487,7 +485,7 @@ impl SortedBuildIterator {
     fn make_option_values_build_key(
         spec: &Spec,
         ordered_names: &Vec<OptNameBuf>,
-        build_name_values: &HashMap<AnyIdent, OptionMap>,
+        build_name_values: &HashMap<BuildIdent, OptionMap>,
     ) -> BuildKey {
         let build_id = spec.ident();
         let empty = OptionMap::default();
@@ -504,7 +502,7 @@ impl SortedBuildIterator {
         let start = Instant::now();
 
         let mut number_non_src_builds: u64 = 0;
-        let mut build_name_values: HashMap<AnyIdent, OptionMap> = HashMap::default();
+        let mut build_name_values: HashMap<BuildIdent, OptionMap> = HashMap::default();
         let mut changes: HashMap<OptNameBuf, ChangeCounter> = HashMap::new();
 
         for (build, _) in self.builds.iter().flat_map(|hm| hm.values()) {
