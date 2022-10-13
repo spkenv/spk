@@ -5,41 +5,60 @@
 use relative_path::RelativePathBuf;
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
-use spk_schema_foundation::name::{PkgName, RepositoryName, RepositoryNameBuf};
+use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
+use spk_schema_foundation::spec_ops::HasLocation;
 use spk_schema_foundation::version::Version;
 
 use crate::ident_build::BuildIdent;
-use crate::{Ident, VersionIdent};
+use crate::{AnyIdent, Ident, VersionIdent};
 
 /// Identifies a specific package version in a named repository.
 pub type LocatedVersionIdent = Ident<RepositoryNameBuf, VersionIdent>;
+
 /// Identifies a specific package build in a named repository.
 pub type LocatedBuildIdent = Ident<RepositoryNameBuf, BuildIdent>;
 
-impl LocatedBuildIdent {
-    /// The name of the repository identified for this package
-    pub fn repository(&self) -> &RepositoryName {
+crate::ident_version::version_ident_methods!(LocatedVersionIdent, .target);
+crate::ident_version::version_ident_methods!(LocatedBuildIdent, .target.base);
+crate::ident_build::build_ident_methods!(LocatedBuildIdent, .target);
+
+impl<T> Ident<RepositoryNameBuf, T> {
+    /// The name of the identified repository
+    pub fn repository_name(&self) -> &RepositoryName {
         self.base().as_ref()
     }
 
-    /// The name of the identified package.
-    pub fn name(&self) -> &PkgName {
-        self.target().name()
+    /// Set the name of the associated repository
+    pub fn set_repository_name(&mut self, repo: RepositoryNameBuf) {
+        self.base = repo;
+    }
+}
+
+impl<T> Ident<RepositoryNameBuf, T>
+where
+    T: Clone,
+{
+    /// Return a copy of this identifier with the given repository instead
+    pub fn with_repository_name(&self, repo: RepositoryNameBuf) -> Self {
+        self.with_base(repo)
+    }
+}
+
+impl LocatedBuildIdent {
+    /// Reinterpret this identifier as a [`BuildIdent`]
+    pub fn as_build(&self) -> &BuildIdent {
+        self.target()
     }
 
-    /// The version number identified for this package
-    pub fn version(&self) -> &Version {
-        self.target().version()
+    /// Reinterpret this identifier as a [`BuildIdent`]
+    pub fn into_build(self) -> BuildIdent {
+        self.into_target()
     }
+}
 
-    // The build id identified for this package
-    pub fn build(&self) -> &Build {
-        self.target().build()
-    }
-
-    /// Return true if this identifier is for a source package.
-    pub fn is_source(&self) -> bool {
-        self.build().is_source()
+impl<T> HasLocation for Ident<RepositoryNameBuf, T> {
+    fn location(&self) -> &RepositoryName {
+        self.repository_name()
     }
 }
 

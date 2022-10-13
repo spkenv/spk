@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 use std::collections::{hash_map, HashMap, HashSet};
 use std::convert::{TryFrom, TryInto};
-use std::ops::DerefMut;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::Arc;
@@ -668,8 +667,8 @@ impl Repository for SPFSRepository {
             tracing::info!("Processing {name}...");
             let mut pkg = VersionIdent::new_zero(&*name).into_any(None);
             for version in self.list_package_versions(&name).await?.iter() {
-                pkg.deref_mut().set_target((**version).clone());
-                for build in self.list_package_builds(&pkg).await? {
+                pkg.set_version((**version).clone());
+                for build in self.list_package_builds(pkg.as_version()).await? {
                     if build.is_embedded() {
                         // XXX `lookup_package` isn't able to read embed stubs.
                         // Should it be able to?

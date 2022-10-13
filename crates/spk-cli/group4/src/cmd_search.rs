@@ -1,8 +1,7 @@
-use std::ops::DerefMut;
-
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use anyhow::Result;
 use clap::Args;
 use spk_cli_common::{flags, CommandArgs, Run};
@@ -42,7 +41,7 @@ impl Run for Search {
                 let mut ident = parse_ident(&name)?;
                 let versions = repo.list_package_versions(&name).await?;
                 for v in versions.iter() {
-                    ident.deref_mut().set_target((**v).clone());
+                    ident.set_version((**v).clone());
                     exit = 0;
                     println!("{repo_name: <width$} {}", ident.format_ident());
                 }

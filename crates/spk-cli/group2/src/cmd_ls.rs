@@ -134,7 +134,7 @@ impl<T: Output> Run for Ls<T> {
                     // inventory the builds of this version (do not depend on
                     // the existence of a "version spec").
 
-                    let mut builds = repo.list_package_builds(&ident).await?;
+                    let mut builds = repo.list_package_builds(ident.as_version()).await?;
                     if builds.is_empty() {
                         // Does a version with no builds really exist?
                         continue;
@@ -191,7 +191,7 @@ impl<T: Output> Run for Ls<T> {
                 // Given a package version (or build), list all its builds
                 let pkg = parse_ident(package)?;
                 for (_, repo) in repos {
-                    for build in repo.list_package_builds(&pkg).await? {
+                    for build in repo.list_package_builds(pkg.as_version()).await? {
                         // Doing this here slows the listing down, but
                         // the spec file is the only place that holds
                         // the deprecation status.
@@ -293,7 +293,7 @@ impl<T: Output> Ls<T> {
             versions.sort();
             versions.reverse();
             for pkg in versions {
-                let mut builds = repo.list_package_builds(&pkg).await?;
+                let mut builds = repo.list_package_builds(pkg.as_version()).await?;
                 builds.sort();
                 for build in builds {
                     if let Some(IdentParts {

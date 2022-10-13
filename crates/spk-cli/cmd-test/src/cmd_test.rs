@@ -93,7 +93,7 @@ impl Run for Test {
                     let pkg = parse_ident(&name)?;
                     let mut found = None;
                     for repo in repos.iter() {
-                        match repo.read_recipe(&pkg).await {
+                        match repo.read_recipe(pkg.as_version()).await {
                             Ok(recipe) => {
                                 found = Some((recipe, std::path::PathBuf::from(&name)));
                                 break;

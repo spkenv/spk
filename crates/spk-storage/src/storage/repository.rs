@@ -197,12 +197,12 @@ pub(in crate::storage) mod internal {
             // If this was the last stub and there are no other builds, remove
             // the "version spec".
             if let Ok(builds) = with_cache_policy!(self, CachePolicy::BypassCache, {
-                self.list_package_builds(&spec_for_embedded_pkg)
+                self.list_package_builds(spec_for_embedded_pkg.as_version())
             })
             .await
             {
                 if builds.is_empty() {
-                    if let Err(err) = self.remove_recipe(&spec_for_embedded_pkg).await {
+                    if let Err(err) = self.remove_recipe(spec_for_embedded_pkg.as_version()).await {
                         tracing::warn!(
                             ?spec_for_embedded_pkg,
                             ?err,

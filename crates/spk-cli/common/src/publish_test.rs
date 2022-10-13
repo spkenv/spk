@@ -59,7 +59,7 @@ async fn test_publish_build_also_publishes_spec() {
     let publisher = Publisher::new(rt.tmprepo.clone(), destination.repo.clone());
     // Include build when publishing this spec.
     publisher.publish(spec.ident().to_any()).await.unwrap();
-    let r = destination.read_recipe(spec.ident()).await;
+    let r = destination.read_recipe(spec.ident().as_version()).await;
     assert!(
         r.is_ok(),
         "Expected to be able to read spec, but got error: {}",

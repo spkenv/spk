@@ -110,7 +110,7 @@ pub(crate) enum ErrorDetails {
 pub struct CouldNotSatisfyRecord {
     /// The unique set of requesters involved in all instances of the error
     pub requesters: HashSet<RequestedBy>,
-    /// The requesters from the first occurance of the error
+    /// The requesters from the first occurrance of the error
     pub first_example: Vec<RequestedBy>,
 }
 
@@ -129,7 +129,7 @@ impl ErrorFreq {
         match &self.record {
             Some(r) => {
                 // The requesters from the first_example data help
-                // reconstruct the first occurance of the error to use
+                // reconstruct the first occurrence of the error to use
                 // as a base for the combined message
                 let mut message = format!(
                     "could not satisfy '{error_key}' as required by: {}",
@@ -141,7 +141,7 @@ impl ErrorFreq {
                 );
 
                 // A count of any other requesters involved in later
-                // occurances needs to be added to the combined
+                // occurrences needs to be added to the combined
                 // message to show the volume of requesters involved
                 // in this particular "could not satisfy" error.
                 let num_others = r
@@ -429,7 +429,7 @@ impl Solver {
                         compat = self.validate_package(&node.state, &spec, source)?;
                         if !&compat {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                                spec.ident().to_any(),
+                                Package::ident(&spec).to_any(),
                                 compat.clone(),
                             )));
                             self.number_builds_skipped += 1;
