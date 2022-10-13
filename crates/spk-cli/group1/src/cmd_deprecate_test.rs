@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spk_schema::ident::parse_ident;
+use spk_schema::ident::parse_version_ident;
 use spk_schema::Deprecate;
 use spk_solve::make_repo;
 
@@ -44,7 +44,7 @@ async fn test_deprecate_without_prompt() {
     // None of the packages should be undeprecated anymore, although
     // one was already deprecated before the test.
     for name in &[name1, name2, name3] {
-        let ident = parse_ident(name).unwrap();
+        let ident = parse_version_ident(name).unwrap();
         let (_, r) = &repos[0];
         let recipe = r.read_recipe(&ident).await.unwrap();
         println!("checking: {}", ident);

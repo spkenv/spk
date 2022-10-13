@@ -65,60 +65,70 @@ pub struct Ident<Base, Target> {
 }
 
 impl<Base, Target> Ident<Base, Target> {
+    /// Construct a new identifier from its base and target components
     pub fn new(base: Base, target: Target) -> Self {
         Self { base, target }
     }
 
+    /// Get a reference to this identifier's base (<base>/<target>)
     pub fn base(&self) -> &Base {
         &self.base
     }
 
+    /// Get a reference to this identifier's target (<base>/<target>)
     pub fn target(&self) -> &Target {
         &self.target
     }
 
+    /// Extract this identifier's base (<base>/<target>)
     pub fn into_base(self) -> Base {
         self.base
     }
 
+    /// Extract this identifier's target (<base>/<target>)
     pub fn into_target(self) -> Target {
         self.target
     }
 
+    /// Break this identifier into its components (<base>/<target>)
     pub fn into_inner(self) -> (Base, Target) {
         (self.base, self.target)
     }
 
-    pub fn with_base<B: Into<Base>>(mut self, base: B) -> Self {
-        self.set_base(base);
-        self
-    }
-
-    pub fn with_target<T: Into<Target>>(mut self, target: T) -> Self {
-        self.set_target(target);
-        self
-    }
-
+    /// Set the base component of this identifier (<base>/<target>)
     pub fn set_base<B: Into<Base>>(&mut self, base: B) -> Base {
         std::mem::replace(&mut self.base, base.into())
     }
 
+    /// Set the target component of this identifier (<base>/<target>)
     pub fn set_target<T: Into<Target>>(&mut self, target: T) -> Target {
         std::mem::replace(&mut self.target, target.into())
     }
 }
 
-impl<Base, T> std::ops::Deref for Ident<Base, T> {
-    type Target = Base;
-
-    fn deref(&self) -> &Self::Target {
-        &self.base
+impl<Base, Target> Ident<Base, Target>
+where
+    Target: Clone,
+{
+    /// Copy this identifier swapping out the base (<base>/<target>)
+    pub fn with_base<B: Into<Base>>(&self, base: B) -> Self {
+        Self {
+            base: base.into(),
+            target: self.target.clone(),
+        }
     }
 }
 
-impl<Base, T> std::ops::DerefMut for Ident<Base, T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
+impl<Base, Target> Ident<Base, Target>
+where
+    Base: Clone,
+{
+    /// Copy this identifier swapping out the target (<base>/<target>)
+    pub fn with_target<T: Into<Target>>(&self, target: T) -> Self {
+        Self {
+            base: self.base.clone(),
+            target: target.into(),
+        }
     }
 }
 
@@ -142,36 +152,6 @@ where
         f.debug_tuple("Ident").field(&self.to_string()).finish()
     }
 }
-
-// impl From<PkgNameBuf> for Ident {
-//     fn from(n: PkgNameBuf) -> Self {
-//         Self::new(n)
-//     }
-// }
-
-// impl TryFrom<&str> for Ident {
-//     type Error = crate::Error;
-
-//     fn try_from(value: &str) -> Result<Self> {
-//         Self::from_str(value)
-//     }
-// }
-
-// impl TryFrom<&String> for Ident {
-//     type Error = crate::Error;
-
-//     fn try_from(value: &String) -> Result<Self> {
-//         Self::from_str(value.as_str())
-//     }
-// }
-
-// impl TryFrom<String> for Ident {
-//     type Error = crate::Error;
-
-//     fn try_from(value: String) -> Result<Self> {
-//         Self::from_str(value.as_str())
-//     }
-// }
 
 impl<Base, Target> Serialize for Ident<Base, Target>
 where

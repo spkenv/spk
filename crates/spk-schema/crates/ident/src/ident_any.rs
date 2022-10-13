@@ -19,31 +19,50 @@ use crate::{parsing, BuildIdent, Ident, LocatedBuildIdent, RangeIdent, Result};
 #[path = "./ident_any_test.rs"]
 mod ident_any_test;
 
-/// Identifies a specific package version and build.
+/// Identifies a specific package version and optional build.
 pub type AnyIdent = Ident<VersionIdent, Option<Build>>;
 
+super::ident_version::version_ident_methods!(AnyIdent, .base);
+
 impl AnyIdent {
-    /// The name of the identified package.
-    pub fn name(&self) -> &PkgName {
-        self.base().name()
-    }
-
-    /// The version number identified for this package
-    pub fn version(&self) -> &Version {
-        self.base().version()
-    }
-
     /// The build identified for this package, if any
     pub fn build(&self) -> Option<&Build> {
         self.target().as_ref()
     }
 
+    /// Return a copy of this identifier with the given build instead
+    pub fn with_build(&self, build: Option<Build>) -> Self {
+        Self::new(self.base().clone(), build)
+    }
+
+    /// Reinterpret this identifier as a [`crate::VersionIdent`]
+    pub fn as_version(&self) -> &VersionIdent {
+        self.base()
+    }
+
+    /// Convert a copy of this identifier into a [`crate::VersionIdent`]
+    pub fn to_version(self) -> VersionIdent {
+        self.base().clone()
+    }
+
+    /// Convert this identifier into a [`crate::VersionIdent`]
+    pub fn into_version(self) -> VersionIdent {
+        self.into_base()
+    }
+
+    /// Return a copy of this pointing to the given build.
+    pub fn to_build(&self, build: Build) -> BuildIdent {
+        BuildIdent::new(self.base().clone(), build)
+    }
+
     /// Convert this ident into a [`BuildIdent`] if possible
-    pub fn into_build_ident(self) -> Option<BuildIdent> {
+    pub fn into_build(self) -> Option<BuildIdent> {
         let (base, target) = self.into_inner();
         target.map(|build| BuildIdent::new(base, build))
     }
+}
 
+impl AnyIdent {
     /// Return if this identifier can possibly have embedded packages.
     pub fn can_embed(&self) -> bool {
         // Only builds can have embeds.
@@ -58,21 +77,6 @@ impl AnyIdent {
     /// Return true if this identifier is for a source package.
     pub fn is_source(&self) -> bool {
         self.build().map(Build::is_source).unwrap_or_default()
-    }
-
-    /// Return a copy of this identifier with the given version number instead
-    pub fn with_version(&self, version: Version) -> Self {
-        Self::new(self.base().with_version(version), self.target().clone())
-    }
-
-    /// Return a copy of this identifier with the given build instead
-    pub fn with_build(&self, build: Option<Build>) -> Self {
-        Self::new(self.base().clone(), build)
-    }
-
-    /// Return a copy of this pointing to the given build.
-    pub fn to_build(&self, build: Build) -> BuildIdent {
-        BuildIdent::new(self.base().clone(), build)
     }
 
     /// A string containing the properly formatted name and version number

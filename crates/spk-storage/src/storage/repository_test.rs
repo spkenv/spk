@@ -8,17 +8,17 @@ use rstest::rstest;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::pkg_name;
 use spk_schema::foundation::spec_ops::Named;
-use spk_schema::ident::{parse_build_ident, parse_ident};
+use spk_schema::ident::{parse_build_ident, parse_version_ident};
 use spk_schema::{
     recipe,
     spec,
-    AnyIdent,
     Deprecate,
     DeprecateMut,
     Package,
     Recipe,
     Spec,
     SpecRecipe,
+    VersionIdent,
 };
 
 use crate::fixtures::*;
@@ -57,7 +57,7 @@ async fn test_repo_list_package_versions_empty(#[case] repo: RepoKind) {
 #[tokio::test]
 async fn test_repo_list_package_builds_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
-    let nothing = parse_ident("nothing/1.0.0").unwrap();
+    let nothing = parse_version_ident("nothing/1.0.0").unwrap();
     assert!(
         repo.list_package_builds(&nothing).await.unwrap().is_empty(),
         "should not fail with unknown package"
@@ -70,7 +70,7 @@ async fn test_repo_list_package_builds_empty(#[case] repo: RepoKind) {
 #[tokio::test]
 async fn test_repo_read_recipe_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
-    let nothing = parse_ident("nothing").unwrap();
+    let nothing = parse_version_ident("nothing").unwrap();
     match repo.read_recipe(&nothing).await {
         Err(Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(_))) => {}
         _ => panic!("expected package not found error"),
@@ -161,13 +161,15 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
     .await
     .unwrap();
     assert_eq!(
-        repo.list_package_builds(spec.ident()).await.unwrap(),
+        repo.list_package_builds(spec.ident().as_version())
+            .await
+            .unwrap(),
         vec![spec.ident().clone()]
     );
     assert_eq!(*repo.read_recipe(recipe.ident()).await.unwrap(), recipe);
     repo.remove_package(spec.ident()).await.unwrap();
     assert!(repo
-        .list_package_builds(spec.ident())
+        .list_package_builds(spec.ident().as_version())
         .await
         .unwrap()
         .is_empty());
@@ -262,7 +264,7 @@ async fn test_repo_deprecate_spec_updates_embed_stubs(#[case] repo: RepoKind) {
     repo.update_package(&package).await.unwrap();
     // The stub should be deprecated too.
     let builds = repo
-        .list_package_builds(&AnyIdent::from_str("my-embedded-pkg/1.0.0").unwrap())
+        .list_package_builds(&VersionIdent::from_str("my-embedded-pkg/1.0.0").unwrap())
         .await
         .unwrap();
     assert!(!builds.is_empty());
@@ -350,7 +352,7 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
             .any(|pkg| pkg == pkg_name));
         // The new stubs should be deprecated.
         let builds = repo
-            .list_package_builds(&AnyIdent::from_str(&format!("{pkg_name}/1.0.0")).unwrap())
+            .list_package_builds(&VersionIdent::from_str(&format!("{pkg_name}/1.0.0")).unwrap())
             .await
             .unwrap();
         assert!(!builds.is_empty());

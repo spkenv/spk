@@ -353,7 +353,7 @@ impl RepositoryBuildIterator {
 
         let mut recipe = None;
         for (repo_name, repo) in &repos {
-            let builds = repo.list_package_builds(&pkg).await?;
+            let builds = repo.list_package_builds(pkg.as_version()).await?;
             for build in builds {
                 match builds_and_repos.get_mut(&build) {
                     Some(repos) => {
@@ -368,7 +368,7 @@ impl RepositoryBuildIterator {
                 }
             }
             if recipe.is_none() {
-                recipe = match repo.read_recipe(&pkg).await {
+                recipe = match repo.read_recipe(pkg.as_version()).await {
                     Ok(spec) => Some(spec),
                     Err(spk_storage::Error::SpkValidatorsError(
                         spk_schema::validators::Error::PackageNotFoundError(_),

@@ -16,92 +16,100 @@ use spk_schema_foundation::version::Version;
 use crate::ident_version::VersionIdent;
 use crate::{parsing, AnyIdent, Error, Ident, LocatedBuildIdent, RangeIdent, Result};
 
-/// Identifies a specific package version and build.
+/// Identifies a specific package name, version and build
 pub type BuildIdent = Ident<VersionIdent, Build>;
 
+crate::ident_version::version_ident_methods!(BuildIdent, .base);
+
+macro_rules! build_ident_methods {
+    ($Ident:ty $(, .$($access:ident).+)?) => {
+        impl $Ident {
+            /// The build id of the identified package
+            pub fn build(&self) -> &Build {
+                self$(.$($access).+)?.target()
+            }
+
+            /// Set the build component of this package identifier
+            pub fn set_build(&mut self, build: Build) {
+                self$(.$($access).+)?.target = build;
+            }
+
+            /// Return a copy of this identifier with the given build instead
+            pub fn with_build(&self, build: Build) -> Self {
+                let mut new = self.clone();
+                new$(.$($access).+)?.set_build(build);
+                new
+            }
+
+            /// Reinterpret this identifier as a [`crate::VersionIdent`]
+            pub fn as_version(&self) -> &VersionIdent {
+                self$(.$($access).+)?.base()
+            }
+
+            /// Convert a copy of this identifier into a [`crate::VersionIdent`]
+            pub fn to_version(self) -> VersionIdent {
+                self$(.$($access).+)?.base().clone()
+            }
+
+            /// Convert this identifier into a [`crate::VersionIdent`]
+            pub fn into_version(self) -> VersionIdent {
+                self$(.$($access).+)?.into_base()
+            }
+
+            /// Turn this identifier into an [`AnyIdent`]
+            pub fn into_any(self) -> AnyIdent {
+                AnyIdent::new(self$(.$($access).+)?.base, Some(self$(.$($access).+)?.target))
+            }
+
+            /// Turn a copy of this identifier into an [`AnyIdent`]
+            pub fn to_any(&self) -> AnyIdent {
+                self$(.$($access).+)?.clone().into_any()
+            }
+
+            /// Return if this identifier can possibly have embedded packages
+            pub fn can_embed(&self) -> bool {
+                // Only true builds can have embeds.
+                matches!(self.build(), Build::Digest(_))
+            }
+
+            /// Return true if this identifier is for an embedded package
+            pub fn is_embedded(&self) -> bool {
+                matches!(self.build(), Build::Embedded(_))
+            }
+
+            /// Return true if this identifier is for a source package
+            pub fn is_source(&self) -> bool {
+                self.build().is_source()
+            }
+        }
+
+        impl spk_schema_foundation::spec_ops::HasBuild for $Ident {
+            fn build(&self) -> &Build {
+                self.build()
+            }
+        }
+    };
+}
+
+pub(crate) use build_ident_methods;
+
+build_ident_methods!(BuildIdent);
+
 impl BuildIdent {
-    /// The name of the identified package.
-    pub fn name(&self) -> &PkgName {
-        self.base().name()
-    }
-
-    /// The version number identified for this package
-    pub fn version(&self) -> &Version {
-        self.base().version()
-    }
-
-    // The build id identified for this package
-    pub fn build(&self) -> &Build {
-        self.target()
-    }
-
-    /// Return if this identifier can possibly have embedded packages.
-    pub fn can_embed(&self) -> bool {
-        // Only builds can have embeds.
-        matches!(self.build(), Build::Digest(_))
-    }
-
-    /// Return true if this identifier is for an embedded package.
-    pub fn is_embedded(&self) -> bool {
-        matches!(self.build(), Build::Embedded(_))
-    }
-
-    /// Return true if this identifier is for a source package.
-    pub fn is_source(&self) -> bool {
-        self.build().is_source()
-    }
-
-    /// Return a copy of this identifier with the given version number instead
-    pub fn with_version(&self, version: Version) -> Self {
-        Self::new(self.base().with_version(version), self.target().clone())
-    }
-
-    /// Set the build component of this package identifier.
-    pub fn set_build(&mut self, build: Build) {
-        self.target = build;
-    }
-
-    /// Return a copy of this identifier with the given build replaced.
-    pub fn with_build(&self, build: Build) -> Self {
-        let mut new = self.clone();
-        new.set_build(build);
-        new
-    }
-
-    /// Turn this identifier into an [`AnyIdent`]
-    pub fn into_any(self) -> AnyIdent {
-        AnyIdent::new(self.base, Some(self.target))
-    }
-
-    /// Turn a copy of this identifier into an [`AnyIdent`]
-    pub fn to_any(&self) -> AnyIdent {
-        self.clone().into_any()
-    }
-
-    /// Convert into a [`LocatedBuildIdent`] with the given [`RepositoryNameBuf`].
+    /// Convert into a [`LocatedBuildIdent`] with the given [`RepositoryNameBuf`]
     pub fn into_located(self, repository_name: RepositoryNameBuf) -> LocatedBuildIdent {
         LocatedBuildIdent {
             base: repository_name,
             target: self,
         }
     }
-}
 
-impl Named for BuildIdent {
-    fn name(&self) -> &PkgName {
-        self.name()
-    }
-}
-
-impl HasVersion for BuildIdent {
-    fn version(&self) -> &Version {
-        self.base.version()
-    }
-}
-
-impl HasBuild for BuildIdent {
-    fn build(&self) -> &Build {
-        &self.target
+    /// Turn a copy of this identifier into a [`LocatedBuildIdent`]
+    pub fn to_located(&self, repository_name: RepositoryNameBuf) -> LocatedBuildIdent {
+        LocatedBuildIdent {
+            base: repository_name,
+            target: self.clone(),
+        }
     }
 }
 

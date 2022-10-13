@@ -56,7 +56,7 @@ where
     if pkg.build().is_none() {
         to_transfer.extend(
             local_repo
-                .list_package_builds(pkg)
+                .list_package_builds(pkg.as_version())
                 .await?
                 .into_iter()
                 .map(|pkg| pkg.into_any()),
@@ -68,7 +68,7 @@ where
             remote_repo
                 .as_ref()
                 .unwrap()
-                .list_package_builds(pkg)
+                .list_package_builds(pkg.as_version())
                 .await?
                 .into_iter()
                 .map(|pkg| pkg.into_any()),

@@ -1,8 +1,8 @@
-use std::str::FromStr;
-
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::str::FromStr;
+
 use rstest::rstest;
 
 use super::{parse_ident, AnyIdent};

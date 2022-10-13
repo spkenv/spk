@@ -104,7 +104,7 @@ async fn remove_build(
 ) -> Result<()> {
     let repo_name = repo_name.bold();
     let pretty_pkg = pkg.format_ident();
-    let (recipe, package) = tokio::join!(repo.remove_recipe(pkg), repo.remove_package(pkg),);
+    let (recipe, package) = tokio::join!(repo.remove_recipe(pkg.base()), repo.remove_package(pkg),);
     // First inform on the things that actually happened.
     if recipe.is_ok() {
         tracing::info!("removed recipe {pretty_pkg: >25} from {repo_name}")

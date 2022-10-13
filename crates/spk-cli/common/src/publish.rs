@@ -76,10 +76,10 @@ impl Publisher {
         I: AsRef<AnyIdent>,
     {
         let pkg = pkg.as_ref();
-        let recipe_ident = pkg.with_build(None);
+        let recipe_ident = pkg.as_version();
         tracing::info!("loading recipe: {}", recipe_ident.format_ident());
         match with_cache_policy!(self.from, CachePolicy::BypassCache, {
-            self.from.read_recipe(&recipe_ident).await
+            self.from.read_recipe(recipe_ident).await
         }) {
             Err(
                 err @ spk_storage::Error::SpkValidatorsError(
@@ -125,7 +125,7 @@ impl Publisher {
         let builds = match pkg.build() {
             None => {
                 with_cache_policy!(self.from, CachePolicy::BypassCache, {
-                    self.from.list_package_builds(pkg)
+                    self.from.list_package_builds(recipe_ident)
                 })
                 .await?
             }
