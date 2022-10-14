@@ -101,7 +101,7 @@ macro_rules! make_build_and_components {
     }};
     ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
         #[allow(unused_imports)]
-        use $crate::{Package, Recipe, PackageOps, RecipeOps};
+        use $crate::{Package, Recipe};
         let spec = $crate::spec!($spec);
         let mut components = std::collections::HashMap::<$crate::Component, $crate::spfs::encoding::Digest>::new();
         if spec.ident().is_source() {
@@ -116,7 +116,7 @@ macro_rules! make_build_and_components {
             let dep = Arc::new($dep.clone());
             solution.add(
                 &$crate::PkgRequest::from_ident(
-                    $dep.to_ident(),
+                    $dep.ident().to_owned(),
                     $crate::RequestedBy::SpkInternalTest,
                 ),
                 Arc::clone(&dep),

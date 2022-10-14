@@ -9,23 +9,23 @@ use std::str::FromStr;
 use enum_dispatch::enum_dispatch;
 use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::Component;
-use spk_schema_foundation::spec_ops::PackageMutOps;
 
 use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
-use crate::foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
+use crate::foundation::spec_ops::{Named, Versioned};
 use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{Ident, PkgRequest, RangeIdent, Request, VarRequest};
+use crate::ident::{Ident, PkgRequest, Request, Satisfy, VarRequest};
 use crate::test_spec::TestSpec;
 use crate::{
     BuildEnv,
-    ComponentSpec,
     Deprecate,
     DeprecateMut,
     Error,
     FromYaml,
     Package,
+    PackageMut,
     Recipe,
     Result,
     Template,
@@ -182,42 +182,10 @@ pub enum SpecRecipe {
     V0Package(super::v0::Spec),
 }
 
-impl RecipeOps for SpecRecipe {
-    type Ident = Ident;
-    type PkgRequest = PkgRequest;
-    type RangeIdent = RangeIdent;
-
-    fn is_api_compatible(&self, base: &Version) -> Compatibility {
+impl Satisfy<PkgRequest> for SpecRecipe {
+    fn check_satisfies_request(&self, request: &PkgRequest) -> Compatibility {
         match self {
-            SpecRecipe::V0Package(r) => r.is_api_compatible(base),
-        }
-    }
-
-    fn is_binary_compatible(&self, base: &Version) -> Compatibility {
-        match self {
-            SpecRecipe::V0Package(r) => r.is_binary_compatible(base),
-        }
-    }
-
-    fn is_satisfied_by_range_ident(
-        &self,
-        range_ident: &Self::RangeIdent,
-        required: crate::foundation::version::CompatRule,
-    ) -> Compatibility {
-        match self {
-            SpecRecipe::V0Package(r) => r.is_satisfied_by_range_ident(range_ident, required),
-        }
-    }
-
-    fn is_satisfied_by_pkg_request(&self, pkg_request: &Self::PkgRequest) -> Compatibility {
-        match self {
-            SpecRecipe::V0Package(r) => r.is_satisfied_by_pkg_request(pkg_request),
-        }
-    }
-
-    fn to_ident(&self) -> Self::Ident {
-        match self {
-            SpecRecipe::V0Package(r) => r.to_ident(),
+            SpecRecipe::V0Package(r) => r.check_satisfies_request(request),
         }
     }
 }
@@ -225,7 +193,7 @@ impl RecipeOps for SpecRecipe {
 impl Recipe for SpecRecipe {
     type Output = Spec;
 
-    fn default_variants(&self) -> &Vec<OptionMap> {
+    fn default_variants(&self) -> &[OptionMap] {
         match self {
             SpecRecipe::V0Package(r) => r.default_variants(),
         }
@@ -262,36 +230,12 @@ impl Recipe for SpecRecipe {
     ) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
-        P: Package<Ident = Ident>,
+        P: Package,
     {
         match self {
             SpecRecipe::V0Package(r) => r
                 .generate_binary_build(options, build_env)
                 .map(Spec::V0Package),
-        }
-    }
-}
-
-impl PackageOps for SpecRecipe {
-    type Ident = Ident;
-    type Component = ComponentSpec;
-    type VarRequest = VarRequest;
-
-    fn components_iter(&self) -> std::slice::Iter<'_, Self::Component> {
-        match self {
-            SpecRecipe::V0Package(r) => r.components_iter(),
-        }
-    }
-
-    fn ident(&self) -> &Self::Ident {
-        match self {
-            SpecRecipe::V0Package(r) => r.ident(),
-        }
-    }
-
-    fn is_satisfied_by_var_request(&self, var_request: &Self::VarRequest) -> Compatibility {
-        match self {
-            SpecRecipe::V0Package(r) => r.is_satisfied_by_var_request(var_request),
         }
     }
 }
@@ -308,6 +252,12 @@ impl Versioned for SpecRecipe {
     fn version(&self) -> &Version {
         match self {
             SpecRecipe::V0Package(r) => r.version(),
+        }
+    }
+
+    fn compat(&self) -> &Compat {
+        match self {
+            SpecRecipe::V0Package(spec) => spec.compat(),
         }
     }
 }
@@ -362,126 +312,18 @@ pub enum Spec {
     V0Package(super::v0::Spec),
 }
 
-impl RecipeOps for Spec {
-    type Ident = Ident;
-    type PkgRequest = PkgRequest;
-    type RangeIdent = RangeIdent;
-
-    fn is_api_compatible(&self, base: &Version) -> Compatibility {
+impl Satisfy<PkgRequest> for Spec {
+    fn check_satisfies_request(&self, request: &PkgRequest) -> Compatibility {
         match self {
-            Spec::V0Package(r) => RecipeOps::is_api_compatible(r, base),
-        }
-    }
-
-    fn is_binary_compatible(&self, base: &Version) -> Compatibility {
-        match self {
-            Spec::V0Package(r) => RecipeOps::is_binary_compatible(r, base),
-        }
-    }
-
-    fn is_satisfied_by_range_ident(
-        &self,
-        range_ident: &Self::RangeIdent,
-        required: crate::foundation::version::CompatRule,
-    ) -> Compatibility {
-        match self {
-            Spec::V0Package(r) => RecipeOps::is_satisfied_by_range_ident(r, range_ident, required),
-        }
-    }
-
-    fn is_satisfied_by_pkg_request(&self, pkg_request: &Self::PkgRequest) -> Compatibility {
-        match self {
-            Spec::V0Package(r) => RecipeOps::is_satisfied_by_pkg_request(r, pkg_request),
-        }
-    }
-
-    fn to_ident(&self) -> Self::Ident {
-        match self {
-            Spec::V0Package(r) => RecipeOps::to_ident(r),
+            Spec::V0Package(r) => r.check_satisfies_request(request),
         }
     }
 }
 
-impl Recipe for Spec {
-    type Output = Spec;
-
-    fn default_variants(&self) -> &Vec<OptionMap> {
+impl Satisfy<VarRequest> for Spec {
+    fn check_satisfies_request(&self, request: &VarRequest) -> Compatibility {
         match self {
-            Spec::V0Package(r) => r.default_variants(),
-        }
-    }
-
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap> {
-        match self {
-            Spec::V0Package(r) => r.resolve_options(inputs),
-        }
-    }
-
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
-        match self {
-            Spec::V0Package(r) => r.get_build_requirements(options),
-        }
-    }
-
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
-        match self {
-            Spec::V0Package(r) => r.get_tests(options),
-        }
-    }
-
-    fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
-        match self {
-            Spec::V0Package(r) => r.generate_source_build(root).map(Spec::V0Package),
-        }
-    }
-
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Self::Output>
-    where
-        E: BuildEnv<Package = P>,
-        P: Package<Ident = Ident>,
-    {
-        match self {
-            Spec::V0Package(r) => r
-                .generate_binary_build(options, build_env)
-                .map(Spec::V0Package),
-        }
-    }
-}
-
-impl PackageOps for Spec {
-    type Ident = Ident;
-    type Component = ComponentSpec;
-    type VarRequest = VarRequest;
-
-    fn components_iter(&self) -> std::slice::Iter<'_, Self::Component> {
-        match self {
-            Spec::V0Package(r) => PackageOps::components_iter(r),
-        }
-    }
-
-    fn ident(&self) -> &Self::Ident {
-        match self {
-            Spec::V0Package(r) => PackageOps::ident(r),
-        }
-    }
-
-    fn is_satisfied_by_var_request(&self, var_request: &Self::VarRequest) -> Compatibility {
-        match self {
-            Spec::V0Package(r) => PackageOps::is_satisfied_by_var_request(r, var_request),
-        }
-    }
-}
-
-impl PackageMutOps for Spec {
-    type Ident = Ident;
-
-    fn ident_mut(&mut self) -> &mut Self::Ident {
-        match self {
-            Spec::V0Package(r) => PackageMutOps::ident_mut(r),
+            Spec::V0Package(r) => r.check_satisfies_request(request),
         }
     }
 }
@@ -500,15 +342,21 @@ impl Versioned for Spec {
             Spec::V0Package(r) => r.version(),
         }
     }
+
+    fn compat(&self) -> &Compat {
+        match self {
+            Spec::V0Package(spec) => spec.compat(),
+        }
+    }
 }
 
 // enum_dispatch does not support associated types.
 impl Package for Spec {
     type Package = Self;
 
-    fn compat(&self) -> &Compat {
+    fn ident(&self) -> &Ident {
         match self {
-            Spec::V0Package(spec) => spec.compat(),
+            Spec::V0Package(spec) => spec.ident(),
         }
     }
 
@@ -573,6 +421,14 @@ impl Package for Spec {
     fn build_script(&self) -> String {
         match self {
             Spec::V0Package(spec) => spec.build_script(),
+        }
+    }
+}
+
+impl PackageMut for Spec {
+    fn set_build(&mut self, build: Build) {
+        match self {
+            Spec::V0Package(spec) => spec.set_build(build),
         }
     }
 }

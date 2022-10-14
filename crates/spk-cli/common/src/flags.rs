@@ -14,7 +14,7 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{OptName, OptNameBuf};
 use spk_schema::foundation::option_map::{host_options, OptionMap};
-use spk_schema::foundation::spec_ops::{Named, RecipeOps};
+use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{parse_ident, Ident, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::{Recipe, SpecTemplate, Template, TemplateExt, TestStage};

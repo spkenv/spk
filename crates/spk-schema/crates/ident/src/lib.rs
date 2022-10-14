@@ -6,19 +6,25 @@ mod error;
 mod format;
 mod ident;
 pub mod parsing;
+mod range_ident;
 mod request;
+mod satisfy;
 
 pub use error::{Error, Result};
 pub use ident::{parse_ident, BuildIdent, Ident};
+pub use range_ident::{parse_ident_range, RangeIdent};
 pub use request::{
     is_false,
-    parse_ident_range,
     InclusionPolicy,
     NameAndValue,
     PkgRequest,
     PreReleasePolicy,
-    RangeIdent,
     Request,
     RequestedBy,
     VarRequest,
 };
+pub use satisfy::Satisfy;
+
+pub mod prelude {
+    pub use super::Satisfy;
+}

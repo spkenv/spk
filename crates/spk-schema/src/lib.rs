@@ -32,7 +32,7 @@ pub use environ::{AppendEnv, EnvOp, PrependEnv, SetEnv};
 pub use error::{Error, Result};
 pub use install_spec::InstallSpec;
 pub use option::{Inheritance, Opt};
-pub use package::Package;
+pub use package::{Package, PackageMut};
 pub use recipe::{BuildEnv, Recipe};
 pub use requirements_list::RequirementsList;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};

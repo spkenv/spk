@@ -5,7 +5,6 @@
 use spfs::encoding::Digest;
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::{Package, Recipe};
 use spk_solve::solution::{PackageSource, Solution};
 use spk_storage::{self as storage};

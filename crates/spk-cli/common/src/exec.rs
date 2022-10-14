@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use spk_build::BinaryPackageBuilder;
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
-use spk_schema::foundation::spec_ops::PackageOps;
+use spk_schema::Package;
 use spk_solve::solution::{PackageSource, Solution};
 use spk_storage::{self as storage};
 

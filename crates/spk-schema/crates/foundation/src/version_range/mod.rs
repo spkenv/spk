@@ -13,7 +13,7 @@ use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
 
 use self::intersection::{CombineWith, ValidRange};
-use crate::spec_ops::RecipeOps;
+use crate::spec_ops::Versioned;
 use crate::version::{get_version_position_label, CompatRule, Compatibility, Version, VERSION_SEP};
 
 mod error;
@@ -37,10 +37,10 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// The upper bound for this range
     fn less_than(&self) -> Option<Version>;
 
-    /// Return true if the given package spec satisfies this version range with the given compatibility.
-    fn is_satisfied_by<Spec>(&self, spec: &Spec, _required: CompatRule) -> Compatibility
+    /// Return true if the given item satisfies this version range with the given compatibility.
+    fn is_satisfied_by<V>(&self, spec: &V, _required: CompatRule) -> Compatibility
     where
-        Spec: RecipeOps,
+        V: Versioned,
     {
         self.is_applicable(spec.version())
     }
@@ -240,9 +240,9 @@ impl<T: Ranged> Ranged for &T {
     fn is_applicable(&self, other: &Version) -> Compatibility {
         Ranged::is_applicable(*self, other)
     }
-    fn is_satisfied_by<Spec>(&self, spec: &Spec, required: CompatRule) -> Compatibility
+    fn is_satisfied_by<V>(&self, spec: &V, required: CompatRule) -> Compatibility
     where
-        Spec: RecipeOps,
+        V: Versioned,
     {
         Ranged::is_satisfied_by(*self, spec, required)
     }
@@ -1044,9 +1044,9 @@ impl Ranged for CompatRange {
         None
     }
 
-    fn is_satisfied_by<Spec>(&self, spec: &Spec, mut required: CompatRule) -> Compatibility
+    fn is_satisfied_by<V>(&self, spec: &V, mut required: CompatRule) -> Compatibility
     where
-        Spec: RecipeOps,
+        V: Versioned,
     {
         // XXX: Should this custom logic be in `is_applicable` instead?
         if let Some(r) = self.required {
@@ -1259,9 +1259,9 @@ impl Ranged for VersionFilter {
     }
 
     /// Return true if the given package spec satisfies this version range.
-    fn is_satisfied_by<Spec>(&self, spec: &Spec, required: CompatRule) -> Compatibility
+    fn is_satisfied_by<V>(&self, spec: &V, required: CompatRule) -> Compatibility
     where
-        Spec: RecipeOps,
+        V: Versioned,
     {
         // XXX: Could this custom logic be handled by `is_applicable` instead?
         for rule in self.rules.iter() {

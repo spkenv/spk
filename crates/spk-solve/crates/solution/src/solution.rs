@@ -15,7 +15,7 @@ use spk_schema::foundation::format::{
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::PkgNameBuf;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::foundation::spec_ops::{Named, PackageOps, Versioned};
+use spk_schema::foundation::spec_ops::{Named, Versioned};
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, RequestedBy};
 use spk_schema::{BuildEnv, Ident, Package, Spec, SpecRecipe};

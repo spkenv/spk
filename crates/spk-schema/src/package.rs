@@ -2,10 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use spk_schema_foundation::ident_build::Build;
+use spk_schema_foundation::spec_ops::{Named, Versioned};
+
 use crate::foundation::ident_component::Component;
 use crate::foundation::option_map::OptionMap;
-use crate::foundation::spec_ops::PackageOps;
-use crate::foundation::version::{Compat, Compatibility};
+use crate::foundation::version::Compatibility;
+use crate::ident::Ident;
+use crate::DeprecateMut;
 
 #[cfg(test)]
 #[path = "./package_test.rs"]
@@ -14,12 +18,14 @@ mod package_test;
 /// Can be resolved into an environment.
 #[enum_dispatch::enum_dispatch]
 pub trait Package:
-    PackageOps + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
+    Named + Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
 {
     type Package;
 
-    /// The compatibility guaranteed by this package's version
-    fn compat(&self) -> &Compat;
+    /// The full identifier for this package
+    ///
+    /// This includes the version and optional build
+    fn ident(&self) -> &Ident;
 
     /// The values for this packages options used for this build.
     fn option_values(&self) -> OptionMap;
@@ -88,11 +94,16 @@ pub trait Package:
     }
 }
 
+pub trait PackageMut: Package + DeprecateMut {
+    /// Modify the build identifier for this package
+    fn set_build(&mut self, build: Build);
+}
+
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
     type Package = T::Package;
 
-    fn compat(&self) -> &Compat {
-        (**self).compat()
+    fn ident(&self) -> &Ident {
+        (**self).ident()
     }
 
     fn option_values(&self) -> OptionMap {
@@ -145,9 +156,8 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 impl<T: Package + Send + Sync> Package for &T {
     type Package = T::Package;
 
-    // TODO: use or find a macro for this
-    fn compat(&self) -> &Compat {
-        (**self).compat()
+    fn ident(&self) -> &Ident {
+        (**self).ident()
     }
 
     fn option_values(&self) -> OptionMap {

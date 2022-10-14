@@ -37,7 +37,7 @@ fn test_empty_options_can_match_anything() {
 
     assert!(
         validator
-            .validate_package(&state, &*spec, &source)
+            .validate_package(&state, &spec, &source)
             .unwrap()
             .is_ok(),
         "empty option should not invalidate requirement"

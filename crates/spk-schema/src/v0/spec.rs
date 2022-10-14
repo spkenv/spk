@@ -8,14 +8,13 @@ use std::path::Path;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
-use spk_schema_foundation::spec_ops::PackageMutOps;
 
 use crate::build_spec::UncheckedBuildSpec;
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
 use crate::foundation::name::PkgName;
 use crate::foundation::option_map::OptionMap;
-use crate::foundation::spec_ops::{Named, PackageOps, RecipeOps, Versioned};
+use crate::foundation::spec_ops::{Named, Versioned};
 use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
 use crate::foundation::version_range::Ranged;
 use crate::ident::{
@@ -26,6 +25,7 @@ use crate::ident::{
     RangeIdent,
     Request,
     RequestedBy,
+    Satisfy,
     VarRequest,
 };
 use crate::meta::Meta;
@@ -45,6 +45,7 @@ use crate::{
     LocalSource,
     Opt,
     Package,
+    PackageMut,
     Recipe,
     RequirementsList,
     Result,
@@ -199,6 +200,10 @@ impl Versioned for Spec {
     fn version(&self) -> &Version {
         &self.pkg.version
     }
+
+    fn compat(&self) -> &Compat {
+        &self.compat
+    }
 }
 
 impl Deprecate for Spec {
@@ -222,8 +227,8 @@ impl DeprecateMut for Spec {
 impl Package for Spec {
     type Package = Self;
 
-    fn compat(&self) -> &Compat {
-        &self.compat
+    fn ident(&self) -> &Ident {
+        &self.pkg
     }
 
     fn option_values(&self) -> OptionMap {
@@ -285,11 +290,17 @@ impl Package for Spec {
     }
 }
 
+impl PackageMut for Spec {
+    fn set_build(&mut self, build: Build) {
+        self.pkg.build = Some(build)
+    }
+}
+
 impl Recipe for Spec {
     type Output = Self;
 
-    fn default_variants(&self) -> &Vec<OptionMap> {
-        &self.build.variants
+    fn default_variants(&self) -> &[OptionMap] {
+        self.build.variants.as_slice()
     }
 
     fn resolve_options(&self, given: &OptionMap) -> Result<OptionMap> {
@@ -362,7 +373,7 @@ impl Recipe for Spec {
     fn generate_binary_build<E, P>(&self, options: &OptionMap, build_env: &E) -> Result<Self>
     where
         E: BuildEnv<Package = P>,
-        P: Package<Ident = Ident>,
+        P: Package,
     {
         let mut updated = self.clone();
         let specs: HashMap<_, _> = build_env
@@ -438,25 +449,11 @@ impl Recipe for Spec {
     }
 }
 
-impl RecipeOps for Spec {
-    type Ident = Ident;
-    type PkgRequest = PkgRequest;
-    type RangeIdent = RangeIdent;
-
-    fn is_api_compatible(&self, base: &crate::foundation::version::Version) -> Compatibility {
-        self.compat()
-            .is_api_compatible(base, Versioned::version(&self))
-    }
-
-    fn is_binary_compatible(&self, base: &crate::foundation::version::Version) -> Compatibility {
-        self.compat()
-            .is_binary_compatible(base, Versioned::version(&self))
-    }
-
-    fn is_satisfied_by_range_ident(
+impl Spec {
+    fn check_satisfies_version_range(
         &self,
         range_ident: &RangeIdent,
-        required: crate::foundation::version::CompatRule,
+        required: CompatRule,
     ) -> Compatibility {
         if self.name() != range_ident.name {
             return Compatibility::Incompatible("different package names".into());
@@ -467,8 +464,12 @@ impl RecipeOps for Spec {
             let required_components = self
                 .components()
                 .resolve_uses(range_ident.components.iter());
-            let available_components: BTreeSet<_> =
-                self.components_iter().map(|c| c.name.clone()).collect();
+            let available_components: BTreeSet<_> = self
+                .install
+                .components
+                .iter()
+                .map(|c| c.name.clone())
+                .collect();
             let missing_components = required_components
                 .difference(&available_components)
                 .sorted()
@@ -504,8 +505,10 @@ impl RecipeOps for Spec {
 
         Compatibility::Compatible
     }
+}
 
-    fn is_satisfied_by_pkg_request(&self, pkg_request: &PkgRequest) -> Compatibility {
+impl Satisfy<PkgRequest> for Spec {
+    fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
         if self.is_deprecated() {
             // deprecated builds are only okay if their build
             // was specifically requested
@@ -522,35 +525,15 @@ impl RecipeOps for Spec {
             return Compatibility::Incompatible("prereleases not allowed".to_string());
         }
 
-        pkg_request.pkg.is_satisfied_by(
-            self,
+        self.check_satisfies_version_range(
+            &pkg_request.pkg,
             pkg_request.required_compat.unwrap_or(CompatRule::Binary),
         )
     }
-
-    fn to_ident(&self) -> Self::Ident {
-        Self::Ident {
-            name: self.name().to_owned(),
-            version: self.version().clone(),
-            build: None,
-        }
-    }
 }
 
-impl PackageOps for Spec {
-    type Ident = Ident;
-    type Component = ComponentSpec;
-    type VarRequest = VarRequest;
-
-    fn components_iter(&self) -> std::slice::Iter<'_, Self::Component> {
-        self.install.components.iter()
-    }
-
-    fn ident(&self) -> &Self::Ident {
-        &self.pkg
-    }
-
-    fn is_satisfied_by_var_request(&self, var_request: &VarRequest) -> Compatibility {
+impl Satisfy<VarRequest> for Spec {
+    fn check_satisfies_request(&self, var_request: &VarRequest) -> Compatibility {
         let opt_required = var_request.var.namespace() == Some(self.name());
         let mut opt: Option<&Opt> = None;
         let request_name = &var_request.var;
@@ -590,14 +573,6 @@ impl PackageOps for Spec {
                 }
             }
         }
-    }
-}
-
-impl PackageMutOps for Spec {
-    type Ident = Ident;
-
-    fn ident_mut(&mut self) -> &mut Self::Ident {
-        &mut self.pkg
     }
 }
 

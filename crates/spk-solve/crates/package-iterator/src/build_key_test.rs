@@ -6,8 +6,7 @@ use itertools::Itertools;
 use rstest::rstest;
 use spk_schema::foundation::opt_name;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::foundation::spec_ops::PackageOps;
-use spk_schema::spec;
+use spk_schema::{spec, Package};
 
 use super::{
     BuildKey,

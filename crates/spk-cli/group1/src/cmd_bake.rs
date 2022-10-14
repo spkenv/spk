@@ -9,8 +9,8 @@ use futures::TryFutureExt;
 use serde::Serialize;
 use spfs::Digest;
 use spk_cli_common::{current_env, flags, CommandArgs, Error, Result, Run};
-use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::ident::RequestedBy;
+use spk_schema::Package;
 use spk_solve::solution::{PackageSource, SolvedRequest};
 use spk_solve::Component;
 

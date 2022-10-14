@@ -9,7 +9,7 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::opt_name;
-use spk_schema::foundation::spec_ops::{PackageOps, Versioned};
+use spk_schema::foundation::spec_ops::Versioned;
 use spk_schema::ident::{
     ident,
     parse_ident_range,

@@ -24,7 +24,8 @@ use spk_schema::foundation::format::{
     FormatSolution,
 };
 use spk_schema::foundation::ident_build::Build;
-use spk_schema::foundation::spec_ops::{Named, PackageOps, Versioned};
+use spk_schema::foundation::spec_ops::{Named, Versioned};
+use spk_schema::Package;
 use spk_solve_graph::{
     Change,
     Decision,

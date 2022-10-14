@@ -14,13 +14,11 @@ use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::ident_ops::MetadataPath;
 use spk_schema::foundation::name::OptNameBuf;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::foundation::spec_ops::{ComponentOps, PackageMutOps, PackageOps};
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
-use spk_schema::{ComponentFileMatchMode, ComponentSpecList, DeprecateMut, Ident, Package};
+use spk_schema::{ComponentFileMatchMode, ComponentSpecList, Ident, Package, PackageMut};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
@@ -93,10 +91,8 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
 
 impl<'a, Recipe> BinaryPackageBuilder<'a, Recipe>
 where
-    Recipe: spk_schema::Recipe<Ident = Ident>,
-    Recipe::Output: Package<Ident = Ident> + serde::Serialize,
-    <Recipe::Output as PackageOps>::Ident: MetadataPath,
-    <Recipe::Output as PackageOps>::Component: ComponentOps,
+    Recipe: spk_schema::Recipe,
+    Recipe::Output: Package + serde::Serialize,
 {
     /// Create a new builder that builds a binary package from the given recipe
     pub fn from_recipe(recipe: Recipe) -> Self {
@@ -224,7 +220,7 @@ where
     where
         R: std::ops::Deref<Target = T>,
         T: storage::Repository<Recipe = Recipe> + ?Sized,
-        <T as storage::Storage>::Package: PackageMutOps<Ident = Ident> + DeprecateMut,
+        <T as storage::Storage>::Package: PackageMut,
     {
         let (package, components) = self.build().await?;
         repo.publish_package(&package, &components).await?;
@@ -550,7 +546,7 @@ where
 /// Return the environment variables to be set for a build of the given package spec.
 pub fn get_package_build_env<P>(spec: &P) -> HashMap<String, String>
 where
-    P: Package<Ident = Ident>,
+    P: Package,
 {
     let mut env = HashMap::with_capacity(8);
     env.insert("SPK_PKG".to_string(), spec.ident().to_string());
@@ -593,7 +589,7 @@ pub async fn commit_component_layers<P>(
     runtime: &mut spfs::runtime::Runtime,
 ) -> Result<HashMap<Component, spfs::encoding::Digest>>
 where
-    P: Package<Ident = Ident>,
+    P: Package,
 {
     let config = spfs::get_config()?;
     let repo = Arc::new(config.get_local_repository_handle().await?);

@@ -13,7 +13,6 @@ use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
 use spk_schema::foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::foundation::spec_ops::PackageOps;
 use spk_schema::foundation::version::Version;
 use spk_schema::{Ident, Package, Spec, SpecRecipe};
 use spk_solve_solution::PackageSource;

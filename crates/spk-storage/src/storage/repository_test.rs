@@ -5,9 +5,9 @@
 use rstest::rstest;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::pkg_name;
-use spk_schema::foundation::spec_ops::{Named, PackageOps, RecipeOps};
+use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::parse_ident;
-use spk_schema::{recipe, spec, Deprecate, DeprecateMut, Ident, Spec, SpecRecipe};
+use spk_schema::{recipe, spec, Deprecate, DeprecateMut, Ident, Package, Recipe, Spec, SpecRecipe};
 
 use crate::fixtures::*;
 use crate::Error;

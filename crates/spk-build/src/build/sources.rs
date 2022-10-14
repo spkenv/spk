@@ -9,10 +9,8 @@ use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::Encodable;
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::spec_ops::PackageMutOps;
-use spk_schema::{DeprecateMut, Ident};
-use spk_solve::PackageOps;
-use spk_storage::{self as storage};
+use spk_schema::{Package, PackageMut};
+use spk_storage as storage;
 
 use crate::{Error, Result};
 
@@ -56,7 +54,7 @@ pub struct SourcePackageBuilder<Recipe: spk_schema::Recipe> {
 impl<Recipe> SourcePackageBuilder<Recipe>
 where
     Recipe: spk_schema::Recipe,
-    Recipe::Output: spk_schema::Package<Ident = Ident>,
+    Recipe::Output: spk_schema::Package,
 {
     pub fn from_recipe(recipe: Recipe) -> Self {
         Self {
@@ -74,7 +72,7 @@ where
         P: AsRef<Path>,
         R: std::ops::Deref<Target = T>,
         T: storage::Repository<Recipe = Recipe> + ?Sized,
-        <T as storage::Storage>::Package: PackageMutOps<Ident = Ident> + DeprecateMut,
+        <T as storage::Storage>::Package: PackageMut,
     {
         let (package, components) = self.build(root).await?;
         repo.publish_package(&package, &components).await?;
@@ -130,7 +128,7 @@ where
 /// Collect the sources for a spec in the given directory.
 pub(super) fn collect_sources<Package, P: AsRef<Path>>(spec: &Package, source_dir: P) -> Result<()>
 where
-    Package: spk_schema::Package<Ident = Ident>,
+    Package: spk_schema::Package,
 {
     let source_dir = source_dir.as_ref();
     std::fs::create_dir_all(&source_dir)
