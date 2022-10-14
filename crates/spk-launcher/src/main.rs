@@ -118,6 +118,7 @@ impl<'a> Dynamic<'a> {
             // Ensure tag is sync'd local because `render_into_directory` operates
             // out of the local repo.
             let syncer = spfs::Syncer::new(remote, local)
+                .with_policy(spfs::sync::SyncPolicy::LatestTags)
                 .with_reporter(spfs::sync::ConsoleSyncReporter::default());
             let r = syncer.sync_env(env_spec).await.context("sync reference")?;
             let env_spec = r.env;
