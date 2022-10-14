@@ -22,14 +22,10 @@ pub trait Package:
 {
     type Package;
 
-    // fn components_iter(&self) -> std::slice::Iter<'_, Self::Component>;
-
     /// The full identifier for this package
     ///
     /// This includes the version and optional build
     fn ident(&self) -> &Ident;
-
-    // fn is_satisfied_by_var_request(&self, var_request: &Self::VarRequest) -> Compatibility;
 
     /// The values for this packages options used for this build.
     fn option_values(&self) -> OptionMap;
