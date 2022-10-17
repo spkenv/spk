@@ -1,15 +1,16 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map, HashMap, HashSet};
 use std::convert::{TryFrom, TryInto};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::Arc;
 
+use dashmap::DashMap;
 use futures::StreamExt;
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use relative_path::RelativePathBuf;
 use serde_derive::{Deserialize, Serialize};
 use spfs::storage::EntryType;
@@ -42,6 +43,7 @@ pub struct SPFSRepository {
     name: RepositoryNameBuf,
     inner: spfs::storage::RepositoryHandle,
     cache_policy: AtomicPtr<CachePolicy>,
+    caches: CachesForAddress,
 }
 
 impl std::hash::Hash for SPFSRepository {
@@ -89,8 +91,10 @@ impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> TryFrom<(S, T)> fo
 
     fn try_from(name_and_repo: (S, T)) -> Result<Self> {
         let inner = name_and_repo.1.into();
+        let address = inner.address();
         Ok(Self {
-            address: inner.address(),
+            caches: CachesForAddress::new(&address),
+            address,
             name: name_and_repo.0.as_ref().try_into()?,
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
@@ -101,8 +105,10 @@ impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> TryFrom<(S, T)> fo
 impl SPFSRepository {
     pub async fn new(name: &str, address: &str) -> Result<Self> {
         let inner = spfs::open_repository(address).await?;
+        let address = inner.address();
         Ok(Self {
-            address: inner.address(),
+            caches: CachesForAddress::new(&address),
+            address,
             name: name.try_into()?,
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
@@ -160,34 +166,51 @@ impl<T> From<std::result::Result<T, &crate::Error>> for CacheValue<T> {
     }
 }
 
-// Cache is KKV with outer key being the repo address.
-type CacheByAddress<K, V> = RefCell<HashMap<url::Url, HashMap<K, V>>>;
+// To keep clippy happy
+type ArcVecArcVersion = Arc<Vec<Arc<Version>>>;
+/// The set of caches for a specific repository.
+#[derive(Clone)]
+struct CachesForAddress {
+    /// Components list cache for list_build_components()
+    list_build_components: Arc<DashMap<Ident, CacheValue<Vec<Component>>>>,
+    /// EntryTypes list cache for ls_tags() caches
+    ls_tags: Arc<DashMap<relative_path::RelativePathBuf, Vec<EntryType>>>,
+    /// Package specs cache for read_component_from_storage() and read_embed_stub()
+    package: Arc<DashMap<Ident, CacheValue<Arc<Spec>>>>,
+    /// Versions list cache for list_packages_versions()
+    package_versions: Arc<DashMap<PkgNameBuf, CacheValue<ArcVecArcVersion>>>,
+    /// Recipe specs cache for read_recipe()
+    recipe: Arc<DashMap<Ident, CacheValue<Arc<spk_schema::SpecRecipe>>>>,
+    /// Recipe specs cache for read_recipe()
+    tag_spec: Arc<DashMap<tracking::TagSpec, CacheValue<tracking::Tag>>>,
+}
 
-std::thread_local! {
-    static LS_TAGS_CACHE : CacheByAddress<
-        relative_path::RelativePathBuf,
-        Vec<EntryType>
-    > = RefCell::new(HashMap::new());
+static CACHES_FOR_ADDRESS: Lazy<std::sync::Mutex<HashMap<String, CachesForAddress>>> =
+    Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
 
-    static PACKAGE_VERSIONS_CACHE : CacheByAddress<
-        PkgNameBuf,
-        CacheValue<Arc<Vec<Arc<Version>>>>
-    > = RefCell::new(HashMap::new());
+impl CachesForAddress {
+    fn new(address: &url::Url) -> Self {
+        let mut caches = CACHES_FOR_ADDRESS.lock().unwrap();
+        match caches.entry(address.as_str().to_owned()) {
+            hash_map::Entry::Occupied(entry) => entry.get().clone(),
+            hash_map::Entry::Vacant(entry) => entry
+                .insert(Self {
+                    list_build_components: Arc::new(DashMap::new()),
+                    ls_tags: Arc::new(DashMap::new()),
+                    package: Arc::new(DashMap::new()),
+                    package_versions: Arc::new(DashMap::new()),
+                    recipe: Arc::new(DashMap::new()),
+                    tag_spec: Arc::new(DashMap::new()),
+                })
+                .clone(),
+        }
+    }
+}
 
-    static RECIPE_CACHE : CacheByAddress<
-        Ident,
-        CacheValue<Arc<spk_schema::SpecRecipe>>
-    > = RefCell::new(HashMap::new());
-
-    static PACKAGE_CACHE : CacheByAddress<
-        Ident,
-        CacheValue<Arc<Spec>>
-    > = RefCell::new(HashMap::new());
-
-    static TAG_SPEC_CACHE : CacheByAddress<
-        tracking::TagSpec,
-        CacheValue<tracking::Tag>
-    > = RefCell::new(HashMap::new());
+impl std::fmt::Debug for CachesForAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CachesForAddress").finish()
+    }
 }
 
 #[async_trait::async_trait]
@@ -393,14 +416,12 @@ impl Storage for SPFSRepository {
         pkg: &Ident,
     ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
         // TODO: reduce duplicate code with read_recipe
-        let address = self.address();
         if self.cached_result_permitted() {
-            let r = PACKAGE_CACHE
-                .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
-            if let Some(r) = r {
-                return r.into();
+            if let Some(v) = self.caches.package.get(pkg) {
+                return v.value().clone().into();
             }
         }
+
         let r: Result<Arc<Spec>> = async {
             let tag_path = self.build_spec_tag(pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
@@ -417,11 +438,10 @@ impl Storage for SPFSRepository {
                 .map(Arc::new)
         }
         .await;
-        PACKAGE_CACHE.with(|hm| {
-            let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
-        });
+
+        self.caches
+            .package
+            .insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
         r
     }
 
@@ -478,15 +498,9 @@ impl Repository for SPFSRepository {
     }
 
     async fn list_package_versions(&self, name: &PkgName) -> Result<Arc<Vec<Arc<Version>>>> {
-        let address = self.address();
         if self.cached_result_permitted() {
-            let r = PACKAGE_VERSIONS_CACHE.with(|hm| {
-                hm.borrow()
-                    .get(address)
-                    .and_then(|hm| hm.get(name).cloned())
-            });
-            if let Some(r) = r {
-                return r.into();
+            if let Some(v) = self.caches.package_versions.get(name) {
+                return v.value().clone().into();
             }
         }
         let r: Result<Arc<_>> = async {
@@ -515,25 +529,36 @@ impl Repository for SPFSRepository {
             Ok(Arc::new(versions))
         }
         .await;
-        PACKAGE_VERSIONS_CACHE.with(|hm| {
-            let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(name.to_owned(), r.as_ref().map(|b| b.clone()).into())
-        });
+
+        self.caches
+            .package_versions
+            .insert(name.to_owned(), r.as_ref().map(|b| b.clone()).into());
         r
     }
 
     async fn list_build_components(&self, pkg: &Ident) -> Result<Vec<Component>> {
-        if matches!(pkg.build, Some(Build::Embedded(_))) {
-            return Ok(Vec::new());
+        if self.cached_result_permitted() {
+            if let Some(v) = self.caches.list_build_components.get(pkg) {
+                return v.value().clone().into();
+            }
         }
-        match self.lookup_package(pkg).await {
-            Ok(p) => Ok(p.into_components().into_keys().collect()),
-            Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(_),
-            )) => Ok(Vec::new()),
-            Err(err) => Err(err),
-        }
+
+        let r = if matches!(pkg.build, Some(Build::Embedded(_))) {
+            Ok(Vec::new())
+        } else {
+            match self.lookup_package(pkg).await {
+                Ok(p) => Ok(p.into_components().into_keys().collect()),
+                Err(Error::SpkValidatorsError(
+                    spk_schema::validators::Error::PackageNotFoundError(_),
+                )) => Ok(Vec::new()),
+                Err(err) => Err(err),
+            }
+        };
+
+        self.caches
+            .list_build_components
+            .insert(pkg.to_owned(), r.as_ref().map(|v| v.clone()).into());
+        r
     }
 
     fn name(&self) -> &RepositoryName {
@@ -541,9 +566,8 @@ impl Repository for SPFSRepository {
     }
 
     async fn read_embed_stub(&self, pkg: &Ident) -> Result<Arc<Self::Package>> {
-        // This is similar to read_recipe but it returns a package and uses the
-        // package cache.
-        let address = self.address();
+        // This is similar to read_recipe but it returns a package and
+        // uses the package cache.
         match pkg.build {
             Some(Build::Embedded(EmbeddedSource::Package { .. })) => {
                 // Allow embedded stubs to be read as a "package"
@@ -553,10 +577,8 @@ impl Repository for SPFSRepository {
             }
         };
         if self.cached_result_permitted() {
-            let r = PACKAGE_CACHE
-                .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
-            if let Some(r) = r {
-                return r.into();
+            if let Some(v) = self.caches.package.get(pkg) {
+                return v.value().clone().into();
             }
         }
         let r: Result<Arc<Spec>> = async {
@@ -575,24 +597,20 @@ impl Repository for SPFSRepository {
                 .map(Arc::new)
         }
         .await;
-        PACKAGE_CACHE.with(|hm| {
-            let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
-        });
+
+        self.caches
+            .package
+            .insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
         r
     }
 
     async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
-        let address = self.address();
         if pkg.build.is_some() {
             return Err(format!("cannot read a recipe for a package build: {pkg}").into());
         };
         if self.cached_result_permitted() {
-            let r = RECIPE_CACHE
-                .with(|hm| hm.borrow().get(address).and_then(|hm| hm.get(pkg).cloned()));
-            if let Some(r) = r {
-                return r.into();
+            if let Some(v) = self.caches.recipe.get(pkg) {
+                return v.value().clone().into();
             }
         }
         let r: Result<Arc<SpecRecipe>> = async {
@@ -611,11 +629,10 @@ impl Repository for SPFSRepository {
                 .map(Arc::new)
         }
         .await;
-        RECIPE_CACHE.with(|hm| {
-            let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
-        });
+
+        self.caches
+            .recipe
+            .insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
         r
     }
 
@@ -728,29 +745,24 @@ impl SPFSRepository {
     }
 
     /// Invalidate (clear) all cached results.
-    ///
-    /// # Warning
-    ///
-    /// This only operates on the caches for the current thread.
     fn invalidate_caches(&self) {
-        let address = self.address();
-        LS_TAGS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-        PACKAGE_VERSIONS_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-        RECIPE_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-        PACKAGE_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
-        TAG_SPEC_CACHE.with(|hm| hm.borrow_mut().get_mut(address).map(|hm| hm.clear()));
+        self.caches.ls_tags.clear();
+        self.caches.package_versions.clear();
+        self.caches.recipe.clear();
+        self.caches.package.clear();
+        self.caches.tag_spec.clear();
+        self.caches.list_build_components.clear();
     }
 
     async fn ls_tags(&self, path: &relative_path::RelativePath) -> Vec<Result<EntryType>> {
-        let address = self.address();
         if self.cached_result_permitted() {
-            let r = LS_TAGS_CACHE.with(|hm| {
-                hm.borrow()
-                    .get(address)
-                    .and_then(|hm| hm.get(path).cloned())
-            });
-            if let Some(r) = r {
-                return r.into_iter().map(Ok).collect();
+            if let Some(v) = self.caches.ls_tags.get(path) {
+                return v
+                    .value()
+                    .clone()
+                    .into_iter()
+                    .map(Ok)
+                    .collect::<Vec<Result<EntryType>>>();
             }
         }
         let r: Vec<Result<EntryType>> = self
@@ -759,14 +771,11 @@ impl SPFSRepository {
             .map(|el| el.map_err(|err| err.into()))
             .collect::<Vec<_>>()
             .await;
-        LS_TAGS_CACHE.with(|hm| {
-            let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(
-                path.to_owned(),
-                r.iter().filter_map(|r| r.as_ref().ok()).cloned().collect(),
-            );
-        });
+
+        self.caches.ls_tags.insert(
+            path.to_owned(),
+            r.iter().filter_map(|r| r.as_ref().ok()).cloned().collect(),
+        );
         r
     }
 
@@ -798,15 +807,9 @@ impl SPFSRepository {
         for_pkg: &Ident,
         tag_spec: &tracking::TagSpec,
     ) -> Result<tracking::Tag> {
-        let address = self.address();
         if self.cached_result_permitted() {
-            let r = TAG_SPEC_CACHE.with(|hm| {
-                hm.borrow()
-                    .get(address)
-                    .and_then(|hm| hm.get(tag_spec).cloned())
-            });
-            if let Some(r) = r {
-                return r.into();
+            if let Some(v) = self.caches.tag_spec.get(tag_spec) {
+                return v.value().clone().into();
             }
         }
         let r = self
@@ -819,11 +822,10 @@ impl SPFSRepository {
                 ),
                 err => err.into(),
             });
-        TAG_SPEC_CACHE.with(|hm| {
-            let mut hm = hm.borrow_mut();
-            let hm = hm.entry(address.clone()).or_insert_with(HashMap::new);
-            hm.insert(tag_spec.clone(), r.as_ref().map(|el| el.clone()).into());
-        });
+
+        self.caches
+            .tag_spec
+            .insert(tag_spec.clone(), r.as_ref().map(|el| el.clone()).into());
         r
     }
 
@@ -952,8 +954,10 @@ pub async fn local_repository() -> Result<SPFSRepository> {
     let config = spfs::get_config()?;
     let repo = config.get_local_repository().await?;
     let inner: spfs::prelude::RepositoryHandle = repo.into();
+    let address = inner.address();
     Ok(SPFSRepository {
-        address: inner.address(),
+        caches: CachesForAddress::new(&address),
+        address,
         name: "local".try_into()?,
         inner,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
@@ -965,11 +969,13 @@ pub async fn local_repository() -> Result<SPFSRepository> {
 /// If not name is specified, return the default spfs repository.
 pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SPFSRepository> {
     let config = spfs::get_config()?;
-    let repo = config.get_remote(&name).await?;
+    let inner = config.get_remote(&name).await?;
+    let address = inner.address();
     Ok(SPFSRepository {
-        address: repo.address(),
+        caches: CachesForAddress::new(&address),
+        address,
         name: name.as_ref().try_into()?,
-        inner: repo,
+        inner,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
     })
 }

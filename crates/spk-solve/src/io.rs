@@ -896,8 +896,9 @@ impl DecisionFormatter {
                     error_freq.get_message(error.to_string())
                 );
             }
+            out.push('\n');
         } else {
-            out.push_str(" Solver hit no problems");
+            out.push_str(" Solver hit no problems\n");
         }
 
         out
