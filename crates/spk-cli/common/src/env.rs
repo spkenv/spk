@@ -11,7 +11,9 @@ use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use spk_schema::ident::{parse_ident, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
 use spk_schema::Package;
+use spk_solve::package_iterator::BUILD_SORT_TARGET;
 use spk_solve::solution::{PackageSource, Solution};
+use spk_solve::validation::IMPOSSIBLE_CHECKS_TARGET;
 use spk_storage::{self as storage};
 
 use crate::Error;
@@ -183,13 +185,19 @@ fn remove_ansi_escapes(message: String) -> String {
 pub fn configure_logging(verbosity: u32) -> Result<()> {
     use tracing_subscriber::layer::SubscriberExt;
     let mut directives = match verbosity {
-        0 => "spk=info,spfs=warn",
-        1 => "spk=debug,spfs=info",
-        2 => "spk=trace,spfs=debug",
-        3..=6 => "spk=trace,spfs=trace,build_sort=info,impossible_requests=debug",
-        _ => "spk=trace,spfs=trace,build_sort=debug,impossible_requests=debug",
-    }
-    .to_string();
+        0 => "spk=info,spfs=warn".to_string(),
+        1 => "spk=debug,spfs=info".to_string(),
+        2 => "spk=trace,spfs=debug".to_string(),
+        3..=6 => format!(
+            "spk=trace,spfs=trace,{}=info,{}=debug",
+            BUILD_SORT_TARGET, IMPOSSIBLE_CHECKS_TARGET
+        ),
+        _ => format!(
+            "spk=trace,spfs=trace,{}=debug,{}=debug",
+            BUILD_SORT_TARGET, IMPOSSIBLE_CHECKS_TARGET
+        ),
+    };
+
     if let Ok(overrides) = std::env::var("SPK_LOG") {
         // this is a common scenario because spk often calls itself
         if directives != overrides {

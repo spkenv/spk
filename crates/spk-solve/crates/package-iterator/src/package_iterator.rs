@@ -62,7 +62,7 @@ pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
 
 /// A tracing target for additional build sorting output: times,
 /// building blocks, and keys.
-const BUILD_SORT_TARGET: &str = "build_sort";
+pub const BUILD_SORT_TARGET: &str = "build_sort";
 
 dyn_clone::clone_trait_object!(BuildIterator);
 
@@ -500,7 +500,7 @@ impl SortedBuildIterator {
             spec.ident(),
             ordered_names,
             name_values,
-            impossible_requests,
+            makes_an_impossible_request,
         )
     }
 

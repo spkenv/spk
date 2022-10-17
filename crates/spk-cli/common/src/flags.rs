@@ -137,23 +137,23 @@ pub struct Solver {
     pub allow_builds: bool,
 
     /// If true, the solver will run impossible request checks on the initial requests
-    #[clap(long, env = "SPK_USE_IMPOSSIBLE_INITIAL")]
-    pub impossible_initial: bool,
+    #[clap(long, env = "SPK_CHECK_IMPOSSIBLE_INITIAL")]
+    pub check_impossible_initial: bool,
 
     /// If true, the solver will run impossible request checks before
     /// using a package build to resolve a request
-    #[clap(long, env = "SPK_USE_IMPOSSIBLE_VALIDATION")]
-    pub impossible_validation: bool,
+    #[clap(long, env = "SPK_CHECK_IMPOSSIBLE_VALIDATION")]
+    pub check_impossible_validation: bool,
 
     /// If true, the solver will run impossible request checks to
     /// use in the build keys for ordering builds during the solve
-    #[clap(long, env = "SPK_USE_IMPOSSIBLE_BUILD_KEYS")]
-    pub impossible_build_keys: bool,
+    #[clap(long, env = "SPK_CHECK_IMPOSSIBLE_BUILDS")]
+    pub check_impossible_builds: bool,
 
     /// If true, the solver will run all three impossible request checks: initial
     /// requests, build validation before a resolve, and for build keys
-    #[clap(long, env = "SPK_USE_IMPOSSIBLE_ALL_CHECKS")]
-    pub impossible_all_checks: bool,
+    #[clap(long, env = "SPK_CHECK_IMPOSSIBLE_ALL")]
+    pub check_impossible_all: bool,
 }
 
 impl Solver {
@@ -167,13 +167,13 @@ impl Solver {
         }
         solver.set_binary_only(!self.allow_builds);
         solver.set_initial_request_impossible_checks(
-            self.impossible_initial || self.impossible_all_checks,
+            self.check_impossible_initial || self.check_impossible_all,
         );
         solver.set_resolve_validation_impossible_checks(
-            self.impossible_validation || self.impossible_all_checks,
+            self.check_impossible_validation || self.check_impossible_all,
         );
         solver.set_build_key_impossible_checks(
-            self.impossible_build_keys || self.impossible_all_checks,
+            self.check_impossible_builds || self.check_impossible_all,
         );
 
         for r in options.get_var_requests()? {

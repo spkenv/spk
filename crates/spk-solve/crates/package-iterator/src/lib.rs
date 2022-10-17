@@ -8,8 +8,10 @@ mod package_iterator;
 
 pub use error::{Error, Result};
 pub use package_iterator::{
+    BuildIterator,
     EmptyBuildIterator,
     PackageIterator,
     RepositoryPackageIterator,
     SortedBuildIterator,
+    BUILD_SORT_TARGET,
 };

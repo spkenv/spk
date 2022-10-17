@@ -194,7 +194,7 @@ async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(mut so
     let res = run_and_print_resolve_for_tests(&solver).await;
     if cfg!(feature = "migration-to-components") {
         match res {
-            Err(Error::String(_)) => {
+            Err(Error::InitialRequestsContainImpossibleError(_)) => {
                 // Success, when the 'migration-to-components' feature
                 // is enabled because the initial checks for
                 // impossible requests fail because the package does
@@ -285,7 +285,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
         // :build and a :run component to pass and it only has a :run
         // component
         assert!(
-            matches!(res, Err(Error::String(_))),
+            matches!(res, Err(Error::InitialRequestsContainImpossibleError(_))),
             "'{:?}' should be a Error::String('Initial requests contain 1 impossible request.')",
             res
         );
@@ -1116,7 +1116,7 @@ async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
             // recipe is deprecated and refuses to build a binary from
             // the source package.
         }
-        Err(Error::String(_)) => {
+        Err(Error::InitialRequestsContainImpossibleError(_)) => {
             // Success, when the 'migration-to-components' feature is
             // disabled because: the initial checks for impossible
             // requests fail to find a possible build because the
@@ -2118,9 +2118,9 @@ async fn test_solver_component_embedded(mut solver: Solver) {
 #[rstest]
 fn test_solver_get_request_validator() {
     let solver = Solver::default();
-    let resolve_validator = solver.get_request_validator();
+    let resolve_validator = solver.request_validator();
     assert!(
-        resolve_validator.get_num_possible_hits() == 0,
+        resolve_validator.num_possible_hits() == 0,
         "A new solver should return a new resolve validator"
     )
 }
