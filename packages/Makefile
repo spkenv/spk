@@ -4,7 +4,9 @@ packages: \
 	gnu \
 	perl \
 	python \
-	pip/pip.spk
+	pip/pip.spk \
+	cmake \
+	ninja
 
 .PHONY: bootstrap boostrap.full
 # boostrap just enough to get a real linker and compiler
@@ -60,7 +62,14 @@ python: python2 python3
 python2: bootstrap bzip2/bzip2.spk zlib/zlib.spk python/python2.spk
 python3: bootstrap bzip2/bzip2.spk zlib/zlib.spk libffi/libffi.spk openssl/openssl.spk python/python3.spk
 
-zlib/zlib.spk: cmake/cmake.spk
+.PHONY: ninja
+ninja: ninja/ninja.spk
+
+zlib/zlib.spk: cmake
+
+.PHONY: cmake
+cmake: cmake/cmake.spk
+
 
 .PHONY: clean
 clean:
