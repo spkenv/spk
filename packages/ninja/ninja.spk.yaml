@@ -1,6 +1,7 @@
 pkg: ninja/1.10.1
+api: v0/package
 
-sources: 
+sources:
   - git: https://github.com/ninja-build/ninja.git
     ref: v1.10.1
 
@@ -12,44 +13,29 @@ build:
 
     - pkg: bash
     - pkg: binutils
-    - pkg: bzip2
     - pkg: coreutils
-    - pkg: cmake/3.16
+    - pkg: cmake/~3.16
     - pkg: gcc
     - pkg: glibc
-    - pkg: gmp
-    - pkg: libffi 
-    - pkg: mpfr
-    - pkg: ncurses
-    - pkg: openssl
     - pkg: python
     - pkg: stdfs
-    - pkg: zlib
 
   variants:
     - {python: 3.7}
 
   script:
-    - ./configure.py --bootstrap 
-    - ./ninja 
-    - cp -R ../src /spfs/lib/ninja 
-    - rsync -ar /spfs/lib/ninja
-    - ln -s /spfs/lib/ninja/ninja /spfs/bin
+    - ./configure.py --bootstrap
+    - cp ninja /spfs/bin
 
-tests: 
+tests:
   - stage: install
     script: /spfs/lib/ninja/misc/ninja_syntax_test.py
 
 install:
   requirements:
-    - pkg: python
-      fromBuildEnv: Binary
-    - pkg: gcc
+    - pkg: stdfs
 
-  components: 
+  components:
     - name: run
       files:
-        - /bin/
-        - /etc/
-        - /lib/
-
+        - /bin/ninja
