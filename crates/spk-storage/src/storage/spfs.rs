@@ -116,6 +116,23 @@ impl SpfsRepository {
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
         })
     }
+
+    /// Pin this repository to a specific point in time, limiting
+    /// all queries and making it read-only
+    pub fn pin_at_time(&mut self, ts: &spfs::tracking::TimeSpec) {
+        // Safety: we are going to mutate and replace the value that
+        // is being read here, and know that self.inner is both
+        // initialized and valid for reads
+        let tmp = unsafe { std::ptr::read(&self.inner) };
+        let new = tmp.into_pinned(ts.to_datetime_from_now());
+        // Safety: we are replacing the old value with a moved copy
+        // of itself, and so explicitly do not want the old value
+        // dropped or accessed in any way
+        unsafe { std::ptr::write(&mut self.inner, new) };
+        self.address
+            .query_pairs_mut()
+            .append_pair("when", &ts.to_string());
+    }
 }
 
 impl std::ops::Drop for SpfsRepository {
