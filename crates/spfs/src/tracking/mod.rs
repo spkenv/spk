@@ -30,3 +30,5 @@ pub use manifest::{
 };
 pub use object::Object;
 pub use tag::{build_tag_spec, split_tag_spec, Tag, TagSpec};
+mod time_spec;
+pub use time_spec::{parse_duration, parse_time, TimeSpec};
