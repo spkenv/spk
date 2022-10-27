@@ -144,7 +144,7 @@ impl CmdRun {
                     .sync_env(references_to_sync)
                     .await?;
                 for item in synced.env.iter() {
-                    let digest = item.resolve_digest(&*repo).await?;
+                    let digest = item.resolve_digest(&repo).await?;
                     runtime.push_digest(digest);
                 }
             } else {

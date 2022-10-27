@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use clap::Args;
 use itertools::Itertools;
+use spfs::prelude::*;
 use spfs::tracking::{Entry, EnvSpecItem};
 
 /// List the contents of a committed directory

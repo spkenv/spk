@@ -9,6 +9,7 @@ use futures::{Stream, StreamExt};
 use prost::Message;
 use tonic::{Request, Response, Status};
 
+use crate::prelude::*;
 use crate::proto::payload_service_server::PayloadServiceServer;
 use crate::proto::{self, convert_digest, RpcResult};
 use crate::storage;

@@ -35,6 +35,15 @@ impl AsRef<str> for EntryType {
     }
 }
 
+impl From<EntryType> for String {
+    fn from(entry: EntryType) -> String {
+        match entry {
+            EntryType::Folder(s) => s,
+            EntryType::Tag(s) => s,
+        }
+    }
+}
+
 impl Display for EntryType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {

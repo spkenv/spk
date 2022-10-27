@@ -5,6 +5,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use futures::TryStreamExt;
+use spfs::storage::TagStorage;
 use spk_cli_common::{CommandArgs, Run};
 
 #[cfg(test)]

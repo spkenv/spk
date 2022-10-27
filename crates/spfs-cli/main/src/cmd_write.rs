@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::Args;
+use spfs::prelude::*;
 use spfs::tracking::BlobReadExt;
 use spfs::Error;
 

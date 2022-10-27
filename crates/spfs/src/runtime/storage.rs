@@ -23,6 +23,7 @@ use super::startup_ps;
 #[cfg(unix)]
 use super::{startup_csh, startup_sh};
 use crate::encoding::{self, Encodable};
+use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::RepositoryHandle;
 use crate::{bootstrap, graph, storage, tracking, Error, Result};

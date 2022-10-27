@@ -7,6 +7,7 @@ use chrono::Local;
 use clap::Args;
 use colored::*;
 use futures::StreamExt;
+use spfs::prelude::*;
 use spfs::{self};
 
 /// Log the history of a given tag over time

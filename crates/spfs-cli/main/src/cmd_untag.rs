@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use clap::Args;
+use spfs::prelude::*;
 
 /// Remove tag versions or entire tag streams
 #[derive(Debug, Args)]

@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use clap::Args;
+use spfs::prelude::*;
 use spfs::Error;
 
 /// Output the contents of a blob to stdout

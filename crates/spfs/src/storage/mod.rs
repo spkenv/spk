@@ -13,6 +13,8 @@ mod tag;
 mod config;
 pub mod fallback;
 pub mod fs;
+mod handle;
+pub mod pinned;
 pub mod prelude;
 pub mod proxy;
 pub mod rpc;
@@ -39,6 +41,7 @@ pub enum RepositoryHandle {
     Rpc(rpc::RpcRepository),
     FallbackProxy(Box<fallback::FallbackProxy>),
     Proxy(Box<proxy::ProxyRepository>),
+    Pinned(Box<pinned::PinnedRepository<Arc<RepositoryHandle>>>),
 }
 
 impl RepositoryHandle {
@@ -49,6 +52,7 @@ impl RepositoryHandle {
             Self::Rpc(repo) => Box::new(repo),
             Self::FallbackProxy(repo) => repo,
             Self::Proxy(repo) => repo,
+            Self::Pinned(repo) => repo,
         }
     }
 }
@@ -63,6 +67,7 @@ impl std::ops::Deref for RepositoryHandle {
             RepositoryHandle::Rpc(repo) => repo,
             RepositoryHandle::FallbackProxy(repo) => &**repo,
             RepositoryHandle::Proxy(repo) => &**repo,
+            RepositoryHandle::Pinned(repo) => &**repo,
         }
     }
 }
@@ -75,6 +80,7 @@ impl std::ops::DerefMut for RepositoryHandle {
             RepositoryHandle::Rpc(repo) => repo,
             RepositoryHandle::FallbackProxy(repo) => &mut **repo,
             RepositoryHandle::Proxy(repo) => &mut **repo,
+            RepositoryHandle::Pinned(repo) => &mut **repo,
         }
     }
 }
@@ -84,34 +90,46 @@ impl From<fs::FsRepository> for RepositoryHandle {
         RepositoryHandle::FS(repo)
     }
 }
+
 impl From<fs::OpenFsRepository> for RepositoryHandle {
     fn from(repo: fs::OpenFsRepository) -> Self {
         RepositoryHandle::FS(repo.into())
     }
 }
+
 impl From<Arc<fs::OpenFsRepository>> for RepositoryHandle {
     fn from(repo: Arc<fs::OpenFsRepository>) -> Self {
         RepositoryHandle::FS(repo.into())
     }
 }
+
 impl From<tar::TarRepository> for RepositoryHandle {
     fn from(repo: tar::TarRepository) -> Self {
         RepositoryHandle::Tar(repo)
     }
 }
+
 impl From<rpc::RpcRepository> for RepositoryHandle {
     fn from(repo: rpc::RpcRepository) -> Self {
         RepositoryHandle::Rpc(repo)
     }
 }
+
 impl From<fallback::FallbackProxy> for RepositoryHandle {
     fn from(repo: fallback::FallbackProxy) -> Self {
         RepositoryHandle::FallbackProxy(Box::new(repo))
     }
 }
+
 impl From<proxy::ProxyRepository> for RepositoryHandle {
     fn from(repo: proxy::ProxyRepository) -> Self {
         RepositoryHandle::Proxy(Box::new(repo))
+    }
+}
+
+impl From<Box<pinned::PinnedRepository<Arc<RepositoryHandle>>>> for RepositoryHandle {
+    fn from(repo: Box<pinned::PinnedRepository<Arc<RepositoryHandle>>>) -> Self {
+        RepositoryHandle::Pinned(repo)
     }
 }
 

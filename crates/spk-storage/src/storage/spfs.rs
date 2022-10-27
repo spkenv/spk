@@ -13,7 +13,8 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use relative_path::RelativePathBuf;
 use serde::{Deserialize, Serialize};
-use spfs::storage::EntryType;
+use spfs::prelude::*;
+use spfs::storage::{EntryType, Repository};
 use spfs::tracking;
 use spk_schema::foundation::ident_build::{parse_build, Build};
 use spk_schema::foundation::ident_component::Component;
@@ -27,7 +28,7 @@ use spk_schema::{AnyIdent, BuildIdent, FromYaml, Package, Recipe, Spec, SpecReci
 use tokio::io::AsyncReadExt;
 
 use super::repository::{PublishPolicy, Storage};
-use super::{CachePolicy, Repository};
+use super::CachePolicy;
 use crate::storage::repository::internal::RepositoryExt;
 use crate::{with_cache_policy, Error, Result};
 
@@ -582,7 +583,7 @@ impl Storage for SpfsRepository {
 }
 
 #[async_trait::async_trait]
-impl Repository for SpfsRepository {
+impl crate::Repository for SpfsRepository {
     fn address(&self) -> &url::Url {
         &self.address
     }

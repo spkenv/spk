@@ -65,6 +65,8 @@ pub enum Error {
     NoRenderStorage(url::Url),
     #[error("Object is not a blob: {1}")]
     ObjectNotABlob(crate::graph::Object, encoding::Digest),
+    #[error("Cannot write to a repository which has been pinned in time")]
+    RepositoryIsPinned,
 
     #[error("Failed to open repository: {repository}")]
     FailedToOpenRepository {
