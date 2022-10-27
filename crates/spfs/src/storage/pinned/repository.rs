@@ -32,6 +32,11 @@ impl<T> PinnedRepository<T> {
     pub fn new(inner: Arc<T>, pin: DateTime<Utc>) -> Self {
         Self { inner, pin }
     }
+
+    /// The unpinned/unlimited repository that backs this one
+    pub fn inner(&self) -> &Arc<T> {
+        &self.inner
+    }
 }
 
 impl<T> Clone for PinnedRepository<T> {

@@ -23,6 +23,7 @@ pub mod tar;
 use std::sync::Arc;
 
 pub use blob::BlobStorage;
+use chrono::{DateTime, Utc};
 pub use layer::LayerStorage;
 pub use manifest::ManifestStorage;
 pub use payload::PayloadStorage;
@@ -41,7 +42,47 @@ pub enum RepositoryHandle {
     Rpc(rpc::RpcRepository),
     FallbackProxy(Box<fallback::FallbackProxy>),
     Proxy(Box<proxy::ProxyRepository>),
-    Pinned(Box<pinned::PinnedRepository<Arc<RepositoryHandle>>>),
+    Pinned(Box<pinned::PinnedRepository<RepositoryHandle>>),
+}
+
+impl RepositoryHandle {
+    /// Pin this repository to a specific date time, limiting
+    /// all results to that instant and before.
+    ///
+    /// If this repository is already pinned, this function
+    /// CAN move the pin farther into the future than it was
+    /// before. In other words, pinned repositories are never
+    /// nested via this function call.
+    pub fn into_pinned(self, time: DateTime<Utc>) -> Self {
+        match self {
+            RepositoryHandle::Pinned(pinned) => Self::Pinned(Box::new(
+                pinned::PinnedRepository::new(Arc::clone(pinned.inner()), time),
+            )),
+            _ => Self::Pinned(Box::new(pinned::PinnedRepository::new(
+                Arc::new(self),
+                time,
+            ))),
+        }
+    }
+
+    /// Make a pinned version of this repository at a specific date time,
+    /// limiting all results to that instant and before.
+    ///
+    /// If this repository is already pinned, this function
+    /// CAN move the pin farther into the future than it was
+    /// before. In other words, pinned repositories are never
+    /// nested via this function call.
+    pub fn to_pinned(self: &Arc<Self>, time: DateTime<Utc>) -> Self {
+        match &**self {
+            RepositoryHandle::Pinned(pinned) => Self::Pinned(Box::new(
+                pinned::PinnedRepository::new(Arc::clone(pinned.inner()), time),
+            )),
+            _ => Self::Pinned(Box::new(pinned::PinnedRepository::new(
+                Arc::clone(self),
+                time,
+            ))),
+        }
+    }
 }
 
 impl RepositoryHandle {
@@ -127,8 +168,8 @@ impl From<proxy::ProxyRepository> for RepositoryHandle {
     }
 }
 
-impl From<Box<pinned::PinnedRepository<Arc<RepositoryHandle>>>> for RepositoryHandle {
-    fn from(repo: Box<pinned::PinnedRepository<Arc<RepositoryHandle>>>) -> Self {
+impl From<Box<pinned::PinnedRepository<RepositoryHandle>>> for RepositoryHandle {
+    fn from(repo: Box<pinned::PinnedRepository<RepositoryHandle>>) -> Self {
         RepositoryHandle::Pinned(repo)
     }
 }
