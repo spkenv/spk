@@ -25,7 +25,6 @@ where
 {
     /// Return true if the given tag exists in this storage.
     async fn has_tag(&self, tag: &tracking::TagSpec) -> bool {
-        tracing::warn!(%tag, "has tag");
         self.read_tag(tag).await.is_ok()
     }
 
@@ -53,12 +52,12 @@ where
         let source = repo.inner.ls_tags(&path);
         Box::pin(source.try_filter_map(move |entry| {
             let repo = repo.clone();
-            let path = path.clone();
+            let entry_path = path.join(entry.to_string());
             async move {
                 Ok(match &entry {
-                    EntryType::Folder(_) => Some(entry),
-                    EntryType::Tag(name) => {
-                        let spec = tracking::TagSpec::parse(path.join(name)).unwrap();
+                    EntryType::Folder(_) => repo.has_tag_folder(&entry_path).await.then_some(entry),
+                    EntryType::Tag(_) => {
+                        let spec = tracking::TagSpec::parse(entry_path).unwrap();
                         repo.has_tag(&spec).await.then_some(entry)
                     }
                 })
@@ -163,5 +162,19 @@ where
 
     async fn remove_tag(&self, _tag: &tracking::Tag) -> Result<()> {
         Err(Error::RepositoryIsPinned)
+    }
+}
+
+impl<T> PinnedRepository<T>
+where
+    T: TagStorage + 'static,
+{
+    /// True if the provided tag folder has any entries in this view
+    ///
+    /// This operation needs to find a tag under the provided root with at least
+    /// one entry before the pin time and so the operation is O(n) where n is
+    /// the total number of tag versions in the hierarchy.
+    async fn has_tag_folder(&self, path: &relative_path::RelativePath) -> bool {
+        self.ls_tags(path).any(|r| ready(r.is_ok())).await
     }
 }
