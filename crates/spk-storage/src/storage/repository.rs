@@ -499,10 +499,8 @@ pub trait Repository: Storage + Sync {
         pkg: &Ident,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
         if let Some(Build::Embedded(EmbeddedSource::Package(_package))) = &pkg.build {
-            // Can't use read_components_from_storage() to get the
-            // embedded components because some repos (e.g. spfs) do
-            // not store embedded components on disk and won't return
-            // the correct components for the embedded package's spec.
+            // An embedded package's components are only accessible
+            // via its package spec
             let embedded_spec = self.read_package(pkg).await?;
             let components = embedded_spec
                 .components()
