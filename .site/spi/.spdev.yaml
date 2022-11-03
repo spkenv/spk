@@ -6,6 +6,8 @@ release_notes: |
 
 toolchain:
   - kind: Rust
+    additional_toolchains:
+      - nightly
   - kind: Shell
     variables:
       SENTRY_ENVIRONMENT: development

@@ -13,7 +13,7 @@ BuildRequires: libcap-devel
 BuildRequires: openssl-devel
 BuildRequires: cmake3
 BuildRequires: make
-BuildRequires: spdev >= 0.27.8
+BuildRequires: spdev >= 0.28.2
 
 Requires: bash
 Obsoletes: spfs
