@@ -12,7 +12,7 @@ use crate::foundation::fixtures::*;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::FromYaml;
 use crate::spec::SpecTemplate;
-use crate::{Recipe, Template, TemplateExt};
+use crate::{Package, Recipe, Template, TemplateExt};
 
 #[rstest]
 fn test_spec_is_valid_with_only_name() {
@@ -34,13 +34,13 @@ fn test_sources_relative_to_spec_file(tmpdir: tempfile::TempDir) {
     file.write_all(b"{pkg: test-pkg}").unwrap();
     drop(file);
 
-    let crate::Spec::V0Package(spec) = SpecTemplate::from_file(&spec_file)
+    let spec = SpecTemplate::from_file(&spec_file)
         .unwrap()
         .render(&OptionMap::default())
         .unwrap()
         .generate_source_build(&spec_dir)
         .unwrap();
-    if let Some(super::SourceSpec::Local(local)) = spec.sources.get(0) {
+    if let Some(super::SourceSpec::Local(local)) = spec.sources().get(0) {
         assert_eq!(local.path, spec_dir);
     } else {
         panic!("expected spec to have one local source spec");

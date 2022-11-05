@@ -21,6 +21,7 @@ mod spec;
 mod template;
 mod test_spec;
 pub mod v0;
+pub mod v1;
 mod validation;
 
 pub use build_spec::{BuildSpec, Script};

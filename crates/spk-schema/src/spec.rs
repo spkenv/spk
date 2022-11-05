@@ -181,12 +181,15 @@ impl TemplateExt for SpecTemplate {
 pub enum SpecRecipe {
     #[serde(rename = "v0/package")]
     V0Package(super::v0::Spec<VersionIdent>),
+    #[serde(rename = "v1/recipe")]
+    V1Recipe(super::v1::Recipe),
 }
 
 impl Satisfy<PkgRequest> for SpecRecipe {
     fn check_satisfies_request(&self, request: &PkgRequest) -> Compatibility {
         match self {
             SpecRecipe::V0Package(r) => r.check_satisfies_request(request),
+            SpecRecipe::V1Recipe(r) => r.check_satisfies_request(request),
         }
     }
 }
@@ -197,36 +200,42 @@ impl Recipe for SpecRecipe {
     fn ident(&self) -> &VersionIdent {
         match self {
             SpecRecipe::V0Package(r) => Recipe::ident(r),
+            SpecRecipe::V1Recipe(r) => Recipe::ident(r),
         }
     }
 
     fn default_variants(&self) -> &[OptionMap] {
         match self {
             SpecRecipe::V0Package(r) => r.default_variants(),
+            SpecRecipe::V1Recipe(r) => r.default_variants(),
         }
     }
 
     fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap> {
         match self {
             SpecRecipe::V0Package(r) => r.resolve_options(inputs),
+            SpecRecipe::V1Recipe(r) => r.resolve_options(inputs),
         }
     }
 
     fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
         match self {
             SpecRecipe::V0Package(r) => r.get_build_requirements(options),
+            SpecRecipe::V1Recipe(r) => r.get_build_requirements(options),
         }
     }
 
     fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
         match self {
             SpecRecipe::V0Package(r) => r.get_tests(options),
+            SpecRecipe::V1Recipe(r) => r.get_tests(options),
         }
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
         match self {
             SpecRecipe::V0Package(r) => r.generate_source_build(root).map(Spec::V0Package),
+            SpecRecipe::V1Recipe(r) => r.generate_source_build(root).map(Spec::V1Package),
         }
     }
 
@@ -243,6 +252,9 @@ impl Recipe for SpecRecipe {
             SpecRecipe::V0Package(r) => r
                 .generate_binary_build(options, build_env)
                 .map(Spec::V0Package),
+            SpecRecipe::V1Recipe(r) => r
+                .generate_binary_build(options, build_env)
+                .map(Spec::V1Package),
         }
     }
 }
@@ -251,6 +263,7 @@ impl Named for SpecRecipe {
     fn name(&self) -> &PkgName {
         match self {
             SpecRecipe::V0Package(r) => r.name(),
+            SpecRecipe::V1Recipe(r) => r.name(),
         }
     }
 }
@@ -259,6 +272,7 @@ impl HasVersion for SpecRecipe {
     fn version(&self) -> &Version {
         match self {
             SpecRecipe::V0Package(r) => r.version(),
+            SpecRecipe::V1Recipe(r) => r.version(),
         }
     }
 }
@@ -267,6 +281,7 @@ impl Versioned for SpecRecipe {
     fn compat(&self) -> &Compat {
         match self {
             SpecRecipe::V0Package(spec) => spec.compat(),
+            SpecRecipe::V1Recipe(spec) => spec.compat(),
         }
     }
 }
@@ -315,16 +330,21 @@ impl FromYaml for SpecRecipe {
 /// and deserialized from a `Repository`.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize)]
 #[serde(tag = "api")]
+#[allow(clippy::large_enum_variant
+/*, reason = "These specs are intentionally different, the size difference is of no meaning" */)]
 #[enum_dispatch(Deprecate, DeprecateMut)]
 pub enum Spec {
     #[serde(rename = "v0/package")]
     V0Package(super::v0::Spec<BuildIdent>),
+    #[serde(rename = "v1/package")]
+    V1Package(super::v1::Package),
 }
 
 impl Satisfy<PkgRequest> for Spec {
     fn check_satisfies_request(&self, request: &PkgRequest) -> Compatibility {
         match self {
             Spec::V0Package(r) => r.check_satisfies_request(request),
+            Spec::V1Package(r) => r.check_satisfies_request(request),
         }
     }
 }
@@ -333,6 +353,7 @@ impl Satisfy<VarRequest> for Spec {
     fn check_satisfies_request(&self, request: &VarRequest) -> Compatibility {
         match self {
             Spec::V0Package(r) => r.check_satisfies_request(request),
+            Spec::V1Package(r) => r.check_satisfies_request(request),
         }
     }
 }
@@ -341,6 +362,7 @@ impl Named for Spec {
     fn name(&self) -> &PkgName {
         match self {
             Spec::V0Package(r) => r.name(),
+            Spec::V1Package(r) => r.name(),
         }
     }
 }
@@ -349,6 +371,7 @@ impl HasVersion for Spec {
     fn version(&self) -> &Version {
         match self {
             Spec::V0Package(r) => r.version(),
+            Spec::V1Package(r) => r.version(),
         }
     }
 }
@@ -357,6 +380,7 @@ impl Versioned for Spec {
     fn compat(&self) -> &Compat {
         match self {
             Spec::V0Package(spec) => spec.compat(),
+            Spec::V1Package(spec) => spec.compat(),
         }
     }
 }
@@ -368,30 +392,35 @@ impl Package for Spec {
     fn ident(&self) -> &BuildIdent {
         match self {
             Spec::V0Package(spec) => Package::ident(spec),
+            Spec::V1Package(spec) => Package::ident(spec),
         }
     }
 
     fn option_values(&self) -> OptionMap {
         match self {
             Spec::V0Package(spec) => spec.option_values(),
+            Spec::V1Package(spec) => spec.option_values(),
         }
     }
 
     fn options(&self) -> &Vec<super::Opt> {
         match self {
             Spec::V0Package(spec) => spec.options(),
+            Spec::V1Package(spec) => spec.options(),
         }
     }
 
     fn sources(&self) -> &Vec<super::SourceSpec> {
         match self {
             Spec::V0Package(spec) => spec.sources(),
+            Spec::V1Package(spec) => spec.sources(),
         }
     }
 
     fn embedded(&self) -> &super::EmbeddedPackagesList {
         match self {
             Spec::V0Package(spec) => spec.embedded(),
+            Spec::V1Package(spec) => spec.embedded(),
         }
     }
 
@@ -402,36 +431,44 @@ impl Package for Spec {
             Spec::V0Package(spec) => spec
                 .embedded_as_packages()
                 .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
+            Spec::V1Package(spec) => spec
+                .embedded_as_packages()
+                .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
         }
     }
 
     fn components(&self) -> &super::ComponentSpecList {
         match self {
             Spec::V0Package(spec) => spec.components(),
+            Spec::V1Package(spec) => spec.components(),
         }
     }
 
     fn runtime_environment(&self) -> &Vec<super::EnvOp> {
         match self {
             Spec::V0Package(spec) => spec.runtime_environment(),
+            Spec::V1Package(spec) => spec.runtime_environment(),
         }
     }
 
     fn runtime_requirements(&self) -> &super::RequirementsList {
         match self {
             Spec::V0Package(spec) => spec.runtime_requirements(),
+            Spec::V1Package(spec) => spec.runtime_requirements(),
         }
     }
 
     fn validation(&self) -> &super::ValidationSpec {
         match self {
             Spec::V0Package(spec) => spec.validation(),
+            Spec::V1Package(spec) => spec.validation(),
         }
     }
 
     fn build_script(&self) -> String {
         match self {
             Spec::V0Package(spec) => spec.build_script(),
+            Spec::V1Package(spec) => spec.build_script(),
         }
     }
 }
@@ -440,6 +477,7 @@ impl PackageMut for Spec {
     fn set_build(&mut self, build: Build) {
         match self {
             Spec::V0Package(spec) => spec.set_build(build),
+            Spec::V1Package(spec) => spec.set_build(build),
         }
     }
 }
