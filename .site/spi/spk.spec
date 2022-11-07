@@ -49,7 +49,7 @@ cp "$RELEASE_DIR"/spk %{buildroot}/opt/spk.dist/
 
 %files
 /usr/local/bin/spfs
-%caps(cap_fowner+ep) /usr/local/bin/spfs-clean
+%caps(cap_dac_override,cap_fowner+ep) /usr/local/bin/spfs-clean
 %caps(cap_net_admin+ep) /usr/local/bin/spfs-monitor
 %caps(cap_chown,cap_fowner+ep) /usr/local/bin/spfs-render
 %caps(cap_sys_chroot,cap_sys_admin+ep) /usr/local/bin/spfs-join
