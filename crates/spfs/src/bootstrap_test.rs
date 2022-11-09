@@ -173,7 +173,7 @@ async fn test_find_alternate_bash(shell: &str, tmpdir: tempfile::TempDir) {
 
 fn make_exe(path: &std::path::Path) {
     use std::os::unix::fs::PermissionsExt;
-    let file = std::fs::File::create(&path).unwrap();
+    let file = std::fs::File::create(path).unwrap();
     drop(file);
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
 }

@@ -62,7 +62,7 @@ impl Run for Remove {
             }
 
             for (repo_name, repo) in repos.iter() {
-                let pkg = parse_ident(&name)?;
+                let pkg = parse_ident(name)?;
                 let versions = if name.contains('/') {
                     vec![pkg]
                 } else {

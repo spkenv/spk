@@ -123,7 +123,7 @@ impl LocalSource {
             rsync.arg("--exclude");
             rsync.arg(exclusion);
         }
-        rsync.args(&[&path, &dirname]);
+        rsync.args([&path, &dirname]);
         tracing::debug!(cmd = ?rsync, "running");
         rsync.current_dir(&dirname);
         match rsync
@@ -181,10 +181,10 @@ impl GitSource {
             git_cmd.arg(&self.reference);
         }
         git_cmd.arg(&self.git);
-        git_cmd.arg(&dirname);
+        git_cmd.arg(dirname);
 
         let mut submodule_cmd = std::process::Command::new("git");
-        submodule_cmd.args(&["submodule", "update", "--init", "--recursive"]);
+        submodule_cmd.args(["submodule", "update", "--init", "--recursive"]);
         if git_supports_submodule_depth() {
             submodule_cmd.arg("--depth");
             submodule_cmd.arg(self.depth.to_string());
@@ -192,7 +192,7 @@ impl GitSource {
 
         for mut cmd in vec![git_cmd, submodule_cmd].into_iter() {
             tracing::debug!(?cmd, "running");
-            cmd.current_dir(&dirname);
+            cmd.current_dir(dirname);
             match cmd
                 .status()
                 .map_err(|err| {
@@ -270,7 +270,7 @@ impl TarSource {
         let mut cmd = std::process::Command::new("tar");
         cmd.arg("-xf");
         cmd.arg(&tarfile);
-        cmd.current_dir(&dirname);
+        cmd.current_dir(dirname);
         tracing::debug!(?cmd, "running");
         match cmd
             .status()

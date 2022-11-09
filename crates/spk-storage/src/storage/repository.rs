@@ -387,7 +387,7 @@ pub trait Repository: Storage + Sync {
         // - change in deprecation status
         // - adding/removing embedded packages
         if let Some(Ok(original_spec)) = original_spec {
-            let original_embedded_providers = self.get_embedded_providers(&*original_spec)?;
+            let original_embedded_providers = self.get_embedded_providers(&original_spec)?;
             let new_embedded_providers = self.get_embedded_providers(package)?;
             // No change case #1: no embedded packages involved.
             if original_embedded_providers.is_empty() && new_embedded_providers.is_empty() {
@@ -419,7 +419,7 @@ pub trait Repository: Storage + Sync {
                         {
                             self.remove_embedded_stub_for_spec(
                                 package,
-                                *added_or_removed_spec,
+                                added_or_removed_spec,
                                 components.clone(),
                             )
                             .await?
@@ -430,7 +430,7 @@ pub trait Repository: Storage + Sync {
                         {
                             self.create_embedded_stub_for_spec(
                                 package,
-                                *added_or_removed_spec,
+                                added_or_removed_spec,
                                 components.clone(),
                             )
                             .await?
@@ -448,7 +448,7 @@ pub trait Repository: Storage + Sync {
                     if let Some(components) = new_embedded_providers.get(*returning_spec) {
                         self.create_embedded_stub_for_spec(
                             package,
-                            *returning_spec,
+                            returning_spec,
                             components.clone(),
                         )
                         .await?
@@ -480,10 +480,10 @@ pub trait Repository: Storage + Sync {
         // Attempt to find and remove any related embedded package stubs.
         if let Ok(spec) = self.read_package(pkg).await {
             if spec.ident().can_embed() {
-                let embedded_providers = self.get_embedded_providers(&*spec)?;
+                let embedded_providers = self.get_embedded_providers(&spec)?;
 
                 for (embed, components) in embedded_providers.into_iter() {
-                    self.remove_embedded_stub_for_spec(&*spec, &embed, components)
+                    self.remove_embedded_stub_for_spec(&spec, &embed, components)
                         .await?
                 }
             }

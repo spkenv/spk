@@ -528,7 +528,7 @@ pub fn mask_files(
             config.upper_dir
         ))
     })?;
-    let nodes: Vec<_> = manifest.walk_abs(&prefix).collect();
+    let nodes: Vec<_> = manifest.walk_abs(prefix).collect();
     for node in nodes.iter() {
         if !node.entry.kind.is_mask() {
             continue;
@@ -671,7 +671,7 @@ pub(crate) fn mount_env<P: AsRef<Path>>(
     // option or minor detail in how the standard mount command works - possibly related
     // to this process eventually dropping privileges, but that is uncertain right now
     let mut cmd = std::process::Command::new(mount);
-    cmd.args(&["-t", "overlay"]);
+    cmd.args(["-t", "overlay"]);
     cmd.arg("-o");
     cmd.arg(overlay_args);
     cmd.arg("none");

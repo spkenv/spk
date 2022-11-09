@@ -409,7 +409,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         for opt in spec.options() {
             let value = opt.get_value(None);
             if !value.is_empty() {
-                let name = opt.full_name().with_default_namespace(&spec.name());
+                let name = opt.full_name().with_default_namespace(spec.name());
                 opts.insert(name, value);
             }
         }

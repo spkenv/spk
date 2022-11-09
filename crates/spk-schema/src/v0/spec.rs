@@ -389,7 +389,7 @@ impl Recipe for Spec {
                     }
                     let mut inherited_opt = opt.clone();
                     if inherited_opt.var.namespace().is_none() {
-                        inherited_opt.var = inherited_opt.var.with_namespace(&dep_name);
+                        inherited_opt.var = inherited_opt.var.with_namespace(dep_name);
                     }
                     inherited_opt.inheritance = Inheritance::Weak;
                     if let Inheritance::Strong = opt.inheritance {

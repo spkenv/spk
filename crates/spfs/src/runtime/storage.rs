@@ -115,7 +115,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self::from_root(&Path::new(Self::RUNTIME_DIR))
+        Self::from_root(Path::new(Self::RUNTIME_DIR))
     }
 }
 
@@ -356,10 +356,10 @@ impl Runtime {
                     .is_dir();
                 if pattern.is_excluded(fullpath, is_dir) {
                     if is_dir {
-                        std::fs::remove_dir_all(&fullpath)
+                        std::fs::remove_dir_all(fullpath)
                             .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
                     } else {
-                        std::fs::remove_file(&fullpath)
+                        std::fs::remove_file(fullpath)
                             .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
                     }
                 }

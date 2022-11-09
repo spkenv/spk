@@ -598,7 +598,7 @@ async fn test_build_add_startup_files(tmpdir: tempfile::TempDir) {
     assert!(tcsh_file.exists());
 
     let bash_value = std::process::Command::new("bash")
-        .args(&["--norc", "-c"])
+        .args(["--norc", "-c"])
         .arg(format!("source {bash_file:?}; printenv TESTPKG"))
         .output()
         .unwrap()

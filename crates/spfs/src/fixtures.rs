@@ -75,7 +75,7 @@ pub fn spfs_binary() -> std::path::PathBuf {
     static BUILD_BIN: std::sync::Once = std::sync::Once::new();
     BUILD_BIN.call_once(|| {
         let mut command = std::process::Command::new(std::env::var("CARGO").unwrap());
-        command.args(&["build", "--all"]);
+        command.args(["build", "--all"]);
         let code = command
             .status()
             .expect("failed to build binary to test with")

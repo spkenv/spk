@@ -60,7 +60,7 @@ impl FSHashStore {
     /// The folder where payloads are copied to have the expected ownership
     /// and permissions suitable for hard-linking into a render.
     pub fn proxydir(&self) -> PathBuf {
-        self.root.join(&PROXY_DIRNAME)
+        self.root.join(PROXY_DIRNAME)
     }
 
     /// Return the root directory of this storage.
@@ -70,7 +70,7 @@ impl FSHashStore {
 
     /// The folder in which in-progress data is stored temporarily
     pub fn workdir(&self) -> PathBuf {
-        self.root.join(&WORK_DIRNAME)
+        self.root.join(WORK_DIRNAME)
     }
 
     async fn find_in_entry(
