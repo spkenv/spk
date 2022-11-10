@@ -1,0 +1,41 @@
+pkg: ninja/1.10.1
+api: v0/package
+
+sources:
+  - git: https://github.com/ninja-build/ninja.git
+    ref: v1.10.1
+
+build:
+  options:
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+
+    - pkg: bash
+    - pkg: binutils
+    - pkg: coreutils
+    - pkg: cmake/~3.16
+    - pkg: gcc
+    - pkg: glibc
+    - pkg: python
+    - pkg: stdfs
+
+  variants:
+    - {python: 3.7}
+
+  script:
+    - ./configure.py --bootstrap
+    - cp ninja /spfs/bin
+
+tests:
+  - stage: install
+    script: /spfs/lib/ninja/misc/ninja_syntax_test.py
+
+install:
+  requirements:
+    - pkg: stdfs
+
+  components:
+    - name: run
+      files:
+        - /bin/ninja
