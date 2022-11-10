@@ -1,0 +1,45 @@
+pkg: opentimelineio/0.14.1
+api: v0/package
+
+sources:
+  - git: https://github.com/AcademySoftwareFoundation/OpenTimelineIO.git
+    ref: v0.14.1
+
+build:
+
+  options:
+    - var: arch    # rebuild if the arch changes
+    - var: os      # rebuild if the os changes
+    - var: centos  # rebuild if centos version changes
+
+    - pkg: python-pip
+    - pkg: python/3
+    - pkg: gcc
+    - pkg: cmake/~3.18
+  variants:
+    - {python: 3.7}
+
+  script:
+    - mkdir -p build
+    - cd build
+    - cmake -DCMAKE_INSTALL_PREFIX=/spfs ..
+    - make all -j
+    - make install
+    - python -m pip install ..[dev]
+
+install:
+  requirements:
+    - pkg: python
+      fromBuildEnv: Binary
+
+  componenents:
+    - name: run
+      files:
+        - /bin/
+        - /include/
+        - /lib/
+        - /share/
+
+tests:
+  - stage: install
+    script: make test

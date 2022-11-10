@@ -6,7 +6,8 @@ packages: \
 	python \
 	pip/pip.spk \
 	cmake \
-	ninja
+	ninja \
+	opentimelineio
 
 .PHONY: bootstrap boostrap.full
 # boostrap just enough to get a real linker and compiler
@@ -70,6 +71,9 @@ zlib/zlib.spk: cmake
 .PHONY: cmake
 cmake: cmake/cmake.spk
 
+
+.PHONY: opentimelineio
+opentimelineio: python3 opentimelineio/opentimelineio.spk
 
 .PHONY: clean
 clean:
