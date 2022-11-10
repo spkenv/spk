@@ -78,6 +78,12 @@ where
     }
 
     for pkg in to_transfer.into_iter() {
+        if pkg.is_embedded() {
+            // Don't attempt to export an embedded package; the stub
+            // will be recreated if exporting its provider.
+            continue;
+        }
+
         let local_err = match copy_any(pkg.clone(), &local_repo, &target_repo).await {
             Ok(_) => continue,
             Err(Error::SpkValidatorsError(
