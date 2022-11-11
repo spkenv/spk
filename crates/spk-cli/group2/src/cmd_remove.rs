@@ -154,6 +154,11 @@ async fn remove_all(
 ) -> Result<()> {
     let pretty_pkg = pkg.format_ident();
     for build in repo.list_package_builds(pkg).await? {
+        if build.is_embedded() {
+            // Don't attempt to remove an embedded package; the stub
+            // will be removed when removing its provider.
+            continue;
+        }
         remove_build(repo_name, repo, &build).await?
     }
     let repo_name = repo_name.bold();
