@@ -1,6 +1,0 @@
-variables:
-  SPDEV_CONFIG_FILE: .site/spi/.spdev.yaml
-
-include:
-  - project: spi/dev/dev-ops/spdev
-    file: pipelines/generate-config.yaml

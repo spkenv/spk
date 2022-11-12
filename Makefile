@@ -137,7 +137,7 @@ copy-spfs: release-spfs
 	sudo cp -f target/release/spfs* /usr/local/bin/
 
 setcap:
-	sudo setcap 'cap_fowner+ep' /usr/local/bin/spfs-clean
+	sudo setcap 'cap_dac_override,cap_fowner+ep' /usr/local/bin/spfs-clean
 	sudo setcap 'cap_net_admin+ep' /usr/local/bin/spfs-monitor
 	sudo setcap 'cap_chown,cap_fowner+ep' /usr/local/bin/spfs-render
 	sudo setcap 'cap_sys_chroot,cap_sys_admin+ep' /usr/local/bin/spfs-join
