@@ -175,7 +175,7 @@ impl TemplateExt for SpecTemplate {
 /// All build-able types have a recipe representation
 /// that can be serialized and deserialized from a human-written
 /// file or machine-managed persistent storage.
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize)]
 #[serde(tag = "api")]
 #[enum_dispatch(Deprecate, DeprecateMut)]
 pub enum SpecRecipe {

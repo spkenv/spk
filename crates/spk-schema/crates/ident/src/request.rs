@@ -730,10 +730,22 @@ pub fn is_false(value: &bool) -> bool {
 /// A deserializable name and optional value where
 /// the value it identified by it's position following
 /// a forward slash (eg: '/<value>')
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NameAndValue<Name = OptNameBuf>(pub Name, pub Option<String>)
 where
     Name: FromStr,
     <Name as FromStr>::Err: std::fmt::Display;
+
+impl std::fmt::Display for NameAndValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)?;
+        if let Some(v) = self.1.as_ref() {
+            f.write_char('/')?;
+            v.fmt(f)?;
+        }
+        Ok(())
+    }
+}
 
 impl<'de, Name> Deserialize<'de> for NameAndValue<Name>
 where
@@ -777,6 +789,15 @@ where
         deserializer
             .deserialize_str(NameAndValueVisitor::<Name>(PhantomData))
             .map(|(n, v)| NameAndValue(n, v))
+    }
+}
+
+impl serde::Serialize for NameAndValue {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
     }
 }
 

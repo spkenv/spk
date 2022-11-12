@@ -7,6 +7,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use spk_schema_ident::VersionIdent;
 
+use super::RecipeOptionList;
 use crate::foundation::name::PkgName;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
@@ -20,7 +21,7 @@ use crate::{BuildEnv, Deprecate, DeprecateMut, Package, Result};
 #[path = "./recipe_test.rs"]
 mod recipe_test;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Recipe {
     pub pkg: VersionIdent,
     #[serde(default, skip_serializing_if = "Meta::is_default")]
@@ -29,6 +30,8 @@ pub struct Recipe {
     pub compat: Compat,
     #[serde(default, skip_serializing_if = "is_false")]
     pub deprecated: bool,
+    #[serde(default, skip_serializing_if = "RecipeOptionList::is_empty")]
+    pub options: RecipeOptionList,
 }
 
 impl Recipe {
@@ -39,6 +42,7 @@ impl Recipe {
             meta: Meta::default(),
             compat: Compat::default(),
             deprecated: bool::default(),
+            options: Default::default(),
         }
     }
 }
