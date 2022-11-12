@@ -217,10 +217,10 @@ impl Runtime {
                     .is_dir();
                 if pattern.is_excluded(fullpath, is_dir) {
                     if is_dir {
-                        std::fs::remove_dir_all(&fullpath)
+                        std::fs::remove_dir_all(fullpath)
                             .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
                     } else {
-                        std::fs::remove_file(&fullpath)
+                        std::fs::remove_file(fullpath)
                             .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
                     }
                 }
@@ -341,7 +341,7 @@ impl Runtime {
 
 fn ensure_runtime<P: AsRef<Path>>(path: P) -> Result<Runtime> {
     if let Some(parent) = path.as_ref().parent() {
-        makedirs_with_perms(&parent, 0o777)?;
+        makedirs_with_perms(parent, 0o777)?;
     }
     // the actual runtime dir is for this user only and is created
     // with the normal permission mask

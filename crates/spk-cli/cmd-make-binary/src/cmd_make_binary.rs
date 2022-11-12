@@ -211,7 +211,7 @@ impl Run for MakeBinary {
                     let request =
                         PkgRequest::from_ident(out.ident().clone(), RequestedBy::CommandLine);
                     let mut cmd = std::process::Command::new(spk_exe());
-                    cmd.args(&["env", "--enable-repo", "local"])
+                    cmd.args(["env", "--enable-repo", "local"])
                         .arg(request.pkg.to_string());
                     tracing::info!("entering environment with new package...");
                     tracing::debug!("{:?}", cmd);

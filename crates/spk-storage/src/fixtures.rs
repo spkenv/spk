@@ -64,7 +64,7 @@ impl std::ops::Deref for TempRepo {
     type Target = storage::RepositoryHandle;
 
     fn deref(&self) -> &Self::Target {
-        &*self.repo
+        &self.repo
     }
 }
 

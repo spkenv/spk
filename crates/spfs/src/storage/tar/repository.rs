@@ -69,7 +69,7 @@ impl TarRepository {
             let mut file = std::fs::OpenOptions::new()
                 .write(true)
                 .create_new(true)
-                .open(&path)
+                .open(path)
                 .map_err(|err| Error::StorageWriteError(path.to_owned(), err))?;
             Builder::new(&mut file)
                 .finish()

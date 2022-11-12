@@ -493,10 +493,7 @@ impl PkgRequest {
     // been created.
     pub fn add_requester(&mut self, requester: RequestedBy) {
         let key = self.pkg.to_string();
-        self.requested_by
-            .entry(key)
-            .or_insert(Vec::new())
-            .push(requester);
+        self.requested_by.entry(key).or_default().push(requester);
     }
 
     /// Return a list of the things that made this request (what that
@@ -642,7 +639,7 @@ impl PkgRequest {
             for requester in request_list {
                 self.requested_by
                     .entry(key.clone())
-                    .or_insert(Vec::new())
+                    .or_default()
                     .push(requester.clone());
             }
         }

@@ -281,7 +281,7 @@ impl Storage for SPFSRepository {
     async fn publish_embed_stub_to_storage(&self, spec: &Self::Package) -> Result<()> {
         let ident = spec.ident();
         let tag_path = self.build_spec_tag(ident);
-        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+        let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
 
         let payload = serde_yaml::to_vec(&spec)
             .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
@@ -349,7 +349,7 @@ impl Storage for SPFSRepository {
     ) -> Result<()> {
         let ident = spec.to_ident();
         let tag_path = self.build_spec_tag(&ident);
-        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+        let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
         if matches!(publish_policy, PublishPolicy::DoNotOverwriteVersion)
             && self.inner.has_tag(&tag_spec).await
         {
@@ -403,7 +403,7 @@ impl Storage for SPFSRepository {
         }
         let r: Result<Arc<Spec>> = async {
             let tag_path = self.build_spec_tag(pkg);
-            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+            let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
             let tag = self.resolve_tag(pkg, &tag_spec).await?;
 
             let (mut reader, filename) = self.inner.open_payload(tag.target).await?;
@@ -561,7 +561,7 @@ impl Repository for SPFSRepository {
         }
         let r: Result<Arc<Spec>> = async {
             let tag_path = self.build_spec_tag(pkg);
-            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+            let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
             let tag = self.resolve_tag(pkg, &tag_spec).await?;
 
             let (mut reader, _) = self.inner.open_payload(tag.target).await?;
@@ -597,7 +597,7 @@ impl Repository for SPFSRepository {
         }
         let r: Result<Arc<SpecRecipe>> = async {
             let tag_path = self.build_spec_tag(pkg);
-            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path.as_str())?;
+            let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
             let tag = self.resolve_tag(pkg, &tag_spec).await?;
 
             let (mut reader, _) = self.inner.open_payload(tag.target).await?;
@@ -663,11 +663,11 @@ impl Repository for SPFSRepository {
                     // [Re-]create embedded stubs.
                     if build.can_embed() {
                         let spec = self.read_package(&build).await?;
-                        let providers = self.get_embedded_providers(&*spec)?;
+                        let providers = self.get_embedded_providers(&spec)?;
                         if !providers.is_empty() {
                             tracing::info!("Creating embedded stubs for {name}...");
                             for (embedded, components) in providers.into_iter() {
-                                self.create_embedded_stub_for_spec(&*spec, &embedded, components)
+                                self.create_embedded_stub_for_spec(&spec, &embedded, components)
                                     .await?
                             }
                         }

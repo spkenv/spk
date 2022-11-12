@@ -1278,7 +1278,7 @@ impl Ranged for VersionFilter {
         let new_rules = other.rules().sub(&self.rules);
         for new_rule in new_rules.iter() {
             for old_rule in self.rules.iter() {
-                let compat = old_rule.contains(&new_rule);
+                let compat = old_rule.contains(new_rule);
                 if !compat.is_ok() {
                     return compat;
                 }

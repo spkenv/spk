@@ -484,7 +484,7 @@ impl Solver {
                             continue;
                         }
 
-                        let new_spec = match self.resolve_new_build(&*recipe, &node.state).await {
+                        let new_spec = match self.resolve_new_build(&recipe, &node.state).await {
                             Err(err) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(

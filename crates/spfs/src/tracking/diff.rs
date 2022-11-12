@@ -106,7 +106,7 @@ pub fn compute_diff(a: &Manifest, b: &Manifest) -> Vec<Diff> {
 }
 
 fn diff_path(a: &Manifest, b: &Manifest, path: &RelativePathBuf) -> Option<Diff> {
-    match (a.get_path(&path), b.get_path(&path)) {
+    match (a.get_path(path), b.get_path(path)) {
         (None, None) => None,
 
         (_, Some(b_entry)) if b_entry.kind == EntryKind::Mask => Some(Diff {

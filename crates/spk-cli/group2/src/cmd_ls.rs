@@ -331,7 +331,7 @@ impl<T: Output> Ls<T> {
                         );
                     }
                     self.output
-                        .println((self.format_build(&build, &*spec, repo).await?).to_string());
+                        .println((self.format_build(&build, &spec, repo).await?).to_string());
                 }
             }
         }

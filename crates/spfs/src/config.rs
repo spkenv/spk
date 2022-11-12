@@ -298,7 +298,7 @@ pub fn load_config() -> Result<Config> {
     use config::{Config as RawConfig, Environment, File};
 
     let user_config_dir = "~/.config/spfs/spfs";
-    let user_config = expanduser::expanduser(&user_config_dir)
+    let user_config = expanduser::expanduser(user_config_dir)
         .map_err(|err| crate::Error::InvalidPath(user_config_dir.into(), err))?;
 
     let config = RawConfig::builder()

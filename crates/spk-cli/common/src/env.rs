@@ -211,5 +211,5 @@ static SPK_EXE: Lazy<&OsStr> = Lazy::new(|| match std::env::var_os("SPK_BIN_PATH
 
 /// Return the spk executable to use when launching spk as a subprocess.
 pub fn spk_exe() -> &'static OsStr {
-    *SPK_EXE
+    &SPK_EXE
 }

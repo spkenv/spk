@@ -131,7 +131,7 @@ where
     Package: spk_schema::Package,
 {
     let source_dir = source_dir.as_ref();
-    std::fs::create_dir_all(&source_dir)
+    std::fs::create_dir_all(source_dir)
         .map_err(|err| Error::DirectoryCreateError(source_dir.to_owned(), err))?;
 
     let env = super::binary::get_package_build_env(spec);
@@ -172,7 +172,7 @@ pub fn validate_source_changeset<P: AsRef<RelativePath>>(
         if diff.mode.is_unchanged() {
             continue;
         }
-        if diff.path.starts_with(&source_dir) {
+        if diff.path.starts_with(source_dir) {
             // the change is within the source directory
             continue;
         }
