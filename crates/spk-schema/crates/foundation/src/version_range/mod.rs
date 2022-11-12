@@ -1048,6 +1048,11 @@ impl Ranged for CompatRange {
     where
         V: Versioned,
     {
+        // The version of the spec must be >= base to satisfy the request.
+        if *spec.version() < self.base {
+            return Compatibility::Incompatible(format!("version too low for {}", self.base));
+        }
+
         // XXX: Should this custom logic be in `is_applicable` instead?
         if let Some(r) = self.required {
             required = r;
