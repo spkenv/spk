@@ -275,7 +275,7 @@ impl FSRepository {
                                     Error::StorageWriteError(temp_proxy_file.path().to_owned(), err)
                                 })?;
                             // Move temporary file into place.
-                            if let Err(err) = temp_proxy_file.persist(&proxy_path) {
+                            if let Err(err) = temp_proxy_file.persist_noclobber(&proxy_path) {
                                 match err.error.kind() {
                                     std::io::ErrorKind::AlreadyExists => (),
                                     _ => {
