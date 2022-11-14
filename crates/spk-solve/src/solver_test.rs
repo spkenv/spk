@@ -134,9 +134,12 @@ async fn test_solver_package_with_no_recipe(mut solver: Solver) {
     spec.pkg.set_build(Some(Build::Digest(options.digest())));
 
     // publish package without publishing spec
-    let components = vec![(Component::Run, EMPTY_DIGEST.into())]
-        .into_iter()
-        .collect();
+    let components = vec![
+        (Component::Run, EMPTY_DIGEST.into()),
+        (Component::Build, EMPTY_DIGEST.into()),
+    ]
+    .into_iter()
+    .collect();
     repo.publish_package(&spec.into(), &components)
         .await
         .unwrap();
@@ -145,7 +148,13 @@ async fn test_solver_package_with_no_recipe(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-pkg"));
 
-    run_and_print_resolve_for_tests(&solver).await.unwrap();
+    // Test
+    let res = run_and_print_resolve_for_tests(&solver).await;
+    assert!(
+        matches!(res, Ok(_)),
+        "'{:?}' should be an Ok(_) solution not an error.')",
+        res
+    );
 }
 
 #[rstest]
@@ -156,9 +165,12 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(mut solver: Solver) {
     let spec = spec!({"pkg": "my-pkg/1.0.0/4OYMIQUY"});
 
     // publish package without publishing recipe
-    let components = vec![(Component::Run, EMPTY_DIGEST.into())]
-        .into_iter()
-        .collect();
+    let components = vec![
+        (Component::Run, EMPTY_DIGEST.into()),
+        (Component::Build, EMPTY_DIGEST.into()),
+    ]
+    .into_iter()
+    .collect();
     repo.publish_package(&spec, &components).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
@@ -169,7 +181,13 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(mut solver: Solver) {
     ));
     solver.add_request(req);
 
-    run_and_print_resolve_for_tests(&solver).await.unwrap();
+    // Test
+    let res = run_and_print_resolve_for_tests(&solver).await;
+    assert!(
+        matches!(res, Ok(_)),
+        "'{:?}' should be an Ok(_) solution not an error.')",
+        res
+    );
 }
 
 #[rstest]
@@ -1030,6 +1048,7 @@ async fn test_solver_embedded_package_replaces_real_package(mut solver: Solver) 
     // - the embedded package is added to the solution
     // - any dependencies from the "real" package aren't part of the solution
 
+    init_logging();
     let repo = make_repo!(
         [
             {

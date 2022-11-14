@@ -498,17 +498,17 @@ pub trait Repository: Storage + Sync {
         // TODO: use an ident type that must have a build
         pkg: &Ident,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
-        if let Some(Build::Embedded(EmbeddedSource::Package(package))) = &pkg.build {
-            let parent = self
-                .read_components_from_storage(&(&package.ident).try_into()?)
-                .await?;
-            // XXX Do embedded packages always/only have the Run component?
-            // XXX Supplying a "random" digest here.
-            if let Some((_, digest)) = parent.into_iter().next() {
-                return Ok(HashMap::from([(Component::Run, digest)]));
-            } else {
-                return Ok(HashMap::default());
-            }
+        if let Some(Build::Embedded(EmbeddedSource::Package(_package))) = &pkg.build {
+            // An embedded package's components are only accessible
+            // via its package spec
+            let embedded_spec = self.read_package(pkg).await?;
+            let components = embedded_spec
+                .components()
+                .iter()
+                .map(|c| (c.name.clone(), spfs::encoding::EMPTY_DIGEST.into()))
+                .collect::<HashMap<Component, spfs::encoding::Digest>>();
+
+            return Ok(components);
         }
         self.read_components_from_storage(pkg).await
     }
