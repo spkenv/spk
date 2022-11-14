@@ -8,11 +8,65 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::name::OptNameBuf;
 use spk_schema_foundation::option_map::Stringified;
-use spk_schema_ident::{NameAndValue, RangeIdent, VarRequest};
+use spk_schema_ident::{NameAndValue, RangeIdent};
+
+use super::WhenBlock;
 
 #[cfg(test)]
 #[path = "./recipe_option_test.rs"]
 mod recipe_option_test;
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize)]
+#[serde(untagged)]
+pub enum RecipeOption {
+    Var(VarOption),
+    Pkg(PkgOption),
+}
+
+impl<'de> Deserialize<'de> for RecipeOption {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        /// This visitor determines the type of option
+        /// by requiring that the var or pkg field be defined
+        /// before any other. Although this is counter to the
+        /// idea of maps, it favours consistency and error messaging
+        /// for users maintaining hand-written spec files.
+        #[derive(Default)]
+        struct RecipeOptionVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for RecipeOptionVisitor {
+            type Value = RecipeOption;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a recipe option")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let first_key = map
+                    .next_key::<Stringified>()?
+                    .ok_or_else(|| serde::de::Error::missing_field("var\" or \"pkg"))?;
+                match first_key.as_str() {
+                    "pkg" => {
+                        Ok(Self::Value::Pkg(PartialPkgVisitor.visit_map(map)?))
+                    },
+                    "var" => {
+                        Ok(Self::Value::Var(PartialVarVisitor.visit_map(map)?))
+                    },
+                        other => {
+                            Err(serde::de::Error::custom(format!("An option must declare either the 'var' or 'pkg' field before any other, found '{other}'")))
+                        }
+                    }
+            }
+        }
+
+        deserializer.deserialize_map(RecipeOptionVisitor)
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -378,266 +432,5 @@ impl serde::Serialize for PkgPropagation {
                 map.end()
             }
         }
-    }
-}
-
-#[derive(Clone, Default, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub enum WhenBlock {
-    #[default]
-    Always,
-    Sometimes {
-        conditions: Vec<WhenCondition>,
-    },
-}
-
-impl WhenBlock {
-    pub fn is_always(&self) -> bool {
-        matches!(self, Self::Always)
-    }
-}
-
-impl<'de> Deserialize<'de> for WhenBlock {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct WhenConditionVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for WhenConditionVisitor {
-            type Value = WhenBlock;
-
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("one of 'Requested', 'Always', or a sequence of conditions")
-            }
-
-            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                match v {
-                    "Always" => Ok(WhenBlock::Always),
-                    "Requested" => Ok(WhenBlock::Sometimes {
-                        conditions: Vec::new(),
-                    }),
-                    _ => Err(serde::de::Error::unknown_variant(
-                        v,
-                        &["Always", "Requested", "a sequence of conditions"],
-                    )),
-                }
-            }
-
-            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where
-                A: serde::de::SeqAccess<'de>,
-            {
-                let size_hint = seq.size_hint().unwrap_or_default();
-                let mut conditions = Vec::with_capacity(size_hint);
-                while let Some(condition) = seq.next_element()? {
-                    conditions.push(condition);
-                }
-                Ok(WhenBlock::Sometimes { conditions })
-            }
-        }
-
-        deserializer.deserialize_any(WhenConditionVisitor)
-    }
-}
-
-impl serde::Serialize for WhenBlock {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            Self::Always => serializer.serialize_str("Always"),
-            Self::Sometimes { conditions } if conditions.is_empty() => {
-                serializer.serialize_str("Requested")
-            }
-            Self::Sometimes { conditions } => conditions.serialize(serializer),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize)]
-#[serde(untagged)]
-pub enum WhenCondition {
-    Pkg { pkg: RangeIdent },
-    Var(VarRequest),
-}
-
-impl<'de> Deserialize<'de> for WhenCondition {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct WhenConditionVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for WhenConditionVisitor {
-            type Value = WhenCondition;
-
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a when condition")
-            }
-
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-            where
-                A: serde::de::MapAccess<'de>,
-            {
-                let mut result = None;
-                while let Some(key) = map.next_key::<Stringified>()? {
-                    let previous = match key.as_str() {
-                        "pkg" => result.replace(WhenCondition::Pkg {
-                            pkg: map.next_value()?,
-                        }),
-                        "var" => {
-                            let NameAndValue(var, value) = map.next_value()?;
-                            result.replace(WhenCondition::Var(VarRequest {
-                                var,
-                                value: value.unwrap_or_default(),
-                                pin: false,
-                            }))
-                        }
-                        #[cfg(not(test))]
-                        _name => {
-                            // unrecognized fields are explicitly ignored in case
-                            // they were added in a newer version of spk. We assume
-                            // that if the api has not been versioned then the desire
-                            // is to continue working in this older version
-                            map.next_value::<serde::de::IgnoredAny>()?;
-                            None
-                        }
-                        #[cfg(test)]
-                        name => {
-                            // except during testing, where we don't want to hide
-                            // failing tests because of ignored data
-                            return Err(serde::de::Error::unknown_field(name, &[]));
-                        }
-                    };
-                    if previous.is_some() {
-                        return Err(serde::de::Error::custom(
-                            "multiple conditions found in a single map, was this meant to be a list?"
-                        ));
-                    }
-                }
-                result.ok_or_else(|| serde::de::Error::missing_field("pkg\" or \"var"))
-            }
-        }
-
-        deserializer.deserialize_any(WhenConditionVisitor)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize)]
-#[serde(untagged)]
-pub enum RecipeOption {
-    Var(VarOption),
-    Pkg(PkgOption),
-}
-
-impl<'de> Deserialize<'de> for RecipeOption {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        /// This visitor determines the type of option
-        /// by requiring that the var or pkg field be defined
-        /// before any other. Although this is counter to the
-        /// idea of maps, it favours consistency and error messaging
-        /// for users maintaining hand-written spec files.
-        #[derive(Default)]
-        struct RecipeOptionVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for RecipeOptionVisitor {
-            type Value = RecipeOption;
-
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a recipe option")
-            }
-
-            fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
-            where
-                A: serde::de::MapAccess<'de>,
-            {
-                let first_key = map
-                    .next_key::<Stringified>()?
-                    .ok_or_else(|| serde::de::Error::missing_field("var\" or \"pkg"))?;
-                match first_key.as_str() {
-                    "pkg" => {
-                        Ok(Self::Value::Pkg(PartialPkgVisitor.visit_map(map)?))
-                    },
-                    "var" => {
-                        Ok(Self::Value::Var(PartialVarVisitor.visit_map(map)?))
-                    },
-                        other => {
-                            Err(serde::de::Error::custom(format!("An option must declare either the 'var' or 'pkg' field before any other, found '{other}'")))
-                        }
-                    }
-            }
-        }
-
-        deserializer.deserialize_map(RecipeOptionVisitor)
-    }
-}
-
-// Package options define the set of dependencies and inputs variables
-// to the package build process.
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Serialize)]
-#[serde(transparent)]
-pub struct RecipeOptionList(Vec<RecipeOption>);
-
-impl RecipeOptionList {
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-impl std::ops::Deref for RecipeOptionList {
-    type Target = Vec<RecipeOption>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for RecipeOptionList {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for RecipeOptionList {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct OptionListVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for OptionListVisitor {
-            type Value = RecipeOptionList;
-
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a list of package options")
-            }
-
-            fn visit_unit<E>(self) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                Ok(RecipeOptionList::default())
-            }
-
-            fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
-            where
-                A: serde::de::SeqAccess<'de>,
-            {
-                let size_hint = seq.size_hint().unwrap_or(0);
-                let mut options = Vec::with_capacity(size_hint);
-                while let Some(option) = seq.next_element()? {
-                    options.push(option)
-                }
-                Ok(RecipeOptionList(options))
-            }
-        }
-
-        deserializer.deserialize_seq(OptionListVisitor)
     }
 }
