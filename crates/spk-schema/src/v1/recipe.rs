@@ -7,7 +7,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use spk_schema_ident::VersionIdent;
 
-use super::RecipeOptionList;
+use super::{RecipeBuildSpec, RecipeOptionList, RecipePackagingSpec, RecipeSourceSpec};
 use crate::foundation::name::PkgName;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
@@ -33,6 +33,12 @@ pub struct Recipe {
     pub deprecated: bool,
     #[serde(default, skip_serializing_if = "RecipeOptionList::is_empty")]
     pub options: RecipeOptionList,
+    #[serde(default, skip_serializing_if = "RecipeSourceSpec::is_empty")]
+    pub source: RecipeSourceSpec,
+    #[serde(default)]
+    pub build: RecipeBuildSpec,
+    #[serde(default)]
+    pub package: RecipePackagingSpec,
 }
 
 impl Recipe {
@@ -44,6 +50,9 @@ impl Recipe {
             compat: Compat::default(),
             deprecated: bool::default(),
             options: Default::default(),
+            source: Default::default(),
+            build: Default::default(),
+            package: Default::default(),
         }
     }
 }
