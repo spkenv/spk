@@ -22,6 +22,7 @@ use crate::{BuildEnv, Deprecate, DeprecateMut, Package, Result};
 mod recipe_test;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct Recipe {
     pub pkg: VersionIdent,
     #[serde(default, skip_serializing_if = "Meta::is_default")]
