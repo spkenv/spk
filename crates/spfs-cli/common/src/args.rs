@@ -252,7 +252,7 @@ pub fn capture_if_relevant(err: &spfs::Error) {
         spfs::Error::AmbiguousReference(_) => (),
         spfs::Error::NothingToCommit => (),
         _ => {
-            #[cfg(features = "sentry")]
+            #[cfg(feature = "sentry")]
             sentry::capture_error(err);
         }
     }
