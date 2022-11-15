@@ -15,6 +15,7 @@ mod requirements_list;
 mod source_spec;
 mod spec;
 mod template;
+mod test;
 pub mod v0;
 pub mod v1;
 mod validation;
@@ -44,6 +45,7 @@ pub use spk_schema_foundation::{
 };
 pub use spk_schema_ident::{self as ident, AnyIdent, BuildIdent, VersionIdent};
 pub use template::{Template, TemplateExt};
+pub use test::{Test, TestStage};
 pub use validation::{default_validators, ValidationSpec, Validator};
 pub use {serde_json, spk_schema_validators as validators};
 

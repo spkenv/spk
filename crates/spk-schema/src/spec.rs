@@ -18,8 +18,9 @@ use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
-use crate::v0::TestSpec;
 use crate::{
+    v0,
+    v1,
     BuildEnv,
     Deprecate,
     DeprecateMut,
@@ -31,6 +32,8 @@ use crate::{
     Result,
     Template,
     TemplateExt,
+    Test,
+    TestStage,
 };
 
 /// Create a spec recipe from a json structure.
@@ -196,6 +199,7 @@ impl Satisfy<PkgRequest> for SpecRecipe {
 
 impl Recipe for SpecRecipe {
     type Output = Spec;
+    type Test = SpecTest;
 
     fn ident(&self) -> &VersionIdent {
         match self {
@@ -225,10 +229,18 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
+    fn get_tests(&self, stage: TestStage, options: &OptionMap) -> Result<Vec<SpecTest>> {
         match self {
-            SpecRecipe::V0Package(r) => r.get_tests(options),
-            SpecRecipe::V1Recipe(r) => r.get_tests(options),
+            SpecRecipe::V0Package(r) => Ok(r
+                .get_tests(stage, options)?
+                .into_iter()
+                .map(SpecTest::V0)
+                .collect()),
+            SpecRecipe::V1Recipe(r) => Ok(r
+                .get_tests(stage, options)?
+                .into_iter()
+                .map(SpecTest::V1)
+                .collect()),
         }
     }
 
@@ -320,6 +332,27 @@ impl FromYaml for SpecRecipe {
                     serde_yaml::from_str(&yaml).map_err(|err| SerdeError::new(yaml, err))?;
                 Ok(Self::V0Package(inner))
             }
+        }
+    }
+}
+
+pub enum SpecTest {
+    V0(v0::TestSpec),
+    V1(v1::TestScript),
+}
+
+impl Test for SpecTest {
+    fn script(&self) -> String {
+        match self {
+            Self::V0(t) => t.script(),
+            Self::V1(t) => t.script(),
+        }
+    }
+
+    fn additional_requirements(&self) -> Vec<Request> {
+        match self {
+            Self::V0(t) => t.additional_requirements(),
+            Self::V1(t) => t.additional_requirements(),
         }
     }
 }

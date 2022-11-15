@@ -15,4 +15,4 @@ pub use embedded_packages_list::EmbeddedPackagesList;
 pub use install_spec::InstallSpec;
 pub use option::{Inheritance, Opt};
 pub use spec::Spec;
-pub use test_spec::{TestSpec, TestStage};
+pub use test_spec::TestSpec;

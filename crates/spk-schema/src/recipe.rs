@@ -9,8 +9,7 @@ use spk_schema_ident::VersionIdent;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
 use crate::ident::Request;
-use crate::v0::TestSpec;
-use crate::{Package, Result};
+use crate::{Package, Result, TestStage};
 
 /// Return the resolved packages from a solution.
 pub trait BuildEnv {
@@ -25,6 +24,7 @@ pub trait Recipe:
     Named + Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
 {
     type Output: super::Package;
+    type Test: super::Test;
 
     /// Build an identifier to represent this recipe.
     ///
@@ -44,8 +44,8 @@ pub trait Recipe:
     /// Identify the requirements for a build of this recipe.
     fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>>;
 
-    /// Return the tests defined for this package.
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>>;
+    /// Return the tests defined for this package at the given stage.
+    fn get_tests(&self, stage: TestStage, options: &OptionMap) -> Result<Vec<Self::Test>>;
 
     /// Create a new source package from this recipe and the given parameters.
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output>;
@@ -66,6 +66,7 @@ where
     T: Recipe,
 {
     type Output = T::Output;
+    type Test = T::Test;
 
     fn ident(&self) -> &VersionIdent {
         (**self).ident()
@@ -83,8 +84,8 @@ where
         (**self).get_build_requirements(options)
     }
 
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
-        (**self).get_tests(options)
+    fn get_tests(&self, stage: TestStage, options: &OptionMap) -> Result<Vec<Self::Test>> {
+        (**self).get_tests(stage, options)
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
@@ -109,6 +110,7 @@ where
     T: Recipe,
 {
     type Output = T::Output;
+    type Test = T::Test;
 
     fn ident(&self) -> &VersionIdent {
         (**self).ident()
@@ -126,8 +128,8 @@ where
         (**self).get_build_requirements(options)
     }
 
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
-        (**self).get_tests(options)
+    fn get_tests(&self, stage: TestStage, options: &OptionMap) -> Result<Vec<Self::Test>> {
+        (**self).get_tests(stage, options)
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {

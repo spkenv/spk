@@ -16,3 +16,9 @@ pub struct TestScript {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requests: Vec<Request>,
 }
+
+impl crate::Test for TestScript {
+    fn script(&self) -> String {
+        todo!()
+    }
+}

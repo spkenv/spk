@@ -52,6 +52,7 @@ use crate::{
     RequirementsList,
     Result,
     SourceSpec,
+    TestStage,
     ValidationSpec,
 };
 
@@ -258,6 +259,7 @@ impl PackageMut for Spec<BuildIdent> {
 
 impl Recipe for Spec<VersionIdent> {
     type Output = Spec<BuildIdent>;
+    type Test = TestSpec;
 
     fn ident(&self) -> &VersionIdent {
         &self.pkg
@@ -321,8 +323,27 @@ impl Recipe for Spec<VersionIdent> {
         Ok(requests)
     }
 
-    fn get_tests(&self, _options: &OptionMap) -> Result<Vec<TestSpec>> {
-        Ok(self.tests.clone())
+    fn get_tests(&self, stage: TestStage, options: &OptionMap) -> Result<Vec<TestSpec>> {
+        let digest = options.digest();
+        Ok(self
+            .tests
+            .iter()
+            .filter(|t| t.stage == stage)
+            .filter(|t| {
+                if t.selectors.is_empty() {
+                    return true;
+                }
+                for selector in t.selectors.iter() {
+                    let mut selected_opts = options.clone();
+                    selected_opts.extend(selector.clone());
+                    if selected_opts.digest() == digest {
+                        return true;
+                    }
+                }
+                false
+            })
+            .cloned()
+            .collect())
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Spec<BuildIdent>> {

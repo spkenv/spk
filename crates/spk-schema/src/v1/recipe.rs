@@ -14,8 +14,7 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{is_false, PkgRequest, Request, Satisfy, VarRequest};
 use crate::meta::Meta;
-use crate::v0::TestSpec;
-use crate::{BuildEnv, Deprecate, DeprecateMut, Package, Result};
+use crate::{BuildEnv, Deprecate, DeprecateMut, Package, Result, TestStage};
 
 #[cfg(test)]
 #[path = "./recipe_test.rs"]
@@ -95,6 +94,7 @@ impl DeprecateMut for Recipe {
 
 impl crate::Recipe for Recipe {
     type Output = super::Package;
+    type Test = super::TestScript;
 
     fn ident(&self) -> &VersionIdent {
         &self.pkg
@@ -112,7 +112,7 @@ impl crate::Recipe for Recipe {
         todo!()
     }
 
-    fn get_tests(&self, _options: &OptionMap) -> Result<Vec<TestSpec>> {
+    fn get_tests(&self, _stage: TestStage, _options: &OptionMap) -> Result<Vec<super::TestScript>> {
         todo!()
     }
 
