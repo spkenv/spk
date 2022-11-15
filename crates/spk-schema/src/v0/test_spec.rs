@@ -6,9 +6,9 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+use super::Script;
 use crate::foundation::option_map::OptionMap;
 use crate::ident::Request;
-use crate::Script;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum TestStage {

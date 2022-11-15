@@ -10,16 +10,8 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::{opt_name, option_map};
 use spk_schema::ident::{PkgRequest, RangeIdent, Request};
-use spk_schema::{
-    recipe,
-    ComponentSpecList,
-    FromYaml,
-    Inheritance,
-    Opt,
-    Package,
-    Recipe,
-    SpecRecipe,
-};
+use spk_schema::v0::{Inheritance, Opt};
+use spk_schema::{recipe, ComponentSpecList, FromYaml, Package, Recipe, SpecRecipe};
 use spk_solve::Solution;
 use spk_storage::fixtures::*;
 use spk_storage::{self as storage, Repository};

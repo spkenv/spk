@@ -9,7 +9,7 @@ use spk_schema_ident::VersionIdent;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
 use crate::ident::Request;
-use crate::test_spec::TestSpec;
+use crate::v0::TestSpec;
 use crate::{Package, Result};
 
 /// Return the resolved packages from a solution.

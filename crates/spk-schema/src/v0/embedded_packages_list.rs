@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::EmbeddedSource;
 use spk_schema_ident::AnyIdent;
 
-use super::{BuildSpec, InstallSpec, Spec};
+use super::{BuildSpec, InstallSpec};
 use crate::foundation::ident_build::Build;
+use crate::Spec;
 
 #[cfg(test)]
 #[path = "./embedded_packages_list_test.rs"]
@@ -52,7 +53,7 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
                 let mut embedded_stubs = Vec::with_capacity(size_hint);
                 let mut default_build_spec = BuildSpec::default();
                 let mut default_install_spec = InstallSpec::default();
-                while let Some(embedded) = seq.next_element::<super::v0::Spec<AnyIdent>>()? {
+                while let Some(embedded) = seq.next_element::<super::Spec<AnyIdent>>()? {
                     default_build_spec.options = embedded.build.options.clone();
                     if default_build_spec != embedded.build {
                         return Err(serde::de::Error::custom(

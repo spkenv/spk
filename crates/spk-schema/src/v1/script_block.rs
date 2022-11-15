@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::WhenBlock;
 
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct ScriptBlock(Vec<ScriptBlockEntry>);
 
 impl<'de> serde::de::Deserialize<'de> for ScriptBlock {
@@ -46,7 +46,7 @@ impl<'de> serde::de::Deserialize<'de> for ScriptBlock {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ScriptBlockEntry {
     Simple(String),

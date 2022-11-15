@@ -14,14 +14,14 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{is_false, PkgRequest, Request, Satisfy, VarRequest};
 use crate::meta::Meta;
-use crate::test_spec::TestSpec;
+use crate::v0::TestSpec;
 use crate::{BuildEnv, Deprecate, DeprecateMut, Package, Result};
 
 #[cfg(test)]
 #[path = "./recipe_test.rs"]
 mod recipe_test;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct Recipe {
     pub pkg: VersionIdent,

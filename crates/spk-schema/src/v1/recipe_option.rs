@@ -19,8 +19,8 @@ mod recipe_option_test;
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize)]
 #[serde(untagged)]
 pub enum RecipeOption {
-    Var(VarOption),
-    Pkg(PkgOption),
+    Var(Box<VarOption>),
+    Pkg(Box<PkgOption>),
 }
 
 impl<'de> Deserialize<'de> for RecipeOption {
@@ -52,10 +52,10 @@ impl<'de> Deserialize<'de> for RecipeOption {
                     .ok_or_else(|| serde::de::Error::missing_field("var\" or \"pkg"))?;
                 match first_key.as_str() {
                     "pkg" => {
-                        Ok(Self::Value::Pkg(PartialPkgVisitor.visit_map(map)?))
+                        Ok(Self::Value::Pkg(PartialPkgVisitor.visit_map(map)?.into()))
                     },
                     "var" => {
-                        Ok(Self::Value::Var(PartialVarVisitor.visit_map(map)?))
+                        Ok(Self::Value::Var(PartialVarVisitor.visit_map(map)?.into()))
                     },
                         other => {
                             Err(serde::de::Error::custom(format!("An option must declare either the 'var' or 'pkg' field before any other, found '{other}'")))

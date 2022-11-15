@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::TestScript;
 
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct RecipeSourceSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

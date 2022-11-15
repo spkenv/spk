@@ -31,13 +31,13 @@ pub trait Package:
     fn option_values(&self) -> OptionMap;
 
     /// The input options for this package
-    fn options(&self) -> &Vec<super::Opt>;
+    fn options(&self) -> &Vec<super::v0::Opt>;
 
     /// Return the location of sources for this package
     fn sources(&self) -> &Vec<super::SourceSpec>;
 
     /// The packages that are embedded within this one
-    fn embedded(&self) -> &super::EmbeddedPackagesList;
+    fn embedded(&self) -> &super::v0::EmbeddedPackagesList;
 
     /// The packages that are embedded within this one.
     ///
@@ -110,7 +110,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).option_values()
     }
 
-    fn options(&self) -> &Vec<super::Opt> {
+    fn options(&self) -> &Vec<super::v0::Opt> {
         (**self).options()
     }
 
@@ -118,7 +118,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).sources()
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList {
+    fn embedded(&self) -> &super::v0::EmbeddedPackagesList {
         (**self).embedded()
     }
 
@@ -164,7 +164,7 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).option_values()
     }
 
-    fn options(&self) -> &Vec<super::Opt> {
+    fn options(&self) -> &Vec<super::v0::Opt> {
         (**self).options()
     }
 
@@ -172,7 +172,7 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).sources()
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList {
+    fn embedded(&self) -> &super::v0::EmbeddedPackagesList {
         (**self).embedded()
     }
 
@@ -218,7 +218,7 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).option_values()
     }
 
-    fn options(&self) -> &Vec<super::Opt> {
+    fn options(&self) -> &Vec<super::v0::Opt> {
         (**self).options()
     }
 
@@ -226,7 +226,7 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).sources()
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList {
+    fn embedded(&self) -> &super::v0::EmbeddedPackagesList {
         (**self).embedded()
     }
 

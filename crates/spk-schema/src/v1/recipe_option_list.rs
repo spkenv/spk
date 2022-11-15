@@ -13,7 +13,7 @@ mod recipe_option_list_test;
 // Recipe options define the set of dependencies and inputs variables
 // to the package build process. This represents the complete set of
 // options defined for a recipe.
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Ord, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct RecipeOptionList(Vec<RecipeOption>);
 

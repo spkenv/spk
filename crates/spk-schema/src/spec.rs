@@ -18,7 +18,7 @@ use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
-use crate::test_spec::TestSpec;
+use crate::v0::TestSpec;
 use crate::{
     BuildEnv,
     Deprecate,
@@ -175,7 +175,7 @@ impl TemplateExt for SpecTemplate {
 /// All build-able types have a recipe representation
 /// that can be serialized and deserialized from a human-written
 /// file or machine-managed persistent storage.
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize)]
 #[serde(tag = "api")]
 #[enum_dispatch(Deprecate, DeprecateMut)]
 pub enum SpecRecipe {
@@ -403,7 +403,7 @@ impl Package for Spec {
         }
     }
 
-    fn options(&self) -> &Vec<super::Opt> {
+    fn options(&self) -> &Vec<super::v0::Opt> {
         match self {
             Spec::V0Package(spec) => spec.options(),
             Spec::V1Package(spec) => spec.options(),
@@ -417,7 +417,7 @@ impl Package for Spec {
         }
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList {
+    fn embedded(&self) -> &super::v0::EmbeddedPackagesList {
         match self {
             Spec::V0Package(spec) => spec.embedded(),
             Spec::V1Package(spec) => spec.embedded(),

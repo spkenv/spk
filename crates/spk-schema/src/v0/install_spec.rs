@@ -4,10 +4,10 @@
 use serde::{Deserialize, Serialize};
 use spk_schema_ident::BuildIdent;
 
-use super::{ComponentSpecList, EmbeddedPackagesList, EnvOp, RequirementsList};
+use super::EmbeddedPackagesList;
 use crate::foundation::option_map::OptionMap;
 use crate::ident::Request;
-use crate::Result;
+use crate::{ComponentSpecList, EnvOp, RequirementsList, Result};
 
 #[cfg(test)]
 #[path = "./install_spec_test.rs"]

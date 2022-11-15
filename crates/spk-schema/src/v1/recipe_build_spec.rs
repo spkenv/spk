@@ -7,7 +7,7 @@ use spk_schema_ident::Request;
 
 use super::{ScriptBlock, TestScript};
 
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct RecipeBuildSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -17,7 +17,7 @@ pub struct RecipeBuildSpec {
     pub test: Vec<TestScript>,
 }
 
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct VariantSpec {
     #[serde(default, skip_serializing_if = "String::is_empty")]

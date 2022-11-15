@@ -13,13 +13,12 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{is_false, PkgRequest, Satisfy, VarRequest};
 use crate::meta::Meta;
+use crate::v0::{EmbeddedPackagesList, Opt};
 use crate::{
     ComponentSpecList,
     Deprecate,
     DeprecateMut,
-    EmbeddedPackagesList,
     EnvOp,
-    Opt,
     PackageMut,
     RequirementsList,
     Result,

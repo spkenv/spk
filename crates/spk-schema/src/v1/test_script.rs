@@ -7,7 +7,7 @@ use spk_schema_ident::Request;
 
 use super::{ScriptBlock, WhenBlock};
 
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct TestScript {
     pub script: ScriptBlock,

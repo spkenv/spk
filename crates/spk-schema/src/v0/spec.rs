@@ -11,7 +11,6 @@ use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_ident::{AnyIdent, BuildIdent, Ident, VersionIdent};
 
-use crate::build_spec::UncheckedBuildSpec;
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
 use crate::foundation::name::PkgName;
@@ -29,21 +28,24 @@ use crate::ident::{
     VarRequest,
 };
 use crate::meta::Meta;
-use crate::test_spec::TestSpec;
+use crate::v0::{
+    BuildSpec,
+    EmbeddedPackagesList,
+    Inheritance,
+    InstallSpec,
+    Opt,
+    TestSpec,
+    UncheckedBuildSpec,
+};
 use crate::{
     BuildEnv,
-    BuildSpec,
     ComponentSpec,
     ComponentSpecList,
     Deprecate,
     DeprecateMut,
-    EmbeddedPackagesList,
     EnvOp,
     Error,
-    Inheritance,
-    InstallSpec,
     LocalSource,
-    Opt,
     Package,
     PackageMut,
     Recipe,

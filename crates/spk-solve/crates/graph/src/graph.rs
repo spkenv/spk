@@ -21,14 +21,8 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::prelude::*;
-use spk_schema::{
-    AnyIdent,
-    ComponentSpecList,
-    EmbeddedPackagesList,
-    RequirementsList,
-    Spec,
-    SpecRecipe,
-};
+use spk_schema::v0::EmbeddedPackagesList;
+use spk_schema::{AnyIdent, ComponentSpecList, RequirementsList, Spec, SpecRecipe};
 use spk_solve_package_iterator::PackageIterator;
 use spk_solve_solution::{PackageSource, Solution};
 use thiserror::Error;

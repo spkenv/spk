@@ -7,8 +7,9 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 
-use super::foundation::option_map::OptionMap;
-use super::{Opt, ValidationSpec};
+use super::Opt;
+use crate::foundation::option_map::OptionMap;
+use crate::ValidationSpec;
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]

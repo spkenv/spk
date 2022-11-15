@@ -12,7 +12,8 @@ use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::option_map::{host_options, OptionMap};
 use spk_schema::ident::parse_ident;
-use spk_schema::{Recipe, Template, TestStage};
+use spk_schema::v0::TestStage;
+use spk_schema::{Recipe, Template};
 
 use crate::test::{PackageBuildTester, PackageInstallTester, PackageSourceTester, Tester};
 

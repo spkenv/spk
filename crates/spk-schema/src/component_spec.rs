@@ -35,7 +35,7 @@ pub struct ComponentSpec {
     #[serde(default)]
     pub requirements: super::RequirementsList,
     #[serde(default)]
-    pub embedded: super::EmbeddedPackagesList,
+    pub embedded: super::v0::EmbeddedPackagesList,
     #[serde(default)]
     pub file_match_mode: ComponentFileMatchMode,
 }
