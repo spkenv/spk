@@ -11,6 +11,7 @@ pub use super::{
     Package,
     Recipe,
     Template,
+    Test,
     Variant,
     VariantExt,
 };

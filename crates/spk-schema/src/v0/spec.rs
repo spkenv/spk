@@ -13,6 +13,7 @@ use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_ident::{AnyIdent, BuildIdent, Ident, VersionIdent};
 
+use super::TestSpec;
 use crate::build_spec::UncheckedBuildSpec;
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
@@ -31,7 +32,6 @@ use crate::ident::{
     VarRequest,
 };
 use crate::meta::Meta;
-use crate::test_spec::TestSpec;
 use crate::{
     BuildEnv,
     BuildSpec,
@@ -52,6 +52,7 @@ use crate::{
     RequirementsList,
     Result,
     SourceSpec,
+    TestStage,
     ValidationSpec,
     Variant,
 };
@@ -250,6 +251,7 @@ impl PackageMut for Spec<BuildIdent> {
 impl Recipe for Spec<VersionIdent> {
     type Output = Spec<BuildIdent>;
     type Variant = super::Variant;
+    type Test = TestSpec;
 
     fn ident(&self) -> &VersionIdent {
         &self.pkg
@@ -324,11 +326,31 @@ impl Recipe for Spec<VersionIdent> {
         Ok(requests)
     }
 
-    fn get_tests<V>(&self, _variant: &V) -> Result<Vec<TestSpec>>
+    fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<TestSpec>>
     where
         V: Variant,
     {
-        Ok(self.tests.clone())
+        let options = variant.options();
+        let digest = options.digest();
+        Ok(self
+            .tests
+            .iter()
+            .filter(|t| t.stage == stage)
+            .filter(|t| {
+                if t.selectors.is_empty() {
+                    return true;
+                }
+                for selector in t.selectors.iter() {
+                    let mut selected_opts = (*options).clone();
+                    selected_opts.extend(selector.clone());
+                    if selected_opts.digest() == digest {
+                        return true;
+                    }
+                }
+                false
+            })
+            .cloned()
+            .collect())
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Spec<BuildIdent>> {

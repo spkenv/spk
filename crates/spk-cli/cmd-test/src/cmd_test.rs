@@ -4,13 +4,14 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Args;
 use spk_build::BuildSource;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::option_map::{host_options, OptionMap};
+use spk_schema::prelude::*;
 use spk_schema::{Recipe, TestStage, Variant};
 
 use crate::test::{PackageBuildTester, PackageInstallTester, PackageSourceTester, Tester};
@@ -23,7 +24,7 @@ mod cmd_test_test;
 ///
 /// In order to run install tests the package must have been built already
 #[derive(Args)]
-pub struct Test {
+pub struct CmdTest {
     #[clap(flatten)]
     pub options: flags::Options,
     #[clap(flatten)]
@@ -57,7 +58,7 @@ pub struct Test {
 }
 
 #[async_trait::async_trait]
-impl Run for Test {
+impl Run for CmdTest {
     async fn run(&mut self) -> Result<i32> {
         let options = self.options.get_options()?;
         let (_runtime, repos) = tokio::try_join!(
@@ -123,11 +124,15 @@ impl Run for Test {
                         continue;
                     }
 
-                    for (index, test) in recipe.get_tests(&opts)?.into_iter().enumerate() {
-                        if test.stage != stage {
-                            continue;
-                        }
-
+                    let selected = recipe
+                        .get_tests(stage, &opts)
+                        .context("Failed to select tests for this variant")?;
+                    tracing::info!(
+                        variant=%opts.format_option_map(),
+                        "Running {} relevant tests for this variant",
+                        selected.len()
+                    );
+                    for (index, test) in selected.into_iter().enumerate() {
                         let mut builder = self
                             .formatter_settings
                             .get_formatter_builder(self.verbose)?;
@@ -140,15 +145,13 @@ impl Run for Test {
 
                         let mut tester: Box<dyn Tester> = match stage {
                             TestStage::Sources => {
-                                let mut tester = PackageSourceTester::new(
-                                    (*recipe).clone(),
-                                    test.script.join("\n"),
-                                );
+                                let mut tester =
+                                    PackageSourceTester::new((*recipe).clone(), test.script());
 
                                 tester
                                     .with_options(opts.clone())
                                     .with_repositories(repos.iter().cloned())
-                                    .with_requirements(test.requirements.clone())
+                                    .with_requirements(test.additional_requirements())
                                     .with_source(source.clone())
                                     .watch_environment_resolve(&src_formatter);
 
@@ -156,15 +159,13 @@ impl Run for Test {
                             }
 
                             TestStage::Build => {
-                                let mut tester = PackageBuildTester::new(
-                                    (*recipe).clone(),
-                                    test.script.join("\n"),
-                                );
+                                let mut tester =
+                                    PackageBuildTester::new((*recipe).clone(), test.script());
 
                                 tester
                                     .with_options(opts.clone())
                                     .with_repositories(repos.iter().cloned())
-                                    .with_requirements(test.requirements.clone())
+                                    .with_requirements(test.additional_requirements())
                                     .with_source(
                                         source.clone().map(BuildSource::LocalPath).unwrap_or_else(
                                             || {
@@ -186,14 +187,14 @@ impl Run for Test {
                             TestStage::Install => {
                                 let mut tester = PackageInstallTester::new(
                                     (*recipe).clone(),
-                                    test.script.join("\n"),
+                                    test.script(),
                                     variant,
                                 );
 
                                 tester
                                     .with_options(opts.clone())
                                     .with_repositories(repos.iter().cloned())
-                                    .with_requirements(test.requirements.clone())
+                                    .with_requirements(test.additional_requirements())
                                     .with_source(source.clone())
                                     .watch_environment_resolve(&install_formatter);
 
@@ -201,25 +202,9 @@ impl Run for Test {
                             }
                         };
 
-                        let mut selected = false;
-                        for selector in test.selectors.iter() {
-                            let mut selected_opts = opts.clone();
-                            selected_opts.extend(selector.clone());
-                            if selected_opts.digest() == digest {
-                                selected = true;
-                            }
-                        }
-                        if !selected && !test.selectors.is_empty() {
-                            tracing::info!(
-                                "SKIP #{index}: variant not selected: {}",
-                                opts.format_option_map()
-                            );
-                            continue;
-                        }
-
                         tracing::info!(
-                            "Running test #{index} variant={}",
-                            opts.format_option_map()
+                            variant=%opts.format_option_map(),
+                            "Running selected test #{index}",
                         );
 
                         tester.test().await?
@@ -231,7 +216,7 @@ impl Run for Test {
     }
 }
 
-impl CommandArgs for Test {
+impl CommandArgs for CmdTest {
     fn get_positional_args(&self) -> Vec<String> {
         // The important positional args for a test are the packages
         self.packages.clone()
