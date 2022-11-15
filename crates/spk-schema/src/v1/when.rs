@@ -26,9 +26,9 @@ impl<'de> Deserialize<'de> for WhenBlock {
     where
         D: serde::Deserializer<'de>,
     {
-        struct WhenConditionVisitor;
+        struct WhenBlockVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for WhenConditionVisitor {
+        impl<'de> serde::de::Visitor<'de> for WhenBlockVisitor {
             type Value = WhenBlock;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -62,9 +62,19 @@ impl<'de> Deserialize<'de> for WhenBlock {
                 }
                 Ok(WhenBlock::Sometimes { conditions })
             }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let single = WhenConditionVisitor.visit_map(map)?;
+                Ok(WhenBlock::Sometimes {
+                    conditions: vec![single],
+                })
+            }
         }
 
-        deserializer.deserialize_any(WhenConditionVisitor)
+        deserializer.deserialize_any(WhenBlockVisitor)
     }
 }
 
@@ -95,59 +105,59 @@ impl<'de> Deserialize<'de> for WhenCondition {
     where
         D: serde::Deserializer<'de>,
     {
-        struct WhenConditionVisitor;
+        deserializer.deserialize_any(WhenConditionVisitor)
+    }
+}
 
-        impl<'de> serde::de::Visitor<'de> for WhenConditionVisitor {
-            type Value = WhenCondition;
+struct WhenConditionVisitor;
 
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a when condition")
-            }
+impl<'de> serde::de::Visitor<'de> for WhenConditionVisitor {
+    type Value = WhenCondition;
 
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-            where
-                A: serde::de::MapAccess<'de>,
-            {
-                let mut result = None;
-                while let Some(key) = map.next_key::<Stringified>()? {
-                    let previous = match key.as_str() {
-                        "pkg" => result.replace(WhenCondition::Pkg {
-                            pkg: map.next_value()?,
-                        }),
-                        "var" => {
-                            let NameAndValue(var, value) = map.next_value()?;
-                            result.replace(WhenCondition::Var(VarRequest {
-                                var,
-                                value: value.unwrap_or_default(),
-                                pin: false,
-                            }))
-                        }
-                        #[cfg(not(test))]
-                        _name => {
-                            // unrecognized fields are explicitly ignored in case
-                            // they were added in a newer version of spk. We assume
-                            // that if the api has not been versioned then the desire
-                            // is to continue working in this older version
-                            map.next_value::<serde::de::IgnoredAny>()?;
-                            None
-                        }
-                        #[cfg(test)]
-                        name => {
-                            // except during testing, where we don't want to hide
-                            // failing tests because of ignored data
-                            return Err(serde::de::Error::unknown_field(name, &[]));
-                        }
-                    };
-                    if previous.is_some() {
-                        return Err(serde::de::Error::custom(
-                            "multiple conditions found in a single map, was this meant to be a list?"
-                        ));
-                    }
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a when condition")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        let mut result = None;
+        while let Some(key) = map.next_key::<Stringified>()? {
+            let previous = match key.as_str() {
+                "pkg" => result.replace(WhenCondition::Pkg {
+                    pkg: map.next_value()?,
+                }),
+                "var" => {
+                    let NameAndValue(var, value) = map.next_value()?;
+                    result.replace(WhenCondition::Var(VarRequest {
+                        var,
+                        value: value.unwrap_or_default(),
+                        pin: false,
+                    }))
                 }
-                result.ok_or_else(|| serde::de::Error::missing_field("pkg\" or \"var"))
+                #[cfg(not(test))]
+                _name => {
+                    // unrecognized fields are explicitly ignored in case
+                    // they were added in a newer version of spk. We assume
+                    // that if the api has not been versioned then the desire
+                    // is to continue working in this older version
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                    None
+                }
+                #[cfg(test)]
+                name => {
+                    // except during testing, where we don't want to hide
+                    // failing tests because of ignored data
+                    return Err(serde::de::Error::unknown_field(name, &[]));
+                }
+            };
+            if previous.is_some() {
+                return Err(serde::de::Error::custom(
+                    "multiple conditions found in a single map, was this meant to be a list?",
+                ));
             }
         }
-
-        deserializer.deserialize_any(WhenConditionVisitor)
+        result.ok_or_else(|| serde::de::Error::missing_field("pkg\" or \"var"))
     }
 }

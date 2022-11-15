@@ -3,20 +3,16 @@
 // https://github.com/imageworks/spk
 
 use serde::{Deserialize, Serialize};
+use spk_schema_ident::Request;
 
-use super::TestScript;
+use super::{ScriptBlock, WhenBlock};
 
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
-pub struct RecipeSourceSpec {
+pub struct TestScript {
+    pub script: ScriptBlock,
+    #[serde(default, skip_serializing_if = "WhenBlock::is_always")]
+    pub when: WhenBlock,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub collect: Vec<crate::SourceSpec>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub test: Vec<TestScript>,
-}
-
-impl RecipeSourceSpec {
-    pub fn is_empty(&self) -> bool {
-        self.collect.is_empty()
-    }
+    pub requests: Vec<Request>,
 }
