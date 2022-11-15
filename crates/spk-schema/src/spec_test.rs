@@ -311,9 +311,9 @@ fn test_get_build_requirements_pkg_in_variant_preserves_order() {
 #[rstest]
 fn test_template_error_message() {
     format_serde_error::never_color();
-    static SPEC: &str = r#"pkg: mypackage/{{ version }}
+    static SPEC: &str = r#"pkg: my-package/{{ opt.version }}
 sources:
-  - git: https://downloads.testing/mypackage/v{{ verison }}
+  - git: https://downloads.testing/my-package/v{{ opt.typo }}
 "#;
     let tpl = SpecTemplate {
         name: PkgName::new("my-package").unwrap().to_owned(),
@@ -325,9 +325,11 @@ sources:
         .render(&options)
         .expect_err("expect template rendering to fail");
     let expected = r#"
-liquid: Unknown variable
+liquid: Unknown index
   with:
-    requested variable=verison
+    variable=opt
+    requested index=typo
+    available indexes=version
 "#;
     let message = err.to_string();
     assert_eq!(message.trim(), expected.trim());
@@ -342,7 +344,7 @@ fn test_template_namespace_options() {
     // dot-notation built into templating
 
     format_serde_error::never_color();
-    static SPEC: &str = r#"pkg: mypackage/{{ namespace.version }}"#;
+    static SPEC: &str = r#"pkg: mypackage/{{ opt.namespace.version }}"#;
     let tpl = SpecTemplate {
         name: PkgName::new("my-package").unwrap().to_owned(),
         file_path: "my-package.spk.yaml".into(),
