@@ -125,9 +125,11 @@ impl<'de> Deserialize<'de> for ComponentSpecList {
                 // present in all specs, using a default setup if needed
                 if !seen.contains(&Component::Build) {
                     components.push(ComponentSpec::default_build());
+                    seen.insert(Component::Build);
                 }
                 if !seen.contains(&Component::Run) {
                     components.push(ComponentSpec::default_run());
+                    seen.insert(Component::Run);
                 }
 
                 if seen.contains(&Component::All) {
