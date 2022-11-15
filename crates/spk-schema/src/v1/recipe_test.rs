@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use pretty_assertions::assert_eq;
 use rstest::rstest;
 
 use super::Recipe;
@@ -199,7 +200,7 @@ build:
   # are provided
   variants:
     - name: vfx2021 # still has an index, but now also a name (optionally)
-      default: false # or maybe something more rich to include publish-ability
+      # default: false, or maybe something more rich to include publish-ability?
       requests:
        - {pkg: dependency/1.0.0}
        - {var: debug/on}

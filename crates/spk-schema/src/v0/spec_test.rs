@@ -4,6 +4,7 @@
 
 use std::io::Write;
 
+use pretty_assertions::assert_eq;
 use rstest::rstest;
 use spk_schema_ident::VersionIdent;
 

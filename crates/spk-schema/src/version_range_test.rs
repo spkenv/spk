@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use pretty_assertions::assert_eq;
 use proptest::collection::{btree_map, vec};
 use proptest::option::weighted;
 use proptest::prelude::*;

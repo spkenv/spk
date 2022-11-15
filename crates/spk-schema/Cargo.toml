@@ -33,3 +33,4 @@ tracing = "0.1.35"
 [dev-dependencies]
 proptest = "1.0.0"
 rstest = "0.15.0"
+pretty_assertions = "1.3"

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use pretty_assertions::assert_eq;
 use rstest::rstest;
 
 use crate::foundation::{opt_name, option_map};
