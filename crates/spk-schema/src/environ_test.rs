@@ -53,3 +53,15 @@ fn test_valid_tcsh(#[case] op: &str) {
     );
     assert!(out.status.success(), "failed to execute tcsh source");
 }
+
+#[rstest]
+#[case("{append: SPK_TEST_VAR, value: simple}")]
+#[case("{prepend: SPK_TEST_VAR, value: simple}")]
+#[case("{set: SPK_TEST_VAR, value: simple}")]
+#[case("{append: SPK_TEST_VAR, value: simple, separator: '+'}")]
+fn test_yaml_round_trip(#[case] op: &str) {
+    let op: EnvOp = serde_yaml::from_str(op).unwrap();
+    let yaml = serde_yaml::to_string(&op).unwrap();
+    let op2: EnvOp = serde_yaml::from_str(&yaml).unwrap();
+    assert_eq!(op2, op, "should be the same after sending through yaml");
+}

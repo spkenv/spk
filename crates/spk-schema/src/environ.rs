@@ -92,7 +92,9 @@ impl<'de> Deserialize<'de> for EnvOp {
                                 Some((OpKind::Set, map.next_value::<Stringified>()?.0));
                         }
                         "value" => self.value = Some(map.next_value::<Stringified>()?.0),
-                        "separator" => self.value = Some(map.next_value::<Stringified>()?.0),
+                        "separator" => {
+                            self.separator = map.next_value::<Option<Stringified>>()?.map(|s| s.0)
+                        }
                         _ => {
                             // ignore any unknown field for the sake of
                             // forward compatibility
@@ -142,6 +144,7 @@ impl<'de> Deserialize<'de> for EnvOp {
 pub struct AppendEnv {
     append: String,
     value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     separator: Option<String>,
 }
 
@@ -190,6 +193,7 @@ impl AppendEnv {
 pub struct PrependEnv {
     prepend: String,
     value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     separator: Option<String>,
 }
 
