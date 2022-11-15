@@ -240,6 +240,11 @@ pub trait Repository: Storage + Sync {
 
     /// Return the set of builds for the given package name and version.
     async fn list_package_builds(&self, pkg: &Ident) -> Result<Vec<Ident>> {
+        // Note: This isn't cached. Neither get_concrete_package_builds() nor
+        // get_embedded_package_builds() are cached. But the underlying
+        // ls_tags() calls they both make are cached.
+        // TODO: could be worth caching, depending on the average
+        // builds per version.
         let concrete_builds = self.get_concrete_package_builds(pkg);
         let embedded_builds = self.get_embedded_package_builds(pkg);
         let (mut concrete, embedded) = tokio::try_join!(concrete_builds, embedded_builds)?;
