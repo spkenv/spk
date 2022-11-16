@@ -106,7 +106,7 @@ impl<Recipe> Eq for MemRepository<Recipe> where Recipe: spk_schema::Recipe + Sen
 impl<Recipe, Package> Storage for MemRepository<Recipe, Package>
 where
     Recipe: spk_schema::Recipe<Output = Package> + Send + Sync,
-    Package: spk_schema::Package<Package = Package> + Send + Sync,
+    Package: spk_schema::Package<EmbeddedStub = Package> + Send + Sync,
 {
     type Recipe = Recipe;
     type Package = Package;
@@ -308,7 +308,7 @@ impl<Recipe, Package> Repository for MemRepository<Recipe, Package>
 where
     Recipe: spk_schema::Recipe<Output = Package> + Clone + Send + Sync,
     Recipe::Output: spk_schema::Package + Clone + Send + Sync,
-    Package: spk_schema::Package<Package = Package> + Send + Sync,
+    Package: spk_schema::Package<EmbeddedStub = Package> + Send + Sync,
 {
     fn address(&self) -> &url::Url {
         &self.address

@@ -357,7 +357,7 @@ impl Versioned for Spec {
 
 // enum_dispatch does not support associated types.
 impl Package for Spec {
-    type Package = Self;
+    type EmbeddedStub = Self;
 
     fn ident(&self) -> &BuildIdent {
         match self {
@@ -377,25 +377,26 @@ impl Package for Spec {
         }
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList {
-        match self {
-            Spec::V0Package(spec) => spec.embedded(),
-        }
-    }
-
-    fn embedded_as_packages(
+    fn embedded<'a>(
         &self,
-    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Vec<Self::EmbeddedStub> {
         match self {
             Spec::V0Package(spec) => spec
-                .embedded_as_packages()
-                .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
+                .embedded(components)
+                .into_iter()
+                .map(Self::V0Package)
+                .collect(),
         }
     }
 
-    fn components(&self) -> &super::ComponentSpecList {
+    fn components(&self) -> Cow<'_, super::ComponentSpecList<Self::EmbeddedStub>> {
         match self {
-            Spec::V0Package(spec) => spec.components(),
+            Spec::V0Package(spec) => Cow::Owned(
+                spec.components()
+                    .into_owned()
+                    .map_embedded_stubs(Self::V0Package),
+            ),
         }
     }
 

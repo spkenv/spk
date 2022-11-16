@@ -44,7 +44,7 @@ pub enum PublishPolicy {
 #[async_trait::async_trait]
 pub trait Storage: Sync {
     type Recipe: spk_schema::Recipe<Output = Self::Package>;
-    type Package: Package<Package = Self::Package>;
+    type Package: Package<EmbeddedStub = Self::Package>;
 
     /// Return the set of concrete builds for the given package name and version.
     ///
@@ -156,13 +156,14 @@ pub(in crate::storage) mod internal {
             package: &<Self::Recipe as Recipe>::Output,
         ) -> Result<HashMap<<Self as super::Storage>::Package, BTreeSet<Component>>> {
             let mut embedded_providers = HashMap::new();
-            for (embed, component) in package.embedded_as_packages()?.into_iter() {
-                // "top level" embedded as assumed to be provided by the "run"
-                // component.
-                (*embedded_providers
-                    .entry(embed)
-                    .or_insert_with(BTreeSet::new))
-                .insert(component.unwrap_or(Component::Run));
+            for component in package.components().iter().map(|c| c.name.clone()) {
+                let embedded = package.embedded([&component]);
+                for embed in embedded {
+                    embedded_providers
+                        .entry(embed)
+                        .or_insert_with(BTreeSet::new)
+                        .insert(component.clone());
+                }
             }
             Ok(embedded_providers)
         }

@@ -206,7 +206,21 @@ impl ValidatorT for EmbeddedPackageValidator {
     where
         P: Package,
     {
-        for embedded in spec.embedded().iter() {
+        let request = match state.get_merged_request(spec.name()) {
+            Ok(request) => request,
+            Err(GetMergedRequestError::NoRequestFor(name)) => {
+                return Ok(Compatibility::Incompatible(format!(
+                    "package '{name}' was not requested [INTERNAL ERROR]"
+                )))
+            }
+            Err(err) => {
+                return Ok(Compatibility::Incompatible(format!(
+                    "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
+                    spec.name()
+                )))
+            }
+        };
+        for embedded in spec.embedded(&request.pkg.components).iter() {
             let compat = Self::validate_embedded_package_against_state(spec, embedded, state)?;
             if !&compat {
                 return Ok(compat);
@@ -226,13 +240,14 @@ impl ValidatorT for EmbeddedPackageValidator {
 }
 
 impl EmbeddedPackageValidator {
-    fn validate_embedded_package_against_state<P>(
+    fn validate_embedded_package_against_state<P, E>(
         spec: &P,
-        embedded: &Spec,
+        embedded: &E,
         state: &State,
     ) -> crate::Result<Compatibility>
     where
         P: Package,
+        E: Package + Satisfy<PkgRequest>,
     {
         use Compatibility::{Compatible, Incompatible};
 
@@ -453,7 +468,6 @@ impl ValidatorT for ComponentsValidator {
         if let Ok(Compatible) = self.check_for_embedded_stub(spec) {
             return Ok(Compatible);
         }
-
         let request = state.get_merged_request(spec.name())?;
         if let Ok(Compatibility::Incompatible(reason)) =
             self.check_for_missing_components(&request, spec, source)
@@ -542,11 +556,14 @@ impl ComponentsValidator {
     {
         // Do the components available in the package match those
         // required by the request?
-        let available_components: std::collections::HashSet<_> = match source {
-            PackageSource::Repository { components, .. } => components.keys().collect(),
-            PackageSource::BuildFromSource { .. } => package.components().names(),
-            PackageSource::Embedded { .. } => package.components().names(),
-            PackageSource::SpkInternalTest => package.components().names(),
+        let available_components = match source {
+            PackageSource::BuildFromSource { .. }
+            | PackageSource::Embedded { .. }
+            | PackageSource::SpkInternalTest => {
+                let components = package.components();
+                components.names_owned()
+            }
+            PackageSource::Repository { components, .. } => components.keys().cloned().collect(),
         };
 
         let required_components = package
@@ -567,7 +584,7 @@ impl ComponentsValidator {
                     .sorted()
                     .join(", "),
                 available_components
-                    .into_iter()
+                    .iter()
                     .map(Component::to_string)
                     .sorted()
                     .join(", ")
@@ -641,10 +658,15 @@ impl PkgRequirementsValidator {
 
         let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
             Ok((spec, source)) => match source {
-                PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
+                PackageSource::Repository { components, .. } => {
+                    (spec, components.keys().cloned().collect())
+                }
                 PackageSource::BuildFromSource { .. }
                 | PackageSource::Embedded { .. }
-                | PackageSource::SpkInternalTest => (spec, spec.components().names()),
+                | PackageSource::SpkInternalTest => {
+                    let components = spec.components();
+                    (spec, components.names_owned())
+                }
             },
             Err(spk_solve_graph::GetCurrentResolveError::PackageNotResolved(_)) => {
                 return Ok(Compatible)
@@ -654,7 +676,7 @@ impl PkgRequirementsValidator {
         let compat = Self::validate_request_against_existing_resolve(
             &request,
             resolved,
-            provided_components,
+            &provided_components,
         )?;
         if !&compat {
             return Ok(compat);
@@ -696,7 +718,7 @@ impl PkgRequirementsValidator {
     fn validate_request_against_existing_resolve(
         request: &PkgRequest,
         resolved: &CachedHash<std::sync::Arc<Spec>>,
-        provided_components: std::collections::HashSet<&Component>,
+        provided_components: &std::collections::HashSet<Component>,
     ) -> crate::Result<Compatibility> {
         use Compatibility::{Compatible, Incompatible};
         let compat = request.is_satisfied_by(&**resolved);
@@ -726,7 +748,7 @@ impl PkgRequirementsValidator {
                         "none".to_owned()
                     } else {
                         provided_components
-                            .into_iter()
+                            .iter()
                             .map(Component::to_string)
                             .join("\n")
                     }

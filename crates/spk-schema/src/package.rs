@@ -6,7 +6,7 @@ use std::borrow::Cow;
 
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::spec_ops::{Named, Versioned};
-use spk_schema_ident::BuildIdent;
+use spk_schema_ident::{BuildIdent, PkgRequest, Satisfy};
 
 use super::RequirementsList;
 use crate::foundation::ident_component::Component;
@@ -23,7 +23,7 @@ mod package_test;
 pub trait Package:
     Named + Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
 {
-    type Package;
+    type EmbeddedStub: Package + Satisfy<PkgRequest>;
 
     /// The full identifier for this package
     ///
@@ -36,21 +36,15 @@ pub trait Package:
     /// Return the location of sources for this package
     fn sources(&self) -> &Vec<super::SourceSpec>;
 
-    /// The packages that are embedded within this one
-    fn embedded(&self) -> &super::EmbeddedPackagesList;
-
-    /// The packages that are embedded within this one.
-    ///
-    /// Return both top-level embedded packages and packages that are
-    /// embedded inside a component. The returned list is a pair of the
-    /// embedded package and the component it came from, if any.
-    #[allow(clippy::type_complexity)]
-    fn embedded_as_packages(
+    /// The packages that are embedded within this one, including
+    /// any that are additionally embedded for the named components
+    fn embedded<'a>(
         &self,
-    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str>;
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Vec<Self::EmbeddedStub>;
 
     /// The components defined by this package
-    fn components(&self) -> &super::ComponentSpecList;
+    fn components(&self) -> Cow<'_, super::ComponentSpecList<Self::EmbeddedStub>>;
 
     /// The set of operations to perform on the environment when running this package
     fn runtime_environment(&self) -> &Vec<super::EnvOp>;
@@ -94,7 +88,7 @@ pub trait PackageMut: Package + DeprecateMut {
 }
 
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
-    type Package = T::Package;
+    type EmbeddedStub = T::EmbeddedStub;
 
     fn ident(&self) -> &BuildIdent {
         (**self).ident()
@@ -108,17 +102,14 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).sources()
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList {
-        (**self).embedded()
-    }
-
-    fn embedded_as_packages(
+    fn embedded<'a>(
         &self,
-    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
-        (**self).embedded_as_packages()
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Vec<Self::EmbeddedStub> {
+        (**self).embedded(components)
     }
 
-    fn components(&self) -> &super::ComponentSpecList {
+    fn components(&self) -> Cow<'_, super::ComponentSpecList<Self::EmbeddedStub>> {
         (**self).components()
     }
 
@@ -158,7 +149,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 }
 
 impl<T: Package + Send + Sync> Package for Box<T> {
-    type Package = T::Package;
+    type EmbeddedStub = T::EmbeddedStub;
 
     fn ident(&self) -> &BuildIdent {
         (**self).ident()
@@ -172,17 +163,14 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).sources()
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList {
-        (**self).embedded()
-    }
-
-    fn embedded_as_packages(
+    fn embedded<'a>(
         &self,
-    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
-        (**self).embedded_as_packages()
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Vec<Self::EmbeddedStub> {
+        (**self).embedded(components)
     }
 
-    fn components(&self) -> &super::ComponentSpecList {
+    fn components(&self) -> Cow<'_, super::ComponentSpecList<Self::EmbeddedStub>> {
         (**self).components()
     }
 
@@ -222,7 +210,7 @@ impl<T: Package + Send + Sync> Package for Box<T> {
 }
 
 impl<T: Package + Send + Sync> Package for &T {
-    type Package = T::Package;
+    type EmbeddedStub = T::EmbeddedStub;
 
     fn ident(&self) -> &BuildIdent {
         (**self).ident()
@@ -236,17 +224,14 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).sources()
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList {
-        (**self).embedded()
-    }
-
-    fn embedded_as_packages(
+    fn embedded<'a>(
         &self,
-    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
-        (**self).embedded_as_packages()
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Vec<Self::EmbeddedStub> {
+        (**self).embedded(components)
     }
 
-    fn components(&self) -> &super::ComponentSpecList {
+    fn components(&self) -> Cow<'_, super::ComponentSpecList<Self::EmbeddedStub>> {
         (**self).components()
     }
 

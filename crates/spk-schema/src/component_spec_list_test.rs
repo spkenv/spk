@@ -5,35 +5,39 @@ use rstest::rstest;
 
 use super::ComponentSpecList;
 use crate::foundation::ident_component::Component;
+use crate::v0;
 
 #[rstest]
 fn test_components_no_duplicates() {
-    serde_yaml::from_str::<ComponentSpecList>("[{name: python}, {name: other}]")
+    serde_yaml::from_str::<ComponentSpecList<v0::Package>>("[{name: python}, {name: other}]")
         .expect("should succeed in a simple case with two components");
-    serde_yaml::from_str::<ComponentSpecList>("[{name: python}, {name: python}]")
+    serde_yaml::from_str::<ComponentSpecList<v0::Package>>("[{name: python}, {name: python}]")
         .expect_err("should fail to deserialize with the same component twice");
 }
 
 #[rstest]
 fn test_components_has_defaults() {
-    let components = serde_yaml::from_str::<ComponentSpecList>("[]").unwrap();
+    let components = serde_yaml::from_str::<ComponentSpecList<v0::Package>>("[]").unwrap();
     assert_eq!(components.len(), 2, "Should receive default components");
     let components =
-        serde_yaml::from_str::<ComponentSpecList>("[{name: run}, {name: build}]").unwrap();
+        serde_yaml::from_str::<ComponentSpecList<v0::Package>>("[{name: run}, {name: build}]")
+            .unwrap();
     assert_eq!(components.len(), 2, "Should not receive default components");
 }
 
 #[rstest]
 fn test_components_uses_must_exist() {
-    serde_yaml::from_str::<ComponentSpecList>("[{name: python, uses: [other]}, {name: other}]")
-        .expect("should succeed in a simple case");
-    serde_yaml::from_str::<ComponentSpecList>("[{name: python, uses: [other]}]")
+    serde_yaml::from_str::<ComponentSpecList<v0::Package>>(
+        "[{name: python, uses: [other]}, {name: other}]",
+    )
+    .expect("should succeed in a simple case");
+    serde_yaml::from_str::<ComponentSpecList<v0::Package>>("[{name: python, uses: [other]}]")
         .expect_err("should fail when the used component does not exist");
 }
 
 #[rstest]
 fn test_resolve_uses() {
-    let components = serde_yaml::from_str::<ComponentSpecList>(
+    let components = serde_yaml::from_str::<ComponentSpecList<v0::Package>>(
         r#"[
                 {name: build, uses: [dev, libstatic]},
                 {name: run, uses: [bin, lib]},
@@ -55,7 +59,7 @@ fn test_resolve_uses() {
 
 #[rstest]
 fn test_resolve_uses_all() {
-    let components = serde_yaml::from_str::<ComponentSpecList>(
+    let components = serde_yaml::from_str::<ComponentSpecList<v0::Package>>(
         r#"[
                 {name: build, uses: [dev, libstatic]},
                 {name: run, uses: [bin, lib]},

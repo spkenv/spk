@@ -46,9 +46,18 @@ macro_rules! make_package {
         (s, cmpts)
     }};
     ($repo:ident, $spec:tt, $opts:expr) => {{
+        use $crate::FromYaml;
         let json = $crate::serde_json::json!($spec);
-        let spec: $crate::v0::Spec<$crate::AnyIdent> =
-            $crate::serde_json::from_value(json).expect("Invalid spec json");
+        let yaml = $crate::serde_json::to_string_pretty(&json).expect("Invalid spec json");
+        let spec = match $crate::v0::Spec::<$crate::AnyIdent>::from_yaml(yaml) {
+            Ok(spec) => spec,
+            Err(err) => {
+                // show the nice positioned error output from the
+                // parsing process to help with debugging
+                std::eprintln!("{err}");
+                std::panic!("Invalid spec json");
+            }
+        };
         match spec.pkg.build().map(|b| b.clone()) {
             None => {
                 let recipe = spec.clone().map_ident(|i| i.into_base()).into();

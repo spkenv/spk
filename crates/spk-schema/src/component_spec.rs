@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::foundation::ident_component::Component;
 use crate::foundation::spec_ops::{ComponentOps, FileMatcher};
-use crate::Result;
+use crate::{Package, Result};
 
 #[cfg(test)]
 #[path = "./component_spec_test.rs"]
@@ -26,7 +26,7 @@ pub enum ComponentFileMatchMode {
 
 /// Defines a named package component.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct ComponentSpec {
+pub struct ComponentSpec<EmbeddedStub> {
     pub name: Component,
     #[serde(default)]
     pub files: FileMatcher,
@@ -34,13 +34,13 @@ pub struct ComponentSpec {
     pub uses: Vec<Component>,
     #[serde(default)]
     pub requirements: super::RequirementsList,
-    #[serde(default)]
-    pub embedded: super::EmbeddedPackagesList,
+    #[serde(default = "Vec::new")]
+    pub embedded: Vec<EmbeddedStub>,
     #[serde(default)]
     pub file_match_mode: ComponentFileMatchMode,
 }
 
-impl ComponentSpec {
+impl<P> ComponentSpec<P> {
     /// Create a new, empty component with the given name
     pub fn new<S: TryInto<Component, Error = crate::foundation::ident_component::Error>>(
         name: S,
@@ -83,7 +83,10 @@ impl ComponentSpec {
     }
 }
 
-impl ComponentOps for ComponentSpec {
+impl<P> ComponentOps for ComponentSpec<P>
+where
+    P: Package,
+{
     fn files(&self) -> &FileMatcher {
         &self.files
     }

@@ -35,10 +35,8 @@ use crate::{
     BuildEnv,
     BuildSpec,
     ComponentSpec,
-    ComponentSpecList,
     Deprecate,
     DeprecateMut,
-    EmbeddedPackagesList,
     EnvOp,
     Error,
     Inheritance,
@@ -174,7 +172,7 @@ impl<Ident> DeprecateMut for Spec<Ident> {
 }
 
 impl Package for Spec<BuildIdent> {
-    type Package = Self;
+    type EmbeddedStub = Self;
 
     fn ident(&self) -> &BuildIdent {
         &self.pkg
@@ -194,28 +192,33 @@ impl Package for Spec<BuildIdent> {
         &self.sources
     }
 
-    fn embedded(&self) -> &EmbeddedPackagesList {
-        &self.install.embedded
-    }
-
-    fn embedded_as_packages(
+    fn embedded<'a>(
         &self,
-    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
-        self.install
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Vec<Self::EmbeddedStub> {
+        let mut base: Vec<_> = self
+            .install
             .embedded
             .iter()
-            .map(|embed| (embed.clone(), None))
-            .chain(self.install.components.iter().flat_map(|cs| {
-                cs.embedded
-                    .iter()
-                    .map(move |embed| (embed.clone(), Some(cs.name.clone())))
-            }))
-            .map(|(recipe, component)| recipe.try_into().map(|r| (r, component)))
-            .collect()
+            .cloned()
+            .map(|e| e.into_inner())
+            .collect();
+        let components: BTreeSet<_> = components.into_iter().collect();
+        for component in self.install.components.iter() {
+            if components.contains(&component.name) {
+                base.extend(component.embedded.iter().cloned().map(|e| e.into_inner()));
+            }
+        }
+        base
     }
 
-    fn components(&self) -> &ComponentSpecList {
-        &self.install.components
+    fn components(&self) -> Cow<'_, crate::ComponentSpecList<Self::EmbeddedStub>> {
+        Cow::Owned(
+            self.install
+                .components
+                .clone()
+                .map_embedded_stubs(|e| e.into_inner()),
+        )
     }
 
     fn runtime_environment(&self) -> &Vec<EnvOp> {

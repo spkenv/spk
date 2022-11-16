@@ -21,15 +21,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::prelude::*;
-use spk_schema::{
-    AnyIdent,
-    BuildIdent,
-    ComponentSpecList,
-    EmbeddedPackagesList,
-    RequirementsList,
-    Spec,
-    SpecRecipe,
-};
+use spk_schema::{AnyIdent, BuildIdent, ComponentSpecList, RequirementsList, Spec, SpecRecipe};
 use spk_solve_package_iterator::PackageIterator;
 use spk_solve_solution::{PackageSource, Solution};
 use thiserror::Error;
@@ -261,8 +253,11 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
             changes
                 .extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
-            changes.extend(self.components_to_changes(spec.components(), requester_ident));
-            changes.extend(self.embedded_to_changes(spec.embedded(), requester_ident));
+            let components = spec.components();
+            changes.extend(self.components_to_changes(components.as_ref(), requester_ident));
+            changes.extend(
+                self.embedded_to_changes(&spec.embedded(components.names()), requester_ident),
+            );
             changes.push(Self::options_to_change(spec));
 
             Ok(changes)
@@ -285,8 +280,10 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
             changes
                 .extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
-            changes.extend(self.components_to_changes(spec.components(), requester_ident));
-            changes.extend(self.embedded_to_changes(spec.embedded(), requester_ident));
+            changes.extend(self.components_to_changes(spec.components().as_ref(), requester_ident));
+            changes.extend(
+                self.embedded_to_changes(&spec.embedded(self.components.clone()), requester_ident),
+            );
             changes.push(Self::options_to_change(spec));
 
             changes
@@ -318,7 +315,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
 
     fn components_to_changes(
         &self,
-        components: &ComponentSpecList,
+        components: &ComponentSpecList<Spec>,
         requester: &BuildIdent,
     ) -> Vec<Change> {
         let mut changes = vec![];
@@ -333,7 +330,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 continue;
             }
             changes.extend(self.requirements_to_changes(&component.requirements, &requested_by));
-            changes.extend(self.embedded_to_changes(&component.embedded, requester));
+            changes.extend(self.embedded_to_changes(component.embedded.as_slice(), requester));
         }
         changes
     }
@@ -384,13 +381,12 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         changes
     }
 
-    fn embedded_to_changes(
-        &self,
-        embedded: &EmbeddedPackagesList,
-        parent: &BuildIdent,
-    ) -> Vec<Change> {
+    fn embedded_to_changes<'a, I>(&self, embedded: I, parent: &BuildIdent) -> Vec<Change>
+    where
+        I: IntoIterator<Item = &'a Spec>,
+    {
         embedded
-            .iter()
+            .into_iter()
             .flat_map(|embedded| {
                 [
                     Change::RequestPackage(RequestPackage::new(PkgRequest::from_ident(

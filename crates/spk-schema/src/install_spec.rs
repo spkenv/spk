@@ -4,10 +4,10 @@
 use serde::{Deserialize, Serialize};
 use spk_schema_ident::BuildIdent;
 
-use super::{ComponentSpecList, EmbeddedPackagesList, EnvOp, RequirementsList};
+use super::v0::EmbeddedPackage;
 use crate::foundation::option_map::OptionMap;
 use crate::ident::Request;
-use crate::Result;
+use crate::{ComponentSpecList, EnvOp, RequirementsList, Result};
 
 #[cfg(test)]
 #[path = "./install_spec_test.rs"]
@@ -19,9 +19,9 @@ pub struct InstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requirements: RequirementsList,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub embedded: EmbeddedPackagesList,
+    pub embedded: Vec<EmbeddedPackage>,
     #[serde(default)]
-    pub components: ComponentSpecList,
+    pub components: ComponentSpecList<EmbeddedPackage>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub environment: Vec<EnvOp>,
 }
