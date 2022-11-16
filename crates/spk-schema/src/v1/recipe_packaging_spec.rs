@@ -13,7 +13,7 @@ pub struct RecipePackagingSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub environment: Vec<EnvOp>,
     #[serde(default)]
-    pub components: ComponentSpecList,
+    pub components: ComponentSpecList<super::Package>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub test: Vec<TestScript>,
 }

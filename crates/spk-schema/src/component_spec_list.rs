@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 
 use super::ComponentSpec;
 use crate::foundation::ident_component::Component;
-use crate::ComponentFileMatchMode;
+use crate::{ComponentFileMatchMode, Package};
 
 #[cfg(test)]
 #[path = "./component_spec_list_test.rs"]
@@ -16,18 +17,43 @@ mod component_spec_list_test;
 /// A set of packages that are embedded/provided by another.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
-pub struct ComponentSpecList(Vec<ComponentSpec>);
+pub struct ComponentSpecList<EmbeddedStub>(Vec<ComponentSpec<EmbeddedStub>>);
 
-impl ComponentSpecList {
-    pub fn is_default(&self) -> bool {
+impl<EmbeddedStub> ComponentSpecList<EmbeddedStub> {
+    pub fn is_default(&self) -> bool
+    where EmbeddedStub: PartialEq{
         self == &Self::default()
     }
-}
 
-impl ComponentSpecList {
+    /// Convert the embedded stub type stored in these component specs
+    pub fn map_embedded_stubs<F, T>(self, convert: F) -> ComponentSpecList<T>
+    where
+        T: Package,
+        F: Fn(EmbeddedStub) -> T,
+    {
+        ComponentSpecList(
+            self.0
+                .into_iter()
+                .map(|component_spec| ComponentSpec::<T> {
+                    name: component_spec.name,
+                    files: component_spec.files,
+                    uses: component_spec.uses,
+                    requirements: component_spec.requirements,
+                    embedded: component_spec.embedded.into_iter().map(&convert).collect(),
+                    file_match_mode: component_spec.file_match_mode,
+                })
+                .collect(),
+        )
+    }
+
     /// Collect the names of all components in this list
     pub fn names(&self) -> HashSet<&Component> {
         self.iter().map(|i| &i.name).collect()
+    }
+
+    /// Collect a copy of the names of all components in this list
+    pub fn names_owned(&self) -> HashSet<Component> {
+        self.iter().map(|i| &i.name).cloned().collect()
     }
 
     /// Given a set of requested components, resolve the complete list of
@@ -61,7 +87,7 @@ impl ComponentSpecList {
     }
 }
 
-impl Default for ComponentSpecList {
+impl<EmbeddedStub> Default for ComponentSpecList<EmbeddedStub> {
     fn default() -> Self {
         Self(vec![
             ComponentSpec::default_build(),
@@ -70,28 +96,34 @@ impl Default for ComponentSpecList {
     }
 }
 
-impl std::ops::Deref for ComponentSpecList {
-    type Target = Vec<ComponentSpec>;
+impl<EmbeddedStub> std::ops::Deref for ComponentSpecList<EmbeddedStub> {
+    type Target = Vec<ComponentSpec<EmbeddedStub>>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl std::ops::DerefMut for ComponentSpecList {
+impl<EmbeddedStub> std::ops::DerefMut for ComponentSpecList<EmbeddedStub> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl<'de> Deserialize<'de> for ComponentSpecList {
+impl<'de, EmbeddedStub> Deserialize<'de> for ComponentSpecList<EmbeddedStub>
+where
+    EmbeddedStub: serde::de::DeserializeOwned,
+{
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        struct ComponentSpecListVisitor;
+        struct ComponentSpecListVisitor<EmbeddedStub>(PhantomData<dyn Fn() -> EmbeddedStub>);
 
-        impl<'de> serde::de::Visitor<'de> for ComponentSpecListVisitor {
-            type Value = ComponentSpecList;
+        impl<'de, EmbeddedStub> serde::de::Visitor<'de> for ComponentSpecListVisitor<EmbeddedStub>
+        where
+            EmbeddedStub: serde::de::DeserializeOwned,
+        {
+            type Value = ComponentSpecList<EmbeddedStub>;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("a list of component definitions")
@@ -111,7 +143,7 @@ impl<'de> Deserialize<'de> for ComponentSpecList {
                 let size_hint = seq.size_hint().unwrap_or(0);
                 let mut seen = std::collections::HashSet::with_capacity(size_hint);
                 let mut components = Vec::with_capacity(size_hint);
-                while let Some(component) = seq.next_element::<ComponentSpec>()? {
+                while let Some(component) = seq.next_element::<ComponentSpec<EmbeddedStub>>()? {
                     if !seen.insert(component.name.clone()) {
                         return Err(serde::de::Error::custom(format!(
                             "found multiple components with the name '{}'",
@@ -168,6 +200,6 @@ impl<'de> Deserialize<'de> for ComponentSpecList {
             }
         }
 
-        deserializer.deserialize_seq(ComponentSpecListVisitor)
+        deserializer.deserialize_seq(ComponentSpecListVisitor::<EmbeddedStub>(PhantomData))
     }
 }

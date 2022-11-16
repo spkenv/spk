@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
@@ -420,7 +421,7 @@ impl Versioned for Spec {
 
 // enum_dispatch does not support associated types.
 impl Package for Spec {
-    type Package = Self;
+    type EmbeddedStub = Self;
 
     fn ident(&self) -> &BuildIdent {
         match self {
@@ -450,30 +451,36 @@ impl Package for Spec {
         }
     }
 
-    fn embedded(&self) -> &super::v0::EmbeddedPackagesList {
-        match self {
-            Spec::V0Package(spec) => spec.embedded(),
-            Spec::V1Package(spec) => spec.embedded(),
-        }
-    }
-
-    fn embedded_as_packages(
+    fn embedded<'a>(
         &self,
-    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Vec<Self::EmbeddedStub> {
         match self {
             Spec::V0Package(spec) => spec
-                .embedded_as_packages()
-                .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
+                .embedded(components)
+                .into_iter()
+                .map(Self::V0Package)
+                .collect(),
             Spec::V1Package(spec) => spec
-                .embedded_as_packages()
-                .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
+                .embedded(components)
+                .into_iter()
+                .map(Self::V1Package)
+                .collect(),
         }
     }
 
-    fn components(&self) -> &super::ComponentSpecList {
+    fn components(&self) -> Cow<'_, super::ComponentSpecList<Self::EmbeddedStub>> {
         match self {
-            Spec::V0Package(spec) => spec.components(),
-            Spec::V1Package(spec) => spec.components(),
+            Spec::V0Package(spec) => Cow::Owned(
+                spec.components()
+                    .into_owned()
+                    .map_embedded_stubs(Self::V0Package),
+            ),
+            Spec::V1Package(spec) => Cow::Owned(
+                spec.components()
+                    .into_owned()
+                    .map_embedded_stubs(Self::V1Package),
+            ),
         }
     }
 

@@ -597,7 +597,7 @@ where
     let repo = Arc::new(config.get_local_repository_handle().await?);
     let layer = spfs::commit_layer(runtime, Arc::clone(&repo)).await?;
     let manifest = repo.read_manifest(layer.manifest).await?.unlock();
-    let manifests = split_manifest_by_component(package.ident(), &manifest, package.components())?;
+    let manifests = split_manifest_by_component(package.ident(), &manifest, &package.components())?;
     let mut committed = HashMap::with_capacity(manifests.len());
     for (component, manifest) in manifests {
         let manifest = spfs::graph::Manifest::from(&manifest);
@@ -615,11 +615,14 @@ where
     Ok(committed)
 }
 
-fn split_manifest_by_component(
+fn split_manifest_by_component<E>(
     pkg: &BuildIdent,
     manifest: &spfs::tracking::Manifest,
-    components: &ComponentSpecList,
-) -> Result<HashMap<Component, spfs::tracking::Manifest>> {
+    components: &ComponentSpecList<E>,
+) -> Result<HashMap<Component, spfs::tracking::Manifest>>
+where
+    E: Package,
+{
     let mut seen = HashSet::new();
     let mut manifests = HashMap::with_capacity(components.len());
     for component in components.iter() {

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
 use spk_schema_ident::BuildIdent;
 
@@ -13,9 +15,8 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{is_false, PkgRequest, Satisfy, VarRequest};
 use crate::meta::Meta;
-use crate::v0::{EmbeddedPackagesList, Opt};
+use crate::v0::Opt;
 use crate::{
-    ComponentSpecList,
     Deprecate,
     DeprecateMut,
     EnvOp,
@@ -96,7 +97,7 @@ impl DeprecateMut for Package {
 }
 
 impl crate::Package for Package {
-    type Package = Self;
+    type EmbeddedStub = Self;
 
     fn ident(&self) -> &BuildIdent {
         &self.pkg
@@ -114,17 +115,14 @@ impl crate::Package for Package {
         todo!()
     }
 
-    fn embedded(&self) -> &EmbeddedPackagesList {
-        todo!()
-    }
-
-    fn embedded_as_packages(
+    fn embedded<'a>(
         &self,
-    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
+        _components: impl IntoIterator<Item = &'a Component>,
+    ) -> Vec<Self::EmbeddedStub> {
         todo!()
     }
 
-    fn components(&self) -> &ComponentSpecList {
+    fn components(&self) -> Cow<'_, crate::ComponentSpecList<Self::EmbeddedStub>> {
         todo!()
     }
 
