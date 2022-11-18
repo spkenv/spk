@@ -378,10 +378,10 @@ impl ValidatorT for ComponentsValidator {
             // Allow embedded stubs to validate.
             return Ok(Compatible);
         }
-        let available_components: std::collections::HashSet<_> = match source {
-            PackageSource::Repository { components, .. } => components.keys().cloned().collect(),
+        let available_components = match source {
             PackageSource::BuildFromSource { .. } => spec.components().names_owned(),
             PackageSource::Embedded => spec.components().names_owned(),
+            PackageSource::Repository { components, .. } => components.keys().cloned().collect(),
         };
         let request = state.get_merged_request(spec.name())?;
         let required_components = spec

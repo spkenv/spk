@@ -52,7 +52,7 @@ impl<EmbeddedStub> ComponentSpecList<EmbeddedStub> {
     }
 
     /// Collect a copy of the names of all components in this list
-    pub fn names_owned(&self) -> HashSet<Component> {
+    pub fn names_owned(&self) -> BTreeSet<Component> {
         self.iter().map(|i| &i.name).cloned().collect()
     }
 

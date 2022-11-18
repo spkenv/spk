@@ -4,9 +4,13 @@
 
 use std::borrow::Cow;
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use spk_schema_ident::BuildIdent;
+use spk_schema_foundation::version::CompatRule;
+use spk_schema_foundation::version_range::Ranged;
+use spk_schema_ident::{BuildIdent, PreReleasePolicy};
 
+use super::PackagePackagingSpec;
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
 use crate::foundation::name::PkgName;
@@ -39,6 +43,8 @@ pub struct Package {
     pub compat: Compat,
     #[serde(default, skip_serializing_if = "is_false")]
     pub deprecated: bool,
+    #[serde(default)]
+    pub package: PackagePackagingSpec,
 }
 
 impl Package {
@@ -49,6 +55,7 @@ impl Package {
             meta: Meta::default(),
             compat: Compat::default(),
             deprecated: bool::default(),
+            package: Default::default(),
         }
     }
 }
@@ -118,7 +125,7 @@ impl crate::Package for Package {
     }
 
     fn components(&self) -> Cow<'_, crate::ComponentSpecList<Self::EmbeddedStub>> {
-        todo!()
+        Cow::Borrowed(&self.package.components)
     }
 
     fn runtime_environment(&self) -> &Vec<EnvOp> {
@@ -132,14 +139,14 @@ impl crate::Package for Package {
     fn downstream_build_requirements<'a>(
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList > {
+    ) -> Cow<'_, RequirementsList> {
         todo!()
     }
 
     fn downstream_runtime_requirements<'a>(
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList > {
+    ) -> Cow<'_, RequirementsList> {
         todo!()
     }
 
@@ -163,8 +170,73 @@ impl PackageMut for Package {
 }
 
 impl Satisfy<PkgRequest> for Package {
-    fn check_satisfies_request(&self, _pkg_request: &PkgRequest) -> Compatibility {
-        todo!()
+    fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
+        if pkg_request.pkg.name != *self.pkg.name() {
+            return Compatibility::Incompatible(format!(
+                "different package name: {} != {}",
+                pkg_request.pkg.name,
+                self.pkg.name()
+            ));
+        }
+
+        if self.is_deprecated() {
+            if pkg_request.pkg.build.as_ref() != Some(self.pkg.build()) {
+                return Compatibility::Incompatible(
+                    "Build is deprecated and was not specifically requested".to_string(),
+                );
+            }
+        }
+
+        if pkg_request.prerelease_policy == PreReleasePolicy::ExcludeAll
+            && !self.version().pre.is_empty()
+        {
+            return Compatibility::Incompatible("prereleases not allowed".to_string());
+        }
+
+        let source_package_requested = pkg_request.pkg.build == Some(Build::Source);
+        let is_source_build = self.pkg.is_source() && !source_package_requested;
+        if !pkg_request.pkg.components.is_empty() && !is_source_build {
+            let required_components = self
+                .package
+                .components
+                .resolve_uses(pkg_request.pkg.components.iter());
+            let available_components = self.package.components.names_owned();
+            let missing_components = required_components
+                .difference(&available_components)
+                .map(ToString::to_string)
+                .collect_vec();
+            if !missing_components.is_empty() {
+                return Compatibility::Incompatible(format!(
+                    "does not define requested components: [{}], found [{}]",
+                    missing_components.join(", "),
+                    available_components
+                        .iter()
+                        .map(Component::to_string)
+                        .sorted()
+                        .join(", ")
+                ));
+            }
+        }
+
+        let c = pkg_request
+            .pkg
+            .version
+            .is_satisfied_by(self, CompatRule::Binary);
+        if !c.is_ok() {
+            return c;
+        }
+
+        if pkg_request.pkg.build.is_none()
+            || pkg_request.pkg.build.as_ref() == Some(self.pkg.build())
+        {
+            return Compatibility::Compatible;
+        }
+
+        Compatibility::Incompatible(format!(
+            "Package and request differ in builds: requested {:?}, got {:?}",
+            pkg_request.pkg.build,
+            self.pkg.build()
+        ))
     }
 }
 

@@ -3,9 +3,21 @@
 // https://github.com/imageworks/spk
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::option_map::Stringified;
-use spk_schema_ident::{NameAndValue, RangeIdent, VarRequest};
+use spk_schema_foundation::option_map::{OptionMap, Stringified};
+use spk_schema_foundation::version::Compatibility;
+use spk_schema_ident::{NameAndValue, PkgRequest, Satisfy, VarRequest};
 
+use crate::prelude::*;
+
+#[cfg(test)]
+#[path = "./when_test.rs"]
+mod when_test;
+
+/// Defines when some portion of a recipe should be used.
+///
+/// The set of conditions in a when block are considered as
+/// an 'all' group, meaning that they must all be true in
+/// order for the full block to be satisfied.
 #[derive(Clone, Default, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum WhenBlock {
     #[default]
@@ -16,8 +28,44 @@ pub enum WhenBlock {
 }
 
 impl WhenBlock {
+    /// Create a when block that only activates
+    /// when it is also requested by some other source
+    pub fn when_requested() -> Self {
+        Self::Sometimes {
+            conditions: Vec::new(),
+        }
+    }
+
+    /// True if this is the [`Self::Always`] variant.
     pub fn is_always(&self) -> bool {
         matches!(self, Self::Always)
+    }
+
+    /// Determine if this when block is satisfied by the
+    /// given build environment contents. If not satisfied,
+    /// the returned compatibility should denote a reason
+    /// for the miss.
+    pub fn check_is_active<'a, I, P>(
+        &self,
+        build_options: &OptionMap,
+        build_env: I,
+    ) -> Compatibility
+    where
+        I: IntoIterator<Item = P>,
+        P: Satisfy<PkgRequest> + Named,
+    {
+        let conditions = match self {
+            Self::Always => return Compatibility::Compatible,
+            Self::Sometimes { conditions } => conditions,
+        };
+        let build_env = Vec::from_iter(build_env);
+        for condition in conditions {
+            let compat = condition.check_is_satisfied(build_options, &build_env);
+            if !compat.is_ok() {
+                return compat;
+            }
+        }
+        Compatibility::Compatible
     }
 }
 
@@ -96,8 +144,47 @@ impl serde::Serialize for WhenBlock {
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize)]
 #[serde(untagged)]
 pub enum WhenCondition {
-    Pkg { pkg: RangeIdent },
+    Pkg(PkgRequest),
     Var(VarRequest),
+}
+
+impl WhenCondition {
+    /// Determine if this condition is satisfied by the
+    /// given build environment contents. If not satisfied,
+    /// the returned compatibility should denote a reason
+    /// for the miss.
+    pub fn check_is_satisfied<'a, I, P>(
+        &self,
+        build_options: &OptionMap,
+        build_env: I,
+    ) -> Compatibility
+    where
+        I: IntoIterator<Item = P>,
+        P: Satisfy<PkgRequest> + Named,
+    {
+        match self {
+            Self::Pkg(req) => {
+                let Some(resolved) = build_env.into_iter().find(|p| p.name() == req.pkg.name()) else {
+                    return Compatibility::incompatible(format!("pkg: {} is not present in the build environment", req.pkg.name()));
+                };
+                resolved.check_satisfies_request(req)
+            }
+            Self::Var(req) => {
+                let value = build_options
+                    .get(&req.var)
+                    .or_else(|| build_options.get(req.var.without_namespace()));
+                let Some(value) = value else {
+                    return Compatibility::incompatible(format!("var: {} is not present in the build environment", req.var));
+                };
+                if value != &req.value {
+                    return Compatibility::incompatible(format!(
+                        "needed {req}, but the value was {value}"
+                    ));
+                }
+                Compatibility::Compatible
+            }
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for WhenCondition {
@@ -125,9 +212,10 @@ impl<'de> serde::de::Visitor<'de> for WhenConditionVisitor {
         let mut result = None;
         while let Some(key) = map.next_key::<Stringified>()? {
             let previous = match key.as_str() {
-                "pkg" => result.replace(WhenCondition::Pkg {
-                    pkg: map.next_value()?,
-                }),
+                "pkg" => result.replace(WhenCondition::Pkg(PkgRequest::new(
+                    map.next_value()?,
+                    spk_schema_ident::RequestedBy::DoesNotMatter,
+                ))),
                 "var" => {
                     let NameAndValue(var, value) = map.next_value()?;
                     result.replace(WhenCondition::Var(VarRequest {
