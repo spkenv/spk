@@ -575,6 +575,7 @@ impl PkgOpt {
 }
 
 #[derive(Serialize, Deserialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
 struct PkgOptSchema {
     pkg: String,
     #[serde(

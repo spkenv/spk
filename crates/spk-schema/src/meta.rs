@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 mod meta_test;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct Meta {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,

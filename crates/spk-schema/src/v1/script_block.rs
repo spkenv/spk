@@ -47,6 +47,7 @@ impl<'de> serde::de::Deserialize<'de> for ScriptBlock {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
 #[serde(untagged)]
 pub enum ScriptBlockEntry {
     Simple(String),

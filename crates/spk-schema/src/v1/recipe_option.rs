@@ -244,6 +244,7 @@ impl serde::Serialize for VarPropagation {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
 #[serde(rename_all = "camelCase")]
 pub struct PkgOption {
     pub pkg: RangeIdent,

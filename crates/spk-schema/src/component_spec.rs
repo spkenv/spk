@@ -26,6 +26,7 @@ pub enum ComponentFileMatchMode {
 
 /// Defines a named package component.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct ComponentSpec<EmbeddedStub> {
     pub name: Component,
     #[serde(default)]

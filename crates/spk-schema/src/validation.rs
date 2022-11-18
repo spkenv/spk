@@ -64,6 +64,7 @@ pub fn default_validators() -> Vec<Validator> {
 /// should be validated. The default spec contains all
 /// recommended validators
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct ValidationSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub disabled: Vec<Validator>,

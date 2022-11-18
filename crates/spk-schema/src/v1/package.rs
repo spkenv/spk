@@ -35,6 +35,7 @@ use crate::{
 mod package_test;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct Package {
     pub pkg: BuildIdent,
     #[serde(default, skip_serializing_if = "Meta::is_default")]

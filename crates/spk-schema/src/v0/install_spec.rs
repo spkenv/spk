@@ -15,6 +15,7 @@ mod install_spec_test;
 
 /// A set of structured installation parameters for a package.
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct InstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requirements: RequirementsList,

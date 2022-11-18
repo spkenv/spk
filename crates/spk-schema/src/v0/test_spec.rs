@@ -11,6 +11,7 @@ use crate::TestStage;
 
 /// A set of structured inputs used to build a package.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct TestSpec {
     pub stage: TestStage,
     pub script: Script,
