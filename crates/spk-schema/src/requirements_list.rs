@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::version::Compatibility;
 use spk_schema_ident::BuildIdent;
 
 use crate::foundation::option_map::OptionMap;
@@ -47,6 +48,25 @@ impl RequirementsList {
             }
         }
         self.push(request);
+    }
+
+    /// Reports whether the provided request would be satisfied by
+    /// this list of requests. The provided request does not need to
+    /// exist in this list exactly, so long as there is a request in this
+    /// list that is at least as restrictive
+    pub fn contains_request(&self, theirs: &Request) -> Compatibility {
+        for ours in self.iter() {
+            match (ours, theirs) {
+                (Request::Pkg(ours), Request::Pkg(theirs)) => {
+                    return ours.contains(theirs);
+                }
+                (Request::Var(ours), Request::Var(theirs)) => {
+                    return ours.contains(theirs);
+                }
+                _ => continue,
+            }
+        }
+        Compatibility::incompatible("No request exists for this")
     }
 
     /// Render all requests with a package pin using the given resolved packages.
@@ -103,11 +123,29 @@ impl RequirementsList {
     }
 }
 
-impl std::iter::IntoIterator for RequirementsList {
-    type IntoIter = std::vec::IntoIter<Request>;
-    type Item = Request;
+impl<A> Extend<A> for RequirementsList
+where
+    Vec<Request>: Extend<A>,
+{
+    fn extend<T: IntoIterator<Item = A>>(&mut self, iter: T) {
+        self.0.extend(iter)
+    }
+}
 
-    fn into_iter(self) -> std::vec::IntoIter<Request> {
+impl<A> FromIterator<A> for RequirementsList
+where
+    Vec<Request>: FromIterator<A>,
+{
+    fn from_iter<I: IntoIterator<Item = A>>(iter: I) -> Self {
+        Self(Vec::from_iter(iter))
+    }
+}
+
+impl IntoIterator for RequirementsList {
+    type Item = Request;
+    type IntoIter = std::vec::IntoIter<Request>;
+
+    fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }

@@ -129,8 +129,8 @@ impl std::ops::Not for &'_ Compatibility {
 
     fn not(self) -> Self::Output {
         match self {
-            super::Compatibility::Compatible => false,
-            super::Compatibility::Incompatible(_) => true,
+            Compatibility::Compatible => false,
+            Compatibility::Incompatible(_) => true,
         }
     }
 }
@@ -142,6 +142,8 @@ impl Compatibility {
         ))
     }
 
+    /// Creates a compatibility instance denoting incompatibility
+    /// for the provided reason
     pub fn incompatible(message: impl ToString) -> Self {
         Compatibility::Incompatible(IncompatibleReason::Other(message.to_string()))
     }

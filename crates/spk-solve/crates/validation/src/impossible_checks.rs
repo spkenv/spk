@@ -14,7 +14,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, RangeIdent, Request};
 use spk_schema::spec_ops::Versioned;
-use spk_schema::{AnyIdent, BuildIdent, Package, RequirementsList, Spec};
+use spk_schema::{AnyIdent, BuildIdent, Package, Spec};
 use spk_solve_graph::{GetMergedRequestError, GetMergedRequestResult};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
@@ -265,7 +265,7 @@ impl ImpossibleRequestsChecker {
         unresolved_requests: &HashMap<PkgNameBuf, PkgRequest>,
         repos: &[Arc<RepositoryHandle>],
     ) -> Result<Compatibility> {
-        let requirements: &RequirementsList = package.runtime_requirements();
+        let requirements = package.runtime_requirements();
         if requirements.is_empty() {
             return Ok(Compatibility::Compatible);
         }

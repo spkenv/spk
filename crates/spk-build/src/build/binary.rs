@@ -25,12 +25,14 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy, VersionIdent};
+use spk_schema::version::Compatibility;
 use spk_schema::{
     BuildIdent,
     ComponentFileMatchMode,
     ComponentSpecList,
     Package,
     PackageMut,
+    RequirementsList,
     Variant,
     VariantExt,
 };
@@ -266,7 +268,7 @@ where
         };
 
         tracing::debug!("Resolving build environment");
-        let solution = self
+        let (build_requirements, solution) = self
             .resolve_build_environment(&all_options, &variant)
             .await?;
         self.environment
@@ -362,6 +364,7 @@ where
         let package = self
             .recipe
             .generate_binary_build(&full_variant, &solution)?;
+        self.validate_generated_package(&build_requirements, &solution, &package)?;
         let components = self
             .build_and_commit_artifacts(&package, full_variant.options())
             .await?;
@@ -430,7 +433,7 @@ where
         &mut self,
         options: &OptionMap,
         variant: &V,
-    ) -> Result<Solution>
+    ) -> Result<(RequirementsList, Solution)>
     where
         V: Variant,
     {
@@ -441,13 +444,56 @@ where
             self.solver.add_repository(repo);
         }
 
-        for request in self.recipe.get_build_requirements(variant)? {
-            self.solver.add_request(request);
+        let build_requirements = self.recipe.get_build_requirements(variant)?.into_owned();
+        for request in build_requirements.iter() {
+            self.solver.add_request(request.clone());
         }
 
         let (solution, graph) = self.build_resolver.solve(&self.solver).await?;
         self.last_solve_graph = graph;
-        Ok(solution)
+        Ok((build_requirements, solution))
+    }
+
+    fn validate_generated_package(
+        &self,
+        build_requirements: &RequirementsList,
+        solution: &Solution,
+        package: &Recipe::Output,
+    ) -> Result<()> {
+        let runtime_requirements = package.runtime_requirements();
+        let solved_packages = solution.items().map(|r| Arc::clone(&r.spec));
+        let all_components = package.components();
+        for spec in solved_packages {
+            for component in all_components.names() {
+                let downstream_build = spec.downstream_build_requirements([component]);
+                for request in downstream_build.iter() {
+                    match build_requirements.contains_request(request) {
+                        Compatibility::Compatible => continue,
+                        Compatibility::Incompatible(reason) => {
+                            return Err(Error::MissingDownstreamBuildRequest {
+                                required_by: spec.ident().to_owned(),
+                                request: request.clone(),
+                                problem: reason.to_string(),
+                            })
+                        }
+                    }
+                }
+                let downstream_runtime = spec.downstream_build_requirements([component]);
+                for request in downstream_runtime.iter() {
+                    match runtime_requirements.contains_request(request) {
+                        Compatibility::Compatible => continue,
+                        Compatibility::Incompatible(reason) => {
+                            return Err(Error::MissingDownstreamRuntimeRequest {
+                                required_by: spec.ident().to_owned(),
+                                request: request.clone(),
+                                problem: reason.to_string(),
+                            })
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Helper for constructing more useful error messages from schema validator errors

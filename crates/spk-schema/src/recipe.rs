@@ -9,8 +9,7 @@ use spk_schema_ident::VersionIdent;
 
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
-use crate::ident::Request;
-use crate::{Package, Result, TestStage, Variant};
+use crate::{Package, RequirementsList, Result, TestStage, Variant};
 
 /// Return the resolved packages from a solution.
 pub trait BuildEnv {
@@ -49,7 +48,7 @@ pub trait Recipe:
     ///
     /// This should also validate and include the items specified
     /// by [`Variant::additional_requirements`].
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
     where
         V: Variant;
 
@@ -92,7 +91,7 @@ where
         (**self).resolve_options(variant)
     }
 
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
     where
         V: Variant,
     {
@@ -143,7 +142,7 @@ where
         (**self).resolve_options(variant)
     }
 
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
     where
         V: Variant,
     {
