@@ -13,9 +13,9 @@ use crate::foundation::name::PkgName;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{is_false, PkgRequest,  Satisfy, VarRequest};
+use crate::ident::{is_false, PkgRequest, Satisfy, VarRequest};
 use crate::meta::Meta;
-use crate::{BuildEnv, Deprecate, DeprecateMut, Package, Result, TestStage, RequirementsList};
+use crate::{BuildEnv, Deprecate, DeprecateMut, Package, RequirementsList, Result, TestStage};
 
 #[cfg(test)]
 #[path = "./recipe_test.rs"]

@@ -196,6 +196,17 @@ impl<'de> Deserialize<'de> for WhenCondition {
     }
 }
 
+/// Some portion of a recipe that may be conditional on
+/// a when block
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Deserialize, Serialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
+pub struct Conditional<T> {
+    #[serde(flatten)]
+    inner: T,
+    #[serde(default, skip_serializing_if = "WhenBlock::is_always")]
+    when: WhenBlock,
+}
+
 struct WhenConditionVisitor;
 
 impl<'de> serde::de::Visitor<'de> for WhenConditionVisitor {

@@ -57,7 +57,7 @@ impl RequirementsList {
     pub fn contains_request(&self, theirs: &Request) -> Compatibility {
         for ours in self.iter() {
             match (ours, theirs) {
-                (Request::Pkg(ours), Request::Pkg(theirs))  => {
+                (Request::Pkg(ours), Request::Pkg(theirs)) => {
                     return ours.contains(theirs);
                 }
                 (Request::Var(ours), Request::Var(theirs)) => {
@@ -136,7 +136,7 @@ impl<A> FromIterator<A> for RequirementsList
 where
     Vec<Request>: FromIterator<A>,
 {
-    fn from_iter<I: IntoIterator<Item=A>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = A>>(iter: I) -> Self {
         Self(Vec::from_iter(iter))
     }
 }

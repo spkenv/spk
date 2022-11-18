@@ -276,13 +276,7 @@ impl Package for Spec<BuildIdent> {
                 Opt::Pkg(_) => None,
             })
             .filter(|o| o.inheritance == Inheritance::Strong)
-            .map(|o| {
-                if o.var.namespace().is_none() {
-                    VarRequest::new(o.var.with_namespace(self.name()))
-                } else {
-                    VarRequest::new(o.var.with_namespace(self.name()))
-                }
-            })
+            .map(|o| VarRequest::new(o.var.with_default_namespace(self.name())))
             .map(Request::Var)
             .collect();
         Cow::Owned(requests)
@@ -480,8 +474,8 @@ impl Recipe for Spec<VersionIdent> {
 
         updated
             .install
-            .render_all_pins(options, specs.iter().map(|(_, p)| p.ident()))?;
-        let digest = updated.resolve_options(options)?.digest();
+            .render_all_pins(&options, specs.iter().map(|(_, p)| p.ident()))?;
+        let digest = updated.resolve_options(&options)?.digest();
         Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
     }
 }

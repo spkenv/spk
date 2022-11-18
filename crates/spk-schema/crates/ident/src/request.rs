@@ -135,7 +135,7 @@ impl std::fmt::Display for Request {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Pkg(r) => r.fmt(f),
-            Self::Var(r) => r.fmt(f)
+            Self::Var(r) => r.fmt(f),
         }
     }
 }
@@ -276,6 +276,7 @@ pub struct VarRequest {
 }
 
 #[derive(Serialize, Deserialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
 struct VarRequestSchema {
     var: String,
     #[serde(rename = "fromBuildEnv", default, skip_serializing_if = "is_false")]
@@ -331,19 +332,30 @@ impl VarRequest {
     /// if satisfying this request would undoubtedly satisfy the other.
     pub fn contains(&self, other: &Self) -> Compatibility {
         if self.var.base_name() != other.var.base_name() {
-            return Compatibility::incompatible(format!("request is for a different var altogether [{} != {}]", self.var, other.var));
+            return Compatibility::incompatible(format!(
+                "request is for a different var altogether [{} != {}]",
+                self.var, other.var
+            ));
         }
         let ns = self.var.namespace();
         if ns.is_some() && ns != other.var.namespace() {
-            return Compatibility::incompatible(format!("request specifies a different namespace [{} != {}]", self.var, other.var));
+            return Compatibility::incompatible(format!(
+                "request specifies a different namespace [{} != {}]",
+                self.var, other.var
+            ));
         }
         if self.pin || other.pin {
             // we cannot consider an unpinned request to contain any
             // other because the ultimate value of this request is unknown
-            return Compatibility::incompatible(format!("unpinned (fromBuildEnv) requests cannot be reasonably compared"));
+            return Compatibility::incompatible(
+                "unpinned (fromBuildEnv) requests cannot be reasonably compared".to_string(),
+            );
         }
         if !other.value.is_empty() && self.value != other.value {
-            return Compatibility::incompatible(format!("requests require different values [{:?} != {:?}]", self.value, other.value));
+            return Compatibility::incompatible(format!(
+                "requests require different values [{:?} != {:?}]",
+                self.value, other.value
+            ));
         }
         Compatibility::Compatible
     }
@@ -353,7 +365,7 @@ impl std::fmt::Display for VarRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // destructure to ensure that new fields are incorporated into this
         // function if they are added in the future
-        let Self {var, value, pin} = self;
+        let Self { var, value, pin } = self;
         f.write_str("var: ")?;
         var.fmt(f)?;
         if !value.is_empty() {
@@ -668,10 +680,16 @@ impl PkgRequest {
             return compat;
         }
         if self.prerelease_policy > other.prerelease_policy {
-            return Compatibility::incompatible(format!("prerelease policy {} is more inclusive than {}", self.prerelease_policy, other.prerelease_policy));
+            return Compatibility::incompatible(format!(
+                "prerelease policy {} is more inclusive than {}",
+                self.prerelease_policy, other.prerelease_policy
+            ));
         }
         if self.inclusion_policy > other.inclusion_policy {
-            return Compatibility::incompatible(format!("inclusion policy {} is more inclusive than {}", self.inclusion_policy, other.inclusion_policy));
+            return Compatibility::incompatible(format!(
+                "inclusion policy {} is more inclusive than {}",
+                self.inclusion_policy, other.inclusion_policy
+            ));
         }
         Compatibility::Compatible
     }

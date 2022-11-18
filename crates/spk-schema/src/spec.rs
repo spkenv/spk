@@ -30,11 +30,12 @@ use crate::{
     Package,
     PackageMut,
     Recipe,
+    RequirementsList,
     Result,
     Template,
     TemplateExt,
     Test,
-    TestStage, RequirementsList,
+    TestStage,
 };
 
 /// Create a spec recipe from a json structure.
@@ -484,7 +485,7 @@ impl Package for Spec {
         }
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList > {
+    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList> {
         match self {
             Spec::V0Package(spec) => spec.runtime_requirements(),
             Spec::V1Package(spec) => spec.runtime_requirements(),

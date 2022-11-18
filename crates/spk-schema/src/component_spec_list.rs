@@ -21,7 +21,9 @@ pub struct ComponentSpecList<EmbeddedStub>(Vec<ComponentSpec<EmbeddedStub>>);
 
 impl<EmbeddedStub> ComponentSpecList<EmbeddedStub> {
     pub fn is_default(&self) -> bool
-    where EmbeddedStub: PartialEq{
+    where
+        EmbeddedStub: PartialEq,
+    {
         self == &Self::default()
     }
 

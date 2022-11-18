@@ -23,22 +23,22 @@ pub enum Error {
     #[error(transparent)]
     ProcessSpawnError(spfs::Error),
     #[error("Package must include a build requirement for {request}, because it's being built against {required_by}, but {problem}")]
-    MissingDownstreamBuildRequest{
+    MissingDownstreamBuildRequest {
         /// The package that was in the build environment and created the need for this request
         required_by: BuildIdent,
         /// The minimum request that is required downstream
         request: Request,
         /// Additional reasoning why an existing request was not sufficient
-        problem: String
+        problem: String,
     },
     #[error("Package must include a runtime requirement for {request}, because it's being built against {required_by}, but {problem}")]
-    MissingDownstreamRuntimeRequest{
+    MissingDownstreamRuntimeRequest {
         /// The package that was in the build environment and created the need for this request
         required_by: BuildIdent,
         /// The minimum request that is required downstream
         request: Request,
         /// Additional reasoning why an existing request was not sufficient
-        problem: String
+        problem: String,
     },
     #[error(transparent)]
     SPFS(#[from] spfs::Error),
