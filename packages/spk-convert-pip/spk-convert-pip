@@ -177,7 +177,7 @@ class PipImporter:
 
         if filepath.name.endswith(".whl"):
             info = pkginfo.Wheel(filepath)
-        elif filepath.name.endswith(".tar.gz"):
+        elif filepath.name.endswith(".tar.gz") or filepath.name.endswith(".zip"):
             info = pkginfo.SDist(filepath)
         else:
             raise NotImplementedError(
