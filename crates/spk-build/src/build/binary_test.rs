@@ -10,14 +10,14 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::{opt_name, option_map};
 use spk_schema::ident::{PkgRequest, RangeIdent, Request};
-use spk_schema::v0::{self, Inheritance, Opt};
-use spk_schema::{recipe, ComponentSpecList, FromYaml, Package, Recipe, SpecRecipe};
+use spk_schema::{recipe, v0, ComponentSpecList, FromYaml, Package, Recipe, SpecRecipe};
 use spk_solve::Solution;
 use spk_storage::fixtures::*;
 use spk_storage::{self as storage, Repository};
 
 use super::{BinaryPackageBuilder, BuildSource};
 use crate::build::SourcePackageBuilder;
+use crate::Error;
 
 #[rstest]
 fn test_split_manifest_permissions() {
@@ -224,7 +224,7 @@ async fn test_build_package_pinning() {
         .unwrap();
 
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-    let req = spec.runtime_requirements().get(0).unwrap();
+    let req = spec.runtime_requirements().first().unwrap().clone();
     match req {
         Request::Pkg(req) => {
             assert_eq!(&req.pkg.to_string(), "dep/~1.0");
@@ -306,12 +306,12 @@ async fn test_build_var_pinning() {
         .unwrap();
 
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-    let top_req = spec.runtime_requirements().get(0).unwrap();
+    let top_req = spec.runtime_requirements().get(0).unwrap().clone();
     match top_req {
         Request::Var(r) => assert_eq!(&r.value, "topvalue"),
         _ => panic!("expected var request"),
     }
-    let depreq = spec.runtime_requirements().get(1).unwrap();
+    let depreq = spec.runtime_requirements().get(1).unwrap().clone();
     match depreq {
         Request::Var(r) => assert_eq!(&r.value, "depvalue"),
         _ => panic!("expected var request"),
@@ -408,7 +408,67 @@ async fn test_build_package_source_cleanup() {
 
 #[rstest]
 #[tokio::test]
-async fn test_build_package_requirement_propagation() {
+async fn test_build_package_downstream_build_requests() {
+    let rt = spfs_runtime().await;
+    let base_spec = recipe!(
+        {
+            "pkg": "base/1.0.0",
+            "sources": [],
+            "build": {
+                "options": [{"var": "inherited/val", "inheritance": "StrongForBuildOnly"}],
+                "script": "echo building...",
+            },
+        }
+    );
+    let top_spec = recipe!(
+        {
+            "pkg": "top/1.0.0",
+            "sources": [],
+            "build": {"options": [{"pkg": "base"}], "script": "echo building..."},
+        }
+    );
+    rt.tmprepo.publish_recipe(&top_spec).await.unwrap();
+    rt.tmprepo.publish_recipe(&base_spec).await.unwrap();
+
+    SourcePackageBuilder::from_recipe(base_spec.clone())
+        .build_and_publish(".", &*rt.tmprepo)
+        .await
+        .unwrap();
+    let (base_pkg, _) = BinaryPackageBuilder::from_recipe(base_spec)
+        .with_repository(rt.tmprepo.clone())
+        .build_and_publish(&*rt.tmprepo)
+        .await
+        .unwrap();
+
+    SourcePackageBuilder::from_recipe(top_spec.clone())
+        .build_and_publish(".", &*rt.tmprepo)
+        .await
+        .unwrap();
+    let result = BinaryPackageBuilder::from_recipe(top_spec)
+        .with_repository(rt.tmprepo.clone())
+        .build_and_publish(&*rt.tmprepo)
+        .await;
+
+    match result {
+        Err(Error::MissingDownstreamBuildRequest {
+            required_by,
+            request,
+            ..
+        }) => {
+            assert_eq!(&required_by, base_pkg.ident());
+            assert!(
+                matches!(&request, Request::Var(v) if v.var.as_str() == "base.inherited" && v.value == "val"),
+                "{request}"
+            );
+        }
+        Err(err) => panic!("Expected Error::MissingDownstreamBuildRequest, got {err:?}"),
+        Ok(_) => panic!("should error when downstream package does not define inherited opt"),
+    }
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_package_downstream_runtime_request() {
     let rt = spfs_runtime().await;
     let base_spec = recipe!(
         {
@@ -424,17 +484,17 @@ async fn test_build_package_requirement_propagation() {
         {
             "pkg": "top/1.0.0",
             "sources": [],
-            "build": {"options": [{"pkg": "base"}], "script": "echo building..."},
+            "build": {"options": [{"pkg": "base"}, {"var": "inherited/val"}], "script": "echo building..."},
         }
     );
-    rt.tmprepo.publish_recipe(&base_spec).await.unwrap();
     rt.tmprepo.publish_recipe(&top_spec).await.unwrap();
+    rt.tmprepo.publish_recipe(&base_spec).await.unwrap();
 
     SourcePackageBuilder::from_recipe(base_spec.clone())
         .build_and_publish(".", &*rt.tmprepo)
         .await
         .unwrap();
-    let _base_pkg = BinaryPackageBuilder::from_recipe(base_spec)
+    let (base_pkg, _) = BinaryPackageBuilder::from_recipe(base_spec)
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&*rt.tmprepo)
         .await
@@ -444,45 +504,25 @@ async fn test_build_package_requirement_propagation() {
         .build_and_publish(".", &*rt.tmprepo)
         .await
         .unwrap();
-    let (top_pkg, _) = BinaryPackageBuilder::from_recipe(top_spec)
+    let result = BinaryPackageBuilder::from_recipe(top_spec)
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&*rt.tmprepo)
-        .await
-        .unwrap();
+        .await;
 
-    assert_eq!(top_pkg.options().len(), 2, "should get option added");
-    let opt = top_pkg.options().get(1).unwrap();
-    match opt {
-        Opt::Var(opt) => {
-            assert_eq!(
-                &*opt.var, "base.inherited",
-                "should be inherited as package option"
-            );
-            assert_eq!(
-                opt.inheritance,
-                Inheritance::Weak,
-                "inherited option should have weak inheritance"
+    match result {
+        Err(Error::MissingDownstreamRuntimeRequest {
+            required_by,
+            request,
+            ..
+        }) => {
+            assert_eq!(&required_by, base_pkg.ident());
+            assert!(
+                matches!(&request, Request::Var(v) if v.var.as_str() == "base.inherited" && v.value == "val"),
+                "{request}"
             );
         }
-        _ => panic!("should be given inherited option"),
-    }
-
-    assert_eq!(
-        top_pkg.runtime_requirements().len(),
-        1,
-        "should get install requirement"
-    );
-    let req = top_pkg.runtime_requirements().get(0).unwrap();
-    match req {
-        Request::Var(req) => {
-            assert_eq!(
-                &*req.var, "base.inherited",
-                "should be inherited with package namespace"
-            );
-            assert!(!req.pin, "should not be pinned after build");
-            assert_eq!(req.value, "val", "should be rendered to build time var");
-        }
-        _ => panic!("should be given var request"),
+        Err(err) => panic!("Expected Error::MissingDownstreamRuntimeRequest, got {err}"),
+        Ok(_) => panic!("should error when downstream package does not define inherited opt"),
     }
 }
 

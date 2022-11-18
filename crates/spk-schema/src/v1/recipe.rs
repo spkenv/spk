@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -12,9 +13,9 @@ use crate::foundation::name::PkgName;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{is_false, PkgRequest, Request, Satisfy, VarRequest};
+use crate::ident::{is_false, PkgRequest,  Satisfy, VarRequest};
 use crate::meta::Meta;
-use crate::{BuildEnv, Deprecate, DeprecateMut, Package, Result, TestStage};
+use crate::{BuildEnv, Deprecate, DeprecateMut, Package, Result, TestStage, RequirementsList};
 
 #[cfg(test)]
 #[path = "./recipe_test.rs"]
@@ -108,7 +109,7 @@ impl crate::Recipe for Recipe {
         todo!()
     }
 
-    fn get_build_requirements(&self, _options: &OptionMap) -> Result<Vec<Request>> {
+    fn get_build_requirements(&self, _options: &OptionMap) -> Result<Cow<'_, RequirementsList>> {
         todo!()
     }
 

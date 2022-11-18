@@ -19,7 +19,15 @@ use spk_schema::foundation::name::OptNameBuf;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy, VersionIdent};
-use spk_schema::{BuildIdent, ComponentFileMatchMode, ComponentSpecList, Package, PackageMut};
+use spk_schema::version::Compatibility;
+use spk_schema::{
+    BuildIdent,
+    ComponentFileMatchMode,
+    ComponentSpecList,
+    Package,
+    PackageMut,
+    RequirementsList,
+};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, ResolverCallback, Solver};
@@ -264,11 +272,10 @@ where
         };
 
         tracing::debug!("Resolving build environment");
-        let solution = self.resolve_build_environment(&all_options).await?;
+        let (build_requirements, solution) = self.resolve_build_environment(&all_options).await?;
         self.environment
             .extend(solution.to_environment(Some(std::env::vars())));
 
-        let solution = self.resolve_build_environment(&all_options).await?;
         {
             // original options to be reapplied. It feels like this
             // shouldn't be necessary but I've not been able to isolate what
@@ -286,6 +293,7 @@ where
         spfs::remount_runtime(&runtime).await?;
 
         let package = self.recipe.generate_binary_build(&all_options, &solution)?;
+        self.validate_generated_package(&build_requirements, &solution, &package)?;
         let components = self
             .build_and_commit_artifacts(&package, &all_options)
             .await?;
@@ -351,7 +359,10 @@ where
         Ok(solution?)
     }
 
-    async fn resolve_build_environment(&mut self, options: &OptionMap) -> Result<Solution> {
+    async fn resolve_build_environment(
+        &mut self,
+        options: &OptionMap,
+    ) -> Result<(RequirementsList, Solution)> {
         self.solver.reset();
         self.solver.update_options(options.clone());
         self.solver.set_binary_only(true);
@@ -359,14 +370,57 @@ where
             self.solver.add_repository(repo);
         }
 
-        for request in self.recipe.get_build_requirements(options)? {
-            self.solver.add_request(request);
+        let build_requirements = self.recipe.get_build_requirements(options)?.into_owned();
+        for request in build_requirements.iter() {
+            self.solver.add_request(request.clone());
         }
 
         let mut runtime = self.solver.run();
         let solution = self.build_resolver.solve(&mut runtime).await;
         self.last_solve_graph = runtime.graph();
-        Ok(solution?)
+        Ok((build_requirements, solution?))
+    }
+
+    fn validate_generated_package(
+        &self,
+        build_requirements: &RequirementsList,
+        solution: &Solution,
+        package: &Recipe::Output,
+    ) -> Result<()> {
+        let runtime_requirements = package.runtime_requirements();
+        let solved_packages = solution.items().into_iter().map(|r| r.spec);
+        let all_components = package.components();
+        for spec in solved_packages {
+            for component in all_components.names() {
+                let downstream_build = spec.downstream_build_requirements([component]);
+                for request in downstream_build.iter() {
+                    match build_requirements.contains_request(request) {
+                        Compatibility::Compatible => continue,
+                        Compatibility::Incompatible(problem) => {
+                            return Err(Error::MissingDownstreamBuildRequest {
+                                required_by: spec.ident().to_owned(),
+                                request: request.clone(),
+                                problem,
+                            })
+                        }
+                    }
+                }
+                let downstream_runtime = spec.downstream_build_requirements([component]);
+                for request in downstream_runtime.iter() {
+                    match runtime_requirements.contains_request(request) {
+                        Compatibility::Compatible => continue,
+                        Compatibility::Incompatible(problem) => {
+                            return Err(Error::MissingDownstreamRuntimeRequest {
+                                required_by: spec.ident().to_owned(),
+                                request: request.clone(),
+                                problem,
+                            })
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     async fn build_and_commit_artifacts(

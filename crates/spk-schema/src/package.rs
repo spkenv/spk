@@ -8,6 +8,7 @@ use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::spec_ops::{Named, Versioned};
 use spk_schema_ident::{BuildIdent, PkgRequest, Satisfy};
 
+use super::RequirementsList;
 use crate::foundation::ident_component::Component;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::version::Compatibility;
@@ -32,9 +33,6 @@ pub trait Package:
     /// The values for this packages options used for this build.
     fn option_values(&self) -> OptionMap;
 
-    /// The input options for this package
-    fn options(&self) -> &Vec<super::v0::Opt>;
-
     /// Return the location of sources for this package
     fn sources(&self) -> &Vec<super::SourceSpec>;
 
@@ -52,7 +50,27 @@ pub trait Package:
     fn runtime_environment(&self) -> &Vec<super::EnvOp>;
 
     /// Requests that must be met to use this package
-    fn runtime_requirements(&self) -> &super::RequirementsList;
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList>;
+
+    /// Requests that must be satisfied by the build
+    /// environment of any package built against this one
+    ///
+    /// These requirements are not injected downstream, instead
+    /// they need to be present in the downstream package itself
+    fn downstream_build_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList>;
+
+    /// Requests that must be satisfied by the runtime
+    /// environment of any package built against this one
+    ///
+    /// These requirements are not injected downstream, instead
+    /// they need to be present in the downstream package itself
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList>;
 
     /// Return the set of configured validators when building this package
     fn validation(&self) -> &super::ValidationSpec;
@@ -61,33 +79,7 @@ pub trait Package:
     fn build_script(&self) -> String;
 
     /// Validate the given options against the options in this spec.
-    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
-        let mut must_exist = given_options.package_options_without_global(self.name());
-        let given_options = given_options.package_options(self.name());
-        for option in self.options().iter() {
-            let value = given_options
-                .get(option.full_name().without_namespace())
-                .map(String::as_str);
-            let compat = option.validate(value);
-            if !compat.is_ok() {
-                return Compatibility::Incompatible(format!(
-                    "invalid value for {}: {compat}",
-                    option.full_name(),
-                ));
-            }
-
-            must_exist.remove(option.full_name().without_namespace());
-        }
-
-        if !must_exist.is_empty() {
-            let missing = must_exist;
-            return Compatibility::Incompatible(format!(
-                "Package does not define requested build options: {missing:?}",
-            ));
-        }
-
-        Compatibility::Compatible
-    }
+    fn validate_options(&self, given_options: &OptionMap) -> Compatibility;
 }
 
 pub trait PackageMut: Package + DeprecateMut {
@@ -104,10 +96,6 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 
     fn option_values(&self) -> OptionMap {
         (**self).option_values()
-    }
-
-    fn options(&self) -> &Vec<super::v0::Opt> {
-        (**self).options()
     }
 
     fn sources(&self) -> &Vec<super::SourceSpec> {
@@ -129,8 +117,22 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).runtime_environment()
     }
 
-    fn runtime_requirements(&self) -> &super::RequirementsList {
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
         (**self).runtime_requirements()
+    }
+
+    fn downstream_build_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        (**self).downstream_build_requirements(components)
+    }
+
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        (**self).downstream_build_requirements(components)
     }
 
     fn validation(&self) -> &super::ValidationSpec {
@@ -157,10 +159,6 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).option_values()
     }
 
-    fn options(&self) -> &Vec<super::v0::Opt> {
-        (**self).options()
-    }
-
     fn sources(&self) -> &Vec<super::SourceSpec> {
         (**self).sources()
     }
@@ -180,8 +178,22 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).runtime_environment()
     }
 
-    fn runtime_requirements(&self) -> &super::RequirementsList {
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
         (**self).runtime_requirements()
+    }
+
+    fn downstream_build_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        (**self).downstream_build_requirements(components)
+    }
+
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        (**self).downstream_build_requirements(components)
     }
 
     fn validation(&self) -> &super::ValidationSpec {
@@ -208,10 +220,6 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).option_values()
     }
 
-    fn options(&self) -> &Vec<super::v0::Opt> {
-        (**self).options()
-    }
-
     fn sources(&self) -> &Vec<super::SourceSpec> {
         (**self).sources()
     }
@@ -231,8 +239,22 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).runtime_environment()
     }
 
-    fn runtime_requirements(&self) -> &super::RequirementsList {
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
         (**self).runtime_requirements()
+    }
+
+    fn downstream_build_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        (**self).downstream_build_requirements(components)
+    }
+
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        (**self).downstream_build_requirements(components)
     }
 
     fn validation(&self) -> &super::ValidationSpec {

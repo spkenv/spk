@@ -34,7 +34,7 @@ use crate::{
     Template,
     TemplateExt,
     Test,
-    TestStage,
+    TestStage, RequirementsList,
 };
 
 /// Create a spec recipe from a json structure.
@@ -223,7 +223,7 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
+    fn get_build_requirements(&self, options: &OptionMap) -> Result<Cow<'_, RequirementsList>> {
         match self {
             SpecRecipe::V0Package(r) => r.get_build_requirements(options),
             SpecRecipe::V1Recipe(r) => r.get_build_requirements(options),
@@ -437,13 +437,6 @@ impl Package for Spec {
         }
     }
 
-    fn options(&self) -> &Vec<super::v0::Opt> {
-        match self {
-            Spec::V0Package(spec) => spec.options(),
-            Spec::V1Package(spec) => spec.options(),
-        }
-    }
-
     fn sources(&self) -> &Vec<super::SourceSpec> {
         match self {
             Spec::V0Package(spec) => spec.sources(),
@@ -491,7 +484,7 @@ impl Package for Spec {
         }
     }
 
-    fn runtime_requirements(&self) -> &super::RequirementsList {
+    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList > {
         match self {
             Spec::V0Package(spec) => spec.runtime_requirements(),
             Spec::V1Package(spec) => spec.runtime_requirements(),
@@ -509,6 +502,33 @@ impl Package for Spec {
         match self {
             Spec::V0Package(spec) => spec.build_script(),
             Spec::V1Package(spec) => spec.build_script(),
+        }
+    }
+
+    fn downstream_build_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, crate::RequirementsList> {
+        match self {
+            Spec::V0Package(spec) => spec.downstream_build_requirements(components),
+            Spec::V1Package(spec) => spec.downstream_build_requirements(components),
+        }
+    }
+
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, crate::RequirementsList> {
+        match self {
+            Spec::V0Package(spec) => spec.downstream_runtime_requirements(components),
+            Spec::V1Package(spec) => spec.downstream_runtime_requirements(components),
+        }
+    }
+
+    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
+        match self {
+            Spec::V0Package(spec) => spec.validate_options(given_options),
+            Spec::V1Package(spec) => spec.validate_options(given_options),
         }
     }
 }

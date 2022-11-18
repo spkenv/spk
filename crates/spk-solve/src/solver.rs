@@ -635,7 +635,7 @@ impl Solver {
         let state = self.get_initial_state();
 
         let build_options = recipe.resolve_options(state.get_option_map())?;
-        for req in recipe.get_build_requirements(&build_options)? {
+        for req in recipe.get_build_requirements(&build_options)?.into_owned() {
             self.add_request(req)
         }
 

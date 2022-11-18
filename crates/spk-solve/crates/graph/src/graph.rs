@@ -252,7 +252,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
 
             let requested_by = RequestedBy::PackageBuild(spec.ident().base().clone());
             changes
-                .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
+                .extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
             let components = spec.components();
             changes.extend(self.components_to_changes(components.as_ref(), &requested_by));
             changes.extend(self.embedded_to_changes(&spec.embedded(components.names())));
@@ -276,7 +276,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
 
             let requested_by = RequestedBy::PackageBuild(spec.ident().base().clone());
             changes
-                .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
+                .extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
             changes.extend(self.components_to_changes(spec.components().as_ref(), &requested_by));
             changes.extend(self.embedded_to_changes(&spec.embedded(self.components.clone())));
             changes.push(Self::options_to_change(spec));
@@ -401,10 +401,9 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             spec.name().as_opt_name().to_owned(),
             spec.compat().render(spec.version()),
         );
-        for opt in spec.options() {
-            let value = opt.get_value(None);
+        for (name, value) in spec.option_values() {
             if !value.is_empty() {
-                let name = opt.full_name().with_default_namespace(spec.name());
+                let name = name.with_default_namespace(spec.name());
                 opts.insert(name, value);
             }
         }

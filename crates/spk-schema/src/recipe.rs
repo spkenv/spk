@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::path::Path;
 
 use spk_schema_ident::VersionIdent;
 
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
-use crate::ident::Request;
-use crate::{Package, Result, TestStage};
+use crate::{Package, Result, TestStage, RequirementsList};
 
 /// Return the resolved packages from a solution.
 pub trait BuildEnv {
@@ -42,7 +42,7 @@ pub trait Recipe:
     fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap>;
 
     /// Identify the requirements for a build of this recipe.
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>>;
+    fn get_build_requirements(&self, options: &OptionMap) -> Result<Cow<'_, RequirementsList>>;
 
     /// Return the tests defined for this package at the given stage.
     fn get_tests(&self, stage: TestStage, options: &OptionMap) -> Result<Vec<Self::Test>>;
@@ -80,7 +80,7 @@ where
         (**self).resolve_options(inputs)
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
+    fn get_build_requirements(&self, options: &OptionMap) -> Result<Cow<'_, RequirementsList>> {
         (**self).get_build_requirements(options)
     }
 
@@ -124,7 +124,7 @@ where
         (**self).resolve_options(inputs)
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
+    fn get_build_requirements(&self, options: &OptionMap) -> Result<Cow<'_, RequirementsList>> {
         (**self).get_build_requirements(options)
     }
 

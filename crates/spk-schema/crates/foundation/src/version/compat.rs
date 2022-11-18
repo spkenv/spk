@@ -114,6 +114,12 @@ impl std::ops::Not for &'_ Compatibility {
 }
 
 impl Compatibility {
+    /// Creates a compatibility instance denoting incompatibility
+    /// for the provided reason
+    pub fn incompatible<S: Into<String>>(reason: S) -> Self {
+        Self::Incompatible(reason.into())
+    }
+
     pub fn is_ok(&self) -> bool {
         matches!(self, &Compatibility::Compatible)
     }

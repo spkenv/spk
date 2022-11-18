@@ -15,7 +15,6 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{is_false, PkgRequest, Satisfy, VarRequest};
 use crate::meta::Meta;
-use crate::v0::Opt;
 use crate::{
     Deprecate,
     DeprecateMut,
@@ -107,10 +106,6 @@ impl crate::Package for Package {
         todo!()
     }
 
-    fn options(&self) -> &Vec<Opt> {
-        todo!()
-    }
-
     fn sources(&self) -> &Vec<SourceSpec> {
         todo!()
     }
@@ -130,7 +125,21 @@ impl crate::Package for Package {
         todo!()
     }
 
-    fn runtime_requirements(&self) -> &RequirementsList {
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
+        todo!()
+    }
+
+    fn downstream_build_requirements<'a>(
+        &self,
+        _components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList > {
+        todo!()
+    }
+
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        _components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList > {
         todo!()
     }
 
@@ -139,6 +148,10 @@ impl crate::Package for Package {
     }
 
     fn build_script(&self) -> String {
+        todo!()
+    }
+
+    fn validate_options(&self, _given_options: &OptionMap) -> Compatibility {
         todo!()
     }
 }
