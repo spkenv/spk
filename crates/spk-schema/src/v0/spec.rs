@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
@@ -189,10 +190,6 @@ impl Package for Spec<BuildIdent> {
         opts
     }
 
-    fn options(&self) -> &Vec<Opt> {
-        &self.build.options
-    }
-
     fn sources(&self) -> &Vec<SourceSpec> {
         &self.sources
     }
@@ -225,8 +222,55 @@ impl Package for Spec<BuildIdent> {
         &self.install.environment
     }
 
-    fn runtime_requirements(&self) -> &RequirementsList {
-        &self.install.requirements
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
+        Cow::Borrowed(&self.install.requirements)
+    }
+
+    fn downstream_build_requirements<'a>(
+        &self,
+        _components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        let requests = self
+            .build
+            .options
+            .iter()
+            .filter_map(|opt| match opt {
+                Opt::Var(v) => Some(v),
+                Opt::Pkg(_) => None,
+            })
+            .filter(|o| o.inheritance != Inheritance::Weak)
+            .map(|o| {
+                let var = o.var.with_default_namespace(self.name());
+                VarRequest {
+                    var,
+                    // we are assuming that the var here will have a value because
+                    // this is a built binary package
+                    value: o.get_value(None).unwrap_or_default(),
+                    pin: false,
+                }
+            })
+            .map(Request::Var)
+            .collect();
+        Cow::Owned(requests)
+    }
+
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        _components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        let requests = self
+            .build
+            .options
+            .iter()
+            .filter_map(|opt| match opt {
+                Opt::Var(v) => Some(v),
+                Opt::Pkg(_) => None,
+            })
+            .filter(|o| o.inheritance == Inheritance::Strong)
+            .map(|o| VarRequest::new(o.var.with_default_namespace(self.name())))
+            .map(Request::Var)
+            .collect();
+        Cow::Owned(requests)
     }
 
     fn validation(&self) -> &ValidationSpec {
@@ -235,6 +279,34 @@ impl Package for Spec<BuildIdent> {
 
     fn build_script(&self) -> String {
         self.build.script.join("\n")
+    }
+
+    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
+        let mut must_exist = given_options.package_options_without_global(self.name());
+        let given_options = given_options.package_options(self.name());
+        for option in self.build.options.iter() {
+            let value = given_options
+                .get(option.full_name().without_namespace())
+                .map(String::as_str);
+            let compat = option.validate(value);
+            if !compat.is_ok() {
+                return Compatibility::Incompatible(format!(
+                    "invalid value for {}: {compat}",
+                    option.full_name(),
+                ));
+            }
+
+            must_exist.remove(option.full_name().without_namespace());
+        }
+
+        if !must_exist.is_empty() {
+            let missing = must_exist;
+            return Compatibility::Incompatible(format!(
+                "Package does not define requested build options: {missing:?}",
+            ));
+        }
+
+        Compatibility::Compatible
     }
 }
 
@@ -277,9 +349,9 @@ impl Recipe for Spec<VersionIdent> {
         Ok(resolved)
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
+    fn get_build_requirements(&self, options: &OptionMap) -> Result<Cow<'_, RequirementsList>> {
         let build = Build::Digest(options.digest());
-        let mut requests = Vec::new();
+        let mut requests = RequirementsList::default();
         for opt in self.build.options.iter() {
             match opt {
                 Opt::Pkg(opt) => {
@@ -306,7 +378,7 @@ impl Recipe for Spec<VersionIdent> {
                 }
             }
         }
-        Ok(requests)
+        Ok(Cow::Owned(requests))
     }
 
     fn get_tests(&self, _options: &OptionMap) -> Result<Vec<TestSpec>> {
@@ -339,33 +411,6 @@ impl Recipe for Spec<VersionIdent> {
             .into_iter()
             .map(|p| (p.name().to_owned(), p))
             .collect();
-        for (dep_name, dep_spec) in specs.iter() {
-            for opt in dep_spec.options().iter() {
-                if let Opt::Var(opt) = opt {
-                    if let Inheritance::Weak = opt.inheritance {
-                        continue;
-                    }
-                    let mut inherited_opt = opt.clone();
-                    if inherited_opt.var.namespace().is_none() {
-                        inherited_opt.var = inherited_opt.var.with_namespace(dep_name);
-                    }
-                    inherited_opt.inheritance = Inheritance::Weak;
-                    if let Inheritance::Strong = opt.inheritance {
-                        let mut req = VarRequest::new(inherited_opt.var.clone());
-                        req.pin = true;
-                        updated.install.upsert_requirement(Request::Var(req));
-                    }
-                    updated.build.upsert_opt(Opt::Var(inherited_opt));
-                }
-            }
-        }
-
-        for e in updated.install.embedded.iter() {
-            updated
-                .build
-                .options
-                .extend(e.options().clone().into_iter());
-        }
 
         for opt in updated.build.options.iter_mut() {
             match opt {

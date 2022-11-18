@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
@@ -17,7 +18,7 @@ use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
+use crate::ident::{PkgRequest, Satisfy, VarRequest};
 use crate::test_spec::TestSpec;
 use crate::{
     BuildEnv,
@@ -28,6 +29,7 @@ use crate::{
     Package,
     PackageMut,
     Recipe,
+    RequirementsList,
     Result,
     Template,
     TemplateExt,
@@ -204,7 +206,7 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
+    fn get_build_requirements(&self, options: &OptionMap) -> Result<Cow<'_, RequirementsList>> {
         match self {
             SpecRecipe::V0Package(r) => r.get_build_requirements(options),
         }
@@ -369,12 +371,6 @@ impl Package for Spec {
         }
     }
 
-    fn options(&self) -> &Vec<super::Opt> {
-        match self {
-            Spec::V0Package(spec) => spec.options(),
-        }
-    }
-
     fn sources(&self) -> &Vec<super::SourceSpec> {
         match self {
             Spec::V0Package(spec) => spec.sources(),
@@ -409,7 +405,7 @@ impl Package for Spec {
         }
     }
 
-    fn runtime_requirements(&self) -> &super::RequirementsList {
+    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList> {
         match self {
             Spec::V0Package(spec) => spec.runtime_requirements(),
         }
@@ -424,6 +420,30 @@ impl Package for Spec {
     fn build_script(&self) -> String {
         match self {
             Spec::V0Package(spec) => spec.build_script(),
+        }
+    }
+
+    fn downstream_build_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, crate::RequirementsList> {
+        match self {
+            Spec::V0Package(spec) => spec.downstream_build_requirements(components),
+        }
+    }
+
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, crate::RequirementsList> {
+        match self {
+            Spec::V0Package(spec) => spec.downstream_runtime_requirements(components),
+        }
+    }
+
+    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
+        match self {
+            Spec::V0Package(spec) => spec.validate_options(given_options),
         }
     }
 }

@@ -350,7 +350,7 @@ impl Requests {
 
                     TestStage::Build => {
                         let requirements = recipe.get_build_requirements(&options)?;
-                        out.extend(requirements);
+                        out.extend(requirements.into_owned());
                     }
                     TestStage::Install => out.push(
                         PkgRequest::from_ident_exact(

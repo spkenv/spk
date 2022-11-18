@@ -130,6 +130,15 @@ impl Request {
     }
 }
 
+impl std::fmt::Display for Request {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pkg(r) => r.fmt(f),
+            Self::Var(r) => r.fmt(f),
+        }
+    }
+}
+
 impl From<VarRequest> for Request {
     fn from(req: VarRequest) -> Self {
         Self::Var(req)
@@ -315,6 +324,55 @@ impl VarRequest {
         T: Satisfy<VarRequest>,
     {
         spec.check_satisfies_request(self)
+    }
+
+    /// True if this request is as least as restrictive as the other. In other words,
+    /// if satisfying this request would undoubtedly satisfy the other.
+    pub fn contains(&self, other: &Self) -> Compatibility {
+        if self.var.base_name() != other.var.base_name() {
+            return Compatibility::incompatible(format!(
+                "request is for a different var altogether [{} != {}]",
+                self.var, other.var
+            ));
+        }
+        let ns = self.var.namespace();
+        if ns.is_some() && ns != other.var.namespace() {
+            return Compatibility::incompatible(format!(
+                "request specifies a different namespace [{} != {}]",
+                self.var, other.var
+            ));
+        }
+        if self.pin || other.pin {
+            // we cannot consider an unpinned request to contain any
+            // other because the ultimate value of this request is unknown
+            return Compatibility::incompatible(
+                "unpinned (fromBuildEnv) requests cannot be reasonably compared".to_string(),
+            );
+        }
+        if !other.value.is_empty() && self.value != other.value {
+            return Compatibility::incompatible(format!(
+                "requests require different values [{:?} != {:?}]",
+                self.value, other.value
+            ));
+        }
+        Compatibility::Compatible
+    }
+}
+
+impl std::fmt::Display for VarRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // break apart to ensure that new fields are incorporated into this
+        // function if they are added in the future
+        let Self { var, value, pin } = self;
+        f.write_str("var: ")?;
+        var.fmt(f)?;
+        if !value.is_empty() {
+            f.write_char('/')?;
+            value.fmt(f)?;
+        } else if *pin {
+            f.write_str("/<fromBuildEnv>")?;
+        }
+        Ok(())
     }
 }
 
@@ -624,6 +682,28 @@ impl PkgRequest {
         T: Satisfy<Self>,
     {
         satisfy.check_satisfies_request(self)
+    }
+
+    /// True if this request is as least as restrictive as the other. In other words,
+    /// if satisfying this request would undoubtedly satisfy the other.
+    pub fn contains(&self, other: &Self) -> Compatibility {
+        let compat = self.pkg.contains(&other.pkg);
+        if !compat.is_ok() {
+            return compat;
+        }
+        if self.prerelease_policy > other.prerelease_policy {
+            return Compatibility::incompatible(format!(
+                "prerelease policy {} is more inclusive than {}",
+                self.prerelease_policy, other.prerelease_policy
+            ));
+        }
+        if self.inclusion_policy > other.inclusion_policy {
+            return Compatibility::incompatible(format!(
+                "inclusion policy {} is more inclusive than {}",
+                self.inclusion_policy, other.inclusion_policy
+            ));
+        }
+        Compatibility::Compatible
     }
 
     /// Reduce the scope of this request to the intersection with another.
