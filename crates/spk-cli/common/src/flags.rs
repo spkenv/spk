@@ -211,7 +211,7 @@ pub struct Options {
     /// or json format (--opt '{name: value, other: value}').
     ///
     /// Options can also be given in a file via the --options-file/-f flag. If
-    /// given, --opt will supercede anything in the options file(s).
+    /// given, --opt will supersede anything in the options file(s).
     #[clap(long = "opt", short)]
     pub options: Vec<String>,
 
@@ -232,10 +232,10 @@ impl Options {
         };
 
         for filename in self.options_file.iter() {
-            let reader =
-                std::fs::File::open(filename).context(format!("Failed to open: {filename:?}"))?;
+            let reader = std::fs::File::open(filename)
+                .with_context(|| format!("Failed to open: {filename:?}"))?;
             let options: OptionMap = serde_yaml::from_reader(reader)
-                .context(format!("Failed to parse as option mapping: {filename:?}"))?;
+                .with_context(|| format!("Failed to parse as option mapping: {filename:?}"))?;
             opts.extend(options);
         }
 

@@ -25,7 +25,7 @@ impl TagReflection for DefaultTag {
     }
 
     fn description(&self) -> &'static str {
-        "assign a variable value if it doesn't already have one"
+        "assign a variable a value if it doesn't already have one"
     }
 }
 

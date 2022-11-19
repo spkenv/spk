@@ -420,7 +420,7 @@ tests:
 
 SPK package spec files also support the [liquid](https://shopify.github.io/liquid/) templating language, so long as the spec file remains valid yaml.
 
-The templating is rendered when the yaml file is read from disk, and before it's processed any farther (to start a build, run tests, etc.). This means that it cannot, for example, be involved in rendering different specs for different variants of the package (unless you define and orchestrate those variants through a separate build system).
+The templating is rendered when the yaml file is read from disk, and before it's processed any further (to start a build, run tests, etc.). This means that it cannot, for example, be involved in rendering different specs for different variants of the package (unless you define and orchestrate those variants through a separate build system).
 
 The data that's made available to the template takes the form:
 
@@ -464,7 +464,7 @@ The `default` tag can be used to more easily declare the default value for a var
 
 **compare_version**
 
-The `compare_version` allows for comparing spk versions using any of the [version comparison operators](/use/versioning). It takes one or two parameters, depending on the data that you have to give. In all cases, the parameters are concatenated together and parsed as a version range. For example, the following assignments to py_3 all end up checking the same statement.
+The `compare_version` allows for comparing spk versions using any of the [version comparison operators](/use/versioning). It takes one or two arguments, depending on the data that you have to give. In all cases, the arguments are concatenated together and parsed as a version range. For example, the following assignments to py_3 all end up checking the same statement.
 
 ```liquid
 {% assign is_py3 = python.version | compare_version: ">=3" %}
@@ -475,7 +475,7 @@ The `compare_version` allows for comparing spk versions using any of the [versio
 
 **parse_version**
 
-The `parse_version` filter breaks down an spk version into it's components, either returning an object or a single field from it, for example:
+The `parse_version` filter breaks down an spk version into its components, either returning an object or a single field from it, for example:
 
 ```liquid
 {% assign v = "1.2.3.4-alpha.0+r.4" | parse_version %}
