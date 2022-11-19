@@ -324,18 +324,14 @@ impl Recipe for Spec<VersionIdent> {
         Ok(source)
     }
 
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Spec<BuildIdent>>
+    fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
         P: Package,
     {
         let mut updated = self.clone();
         let specs: HashMap<_, _> = build_env
-            .build_env()
+            .packages()
             .into_iter()
             .map(|p| (p.name().to_owned(), p))
             .collect();
@@ -367,6 +363,7 @@ impl Recipe for Spec<VersionIdent> {
                 .extend(e.options().clone().into_iter());
         }
 
+        let options = build_env.options();
         for opt in updated.build.options.iter_mut() {
             match opt {
                 Opt::Var(opt) => {
@@ -400,8 +397,8 @@ impl Recipe for Spec<VersionIdent> {
 
         updated
             .install
-            .render_all_pins(options, specs.values().map(|p| p.ident()))?;
-        let digest = updated.resolve_options(options)?.digest();
+            .render_all_pins(&options, specs.values().map(|p| p.ident()))?;
+        let digest = updated.resolve_options(&options)?.digest();
         Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
     }
 }

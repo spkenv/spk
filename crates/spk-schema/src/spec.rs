@@ -222,19 +222,13 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
         P: Package,
     {
         match self {
-            SpecRecipe::V0Package(r) => r
-                .generate_binary_build(options, build_env)
-                .map(Spec::V0Package),
+            SpecRecipe::V0Package(r) => r.generate_binary_build(build_env).map(Spec::V0Package),
         }
     }
 }

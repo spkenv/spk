@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+mod build_env;
 mod build_spec;
 mod component_spec;
 mod component_spec_list;
@@ -23,6 +24,7 @@ mod test_spec;
 pub mod v0;
 mod validation;
 
+pub use build_env::BuildEnv;
 pub use build_spec::{BuildSpec, Script};
 pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
 pub use component_spec_list::ComponentSpecList;
@@ -33,7 +35,7 @@ pub use error::{Error, Result};
 pub use install_spec::InstallSpec;
 pub use option::{Inheritance, Opt};
 pub use package::{Package, PackageMut};
-pub use recipe::{BuildEnv, Recipe};
+pub use recipe::Recipe;
 pub use requirements_list::RequirementsList;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::{Spec, SpecRecipe, SpecTemplate};
