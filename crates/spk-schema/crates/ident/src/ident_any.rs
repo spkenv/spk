@@ -60,9 +60,7 @@ impl AnyIdent {
         let (base, target) = self.into_inner();
         target.map(|build| BuildIdent::new(base, build))
     }
-}
 
-impl AnyIdent {
     /// Return if this identifier can possibly have embedded packages.
     pub fn can_embed(&self) -> bool {
         // Only builds can have embeds.
