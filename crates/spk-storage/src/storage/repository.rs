@@ -179,7 +179,6 @@ pub(in crate::storage) mod internal {
             spec_for_embedded_pkg: &Self::Package,
             components_that_embed_this_pkg: BTreeSet<Component>,
         ) -> Result<()> {
-            tracing::warn!("a");
             let spec_for_embedded_pkg =
                 spec_for_embedded_pkg
                     .ident()
@@ -189,11 +188,9 @@ pub(in crate::storage) mod internal {
                             components: components_that_embed_this_pkg,
                         },
                     ))));
-            tracing::warn!(%spec_for_embedded_pkg, "b");
             self.remove_embed_stub_from_storage(&spec_for_embedded_pkg)
                 .await?;
 
-            tracing::warn!("c");
             // If this was the last stub and there are no other builds, remove
             // the "version spec".
             if let Ok(builds) = with_cache_policy!(self, CachePolicy::BypassCache, {
@@ -373,9 +370,7 @@ pub trait Repository: Storage + Sync {
             None
         };
 
-        tracing::warn!("starting");
         let components = self.read_components(package.ident()).await?;
-        tracing::warn!("updating base spec");
         self.publish_package_to_storage(package, &components)
             .await?;
 
