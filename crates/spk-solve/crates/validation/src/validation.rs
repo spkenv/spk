@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
@@ -553,7 +553,7 @@ impl PkgRequirementsValidator {
     fn validate_request_against_existing_resolve(
         request: &PkgRequest,
         resolved: &CachedHash<std::sync::Arc<Spec>>,
-        provided_components: &std::collections::HashSet<Component>,
+        provided_components: &BTreeSet<Component>,
     ) -> crate::Result<Compatibility> {
         use Compatibility::{Compatible, Incompatible};
         let compat = request.is_satisfied_by(&**resolved);

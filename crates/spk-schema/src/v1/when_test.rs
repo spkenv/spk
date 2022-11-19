@@ -4,10 +4,10 @@
 
 use pretty_assertions::assert_eq;
 use rstest::rstest;
-use spk_schema_foundation::{FromYaml, option_map::OptionMap};
-use spk_schema_foundation::option_map;
+use spk_schema_foundation::option_map::OptionMap;
+use spk_schema_foundation::{option_map, FromYaml};
 
-use super::{WhenBlock};
+use super::WhenBlock;
 
 #[rstest]
 // The default value is `"when": Always`
@@ -97,7 +97,8 @@ fn test_activation(
     #[case] expected: bool,
 ) {
     let when = WhenBlock::from_yaml(yaml).expect("when condition should parse");
-    let build_env = Vec::<crate::v1::Package>::from_yaml(build_env).expect("build env package should parse");
-    let actual = when.check_is_active(&build_options, &build_env);
+    let build_env =
+        Vec::<crate::v1::Package>::from_yaml(build_env).expect("build env package should parse");
+    let actual = when.check_is_active(&(build_options, build_env));
     assert_eq!(actual.is_ok(), expected, "{actual}");
 }

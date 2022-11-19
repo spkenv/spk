@@ -9,14 +9,7 @@ use spk_schema_ident::VersionIdent;
 
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
-use crate::{Package, Result, TestStage, RequirementsList};
-
-/// Return the resolved packages from a solution.
-pub trait BuildEnv {
-    type Package: super::Package;
-
-    fn build_env(&self) -> Vec<Self::Package>;
-}
+use crate::{BuildEnv, Package, RequirementsList, Result, TestStage};
 
 /// Can be used to build a package.
 #[enum_dispatch::enum_dispatch]
@@ -51,11 +44,7 @@ pub trait Recipe:
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output>;
 
     /// Create a new binary package from this recipe and the given parameters.
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
         P: Package;
@@ -92,16 +81,12 @@ where
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        (**self).generate_binary_build(options, build_env)
+        (**self).generate_binary_build(build_env)
     }
 }
 
@@ -136,15 +121,11 @@ where
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        (**self).generate_binary_build(options, build_env)
+        (**self).generate_binary_build(build_env)
     }
 }

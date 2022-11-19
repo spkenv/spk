@@ -92,15 +92,21 @@ impl crate::Package for EmbeddedPackage {
         self.0.runtime_environment()
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList > {
+    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList> {
         self.0.runtime_requirements()
     }
 
-    fn downstream_build_requirements<'a>(&self,components:impl IntoIterator<Item =  &'a spk_schema_foundation::ident_component::Component>,) ->  Cow<'_, crate::RequirementsList > {
+    fn downstream_build_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a spk_schema_foundation::ident_component::Component>,
+    ) -> Cow<'_, crate::RequirementsList> {
         self.0.downstream_build_requirements(components)
     }
 
-    fn downstream_runtime_requirements<'a>(&self,components:impl IntoIterator<Item =  &'a spk_schema_foundation::ident_component::Component>,) ->  Cow<'_, crate::RequirementsList > {
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a spk_schema_foundation::ident_component::Component>,
+    ) -> Cow<'_, crate::RequirementsList> {
         self.0.downstream_runtime_requirements(components)
     }
 
@@ -112,7 +118,10 @@ impl crate::Package for EmbeddedPackage {
         self.0.build_script()
     }
 
-    fn validate_options(&self,given_options: &spk_schema_foundation::option_map::OptionMap) -> spk_schema_foundation::version::Compatibility {
+    fn validate_options(
+        &self,
+        given_options: &spk_schema_foundation::option_map::OptionMap,
+    ) -> spk_schema_foundation::version::Compatibility {
         self.0.validate_options(given_options)
     }
 }

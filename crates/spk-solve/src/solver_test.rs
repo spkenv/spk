@@ -608,7 +608,11 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
         let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
         let resolved = solution.get("vnp3").unwrap();
-        let value = resolved.spec.option_values().remove(opt_name!("python")).unwrap();
+        let value = resolved
+            .spec
+            .option_values()
+            .remove(opt_name!("python"))
+            .unwrap();
 
         // Check the first digit component of the pyver value
         let expected = if pyver.starts_with('~') {

@@ -121,11 +121,7 @@ impl crate::Recipe for Recipe {
         todo!()
     }
 
-    fn generate_binary_build<E, P>(
-        &self,
-        _options: &OptionMap,
-        _build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<E, P>(&self, _build_env: &E) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
         P: Package,

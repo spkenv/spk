@@ -292,7 +292,7 @@ where
         runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
 
-        let package = self.recipe.generate_binary_build(&all_options, &solution)?;
+        let package = self.recipe.generate_binary_build(&solution)?;
         self.validate_generated_package(&build_requirements, &solution, &package)?;
         let components = self
             .build_and_commit_artifacts(&package, &all_options)

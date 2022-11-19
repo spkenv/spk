@@ -315,7 +315,7 @@ impl Solver {
         solver.update_options(opts.clone());
         let solution = solver.solve_build_environment(recipe).await?;
         recipe
-            .generate_binary_build(&opts, &solution)
+            .generate_binary_build(&solution)
             .map_err(|err| err.into())
             .map(Arc::new)
     }
@@ -635,7 +635,11 @@ impl Solver {
         let state = self.get_initial_state();
 
         let build_options = recipe.resolve_options(state.get_option_map())?;
-        for req in recipe.get_build_requirements(&build_options)?.into_owned() {
+        for req in recipe
+            .get_build_requirements(&build_options)?
+            .iter()
+            .cloned()
+        {
             self.add_request(req)
         }
 

@@ -139,9 +139,7 @@ impl<'a> PackageBuildTester<'a> {
         spfs::remount_runtime(&rt).await?;
 
         self.options.extend(solution.options());
-        let _spec = self
-            .recipe
-            .generate_binary_build(&self.options, &solution)?;
+        let _spec = self.recipe.generate_binary_build(&solution)?;
 
         let env = solution.to_environment(Some(std::env::vars()));
 

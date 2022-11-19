@@ -3,11 +3,12 @@
 // https://github.com/imageworks/spk
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::option_map::{OptionMap, Stringified};
+use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::version::Compatibility;
 use spk_schema_ident::{NameAndValue, PkgRequest, Satisfy, VarRequest};
 
 use crate::prelude::*;
+use crate::BuildEnv;
 
 #[cfg(test)]
 #[path = "./when_test.rs"]
@@ -45,22 +46,17 @@ impl WhenBlock {
     /// given build environment contents. If not satisfied,
     /// the returned compatibility should denote a reason
     /// for the miss.
-    pub fn check_is_active<'a, I, P>(
-        &self,
-        build_options: &OptionMap,
-        build_env: I,
-    ) -> Compatibility
+    pub fn check_is_active<E, P>(&self, build_env: E) -> Compatibility
     where
-        I: IntoIterator<Item = P>,
+        E: BuildEnv<Package = P>,
         P: Satisfy<PkgRequest> + Named,
     {
         let conditions = match self {
             Self::Always => return Compatibility::Compatible,
             Self::Sometimes { conditions } => conditions,
         };
-        let build_env = Vec::from_iter(build_env);
         for condition in conditions {
-            let compat = condition.check_is_satisfied(build_options, &build_env);
+            let compat = condition.check_is_satisfied(&build_env);
             if !compat.is_ok() {
                 return compat;
             }
@@ -153,26 +149,23 @@ impl WhenCondition {
     /// given build environment contents. If not satisfied,
     /// the returned compatibility should denote a reason
     /// for the miss.
-    pub fn check_is_satisfied<'a, I, P>(
-        &self,
-        build_options: &OptionMap,
-        build_env: I,
-    ) -> Compatibility
+    pub fn check_is_satisfied<E, P>(&self, build_env: E) -> Compatibility
     where
-        I: IntoIterator<Item = P>,
+        E: BuildEnv<Package = P>,
         P: Satisfy<PkgRequest> + Named,
     {
+        let options = build_env.options();
         match self {
             Self::Pkg(req) => {
-                let Some(resolved) = build_env.into_iter().find(|p| p.name() == req.pkg.name()) else {
+                let Some(resolved) = build_env.packages().into_iter().find(|p| p.name() == req.pkg.name()) else {
                     return Compatibility::incompatible(format!("pkg: {} is not present in the build environment", req.pkg.name()));
                 };
                 resolved.check_satisfies_request(req)
             }
             Self::Var(req) => {
-                let value = build_options
+                let value = options
                     .get(&req.var)
-                    .or_else(|| build_options.get(req.var.without_namespace()));
+                    .or_else(|| options.get(req.var.without_namespace()));
                 let Some(value) = value else {
                     return Compatibility::incompatible(format!("var: {} is not present in the build environment", req.var));
                 };

@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 use std::iter::FromIterator;
@@ -243,14 +244,20 @@ impl Solution {
 }
 
 impl BuildEnv for Solution {
+    type PackageIter = std::vec::IntoIter<Self::Package>;
     type Package = Arc<Spec>;
 
-    fn build_env(&self) -> Vec<Self::Package> {
+    fn options(&self) -> std::borrow::Cow<'_, OptionMap> {
+        Cow::Borrowed(&self.options)
+    }
+
+    fn packages(&self) -> Self::PackageIter {
         self.resolved
             .iter()
             .map(|(_, (spec, _))| spec)
             .cloned()
             .collect::<Vec<_>>()
+            .into_iter()
     }
 }
 

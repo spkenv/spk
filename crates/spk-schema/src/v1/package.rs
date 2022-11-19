@@ -181,9 +181,9 @@ impl Satisfy<PkgRequest> for Package {
         }
 
         if self.is_deprecated() && pkg_request.pkg.build.as_ref() != Some(self.pkg.build()) {
-                return Compatibility::Incompatible(
-                    "Build is deprecated and was not specifically requested".to_string(),
-                );
+            return Compatibility::Incompatible(
+                "Build is deprecated and was not specifically requested".to_string(),
+            );
         }
 
         if pkg_request.prerelease_policy == PreReleasePolicy::ExcludeAll
