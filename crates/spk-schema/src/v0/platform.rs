@@ -272,9 +272,8 @@ impl Recipe for Platform {
 
         // Add base requirements, if any, first.
         if let Some(base) = base.as_ref() {
-            let build_env = build_env.build_env();
             let base = build_env
-                .iter()
+                .packages()
                 .find(|package| package.name() == base.name())
                 .ok_or_else(|| {
                     crate::Error::String(format!(

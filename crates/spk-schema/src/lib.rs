@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+mod build_env;
 mod build_spec;
 mod component_embedded_packages;
 mod component_spec;
@@ -26,6 +27,7 @@ pub mod v0;
 pub mod validation;
 pub mod variant;
 
+pub use build_env::BuildEnv;
 pub use build_spec::{BuildSpec, Script};
 pub use component_embedded_packages::ComponentEmbeddedPackagesList;
 pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
@@ -48,7 +50,7 @@ pub use input_variant::InputVariant;
 pub use install_spec::InstallSpec;
 pub use option::{Inheritance, Opt};
 pub use package::{Package, PackageMut};
-pub use recipe::{BuildEnv, Recipe};
+pub use recipe::Recipe;
 pub use requirements_list::RequirementsList;
 pub use serde_json;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};

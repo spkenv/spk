@@ -3,7 +3,6 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::path::Path;
 
 use spk_schema_ident::VersionIdent;
@@ -12,16 +11,7 @@ use crate::foundation::ident_build::BuildId;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
 use crate::metadata::Meta;
-use crate::{InputVariant, Package, RequirementsList, Result, TestStage, Variant};
-
-/// Return the resolved packages from a solution.
-pub trait BuildEnv {
-    type Package: super::Package;
-
-    fn build_env(&self) -> Vec<Self::Package>;
-
-    fn env_vars(&self) -> HashMap<String, String>;
-}
+use crate::{BuildEnv, InputVariant, Package, RequirementsList, Result, TestStage, Variant};
 
 /// Can be used to build a package.
 #[enum_dispatch::enum_dispatch]

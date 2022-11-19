@@ -558,11 +558,9 @@ impl Recipe for Spec<VersionIdent> {
         updated.build.options = self.build.opts_for_variant(variant)?;
 
         let specs: HashMap<_, _> = build_env
-            .build_env()
-            .into_iter()
+            .packages()
             .map(|p| (p.name().to_owned(), p))
             .collect();
-
         for opt in updated.build.options.iter_mut() {
             match opt {
                 Opt::Var(opt) => {

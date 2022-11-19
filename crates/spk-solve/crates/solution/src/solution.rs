@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt::Write;
 use std::iter::FromIterator;
@@ -628,13 +629,19 @@ impl Solution {
 }
 
 impl BuildEnv for Solution {
+    type PackageIter = std::vec::IntoIter<Self::Package>;
     type Package = Arc<Spec>;
 
-    fn build_env(&self) -> Vec<Self::Package> {
+    fn options(&self) -> std::borrow::Cow<'_, OptionMap> {
+        Cow::Borrowed(&self.options)
+    }
+
+    fn packages(&self) -> Self::PackageIter {
         self.resolved
             .iter()
             .map(|resolved| Arc::clone(&resolved.spec))
             .collect::<Vec<_>>()
+            .into_iter()
     }
 
     fn env_vars(&self) -> HashMap<String, String> {

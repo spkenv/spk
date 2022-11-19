@@ -1125,7 +1125,7 @@ pub fn is_false(value: &bool) -> bool {
 
 /// A deserializable name and optional default or assigned value
 /// where the value it identified by it's position following
-/// a forward slash and equals sign respectively (eg: '<name>/<value>')
+/// a forward slash and equals sign respectively (eg: `<name>/<value>`)
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NameAndValue<Name = OptNameBuf> {
     /// Only a name, with no associated value
