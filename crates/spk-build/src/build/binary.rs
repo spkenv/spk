@@ -260,7 +260,6 @@ where
         self.environment
             .extend(solution.to_environment(Some(std::env::vars())));
 
-        let solution = self.resolve_build_environment(&all_options).await?;
         {
             // original options to be reapplied. It feels like this
             // shouldn't be necessary but I've not been able to isolate what
