@@ -7,6 +7,7 @@ use std::iter::FromIterator;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
+use spfs::tracking::Diff;
 
 use crate::validators::{
     must_collect_all_files,
@@ -83,8 +84,10 @@ impl ValidationSpec {
         )
     }
 
-    /// Validate the current set of spfs changes as a build of this package
-    pub async fn validate_build_changeset<Package>(&self, package: &Package) -> Result<()>
+    /// Validate the current set of spfs changes as a build of this package.
+    ///
+    /// Return the list of diffs that were detected.
+    pub async fn validate_build_changeset<Package>(&self, package: &Package) -> Result<Vec<Diff>>
     where
         Package: crate::Package,
     {
@@ -108,7 +111,13 @@ impl ValidationSpec {
             }
         }
 
-        Ok(())
+        // Remove any "unchanged" entries from `diffs`; this list can be used
+        // to ignore entries in the upperdir that would otherwise be captured
+        // as changed by the build. For example, renaming a file to a
+        // different name and back to its original name.
+        diffs.retain(|diff| !diff.mode.is_unchanged());
+
+        Ok(diffs)
     }
 }
 
