@@ -22,6 +22,7 @@ mod template;
 mod test_spec;
 pub mod v0;
 mod validation;
+mod variant;
 
 pub use build_spec::{BuildSpec, Script};
 pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
@@ -54,6 +55,7 @@ pub use spk_schema_ident::{self as ident, AnyIdent, BuildIdent, VersionIdent};
 pub use template::{Template, TemplateExt};
 pub use test_spec::TestStage;
 pub use validation::{default_validators, ValidationSpec, Validator};
+pub use variant::Variant;
 pub use {serde_json, spk_schema_validators as validators};
 
 #[cfg(test)]
