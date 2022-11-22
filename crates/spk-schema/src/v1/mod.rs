@@ -17,7 +17,7 @@ mod when;
 pub use package::Package;
 pub use package_packaging_spec::PackagePackagingSpec;
 pub use recipe::Recipe;
-pub use recipe_build_spec::RecipeBuildSpec;
+pub use recipe_build_spec::{RecipeBuildSpec, VariantSpec};
 pub use recipe_option::*;
 pub use recipe_option_list::RecipeOptionList;
 pub use recipe_packaging_spec::RecipePackagingSpec;

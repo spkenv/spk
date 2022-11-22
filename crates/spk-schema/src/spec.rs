@@ -202,6 +202,7 @@ impl Satisfy<PkgRequest> for SpecRecipe {
 impl Recipe for SpecRecipe {
     type Output = Spec;
     type Test = SpecTest;
+    type Variant = SpecVariant;
 
     fn ident(&self) -> &VersionIdent {
         match self {
@@ -210,10 +211,22 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
+    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
         match self {
-            SpecRecipe::V0Package(r) => r.default_variants(),
-            SpecRecipe::V1Recipe(r) => r.default_variants(),
+            SpecRecipe::V0Package(r) => Cow::Owned(
+                r.default_variants()
+                    .into_owned()
+                    .into_iter()
+                    .map(SpecVariant::V0)
+                    .collect(),
+            ),
+            SpecRecipe::V1Recipe(r) => Cow::Owned(
+                r.default_variants()
+                    .into_owned()
+                    .into_iter()
+                    .map(SpecVariant::V1)
+                    .collect(),
+            ),
         }
     }
 
@@ -347,6 +360,37 @@ impl Test for SpecTest {
         match self {
             Self::V0(t) => t.additional_requirements(),
             Self::V1(t) => t.additional_requirements(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum SpecVariant {
+    V0(OptionMap),
+    V1(v1::VariantSpec),
+}
+
+impl super::Variant for SpecVariant {
+    fn name(&self) -> Option<&str> {
+        match self {
+            Self::V0(v) => v.name(),
+            Self::V1(v) => v.name(),
+        }
+    }
+
+    fn options(&self) -> Cow<'_, OptionMap> {
+        match self {
+            Self::V0(v) => v.options(),
+            Self::V1(v) => v.options(),
+        }
+    }
+}
+
+impl std::fmt::Display for SpecVariant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::V0(v) => v.fmt(f),
+            Self::V1(v) => v.fmt(f),
         }
     }
 }

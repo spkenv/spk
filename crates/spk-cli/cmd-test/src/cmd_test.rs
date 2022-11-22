@@ -116,18 +116,19 @@ impl Run for CmdTest {
 
                 let mut tested = std::collections::HashSet::new();
 
+                let default_variants = recipe.default_variants();
                 let variants_to_test = match self.variant {
-                    Some(index) if index < recipe.default_variants().len() => {
-                        recipe.default_variants().iter().skip(index).take(1)
+                    Some(index) if index < default_variants.len() => {
+                        default_variants.iter().skip(index).take(1)
                     }
                     Some(index) => {
                         anyhow::bail!(
                             "--variant {index} is out of range; {} variant(s) found in {}",
-                            recipe.default_variants().len(),
+                            default_variants.len(),
                             recipe.ident().format_ident(),
                         );
                     }
-                    None => recipe.default_variants().iter().skip(0).take(usize::MAX),
+                    None => default_variants.iter().skip(0).take(usize::MAX),
                 };
 
                 for variant in variants_to_test {
@@ -136,7 +137,7 @@ impl Run for CmdTest {
                         false => host_options()?,
                     };
 
-                    opts.extend(variant.clone());
+                    opts.extend(variant.options().into_owned());
                     opts.extend(options.clone());
                     let digest = opts.digest();
                     if !tested.insert(digest) {

@@ -96,13 +96,14 @@ impl DeprecateMut for Recipe {
 impl crate::Recipe for Recipe {
     type Output = super::Package;
     type Test = super::TestScript;
+    type Variant = super::VariantSpec;
 
     fn ident(&self) -> &VersionIdent {
         &self.pkg
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
-        todo!()
+    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
+        Cow::Borrowed(&self.build.variants)
     }
 
     fn resolve_options(&self, _given: &OptionMap) -> Result<OptionMap> {
