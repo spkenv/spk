@@ -628,7 +628,7 @@ pub struct DecisionFormatterSettings {
     /// The maximum verbosity that automatic verbosity increases will
     /// stop at and not go above.
     ///
-    #[clap(long, env = "SPK_MAX_VERBOSITY_INCREASE_LEVEL", default_value_t = 2)]
+    #[clap(long, env = "SPK_VERBOSITY_INCREASE_LIMIT", default_value_t = 2)]
     pub max_verbosity_increase_level: u32,
 
     /// Maximum number of seconds to let the solver run before halting the solve
