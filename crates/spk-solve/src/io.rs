@@ -158,7 +158,7 @@ where
 
             // The maximum number of increases hasn't been hit.
             // Increase the verbosity level of this solve.
-            if self.verbosity < u32::MAX {
+            if self.verbosity < self.settings.max_verbosity_increase_level {
                 self.verbosity += 1;
                 eprintln!(
                     "Solve is taking too long, > {} secs. Increasing verbosity level to {}",
@@ -394,6 +394,7 @@ pub struct DecisionFormatterBuilder {
     verbosity: u32,
     time: bool,
     verbosity_increase_seconds: u64,
+    max_verbosity_increase_level: u32,
     timeout: u64,
     show_solution: bool,
     heading_prefix: String,
@@ -414,6 +415,7 @@ impl DecisionFormatterBuilder {
             verbosity: 0,
             time: false,
             verbosity_increase_seconds: 0,
+            max_verbosity_increase_level: u32::MAX,
             timeout: 0,
             show_solution: false,
             heading_prefix: String::from(""),
@@ -435,6 +437,11 @@ impl DecisionFormatterBuilder {
 
     pub fn with_verbosity_increase_every(&mut self, seconds: u64) -> &mut Self {
         self.verbosity_increase_seconds = seconds;
+        self
+    }
+
+    pub fn with_max_verbosity_increase_level(&mut self, max_level: u32) -> &mut Self {
+        self.max_verbosity_increase_level = max_level;
         self
     }
 
@@ -499,6 +506,7 @@ impl DecisionFormatterBuilder {
                 report_time: self.time,
                 too_long: Duration::from_secs(too_long_seconds),
                 max_too_long_count: max_too_long_checks,
+                max_verbosity_increase_level: self.max_verbosity_increase_level,
                 show_solution: self.show_solution || self.verbosity > 0,
                 heading_prefix: String::from(""),
                 long_solves_threshold: self.long_solves_threshold,
@@ -523,6 +531,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) report_time: bool,
     pub(crate) too_long: Duration,
     pub(crate) max_too_long_count: u64,
+    pub(crate) max_verbosity_increase_level: u32,
     pub(crate) show_solution: bool,
     /// This is followed immediately by "Installed Packages"
     pub(crate) heading_prefix: String,

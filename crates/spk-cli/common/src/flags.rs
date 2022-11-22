@@ -625,6 +625,12 @@ pub struct DecisionFormatterSettings {
     #[clap(long, env = "SPK_SOLVE_TOO_LONG_SECONDS", default_value_t = 30)]
     pub increase_verbosity: u64,
 
+    /// The maximum verbosity that automatic verbosity increases will
+    /// stop at and not go above.
+    ///
+    #[clap(long, env = "SPK_VERBOSITY_INCREASE_LIMIT", default_value_t = 2)]
+    pub max_verbosity_increase_level: u32,
+
     /// Maximum number of seconds to let the solver run before halting the solve
     ///
     /// Maximum number of seconds to alow a solver to run before
@@ -681,6 +687,7 @@ impl DecisionFormatterSettings {
                     self.increase_verbosity
                 }
             })
+            .with_max_verbosity_increase_level(self.max_verbosity_increase_level)
             .with_timeout(self.timeout)
             .with_solution(self.show_solution)
             .with_long_solves_threshold(self.long_solves)
