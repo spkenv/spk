@@ -136,7 +136,8 @@ impl View {
             .must_be_found();
         let recipe = template.render(options)?;
 
-        for (index, variant) in recipe.default_variants().iter().enumerate() {
+        let default_variants = recipe.default_variants();
+        for (index, variant) in default_variants.iter().enumerate() {
             println!("{index}: {variant}");
         }
 

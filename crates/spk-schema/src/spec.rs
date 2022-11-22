@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
@@ -185,6 +186,7 @@ pub enum SpecRecipe {
 
 impl Recipe for SpecRecipe {
     type Output = Spec;
+    type Variant = SpecVariant;
 
     fn ident(&self) -> &VersionIdent {
         match self {
@@ -192,9 +194,18 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
+    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
         match self {
-            SpecRecipe::V0Package(r) => r.default_variants(),
+            SpecRecipe::V0Package(r) => Cow::Owned(
+                // use into_owned instead of iter().cloned() in case it's
+                // already an owned instance
+                #[allow(clippy::unnecessary_to_owned)]
+                r.default_variants()
+                    .into_owned()
+                    .into_iter()
+                    .map(SpecVariant::V0)
+                    .collect(),
+            ),
         }
     }
 
@@ -297,6 +308,33 @@ impl FromYaml for SpecRecipe {
                     serde_yaml::from_str(&yaml).map_err(|err| SerdeError::new(yaml, err))?;
                 Ok(Self::V0Package(inner))
             }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum SpecVariant {
+    V0(OptionMap),
+}
+
+impl super::Variant for SpecVariant {
+    fn name(&self) -> Option<&str> {
+        match self {
+            Self::V0(v) => v.name(),
+        }
+    }
+
+    fn options(&self) -> Cow<'_, OptionMap> {
+        match self {
+            Self::V0(v) => v.options(),
+        }
+    }
+}
+
+impl std::fmt::Display for SpecVariant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::V0(v) => v.fmt(f),
         }
     }
 }

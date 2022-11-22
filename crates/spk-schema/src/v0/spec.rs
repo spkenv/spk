@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
@@ -246,13 +247,14 @@ impl PackageMut for Spec<BuildIdent> {
 
 impl Recipe for Spec<VersionIdent> {
     type Output = Spec<BuildIdent>;
+    type Variant = OptionMap;
 
     fn ident(&self) -> &VersionIdent {
         &self.pkg
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
-        self.build.variants.as_slice()
+    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
+        Cow::Borrowed(&self.build.variants)
     }
 
     fn resolve_options(&self, given: &OptionMap) -> Result<OptionMap> {

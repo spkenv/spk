@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::path::Path;
 
 use spk_schema_ident::VersionIdent;
@@ -25,6 +26,7 @@ pub trait Recipe:
     Named + Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
 {
     type Output: super::Package;
+    type Variant: super::Variant + Clone;
 
     /// Build an identifier to represent this recipe.
     ///
@@ -32,7 +34,7 @@ pub trait Recipe:
     fn ident(&self) -> &VersionIdent;
 
     /// Return the default variants to be built for this recipe
-    fn default_variants(&self) -> &[OptionMap];
+    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>>;
 
     /// Produce the full set of build options given the inputs.
     ///
@@ -66,12 +68,13 @@ where
     T: Recipe,
 {
     type Output = T::Output;
+    type Variant = T::Variant;
 
     fn ident(&self) -> &VersionIdent {
         (**self).ident()
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
+    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
         (**self).default_variants()
     }
 
@@ -109,12 +112,13 @@ where
     T: Recipe,
 {
     type Output = T::Output;
+    type Variant = T::Variant;
 
     fn ident(&self) -> &VersionIdent {
         (**self).ident()
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
+    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
         (**self).default_variants()
     }
 
