@@ -65,12 +65,12 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
     // When using the sentry feature it is expected that the DSN
     // and other configuration is provided at *compile* time.
     let guard = sentry::init((
-        option_env!("SENTRY_DSN"),
+        env!("SENTRY_DSN"),
         sentry::ClientOptions {
             release: sentry::release_name!(),
-            environment: option_env!("SENTRY_ENVIRONMENT")
-                .map(ToString::to_string)
-                .map(std::borrow::Cow::Owned),
+            environment: Some(std::borrow::Cow::Owned(String::from(env!(
+                "SENTRY_ENVIRONMENT"
+            )))),
             before_send: Some(std::sync::Arc::new(|mut event| {
                 // Remove ansi color codes from the event message
                 if let Some(message) = event.message {
