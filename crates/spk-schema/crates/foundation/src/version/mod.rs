@@ -18,6 +18,7 @@ pub use compat::{
     CompatRule,
     CompatRuleSet,
     Compatibility,
+    IncompatibleReason,
     API_STR,
     BINARY_STR,
 };

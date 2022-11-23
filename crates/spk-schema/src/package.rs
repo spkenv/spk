@@ -74,7 +74,7 @@ pub trait Package:
                 .map(String::as_str);
             let compat = option.validate(value);
             if !compat.is_ok() {
-                return Compatibility::Incompatible(format!(
+                return Compatibility::incompatible(format!(
                     "invalid value for {}: {compat}",
                     option.full_name(),
                 ));
@@ -85,7 +85,7 @@ pub trait Package:
 
         if !must_exist.is_empty() {
             let missing = must_exist;
-            return Compatibility::Incompatible(format!(
+            return Compatibility::incompatible(format!(
                 "Package does not define requested build options: {missing:?}",
             ));
         }
