@@ -15,7 +15,6 @@ use relative_path::RelativePathBuf;
 use tokio::fs::DirEntry;
 
 use super::entry::{Entry, EntryKind};
-use super::Diff;
 use crate::{encoding, runtime, Error, Result};
 
 #[cfg(test)]
@@ -286,18 +285,18 @@ where
 
     /// Set a filter on the builder so that only files mentioned in the filter
     /// will be included in the manifest.
-    pub fn with_filter(mut self, filter: &[Diff]) -> Self {
+    ///
+    /// The filter is expected to contain paths that are relative to the
+    /// `$PREFIX` root.
+    pub fn with_filter(mut self, filter: impl IntoIterator<Item = RelativePathBuf>) -> Self {
         let mut filter_set = HashSet::new();
-        for diff in filter {
-            if diff.mode.is_unchanged() {
-                continue;
-            }
+        for path_to_filter in filter {
             // Ensure any parents of this path are also included.
             //
-            // If `diff.path` is "foo/bar/baz",
+            // If `path_to_filter` is "foo/bar/baz",
             // add "foo", "foo/bar", and "foo/bar/baz" to `filter_set`.
             let mut path = RelativePathBuf::new();
-            for component in diff.path.components() {
+            for component in path_to_filter.components() {
                 use relative_path::Component;
                 if let Component::Normal(component) = component {
                     path.push(component);
