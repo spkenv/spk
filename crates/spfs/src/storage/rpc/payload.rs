@@ -37,10 +37,14 @@ impl storage::PayloadStorage for super::RpcRepository {
             .into_inner()
             .to_result()?;
         let client = hyper::Client::new();
-        let stream =
-            tokio_util::codec::FramedRead::new(reader, tokio_util::codec::BytesCodec::new());
+        let compressed_reader = async_compression::tokio::bufread::BzEncoder::new(reader);
+        let stream = tokio_util::codec::FramedRead::new(
+            compressed_reader,
+            tokio_util::codec::BytesCodec::new(),
+        );
         let request = hyper::Request::builder()
             .method(hyper::Method::POST)
+            .header(hyper::http::header::CONTENT_TYPE, "application/x-bzip2")
             .uri(&option.url)
             .body(hyper::Body::wrap_stream(stream))
             .map_err(|err| {
