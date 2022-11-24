@@ -809,6 +809,15 @@ pub struct DecisionFormatterSettings {
     /// than a few seconds.
     #[clap(long)]
     pub status_bar: bool,
+
+    /// Disables multiple solvers from running for given solver run.
+    ///
+    /// Only a single solver will run for each solve. The solver will
+    /// use the options configured on the command line. The additional
+    /// solvers with alternate settings that normally run will be
+    /// disabled.
+    #[clap(long, env = "SPK_DISABLE_MULTI_SOLVE")]
+    pub disable_multi_solve: bool,
 }
 
 impl DecisionFormatterSettings {
@@ -842,7 +851,8 @@ impl DecisionFormatterSettings {
             .with_solution(self.show_solution)
             .with_long_solves_threshold(self.long_solves)
             .with_max_frequent_errors(self.max_frequent_errors)
-            .with_status_bar(self.status_bar);
+            .with_status_bar(self.status_bar)
+            .with_multi_solve_disabled(self.disable_multi_solve);
         builder
     }
 }

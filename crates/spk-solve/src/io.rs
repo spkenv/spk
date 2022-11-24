@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use async_stream::stream;
 use colored::Colorize;
 use crossterm::tty::IsTty;
+use futures::stream::FuturesUnordered;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -399,6 +400,7 @@ pub struct DecisionFormatterBuilder {
     long_solves_threshold: u64,
     max_frequent_errors: usize,
     status_bar: bool,
+    multi_solve: bool,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -420,6 +422,7 @@ impl DecisionFormatterBuilder {
             long_solves_threshold: 0,
             max_frequent_errors: 0,
             status_bar: false,
+            multi_solve: false,
         }
     }
 
@@ -473,6 +476,11 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_multi_solve_disabled(&mut self, disabled: bool) -> &mut Self {
+        self.multi_solve = !disabled;
+        self
+    }
+
     pub fn build(&self) -> DecisionFormatter {
         let too_long_seconds = if self.verbosity_increase_seconds == 0
             || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
@@ -510,6 +518,7 @@ impl DecisionFormatterBuilder {
                 long_solves_threshold: self.long_solves_threshold,
                 max_frequent_errors: self.max_frequent_errors,
                 status_bar: self.status_bar,
+                multi_solve: self.multi_solve,
             },
         }
     }
@@ -551,6 +560,34 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) long_solves_threshold: u64,
     pub(crate) max_frequent_errors: usize,
     pub(crate) status_bar: bool,
+    pub(crate) multi_solve: bool,
+}
+
+enum LoopOutcome {
+    Interrupted(String),
+    Failed(Box<Error>),
+    Success,
+}
+
+#[derive(PartialEq)]
+enum MultiSolverKind {
+    Unchanged = 1,
+    BuildKeyImpossibleChecks,
+    AllImpossibleChecks,
+}
+
+struct SolverTaskSettings {
+    solver: Solver,
+    solver_kind: MultiSolverKind,
+    ignore_failure: bool,
+}
+
+struct SolverTaskDone {
+    pub(crate) start: Instant,
+    pub(crate) loop_outcome: LoopOutcome,
+    pub(crate) runtime: SolverRuntime,
+    pub(crate) solver_kind: MultiSolverKind,
+    pub(crate) can_ignore_failure: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -580,44 +617,198 @@ impl DecisionFormatter {
     /// Run the solver to completion, printing each step to stdout
     /// as appropriate.
     pub async fn run_and_print_resolve(&self, solver: &Solver) -> Result<Solution> {
-        let mut runtime = solver.run();
-        self.run_and_print_decisions(&mut runtime).await
-    }
-
-    /// Run the solver runtime to completion, printing each step to stdout
-    /// as appropriate.
-    pub async fn run_and_print_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
-        self.run_and_format_decisions(runtime, |args| println!("{args}"))
+        // Even if running multiple solvers is enabled, there's no point in
+        // running them if all the impossible checks are all already enabled.
+        if self.settings.multi_solve && !solver.all_impossible_checks_enabled() {
+            let solvers = self.setup_solvers(solver);
+            self.run_multi_solve(solvers, |args| println!("{args}"))
+                .await
+        } else {
+            let mut runtime = solver.run();
+            let start = Instant::now();
+            let loop_outcome = self
+                .run_solver_loop(&mut runtime, |args| println!("{args}"))
+                .await;
+            self.check_and_output_solver_results(loop_outcome, &start, &mut runtime, |args| {
+                println!("{args}")
+            })
             .await
+        }
     }
 
-    /// Run the solver to completion, logging each step as a
-    /// tracing info-level event as appropriate.
-    pub async fn run_and_log_resolve(&self, solver: &Solver) -> Result<Solution> {
-        let mut runtime = solver.run();
-        self.run_and_log_decisions(&mut runtime).await
+    // /// Run the solver runtime to completion, printing each step to stdout
+    // /// as appropriate.
+    // pub async fn run_and_print_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
+    //     self.run_and_format_decisions(runtime, |args| println!("{args}"))
+    //         .await
+    // }
+
+    //     pub async fn run_and_format_decisions(
+    //         &self,
+    //         runtime: &mut SolverRuntime,
+    //         log_fn: impl Fn(std::fmt::Arguments),
+    //     ) -> Result<Solution> {
+    //         enum LoopOutcome {
+    //             Interrupted(String),
+    //             Failed(Box<Error>),
+    //             Success,
+
+    // =======
+
+    fn setup_solvers(&self, base_solver: &Solver) -> Vec<SolverTaskSettings> {
+        // Leave the first solver as is.
+        let solver_with_no_change = base_solver.clone();
+
+        // Enable the build impossible checks in the second solver.
+        let mut solver_with_bkey_checks = base_solver.clone();
+        solver_with_bkey_checks.set_initial_request_impossible_checks(false);
+        solver_with_bkey_checks.set_resolve_validation_impossible_checks(false);
+        solver_with_bkey_checks.set_build_key_impossible_checks(true);
+
+        // Enable all the impossible checks in the third solver.
+        let mut solver_with_all_checks = base_solver.clone();
+        solver_with_all_checks.set_initial_request_impossible_checks(true);
+        solver_with_all_checks.set_resolve_validation_impossible_checks(true);
+        solver_with_all_checks.set_build_key_impossible_checks(true);
+
+        Vec::from([
+            SolverTaskSettings {
+                solver: solver_with_no_change,
+                solver_kind: MultiSolverKind::Unchanged,
+                ignore_failure: false,
+            },
+            SolverTaskSettings {
+                solver: solver_with_bkey_checks,
+                solver_kind: MultiSolverKind::BuildKeyImpossibleChecks,
+                ignore_failure: false,
+            },
+            SolverTaskSettings {
+                solver: solver_with_all_checks,
+                solver_kind: MultiSolverKind::AllImpossibleChecks,
+                ignore_failure: false,
+            },
+        ])
     }
 
-    /// Run the solver runtime to completion, logging each step as a
-    /// tracing info-level event as appropriate.
-    pub async fn run_and_log_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
-        self.run_and_format_decisions(runtime, |args| tracing::info!("{args}"))
-            .await
+    fn launch_solver_tasks(
+        &self,
+        solvers: Vec<SolverTaskSettings>,
+        log_fn: impl Fn(std::fmt::Arguments) + Send + Sync,
+    ) -> FuturesUnordered<tokio::task::JoinHandle<SolverTaskDone>> {
+        let tasks = FuturesUnordered::new();
+
+        for solver_settings in solvers {
+            let mut task_formatter = self.clone();
+            if solver_settings.solver_kind != MultiSolverKind::Unchanged {
+                // Hide the output from all the solvers except the
+                // unchanged one. The output from the unchanged solver
+                // is enough to show the user that something is
+                // happening. If one of the later solvers finishes
+                // first, a message will be printed explaining how to
+                // run that solver on its own to see its output.
+                task_formatter.settings.verbosity = 0;
+                task_formatter.settings.status_bar = false;
+            }
+            let mut task_solver_runtime = solver_settings.solver.run();
+            let task_log_fn = |args| log_fn(args);
+
+            let task = async move {
+                let start = Instant::now();
+                let loop_outcome = task_formatter
+                    .run_solver_loop(&mut task_solver_runtime, task_log_fn)
+                    .await;
+
+                SolverTaskDone {
+                    start,
+                    loop_outcome,
+                    runtime: task_solver_runtime,
+                    solver_kind: solver_settings.solver_kind,
+                    can_ignore_failure: solver_settings.ignore_failure,
+                }
+            };
+
+            tasks.push(tokio::spawn(task));
+        }
+
+        tasks
     }
 
-    pub async fn run_and_format_decisions(
+    async fn run_multi_solve(
+        &self,
+        solvers: Vec<SolverTaskSettings>,
+        log_fn: impl Fn(std::fmt::Arguments) + Send + Sync,
+    ) -> Result<Solution> {
+        let mut tasks = self.launch_solver_tasks(solvers, |args| log_fn(args));
+
+        while let Some(result) = tasks.next().await {
+            match result {
+                Ok(SolverTaskDone {
+                    start,
+                    loop_outcome,
+                    mut runtime,
+                    solver_kind,
+                    can_ignore_failure,
+                }) => {
+                    // If the solver that finished first is one we can
+                    // ignore failures from and it failed, then ignore
+                    // the result and wait for the next to finish.
+                    // Otherwise use this result and shutdown the others.
+                    if can_ignore_failure {
+                        if let LoopOutcome::Failed(_) = loop_outcome {
+                            continue;
+                        };
+                    }
+
+                    // Stop the other solver tasks running but don't
+                    // wait for them here because don't want to delay
+                    // this (the main) thread.
+                    for task in tasks.iter() {
+                        task.abort();
+                    }
+
+                    tracing::debug!(
+                        "{} solver found a solution. Stopped remaining solver tasks.",
+                        match &solver_kind {
+                            MultiSolverKind::BuildKeyImpossibleChecks =>
+                                "Build Key Impossible Checks",
+                            MultiSolverKind::AllImpossibleChecks => "All Impossible Checks",
+                            _ => "Default",
+                        },
+                    );
+
+                    let result = self
+                        .check_and_output_solver_results(loop_outcome, &start, &mut runtime, log_fn)
+                        .await;
+
+                    if self.settings.verbosity > 0 {
+                        match &solver_kind {
+                            MultiSolverKind::BuildKeyImpossibleChecks => {
+                                tracing::info!("The solver that found the solution had its output disabled. To see its output, add '--check-impossible-builds' and '--disable-multi-solve' to the command line and rerun the spk command.");
+                            }
+                            MultiSolverKind::AllImpossibleChecks => {
+                                tracing::info!("The solver that found the solution had its output disabled. To see its output, add '--check-impossible-all' and '--disable-multi-solve' to the command line and rerun the spk command.");
+                            }
+                            _ => {}
+                        };
+                    }
+
+                    return result;
+                }
+                Err(err) => {
+                    return Err(Error::String(format!("Multi-solver task issue: {err}")));
+                }
+            }
+        }
+        Err(Error::String(
+            "Multi-solver task failed to run any tasks.".to_string(),
+        ))
+    }
+
+    async fn run_solver_loop(
         &self,
         runtime: &mut SolverRuntime,
         log_fn: impl Fn(std::fmt::Arguments),
-    ) -> Result<Solution> {
-        enum LoopOutcome {
-            Interrupted(String),
-            Failed(Box<Error>),
-            Success,
-        }
-
-        // Step through the solver runtime's decisions - this runs the solver
-        let start = Instant::now();
+    ) -> LoopOutcome {
         // This block exists to shorten the scope of `runtime`'s borrow.
         let loop_outcome = {
             let decisions = runtime.iter();
@@ -644,6 +835,16 @@ impl DecisionFormatter {
             }
         };
 
+        loop_outcome
+    }
+
+    async fn check_and_output_solver_results(
+        &self,
+        loop_outcome: LoopOutcome,
+        start: &Instant,
+        runtime: &mut SolverRuntime,
+        log_fn: impl Fn(std::fmt::Arguments),
+    ) -> Result<Solution> {
         match loop_outcome {
             LoopOutcome::Interrupted(mesg) => {
                 // Note: the solution probably won't be
@@ -720,6 +921,44 @@ impl DecisionFormatter {
         }
 
         solution
+    }
+
+    /// Run the solver runtime to completion, printing each step to stdout
+    /// as appropriate given a verbosity level.
+    pub async fn run_and_print_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
+        // Note: this is only used directly by cmd_view/info when it runs
+        // a solve. Once 'spk info' no longer runs a solve we should be
+        // able to remove this whole function.
+        let start = Instant::now();
+
+        let loop_outcome = self
+            .run_solver_loop(runtime, |args| println!("{args}"))
+            .await;
+        self.check_and_output_solver_results(loop_outcome, &start, runtime, |args| {
+            println!("{args}")
+        })
+        .await
+    }
+
+    /// Run the solver to completion, logging each step as a
+    /// tracing info-level event as appropriate.
+    pub async fn run_and_log_resolve(&self, solver: &Solver) -> Result<Solution> {
+        let mut runtime = solver.run();
+        self.run_and_log_decisions(&mut runtime).await
+    }
+
+    /// Run the solver runtime to completion, logging each step as a
+    /// tracing info-level event as appropriate.
+    pub async fn run_and_log_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
+        let start = Instant::now();
+
+        let loop_outcome = self
+            .run_solver_loop(runtime, |args| tracing::info!("{args}"))
+            .await;
+        self.check_and_output_solver_results(loop_outcome, &start, runtime, |args| {
+            tracing::info!("{args}")
+        })
+        .await
     }
 
     #[cfg(feature = "sentry")]
