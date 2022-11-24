@@ -3017,6 +3017,7 @@ dependencies = [
  "spk-schema",
  "spk-solve",
  "spk-storage",
+ "statsd",
  "tokio",
  "tracing",
 ]
@@ -3068,6 +3069,7 @@ dependencies = [
  "spk-schema",
  "spk-solve",
  "spk-storage",
+ "statsd",
  "strip-ansi-escapes",
  "thiserror",
  "tokio",
@@ -3210,6 +3212,8 @@ dependencies = [
  "spfs",
  "spk-cli-common",
  "spk-exec",
+ "spk-solve",
+ "statsd",
  "tokio",
  "tracing",
 ]
@@ -3478,6 +3482,7 @@ dependencies = [
  "spk-solve-solution",
  "spk-solve-validation",
  "spk-storage",
+ "statsd",
  "strip-ansi-escapes",
  "thiserror",
  "tokio",
@@ -3609,6 +3614,15 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "statsd"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df1efceb4bf2c0b5ebec94354285a43bbbed1375605bdf2ebe4132299434a330"
+dependencies = [
+ "rand 0.8.5",
+]
 
 [[package]]
 name = "strip-ansi-escapes"

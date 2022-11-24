@@ -7,6 +7,7 @@ version = { workspace = true }
 [features]
 sentry = ["dep:sentry", "spfs/sentry"]
 migration-to-components = []
+statsd = ["dep:statsd"]
 
 [dependencies]
 async-recursion = "1.0"
@@ -32,6 +33,7 @@ spk-solve-solution = { path = "./crates/solution" }
 spk-solve-validation = { path = "./crates/validation" }
 spk-schema = { path = "../spk-schema" }
 spk-storage = { path = "../spk-storage" }
+statsd = { version = "0.15.0", optional = true }
 thiserror = "1.0"
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }

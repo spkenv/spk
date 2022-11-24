@@ -35,6 +35,15 @@ use spk_solve_graph::{
 };
 
 use crate::solver::ErrorFreq;
+#[cfg(feature = "statsd")]
+use crate::{
+    get_metrics_client,
+    SPK_SOLUTION_PACKAGE_COUNT_METRIC,
+    SPK_SOLVER_INITIAL_REQUESTS_COUNT_METRIC,
+    SPK_SOLVER_RUN_COUNT_METRIC,
+    SPK_SOLVER_RUN_TIME_METRIC,
+    SPK_SOLVER_SOLUTION_SIZE_METRIC,
+};
 use crate::{
     show_search_space_stats,
     Error,
@@ -899,6 +908,8 @@ impl DecisionFormatter {
                 // Note: the solution probably won't be
                 // complete because of the interruption.
                 let solve_time = start.elapsed();
+                #[cfg(feature = "statsd")]
+                self.send_solver_end_metrics(solve_time);
 
                 // The solve was interrupted, record time taken and
                 // other the details in sentry for later analysis.
@@ -935,6 +946,9 @@ impl DecisionFormatter {
                     eprintln!("{}", self.format_solve_stats(&runtime.solver, solve_time));
                 }
 
+                #[cfg(feature = "statsd")]
+                self.send_solver_end_metrics(start.elapsed());
+
                 #[cfg(feature = "sentry")]
                 self.add_details_to_next_sentry_event(&runtime.solver, start.elapsed());
 
@@ -944,6 +958,8 @@ impl DecisionFormatter {
         };
 
         let solve_time = start.elapsed();
+        #[cfg(feature = "statsd")]
+        self.send_solver_end_metrics(solve_time);
 
         if solve_time > Duration::from_secs(self.settings.long_solves_threshold) {
             tracing::warn!(
@@ -964,6 +980,11 @@ impl DecisionFormatter {
         }
 
         let solution = runtime.current_solution().await;
+
+        #[cfg(feature = "statsd")]
+        if let Ok(ref s) = solution {
+            self.send_solution_metrics(s);
+        }
 
         if self.settings.show_solution {
             if let Ok(ref s) = solution {
@@ -1016,6 +1037,63 @@ impl DecisionFormatter {
             tracing::info!("That took {} seconds", start.elapsed().as_secs_f64());
         }
         Ok(())
+    }
+
+    #[cfg(feature = "statsd")]
+    fn send_solver_start_metrics(&self, runtime: &SolverRuntime) {
+        let statsd_client = get_metrics_client();
+
+        statsd_client.incr(&SPK_SOLVER_RUN_COUNT_METRIC);
+
+        let initial_state = runtime.solver.get_initial_state();
+        let value = initial_state.get_pkg_requests().len();
+        statsd_client.count(&SPK_SOLVER_INITIAL_REQUESTS_COUNT_METRIC, value as f64);
+    }
+
+    #[cfg(feature = "statsd")]
+    fn send_solver_end_metrics(&self, solve_time: Duration) {
+        let statsd_client = get_metrics_client();
+        statsd_client.timer(&SPK_SOLVER_RUN_TIME_METRIC, solve_time);
+    }
+
+    #[cfg(feature = "statsd")]
+    fn send_solution_metrics(&self, solution: &Solution) {
+        let statsd_client = get_metrics_client();
+        let pipeline = statsd_client.start_a_pipeline();
+
+        // If the metrics client didn't make a statsd connection, it
+        // won't return a pipeline.
+        if let Some(mut statsd_pipeline) = pipeline {
+            let solved_requests = solution.items();
+
+            statsd_client.pipeline_count(
+                &mut statsd_pipeline,
+                &SPK_SOLVER_SOLUTION_SIZE_METRIC,
+                solved_requests.len() as f64,
+            );
+
+            for solved in solved_requests {
+                let package = solved.spec.ident().clone();
+                let build = if let Some(b) = package.build {
+                    b.to_string()
+                } else {
+                    "".to_string()
+                };
+                let labels = Vec::from([
+                    format!("package={}", package.name),
+                    format!("version={}", package.version),
+                    format!("build={}", build),
+                ]);
+
+                statsd_client.pipeline_incr_with_extra_labels(
+                    &mut statsd_pipeline,
+                    &SPK_SOLUTION_PACKAGE_COUNT_METRIC,
+                    &labels,
+                );
+            }
+
+            statsd_client.pipeline_send(statsd_pipeline);
+        }
     }
 
     #[cfg(feature = "sentry")]

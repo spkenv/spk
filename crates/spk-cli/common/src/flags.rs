@@ -21,6 +21,8 @@ use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{parse_ident, AnyIdent, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage};
 use spk_solve::{self as solve};
+#[cfg(feature = "statsd")]
+use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
 use spk_storage::{self as storage};
 
 #[cfg(test)]
@@ -122,6 +124,17 @@ impl Runtime {
 
         tracing::debug!("relaunching under spfs");
         tracing::trace!("{:?}", args);
+
+        // Record the run duration up to this point because this spk
+        // command is about to replace itself with an identical spk
+        // command that is inside a spfs runtime. We want to capture
+        // the run time for the current spk run before it is replaced.
+        #[cfg(feature = "statsd")]
+        {
+            let statsd_client = get_metrics_client();
+            statsd_client.record_duration_from_start(&SPK_RUN_TIME_METRIC);
+        }
+
         nix::unistd::execvp(&spfs, args.as_slice())
             .context("Failed to re-launch spk in an spfs runtime")?;
         unreachable!()

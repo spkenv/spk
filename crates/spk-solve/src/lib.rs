@@ -8,6 +8,8 @@
 mod error;
 mod io;
 mod macros;
+#[cfg(feature = "statsd")]
+mod metrics;
 mod search_space;
 mod solver;
 mod status_line;
@@ -17,6 +19,19 @@ use std::sync::Arc;
 pub use error::{Error, Result};
 use graph::Graph;
 pub use io::{DecisionFormatter, DecisionFormatterBuilder, MultiSolverKind};
+#[cfg(feature = "statsd")]
+pub use metrics::{
+    get_metrics_client,
+    MetricsClient,
+    SPK_ERROR_COUNT_METRIC,
+    SPK_RUN_COUNT_METRIC,
+    SPK_RUN_TIME_METRIC,
+    SPK_SOLUTION_PACKAGE_COUNT_METRIC,
+    SPK_SOLVER_INITIAL_REQUESTS_COUNT_METRIC,
+    SPK_SOLVER_RUN_COUNT_METRIC,
+    SPK_SOLVER_RUN_TIME_METRIC,
+    SPK_SOLVER_SOLUTION_SIZE_METRIC,
+};
 pub(crate) use search_space::show_search_space_stats;
 pub use solver::{Solver, SolverRuntime};
 pub use spk_schema::foundation::ident_build::Build;
