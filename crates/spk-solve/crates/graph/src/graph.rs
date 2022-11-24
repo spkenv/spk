@@ -192,7 +192,7 @@ pub struct Decision {
 }
 
 impl Decision {
-    pub fn builder(base: &State) -> DecisionBuilder<'_, 'static> {
+    pub fn builder(base: &Arc<State>) -> DecisionBuilder<'_, 'static> {
         DecisionBuilder::new(base)
     }
 
@@ -217,12 +217,12 @@ impl Decision {
 }
 
 pub struct DecisionBuilder<'state, 'cmpt> {
-    base: &'state State,
+    base: &'state Arc<State>,
     components: HashSet<&'cmpt Component>,
 }
 
 impl<'state> DecisionBuilder<'state, 'static> {
-    pub fn new(base: &'state State) -> Self {
+    pub fn new(base: &'state Arc<State>) -> Self {
         Self {
             base,
             components: HashSet::new(),
@@ -298,6 +298,35 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         }
     }
 
+    /// Make this package the next request to be considered.
+    pub fn reconsider_package(
+        self,
+        request: PkgRequest,
+        conflicting_package_name: &PkgName,
+        counter: Arc<AtomicU64>,
+    ) -> Decision {
+        let generate_changes = || {
+            let changes = vec![
+                Change::StepBack(StepBack::new(
+                    format!(
+                        "Package {} embeds package already resolved: {conflicting_package_name}",
+                        request.pkg.name
+                    ),
+                    self.base,
+                    counter,
+                )),
+                Change::RequestPackage(RequestPackage::prioritize(request)),
+            ];
+
+            changes
+        };
+
+        Decision {
+            changes: generate_changes(),
+            notes: Vec::default(),
+        }
+    }
+
     fn requirements_to_changes(
         &self,
         requirements: &RequirementsList,
@@ -354,7 +383,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         ))];
         // we need to check if this request will change a previously
         // resolved package (eg: by adding a new component with new requirements)
-        let (spec, _source) = match self.base.get_current_resolve(&req.pkg.name) {
+        let (spec, _source, _) = match self.base.get_current_resolve(&req.pkg.name) {
             Ok(e) => e,
             Err(_) => return changes,
         };
@@ -688,6 +717,7 @@ pub enum Note {
 #[derive(Clone, Debug)]
 pub struct RequestPackage {
     pub request: PkgRequest,
+    pub prioritize: bool,
 }
 
 /// For counting requests for the same package, but not necessarily
@@ -699,7 +729,17 @@ pub static DUPLICATE_REQUESTS_COUNT: AtomicU64 = AtomicU64::new(0);
 
 impl RequestPackage {
     pub fn new(request: PkgRequest) -> Self {
-        RequestPackage { request }
+        RequestPackage {
+            request,
+            prioritize: false,
+        }
+    }
+
+    pub fn prioritize(request: PkgRequest) -> Self {
+        RequestPackage {
+            request,
+            prioritize: true,
+        }
     }
 
     pub fn apply(&self, parent: &Arc<State>, base: &Arc<State>) -> Arc<State> {
@@ -793,6 +833,13 @@ impl RequestPackage {
             // will be added to the merged request when this package is
             // next selected by the solver.
             new_requests.push(Arc::new(self.request.clone().into()));
+        }
+
+        if self.prioritize {
+            // Move the request to the front of new_requests.
+            //
+            // This requires a stable sort.
+            new_requests.sort_by_key(|req| i32::from(req.pkg.name != self.request.pkg.name))
         }
 
         Arc::new(base.with_pkg_requests(parent, new_requests))
@@ -905,7 +952,7 @@ impl SetPackageBuild {
 }
 
 #[derive(Clone, Debug)]
-struct StateId {
+pub struct StateId {
     pkg_requests_hash: u64,
     var_requests_hash: u64,
     // A set of what `VarRequest` hashes exist in this `StateId`.
@@ -917,7 +964,7 @@ struct StateId {
 
 impl StateId {
     #[inline]
-    fn id(&self) -> u64 {
+    pub fn id(&self) -> u64 {
         self.full_hash
     }
 
@@ -960,7 +1007,7 @@ impl StateId {
 
     fn packages_hash(packages: &StatePackages) -> u64 {
         let mut hasher = DefaultHasher::new();
-        for (spec, _) in packages.values() {
+        for (spec, _, _) in packages.values() {
             spec.hash(&mut hasher);
         }
         hasher.finish()
@@ -1062,7 +1109,17 @@ impl<T> std::hash::Hash for CachedHash<T> {
     }
 }
 
-type StatePackages = Arc<BTreeMap<PkgNameBuf, (CachedHash<Arc<Spec>>, PackageSource)>>;
+type StatePackages = Arc<
+    BTreeMap<
+        PkgNameBuf,
+        (
+            CachedHash<Arc<Spec>>,
+            PackageSource,
+            // The state id just before this package was added to the state.
+            StateId,
+        ),
+    >,
+>;
 
 // `State` is immutable. It should not derive Clone.
 #[derive(Debug)]
@@ -1134,7 +1191,7 @@ impl State {
         // resolve order to preserve that order in the solution.
         for package in self.packages_in_solve_order.iter() {
             let (spec, source) = match self.packages.get(package.name()) {
-                Some((pkg_spec, pkg_source)) => (pkg_spec, pkg_source),
+                Some((pkg_spec, pkg_source, _)) => (pkg_spec, pkg_source),
                 None => continue,
             };
 
@@ -1168,12 +1225,16 @@ impl State {
     pub fn get_current_resolve(
         &self,
         name: &PkgName,
-    ) -> super::error::GetCurrentResolveResult<(&CachedHash<Arc<Spec>>, &PackageSource)> {
-        self.packages.get(name).map(|(s, p)| (s, p)).ok_or_else(|| {
-            super::error::GetCurrentResolveError::PackageNotResolved(format!(
-                "Has not been resolved: '{name}'",
-            ))
-        })
+    ) -> super::error::GetCurrentResolveResult<(&CachedHash<Arc<Spec>>, &PackageSource, &StateId)>
+    {
+        self.packages
+            .get(name)
+            .map(|(s, p, id)| (s, p, id))
+            .ok_or_else(|| {
+                super::error::GetCurrentResolveError::PackageNotResolved(format!(
+                    "Has not been resolved: '{name}'",
+                ))
+            })
     }
 
     pub fn get_merged_request(
@@ -1270,7 +1331,7 @@ impl State {
 
     pub fn get_resolved_packages(
         &self,
-    ) -> &BTreeMap<PkgNameBuf, (CachedHash<Arc<Spec>>, PackageSource)> {
+    ) -> &BTreeMap<PkgNameBuf, (CachedHash<Arc<Spec>>, PackageSource, StateId)> {
         &self.packages
     }
 
@@ -1305,7 +1366,10 @@ impl State {
         let mut packages_in_solve_order = Arc::clone(&self.packages_in_solve_order);
         Arc::make_mut(&mut packages_in_solve_order).push(Arc::clone(&spec));
         let mut packages = Arc::clone(&self.packages);
-        Arc::make_mut(&mut packages).insert(spec.name().to_owned(), (spec.into(), source));
+        Arc::make_mut(&mut packages).insert(
+            spec.name().to_owned(),
+            (spec.into(), source, self.state_id.clone()),
+        );
         let state_id = self.state_id.with_packages(&packages);
         Self {
             pkg_requests: Arc::clone(&self.pkg_requests),

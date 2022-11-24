@@ -349,6 +349,10 @@ impl RepositoryBuildIterator {
         for (repo_name, repo) in &repos {
             let builds = repo.list_package_builds(pkg.as_version()).await?;
             for build in builds {
+                if build.is_embedded() {
+                    // Ignore any embedded stubs
+                    continue;
+                }
                 match builds_and_repos.get_mut(&build) {
                     Some(repos) => {
                         repos.insert(repo_name.clone(), Arc::clone(repo));

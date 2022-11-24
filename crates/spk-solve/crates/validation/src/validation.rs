@@ -238,7 +238,7 @@ impl EmbeddedPackageValidator {
 
         // There may not be a "real" instance of the embedded package in the
         // solve already.
-        if let Some((existing, _)) = state.get_resolved_packages().get(embedded.name()) {
+        if let Some((existing, _, _)) = state.get_resolved_packages().get(embedded.name()) {
             // If found, it must be the stub of the package now being embedded
             // to be okay.
             match existing.ident().build() {
@@ -636,7 +636,7 @@ impl PkgRequirementsValidator {
         };
 
         let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
-            Ok((spec, source)) => match source {
+            Ok((spec, source, _)) => match source {
                 PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
                 PackageSource::BuildFromSource { .. }
                 | PackageSource::Embedded { .. }

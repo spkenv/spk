@@ -18,6 +18,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
+use spk_schema::version::IncompatibleReason;
 use spk_schema::{try_recipe, BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
     Change,
@@ -454,7 +455,11 @@ impl Solver {
             .map_err(Error::ValidationError)
     }
 
-    async fn step_state(&mut self, node: &mut Arc<Node>) -> Result<Option<Decision>> {
+    async fn step_state(
+        &mut self,
+        graph: &Arc<tokio::sync::RwLock<Graph>>,
+        node: &mut Arc<Node>,
+    ) -> Result<Option<Decision>> {
         let mut notes = Vec::<Note>::new();
         let request = if let Some(request) = node.state.get_next_request()? {
             request
@@ -464,7 +469,7 @@ impl Solver {
             // present in the solve.
             let mut non_embeds = HashSet::new();
             let mut embeds = HashMap::new();
-            for (spec, _) in node.state.get_resolved_packages().values() {
+            for (spec, _, _) in node.state.get_resolved_packages().values() {
                 match spec.ident().build() {
                     Build::Embedded(EmbeddedSource::Package(package)) => {
                         let ident: BuildIdent = (&package.ident).try_into()?;
@@ -588,43 +593,79 @@ impl Solver {
                         spec.ident().is_source() && request.pkg.build != Some(Build::Source);
 
                     let mut decision = if !build_from_source {
-                        compat = self.validate_package(&node.state, &spec, source)?;
-                        if !&compat {
-                            notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                                Package::ident(&spec).to_any(),
-                                compat.clone(),
-                            )));
-                            self.number_builds_skipped += 1;
-                            continue;
-                        }
+                        match self.validate_package(&node.state, &spec, source)? {
+                            Compatibility::Compatible => {
+                                if self.impossible_checks.check_before_resolving {
+                                    // The unresolved requests from the state
+                                    // are used to check the new requests this
+                                    // build would add, if it was used to
+                                    // resolve the current request.
+                                    let unresolved = node.state.get_unresolved_requests();
+                                    let compat = self
+                                        .check_requirements_for_impossible_requests(
+                                            &spec, unresolved,
+                                        )
+                                        .await?;
+                                    if !compat.is_ok() {
+                                        // This build would add an impossible requst,
+                                        // which is a bad choice for any solve, so
+                                        // discard this build and try another.
+                                        notes.push(Note::SkipPackageNote(SkipPackageNote::new(
+                                            spec.ident().to_any(),
+                                            compat,
+                                        )));
+                                        self.number_builds_skipped += 1;
+                                        continue;
+                                    };
+                                }
 
-                        if self.impossible_checks.check_before_resolving {
-                            // The unresolved requests from the state
-                            // are used to check the new requests this
-                            // build would add, if it was used to
-                            // resolve the current request.
-                            let unresolved = node.state.get_unresolved_requests();
-                            let compat = self
-                                .check_requirements_for_impossible_requests(&spec, unresolved)
-                                .await?;
-                            if !compat.is_ok() {
-                                // This build would add an impossible requst,
-                                // which is a bad choice for any solve, so
-                                // discard this build and try another.
+                                // This build has passed all the checks and
+                                // can be used to resolve the current request
+                                Decision::builder(&node.state)
+                                    .with_components(&request.pkg.components)
+                                    .resolve_package(&spec, source.clone())
+                            }
+                            Compatibility::Incompatible(
+                                IncompatibleReason::ConflictingEmbeddedPackage(
+                                    conflicting_package_name,
+                                ),
+                            ) => {
+                                // This build couldn't be used because it
+                                // conflicts with an existing package in the
+                                // solve. Jump back to before the conflicting
+                                // package was added and try adding this
+                                // build again.
+                                let (_, _, state_id) = node
+                                    .state
+                                    .get_current_resolve(&conflicting_package_name)
+                                    .map_err(|_| {
+                                        Error::String("package not found in resolve".into())
+                                    })?;
+
+                                let graph_lock = graph.read().await;
+
+                                let target_state_node = graph_lock
+                                    .nodes
+                                    .get(&state_id.id())
+                                    .ok_or_else(|| Error::String("state not found".into()))?
+                                    .read()
+                                    .await;
+
+                                Decision::builder(&target_state_node.state).reconsider_package(
+                                    request.clone(),
+                                    conflicting_package_name.as_ref(),
+                                    Arc::clone(&self.number_of_steps_back),
+                                )
+                            }
+                            compat @ Compatibility::Incompatible(_) => {
                                 notes.push(Note::SkipPackageNote(SkipPackageNote::new(
                                     spec.ident().to_any(),
-                                    compat,
+                                    compat.clone(),
                                 )));
                                 self.number_builds_skipped += 1;
                                 continue;
-                            };
+                            }
                         }
-
-                        // This build has passed all the checks and
-                        // can be used to resolve the current request
-                        Decision::builder(&node.state)
-                            .with_components(&request.pkg.components)
-                            .resolve_package(&spec, source.clone())
                     } else {
                         if let PackageSource::Embedded { .. } = source {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
@@ -1198,7 +1239,7 @@ impl SolverRuntime {
                     }
                 }
 
-                self.decision = match self.solver.step_state(&mut current_node_lock).await
+                self.decision = match self.solver.step_state(&self.graph, &mut current_node_lock).await
                 {
                     Ok(decision) => decision.map(Arc::new),
                     Err(crate::Error::OutOfOptions(ref err)) => {
