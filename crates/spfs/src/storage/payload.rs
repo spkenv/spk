@@ -32,7 +32,7 @@ pub trait PayloadStorage: Sync + Send {
     /// call [`super::Repository::commit_blob`] instead.
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)>;
 
     /// Return a handle and filename to the full content of a payload.
@@ -43,7 +43,7 @@ pub trait PayloadStorage: Sync + Send {
         &self,
         digest: encoding::Digest,
     ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
         std::path::PathBuf,
     )>;
 
@@ -62,7 +62,7 @@ impl<T: PayloadStorage> PayloadStorage for &T {
 
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         // Safety: we are wrapping the same underlying unsafe function and
         // so the same safety holds for our callers
@@ -73,7 +73,7 @@ impl<T: PayloadStorage> PayloadStorage for &T {
         &self,
         digest: encoding::Digest,
     ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
         std::path::PathBuf,
     )> {
         PayloadStorage::open_payload(&**self, digest).await

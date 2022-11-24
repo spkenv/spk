@@ -34,7 +34,10 @@ async fn test_render_manifest(tmpdir: tempfile::TempDir) {
             let data = tokio::fs::File::open(&node.path.to_path("/"))
                 .await
                 .unwrap();
-            storage.commit_blob(Box::pin(data)).await.unwrap();
+            storage
+                .commit_blob(Box::pin(tokio::io::BufReader::new(data)))
+                .await
+                .unwrap();
         }
     }
 

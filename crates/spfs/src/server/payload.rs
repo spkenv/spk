@@ -177,10 +177,13 @@ async fn handle_upload(
         .map_err(|e| crate::Error::String(e.to_string()))
 }
 
-fn body_to_reader(body: hyper::Body) -> Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>> {
-    Box::pin(tokio_util::io::StreamReader::new(body.map(|chunk| {
-        chunk.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-    })))
+fn body_to_reader(body: hyper::Body) -> impl tokio::io::AsyncBufRead + Send + Sync + 'static {
+    // the stream must return io errors in order to be converted to a reader
+    let mapped_stream =
+        body.map(|chunk| chunk.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
+    let stream_reader = tokio_util::io::StreamReader::new(mapped_stream);
+    let buffered_reader = tokio::io::BufReader::new(stream_reader);
+    Box::pin(buffered_reader)
 }
 
 async fn handle_download(

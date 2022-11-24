@@ -245,7 +245,7 @@ struct DigestFromAsyncReader {}
 impl ManifestBuilderHasher for DigestFromAsyncReader {
     async fn hasher(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
     ) -> Result<encoding::Digest> {
         Ok(encoding::Digest::from_async_reader(reader).await?)
     }
@@ -260,7 +260,7 @@ pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(path: P) -> Resu
 pub trait ManifestBuilderHasher {
     async fn hasher(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
     ) -> Result<encoding::Digest>;
 }
 

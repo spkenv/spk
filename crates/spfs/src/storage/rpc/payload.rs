@@ -26,7 +26,7 @@ impl storage::PayloadStorage for super::RpcRepository {
 
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         let request = proto::WritePayloadRequest {};
         let option = self
@@ -70,7 +70,7 @@ impl storage::PayloadStorage for super::RpcRepository {
         &self,
         digest: encoding::Digest,
     ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
         std::path::PathBuf,
     )> {
         let request = proto::OpenPayloadRequest {
