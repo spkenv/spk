@@ -14,7 +14,6 @@ sentry = ["dep:sentry"]
 server = [
     "hyper/server",
     "tokio-util/codec",
-    "tokio-util/io",
     "tokio-util/io-util",
 ]
 "protobuf-src" = ["dep:protobuf-src"]
@@ -71,7 +70,7 @@ tokio = { version = "1.20", features = [
     "signal"
 ] }
 tokio-stream = { version = "0.1", features = ["net"] }
-tokio-util = { version = "0.7.3", features = ["compat"] }
+tokio-util = { version = "0.7.3", features = ["compat", "io"] }
 tonic = "0.8"
 tracing = { workspace = true }
 url = { version = "2.2", features = ["serde"] }
