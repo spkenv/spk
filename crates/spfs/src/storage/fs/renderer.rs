@@ -326,9 +326,28 @@ impl FSRepository {
                 }
             }
             RenderType::Copy => {
-                if let Err(err) = tokio::fs::copy(&committed_path, &rendered_path).await {
+                let mut retry_count = 0;
+                loop {
+                    let Err(err) = tokio::fs::copy(&committed_path, &rendered_path).await else {
+                        break;
+                    };
                     match err.kind() {
-                        std::io::ErrorKind::AlreadyExists => (),
+                        std::io::ErrorKind::AlreadyExists => break,
+                        std::io::ErrorKind::NotFound if retry_count < 3 => {
+                            // in some (NFS) environments, the thread that we
+                            // are running in might not see the paths that we are
+                            // copying into because they were just created. The
+                            // `open` syscall is the only one that forces NFS to
+                            // fetch new data from the server, and can force
+                            // the client to see that the parent directory exists
+                            let _ = tokio::fs::File::open(&rendered_path).await;
+                            retry_count += 1;
+                        }
+                        std::io::ErrorKind::NotFound => {
+                            // in these cases it's more likely the committed path
+                            // that was the issue
+                            return Err(Error::StorageWriteError(committed_path, err));
+                        }
                         _ => {
                             return Err(Error::StorageWriteError(
                                 rendered_path.as_ref().to_owned(),
