@@ -116,6 +116,7 @@ pub struct RepositoryPackageIterator {
     version_map: RepositoryByNameByVersion,
     builds_map: HashMap<Version, Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>>,
     active_version: Option<Arc<Version>>,
+    embedded_stubs: bool,
 }
 
 #[async_trait::async_trait]
@@ -155,6 +156,7 @@ impl PackageIterator for RepositoryPackageIterator {
             // Python custom clone() doesn't clone the remaining fields
             builds_map: HashMap::default(),
             active_version: None,
+            embedded_stubs: self.embedded_stubs,
         })
     }
 
@@ -173,6 +175,15 @@ impl PackageIterator for RepositoryPackageIterator {
             }
             let version = if let Some(active_version) = self.active_version.as_ref() {
                 active_version
+            } else if !self.embedded_stubs {
+                // After exhausting the non-stub options, try the stubs.
+                self.embedded_stubs = true;
+                // Walk the versions again (reusing the existing version_map).
+                self.restart_version_iterator().await?;
+                // Clear the builds in order to repopulate them with stubs
+                // this time around.
+                self.builds_map.clear();
+                return self.next().await;
             } else {
                 return Ok(None);
             };
@@ -186,7 +197,9 @@ impl PackageIterator for RepositoryPackageIterator {
             let pkg =
                 VersionIdent::new(self.package_name.clone(), (**version).clone()).into_any(None);
             if !self.builds_map.contains_key(version) {
-                match RepositoryBuildIterator::new(pkg.clone(), repos.clone()).await {
+                match RepositoryBuildIterator::new(pkg.clone(), repos.clone(), self.embedded_stubs)
+                    .await
+                {
                     Ok(iter) => {
                         self.builds_map
                             .insert((**version).clone(), Arc::new(tokio::sync::Mutex::new(iter)));
@@ -228,6 +241,7 @@ impl RepositoryPackageIterator {
             version_map: HashMap::default(),
             builds_map: HashMap::default(),
             active_version: None,
+            embedded_stubs: false,
         }
     }
 
@@ -263,6 +277,14 @@ impl RepositoryPackageIterator {
 
     async fn start(&mut self) -> Result<()> {
         self.version_map = self.build_version_map().await?;
+        self.restart_version_iterator().await?;
+        Ok(())
+    }
+
+    /// Populate the `versions` iterator.
+    ///
+    /// The `version_map` must already be built.
+    async fn restart_version_iterator(&mut self) -> Result<()> {
         let mut versions: Vec<Arc<Version>> = self.version_map.keys().cloned().collect();
         versions.sort();
         versions.reverse();
@@ -339,6 +361,7 @@ impl RepositoryBuildIterator {
     async fn new(
         pkg: AnyIdent,
         repos: HashMap<RepositoryNameBuf, Arc<RepositoryHandle>>,
+        embedded_stubs: bool,
     ) -> Result<Self> {
         let mut builds_and_repos: HashMap<
             BuildIdent,
@@ -349,8 +372,9 @@ impl RepositoryBuildIterator {
         for (repo_name, repo) in &repos {
             let builds = repo.list_package_builds(pkg.as_version()).await?;
             for build in builds {
-                if build.is_embedded() {
-                    // Ignore any embedded stubs
+                // Only return non-stubs or stubs depending on caller's
+                // choice.
+                if embedded_stubs ^ build.is_embedded() {
                     continue;
                 }
                 match builds_and_repos.get_mut(&build) {
