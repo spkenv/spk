@@ -493,8 +493,29 @@ impl Graph {
 
             match self.nodes.get(&new_node_lock.id()) {
                 None => {
+                    let first_change = decision.changes.get(0);
+
                     self.nodes.insert(new_node_lock.id(), new_node.clone());
-                    for (name, iterator) in old_node.read().await.iterators.iter() {
+
+                    let node_to_copy_iterators_from = match first_change {
+                        // XXX: This matches the shape of the Decision
+                        // produced by `reconsider_package` but a better way
+                        // to cause this behavior is needed.
+                        Some(Change::StepBack(step_back)) if decision.changes.len() == 2 => {
+                            // Resume iterating packages at the point we're
+                            // jumping back to so we don't skip builds that
+                            // were visited between now and where we're going
+                            // back to.
+                            self.nodes
+                                .get(&step_back.destination.id())
+                                .expect("destination node exists")
+                        }
+                        _ => &old_node,
+                    };
+
+                    for (name, iterator) in
+                        node_to_copy_iterators_from.read().await.iterators.iter()
+                    {
                         Arc::make_mut(&mut new_node_lock)
                             .set_iterator(name.clone(), iterator)
                             .await
