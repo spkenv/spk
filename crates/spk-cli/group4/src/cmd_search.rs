@@ -50,7 +50,7 @@ impl Run for Search {
 
                     let builds = repo.list_package_builds(&ident).await?;
                     if builds.is_empty() {
-                        // A version with no builds is treated as it
+                        // A version with no builds is treated as if
                         // it does not really exist. This can happen
                         // when a previously published package is
                         // deleted by 'spk rm'.
@@ -97,9 +97,8 @@ impl Run for Search {
 
                     exit = 0;
                     println!(
-                        "{repo_name: <width$} {}{}",
-                        ident.format_ident(),
-                        deprecation_status
+                        "{repo_name: <width$} {}{deprecation_status}",
+                        ident.format_ident()
                     );
                 }
             }
