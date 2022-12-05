@@ -15,7 +15,7 @@ use crate::v0;
 #[should_panic]
 #[case("in_valid")]
 fn test_component_name_validation(#[case] name: &str) {
-    ComponentSpec::<v0::Package>::new(name).unwrap();
+    Component::parse(name).unwrap();
 }
 
 #[rstest]

@@ -10,7 +10,7 @@ use spk_schema_foundation::version::CompatRule;
 use spk_schema_foundation::version_range::Ranged;
 use spk_schema_ident::{BuildIdent, PreReleasePolicy};
 
-use super::PackagePackagingSpec;
+use super::{PackagePackagingSpec, SourceSpec};
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
 use crate::foundation::name::PkgName;
@@ -19,16 +19,7 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{is_false, PkgRequest, Satisfy, VarRequest};
 use crate::meta::Meta;
-use crate::{
-    Deprecate,
-    DeprecateMut,
-    EnvOp,
-    PackageMut,
-    RequirementsList,
-    Result,
-    SourceSpec,
-    ValidationSpec,
-};
+use crate::{Deprecate, DeprecateMut, EnvOp, PackageMut, RequirementsList, Result, ValidationSpec};
 
 #[cfg(test)]
 #[path = "./package_test.rs"]
@@ -44,6 +35,8 @@ pub struct Package {
     pub compat: Compat,
     #[serde(default, skip_serializing_if = "is_false")]
     pub deprecated: bool,
+    #[serde(default, skip_serializing_if = "SourceSpec::is_empty")]
+    pub source: SourceSpec,
     #[serde(default)]
     pub package: PackagePackagingSpec,
 }
@@ -56,6 +49,7 @@ impl Package {
             meta: Meta::default(),
             compat: Compat::default(),
             deprecated: bool::default(),
+            source: Default::default(),
             package: Default::default(),
         }
     }
@@ -114,8 +108,8 @@ impl crate::Package for Package {
         todo!()
     }
 
-    fn sources(&self) -> &Vec<SourceSpec> {
-        todo!()
+    fn sources(&self) -> &Vec<crate::SourceSpec> {
+        &self.source.collect
     }
 
     fn embedded<'a>(

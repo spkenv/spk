@@ -6,16 +6,27 @@ use std::borrow::Cow;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::ident_build::Build;
+use spk_schema_foundation::ident_component::Component;
 use spk_schema_ident::VersionIdent;
 
-use super::{RecipeBuildSpec, RecipeOptionList, RecipePackagingSpec, RecipeSourceSpec};
+use super::{RecipeBuildSpec, RecipeOptionList, RecipePackagingSpec, SourceSpec};
 use crate::foundation::name::PkgName;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{is_false, PkgRequest, Satisfy, VarRequest};
 use crate::meta::Meta;
-use crate::{BuildEnv, Deprecate, DeprecateMut, Package, RequirementsList, Result, TestStage};
+use crate::{
+    BuildEnv,
+    ComponentSpec,
+    Deprecate,
+    DeprecateMut,
+    Package,
+    RequirementsList,
+    Result,
+    TestStage,
+};
 
 #[cfg(test)]
 #[path = "./recipe_test.rs"]
@@ -33,8 +44,8 @@ pub struct Recipe {
     pub deprecated: bool,
     #[serde(default, skip_serializing_if = "RecipeOptionList::is_empty")]
     pub options: RecipeOptionList,
-    #[serde(default, skip_serializing_if = "RecipeSourceSpec::is_empty")]
-    pub source: RecipeSourceSpec,
+    #[serde(default, skip_serializing_if = "SourceSpec::is_empty")]
+    pub source: SourceSpec,
     #[serde(default)]
     pub build: RecipeBuildSpec,
     #[serde(default)]
@@ -118,8 +129,20 @@ impl crate::Recipe for Recipe {
         todo!()
     }
 
-    fn generate_source_build(&self, _root: &Path) -> Result<Self::Output> {
-        todo!()
+    fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
+        let mut source_build = super::Package::new(self.pkg.to_build(Build::Source));
+        source_build.source = self.source.clone();
+        for source in source_build.source.collect.iter_mut() {
+            if let crate::SourceSpec::Local(source) = source {
+                source.path = root.join(&source.path);
+            }
+        }
+        source_build.package.components.clear();
+        source_build
+            .package
+            .components
+            .push(ComponentSpec::new(Component::Source));
+        Ok(source_build)
     }
 
     fn generate_binary_build<E, P>(&self, _build_env: &E) -> Result<Self::Output>

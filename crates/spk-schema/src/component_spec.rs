@@ -1,13 +1,12 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::convert::TryInto;
 
 use serde::{Deserialize, Serialize};
 
 use crate::foundation::ident_component::Component;
 use crate::foundation::spec_ops::{ComponentOps, FileMatcher};
-use crate::{Package, Result};
+use crate::Package;
 
 #[cfg(test)]
 #[path = "./component_spec_test.rs"]
@@ -43,18 +42,15 @@ pub struct ComponentSpec<EmbeddedStub> {
 
 impl<P> ComponentSpec<P> {
     /// Create a new, empty component with the given name
-    pub fn new<S: TryInto<Component, Error = crate::foundation::ident_component::Error>>(
-        name: S,
-    ) -> Result<Self> {
-        let name = name.try_into()?;
-        Ok(Self {
+    pub fn new(name: Component) -> Self {
+        Self {
             name,
             uses: Default::default(),
             files: Default::default(),
             requirements: Default::default(),
             embedded: Default::default(),
             file_match_mode: Default::default(),
-        })
+        }
     }
 
     /// Generate the default build component

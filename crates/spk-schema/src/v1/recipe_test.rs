@@ -3,8 +3,10 @@
 // https://github.com/imageworks/spk
 use pretty_assertions::assert_eq;
 use rstest::rstest;
+use spk_schema_foundation::ident_component::Component;
+use spk_schema_foundation::FromYaml;
 
-use super::Recipe;
+use crate::{Package, Recipe};
 
 #[rstest]
 fn parse_example() {
@@ -283,7 +285,7 @@ package:
       script:
         - python -m example.pythonmodule
 "#;
-    let opts = match serde_yaml::from_str::<Recipe>(EXAMPLE_YAML) {
+    let opts = match serde_yaml::from_str::<super::Recipe>(EXAMPLE_YAML) {
         Err(err) => {
             println!(
                 "{}",
@@ -294,7 +296,7 @@ package:
         Ok(o) => o,
     };
     let yaml = serde_yaml::to_string(&opts).expect("example should serialize");
-    let opts2 = match serde_yaml::from_str::<Recipe>(&yaml) {
+    let opts2 = match serde_yaml::from_str::<super::Recipe>(&yaml) {
         Err(err) => {
             println!("{}", format_serde_error::SerdeError::new(yaml, err));
             panic!("example should round-trip parse")
@@ -302,4 +304,37 @@ package:
         Ok(o) => o,
     };
     assert_eq!(opts2, opts, "yaml round trip should be the same");
+}
+
+#[rstest]
+fn test_source_generation() {
+    let pkg = "my-package/1.0.0".parse().unwrap();
+    let recipe = super::Recipe::new(pkg);
+
+    let root = std::path::Path::new("/some/root");
+    let source = recipe
+        .generate_source_build(root)
+        .expect("should not fail to generate source build");
+    let components = source.components();
+    let component_names = components.iter().map(|c| &c.name).collect::<Vec<_>>();
+    assert_eq!(
+        component_names,
+        vec![&Component::Source],
+        "source package should only have one component and it should be the source component"
+    )
+}
+
+#[rstest]
+fn test_sources_default_local_path() {
+    let root = std::path::Path::new("/some/root");
+    let spec = super::Recipe::from_yaml("pkg: my-pkg")
+        .unwrap()
+        .generate_source_build(root)
+        .unwrap();
+    let expected = vec![crate::SourceSpec::Local(crate::LocalSource::new(root))];
+    assert_eq!(
+        spec.sources(),
+        &expected,
+        "expected spec to have one local source"
+    );
 }

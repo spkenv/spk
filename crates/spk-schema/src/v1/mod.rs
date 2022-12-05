@@ -9,8 +9,8 @@ mod recipe_build_spec;
 mod recipe_option;
 mod recipe_option_list;
 mod recipe_packaging_spec;
-mod recipe_source_spec;
 mod script_block;
+mod source_spec;
 mod test_script;
 mod when;
 
@@ -21,7 +21,7 @@ pub use recipe_build_spec::{RecipeBuildSpec, VariantSpec};
 pub use recipe_option::*;
 pub use recipe_option_list::RecipeOptionList;
 pub use recipe_packaging_spec::RecipePackagingSpec;
-pub use recipe_source_spec::RecipeSourceSpec;
 pub use script_block::ScriptBlock;
+pub use source_spec::SourceSpec;
 pub use test_script::TestScript;
 pub use when::{Conditional, WhenBlock, WhenCondition};
