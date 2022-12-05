@@ -15,6 +15,10 @@ use spk_schema::ident::{PkgRequest, RangeIdent, RequestedBy};
 use spk_schema::{BuildVariant, Package, Recipe};
 use spk_storage::{self as storage};
 
+#[cfg(test)]
+#[path = "./cmd_make_binary_test.rs"]
+mod cmd_make_binary_test;
+
 #[derive(Clone, Debug)]
 pub enum PackageSpecifier {
     Plain(String),
@@ -130,11 +134,13 @@ impl Run for MakeBinary {
             };
 
             for variant in variants_to_build.into_iter() {
-                let opts = if !self.options.no_host {
+                let mut opts = if !self.options.no_host {
                     host_options()?
                 } else {
                     OptionMap::default()
                 };
+
+                opts.extend(options.clone());
 
                 // Always show the solution packages for the solves
                 let mut fmt_builder = self.formatter_settings.get_formatter_builder(self.verbose);

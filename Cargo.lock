@@ -3108,10 +3108,12 @@ dependencies = [
  "async-trait",
  "clap 3.2.11",
  "futures",
+ "rstest",
  "spk-build",
  "spk-cli-common",
  "spk-schema",
  "spk-storage",
+ "tempfile",
  "tokio",
  "tracing",
 ]
