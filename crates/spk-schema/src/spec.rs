@@ -321,8 +321,8 @@ impl FromYaml for SpecRecipe {
         // fairly generic, eg: 'expected struct YamlMapping'
         #[derive(Deserialize)]
         struct YamlMapping {
-            #[serde(default = "ApiVersion::default")]
-            api: ApiVersion,
+            #[serde(default = "RecipeApiVersion::default")]
+            api: RecipeApiVersion,
         }
 
         let with_version = match serde_yaml::from_str::<YamlMapping>(&yaml) {
@@ -334,11 +334,12 @@ impl FromYaml for SpecRecipe {
         };
 
         match with_version.api {
-            ApiVersion::V0Package => {
-                let inner =
-                    serde_yaml::from_str(&yaml).map_err(|err| SerdeError::new(yaml, err))?;
-                Ok(Self::V0Package(inner))
-            }
+            RecipeApiVersion::V0Package => serde_yaml::from_str(&yaml)
+                .map_err(|err| SerdeError::new(yaml, err))
+                .map(Self::V0Package),
+            RecipeApiVersion::V1Recipe => serde_yaml::from_str(&yaml)
+                .map_err(|err| SerdeError::new(yaml, err))
+                .map(Self::V1Recipe),
         }
     }
 }
@@ -595,8 +596,8 @@ impl FromYaml for Spec {
         // fairly generic, eg: 'expected struct YamlMapping'
         #[derive(Deserialize)]
         struct YamlMapping {
-            #[serde(default = "ApiVersion::default")]
-            api: ApiVersion,
+            #[serde(default = "PackageApiVersion::default")]
+            api: PackageApiVersion,
         }
 
         let with_version = match serde_yaml::from_str::<YamlMapping>(&yaml) {
@@ -608,11 +609,12 @@ impl FromYaml for Spec {
         };
 
         match with_version.api {
-            ApiVersion::V0Package => {
-                let inner =
-                    serde_yaml::from_str(&yaml).map_err(|err| SerdeError::new(yaml, err))?;
-                Ok(Self::V0Package(inner))
-            }
+            PackageApiVersion::V0Package => serde_yaml::from_str(&yaml)
+                .map_err(|err| SerdeError::new(yaml, err))
+                .map(Self::V0Package),
+            PackageApiVersion::V1Package => serde_yaml::from_str(&yaml)
+                .map_err(|err| SerdeError::new(yaml, err))
+                .map(Self::V1Package),
         }
     }
 }
@@ -623,14 +625,20 @@ impl AsRef<Spec> for Spec {
     }
 }
 
-#[derive(Deserialize, Serialize, Copy, Clone)]
-pub enum ApiVersion {
+#[derive(Default, Deserialize, Serialize, Copy, Clone)]
+pub enum RecipeApiVersion {
+    #[default]
     #[serde(rename = "v0/package")]
     V0Package,
+    #[serde(rename = "v1/recipe")]
+    V1Recipe,
 }
 
-impl Default for ApiVersion {
-    fn default() -> Self {
-        Self::V0Package
-    }
+#[derive(Default, Deserialize, Serialize, Copy, Clone)]
+pub enum PackageApiVersion {
+    #[default]
+    #[serde(rename = "v0/package")]
+    V0Package,
+    #[serde(rename = "v1/package")]
+    V1Package,
 }
