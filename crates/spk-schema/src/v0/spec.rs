@@ -553,9 +553,11 @@ impl Recipe for Spec<VersionIdent> {
         updated
             .install
             .render_all_pins(options, specs.values().map(|p| p.ident()))?;
-        let digest = updated
-            .resolve_options(&BuildVariant::Default, options)?
-            .digest();
+
+        // Calculate the digest from the non-updated spec so it isn't affected
+        // by `build_env`. The digest is expected to be based solely on the
+        // input options and recipe.
+        let digest = self.resolve_options(build_variant, options)?.digest();
         Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
     }
 }
