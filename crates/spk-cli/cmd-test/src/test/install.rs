@@ -10,6 +10,7 @@ use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
+use spk_schema::ident_build::Build;
 use spk_schema::{Recipe, SpecRecipe};
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_storage::{self as storage};
@@ -93,7 +94,14 @@ impl<'a> PackageInstallTester<'a> {
             solver.add_repository(repo);
         }
 
-        let pkg = RangeIdent::equals(&self.recipe.ident().to_any(None), [Component::All]);
+        // Request the specific build that goes with the selected build variant.
+        let build_to_test = self
+            .recipe
+            .ident()
+            .to_any(None)
+            .with_build(Some(Build::Digest(self.options.digest())));
+
+        let pkg = RangeIdent::double_equals(&build_to_test, [Component::All]);
         let request = PkgRequest::new(pkg, RequestedBy::InstallTest(self.recipe.ident().clone()))
             .with_prerelease(PreReleasePolicy::IncludeAll)
             .with_pin(None)
