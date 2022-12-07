@@ -60,15 +60,28 @@ impl<EmbeddedStub> ComponentSpecList<EmbeddedStub> {
 
     /// Given a set of requested components, resolve the complete list of
     /// components that are needed to satisfy any declared 'uses' dependencies.
+    ///
+    /// This function assumes that all the `uses` values identify real components
+    /// defined in this list, and will silently ignore any that are used but missing.
     pub fn resolve_uses<'a>(
         &self,
-        requests: impl Iterator<Item = &'a Component>,
+        requests: impl IntoIterator<Item = &'a Component>,
+    ) -> impl Iterator<Item = &ComponentSpec<EmbeddedStub>> + '_ {
+        let all = self.resolve_uses_names(requests);
+        self.0.iter().filter(move |c| all.contains(&c.name))
+    }
+
+    /// Like [`Self::resolve_uses`] but only return the names of
+    /// the components that are needed.
+    pub fn resolve_uses_names<'a>(
+        &self,
+        requests: impl IntoIterator<Item = &'a Component>,
     ) -> BTreeSet<Component> {
         let by_name = self
             .iter()
             .map(|c| (c.name.clone(), c))
             .collect::<HashMap<_, _>>();
-        let mut to_visit = requests.collect::<Vec<_>>();
+        let mut to_visit = requests.into_iter().collect::<Vec<_>>();
         let mut visited = BTreeSet::new();
 
         while let Some(requested) = to_visit.pop() {

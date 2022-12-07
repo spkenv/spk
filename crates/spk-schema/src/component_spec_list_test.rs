@@ -49,7 +49,7 @@ fn test_resolve_uses() {
                 ]"#,
     )
     .unwrap();
-    let actual = components.resolve_uses([Component::Build].iter());
+    let actual = components.resolve_uses_names([Component::Build].iter());
     let expected = vec!["build", "dev", "libstatic", "lib"]
         .into_iter()
         .map(Component::parse)
@@ -71,7 +71,7 @@ fn test_resolve_uses_all() {
                 ]"#,
     )
     .unwrap();
-    let actual = components.resolve_uses([Component::All].iter());
+    let actual = components.resolve_uses_names([Component::All].iter());
     let expected = vec!["build", "dev", "libstatic", "lib", "run", "bin"]
         .into_iter()
         .map(Component::parse)

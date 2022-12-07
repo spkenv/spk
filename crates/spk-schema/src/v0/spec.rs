@@ -546,7 +546,7 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
         if !pkg_request.pkg.components.is_empty() && !is_source_build {
             let required_components = self
                 .components()
-                .resolve_uses(pkg_request.pkg.components.iter());
+                .resolve_uses_names(pkg_request.pkg.components.iter());
             let available_components: BTreeSet<_> = self
                 .install
                 .components

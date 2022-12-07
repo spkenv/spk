@@ -50,7 +50,7 @@ pub async fn resolve_runtime_layers(solution: &Solution) -> Result<Vec<Digest>> 
         desired_components = resolved
             .spec
             .components()
-            .resolve_uses(desired_components.iter());
+            .resolve_uses_names(desired_components.iter());
 
         for name in desired_components.into_iter() {
             let digest = components.get(&name).ok_or_else(|| {

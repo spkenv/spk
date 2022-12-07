@@ -354,10 +354,12 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             // already found a resolved package...
             Err(_) => return changes,
         };
-        let new_components = spec.components().resolve_uses(req.pkg.components.iter());
+        let new_components = spec
+            .components()
+            .resolve_uses_names(req.pkg.components.iter());
         let existing_components = spec
             .components()
-            .resolve_uses(existing.pkg.components.iter());
+            .resolve_uses_names(existing.pkg.components.iter());
         let added_components = new_components
             .difference(&existing_components)
             .collect::<HashSet<_>>();

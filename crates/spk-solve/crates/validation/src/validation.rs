@@ -386,7 +386,7 @@ impl ValidatorT for ComponentsValidator {
         let request = state.get_merged_request(spec.name())?;
         let required_components = spec
             .components()
-            .resolve_uses(request.pkg.components.iter());
+            .resolve_uses_names(request.pkg.components.iter());
         let missing_components: std::collections::HashSet<_> = required_components
             .iter()
             .filter(|n| !available_components.contains(n))
@@ -519,10 +519,10 @@ impl PkgRequirementsValidator {
 
         let existing_components = resolved
             .components()
-            .resolve_uses(existing.pkg.components.iter());
+            .resolve_uses_names(existing.pkg.components.iter());
         let required_components = resolved
             .components()
-            .resolve_uses(request.pkg.components.iter());
+            .resolve_uses_names(request.pkg.components.iter());
         for component in resolved.components().iter() {
             if existing_components.contains(&component.name) {
                 continue;
@@ -566,7 +566,7 @@ impl PkgRequirementsValidator {
 
         let required_components = resolved
             .components()
-            .resolve_uses(request.pkg.components.iter());
+            .resolve_uses_names(request.pkg.components.iter());
         let missing_components: Vec<_> = required_components
             .iter()
             .filter(|c| !provided_components.contains(c))
