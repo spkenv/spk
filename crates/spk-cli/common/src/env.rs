@@ -3,6 +3,8 @@
 // https://github.com/imageworks/spk
 
 use std::ffi::{OsStr, OsString};
+#[cfg(feature = "sentry")]
+use std::panic::catch_unwind;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -58,36 +60,52 @@ pub async fn current_env() -> crate::Result<Solution> {
 }
 
 #[cfg(feature = "sentry")]
-pub fn configure_sentry() -> sentry::ClientInitGuard {
+pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
     // Call this before `sentry::init` to avoid potential `SIGSEGV`.
     let username = get_username_for_sentry();
 
     // When using the sentry feature it is expected that the DSN
     // and other configuration is provided at *compile* time.
-    let guard = sentry::init((
-        env!("SENTRY_DSN"),
-        sentry::ClientOptions {
-            release: sentry::release_name!(),
-            environment: Some(std::borrow::Cow::Owned(String::from(env!(
-                "SENTRY_ENVIRONMENT"
-            )))),
-            before_send: Some(std::sync::Arc::new(|mut event| {
-                // Remove ansi color codes from the event message
-                if let Some(message) = event.message {
-                    event.message = Some(remove_ansi_escapes(message));
-                }
-                Some(event)
-            })),
-            before_breadcrumb: Some(std::sync::Arc::new(|mut breadcrumb| {
-                // Remove ansi color codes from the breadcrumb message
-                if let Some(message) = breadcrumb.message {
-                    breadcrumb.message = Some(remove_ansi_escapes(message));
-                }
-                Some(breadcrumb)
-            })),
-            ..Default::default()
-        },
-    ));
+    let guard = match catch_unwind(|| {
+        sentry::init((
+            option_env!("SENTRY_DSN"),
+            sentry::ClientOptions {
+                release: sentry::release_name!(),
+                environment: option_env!("SENTRY_ENVIRONMENT")
+                    .map(ToString::to_string)
+                    .map(std::borrow::Cow::Owned),
+                before_send: Some(std::sync::Arc::new(|mut event| {
+                    // Remove ansi color codes from the event message
+                    if let Some(message) = event.message {
+                        event.message = Some(remove_ansi_escapes(message));
+                    }
+                    Some(event)
+                })),
+                before_breadcrumb: Some(std::sync::Arc::new(|mut breadcrumb| {
+                    // Remove ansi color codes from the breadcrumb message
+                    if let Some(message) = breadcrumb.message {
+                        breadcrumb.message = Some(remove_ansi_escapes(message));
+                    }
+                    Some(breadcrumb)
+                })),
+                ..Default::default()
+            },
+        ))
+    }) {
+        Ok(g) => g,
+        Err(cause) => {
+            // Added to try to get more info on this kind of panic:
+            //
+            // thread 'main' panicked at 'called `Result::unwrap()` on
+            // an `Err` value: Os { code: 11, kind: WouldBlock,
+            // message: "Resource temporarily unavailable" }',
+            // /.../sentry-core-0.27.0/src/session.rs:228:14
+            //
+            // See also, maybe?: https://github.com/rust-lang/rust/issues/46345
+            eprintln!("WARNING: configuring Sentry for spk failed: {:?}", cause);
+            return None;
+        }
+    };
 
     let (command, data) = get_spk_context();
 
@@ -107,7 +125,7 @@ pub fn configure_sentry() -> sentry::ClientInitGuard {
         scope.set_fingerprint(Some(["{{ error.value }}"].as_ref()));
     });
 
-    guard
+    Some(guard)
 }
 
 #[cfg(feature = "sentry")]
