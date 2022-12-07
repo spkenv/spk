@@ -190,6 +190,11 @@ impl Solver {
         self.repos.push(repo.into());
     }
 
+    /// Return a reference to the solver's list of repositories.
+    pub fn repositories(&self) -> &Vec<Arc<RepositoryHandle>> {
+        &self.repos
+    }
+
     pub fn get_initial_state(&self) -> Arc<State> {
         let mut state = None;
         let base = State::default_state();

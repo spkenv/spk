@@ -11,8 +11,7 @@ use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::option_map::{host_options, OptionMap};
-use spk_schema::ident::parse_ident;
-use spk_schema::{Recipe, Template, TestStage};
+use spk_schema::{Recipe, TestStage};
 
 use crate::test::{PackageBuildTester, PackageInstallTester, PackageSourceTester, Tester};
 
@@ -49,7 +48,7 @@ pub struct Test {
     /// This can be a file name or `<name>/<version>` of an existing package
     /// from the repository. In either case, a stage can be specified to
     /// limit which tests are executed.
-    #[clap(name = "FILE|PKG[@STAGE]", required = true)]
+    #[clap(name = "FILE|PKG/VER[@STAGE]", required = true)]
     packages: Vec<String>,
 
     /// Test only the specified variant, by index, if defined
@@ -84,31 +83,12 @@ impl Run for Test {
                 }
             };
 
-            let (recipe, filename) = match flags::find_package_template(&Some(name.clone()))? {
-                flags::FindPackageTemplateResult::Found { path, template } => {
-                    let recipe = template.render(&options)?;
-                    (Arc::new(recipe), path)
-                }
-                _ => {
-                    let pkg = parse_ident(&name)?;
-                    let mut found = None;
-                    for repo in repos.iter() {
-                        match repo.read_recipe(pkg.as_version()).await {
-                            Ok(recipe) => {
-                                found = Some((recipe, std::path::PathBuf::from(&name)));
-                                break;
-                            }
-                            Err(spk_storage::Error::SpkValidatorsError(
-                                spk_schema::validators::Error::PackageNotFoundError(_),
-                            )) => continue,
-                            Err(err) => return Err(err.into()),
-                        }
-                    }
-                    found.ok_or(spk_storage::Error::SpkValidatorsError(
-                        spk_schema::validators::Error::PackageNotFoundError(pkg),
-                    ))?
-                }
-            };
+            let (recipe, filename) = flags::find_package_recipe_from_template_or_repo(
+                &Some(name.clone()),
+                &options,
+                &repos,
+            )
+            .await?;
 
             for stage in stages {
                 tracing::info!("Testing {}@{stage}...", filename.display());

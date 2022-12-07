@@ -11,12 +11,11 @@ use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{flags, spk_exe, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::option_map::{host_options, OptionMap};
-use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::{PkgRequest, RangeIdent, RequestedBy};
-use spk_schema::{Package, Recipe, SpecTemplate, Template, TemplateExt};
+use spk_schema::{Package, Recipe};
 use spk_storage::{self as storage};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum PackageSpecifier {
     Plain(String),
     WithSourceIdent((String, RangeIdent)),
@@ -67,8 +66,8 @@ pub struct MakeBinary {
     #[clap(long, short)]
     pub env: bool,
 
-    /// The packages or yaml spec files to build
-    #[clap(name = "PKG|SPEC_FILE")]
+    /// The local yaml spec files or published package/versions to build or rebuild
+    #[clap(name = "SPEC_FILE|PKG/VER")]
     pub packages: Vec<PackageSpecifier>,
 
     /// Build only the specified variant, by index, if defined
@@ -111,21 +110,13 @@ impl Run for MakeBinary {
         }
 
         for package in packages {
-            let template = match flags::find_package_template(
+            let (recipe, _) = flags::find_package_recipe_from_template_or_repo(
                 &package.as_ref().map(|p| p.get_specifier().to_owned()),
-            )? {
-                flags::FindPackageTemplateResult::NotFound(name) => {
-                    Arc::new(SpecTemplate::from_file(name.as_ref())?)
-                }
-                res => {
-                    let (_, template) = res.must_be_found();
-                    template
-                }
-            };
-
-            tracing::info!("rendering template for {}", template.name());
-            let recipe = template.render(&options)?;
-            let ident = recipe.ident();
+                &options,
+                &repos,
+            )
+            .await?;
+            let ident = recipe.to_ident();
 
             tracing::info!("saving package recipe for {}", ident.format_ident());
             local.force_publish_recipe(&recipe).await?;
@@ -174,7 +165,7 @@ impl Run for MakeBinary {
                     .with_header("Build Resolver ")
                     .build();
 
-                let mut builder = BinaryPackageBuilder::from_recipe(recipe.clone());
+                let mut builder = BinaryPackageBuilder::from_recipe((*recipe).clone());
                 builder
                     .with_options(opts.clone())
                     .with_repositories(repos.iter().cloned())
