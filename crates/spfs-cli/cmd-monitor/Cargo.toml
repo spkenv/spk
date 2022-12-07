@@ -9,7 +9,7 @@ name = "spfs-monitor"
 path = "src/cmd_monitor.rs"
 
 [features]
-sentry = ["spfs-cli-common/sentry"]
+sentry = ["spfs/sentry", "spfs-cli-common/sentry"]
 
 [dependencies]
 clap = { version = "3.2", features = ["derive", "env"] }

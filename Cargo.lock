@@ -2756,7 +2756,9 @@ version = "0.34.6"
 dependencies = [
  "clap 3.2.11",
  "sentry",
+ "serde_json",
  "spfs",
+ "strip-ansi-escapes",
  "tracing",
  "tracing-subscriber 0.3.14",
  "whoami",
