@@ -37,12 +37,6 @@ pub struct CmdEnter {
     #[clap(long)]
     tmpdir: Option<String>,
 
-    #[cfg(feature = "runtime-compat-0.33")]
-    /// The name of the runtime being entered
-    #[clap(long)]
-    runtime: Option<String>,
-
-    #[cfg(not(feature = "runtime-compat-0.33"))]
     /// The name of the runtime being entered
     #[clap(long)]
     runtime: String,
@@ -169,7 +163,6 @@ impl CmdEnter {
         }
     }
 
-    #[cfg(not(feature = "runtime-compat-0.33"))]
     async fn load_runtime(&self, config: &spfs::Config) -> spfs::Result<spfs::runtime::Runtime> {
         let repo = match &self.runtime_storage {
             Some(address) => spfs::open_repository(address).await?,
@@ -177,101 +170,6 @@ impl CmdEnter {
         };
         let storage = spfs::runtime::Storage::new(repo);
         storage.read_runtime(&self.runtime).await
-    }
-
-    #[cfg(feature = "runtime-compat-0.33")]
-    async fn load_runtime(
-        &mut self,
-        config: &spfs::Config,
-    ) -> spfs::Result<spfs::runtime::Runtime> {
-        use std::str::FromStr;
-
-        let given_name = match &self.runtime {
-            Some(name) => name.to_owned(),
-            None => {
-                let name = self
-                    .command
-                    .take()
-                    .ok_or_else(|| spfs::Error::new("Target runtime name must be provided"))?
-                    .to_string_lossy()
-                    .to_string();
-                if !self.args.is_empty() {
-                    self.command = Some(self.args.remove(0))
-                }
-                name
-            }
-        };
-
-        // Handle old-style invocation where the runtime argument is
-        // a path on disk rather than a bare uuid name.
-        //
-        // This can be in multiple forms...
-
-        //   - "$SPFS_STORAGE_RUNTIMES/<name>".
-        let name = if std::env::var("SPFS_STORAGE_RUNTIMES")
-            .map(|s| {
-                given_name.starts_with(
-                    // This should technically add a trailing slash (unless there
-                    // is already a trailing slash in the value).
-                    &s,
-                )
-            })
-            .unwrap_or(false)
-        {
-            // In this case, the "runtime_storage" (repo) is not this place, only
-            // the runtime configuration is here.
-            std::path::PathBuf::from(&given_name)
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_owned()
-        } else {
-            match *given_name.rsplitn(3, '/').collect::<Vec<_>>().as_slice() {
-                //   - "<storage path>/runtimes/<name>".
-                [name, _, storage] => {
-                    self.runtime_storage =
-                        Some(url::Url::from_str(&format!("file://{}", storage))?);
-                    name.to_owned()
-                }
-                _ => given_name.clone(),
-            }
-        };
-
-        let repo = match &self.runtime_storage {
-            Some(address) => spfs::open_repository(address).await?,
-            None => config.get_local_repository_handle().await?,
-        };
-        let storage = spfs::runtime::Storage::new(repo);
-
-        // We might be in a context where `$SPFS_STORAGE_ROOT` is different,
-        // and can't find the runtime in spfs storage anymore. But the
-        // legacy command line args only tells us where the runtime configuration is
-        // because $SPFS_STORAGE_RUNTIMES is being used, and so we have no
-        // idea now what the correct storage to read the existing runtime from is.
-        let mut runtime = storage.read_runtime(&name).await;
-
-        let legacy_config_path = std::path::Path::new(&given_name);
-        if legacy_config_path.is_absolute() {
-            // in cases where a legacy runtime came with a full path, we
-            // will load the old config file and pull any potential
-            // configuration changes back into the new format
-            let legacy_config = spfs::runtime::storage_033::Runtime::new(legacy_config_path)?;
-
-            if runtime.is_err() {
-                // Try to create it again since we were able to read the legacy
-                // config and we've probably switched to using a different
-                // "local" storage via env settings.
-                runtime = storage.create_named_runtime(&name).await;
-            }
-
-            let mut runtime = runtime?;
-            legacy_config.apply_to(&mut runtime);
-            runtime.save_state_to_storage().await?;
-            Ok(runtime)
-        } else {
-            runtime
-        }
     }
 
     async fn exec_runtime_command(
