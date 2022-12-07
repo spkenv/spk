@@ -5,6 +5,7 @@ use std::borrow::Cow;
 // https://github.com/imageworks/spk
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::EmbeddedSource;
+use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
 use spk_schema_ident::{AnyIdent, BuildIdent};
 
@@ -92,8 +93,11 @@ impl crate::Package for EmbeddedPackage {
         self.0.runtime_environment()
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList> {
-        self.0.runtime_requirements()
+    fn runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, crate::RequirementsList> {
+        self.0.runtime_requirements(components)
     }
 
     fn downstream_build_requirements<'a>(

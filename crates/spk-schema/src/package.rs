@@ -49,11 +49,16 @@ pub trait Package:
     /// The set of operations to perform on the environment when running this package
     fn runtime_environment(&self) -> &Vec<super::EnvOp>;
 
-    /// Requests that must be met to use this package
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList>;
+    /// Requests that must be met to use this package, including
+    /// any additional ones when the named components are used
+    fn runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList>;
 
     /// Requests that must be satisfied by the build
-    /// environment of any package built against this one
+    /// environment of any package built against this one, including
+    /// any additional ones when the named components are used
     ///
     /// These requirements are not injected downstream, instead
     /// they need to be present in the downstream package itself
@@ -63,7 +68,8 @@ pub trait Package:
     ) -> Cow<'_, RequirementsList>;
 
     /// Requests that must be satisfied by the runtime
-    /// environment of any package built against this one
+    /// environment of any package built against this one, including
+    /// any additional ones when the named components are used
     ///
     /// These requirements are not injected downstream, instead
     /// they need to be present in the downstream package itself
@@ -117,8 +123,11 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).runtime_environment()
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
-        (**self).runtime_requirements()
+    fn runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        (**self).runtime_requirements(components)
     }
 
     fn downstream_build_requirements<'a>(
@@ -178,8 +187,11 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).runtime_environment()
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
-        (**self).runtime_requirements()
+    fn runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        (**self).runtime_requirements(components)
     }
 
     fn downstream_build_requirements<'a>(
@@ -239,8 +251,11 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).runtime_environment()
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
-        (**self).runtime_requirements()
+    fn runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        (**self).runtime_requirements(components)
     }
 
     fn downstream_build_requirements<'a>(

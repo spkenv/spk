@@ -7,6 +7,7 @@ use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::opt_name;
 use spk_schema::ident::Request;
+use spk_schema::version::Compatibility;
 use spk_schema::{spec, FromYaml};
 use spk_solve_graph::State;
 use spk_solve_solution::PackageSource;
@@ -19,7 +20,10 @@ fn test_empty_options_can_match_anything() {
     let validator = VarRequirementsValidator::default();
 
     let state = State::new(
-        vec![],
+        vec![Request::from_yaml("{pkg: my-package:run}")
+            .unwrap()
+            .into_pkg()
+            .unwrap()],
         vec![],
         vec![],
         // this option is requested to be a specific value in the installed
@@ -35,11 +39,9 @@ fn test_empty_options_can_match_anything() {
     ));
     let source = PackageSource::Embedded;
 
-    assert!(
-        validator
-            .validate_package(&state, &spec, &source)
-            .unwrap()
-            .is_ok(),
+    assert_eq!(
+        validator.validate_package(&state, &spec, &source).unwrap(),
+        Compatibility::Compatible,
         "empty option should not invalidate requirement"
     );
 }

@@ -231,8 +231,22 @@ impl Package for Spec<BuildIdent> {
         &self.install.environment
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
-        Cow::Borrowed(&self.install.requirements)
+    fn runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        let mut requirements = Cow::Borrowed(&self.install.requirements);
+        let components = self.install.components.resolve_uses(components);
+        let mut additional: Vec<_> = components
+            .map(|c| c.requirements.clone())
+            .flatten()
+            .collect();
+        if !additional.is_empty() {
+            // only trigger a copy of the borrowed data if there's actually
+            // more requests to be appended
+            requirements.to_mut().append(&mut additional);
+        }
+        requirements
     }
 
     fn downstream_build_requirements<'a>(

@@ -444,7 +444,21 @@ impl ValidatorT for PkgRequirementsValidator {
         spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<Compatibility> {
-        for request in spec.runtime_requirements().iter() {
+        let request = match state.get_merged_request(spec.name()) {
+            Ok(request) => request,
+            Err(GetMergedRequestError::NoRequestFor(name)) => {
+                return Ok(Compatibility::Incompatible(format!(
+                    "package '{name}' was not requested [INTERNAL ERROR]"
+                )))
+            }
+            Err(err) => {
+                return Ok(Compatibility::Incompatible(format!(
+                    "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
+                    spec.name()
+                )))
+            }
+        };
+        for request in spec.runtime_requirements(&request.pkg.components).iter() {
             let compat = self.validate_request_against_existing_state(state, request)?;
             if !&compat {
                 return Ok(compat);
@@ -608,7 +622,21 @@ impl ValidatorT for VarRequirementsValidator {
         _source: &PackageSource,
     ) -> crate::Result<Compatibility> {
         let options = state.get_option_map();
-        for request in spec.runtime_requirements().iter() {
+        let request = match state.get_merged_request(spec.name()) {
+            Ok(request) => request,
+            Err(GetMergedRequestError::NoRequestFor(name)) => {
+                return Ok(Compatibility::Incompatible(format!(
+                    "package '{name}' was not requested [INTERNAL ERROR]"
+                )))
+            }
+            Err(err) => {
+                return Ok(Compatibility::Incompatible(format!(
+                    "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
+                    spec.name()
+                )))
+            }
+        };
+        for request in spec.runtime_requirements(&request.pkg.components).iter() {
             if let Request::Var(request) = request {
                 for (name, value) in options.iter() {
                     let is_not_requested = *name != request.var;

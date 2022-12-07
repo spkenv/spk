@@ -522,10 +522,13 @@ impl Package for Spec {
         }
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList> {
+    fn runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
         match self {
-            Spec::V0Package(spec) => spec.runtime_requirements(),
-            Spec::V1Package(spec) => spec.runtime_requirements(),
+            Spec::V0Package(spec) => spec.runtime_requirements(components),
+            Spec::V1Package(spec) => spec.runtime_requirements(components),
         }
     }
 

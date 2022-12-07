@@ -87,7 +87,7 @@ impl Ord for CompatRule {
 }
 
 /// Denotes whether or not something is compatible.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Compatibility {
     Compatible,
     Incompatible(String),

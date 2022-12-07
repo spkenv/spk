@@ -224,7 +224,7 @@ async fn test_build_package_pinning() {
         .unwrap();
 
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-    let req = spec.runtime_requirements().first().unwrap().clone();
+    let req = spec.runtime_requirements(&[]).first().unwrap().clone();
     match req {
         Request::Pkg(req) => {
             assert_eq!(&req.pkg.to_string(), "dep/~1.0");
@@ -306,12 +306,12 @@ async fn test_build_var_pinning() {
         .unwrap();
 
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-    let top_req = spec.runtime_requirements().get(0).unwrap().clone();
+    let top_req = spec.runtime_requirements(&[]).get(0).unwrap().clone();
     match top_req {
         Request::Var(r) => assert_eq!(&r.value, "topvalue"),
         _ => panic!("expected var request"),
     }
-    let depreq = spec.runtime_requirements().get(1).unwrap().clone();
+    let depreq = spec.runtime_requirements(&[]).get(1).unwrap().clone();
     match depreq {
         Request::Var(r) => assert_eq!(&r.value, "depvalue"),
         _ => panic!("expected var request"),

@@ -114,9 +114,15 @@ impl crate::Package for Package {
 
     fn embedded<'a>(
         &self,
-        _components: impl IntoIterator<Item = &'a Component>,
+        components: impl IntoIterator<Item = &'a Component>,
     ) -> Vec<Self::EmbeddedStub> {
-        todo!()
+        self.package
+            .components
+            .resolve_uses(components)
+            .map(|c| &c.embedded)
+            .flatten()
+            .cloned()
+            .collect()
     }
 
     fn components(&self) -> Cow<'_, crate::ComponentSpecList<Self::EmbeddedStub>> {
@@ -127,8 +133,16 @@ impl crate::Package for Package {
         todo!()
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
-        todo!()
+    fn runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        let mut requirements = RequirementsList::new();
+        let components = self.package.components.resolve_uses(components);
+        for component in components {
+            requirements.extend(component.requirements.iter().cloned())
+        }
+        Cow::Owned(requirements)
     }
 
     fn downstream_build_requirements<'a>(
@@ -192,7 +206,7 @@ impl Satisfy<PkgRequest> for Package {
             let required_components = self
                 .package
                 .components
-                .resolve_uses(pkg_request.pkg.components.iter());
+                .resolve_uses_names(pkg_request.pkg.components.iter());
             let available_components = self.package.components.names_owned();
             let missing_components = required_components
                 .difference(&available_components)

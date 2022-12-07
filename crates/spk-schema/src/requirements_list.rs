@@ -35,6 +35,11 @@ impl std::ops::DerefMut for RequirementsList {
 }
 
 impl RequirementsList {
+    /// Constructs a new, empty [`RequirementsList`]
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+
     /// Add or update a requirement in this list.
     ///
     /// If a request exists for the same name, it is replaced with the given

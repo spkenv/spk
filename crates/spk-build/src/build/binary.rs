@@ -387,7 +387,6 @@ where
         solution: &Solution,
         package: &Recipe::Output,
     ) -> Result<()> {
-        let runtime_requirements = package.runtime_requirements();
         let solved_packages = solution.items().into_iter().map(|r| r.spec);
         let all_components = package.components();
         for spec in solved_packages {
@@ -405,6 +404,7 @@ where
                         }
                     }
                 }
+                let runtime_requirements = package.runtime_requirements([component]);
                 let downstream_runtime = spec.downstream_build_requirements([component]);
                 for request in downstream_runtime.iter() {
                     match runtime_requirements.contains_request(request) {
