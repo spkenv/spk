@@ -150,10 +150,26 @@ pub(crate) async fn resolve_overlay_dirs(
     runtime: &runtime::Runtime,
     repo: &storage::RepositoryHandle,
 ) -> Result<Vec<graph::Manifest>> {
+    enum ResolvedManifest {
+        Existing(graph::Manifest),
+        Proposed(graph::Manifest),
+    }
+
+    impl ResolvedManifest {
+        fn manifest(&self) -> &graph::Manifest {
+            match self {
+                ResolvedManifest::Existing(m) => m,
+                ResolvedManifest::Proposed(m) => m,
+            }
+        }
+    }
+
     let layers = resolve_stack_to_layers(runtime.status.stack.iter(), Some(repo)).await?;
     let mut manifests = Vec::with_capacity(layers.len());
     for layer in layers {
-        manifests.push(repo.read_manifest(layer.manifest).await?);
+        manifests.push(ResolvedManifest::Existing(
+            repo.read_manifest(layer.manifest).await?,
+        ));
     }
 
     let renders = repo.renders()?;
@@ -163,7 +179,7 @@ pub(crate) async fn resolve_overlay_dirs(
     loop {
         let mut overlay_dirs = Vec::with_capacity(manifests.len());
         for manifest in &manifests {
-            let rendered_dir = renders.manifest_render_path(manifest)?;
+            let rendered_dir = renders.manifest_render_path(manifest.manifest())?;
             overlay_dirs.push(rendered_dir);
         }
         if crate::env::get_overlay_args(runtime, overlay_dirs).is_ok() {
@@ -193,18 +209,37 @@ pub(crate) async fn resolve_overlay_dirs(
             tracing::debug!("flattening {flatten_group_length} layers into one...");
             let mut manifest = tracking::Manifest::default();
             for next in manifests.drain(0..flatten_group_length) {
-                manifest.update(&next.unlock());
+                manifest.update(&next.manifest().unlock());
             }
-            let manifest = graph::Manifest::from(&manifest);
-            // store the newly created manifest so that the render process can read it back
-            repo.write_object(&manifest.clone().into()).await?;
+            let manifest = ResolvedManifest::Proposed(graph::Manifest::from(&manifest));
+            // Don't store the "proposed" manifest yet. Note that a proposed
+            // manifest can get merged into another manifest in a further
+            // iteration, so this manifest may never need to be written.
             manifests.insert(0, manifest);
 
             to_flatten -= flatten_group_length;
         }
     }
 
-    Ok(manifests)
+    let mut resolved_manifests = Vec::with_capacity(manifests.len());
+    for manifest in manifests.into_iter() {
+        match manifest {
+            ResolvedManifest::Existing(m) => resolved_manifests.push(m),
+            ResolvedManifest::Proposed(m) => {
+                // Store the newly created manifest so that the render process
+                // can read it back. This little dance avoid an expensive
+                // (300 ms) clone.
+                let object = m.into();
+                repo.write_object(&object).await?;
+                match object {
+                    graph::Object::Manifest(m) => resolved_manifests.push(m),
+                    _ => unreachable!(),
+                }
+            }
+        }
+    }
+
+    Ok(resolved_manifests)
 }
 
 /// Compile the set of directories to be overlayed for a runtime, and
