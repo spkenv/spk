@@ -389,6 +389,10 @@ pub async fn get_all_unattached_payloads(
             Err(Error::UnknownObject(_)) => {
                 orphaned_payloads.insert(digest);
             }
+            Err(Error::ObjectNotABlob(..)) => {
+                tracing::warn!("Found payload with object that was not a blob: {digest}");
+                continue;
+            }
             Err(err) => return Err(err),
             Ok(_) => continue,
         }

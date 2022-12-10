@@ -7,7 +7,7 @@ use std::pin::Pin;
 use futures::Stream;
 use tokio_stream::StreamExt;
 
-use crate::{encoding, graph, Result};
+use crate::{encoding, graph, Error, Result};
 
 pub type BlobStreamItem = Result<(encoding::Digest, graph::Blob)>;
 
@@ -37,7 +37,7 @@ pub trait BlobStorage: graph::Database + Sync + Send {
         match self.read_object(digest).await {
             Err(err) => Err(err),
             Ok(Object::Blob(blob)) => Ok(blob),
-            Ok(_) => Err(format!("Object is not a blob: {:?}", digest).into()),
+            Ok(object) => Err(Error::ObjectNotABlob(object, digest)),
         }
     }
 

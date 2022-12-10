@@ -58,6 +58,8 @@ pub enum Error {
     InvalidReference(String),
     #[error("Repository does not support manifest rendering: {0:?}")]
     NoRenderStorage(url::Url),
+    #[error("Object is not a blob: {1}")]
+    ObjectNotABlob(crate::graph::Object, encoding::Digest),
 
     #[error(
         "Failed to open repository: {reason}, {}",
