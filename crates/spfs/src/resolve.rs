@@ -7,6 +7,7 @@ use std::path::Path;
 
 use encoding::Encodable;
 use itertools::Itertools;
+use nonempty::NonEmpty;
 use storage::{ManifestStorage, Repository};
 use tokio_stream::StreamExt;
 
@@ -151,25 +152,53 @@ pub(crate) async fn resolve_overlay_dirs(
     repo: &storage::RepositoryHandle,
 ) -> Result<Vec<graph::Manifest>> {
     enum ResolvedManifest {
-        Existing(graph::Manifest),
-        Proposed(graph::Manifest),
+        Existing {
+            order: usize,
+            manifest: graph::Manifest,
+        },
+        Proposed(Box<NonEmpty<ResolvedManifest>>),
     }
 
     impl ResolvedManifest {
+        /// Iterate over all the "existing" manifests contained within this
+        /// manifest.
+        fn existing(self) -> impl Iterator<Item = graph::Manifest> {
+            // Find all the `Existing` manifests in this recursive structure,
+            // returning them in an order based on their original order, to
+            // preserve the ordering of how manifests will be merged.
+            let mut result = Vec::new();
+            let mut stack = vec![self];
+            while !stack.is_empty() {
+                match stack.pop() {
+                    Some(ResolvedManifest::Existing { order, manifest }) => {
+                        result.push((order, manifest));
+                    }
+                    Some(ResolvedManifest::Proposed(m)) => stack.extend(m.into_iter()),
+                    None => {}
+                }
+            }
+            result.sort_by_key(|(order, _)| *order);
+            result.into_iter().map(|(_, m)| m)
+        }
+
         fn manifest(&self) -> &graph::Manifest {
             match self {
-                ResolvedManifest::Existing(m) => m,
-                ResolvedManifest::Proposed(m) => m,
+                ResolvedManifest::Existing { manifest, .. } => manifest,
+                ResolvedManifest::Proposed(m) => {
+                    // return the first element as a placeholder
+                    m.head.manifest()
+                }
             }
         }
     }
 
     let layers = resolve_stack_to_layers(runtime.status.stack.iter(), Some(repo)).await?;
     let mut manifests = Vec::with_capacity(layers.len());
-    for layer in layers {
-        manifests.push(ResolvedManifest::Existing(
-            repo.read_manifest(layer.manifest).await?,
-        ));
+    for (index, layer) in layers.iter().enumerate() {
+        manifests.push(ResolvedManifest::Existing {
+            order: index,
+            manifest: repo.read_manifest(layer.manifest).await?,
+        });
     }
 
     let renders = repo.renders()?;
@@ -207,11 +236,10 @@ pub(crate) async fn resolve_overlay_dirs(
             let flatten_group_length = to_flatten.min(FLATTEN_GROUP_SIZE);
 
             tracing::debug!("flattening {flatten_group_length} layers into one...");
-            let mut manifest = tracking::Manifest::default();
-            for next in manifests.drain(0..flatten_group_length) {
-                manifest.update(&next.manifest().unlock());
-            }
-            let manifest = ResolvedManifest::Proposed(graph::Manifest::from(&manifest));
+            let manifest = ResolvedManifest::Proposed(Box::new(
+                NonEmpty::from_vec(manifests.drain(0..flatten_group_length).collect()).unwrap(),
+            ));
+
             // Don't store the "proposed" manifest yet. Note that a proposed
             // manifest can get merged into another manifest in a further
             // iteration, so this manifest may never need to be written.
@@ -224,12 +252,19 @@ pub(crate) async fn resolve_overlay_dirs(
     let mut resolved_manifests = Vec::with_capacity(manifests.len());
     for manifest in manifests.into_iter() {
         match manifest {
-            ResolvedManifest::Existing(m) => resolved_manifests.push(m),
+            ResolvedManifest::Existing { manifest, .. } => resolved_manifests.push(manifest),
             ResolvedManifest::Proposed(m) => {
+                let mut manifest = tracking::Manifest::default();
+                for next in m.into_iter() {
+                    for next in next.existing() {
+                        manifest.update(&next.unlock());
+                    }
+                }
+                let manifest = graph::Manifest::from(&manifest);
                 // Store the newly created manifest so that the render process
                 // can read it back. This little dance avoid an expensive
                 // (300 ms) clone.
-                let object = m.into();
+                let object = manifest.into();
                 repo.write_object(&object).await?;
                 match object {
                     graph::Object::Manifest(m) => resolved_manifests.push(m),
