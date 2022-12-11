@@ -119,8 +119,7 @@ impl crate::Package for Package {
         self.package
             .components
             .resolve_uses(components)
-            .map(|c| &c.embedded)
-            .flatten()
+            .flat_map(|c| &c.embedded)
             .cloned()
             .collect()
     }

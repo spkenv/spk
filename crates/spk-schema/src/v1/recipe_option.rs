@@ -7,10 +7,14 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::name::OptNameBuf;
-use spk_schema_foundation::option_map::Stringified;
-use spk_schema_ident::{NameAndValue, RangeIdent};
+use spk_schema_foundation::option_map::{OptionMap, Stringified};
+use spk_schema_foundation::spec_ops::Named;
+use spk_schema_foundation::version::{CompatRule, Compatibility};
+use spk_schema_ident::{NameAndValue, PkgRequest, RangeIdent, Request, Satisfy, VarRequest};
 
 use super::WhenBlock;
+use crate::v1::WhenCondition;
+use crate::BuildEnv;
 
 #[cfg(test)]
 #[path = "./recipe_option_test.rs"]
@@ -21,6 +25,68 @@ mod recipe_option_test;
 pub enum RecipeOption {
     Var(Box<VarOption>),
     Pkg(Box<PkgOption>),
+}
+
+impl RecipeOption {
+    /// Create a solver request from this option
+    pub fn to_request(&self) -> Request {
+        match self {
+            Self::Pkg(p) => Request::Pkg(p.to_request()),
+            Self::Var(v) => Request::Var(v.to_request()),
+        }
+    }
+
+    /// Determine if this option is enabled given the resolved
+    /// build environment. If not, the returned compatibility will
+    /// denote a reason why it has been disabled.
+    pub fn check_is_active_at_build(&self, options: &OptionMap) -> Compatibility {
+        match self {
+            Self::Pkg(p) => p.at_build.check_is_active(options),
+            Self::Var(v) => v.at_build.check_is_active(options),
+        }
+    }
+
+    /// Determine if this option is enabled given the resolved
+    /// build environment. If not, the returned compatibility will
+    /// denote a reason why it has been disabled.
+    pub fn check_is_active_at_runtime<E, P>(&self, build_env: E) -> Compatibility
+    where
+        E: BuildEnv<Package = P>,
+        P: Satisfy<PkgRequest> + Named,
+    {
+        match self {
+            Self::Pkg(p) => p.at_runtime.check_is_active(&p.pkg, build_env),
+            Self::Var(v) => v.at_runtime.check_is_active(build_env),
+        }
+    }
+
+    /// Determine if this option is enabled given the resolved
+    /// build environment. If not, the returned compatibility will
+    /// denote a reason why it has been disabled.
+    pub fn check_is_active_at_downstream_build<E, P>(&self, build_env: E) -> Compatibility
+    where
+        E: BuildEnv<Package = P>,
+        P: Satisfy<PkgRequest> + Named,
+    {
+        match self {
+            Self::Pkg(p) => p.at_downstream_build.check_is_active(&p.pkg, build_env),
+            Self::Var(v) => v.at_downstream_build.check_is_active(build_env),
+        }
+    }
+
+    /// Determine if this option is enabled given the resolved
+    /// build environment. If not, the returned compatibility will
+    /// denote a reason why it has been disabled.
+    pub fn check_is_active_at_downstream_runtime<E, P>(&self, build_env: E) -> Compatibility
+    where
+        E: BuildEnv<Package = P>,
+        P: Satisfy<PkgRequest> + Named,
+    {
+        match self {
+            Self::Pkg(p) => p.at_downstream_runtime.check_is_active(&p.pkg, build_env),
+            Self::Var(v) => v.at_downstream_runtime.check_is_active(build_env),
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for RecipeOption {
@@ -74,16 +140,25 @@ pub struct VarOption {
     pub var: NameAndValue<OptNameBuf>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub choices: Vec<String>,
-    #[serde(default, skip_serializing_if = "VarPropagation::is_default")]
-    pub at_build: VarPropagation,
+    #[serde(default, skip_serializing_if = "BuildCondition::is_default")]
+    pub at_build: BuildCondition,
     #[serde(default, skip_serializing_if = "VarPropagation::is_default")]
     pub at_runtime: VarPropagation,
     #[serde(default, skip_serializing_if = "VarPropagation::is_default")]
     pub at_downstream_build: VarPropagation,
     #[serde(default, skip_serializing_if = "VarPropagation::is_default")]
     pub at_downstream_runtime: VarPropagation,
-    #[serde(skip_serializing_if = "WhenBlock::is_always")]
-    pub when: WhenBlock,
+}
+
+impl VarOption {
+    /// Create a solver request from this option
+    pub fn to_request(&self) -> VarRequest {
+        VarRequest {
+            var: self.var.0.clone(),
+            pin: false,
+            value: self.var.1.clone().unwrap_or_default(),
+        }
+    }
 }
 
 /// This visitor is partial because it expects that the first
@@ -108,19 +183,23 @@ impl<'de> serde::de::Visitor<'de> for PartialVarVisitor {
     {
         let var = map.next_value::<NameAndValue<OptNameBuf>>()?;
         let mut choices = Vec::new();
-        let mut at_runtime = VarPropagation::default();
-        let mut at_downstream_runtime = VarPropagation::default();
-        let mut at_build = VarPropagation::default();
-        let mut at_downstream_build = VarPropagation::default();
-        let mut when = WhenBlock::default();
+        let mut at_runtime = Option::<VarPropagation>::None;
+        let mut at_downstream_runtime = Option::<VarPropagation>::None;
+        let mut at_build = Option::<BuildCondition>::None;
+        let mut at_downstream_build = Option::<VarPropagation>::None;
+        let mut when = Option::<VarPropagation>::None;
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
                 "choices" => choices = map.next_value()?,
-                "atRuntime" => at_runtime = map.next_value()?,
-                "atDownstreamRuntime" => at_downstream_runtime = map.next_value()?,
-                "atBuild" => at_build = map.next_value()?,
-                "atDownstreamBuild" => at_downstream_build = map.next_value()?,
-                "when" => when = map.next_value()?,
+                "atRuntime" => at_runtime = Some(map.next_value()?),
+                "atDownstreamRuntime" => at_downstream_runtime = Some(map.next_value()?),
+                "atBuild" => at_build = Some(map.next_value()?),
+                "atDownstreamBuild" => at_downstream_build = Some(map.next_value()?),
+                "when" => {
+                    when = Some(VarPropagation::Enabled {
+                        when: map.next_value()?,
+                    })
+                }
                 _name => {
                     // unrecognized fields are explicitly ignored in case
                     // they were added in a newer version of spk. We assume
@@ -136,13 +215,27 @@ impl<'de> serde::de::Visitor<'de> for PartialVarVisitor {
             }
         }
         Ok(VarOption {
+            at_runtime: at_runtime.or_else(|| when.clone()).unwrap_or_default(),
+            at_downstream_build: at_downstream_build
+            .or_else(|| when.clone())
+            .unwrap_or_default(),
+            at_downstream_runtime: at_downstream_runtime.or_else(||when.clone()).unwrap_or_default(),
+            at_build: at_build
+            .or_else(|| {
+                let Some(when) = when else {
+                    return None;
+                };
+                match when.try_into() {
+                    Ok(mapped) => Some(mapped),
+                    Err(err) => {
+                        tracing::warn!("Shared 'when' condition is invalid at build-time");
+                        tracing::warn!(" > because: {err}");
+                        tracing::warn!(" > to remove this message, add 'atBuild: true' to the option for 'var: {}'", var.0);
+                        None
+                    }
+                }}).unwrap_or_default(),
             var,
             choices,
-            at_build,
-            at_runtime,
-            at_downstream_build,
-            at_downstream_runtime,
-            when,
         })
     }
 }
@@ -167,6 +260,17 @@ impl Default for VarPropagation {
 impl VarPropagation {
     pub fn is_default(&self) -> bool {
         self == &Self::default()
+    }
+
+    pub fn check_is_active<E, P>(&self, build_env: E) -> Compatibility
+    where
+        E: BuildEnv<Package = P>,
+        P: Satisfy<PkgRequest> + Named,
+    {
+        match self {
+            Self::Disabled => Compatibility::incompatible("This option was explicitly disabled"),
+            Self::Enabled { when } => when.check_is_active(build_env),
+        }
     }
 }
 
@@ -248,16 +352,28 @@ impl serde::Serialize for VarPropagation {
 #[serde(rename_all = "camelCase")]
 pub struct PkgOption {
     pub pkg: RangeIdent,
-    #[serde(default, skip_serializing_if = "PkgPropagation::is_default")]
-    pub at_build: PkgPropagation,
+    #[serde(default, skip_serializing_if = "BuildCondition::is_default")]
+    pub at_build: BuildCondition,
     #[serde(default, skip_serializing_if = "PkgPropagation::is_default")]
     pub at_runtime: PkgPropagation,
     #[serde(default, skip_serializing_if = "PkgPropagation::is_default")]
     pub at_downstream_build: PkgPropagation,
     #[serde(default, skip_serializing_if = "PkgPropagation::is_default")]
     pub at_downstream_runtime: PkgPropagation,
-    #[serde(skip_serializing_if = "WhenBlock::is_always")]
-    pub when: WhenBlock,
+}
+
+impl PkgOption {
+    /// Create a solver request from this option
+    pub fn to_request(&self) -> PkgRequest {
+        PkgRequest {
+            pkg: self.pkg.clone(),
+            prerelease_policy: Default::default(),
+            inclusion_policy: Default::default(),
+            pin: Default::default(),
+            required_compat: Default::default(),
+            requested_by: Default::default(),
+        }
+    }
 }
 
 /// This visitor is partial because it expects that the first
@@ -281,18 +397,24 @@ impl<'de> serde::de::Visitor<'de> for PartialPkgVisitor {
         A: serde::de::MapAccess<'de>,
     {
         let pkg = map.next_value()?;
-        let mut at_runtime = PkgPropagation::default();
-        let mut at_build = PkgPropagation::default();
-        let mut at_downstream_build = PkgPropagation::default();
-        let mut at_downstream_runtime = PkgPropagation::default();
-        let mut when = WhenBlock::default();
+        let mut at_runtime = Option::<PkgPropagation>::None;
+        let mut at_build = Option::<BuildCondition>::None;
+        let mut at_downstream_build = Option::<PkgPropagation>::None;
+        let mut at_downstream_runtime = Option::<PkgPropagation>::None;
+        let mut when = Option::<PkgPropagation>::None;
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
-                "atBuild" => at_build = map.next_value()?,
-                "atRuntime" => at_runtime = map.next_value()?,
-                "atDownstreamBuild" => at_downstream_build = map.next_value()?,
-                "atDownstreamRuntime" => at_downstream_runtime = map.next_value()?,
-                "when" => when = map.next_value()?,
+                "atBuild" => at_build = Some(map.next_value()?),
+                "atRuntime" => at_runtime = Some(map.next_value()?),
+                "atDownstreamBuild" => at_downstream_build = Some(map.next_value()?),
+                "atDownstreamRuntime" => at_downstream_runtime = Some(map.next_value()?),
+                "when" => {
+                    when = Some(PkgPropagation::Enabled {
+                        version: None,
+                        components: Default::default(),
+                        when: map.next_value()?,
+                    })
+                }
                 _name => {
                     // unrecognized fields are explicitly ignored in case
                     // they were added in a newer version of spk. We assume
@@ -308,12 +430,26 @@ impl<'de> serde::de::Visitor<'de> for PartialPkgVisitor {
             }
         }
         Ok(PkgOption {
+            at_runtime: at_runtime.or_else(|| when.clone()).unwrap_or_default(),
+            at_downstream_build: at_downstream_build
+            .or_else(|| when.clone())
+            .unwrap_or_default(),
+            at_downstream_runtime: at_downstream_runtime.or_else(||when.clone()).unwrap_or_default(),
+            at_build: at_build
+            .or_else(|| {
+                let Some(when) = when else {
+                    return None;
+                };
+                match when.try_into() {
+                    Ok(mapped) => Some(mapped),
+                    Err(err) => {
+                        tracing::warn!("Shared 'when' condition is invalid at build-time");
+                        tracing::warn!(" > because: {err}");
+                        tracing::warn!(" > to remove this message, add 'atBuild: true' to the option for 'pkg: {pkg}'");
+                        None
+                    }
+                }}).unwrap_or_default(),
             pkg,
-            at_build,
-            at_runtime,
-            at_downstream_build,
-            at_downstream_runtime,
-            when,
         })
     }
 }
@@ -342,6 +478,26 @@ impl Default for PkgPropagation {
 impl PkgPropagation {
     pub fn is_default(&self) -> bool {
         self == &Self::default()
+    }
+
+    pub fn check_is_active<E, P>(&self, pkg: &RangeIdent, build_env: E) -> Compatibility
+    where
+        E: BuildEnv<Package = P>,
+        P: Satisfy<PkgRequest> + Named,
+    {
+        match self {
+            Self::Disabled => Compatibility::incompatible("This option was explicitly disabled"),
+            Self::Enabled {
+                version: _,
+                components: _,
+                when,
+            } => {
+                let Some(_resolved) = build_env.packages().find(|p| p.name() == pkg.name()) else {
+                    return when.check_is_active(build_env);
+                };
+                when.check_is_active(build_env)
+            }
+        }
     }
 }
 
@@ -432,6 +588,173 @@ impl serde::Serialize for PkgPropagation {
                 }
                 map.end()
             }
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub enum BuildCondition {
+    /// The request is not active in build environments
+    Disabled,
+    Enabled {
+        when: WhenBlock<VarRequest>,
+    },
+}
+
+impl Default for BuildCondition {
+    fn default() -> Self {
+        Self::Enabled {
+            when: WhenBlock::Always,
+        }
+    }
+}
+
+impl BuildCondition {
+    pub fn is_default(&self) -> bool {
+        self == &Self::default()
+    }
+
+    pub fn check_is_active(&self, options: &OptionMap) -> Compatibility {
+        match self {
+            Self::Disabled => Compatibility::incompatible("This option was explicitly disabled"),
+            Self::Enabled { when } => when.check_is_active_at_build(options),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for BuildCondition {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct BuildConditionVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for BuildConditionVisitor {
+            type Value = BuildCondition;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a boolean or mapping")
+            }
+
+            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match v {
+                    true => Ok(BuildCondition::default()),
+                    false => Ok(BuildCondition::Disabled),
+                }
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut when = WhenBlock::default();
+                while let Some(key) = map.next_key::<Stringified>()? {
+                    match key.as_str() {
+                        "when" => when = map.next_value()?,
+                        _name => {
+                            // unrecognized fields are explicitly ignored in case
+                            // they were added in a newer version of spk. We assume
+                            // that if the api has not been versioned then the desire
+                            // is to continue working in this older version
+                            #[cfg(not(test))]
+                            map.next_value::<serde::de::IgnoredAny>()?;
+                            // except during testing, where we don't want to hide
+                            // failing tests because of ignored data
+                            #[cfg(test)]
+                            return Err(serde::de::Error::unknown_field(_name, &[]));
+                        }
+                    }
+                }
+                Ok(BuildCondition::Enabled { when })
+            }
+        }
+
+        deserializer.deserialize_any(BuildConditionVisitor)
+    }
+}
+
+impl serde::Serialize for BuildCondition {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Disabled => serializer.serialize_bool(false),
+            Self::Enabled { when } => {
+                use serde::ser::SerializeMap;
+                let mut map = serializer.serialize_map(Some(3))?;
+                if !when.is_always() {
+                    map.serialize_entry("when", when)?;
+                }
+                map.end()
+            }
+        }
+    }
+}
+
+impl TryInto<BuildCondition> for VarPropagation {
+    type Error = crate::Error;
+
+    fn try_into(self) -> Result<BuildCondition, Self::Error> {
+        match self {
+            Self::Disabled => Ok(BuildCondition::Disabled),
+            Self::Enabled { when } => Ok(BuildCondition::Enabled {
+                when: when.try_into()?,
+            }),
+        }
+    }
+}
+
+impl TryInto<BuildCondition> for PkgPropagation {
+    type Error = crate::Error;
+
+    fn try_into(self) -> Result<BuildCondition, Self::Error> {
+        match self {
+            Self::Disabled => Ok(BuildCondition::Disabled),
+            Self::Enabled {
+                when,
+                version,
+                components,
+            } => {
+                if version.is_some() {
+                    return Err(crate::Error::String(
+                        "'when.version' cannot be used at build time".to_string(),
+                    ));
+                }
+                if !components.is_empty() {
+                    return Err(crate::Error::String(
+                        "'when.components' cannot be used at build time".to_string(),
+                    ));
+                }
+                Ok(BuildCondition::Enabled {
+                    when: when.try_into()?,
+                })
+            }
+        }
+    }
+}
+
+impl TryInto<WhenBlock<VarRequest>> for WhenBlock {
+    type Error = crate::Error;
+
+    fn try_into(self) -> Result<WhenBlock<VarRequest>, Self::Error> {
+        match self {
+            Self::Always => Ok(WhenBlock::Always),
+            Self::Sometimes { conditions } => Ok(WhenBlock::Sometimes {
+                conditions: conditions
+                    .into_iter()
+                    .map(|c| match c {
+                        WhenCondition::Pkg(p) => Err(crate::Error::String(format!(
+                            "pkg conditions cannot be used at build time, found {}",
+                            p.pkg
+                        ))),
+                        WhenCondition::Var(v) => Ok(v),
+                    })
+                    .collect::<crate::Result<Vec<_>>>()?,
+            }),
         }
     }
 }

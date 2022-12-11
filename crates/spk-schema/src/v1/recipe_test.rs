@@ -160,7 +160,9 @@ options:
 
   # these when clauses can be combined in interesting ways,
   # like making a choice between two different packages
-  # that both provide similar functionality
+  # that both provide similar functionality. Additionally,
+  # a global 'when' can be provided which is applied to all
+  # the 'at*' fields that aren't otherwise specified
   - var: jpeg/libjpeg-turbo
     choices: [libjpeg, libjpeg-turbo]
   - pkg: libjpeg-turbo/8.8

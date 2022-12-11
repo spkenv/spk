@@ -237,10 +237,7 @@ impl Package for Spec<BuildIdent> {
     ) -> Cow<'_, RequirementsList> {
         let mut requirements = Cow::Borrowed(&self.install.requirements);
         let components = self.install.components.resolve_uses(components);
-        let mut additional: Vec<_> = components
-            .map(|c| c.requirements.clone())
-            .flatten()
-            .collect();
+        let mut additional: Vec<_> = components.flat_map(|c| c.requirements.clone()).collect();
         if !additional.is_empty() {
             // only trigger a copy of the borrowed data if there's actually
             // more requests to be appended

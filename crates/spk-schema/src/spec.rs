@@ -211,6 +211,10 @@ impl Recipe for SpecRecipe {
         }
     }
 
+    // we are using a cow, so the into_owned might not actually
+    // do anything, whereas clippy suggests `iter().cloned()` which
+    // will always result in a clone
+    #[allow(clippy::unnecessary_to_owned)]
     fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
         match self {
             SpecRecipe::V0Package(r) => Cow::Owned(

@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::marker::PhantomData;
+
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::option_map::Stringified;
+use spk_schema_foundation::option_map::{OptionMap, Stringified};
 use spk_schema_foundation::version::Compatibility;
 use spk_schema_ident::{NameAndValue, PkgRequest, Satisfy, VarRequest};
 
@@ -19,16 +21,19 @@ mod when_test;
 /// The set of conditions in a when block are considered as
 /// an 'all' group, meaning that they must all be true in
 /// order for the full block to be satisfied.
-#[derive(Clone, Default, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub enum WhenBlock {
-    #[default]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub enum WhenBlock<Condition = WhenCondition> {
     Always,
-    Sometimes {
-        conditions: Vec<WhenCondition>,
-    },
+    Sometimes { conditions: Vec<Condition> },
 }
 
-impl WhenBlock {
+impl<Condition> Default for WhenBlock<Condition> {
+    fn default() -> Self {
+        Self::Always
+    }
+}
+
+impl<Condition> WhenBlock<Condition> {
     /// Create a when block that only activates
     /// when it is also requested by some other source
     pub fn when_requested() -> Self {
@@ -41,7 +46,9 @@ impl WhenBlock {
     pub fn is_always(&self) -> bool {
         matches!(self, Self::Always)
     }
+}
 
+impl WhenBlock<WhenCondition> {
     /// Determine if this when block is satisfied by the
     /// given build environment contents. If not satisfied,
     /// the returned compatibility should denote a reason
@@ -65,15 +72,53 @@ impl WhenBlock {
     }
 }
 
-impl<'de> Deserialize<'de> for WhenBlock {
+impl WhenBlock<VarRequest> {
+    /// Determine if this when block is satisfied by the
+    /// given build variant. If not satisfied,
+    /// the returned compatibility should denote a reason
+    /// for the miss.
+    pub fn check_is_active_at_build(&self, options: &OptionMap) -> Compatibility {
+        let conditions = match self {
+            Self::Always => return Compatibility::Compatible,
+            Self::Sometimes { conditions } => conditions,
+        };
+        for condition in conditions {
+            if condition.value.is_empty() {
+                continue;
+            }
+            let current = options.get(&condition.var);
+            let current = current.map(String::as_str).unwrap_or_default();
+            if current.is_empty() {
+                return Compatibility::incompatible(format!(
+                    "needed {condition}, but no value was set"
+                ));
+            }
+
+            if current != condition.value {
+                return Compatibility::incompatible(format!(
+                    "needed {condition}, but got {current:?}"
+                ));
+            }
+        }
+        Compatibility::Compatible
+    }
+}
+
+impl<'de, Condition> Deserialize<'de> for WhenBlock<Condition>
+where
+    Condition: serde::de::DeserializeOwned,
+{
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        struct WhenBlockVisitor;
+        struct WhenBlockVisitor<Condition>(PhantomData<*const Condition>);
 
-        impl<'de> serde::de::Visitor<'de> for WhenBlockVisitor {
-            type Value = WhenBlock;
+        impl<'de, Condition> serde::de::Visitor<'de> for WhenBlockVisitor<Condition>
+        where
+            Condition: serde::de::DeserializeOwned,
+        {
+            type Value = WhenBlock<Condition>;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("one of 'Requested', 'Always', or a sequence of conditions")
@@ -111,18 +156,22 @@ impl<'de> Deserialize<'de> for WhenBlock {
             where
                 A: serde::de::MapAccess<'de>,
             {
-                let single = WhenConditionVisitor.visit_map(map)?;
+                let deserializer = serde::de::value::MapAccessDeserializer::new(map);
+                let single = Condition::deserialize(deserializer)?;
                 Ok(WhenBlock::Sometimes {
                     conditions: vec![single],
                 })
             }
         }
 
-        deserializer.deserialize_any(WhenBlockVisitor)
+        deserializer.deserialize_any(WhenBlockVisitor(PhantomData))
     }
 }
 
-impl serde::Serialize for WhenBlock {
+impl<Condition> serde::Serialize for WhenBlock<Condition>
+where
+    Condition: serde::Serialize,
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

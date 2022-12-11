@@ -121,8 +121,14 @@ impl crate::Recipe for Recipe {
         todo!()
     }
 
-    fn get_build_requirements(&self, _options: &OptionMap) -> Result<Cow<'_, RequirementsList>> {
-        todo!()
+    fn get_build_requirements(&self, options: &OptionMap) -> Result<Cow<'_, RequirementsList>> {
+        Ok(Cow::Owned(
+            self.options
+                .iter()
+                .filter(|o| o.check_is_active_at_build(options).is_ok())
+                .map(|o| o.to_request())
+                .collect(),
+        ))
     }
 
     fn get_tests(&self, _stage: TestStage, _options: &OptionMap) -> Result<Vec<super::TestScript>> {

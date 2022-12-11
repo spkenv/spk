@@ -394,6 +394,76 @@ impl Serialize for VarRequest {
     }
 }
 
+impl<'de> Deserialize<'de> for VarRequest {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct VarRequestVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for VarRequestVisitor {
+            type Value = VarRequest;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a pkg or var request")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut var = Option::<OptNameBuf>::None;
+                let mut value = Option::<String>::None;
+                let mut pin = Option::<PinValue>::None;
+                while let Some(key) = map.next_key::<Stringified>()? {
+                    match key.as_str() {
+                        "fromBuildEnv" => pin = Some(map.next_value::<PinValue>()?),
+                        "var" => {
+                            let NameAndValue(name, v) = map.next_value()?;
+                            var = Some(name);
+                            value = v;
+                        }
+                        "value" => value = Some(map.next_value::<String>()?),
+                        _name => {
+                            // unrecognized fields are explicitly ignored in case
+                            // they were added in a newer version of spk. We assume
+                            // that if the api has not been versioned then the desire
+                            // is to continue working in this older version
+                            #[cfg(not(test))]
+                            map.next_value::<serde::de::IgnoredAny>()?;
+                            // except during testing, where we don't want to hide
+                            // failing tests because of ignored data
+                            #[cfg(test)]
+                            return Err(serde::de::Error::unknown_field(_name, &[]));
+                        }
+                    }
+                }
+
+                let Some(var) = var else {
+                    return Err(serde::de::Error::missing_field("var"));
+                };
+                match value {
+                    Some(value) if pin.as_ref().map(PinValue::is_some).unwrap_or_default() => {
+                        Err(serde::de::Error::custom(
+                            format!("request for `{var}` cannot specify a value `/{value}` when `fromBuildEnv` is true")
+                        ))
+                    }
+                    None if pin.is_none() => Err(serde::de::Error::custom(
+                        format!("request for `{var}` must specify a value (eg: {var}/<value>) when `fromBuildEnv` is false or omitted")
+                    )),
+                    _ => Ok(VarRequest {
+                        var,
+                        pin: pin.unwrap_or_default().into_var_pin()?,
+                        value: value.unwrap_or_default(),
+                    })
+                }
+            }
+        }
+
+        deserializer.deserialize_any(VarRequestVisitor)
+    }
+}
+
 /// What made a PkgRequest, was it the command line, a test or a
 /// package build such as one resolved during a solve, or another
 /// package build resolved during a solve.
