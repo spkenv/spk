@@ -8,9 +8,8 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use relative_path::RelativePathBuf;
+use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::*;
-use spfs::tracking::Diff;
 use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::ident_build::Build;
@@ -394,7 +393,12 @@ where
             .map_err(|err| BuildError::new_error(format_args!("{}", err)))?;
 
         tracing::info!("Committing package contents...");
-        commit_component_layers(package, &mut runtime, &changed_files).await
+        commit_component_layers(
+            package,
+            &mut runtime,
+            changed_files.iter().map(|diff| diff.path.as_ref()),
+        )
+        .await
     }
 
     async fn build_artifacts(
@@ -587,11 +591,12 @@ where
 
 /// Commit changes discovered in the runtime as a package.
 ///
-/// Only the changes also present in `filter` will be committed.
-pub async fn commit_component_layers<P>(
+/// Only the changes also present in `filter` will be committed. It is
+/// expected to contain paths relative to `$PREFIX`.
+pub async fn commit_component_layers<'a, P>(
     package: &P,
     runtime: &mut spfs::runtime::Runtime,
-    filter: &[Diff],
+    filter: impl IntoIterator<Item = &'a RelativePath>,
 ) -> Result<HashMap<Component, spfs::encoding::Digest>>
 where
     P: Package,

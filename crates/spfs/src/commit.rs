@@ -6,9 +6,11 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use relative_path::RelativePath;
+
 use super::status::remount_runtime;
 use crate::prelude::*;
-use crate::tracking::{Diff, ManifestBuilderHasher};
+use crate::tracking::ManifestBuilderHasher;
 use crate::{encoding, graph, runtime, tracking, Error, Result};
 
 #[cfg(test)]
@@ -54,11 +56,12 @@ where
 /// This collects all files to store as blobs and maintains a
 /// render of the manifest for use immediately.
 ///
-/// Only the changes also present in `filter` will be committed.
-pub async fn commit_dir_with_filter<P>(
+/// Only the changes also present in `filter` will be committed. It is
+/// expected to contain paths relative to `$PREFIX`.
+pub async fn commit_dir_with_filter<'a, P>(
     repo: Arc<RepositoryHandle>,
     path: P,
-    filter: &[Diff],
+    filter: impl IntoIterator<Item = &'a RelativePath>,
 ) -> Result<tracking::Manifest>
 where
     P: AsRef<Path>,
@@ -68,7 +71,7 @@ where
             tracking::ManifestBuilder::new(CommitBlobHasher {
                 repo: Arc::clone(&repo),
             })
-            .with_filter(filter.iter().map(|d| d.path.as_ref()))
+            .with_filter(filter)
         },
         repo,
         path,
@@ -126,11 +129,12 @@ pub async fn commit_layer(
 
 /// Commit the working file changes of a runtime to a new layer.
 ///
-/// Only the changes also present in `filter` will be committed.
-pub async fn commit_layer_with_filter(
+/// Only the changes also present in `filter` will be committed. It is
+/// expected to contain paths relative to `$PREFIX`.
+pub async fn commit_layer_with_filter<'a>(
     runtime: &mut runtime::Runtime,
     repo: Arc<RepositoryHandle>,
-    filter: &[Diff],
+    filter: impl IntoIterator<Item = &'a RelativePath>,
 ) -> Result<graph::Layer> {
     commit_manifest(
         commit_dir_with_filter(Arc::clone(&repo), &runtime.config.upper_dir, filter).await?,
