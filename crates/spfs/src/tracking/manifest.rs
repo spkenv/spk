@@ -11,7 +11,7 @@ use std::sync::Arc;
 use futures::stream::FuturesUnordered;
 use futures::TryStreamExt;
 use itertools::Itertools;
-use relative_path::RelativePathBuf;
+use relative_path::{RelativePath, RelativePathBuf};
 use tokio::fs::DirEntry;
 
 use super::entry::{Entry, EntryKind};
@@ -288,7 +288,7 @@ where
     ///
     /// The filter is expected to contain paths that are relative to the
     /// `$PREFIX` root.
-    pub fn with_filter(mut self, filter: impl IntoIterator<Item = RelativePathBuf>) -> Self {
+    pub fn with_filter<'a>(mut self, filter: impl IntoIterator<Item = &'a RelativePath>) -> Self {
         let mut filter_set = HashSet::new();
         for path_to_filter in filter {
             // Ensure any parents of this path are also included.

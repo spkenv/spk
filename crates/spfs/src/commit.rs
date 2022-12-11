@@ -68,7 +68,7 @@ where
             tracking::ManifestBuilder::new(CommitBlobHasher {
                 repo: Arc::clone(&repo),
             })
-            .with_filter(filter.iter().map(|d| d.path.clone()))
+            .with_filter(filter.iter().map(|d| d.path.as_ref()))
         },
         repo,
         path,
