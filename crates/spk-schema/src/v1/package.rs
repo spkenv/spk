@@ -10,7 +10,7 @@ use spk_schema_foundation::version::CompatRule;
 use spk_schema_foundation::version_range::Ranged;
 use spk_schema_ident::{BuildIdent, PreReleasePolicy};
 
-use super::{PackagePackagingSpec, SourceSpec};
+use super::{PackageOption, PackagePackagingSpec, SourceSpec};
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
 use crate::foundation::name::PkgName;
@@ -37,6 +37,8 @@ pub struct Package {
     pub deprecated: bool,
     #[serde(default, skip_serializing_if = "SourceSpec::is_empty")]
     pub source: SourceSpec,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<PackageOption>,
     #[serde(default)]
     pub package: PackagePackagingSpec,
 }
@@ -50,6 +52,7 @@ impl Package {
             compat: Compat::default(),
             deprecated: bool::default(),
             source: Default::default(),
+            options: Default::default(),
             package: Default::default(),
         }
     }
@@ -105,7 +108,14 @@ impl crate::Package for Package {
     }
 
     fn option_values(&self) -> OptionMap {
-        todo!()
+        self.options
+            .iter()
+            .filter_map(|o| match o {
+                PackageOption::Var(v) => Some(v),
+                _ => None,
+            })
+            .map(|o| (o.var.0.clone(), o.var.1.clone().unwrap_or_default()))
+            .collect()
     }
 
     fn sources(&self) -> &Vec<crate::SourceSpec> {

@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 mod package;
+mod package_option;
 mod package_packaging_spec;
 mod recipe;
 mod recipe_build_spec;
@@ -15,6 +16,7 @@ mod test_script;
 mod when;
 
 pub use package::Package;
+pub use package_option::PackageOption;
 pub use package_packaging_spec::PackagePackagingSpec;
 pub use recipe::Recipe;
 pub use recipe_build_spec::{RecipeBuildSpec, VariantSpec};
