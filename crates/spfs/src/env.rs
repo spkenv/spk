@@ -152,9 +152,12 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
     }
 
     unsafe {
-        // avoid creating zombie processes by moving the monitor
-        // into a separate process group
-        cmd.pre_exec(|| match nix::unistd::setsid() {
+        // Avoid creating zombie processes by moving the monitor into a
+        // separate process group. Use `daemon` to reparent it to pid 1 in
+        // order to avoid the monitor being discovered by walking the
+        // process tree and being killed by aggressive process management,
+        // like in a render farm job situation.
+        cmd.pre_exec(|| match nix::unistd::daemon(false, true) {
             Ok(_pid) => Ok(()),
             Err(err) => Err(std::io::Error::from_raw_os_error(err as i32)),
         });
