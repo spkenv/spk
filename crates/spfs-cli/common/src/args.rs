@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+#[cfg(feature = "sentry")]
+use std::panic::catch_unwind;
+
 use tracing_subscriber::prelude::*;
 
 const SPFS_LOG: &str = "SPFS_LOG";
@@ -59,54 +62,126 @@ impl Sync {
 }
 
 #[cfg(feature = "sentry")]
-pub fn configure_sentry() {
+fn get_cli_context() -> (
+    String,
+    std::collections::BTreeMap<String, serde_json::Value>,
+) {
+    use serde_json::json;
+
+    let args: Vec<_> = std::env::args().collect();
+    let program = args[0].clone();
+    let command = args[1].clone();
+    let cwd = std::env::current_dir().ok();
+
+    let mut data = std::collections::BTreeMap::new();
+    data.insert(String::from("program"), json!(program));
+    data.insert(String::from("command"), json!(command));
+    data.insert(String::from("args"), json!(args.join(" ")));
+    data.insert(String::from("cwd"), json!(cwd));
+
+    (command, data)
+}
+
+#[cfg(feature = "sentry")]
+fn remove_ansi_escapes(message: String) -> String {
+    if let Ok(b) = strip_ansi_escapes::strip(message.clone()) {
+        if let Ok(s) = std::str::from_utf8(&b) {
+            return s.to_string();
+        }
+    }
+    message
+}
+
+#[cfg(feature = "sentry")]
+pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
     use std::borrow::Cow;
 
     use sentry::IntoDsn;
-    let mut opts = sentry::ClientOptions {
-        dsn: "http://3dd72e3b4b9a4032947304fabf29966e@sentry.k8s.spimageworks.com/4"
-            .into_dsn()
-            .unwrap_or(None),
-        environment: Some(
-            std::env::var("SENTRY_ENVIRONMENT")
-                .unwrap_or_else(|_| "production".to_string())
-                .into(),
-        ),
-        // spdev follows sentry recommendation of using the release
-        // tag as the name of the release in sentry
-        release: Some(format!("v{}", spfs::VERSION).into()),
-        ..Default::default()
-    };
-    opts = sentry::apply_defaults(opts);
-
-    // Proxy values may have been read from env.
-    // If they do not contain a scheme prefix, sentry-transport
-    // produces a panic log output
-    if let Some(url) = opts.http_proxy.as_ref().map(ToString::to_string) {
-        if !url.contains("://") {
-            opts.http_proxy = Some(format!("http://{url}")).map(Cow::Owned);
-        }
-    }
-    if let Some(url) = opts.https_proxy.as_ref().map(ToString::to_string) {
-        if !url.contains("://") {
-            opts.https_proxy = Some(format!("https://{url}")).map(Cow::Owned);
-        }
-    }
 
     // Call this before `sentry::init` to avoid possible data race, SIGSEGV
     // in `getpwuid_r ()` -> `getenv ()`. CentOS 7.6.1810.
     // Thread 2 is always in `SSL_library_init ()` -> `EVP_rc2_cbc ()`.
     let username = whoami::username();
 
-    let _guard = sentry::init(opts);
+    let guard = match catch_unwind(|| {
+        let mut opts = sentry::ClientOptions {
+            dsn: "http://3dd72e3b4b9a4032947304fabf29966e@sentry.k8s.spimageworks.com/4"
+                .into_dsn()
+                .unwrap_or(None),
+            environment: Some(
+                std::env::var("SENTRY_ENVIRONMENT")
+                    .unwrap_or_else(|_| "production".to_string())
+                    .into(),
+            ),
+            // spdev follows sentry recommendation of using the release
+            // tag as the name of the release in sentry
+            release: Some(format!("v{}", spfs::VERSION).into()),
+            before_send: Some(std::sync::Arc::new(|mut event| {
+                // Remove ansi color codes from the event message
+                if let Some(message) = event.message {
+                    event.message = Some(remove_ansi_escapes(message));
+                }
+                Some(event)
+            })),
+            before_breadcrumb: Some(std::sync::Arc::new(|mut breadcrumb| {
+                // Remove ansi color codes from the breadcrumb message
+                if let Some(message) = breadcrumb.message {
+                    breadcrumb.message = Some(remove_ansi_escapes(message));
+                }
+                Some(breadcrumb)
+            })),
+            ..Default::default()
+        };
+        opts = sentry::apply_defaults(opts);
+
+        // Proxy values may have been read from env.
+        // If they do not contain a scheme prefix, sentry-transport
+        // produces a panic log output
+        if let Some(url) = opts.http_proxy.as_ref().map(ToString::to_string) {
+            if !url.contains("://") {
+                opts.http_proxy = Some(format!("http://{url}")).map(Cow::Owned);
+            }
+        }
+        if let Some(url) = opts.https_proxy.as_ref().map(ToString::to_string) {
+            if !url.contains("://") {
+                opts.https_proxy = Some(format!("https://{url}")).map(Cow::Owned);
+            }
+        }
+
+        sentry::init(opts)
+    }) {
+        Ok(g) => Some(g),
+        Err(cause) => {
+            // Added to try to get more info on this kind of panic:
+            //
+            // thread 'main' panicked at 'called `Result::unwrap()` on
+            // an `Err` value: Os { code: 11, kind: WouldBlock,
+            // message: "Resource temporarily unavailable" }',
+            // /.../sentry-core-0.27.0/src/session.rs:228:14
+            //
+            // See also, maybe?: https://github.com/rust-lang/rust/issues/46345
+            eprintln!("WARNING: configuring Sentry for spfs failed: {:?}", cause);
+            None
+        }
+    };
+
+    let (command, data) = get_cli_context();
 
     sentry::configure_scope(|scope| {
         scope.set_user(Some(sentry::protocol::User {
+            // TODO: make this configurable in future
             email: Some(format!("{}@imageworks.com", &username)),
             username: Some(username),
             ..Default::default()
-        }))
-    })
+        }));
+
+        // Tags are searchable
+        scope.set_tag("command", command);
+        // Contexts are not searchable
+        scope.set_context("SPFS", sentry::protocol::Context::Other(data));
+    });
+
+    guard
 }
 
 pub fn configure_spops(_verbosity: usize) {
@@ -169,7 +244,7 @@ macro_rules! main {
         }
         fn main2() -> i32 {
             let mut opt = $cmd::parse();
-            let config = $crate::configure!(opt, $sentry);
+            let (config, sentry_guard) = $crate::configure!(opt, $sentry);
 
             let result = opt.run(&config);
 
@@ -185,7 +260,7 @@ macro_rules! main {
         }
         fn main2() -> i32 {
             let mut opt = $cmd::parse();
-            let config = $crate::configure!(opt, $sentry);
+            let (config, sentry_guard) = $crate::configure!(opt, $sentry);
 
             let rt = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -216,7 +291,9 @@ macro_rules! configure {
         // sentry makes this process multithreaded, and must be disabled
         // for commands that use system calls which are bothered by this
         #[cfg(feature = "sentry")]
-        if $sentry { $crate::configure_sentry() }
+        let sentry_guard = if $sentry { $crate::configure_sentry() } else { None };
+        #[cfg(not(feature = "sentry"))]
+        let sentry_guard = 0;
         $crate::configure_logging($opt.verbose);
         $crate::configure_spops($opt.verbose);
 
@@ -225,7 +302,7 @@ macro_rules! configure {
                 tracing::error!(err = ?err, "failed to load config");
                 return 1;
             }
-            Ok(config) => config,
+            Ok(config) => (config, sentry_guard),
         }
     }};
 }
