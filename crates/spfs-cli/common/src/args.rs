@@ -105,7 +105,7 @@ pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
 
     let guard = match catch_unwind(|| {
         let mut opts = sentry::ClientOptions {
-            dsn: "http://3dd72e3b4b9a4032947304fabf29966e@sentry.k8s.spimageworks.com/4"
+            dsn: "http://3dd72e3b4b9a4032947304fabf29966e@sentry.spimageworks.com/4"
                 .into_dsn()
                 .unwrap_or(None),
             environment: Some(
@@ -226,7 +226,13 @@ pub fn configure_logging(verbosity: usize) {
         .with_writer(std::io::stderr)
         .without_time()
         .with_target(verbosity > 2);
+
+    #[cfg(not(feature = "sentry"))]
     let sub = registry.with(fmt_layer);
+
+    #[cfg(feature = "sentry")]
+    let sub = registry.with(fmt_layer).with(sentry_tracing::layer());
+
     tracing::subscriber::set_global_default(sub).unwrap();
 }
 
