@@ -57,6 +57,10 @@ cp "$RELEASE_DIR"/spk %{buildroot}/opt/spk.dist/
 /usr/local/bin/spk-launcher
 /opt/spk.dist/
 
+%post
+mkdir -p /spfs
+chmod 777 /spfs
+
 %preun
 [ -e /usr/local/bin/spk ] && unlink /usr/local/bin/spk
 
