@@ -62,7 +62,7 @@ impl Sync {
 }
 
 #[cfg(feature = "sentry")]
-fn get_spk_context() -> (
+fn get_cli_context() -> (
     String,
     std::collections::BTreeMap<String, serde_json::Value>,
 ) {
@@ -165,7 +165,7 @@ pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
         }
     };
 
-    let (command, data) = get_spk_context();
+    let (command, data) = get_cli_context();
 
     sentry::configure_scope(|scope| {
         scope.set_user(Some(sentry::protocol::User {
