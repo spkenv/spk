@@ -2763,6 +2763,7 @@ version = "0.34.6"
 dependencies = [
  "clap 3.2.11",
  "sentry",
+ "sentry-tracing",
  "serde_json",
  "spfs",
  "strip-ansi-escapes",
