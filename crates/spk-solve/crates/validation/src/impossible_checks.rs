@@ -387,10 +387,6 @@ impl ImpossibleRequestsChecker {
                 Ok(value) => value,
                 Err(err) => return Err(err),
             };
-            tracing::debug!(
-                target: IMPOSSIBLE_CHECKS_TARGET,
-                "Found a build for this request: {found_a_build}",
-            );
 
             if found_a_build {
                 tracing::debug!(
@@ -646,7 +642,7 @@ async fn make_task_per_version(
             let new_task = tokio::spawn(task);
 
             // Send a message about the new task to notify the
-            // recieving function that another task has started.
+            // receiving function that another task has started.
             let message = Comms::NewVersionTask {
                 pkg_version,
                 task: new_task,
@@ -658,7 +654,7 @@ async fn make_task_per_version(
                 // this situation.
                 tracing::debug!(
                     target: IMPOSSIBLE_CHECKS_TARGET,
-                    "Channel closed. Making task ended for {package}"
+                    "Channel closed. Making task cut short for {package}"
                 );
                 return Ok::<(), Error>(());
             };
@@ -677,11 +673,6 @@ async fn make_task_per_version(
     // valid build.
     let _ = channel.send(message).await;
 
-    tracing::debug!(
-        target: IMPOSSIBLE_CHECKS_TARGET,
-        "Making task ended for {package}"
-    );
-
     Ok::<(), Error>(())
 }
 
@@ -696,11 +687,6 @@ async fn any_valid_build_in_version(
     request: PkgRequest,
     channel: Sender<Comms>,
 ) -> Result<Compatibility> {
-    tracing::debug!(
-        target: IMPOSSIBLE_CHECKS_TARGET,
-        "Version task {pkg_version} started ..."
-    );
-
     // Note: because the builds aren't sorted, the order
     // they are returned in can vary from version to
     // version. That's okay this just needs to find one
@@ -709,7 +695,7 @@ async fn any_valid_build_in_version(
     let builds = repo.list_package_builds(&pkg_version).await?;
     tracing::debug!(
         target: IMPOSSIBLE_CHECKS_TARGET,
-        "Version task {pkg_version} got builds = {}",
+        "Version task {pkg_version} got {} builds",
         builds.len()
     );
     for build in builds {
@@ -772,12 +758,6 @@ async fn any_valid_build_in_version(
         builds_read,
     )
     .await;
-
-    tracing::debug!(
-        target: IMPOSSIBLE_CHECKS_TARGET,
-        "Version task ended for {}",
-        pkg_version.clone()
-    );
 
     Ok(nothing_valid)
 }

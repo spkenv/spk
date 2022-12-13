@@ -184,19 +184,27 @@ fn remove_ansi_escapes(message: String) -> String {
 
 pub fn configure_logging(verbosity: u32) -> Result<()> {
     use tracing_subscriber::layer::SubscriberExt;
+    // NOTE: If you change these, please update docs/ref/logging.md
     let mut directives = match verbosity {
-        0 => "spk=info,spfs=warn".to_string(),
-        1 => "spk=debug,spfs=info".to_string(),
-        2 => "spk=trace,spfs=debug".to_string(),
-        3..=6 => format!(
-            "spk=trace,spfs=trace,{}=info,{}=debug",
-            BUILD_SORT_TARGET, IMPOSSIBLE_CHECKS_TARGET
-        ),
-        _ => format!(
-            "spk=trace,spfs=trace,{}=debug,{}=debug",
-            BUILD_SORT_TARGET, IMPOSSIBLE_CHECKS_TARGET
-        ),
+        // Sets "error" level as the global default level
+        0 => "error,spk=info,spfs=warn".to_string(),
+        1 => "error,spk=debug,spfs=info".to_string(),
+        2 => "error,spk=trace,spfs=debug".to_string(),
+        _ => "error,spk=trace,spfs=trace".to_string(),
     };
+
+    // Ensure all more detailed tracing targets are turned off. They
+    // have to be set explicitly because otherwise they will match the
+    // 'spk' target in the directives above. They can be re-enabled by
+    // setting them in "SPK_LOG" as needed, e.g.
+    // env SPK_LOG="spk_solve::impossible_checks=debug" spk explain ...
+    let tracing_targets = vec![BUILD_SORT_TARGET, IMPOSSIBLE_CHECKS_TARGET];
+    let defaults = tracing_targets
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<String>>()
+        .join("=error,");
+    directives = format!("{directives},{defaults}=error");
 
     if let Ok(overrides) = std::env::var("SPK_LOG") {
         // this is a common scenario because spk often calls itself
