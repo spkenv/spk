@@ -17,7 +17,6 @@ server = [
     "tokio-util/io",
     "tokio-util/io-util",
 ]
-"runtime-compat-0.33" = []
 "protobuf-src" = ["dep:protobuf-src"]
 
 [dependencies]

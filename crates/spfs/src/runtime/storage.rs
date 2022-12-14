@@ -249,22 +249,7 @@ impl OwnedRuntime {
     pub async fn delete(self) -> Result<()> {
         tracing::debug!("cleaning up runtime: {}", &self.name());
         match self.0.storage.remove_runtime(self.name()).await {
-            Ok(()) => {
-                #[cfg(feature = "runtime-compat-0.33")]
-                {
-                    let config = crate::get_config()?;
-                    let storage_root = config.storage.root.join("runtimes");
-                    let storage = super::storage_033::Storage::new(storage_root)?;
-                    match storage.remove_runtime(self.name()) {
-                        Err(crate::Error::UnknownRuntime { .. }) => {}
-                        Err(err) => {
-                            tracing::warn!(?err, name=%self.name(), "failed to clean runtime from legacy storage")
-                        }
-                        Ok(_) => {}
-                    };
-                }
-                Ok(())
-            }
+            Ok(()) => Ok(()),
             Err(Error::UnknownRuntime { .. }) => Ok(()),
             Err(err) => Err(err),
         }
@@ -455,24 +440,6 @@ impl Runtime {
 
     /// Save the current state of this runtime to the underlying storage
     pub async fn save_state_to_storage(&self) -> Result<()> {
-        #[cfg(feature = "runtime-compat-0.33")]
-        {
-            // Legacy storage location can be changed via $SPFS_STORAGE_RUNTIMES;
-            // legacy spk utilizes this for its test suite.
-            let storage_root = match std::env::var("SPFS_STORAGE_RUNTIMES") {
-                Ok(override_path) => override_path.into(),
-                Err(_) => {
-                    let config = crate::get_config()?;
-                    config.storage.root.join("runtimes")
-                }
-            };
-            let storage = super::storage_033::Storage::new(storage_root)?;
-            let mut replica = storage.read_runtime(self.name()).or_else(|err| match err {
-                crate::Error::UnknownRuntime { .. } => storage.create_named_runtime(self.name()),
-                _ => Err(err),
-            })?;
-            replica.replicate(self)?;
-        }
         self.storage.save_runtime(self).await
     }
 }

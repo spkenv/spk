@@ -34,7 +34,7 @@ source ~/.bashrc
 export SENTRY_DSN=http://4506b47108ac4b648fdf18a8d803f403@sentry.spimageworks.com/25
 export SENTRY_ENVIRONMENT=production
 # Include `--all` to also build spk-launcher
-dev env -- cargo build --release --features "migration-to-components,runtime-compat-0.33,sentry,spfs/protobuf-src" --all
+dev env -- cargo build --release --features "migration-to-components,sentry,spfs/protobuf-src" --all
 
 %install
 mkdir -p %{buildroot}/usr/local/bin

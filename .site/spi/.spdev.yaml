@@ -22,7 +22,7 @@ components:
       tags:
         - proxy
       variables:
-        FEATURES: migration-to-components,runtime-compat-0.33,sentry,spfs/protobuf-src
+        FEATURES: migration-to-components,sentry,spfs/protobuf-src
 
   - kind: HugoDocs
     name: docs
