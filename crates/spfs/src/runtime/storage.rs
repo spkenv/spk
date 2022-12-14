@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 ///! Definition and persistent storage of runtimes.
+use std::collections::HashSet;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -49,6 +50,10 @@ impl Default for Author {
 pub struct Status {
     /// The set of layers that are being used in this runtime
     pub stack: Vec<encoding::Digest>,
+    /// Additional layers that were created automatically due to the stack
+    /// being too large.
+    #[serde(default, skip_serializing_if = "HashSet::is_empty")]
+    pub(crate) flattened_layers: HashSet<encoding::Digest>,
     /// Whether or not this runtime is editable
     ///
     /// An editable runtime is mounted with working directories
@@ -560,7 +565,9 @@ impl Storage {
     pub async fn save_runtime(&self, rt: &Runtime) -> Result<()> {
         let payload_tag = runtime_tag(RuntimeDataType::Payload, rt.name())?;
         let meta_tag = runtime_tag(RuntimeDataType::Metadata, rt.name())?;
-        let platform: graph::Object = graph::Platform::new(&mut rt.status.stack.iter())?.into();
+        let mut platform = graph::Platform::new(&mut rt.status.stack.iter())?;
+        platform.stack.extend(rt.status.flattened_layers.iter());
+        let platform: graph::Object = platform.into();
         let platform_digest = platform.digest()?;
         let config_data = serde_json::to_string(&rt.data)?;
         let (_, config_digest) = tokio::try_join!(

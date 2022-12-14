@@ -78,12 +78,10 @@ pub async fn active_runtime() -> Result<runtime::Runtime> {
 }
 
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).
-pub async fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
+pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<()> {
+    let dirs = resolve_and_render_overlay_dirs(rt).await?;
     tracing::debug!("computing runtime manifest");
-    let (dirs, manifest) = tokio::try_join!(
-        resolve_and_render_overlay_dirs(rt),
-        compute_runtime_manifest(rt)
-    )?;
+    let manifest = compute_runtime_manifest(rt).await?;
 
     let original = env::become_root()?;
     env::ensure_mounts_already_exist()?;
@@ -96,12 +94,10 @@ pub async fn reinitialize_runtime(rt: &runtime::Runtime) -> Result<()> {
 }
 
 /// Initialize the current runtime as rt.
-pub async fn initialize_runtime(rt: &runtime::Runtime) -> Result<()> {
+pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<()> {
+    let dirs = resolve_and_render_overlay_dirs(rt).await?;
     tracing::debug!("computing runtime manifest");
-    let (dirs, manifest) = tokio::try_join!(
-        resolve_and_render_overlay_dirs(rt),
-        compute_runtime_manifest(rt)
-    )?;
+    let manifest = compute_runtime_manifest(rt).await?;
     env::enter_mount_namespace()?;
     let original = env::become_root()?;
     env::privatize_existing_mounts()?;

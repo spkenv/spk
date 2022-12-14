@@ -71,9 +71,9 @@ impl CmdEnter {
     }
 
     pub async fn run_async(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
-        let runtime = self.load_runtime(config).await?;
+        let mut runtime = self.load_runtime(config).await?;
         if self.remount {
-            spfs::reinitialize_runtime(&runtime).await?;
+            spfs::reinitialize_runtime(&mut runtime).await?;
             Ok(0)
         } else {
             let mut terminate = signal(SignalKind::terminate())
@@ -82,7 +82,7 @@ impl CmdEnter {
                 .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
             let mut quit = signal(SignalKind::quit())
                 .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
-            let owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
+            let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
 
             // At this point, our pid is owned by root and has not moved into
             // the proper mount namespace; spfs-monitor will not be able to
@@ -105,7 +105,7 @@ impl CmdEnter {
             };
 
             tracing::debug!("initializing runtime");
-            spfs::initialize_runtime(&owned).await?;
+            spfs::initialize_runtime(&mut owned).await?;
 
             // Now we have dropped privileges and are running as the invoking
             // user (same uid as spfs-monitor) and have entered the mount

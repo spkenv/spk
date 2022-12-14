@@ -148,7 +148,7 @@ pub async fn compute_object_manifest(
 ///
 /// These are returned as a list, from bottom to top.
 pub(crate) async fn resolve_overlay_dirs(
-    runtime: &runtime::Runtime,
+    runtime: &mut runtime::Runtime,
     repo: &storage::RepositoryHandle,
 ) -> Result<Vec<graph::Manifest>> {
     enum ResolvedManifest {
@@ -250,6 +250,7 @@ pub(crate) async fn resolve_overlay_dirs(
     }
 
     let mut resolved_manifests = Vec::with_capacity(manifests.len());
+    let mut flattened_layers = HashSet::new();
     for manifest in manifests.into_iter() {
         match manifest {
             ResolvedManifest::Existing { manifest, .. } => resolved_manifests.push(manifest),
@@ -266,12 +267,22 @@ pub(crate) async fn resolve_overlay_dirs(
                 // (300 ms) clone.
                 let object = manifest.into();
                 repo.write_object(&object).await?;
+                flattened_layers.insert(object.digest().expect("Object has valid digest"));
                 match object {
                     graph::Object::Manifest(m) => resolved_manifests.push(m),
                     _ => unreachable!(),
                 }
             }
         }
+    }
+
+    // Note the layers we manufactured here via flattening so they will have a
+    // strong reference in the runtime.
+    if runtime.status.flattened_layers != flattened_layers {
+        // If the additional layers has changed, then the runtime needs to be
+        // re-saved.
+        runtime.status.flattened_layers = flattened_layers;
+        runtime.save_state_to_storage().await?;
     }
 
     Ok(resolved_manifests)
@@ -282,7 +293,7 @@ pub(crate) async fn resolve_overlay_dirs(
 ///
 /// These are returned as a list, from bottom to top.
 pub(crate) async fn resolve_and_render_overlay_dirs(
-    runtime: &runtime::Runtime,
+    runtime: &mut runtime::Runtime,
 ) -> Result<Vec<std::path::PathBuf>> {
     let config = get_config()?;
     let repo: storage::RepositoryHandle = config.get_local_repository().await?.into();
