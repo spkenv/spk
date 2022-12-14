@@ -155,7 +155,25 @@ pub async fn purge_objects(
     {
         for (username, manifest_viewer) in renders_for_all_users.iter() {
             let mut iter = manifest_viewer.iter_rendered_manifests();
-            while let Some(digest) = iter.try_next().await? {
+            while let Some(digest) = iter.next().await {
+                let digest = match digest {
+                    Ok(digest) => digest,
+                    Err(Error::NoRenderStorage(_)) => {
+                        // This can happen if the renders/<username> directory
+                        // is empty.
+                        //
+                        // Go to next user.
+                        break;
+                    }
+                    Err(err) => {
+                        errors.push(Error::String(format!(
+                            "Error iterating rendered manifests for user {username}: {err}"
+                        )));
+                        // Go to next user.
+                        break;
+                    }
+                };
+
                 // Note that if there are a small number of these trace lines
                 // output, they might be covered up by the progress bars.
                 tracing::trace!(?username, ?digest, "rendered object");
