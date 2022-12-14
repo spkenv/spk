@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashSet;
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::prelude::FileTypeExt;
 use std::pin::Pin;
@@ -10,7 +11,7 @@ use std::sync::Arc;
 use futures::stream::FuturesUnordered;
 use futures::TryStreamExt;
 use itertools::Itertools;
-use relative_path::RelativePathBuf;
+use relative_path::{RelativePath, RelativePathBuf};
 use tokio::fs::DirEntry;
 
 use super::entry::{Entry, EntryKind};
@@ -268,6 +269,7 @@ where
     H: ManifestBuilderHasher + Send + Sync + 'static,
 {
     hasher: H,
+    filter: Option<HashSet<RelativePathBuf>>,
 }
 
 impl<H> ManifestBuilder<H>
@@ -275,7 +277,37 @@ where
     H: ManifestBuilderHasher + Send + Sync + 'static,
 {
     pub fn new(hasher: H) -> Self {
-        Self { hasher }
+        Self {
+            hasher,
+            filter: None,
+        }
+    }
+
+    /// Set a filter on the builder so that only files mentioned in the filter
+    /// will be included in the manifest.
+    ///
+    /// The filter is expected to contain paths that are relative to the
+    /// `$PREFIX` root.
+    pub fn with_filter<'a>(mut self, filter: impl IntoIterator<Item = &'a RelativePath>) -> Self {
+        let mut filter_set = HashSet::new();
+        for path_to_filter in filter {
+            // Ensure any parents of this path are also included.
+            //
+            // If `path_to_filter` is "foo/bar/baz",
+            // add "foo", "foo/bar", and "foo/bar/baz" to `filter_set`.
+            let mut path = RelativePathBuf::new();
+            for component in path_to_filter.components() {
+                use relative_path::Component;
+                if let Component::Normal(component) = component {
+                    path.push(component);
+                    filter_set.insert(path.clone());
+                }
+            }
+        }
+
+        self.filter = Some(filter_set);
+
+        self
     }
 
     /// Build a manifest that describes a directory's contents.
@@ -285,13 +317,20 @@ where
     ) -> Result<Manifest> {
         tracing::trace!("computing manifest for {:?}", path.as_ref());
         let mut manifest = Manifest::default();
-        manifest.root = Self::compute_tree_node(Arc::new(self), path, manifest.root).await?;
+        manifest.root = Self::compute_tree_node(
+            Arc::new(self),
+            Arc::new(path.as_ref().to_owned()),
+            path.as_ref(),
+            manifest.root,
+        )
+        .await?;
         Ok(manifest)
     }
 
     #[async_recursion::async_recursion]
     async fn compute_tree_node<P: AsRef<std::path::Path> + Send>(
         mb: Arc<ManifestBuilder<H>>,
+        root: Arc<std::path::PathBuf>,
         dirname: P,
         mut tree_node: Entry,
     ) -> Result<Entry> {
@@ -309,12 +348,27 @@ where
             let dir_entry = Arc::new(dir_entry);
             let mb = Arc::clone(&mb);
             let path = base.join(dir_entry.file_name());
+
+            if let Some(filter) = &mb.filter {
+                // If filtering, skip this entry unless the path matches a
+                // member of the filter set.
+                if let Ok(rel_path) = path.strip_prefix(&*root) {
+                    if let Ok(rel_path) = RelativePathBuf::from_path(rel_path) {
+                        if !filter.contains(&rel_path) {
+                            // Move on the next directory entry.
+                            continue;
+                        }
+                    }
+                }
+            }
+
             let entry = {
+                let root = Arc::clone(&root);
                 let dir_entry = Arc::clone(&dir_entry);
                 tokio::spawn(async move {
                     (
                         Arc::clone(&dir_entry),
-                        Self::compute_node(mb, path, dir_entry, Entry::default()).await,
+                        Self::compute_node(mb, root, path, dir_entry, Entry::default()).await,
                     )
                 })
             };
@@ -331,6 +385,7 @@ where
 
     async fn compute_node<P: AsRef<std::path::Path> + Send>(
         mb: Arc<ManifestBuilder<H>>,
+        root: Arc<std::path::PathBuf>,
         path: P,
         dir_entry: Arc<DirEntry>,
         mut entry: Entry,
@@ -380,7 +435,7 @@ where
                 .hasher(Box::pin(std::io::Cursor::new(link_target)))
                 .await?;
         } else if file_type.is_dir() {
-            entry = Self::compute_tree_node(mb, path, entry).await?;
+            entry = Self::compute_tree_node(mb, root, path, entry).await?;
         } else if runtime::is_removed_entry(&stat_result) {
             entry.kind = EntryKind::Mask;
             entry.object = encoding::NULL_DIGEST.into();

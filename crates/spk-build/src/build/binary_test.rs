@@ -407,11 +407,105 @@ async fn test_build_package_source_cleanup() {
     let repo = config.get_local_repository().await.unwrap();
     let layer = repo.read_layer(digest).await.unwrap();
     let manifest = repo.read_manifest(layer.manifest).await.unwrap().unlock();
-    let entry = manifest.get_path(data_path(src_pkg.ident())).unwrap();
+    let entry = manifest.get_path(data_path(src_pkg.ident()));
     assert!(
-        entry.entries.is_empty(),
+        entry.is_none() || entry.unwrap().entries.is_empty(),
         "no files should be committed from source path"
     );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_filters_unmodified_files() {
+    let rt = spfs_runtime().await;
+
+    // Create a package that can be used as a dependency...
+    {
+        let spec = recipe!(
+            {
+                "pkg": "pkg-dep/1.0.0",
+                "build": {
+                    "script": [
+                        "mkdir -p /spfs/include/dep",
+                        "touch /spfs/include/dep/a.h",
+                        "touch /spfs/include/dep/b.h",
+                        "touch /spfs/include/dep/c.h",
+                    ]
+                },
+            }
+        );
+        rt.tmprepo.publish_recipe(&spec).await.unwrap();
+
+        let _ = SourcePackageBuilder::from_recipe(spec.clone())
+            .build_and_publish(".", &*rt.tmprepo)
+            .await
+            .unwrap();
+
+        let _ = BinaryPackageBuilder::from_recipe(spec)
+            .with_repository(rt.tmprepo.clone())
+            .build_and_publish(&*rt.tmprepo)
+            .await
+            .unwrap();
+    }
+
+    // Create a package that does weird stuff with the dependency's files.
+    {
+        let spec = recipe!(
+            {
+                "pkg": "my-pkg/1.0.0",
+                "build": {
+                    "options": [
+                        { "pkg": "pkg-dep" }
+                    ],
+                    "script": [
+                        // The net result should be that these files from the
+                        // dependency are unmodified.
+                        "mv /spfs/include/{dep,.dep.save}",
+                        "mv /spfs/include/{.dep.save,dep}",
+                        // Let's create our own file too.
+                        "touch /spfs/include/dep/ours.h",
+                    ]
+                },
+            }
+        );
+        rt.tmprepo.publish_recipe(&spec).await.unwrap();
+
+        let _ = SourcePackageBuilder::from_recipe(spec.clone())
+            .build_and_publish(".", &*rt.tmprepo)
+            .await
+            .unwrap();
+
+        let (pkg, _) = BinaryPackageBuilder::from_recipe(spec)
+            .with_repository(rt.tmprepo.clone())
+            .build_and_publish(&*rt.tmprepo)
+            .await
+            .unwrap();
+
+        let digest = *storage::local_repository()
+            .await
+            .unwrap()
+            .read_components(pkg.ident())
+            .await
+            .unwrap()
+            .get(&Component::Run)
+            .unwrap();
+        let config = spfs::get_config().unwrap();
+        let repo = config.get_local_repository().await.unwrap();
+        let layer = repo.read_layer(digest).await.unwrap();
+        let manifest = repo.read_manifest(layer.manifest).await.unwrap().unlock();
+        // my-pkg should not have the headers from pkg-dep inside it.
+        let entry = manifest.get_path("include/dep/a.h");
+        assert!(
+            entry.is_none(),
+            "should not capture the files from the dependency"
+        );
+        // But it should have the new header it created.
+        let entry = manifest.get_path("include/dep/ours.h");
+        assert!(
+            entry.is_some(),
+            "should capture the files newly created in the build"
+        );
+    }
 }
 
 #[rstest]

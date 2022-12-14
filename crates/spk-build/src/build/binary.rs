@@ -8,7 +8,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use relative_path::RelativePathBuf;
+use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::*;
 use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::env::data_path;
@@ -385,14 +385,19 @@ where
         spfs::remount_runtime(&runtime).await?;
 
         tracing::info!("Validating package contents...");
-        package
+        let changed_files = package
             .validation()
             .validate_build_changeset(package)
             .await
             .map_err(|err| BuildError::new_error(format_args!("{}", err)))?;
 
         tracing::info!("Committing package contents...");
-        commit_component_layers(package, &mut runtime).await
+        commit_component_layers(
+            package,
+            &mut runtime,
+            changed_files.iter().map(|diff| diff.path.as_ref()),
+        )
+        .await
     }
 
     async fn build_artifacts(
@@ -583,16 +588,21 @@ where
     env
 }
 
-pub async fn commit_component_layers<P>(
+/// Commit changes discovered in the runtime as a package.
+///
+/// Only the changes also present in `filter` will be committed. It is
+/// expected to contain paths relative to `$PREFIX`.
+pub async fn commit_component_layers<'a, P>(
     package: &P,
     runtime: &mut spfs::runtime::Runtime,
+    filter: impl IntoIterator<Item = &'a RelativePath>,
 ) -> Result<HashMap<Component, spfs::encoding::Digest>>
 where
     P: Package,
 {
     let config = spfs::get_config()?;
     let repo = Arc::new(config.get_local_repository_handle().await?);
-    let layer = spfs::commit_layer(runtime, Arc::clone(&repo)).await?;
+    let layer = spfs::commit_layer_with_filter(runtime, Arc::clone(&repo), filter).await?;
     let manifest = repo.read_manifest(layer.manifest).await?.unlock();
     let manifests = split_manifest_by_component(package.ident(), &manifest, package.components())?;
     let mut committed = HashMap::with_capacity(manifests.len());

@@ -6,6 +6,8 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use relative_path::RelativePath;
+
 use super::status::remount_runtime;
 use crate::prelude::*;
 use crate::tracking::ManifestBuilderHasher;
@@ -37,13 +39,62 @@ pub async fn commit_dir<P>(repo: Arc<RepositoryHandle>, path: P) -> Result<track
 where
     P: AsRef<Path>,
 {
+    commit_dir_with_manifest_builder(
+        {
+            tracking::ManifestBuilder::new(CommitBlobHasher {
+                repo: Arc::clone(&repo),
+            })
+        },
+        repo,
+        path,
+    )
+    .await
+}
+
+/// Commit a local file system directory to this storage.
+///
+/// This collects all files to store as blobs and maintains a
+/// render of the manifest for use immediately.
+///
+/// Only the changes also present in `filter` will be committed. It is
+/// expected to contain paths relative to `$PREFIX`.
+pub async fn commit_dir_with_filter<'a, P>(
+    repo: Arc<RepositoryHandle>,
+    path: P,
+    filter: impl IntoIterator<Item = &'a RelativePath>,
+) -> Result<tracking::Manifest>
+where
+    P: AsRef<Path>,
+{
+    commit_dir_with_manifest_builder(
+        {
+            tracking::ManifestBuilder::new(CommitBlobHasher {
+                repo: Arc::clone(&repo),
+            })
+            .with_filter(filter)
+        },
+        repo,
+        path,
+    )
+    .await
+}
+
+/// Commit a local file system directory to this storage.
+///
+/// Uses the provided configured `ManifestBuilder`.
+async fn commit_dir_with_manifest_builder<P, H>(
+    builder: tracking::ManifestBuilder<H>,
+    repo: Arc<RepositoryHandle>,
+    path: P,
+) -> Result<tracking::Manifest>
+where
+    P: AsRef<Path>,
+    H: ManifestBuilderHasher + Send + Sync + 'static,
+{
     let path = tokio::fs::canonicalize(&path)
         .await
         .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
     let manifest = {
-        let builder = tracking::ManifestBuilder::new(CommitBlobHasher {
-            repo: Arc::clone(&repo),
-        });
         tracing::info!("committing files");
         builder.compute_manifest(path).await?
     };
@@ -68,7 +119,37 @@ pub async fn commit_layer(
     runtime: &mut runtime::Runtime,
     repo: Arc<RepositoryHandle>,
 ) -> Result<graph::Layer> {
-    let manifest = commit_dir(Arc::clone(&repo), &runtime.config.upper_dir).await?;
+    commit_manifest(
+        commit_dir(Arc::clone(&repo), &runtime.config.upper_dir).await?,
+        runtime,
+        repo,
+    )
+    .await
+}
+
+/// Commit the working file changes of a runtime to a new layer.
+///
+/// Only the changes also present in `filter` will be committed. It is
+/// expected to contain paths relative to `$PREFIX`.
+pub async fn commit_layer_with_filter<'a>(
+    runtime: &mut runtime::Runtime,
+    repo: Arc<RepositoryHandle>,
+    filter: impl IntoIterator<Item = &'a RelativePath>,
+) -> Result<graph::Layer> {
+    commit_manifest(
+        commit_dir_with_filter(Arc::clone(&repo), &runtime.config.upper_dir, filter).await?,
+        runtime,
+        repo,
+    )
+    .await
+}
+
+/// Commit a manifest of the working file changes of a runtime to a new layer.
+async fn commit_manifest(
+    manifest: tracking::Manifest,
+    runtime: &mut runtime::Runtime,
+    repo: Arc<RepositoryHandle>,
+) -> Result<graph::Layer> {
     if manifest.is_empty() {
         return Err(Error::NothingToCommit);
     }
