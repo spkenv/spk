@@ -9,7 +9,12 @@ use std::str::FromStr;
 
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::format::{FormatBuild, FormatComponents, FormatRequest};
+use spk_schema_foundation::format::{
+    FormatBuild,
+    FormatChangeOptions,
+    FormatComponents,
+    FormatRequest,
+};
 use spk_schema_foundation::ident_component::ComponentSet;
 use spk_schema_foundation::name::{OptName, OptNameBuf, PkgName};
 use spk_schema_foundation::option_map::Stringified;
@@ -537,8 +542,7 @@ impl std::fmt::Display for RequestedBy {
 }
 
 /// A desired package and set of restrictions on how it's selected.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, thiserror::Error)]
-#[error("Package request for {pkg}")]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct PkgRequest {
     pub pkg: RangeIdent,
     #[serde(
@@ -584,6 +588,17 @@ pub struct PkgRequest {
     // more approachable.
     #[serde(skip)]
     pub requested_by: BTreeMap<String, Vec<RequestedBy>>,
+}
+
+impl std::fmt::Display for PkgRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            let fmt = self.format_request(&None, &self.pkg.name, &FormatChangeOptions::default());
+            f.write_str(&fmt)
+        } else {
+            self.pkg.fmt(f)
+        }
+    }
 }
 
 #[allow(clippy::derive_hash_xor_eq)]
