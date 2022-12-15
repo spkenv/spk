@@ -187,7 +187,7 @@ impl crate::Package for Package {
     }
 
     fn validation(&self) -> &ValidationSpec {
-        todo!()
+        &self.package.validation
     }
 
     fn build_script(&self) -> Cow<'_, String> {

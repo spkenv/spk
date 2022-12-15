@@ -213,6 +213,7 @@ impl crate::Recipe for Recipe {
                 environment: self.package.environment.clone(),
                 components,
                 test,
+                validation: self.package.validation.clone(),
             },
             script,
         })
