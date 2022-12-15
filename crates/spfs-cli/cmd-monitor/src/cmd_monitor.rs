@@ -16,7 +16,7 @@ use tokio::io::AsyncReadExt;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::timeout;
 
-cli::main!(CmdMonitor);
+cli::main!(CmdMonitor, syslog = true);
 
 /// Takes ownership of, and is responsible for monitoring an active runtime.
 ///
