@@ -297,8 +297,8 @@ impl Package for Spec<BuildIdent> {
         &self.build.validation
     }
 
-    fn build_script(&self) -> String {
-        self.build.script.join("\n")
+    fn build_script(&self) -> Cow<'_, String> {
+        Cow::Owned(self.build.script.join("\n"))
     }
 
     fn validate_options(&self, given_options: &OptionMap) -> Compatibility {

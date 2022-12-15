@@ -543,7 +543,7 @@ impl Package for Spec {
         }
     }
 
-    fn build_script(&self) -> String {
+    fn build_script(&self) -> Cow<'_, String> {
         match self {
             Spec::V0Package(spec) => spec.build_script(),
             Spec::V1Package(spec) => spec.build_script(),

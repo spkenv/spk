@@ -82,7 +82,7 @@ pub trait Package:
     fn validation(&self) -> &super::ValidationSpec;
 
     /// Return the build script for building package
-    fn build_script(&self) -> String;
+    fn build_script(&self) -> Cow<'_, String>;
 
     /// Validate the given options against the options in this spec.
     fn validate_options(&self, given_options: &OptionMap) -> Compatibility;
@@ -148,7 +148,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).validation()
     }
 
-    fn build_script(&self) -> String {
+    fn build_script(&self) -> Cow<'_, String> {
         (**self).build_script()
     }
 
@@ -212,7 +212,7 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).validation()
     }
 
-    fn build_script(&self) -> String {
+    fn build_script(&self) -> Cow<'_, String> {
         (**self).build_script()
     }
 
@@ -276,7 +276,7 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).validation()
     }
 
-    fn build_script(&self) -> String {
+    fn build_script(&self) -> Cow<'_, String> {
         (**self).build_script()
     }
 

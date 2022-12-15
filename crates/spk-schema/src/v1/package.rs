@@ -41,6 +41,7 @@ pub struct Package {
     pub options: Vec<PackageOption>,
     #[serde(default)]
     pub package: PackagePackagingSpec,
+    pub script: String,
 }
 
 impl Package {
@@ -54,6 +55,7 @@ impl Package {
             source: Default::default(),
             options: Default::default(),
             package: Default::default(),
+            script: String::from("bash build.sh"),
         }
     }
 }
@@ -172,8 +174,8 @@ impl crate::Package for Package {
         todo!()
     }
 
-    fn build_script(&self) -> String {
-        todo!()
+    fn build_script(&self) -> Cow<'_, String> {
+        Cow::Borrowed(&self.script)
     }
 
     fn validate_options(&self, _given_options: &OptionMap) -> Compatibility {

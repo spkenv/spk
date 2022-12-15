@@ -118,7 +118,7 @@ impl crate::Package for EmbeddedPackage {
         self.0.validation()
     }
 
-    fn build_script(&self) -> String {
+    fn build_script(&self) -> Cow<'_, String> {
         self.0.build_script()
     }
 
