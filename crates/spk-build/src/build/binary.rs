@@ -481,8 +481,14 @@ where
         {
             let mut writer = std::fs::File::create(&build_script)
                 .map_err(|err| Error::FileOpenError(build_script.to_owned(), err))?;
+            let script = package.build_script();
+            if script.trim().is_empty() {
+                return Err(Error::Build(BuildError {
+                    message: "package build script was empty".into(),
+                }));
+            }
             writer
-                .write_all(package.build_script().as_bytes())
+                .write_all(script.as_bytes())
                 .map_err(|err| Error::String(format!("Failed to save build script: {}", err)))?;
             writer
                 .sync_data()
