@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::collections::VecDeque;
-use std::fmt::Write;
+use std::fmt::{Display, Write};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -400,7 +400,7 @@ pub struct DecisionFormatterBuilder {
     long_solves_threshold: u64,
     max_frequent_errors: usize,
     status_bar: bool,
-    multi_solve: bool,
+    solver_output_from: MultiSolverKind,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -422,7 +422,7 @@ impl DecisionFormatterBuilder {
             long_solves_threshold: 0,
             max_frequent_errors: 0,
             status_bar: false,
-            multi_solve: false,
+            solver_output_from: MultiSolverKind::Unchanged,
         }
     }
 
@@ -476,8 +476,8 @@ impl DecisionFormatterBuilder {
         self
     }
 
-    pub fn with_multi_solve_disabled(&mut self, disabled: bool) -> &mut Self {
-        self.multi_solve = !disabled;
+    pub fn with_solver_output_from(&mut self, kind: MultiSolverKind) -> &mut Self {
+        self.solver_output_from = kind;
         self
     }
 
@@ -518,7 +518,7 @@ impl DecisionFormatterBuilder {
                 long_solves_threshold: self.long_solves_threshold,
                 max_frequent_errors: self.max_frequent_errors,
                 status_bar: self.status_bar,
-                multi_solve: self.multi_solve,
+                solver_output_from: self.solver_output_from.clone(),
             },
         }
     }
@@ -560,7 +560,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) long_solves_threshold: u64,
     pub(crate) max_frequent_errors: usize,
     pub(crate) status_bar: bool,
-    pub(crate) multi_solve: bool,
+    pub(crate) solver_output_from: MultiSolverKind,
 }
 
 enum LoopOutcome {
@@ -569,11 +569,20 @@ enum LoopOutcome {
     Success,
 }
 
-#[derive(PartialEq)]
-enum MultiSolverKind {
-    Unchanged = 1,
-    BuildKeyImpossibleChecks,
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub enum MultiSolverKind {
+    Unchanged,
     AllImpossibleChecks,
+}
+
+impl Display for MultiSolverKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            MultiSolverKind::Unchanged => "Unchanged",
+            MultiSolverKind::AllImpossibleChecks => "All Impossible Checks",
+        };
+        write!(f, "{name}")
+    }
 }
 
 struct SolverTaskSettings {
@@ -586,6 +595,7 @@ struct SolverTaskDone {
     pub(crate) start: Instant,
     pub(crate) loop_outcome: LoopOutcome,
     pub(crate) runtime: SolverRuntime,
+    pub(crate) verbosity: u32,
     pub(crate) solver_kind: MultiSolverKind,
     pub(crate) can_ignore_failure: bool,
 }
@@ -610,6 +620,7 @@ impl DecisionFormatter {
                 long_solves_threshold: 1,
                 max_frequent_errors: 5,
                 status_bar: false,
+                solver_output_from: MultiSolverKind::Unchanged,
             },
         }
     }
@@ -619,53 +630,33 @@ impl DecisionFormatter {
     pub async fn run_and_print_resolve(&self, solver: &Solver) -> Result<Solution> {
         // Even if running multiple solvers is enabled, there's no point in
         // running them if all the impossible checks are all already enabled.
-        if self.settings.multi_solve && !solver.all_impossible_checks_enabled() {
-            let solvers = self.setup_solvers(solver);
-            self.run_multi_solve(solvers, |args| println!("{args}"))
-                .await
-        } else {
-            let mut runtime = solver.run();
-            let start = Instant::now();
-            let loop_outcome = self
-                .run_solver_loop(&mut runtime, |args| println!("{args}"))
-                .await;
-            self.check_and_output_solver_results(loop_outcome, &start, &mut runtime, |args| {
-                println!("{args}")
-            })
+
+        // if self.settings.multi_solve && !solver.all_impossible_checks_enabled() {
+        //     let solvers = self.setup_solvers(solver);
+        //     self.run_multi_solve(solvers, |args| println!("{args}"))
+        //         .await
+        // } else {
+        //     let mut runtime = solver.run();
+        //     let start = Instant::now();
+        //     let loop_outcome = self
+        //         .run_solver_loop(&mut runtime, |args| println!("{args}"))
+        //         .await;
+        //     self.check_and_output_solver_results(loop_outcome, &start, &mut runtime, |args| {
+        //         println!("{args}")
+        //     })
+        //     .await
+        // }
+
+        let solvers = self.setup_solvers(solver);
+        self.run_multi_solve(solvers, |args| println!("{args}"))
             .await
-        }
     }
-
-    // /// Run the solver runtime to completion, printing each step to stdout
-    // /// as appropriate.
-    // pub async fn run_and_print_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
-    //     self.run_and_format_decisions(runtime, |args| println!("{args}"))
-    //         .await
-    // }
-
-    //     pub async fn run_and_format_decisions(
-    //         &self,
-    //         runtime: &mut SolverRuntime,
-    //         log_fn: impl Fn(std::fmt::Arguments),
-    //     ) -> Result<Solution> {
-    //         enum LoopOutcome {
-    //             Interrupted(String),
-    //             Failed(Box<Error>),
-    //             Success,
-
-    // =======
 
     fn setup_solvers(&self, base_solver: &Solver) -> Vec<SolverTaskSettings> {
         // Leave the first solver as is.
         let solver_with_no_change = base_solver.clone();
 
-        // Enable the build impossible checks in the second solver.
-        let mut solver_with_bkey_checks = base_solver.clone();
-        solver_with_bkey_checks.set_initial_request_impossible_checks(false);
-        solver_with_bkey_checks.set_resolve_validation_impossible_checks(false);
-        solver_with_bkey_checks.set_build_key_impossible_checks(true);
-
-        // Enable all the impossible checks in the third solver.
+        // Enable all the impossible checks in the second solver.
         let mut solver_with_all_checks = base_solver.clone();
         solver_with_all_checks.set_initial_request_impossible_checks(true);
         solver_with_all_checks.set_resolve_validation_impossible_checks(true);
@@ -675,11 +666,6 @@ impl DecisionFormatter {
             SolverTaskSettings {
                 solver: solver_with_no_change,
                 solver_kind: MultiSolverKind::Unchanged,
-                ignore_failure: false,
-            },
-            SolverTaskSettings {
-                solver: solver_with_bkey_checks,
-                solver_kind: MultiSolverKind::BuildKeyImpossibleChecks,
                 ignore_failure: false,
             },
             SolverTaskSettings {
@@ -699,7 +685,7 @@ impl DecisionFormatter {
 
         for solver_settings in solvers {
             let mut task_formatter = self.clone();
-            if solver_settings.solver_kind != MultiSolverKind::Unchanged {
+            if solver_settings.solver_kind != self.settings.solver_output_from {
                 // Hide the output from all the solvers except the
                 // unchanged one. The output from the unchanged solver
                 // is enough to show the user that something is
@@ -722,6 +708,7 @@ impl DecisionFormatter {
                     start,
                     loop_outcome,
                     runtime: task_solver_runtime,
+                    verbosity: task_formatter.settings.verbosity,
                     solver_kind: solver_settings.solver_kind,
                     can_ignore_failure: solver_settings.ignore_failure,
                 }
@@ -746,6 +733,7 @@ impl DecisionFormatter {
                     start,
                     loop_outcome,
                     mut runtime,
+                    verbosity,
                     solver_kind,
                     can_ignore_failure,
                 }) => {
@@ -767,29 +755,15 @@ impl DecisionFormatter {
                     }
 
                     tracing::debug!(
-                        "{} solver found a solution. Stopped remaining solver tasks.",
-                        match &solver_kind {
-                            MultiSolverKind::BuildKeyImpossibleChecks =>
-                                "Build Key Impossible Checks",
-                            MultiSolverKind::AllImpossibleChecks => "All Impossible Checks",
-                            _ => "Default",
-                        },
+                        "{solver_kind} solver found a solution. Stopped remaining solver tasks."
                     );
 
                     let result = self
                         .check_and_output_solver_results(loop_outcome, &start, &mut runtime, log_fn)
                         .await;
 
-                    if self.settings.verbosity > 0 {
-                        match &solver_kind {
-                            MultiSolverKind::BuildKeyImpossibleChecks => {
-                                tracing::info!("The solver that found the solution had its output disabled. To see its output, add '--check-impossible-builds' and '--disable-multi-solve' to the command line and rerun the spk command.");
-                            }
-                            MultiSolverKind::AllImpossibleChecks => {
-                                tracing::info!("The solver that found the solution had its output disabled. To see its output, add '--check-impossible-all' and '--disable-multi-solve' to the command line and rerun the spk command.");
-                            }
-                            _ => {}
-                        };
+                    if self.settings.verbosity > 0 && verbosity == 0 {
+                        tracing::info!("The {solver_kind} solver found the solution but its output was disabled. To see its output, rerun the spk command with '--solver-output-from'");
                     }
 
                     return result;

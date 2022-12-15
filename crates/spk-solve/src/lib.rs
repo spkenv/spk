@@ -9,7 +9,7 @@ mod solver;
 mod status_line;
 
 pub use error::{Error, Result};
-pub use io::{DecisionFormatter, DecisionFormatterBuilder};
+pub use io::{DecisionFormatter, DecisionFormatterBuilder, MultiSolverKind};
 pub use solver::{Solver, SolverRuntime};
 pub use spk_schema::foundation::ident_build::Build;
 pub use spk_schema::foundation::ident_component::Component;
