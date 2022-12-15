@@ -504,6 +504,12 @@ pub enum RequestedBy {
     SpkInternalTest,
     /// A package build that made the request, usually during a solve
     PackageBuild(VersionIdent),
+    /// This requirement was asserted on a downstream package but the identified
+    /// upstream build dependency that it was using
+    UpstreamBuildRequirement(BuildIdent),
+    /// This requirement was asserted on a downstream package but the identified
+    /// upstream build dependency that it was using
+    UpstreamRuntimeRequirement(BuildIdent),
 }
 
 impl std::fmt::Display for RequestedBy {
@@ -522,6 +528,10 @@ impl std::fmt::Display for RequestedBy {
             RequestedBy::NoState => write!(f, "no state? this should not happen?"),
             RequestedBy::SpkInternalTest => write!(f, "spk's test suite"),
             RequestedBy::PackageBuild(ident) => write!(f, "{ident}"),
+            RequestedBy::UpstreamBuildRequirement(ident)
+            | RequestedBy::UpstreamRuntimeRequirement(ident) => {
+                write!(f, "{ident} required this for downstream packages")
+            }
         }
     }
 }

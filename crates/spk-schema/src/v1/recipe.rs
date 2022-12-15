@@ -163,34 +163,33 @@ impl crate::Recipe for Recipe {
             .options
             .iter()
             .filter(|option| option.check_is_active_at_build(&build_options).is_ok())
-            .map(|option| match option {
-                super::RecipeOption::Pkg(opt) => {
-                    super::PackageOption::Pkg(Box::new(super::package_option::PkgOption {
-                        pkg: opt.pkg.clone(),
-                        at_runtime: option.check_is_active_at_runtime(build_env).is_ok(),
-                        at_downstream_build: option
-                            .check_is_active_at_downstream_build(build_env)
-                            .is_ok(),
-                        at_downstream_runtime: option
-                            .check_is_active_at_downstream_runtime(build_env)
-                            .is_ok(),
-                    }))
-                }
-                super::RecipeOption::Var(opt) => {
-                    let value = build_options
-                        .get_for_package(&self.pkg.name(), &opt.var.0)
-                        .or_else(|| opt.var.1.as_ref());
-                    super::PackageOption::Var(Box::new(super::package_option::VarOption {
-                        var: NameAndValue(opt.var.0.clone(), value.cloned()),
-                        choices: opt.choices.clone(),
-                        at_runtime: option.check_is_active_at_runtime(build_env).is_ok(),
-                        at_downstream_build: option
-                            .check_is_active_at_downstream_build(build_env)
-                            .is_ok(),
-                        at_downstream_runtime: option
-                            .check_is_active_at_downstream_runtime(build_env)
-                            .is_ok(),
-                    }))
+            .map(|option| {
+                let propagation = super::package_option::OptionPropagation {
+                    at_runtime: option.check_is_active_at_runtime(build_env).is_ok(),
+                    at_downstream_build: option
+                        .check_is_active_at_downstream_build(build_env)
+                        .is_ok(),
+                    at_downstream_runtime: option
+                        .check_is_active_at_downstream_runtime(build_env)
+                        .is_ok(),
+                };
+                match option {
+                    super::RecipeOption::Pkg(opt) => {
+                        super::PackageOption::Pkg(Box::new(super::package_option::PkgOption {
+                            pkg: opt.pkg.clone(),
+                            propagation,
+                        }))
+                    }
+                    super::RecipeOption::Var(opt) => {
+                        let value = build_options
+                            .get_for_package(self.pkg.name(), &opt.var.0)
+                            .or(opt.var.1.as_ref());
+                        super::PackageOption::Var(Box::new(super::package_option::VarOption {
+                            var: NameAndValue(opt.var.0.clone(), value.cloned()),
+                            choices: opt.choices.clone(),
+                            propagation,
+                        }))
+                    }
                 }
             })
             .collect();

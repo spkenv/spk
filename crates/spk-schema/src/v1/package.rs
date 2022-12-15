@@ -8,7 +8,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::version::CompatRule;
 use spk_schema_foundation::version_range::Ranged;
-use spk_schema_ident::{BuildIdent, PreReleasePolicy};
+use spk_schema_ident::{BuildIdent, PreReleasePolicy, RequestedBy};
 
 use super::{PackageOption, PackagePackagingSpec, SourceSpec};
 use crate::foundation::ident_build::Build;
@@ -141,7 +141,7 @@ impl crate::Package for Package {
     }
 
     fn runtime_environment(&self) -> &Vec<EnvOp> {
-        todo!()
+        &self.package.environment
     }
 
     fn runtime_requirements<'a>(
@@ -160,14 +160,30 @@ impl crate::Package for Package {
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        todo!()
+        Cow::Owned(
+            self.options
+                .iter()
+                .filter(|o| o.propagation().at_downstream_build)
+                .filter_map(|o| {
+                    o.to_request(|| RequestedBy::UpstreamBuildRequirement(self.pkg.to_owned()))
+                })
+                .collect(),
+        )
     }
 
     fn downstream_runtime_requirements<'a>(
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        todo!()
+        Cow::Owned(
+            self.options
+                .iter()
+                .filter(|o| o.propagation().at_downstream_runtime)
+                .filter_map(|o| {
+                    o.to_request(|| RequestedBy::UpstreamRuntimeRequirement(self.pkg.to_owned()))
+                })
+                .collect(),
+        )
     }
 
     fn validation(&self) -> &ValidationSpec {
