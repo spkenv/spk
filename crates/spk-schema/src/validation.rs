@@ -5,12 +5,11 @@
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 use std::path::PathBuf;
-use std::str::FromStr;
 
 use relative_path::RelativePathBuf;
 use serde::{Deserialize, Serialize};
 use spfs::tracking::{Diff, DiffMode};
-use spk_schema_ident::Ident;
+use spk_schema_ident::BuildIdent;
 
 use crate::validators::{
     must_collect_all_files,
@@ -91,7 +90,7 @@ impl ValidationSpec {
     fn assemble_error_message(
         &self,
         error: spk_schema_validators::Error,
-        files_to_packages: &HashMap<RelativePathBuf, Ident>,
+        files_to_packages: &HashMap<RelativePathBuf, BuildIdent>,
         conflicting_packages: &HashMap<(String, String), HashSet<RelativePathBuf>>,
     ) -> String {
         match error {
@@ -131,13 +130,12 @@ impl ValidationSpec {
                 if packages.is_empty() {
                     // Then the file is only in a single package, not
                     // in a pair of conflicting packages.
-                    let package = match files_to_packages.get(&filepath) {
-                        Some(ident) => (*ident).clone(),
-                        _ => {
-                            // This should not happen
-                            Ident::from_str("an unknown package, so something went wrong.").unwrap()
-                        }
-                    };
+                    let package = files_to_packages
+                        .get(&filepath)
+                        .map(|ident| ident.to_string())
+                        .unwrap_or_else(|| {
+                            "an unknown package, so something went wrong.".to_string()
+                        });
                     message.push_str(&format!(". It is from {package}"));
                 } else {
                     let num_others = packages.iter().map(|(_ps, fs)| fs.len()).sum::<usize>() - 1;
@@ -168,9 +166,9 @@ impl ValidationSpec {
     pub async fn validate_build_changeset<Package>(
         &self,
         package: &Package,
-        files_to_packages: &HashMap<RelativePathBuf, Ident>,
+        files_to_packages: &HashMap<RelativePathBuf, BuildIdent>,
         conflicting_packages: &HashMap<(String, String), HashSet<RelativePathBuf>>,
-    ) -> Result<()>
+    ) -> Result<Vec<Diff>>
     where
         Package: crate::Package,
     {

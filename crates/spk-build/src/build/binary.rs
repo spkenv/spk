@@ -471,17 +471,14 @@ where
         spfs::remount_runtime(&runtime).await?;
 
         tracing::info!("Validating package contents...");
-
-        // TODO: not correct
-        let changed_files = package;
-
         // Simplify this for use during the validation errors and to
         // avoid having to pass ResolvedLayers down into the validation.
-        let files_to_packages: HashMap<RelativePathBuf, Ident> = files_to_layers
+        let files_to_packages: HashMap<RelativePathBuf, BuildIdent> = files_to_layers
             .iter()
             .map(|(f, l)| (f.clone(), l.spec.ident().clone()))
             .collect();
-        package
+
+        let changed_files = package
             .validation()
             .validate_build_changeset(package, &files_to_packages, conflicting_packages)
             .await
