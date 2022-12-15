@@ -40,6 +40,12 @@ pub struct ComponentSpec<EmbeddedStub> {
     pub file_match_mode: ComponentFileMatchMode,
 }
 
+impl<P> AsRef<ComponentSpec<P>> for ComponentSpec<P> {
+    fn as_ref(&self) -> &ComponentSpec<P> {
+        self
+    }
+}
+
 impl<P> ComponentSpec<P> {
     /// Create a new, empty component with the given name
     pub fn new(name: Component) -> Self {

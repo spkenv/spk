@@ -249,9 +249,24 @@ pub struct Conditional<T> {
     pub when: WhenBlock,
 }
 
+impl<T> From<T> for Conditional<T> {
+    fn from(inner: T) -> Self {
+        Self {
+            inner,
+            when: WhenBlock::Always,
+        }
+    }
+}
+
 impl<T> Conditional<T> {
     pub fn into_inner(self) -> T {
         self.inner
+    }
+}
+
+impl<T> AsRef<T> for Conditional<T> {
+    fn as_ref(&self) -> &T {
+        &self.inner
     }
 }
 
