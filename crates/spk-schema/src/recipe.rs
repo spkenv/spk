@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 use std::path::Path;
 
-use spk_schema_ident::VersionIdent;
+use spk_schema_ident::{PkgRequest, Satisfy, VersionIdent};
 
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
@@ -48,7 +48,7 @@ pub trait Recipe:
     fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
-        P: Package;
+        P: Package + Satisfy<PkgRequest>;
 }
 
 impl<T> Recipe for std::sync::Arc<T>
@@ -86,7 +86,7 @@ where
     fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
-        P: Package,
+        P: Package + Satisfy<PkgRequest>,
     {
         (**self).generate_binary_build(build_env)
     }
@@ -127,7 +127,7 @@ where
     fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
-        P: Package,
+        P: Package + Satisfy<PkgRequest>,
     {
         (**self).generate_binary_build(build_env)
     }

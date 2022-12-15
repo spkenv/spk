@@ -124,6 +124,12 @@ impl<EmbeddedStub> std::ops::DerefMut for ComponentSpecList<EmbeddedStub> {
     }
 }
 
+impl<EmbeddedStub> FromIterator<ComponentSpec<EmbeddedStub>> for ComponentSpecList<EmbeddedStub> {
+    fn from_iter<T: IntoIterator<Item = ComponentSpec<EmbeddedStub>>>(iter: T) -> Self {
+        Self(FromIterator::from_iter(iter))
+    }
+}
+
 impl<'de, EmbeddedStub> Deserialize<'de> for ComponentSpecList<EmbeddedStub>
 where
     EmbeddedStub: serde::de::DeserializeOwned,

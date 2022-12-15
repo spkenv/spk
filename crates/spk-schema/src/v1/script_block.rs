@@ -3,11 +3,29 @@
 // https://github.com/imageworks/spk
 
 use serde::{Deserialize, Serialize};
+use spk_schema_ident::{PkgRequest, Satisfy};
 
 use super::WhenBlock;
+use crate::{BuildEnv, Package};
 
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct ScriptBlock(Vec<ScriptBlockEntry>);
+
+impl ScriptBlock {
+    /// Reduce this script to a string, resolving all conditionals
+    pub fn to_string<E, P>(&self, build_env: &E) -> String
+    where
+        E: BuildEnv<Package = P>,
+        P: Package + Satisfy<PkgRequest>,
+    {
+        self.0
+            .iter()
+            .map(|block| block.to_string(build_env))
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
 
 impl<'de> serde::de::Deserialize<'de> for ScriptBlock {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -56,4 +74,24 @@ pub enum ScriptBlockEntry {
         script: ScriptBlock,
         when: WhenBlock,
     },
+}
+
+impl ScriptBlockEntry {
+    /// Reduce this script to a string, resolving all conditionals
+    pub fn to_string<E, P>(&self, build_env: &E) -> String
+    where
+        E: BuildEnv<Package = P>,
+        P: Package + Satisfy<PkgRequest>,
+    {
+        match self {
+            Self::Simple(s) => s.clone(),
+            Self::Conditional { script, when } => {
+                if when.check_is_active(build_env).is_ok() {
+                    script.to_string(build_env)
+                } else {
+                    String::new()
+                }
+            }
+        }
+    }
 }

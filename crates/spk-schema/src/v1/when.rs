@@ -246,7 +246,27 @@ pub struct Conditional<T> {
     #[serde(flatten)]
     inner: T,
     #[serde(default, skip_serializing_if = "WhenBlock::is_always")]
-    when: WhenBlock,
+    pub when: WhenBlock,
+}
+
+impl<T> Conditional<T> {
+    pub fn into_inner(self) -> T {
+        self.inner
+    }
+}
+
+impl<T> std::ops::Deref for Conditional<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<T> std::ops::DerefMut for Conditional<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
 }
 
 struct WhenConditionVisitor;

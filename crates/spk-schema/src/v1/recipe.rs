@@ -8,7 +8,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::Component;
-use spk_schema_ident::VersionIdent;
+use spk_schema_ident::{NameAndValue, VersionIdent};
 
 use super::{RecipeBuildSpec, RecipeOptionList, RecipePackagingSpec, SourceSpec};
 use crate::foundation::name::PkgName;
@@ -151,12 +151,72 @@ impl crate::Recipe for Recipe {
         Ok(source_build)
     }
 
-    fn generate_binary_build<E, P>(&self, _build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
     where
         E: BuildEnv<Package = P>,
-        P: Package,
+        P: Package + Satisfy<PkgRequest>,
     {
-        todo!()
+        let build_options = build_env.options();
+        let build_digest = self.resolve_options(&build_options)?.digest();
+        let pkg = self.pkg.to_build(Build::Digest(build_digest));
+        let options = self
+            .options
+            .iter()
+            .filter(|option| option.check_is_active_at_build(&build_options).is_ok())
+            .map(|option| match option {
+                super::RecipeOption::Pkg(opt) => {
+                    super::PackageOption::Pkg(Box::new(super::package_option::PkgOption {
+                        pkg: opt.pkg.clone(),
+                        at_runtime: option.check_is_active_at_runtime(build_env).is_ok(),
+                        at_downstream_build: option
+                            .check_is_active_at_downstream_build(build_env)
+                            .is_ok(),
+                        at_downstream_runtime: option
+                            .check_is_active_at_downstream_runtime(build_env)
+                            .is_ok(),
+                    }))
+                }
+                super::RecipeOption::Var(opt) => {
+                    let value = build_options
+                        .get_for_package(&self.pkg.name(), &opt.var.0)
+                        .or_else(|| opt.var.1.as_ref());
+                    super::PackageOption::Var(Box::new(super::package_option::VarOption {
+                        var: NameAndValue(opt.var.0.clone(), value.cloned()),
+                        choices: opt.choices.clone(),
+                        at_runtime: option.check_is_active_at_runtime(build_env).is_ok(),
+                        at_downstream_build: option
+                            .check_is_active_at_downstream_build(build_env)
+                            .is_ok(),
+                        at_downstream_runtime: option
+                            .check_is_active_at_downstream_runtime(build_env)
+                            .is_ok(),
+                    }))
+                }
+            })
+            .collect();
+        let components = self
+            .package
+            .components
+            .iter()
+            .filter(|c| c.when.check_is_active(build_env).is_ok())
+            .map(|c| (**c).clone())
+            .collect();
+        let test = self.package.test.clone();
+        let script = self.build.script.to_string(build_env);
+        Ok(super::Package {
+            pkg,
+            meta: self.meta.clone(),
+            deprecated: false,
+            compat: self.compat.clone(),
+            source: self.source.clone(),
+            options,
+            package: super::PackagePackagingSpec {
+                environment: self.package.environment.clone(),
+                components,
+                test,
+            },
+            script,
+        })
     }
 }
 
