@@ -114,7 +114,11 @@ impl crate::Recipe for Recipe {
     }
 
     fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
-        Cow::Borrowed(&self.build.variants)
+        if self.build.variants.is_empty() {
+            Cow::Owned(vec![Default::default()])
+        } else {
+            Cow::Borrowed(&self.build.variants)
+        }
     }
 
     fn resolve_options(&self, given: &OptionMap) -> Result<OptionMap> {
@@ -131,8 +135,12 @@ impl crate::Recipe for Recipe {
         ))
     }
 
-    fn get_tests(&self, _stage: TestStage, _options: &OptionMap) -> Result<Vec<super::TestScript>> {
-        todo!()
+    fn get_tests(&self, stage: TestStage, _options: &OptionMap) -> Result<Vec<super::TestScript>> {
+        match stage {
+            TestStage::Sources => Ok(self.source.test.clone()),
+            TestStage::Build => Ok(self.build.test.clone()),
+            TestStage::Install => Ok(self.package.test.clone()),
+        }
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
