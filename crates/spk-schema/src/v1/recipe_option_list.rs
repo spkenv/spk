@@ -2,9 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
+use std::collections::btree_map::Entry;
+use std::collections::{HashMap, HashSet};
+
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::name::OptNameBuf;
+use spk_schema_foundation::option_map::OptionMap;
 
 use super::RecipeOption;
+use crate::{Error, Result};
 
 #[cfg(test)]
 #[path = "./recipe_option_list_test.rs"]
@@ -24,6 +31,81 @@ impl RecipeOptionList {
 
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    /// Resolve the values for all active options given the
+    /// desired inputs/variant.
+    pub fn resolve(&self, given: &OptionMap) -> Result<OptionMap> {
+        let mut all = Cow::Borrowed(given);
+        let mut resolved = OptionMap::default();
+        let mut something_changed = true;
+        let mut previous_contention = HashMap::new();
+        while something_changed {
+            let mut contention = HashMap::<OptNameBuf, HashSet<String>>::new();
+            something_changed = false;
+            for option in self.iter() {
+                if !option.check_is_active_at_build(&all).is_ok() {
+                    continue;
+                }
+                let RecipeOption::Var(var_opt) = option else {
+                    continue;
+                };
+                let default = || var_opt.var.1.as_ref();
+                let Some(value) = given.get(&var_opt.var.0).or_else(default) else {
+                    continue;
+                };
+                if !var_opt.choices.is_empty() && !var_opt.choices.contains(value) {
+                    return Err(Error::String(format!(
+                        "invalid option value '{}={}', must be one of {:?}",
+                        var_opt.var.0, value, var_opt.choices
+                    )));
+                }
+                let value = value.clone();
+                match all.to_mut().entry(var_opt.var.0.to_owned()) {
+                    Entry::Vacant(entry) => {
+                        something_changed = true;
+                        entry.insert(value.clone());
+                    }
+                    Entry::Occupied(mut entry) => {
+                        if entry.get() != &value {
+                            something_changed = true;
+                            entry.insert(value.clone());
+                        }
+                    }
+                }
+                match resolved.entry(var_opt.var.0.to_owned()) {
+                    Entry::Vacant(entry) => {
+                        entry.insert(value.clone());
+                    }
+                    Entry::Occupied(entry) if entry.get() != &value => {
+                        // do not allow the loop to exit, as we had multiple
+                        // options providing a different value for the same variable
+                        // (handled later on)
+                        something_changed = true;
+                        // we explicitly do not set the entry to any new value here
+                        // to avoid a situation where options might toggle each other
+                        // back and forth, creating an infinite loop
+                        let seen = contention.entry(entry.key().to_owned()).or_default();
+                        seen.insert(value);
+                        seen.insert(entry.get().to_string());
+                    }
+                    Entry::Occupied(_) => {}
+                }
+            }
+            if !contention.is_empty() {
+                if contention != previous_contention {
+                    // although there was contention between the options,
+                    // it's not a repeated issue and may still converge on the
+                    // next iteration
+                    previous_contention = contention;
+                    continue;
+                }
+                return Err(Error::MultipleOptionValuesResolved {
+                    resolved: contention,
+                });
+            }
+        }
+        Ok(resolved)
     }
 }
 
@@ -54,7 +136,7 @@ impl<'de> Deserialize<'de> for RecipeOptionList {
                 f.write_str("a list of package options")
             }
 
-            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            fn visit_unit<E>(self) -> std::result::Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {

@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::{HashMap, HashSet};
+
+use spk_schema_foundation::name::OptNameBuf;
 use thiserror::Error;
 
 #[cfg(test)]
@@ -42,6 +45,17 @@ pub enum Error {
     String(String),
     #[error("Failed to create temp dir: {0}")]
     TempDirError(#[source] std::io::Error),
+    #[error(
+        "Multiple different values resolved for the same option(s): {}",
+        .resolved
+            .iter()
+            .map(|(name, values)| format!(" - {name} resolved to {values:?}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    )]
+    MultipleOptionValuesResolved {
+        resolved: HashMap<OptNameBuf, HashSet<String>>,
+    },
 
     #[error(transparent)]
     InvalidYaml(#[from] format_serde_error::SerdeError),

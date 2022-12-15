@@ -3233,6 +3233,7 @@ dependencies = [
  "nom",
  "pretty_assertions",
  "proptest",
+ "rand 0.8.5",
  "regex",
  "relative-path",
  "rstest",

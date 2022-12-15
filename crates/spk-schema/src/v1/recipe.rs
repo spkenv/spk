@@ -117,8 +117,8 @@ impl crate::Recipe for Recipe {
         Cow::Borrowed(&self.build.variants)
     }
 
-    fn resolve_options(&self, _given: &OptionMap) -> Result<OptionMap> {
-        todo!()
+    fn resolve_options(&self, given: &OptionMap) -> Result<OptionMap> {
+        self.options.resolve(given)
     }
 
     fn get_build_requirements(&self, options: &OptionMap) -> Result<Cow<'_, RequirementsList>> {
