@@ -275,7 +275,18 @@ impl Satisfy<PkgRequest> for Package {
 }
 
 impl Satisfy<VarRequest> for Package {
-    fn check_satisfies_request(&self, _var_request: &VarRequest) -> Compatibility {
-        todo!()
+    fn check_satisfies_request(&self, var_request: &VarRequest) -> Compatibility {
+        let options = self
+            .options
+            .iter()
+            .filter_map(PackageOption::as_var)
+            .filter(|o| o.var.0 == var_request.var);
+        for option in options {
+            let compat = option.check_satisfies_request(var_request);
+            if !compat.is_ok() {
+                return compat;
+            }
+        }
+        Compatibility::Compatible
     }
 }

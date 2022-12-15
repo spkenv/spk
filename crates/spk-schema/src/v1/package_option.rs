@@ -4,7 +4,16 @@
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::{OptName, OptNameBuf};
-use spk_schema_ident::{NameAndValue, PkgRequest, RangeIdent, Request, RequestedBy, VarRequest};
+use spk_schema_foundation::version::Compatibility;
+use spk_schema_ident::{
+    NameAndValue,
+    PkgRequest,
+    RangeIdent,
+    Request,
+    RequestedBy,
+    Satisfy,
+    VarRequest,
+};
 
 #[cfg(test)]
 #[path = "./package_option_test.rs"]
@@ -45,6 +54,20 @@ impl PackageOption {
             Self::Var(v) => v.to_request().map(Request::Var),
         }
     }
+
+    pub fn as_var(&self) -> Option<&VarOption> {
+        match self {
+            Self::Var(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn as_pkg(&self) -> Option<&PkgOption> {
+        match self {
+            Self::Pkg(v) => Some(v),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
@@ -65,6 +88,25 @@ impl VarOption {
             pin: false,
             value,
         })
+    }
+}
+
+impl Satisfy<VarRequest> for VarOption {
+    fn check_satisfies_request(&self, var_request: &VarRequest) -> Compatibility {
+        if self.var.0 != var_request.var {
+            return Compatibility::incompatible(format!(
+                "request is for an entirely different var: want: '{}', got: '{}'",
+                self.var.0, var_request.var
+            ));
+        }
+        let needed_value = self.var.1.as_deref().unwrap_or_default();
+        if needed_value != var_request.value {
+            return Compatibility::incompatible(format!(
+                "request is for an entirely different var: want: '{}', got: '{}'",
+                self.var, var_request.value
+            ));
+        }
+        Compatibility::Compatible
     }
 }
 
