@@ -29,10 +29,10 @@ pub enum RecipeOption {
 
 impl RecipeOption {
     /// Create a solver request from this option
-    pub fn to_request(&self) -> Request {
+    pub fn to_request(&self) -> Option<Request> {
         match self {
-            Self::Pkg(p) => Request::Pkg(p.to_request()),
-            Self::Var(v) => Request::Var(v.to_request()),
+            Self::Pkg(p) => Some(Request::Pkg(p.to_request())),
+            Self::Var(v) => v.to_request().map(Request::Var),
         }
     }
 
@@ -151,13 +151,13 @@ pub struct VarOption {
 }
 
 impl VarOption {
-    /// Create a solver request from this option
-    pub fn to_request(&self) -> VarRequest {
-        VarRequest {
+    /// Create a solver request from this option, if appropriate
+    pub fn to_request(&self) -> Option<VarRequest> {
+        self.var.1.clone().map(|value| VarRequest {
             var: self.var.0.clone(),
             pin: false,
-            value: self.var.1.clone().unwrap_or_default(),
-        }
+            value,
+        })
     }
 }
 

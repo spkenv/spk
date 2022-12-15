@@ -126,7 +126,7 @@ impl crate::Recipe for Recipe {
             self.options
                 .iter()
                 .filter(|o| o.check_is_active_at_build(options).is_ok())
-                .map(|o| o.to_request())
+                .filter_map(|o| o.to_request())
                 .collect(),
         ))
     }
