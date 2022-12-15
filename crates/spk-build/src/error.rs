@@ -22,7 +22,7 @@ pub enum Error {
     FileWriteError(std::path::PathBuf, #[source] std::io::Error),
     #[error(transparent)]
     ProcessSpawnError(spfs::Error),
-    #[error("Package must include a build requirement for {request}, because it's being built against {required_by}, but {problem}")]
+    #[error("Package must include a build requirement for {request}, because it's being built against {required_by}. However, {problem}.")]
     MissingDownstreamBuildRequest {
         /// The package that was in the build environment and created the need for this request
         required_by: BuildIdent,
@@ -31,7 +31,7 @@ pub enum Error {
         /// Additional reasoning why an existing request was not sufficient
         problem: String,
     },
-    #[error("Package must include a runtime requirement for {request}, because it's being built against {required_by}, but {problem}")]
+    #[error("Package must include a runtime requirement for {request}, because it's being built against {required_by}. However, {problem}.")]
     MissingDownstreamRuntimeRequest {
         /// The package that was in the build environment and created the need for this request
         required_by: BuildIdent,

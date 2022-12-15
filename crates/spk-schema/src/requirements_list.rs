@@ -60,18 +60,30 @@ impl RequirementsList {
     /// exist in this list exactly, so long as there is a request in this
     /// list that is at least as restrictive
     pub fn contains_request(&self, theirs: &Request) -> Compatibility {
+        let mut last = Compatibility::Compatible;
         for ours in self.iter() {
             match (ours, theirs) {
-                (Request::Pkg(ours), Request::Pkg(theirs)) => {
-                    return ours.contains(theirs);
+                (Request::Pkg(ours), Request::Pkg(theirs))
+                    if ours.pkg.name() == theirs.pkg.name() =>
+                {
+                    last = ours.contains(theirs);
                 }
-                (Request::Var(ours), Request::Var(theirs)) => {
-                    return ours.contains(theirs);
+                (Request::Var(ours), Request::Var(theirs)) if ours.var == theirs.var => {
+                    last = ours.contains(theirs);
                 }
                 _ => continue,
             }
+            if last.is_ok() {
+                // we only return early if a matching request was found and is
+                // acceptable, but continue otherwise in case there is a future
+                // matching request that does contain 'theirs'
+                return last;
+            }
         }
-        Compatibility::incompatible("No request exists for this")
+        if last.is_ok() {
+            last = Compatibility::incompatible("no request exists for this")
+        }
+        last
     }
 
     /// Render all requests with a package pin using the given resolved packages.
