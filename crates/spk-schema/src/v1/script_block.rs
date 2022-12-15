@@ -12,6 +12,10 @@ use crate::{BuildEnv, Package};
 pub struct ScriptBlock(Vec<ScriptBlockEntry>);
 
 impl ScriptBlock {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// Reduce this script to a string, resolving all conditionals
     pub fn to_string<E, P>(&self, build_env: &E) -> String
     where
@@ -64,16 +68,11 @@ impl<'de> serde::de::Deserialize<'de> for ScriptBlock {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[cfg_attr(test, serde(deny_unknown_fields))]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(untagged)]
 pub enum ScriptBlockEntry {
     Simple(String),
-    Conditional {
-        #[serde(rename = "do")]
-        script: ScriptBlock,
-        when: WhenBlock,
-    },
+    Conditional(ConditionalScriptBlockEntry),
 }
 
 impl ScriptBlockEntry {
@@ -85,13 +84,62 @@ impl ScriptBlockEntry {
     {
         match self {
             Self::Simple(s) => s.clone(),
-            Self::Conditional { script, when } => {
-                if when.check_is_active(build_env).is_ok() {
-                    script.to_string(build_env)
+            Self::Conditional(entry) => {
+                if entry.when.check_is_active(build_env).is_ok() {
+                    entry.script.to_string(build_env)
                 } else {
-                    String::new()
+                    entry.else_script.to_string(build_env)
                 }
             }
         }
     }
+}
+
+impl<'de> serde::de::Deserialize<'de> for ScriptBlockEntry {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ScriptBlockEntryVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ScriptBlockEntryVisitor {
+            type Value = ScriptBlockEntry;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a string or conditional script block")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(ScriptBlockEntry::Simple(v.to_owned()))
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let deserializer = serde::de::value::MapAccessDeserializer::new(map);
+                ConditionalScriptBlockEntry::deserialize(deserializer)
+                    .map(ScriptBlockEntry::Conditional)
+            }
+        }
+
+        deserializer.deserialize_any(ScriptBlockEntryVisitor)
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
+pub struct ConditionalScriptBlockEntry {
+    when: WhenBlock,
+    #[serde(rename = "do")]
+    script: ScriptBlock,
+    #[serde(
+        default,
+        rename = "else",
+        skip_serializing_if = "ScriptBlock::is_empty"
+    )]
+    else_script: ScriptBlock,
 }
