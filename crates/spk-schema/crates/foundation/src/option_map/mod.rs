@@ -168,6 +168,16 @@ impl OptionMap {
             .collect()
     }
 
+    /// Get the value of an option in the context of a package,
+    /// accounting for any namespaces in both the requested option
+    /// and populated keys
+    pub fn get_for_package(&self, pkg: &PkgName, opt: &OptName) -> Option<&String> {
+        match opt.namespace() {
+            Some(_) => self.get(opt).or_else(|| self.get(opt.without_namespace())),
+            None => self.get(&opt.with_namespace(pkg)).or_else(|| self.get(opt)),
+        }
+    }
+
     pub fn digest(&self) -> Digest {
         let mut hasher = ring::digest::Context::new(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY);
         for (name, value) in self.items() {

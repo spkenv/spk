@@ -306,7 +306,7 @@ impl Package for Spec<BuildIdent> {
         let given_options = given_options.package_options(self.name());
         for option in self.build.options.iter() {
             let value = given_options
-                .get(option.full_name().without_namespace())
+                .get_for_package(self.pkg.name(), option.full_name())
                 .map(String::as_str);
             let compat = option.validate(value);
             if !compat.is_ok() {
@@ -352,14 +352,7 @@ impl Recipe for Spec<VersionIdent> {
     fn resolve_options(&self, given: &OptionMap) -> Result<OptionMap> {
         let mut resolved = OptionMap::default();
         for opt in self.build.options.iter() {
-            let given_value = match opt.full_name().namespace() {
-                Some(_) => given
-                    .get(opt.full_name())
-                    .or_else(|| given.get(opt.full_name().without_namespace())),
-                None => given
-                    .get(&opt.full_name().with_namespace(self.name()))
-                    .or_else(|| given.get(opt.full_name())),
-            };
+            let given_value = given.get_for_package(self.pkg.name(), opt.full_name());
             let value = opt.get_value(given_value.map(String::as_ref));
             let compat = opt.validate(Some(&value));
             if !compat.is_ok() {

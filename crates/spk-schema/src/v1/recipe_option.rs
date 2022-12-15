@@ -9,7 +9,7 @@ use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::name::OptNameBuf;
 use spk_schema_foundation::option_map::{OptionMap, Stringified};
 use spk_schema_foundation::spec_ops::Named;
-use spk_schema_foundation::version::{CompatRule, Compatibility};
+use spk_schema_foundation::version::Compatibility;
 use spk_schema_ident::{NameAndValue, PkgRequest, RangeIdent, Request, Satisfy, VarRequest};
 
 use super::WhenBlock;

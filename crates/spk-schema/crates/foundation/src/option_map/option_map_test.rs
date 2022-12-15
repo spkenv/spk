@@ -8,6 +8,32 @@ use super::OptionMap;
 use crate::{opt_name, option_map, pkg_name, FromYaml};
 
 #[rstest]
+fn test_get_for_package() {
+    let mut options = OptionMap::default();
+    options.insert(opt_name!("namespace.option").to_owned(), "ns_opt".into());
+    options.insert(opt_name!("option").to_owned(), "global_opt".into());
+    options.insert(opt_name!("other.option").to_owned(), "other_opt".into());
+    assert_eq!(
+        options
+            .get_for_package(pkg_name!("namespace"), opt_name!("option"))
+            .unwrap(),
+        "ns_opt"
+    );
+    assert_eq!(
+        options
+            .get_for_package(pkg_name!("nothing"), opt_name!("option"))
+            .unwrap(),
+        "global_opt"
+    );
+    assert_eq!(
+        options
+            .get_for_package(pkg_name!("namespace"), opt_name!("other.option"))
+            .unwrap(),
+        "other_opt"
+    );
+}
+
+#[rstest]
 fn test_package_options() {
     let mut options = OptionMap::default();
     options.insert(opt_name!("message").to_owned(), "hello, world".into());
