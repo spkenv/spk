@@ -10,10 +10,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use futures::StreamExt;
+use dashmap::DashSet;
 use tokio_retry::strategy::{jitter, ExponentialBackoff};
 use tokio_retry::{Condition, RetryIf};
-use tokio_stream::wrappers::IntervalStream;
+use tokio_stream::wrappers::{IntervalStream, UnboundedReceiverStream};
+use tokio_stream::StreamExt;
 
 use super::runtime;
 use crate::{Error, Result};
@@ -242,7 +243,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     };
 
     let mut tracked_processes = HashSet::new();
-    let (events_send, mut events_recv) = tokio::sync::mpsc::unbounded_channel();
+    let (events_send, events_recv) = tokio::sync::mpsc::unbounded_channel();
 
     // NOTE(rbottriell):
     // scan for any processes that were already spawned before
@@ -352,28 +353,59 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         }
     }
 
-    while let Some(event) = events_recv.recv().await {
-        match event {
+    let tracked_processes = Arc::new(
+        DashSet::<_, std::collections::hash_map::RandomState>::from_iter(
+            tracked_processes.into_iter(),
+        ),
+    );
+
+    let events_stream = UnboundedReceiverStream::new(events_recv);
+
+    // Filter the stream to keep only the events that pertain to us
+    let events_stream = {
+        let tracked_processes = Arc::clone(&tracked_processes);
+
+        events_stream.filter(move |event| match event {
             cnproc::PidEvent::Exec(_pid) => {
                 // exec is just one process turning into a new one with
                 // the pid remaining the same, so we are not interested...
                 // remember that launching a new process is a fork and then exec
+                false
             }
-            cnproc::PidEvent::Fork { parent, pid } => {
-                if tracked_processes.contains(&(parent as u32)) {
-                    tracked_processes.insert(pid as u32);
-                    tracing::trace!(?tracked_processes, "runtime monitor");
-                }
+            cnproc::PidEvent::Fork { parent, pid }
+                if tracked_processes.contains(&(*parent as u32)) =>
+            {
+                tracked_processes.insert(*pid as u32);
+                true
             }
-            cnproc::PidEvent::Exit(pid) => {
-                if tracked_processes.remove(&(pid as u32)) {
-                    tracing::trace!(?tracked_processes, "runtime monitor");
-                }
-                if tracked_processes.is_empty() {
-                    break;
-                }
+            cnproc::PidEvent::Fork { .. } => false,
+            cnproc::PidEvent::Exit(pid) if tracked_processes.remove(&(*pid as u32)).is_some() => {
+                true
             }
-            cnproc::PidEvent::Coredump(_) => {}
+            cnproc::PidEvent::Exit(..) => false,
+            cnproc::PidEvent::Coredump(pid) => {
+                tracing::trace!(?tracked_processes, ?pid, "notified of core dump");
+                false
+            }
+        })
+    };
+
+    // Add a timeout to be able to detect when no relevant pid events are
+    // arriving for a period of time.
+    let events_stream = events_stream.timeout(tokio::time::Duration::from_secs(60));
+    // Limit the frequency of log updates by chunking them with a short timeout.
+    let events_stream = events_stream.chunks_timeout(100, tokio::time::Duration::from_secs(1));
+    tokio::pin!(events_stream);
+
+    while let Some(events) = events_stream.next().await {
+        tracing::trace!(?tracked_processes, "runtime monitor");
+        if tracked_processes.is_empty() {
+            break;
+        }
+
+        // Check for any timeouts...
+        if events.iter().any(|event| event.is_err()) {
+            tracing::trace!(?tracked_processes, "no pid events for a while");
         }
     }
     Ok(())
