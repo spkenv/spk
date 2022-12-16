@@ -151,9 +151,8 @@ impl crate::Recipe for Recipe {
                 source.path = root.join(&source.path);
             }
         }
-        source_build.package.components.clear();
+        source_build.components.clear();
         source_build
-            .package
             .components
             .push(ComponentSpec::new(Component::Source));
         Ok(source_build)
@@ -217,12 +216,10 @@ impl crate::Recipe for Recipe {
             compat: self.compat.clone(),
             source: self.source.clone(),
             options,
-            package: super::PackagePackagingSpec {
                 environment: self.package.environment.clone(),
                 components,
                 test,
                 validation: self.package.validation.clone(),
-            },
             script,
         })
     }

@@ -10,7 +10,7 @@ use spk_schema_foundation::version::CompatRule;
 use spk_schema_foundation::version_range::Ranged;
 use spk_schema_ident::{BuildIdent, PreReleasePolicy, RequestedBy};
 
-use super::{PackageOption, PackagePackagingSpec, SourceSpec};
+use super::{PackageOption, SourceSpec, TestScript};
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
 use crate::foundation::name::PkgName;
@@ -19,7 +19,16 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{is_false, PkgRequest, Satisfy, VarRequest};
 use crate::meta::Meta;
-use crate::{Deprecate, DeprecateMut, EnvOp, PackageMut, RequirementsList, Result, ValidationSpec};
+use crate::{
+    ComponentSpecList,
+    Deprecate,
+    DeprecateMut,
+    EnvOp,
+    PackageMut,
+    RequirementsList,
+    Result,
+    ValidationSpec,
+};
 
 #[cfg(test)]
 #[path = "./package_test.rs"]
@@ -39,7 +48,14 @@ pub struct Package {
     pub source: SourceSpec,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<PackageOption>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub environment: Vec<EnvOp>,
     #[serde(default)]
+    pub components: ComponentSpecList<Self>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub test: Vec<TestScript>,
+    #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
+    pub validation: ValidationSpec,
     #[serde(default = "Package::default_script")]
     pub script: String,
 }
@@ -54,6 +70,10 @@ impl Package {
             deprecated: bool::default(),
             source: Default::default(),
             options: Default::default(),
+            environment: Default::default(),
+            components: Default::default(),
+            test: Default::default(),
+            validation: Default::default(),
             script: Self::default_script(),
         }
     }
@@ -131,8 +151,7 @@ impl crate::Package for Package {
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Vec<Self::EmbeddedStub> {
-        self.package
-            .components
+        self.components
             .resolve_uses(components)
             .flat_map(|c| &c.embedded)
             .cloned()
@@ -140,11 +159,11 @@ impl crate::Package for Package {
     }
 
     fn components(&self) -> Cow<'_, crate::ComponentSpecList<Self::EmbeddedStub>> {
-        Cow::Borrowed(&self.package.components)
+        Cow::Borrowed(&self.components)
     }
 
     fn runtime_environment(&self) -> &Vec<EnvOp> {
-        &self.package.environment
+        &self.environment
     }
 
     fn runtime_requirements<'a>(
@@ -152,7 +171,7 @@ impl crate::Package for Package {
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
         let mut requirements = RequirementsList::new();
-        let components = self.package.components.resolve_uses(components);
+        let components = self.components.resolve_uses(components);
         for component in components {
             requirements.extend(component.requirements.iter().cloned())
         }
@@ -190,7 +209,7 @@ impl crate::Package for Package {
     }
 
     fn validation(&self) -> &ValidationSpec {
-        &self.package.validation
+        &self.validation
     }
 
     fn build_script(&self) -> Cow<'_, String> {
@@ -234,10 +253,9 @@ impl Satisfy<PkgRequest> for Package {
         let is_source_build = self.pkg.is_source() && !source_package_requested;
         if !pkg_request.pkg.components.is_empty() && !is_source_build {
             let required_components = self
-                .package
                 .components
                 .resolve_uses_names(pkg_request.pkg.components.iter());
-            let available_components = self.package.components.names_owned();
+            let available_components = self.components.names_owned();
             let missing_components = required_components
                 .difference(&available_components)
                 .map(ToString::to_string)
