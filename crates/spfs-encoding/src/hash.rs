@@ -487,8 +487,8 @@ impl Display for Digest {
 impl Encodable for Digest {
     type Error = Error;
 
-    fn encode(&self, mut writer: &mut impl Write) -> Result<()> {
-        binary::write_digest(&mut writer, self)
+    fn encode(&self, writer: &mut impl Write) -> Result<()> {
+        binary::write_digest(writer, self)
     }
 
     fn digest(&self) -> Result<Digest> {
@@ -505,8 +505,8 @@ impl Decodable for Digest {
 impl Encodable for &Digest {
     type Error = Error;
 
-    fn encode(&self, mut writer: &mut impl Write) -> Result<()> {
-        binary::write_digest(&mut writer, self)
+    fn encode(&self, writer: &mut impl Write) -> Result<()> {
+        binary::write_digest(writer, self)
     }
 
     fn digest(&self) -> Result<Digest> {

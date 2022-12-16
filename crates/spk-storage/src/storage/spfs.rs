@@ -858,7 +858,7 @@ impl SPFSRepository {
                 Err(_) => None,
             })
             .filter_map(|e| Component::parse(&e).map(|c| (c, e)).ok())
-            .filter_map(|(c, e)| TagSpec::parse(&tag_path.join(e)).map(|p| (c, p)).ok())
+            .filter_map(|(c, e)| TagSpec::parse(tag_path.join(e)).map(|p| (c, p)).ok())
             .collect();
         if !tag_specs.is_empty() {
             return Ok(StoredPackage::WithComponents(tag_specs));

@@ -472,7 +472,7 @@ where
                 &runtime,
                 Some("bash"),
                 OsString::from("bash"),
-                &[OsString::from("-ex"), build_script.into_os_string()],
+                [OsString::from("-ex"), build_script.into_os_string()],
             )?
         };
 
@@ -651,7 +651,7 @@ fn split_manifest_by_component(
             }
             if component
                 .files
-                .matches(&node.path.to_path("/"), node.entry.is_dir())
+                .matches(node.path.to_path("/"), node.entry.is_dir())
             {
                 let is_new_file = seen.insert(node.path.to_owned());
                 if matches!(component.file_match_mode, ComponentFileMatchMode::All) || is_new_file {

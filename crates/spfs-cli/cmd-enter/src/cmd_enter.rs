@@ -50,7 +50,7 @@ pub struct CmdEnter {
     ///
     /// In order to ensure that flags are passed as-is, place '--' before
     /// specifying any flags that should be given to the subcommand:
-    ///   eg spfs enter <args> -- command --flag-for-command
+    ///   eg `spfs enter <args> -- command --flag-for-command`
     args: Vec<OsString>,
 }
 

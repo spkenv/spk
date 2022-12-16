@@ -100,7 +100,7 @@ impl TagStorage for FSRepository {
 
     /// Iterate through the available tags in this storage.
     fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
-        Box::pin(TagStreamIter::new(&self.tags_root()))
+        Box::pin(TagStreamIter::new(self.tags_root()))
     }
 
     async fn read_tag(

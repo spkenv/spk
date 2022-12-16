@@ -34,7 +34,7 @@ impl ManifestViewer for FSRepository {
             None => return false,
         };
         let rendered_dir = renders.build_digest_path(&digest);
-        was_render_completed(&rendered_dir)
+        was_render_completed(rendered_dir)
     }
 
     fn iter_rendered_manifests<'db>(

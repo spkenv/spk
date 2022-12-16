@@ -20,7 +20,7 @@ fn test_resolve_build_same_result() {
     // should both result in the same final state... this
     // ensures that builds are not attempted when one already exists
 
-    let base = graph::State::default();
+    let base = graph::State::default_state();
 
     let recipe = recipe!({"pkg": "test/1.0.0"});
     let recipe = Arc::new(recipe);
@@ -65,7 +65,7 @@ fn test_resolve_build_same_result() {
 
 #[rstest]
 fn test_empty_options_do_not_unset() {
-    let state = graph::State::default();
+    let state = graph::State::default_state();
 
     let assign_empty = graph::SetOptions::new(option_map! {"something" => ""});
     let assign_value = graph::SetOptions::new(option_map! {"something" => "value"});
@@ -107,7 +107,7 @@ fn test_request_default_component() {
           ]
         }
     }));
-    let base = std::sync::Arc::new(super::State::default());
+    let base = std::sync::Arc::new(super::State::default_state());
 
     let resolve_state = DecisionBuilder::new(&base)
         .resolve_package(&spec, PackageSource::Embedded) // TODO: embedded???

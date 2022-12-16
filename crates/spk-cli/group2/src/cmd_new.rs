@@ -25,7 +25,7 @@ impl Run for New {
         let spec = get_stub(&self.name);
 
         let spec_file = format!("{}.spk.yaml", self.name);
-        std::fs::write(&spec_file, &spec)?;
+        std::fs::write(&spec_file, spec)?;
         println!("{}: {}", "Created".green(), spec_file);
         Ok(0)
     }

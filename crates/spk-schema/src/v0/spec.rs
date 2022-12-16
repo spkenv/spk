@@ -442,7 +442,7 @@ impl Recipe for Spec {
 
         updated
             .install
-            .render_all_pins(options, specs.iter().map(|(_, p)| p.ident()))?;
+            .render_all_pins(options, specs.values().map(|p| p.ident()))?;
         let digest = updated.resolve_options(options)?.digest();
         updated.pkg.set_build(Some(Build::Digest(digest)));
         Ok(updated)

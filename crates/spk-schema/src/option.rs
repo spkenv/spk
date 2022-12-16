@@ -548,7 +548,7 @@ impl PkgOpt {
                 "Invalid value '{}' for option '{}', not a valid package request: {}",
                 value, self.pkg, err
             )),
-            Ok(value_range) => value_range.intersects(&base_range),
+            Ok(value_range) => value_range.intersects(base_range),
         }
     }
 

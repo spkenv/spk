@@ -51,7 +51,7 @@ pub trait Tester: Send {
             rt,
             Some("bash"),
             OsString::from("bash"),
-            &[OsString::from("-ex"), script_path.into_os_string()],
+            [OsString::from("-ex"), script_path.into_os_string()],
         )?;
         let mut cmd = cmd.into_std();
         let status = cmd

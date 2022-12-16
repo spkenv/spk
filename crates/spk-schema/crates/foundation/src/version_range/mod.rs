@@ -1295,9 +1295,9 @@ impl Ranged for VersionFilter {
 
     fn intersects<R: Ranged>(&self, other: R) -> Compatibility {
         let new_rules = other.rules().sub(&self.rules);
-        for new_rule in new_rules {
+        for new_rule in &new_rules {
             for old_rule in self.rules.iter() {
-                let compat = old_rule.intersects(&new_rule);
+                let compat = old_rule.intersects(new_rule);
                 if !compat.is_ok() {
                     return compat;
                 }

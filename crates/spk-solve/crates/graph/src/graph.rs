@@ -39,7 +39,7 @@ use thiserror::Error;
 #[path = "./graph_test.rs"]
 mod graph_test;
 
-pub static DEAD_STATE: Lazy<Arc<State>> = Lazy::new(State::default);
+pub static DEAD_STATE: Lazy<Arc<State>> = Lazy::new(State::default_state);
 
 const BRANCH_ALREADY_ATTEMPTED: &str = "Branch already attempted";
 
@@ -1135,7 +1135,7 @@ impl State {
             .contains(&single_var_request_hash)
     }
 
-    pub fn default() -> Arc<Self> {
+    pub fn default_state() -> Arc<Self> {
         State::new(
             Vec::default(),
             Vec::default(),

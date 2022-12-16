@@ -192,7 +192,7 @@ impl Solver {
 
     pub fn get_initial_state(&self) -> Arc<State> {
         let mut state = None;
-        let base = State::default();
+        let base = State::default_state();
         for change in self.initial_state_builders.iter() {
             state = Some(change.apply(&base, state.as_ref().unwrap_or(&base)));
         }

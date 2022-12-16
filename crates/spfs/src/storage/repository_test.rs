@@ -76,7 +76,7 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
     std::fs::create_dir_all(src_dir.join("dir1.0/dir2.0")).unwrap();
     let link_dest = src_dir.join(datafile_path);
     std::fs::write(&link_dest, "somedata").unwrap();
-    std::os::unix::fs::symlink(&link_dest, &src_dir.join(symlink_path)).unwrap();
+    std::os::unix::fs::symlink(&link_dest, src_dir.join(symlink_path)).unwrap();
     std::fs::set_permissions(&link_dest, std::fs::Permissions::from_mode(0o444)).unwrap();
 
     let manifest = crate::commit_dir(Arc::clone(&tmprepo), &src_dir)
