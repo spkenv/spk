@@ -46,7 +46,7 @@ pub struct Test {
 
     /// The package(s) to test
     ///
-    /// This can be a file name or <name>/<version> of an existing package
+    /// This can be a file name or `<name>/<version>` of an existing package
     /// from the repository. In either case, a stage can be specified to
     /// limit which tests are executed.
     #[clap(name = "FILE|PKG[@STAGE]", required = true)]
