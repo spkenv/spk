@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::collections::BTreeSet;
+use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
@@ -69,7 +70,9 @@ impl RecipeOption {
         P: Satisfy<PkgRequest> + Named,
     {
         match self {
-            Self::Pkg(p) => p.at_downstream_build.check_is_active(&p.pkg, build_env),
+            Self::Pkg(_) => Compatibility::incompatible(
+                "pkg options are handled in downstream builds via component requirements only",
+            ),
             Self::Var(v) => v.at_downstream_build.check_is_active(build_env),
         }
     }
@@ -357,9 +360,28 @@ pub struct PkgOption {
     #[serde(default, skip_serializing_if = "PkgPropagation::is_default")]
     pub at_runtime: PkgPropagation,
     #[serde(default, skip_serializing_if = "PkgPropagation::is_default")]
-    pub at_downstream_build: PkgPropagation,
-    #[serde(default, skip_serializing_if = "PkgPropagation::is_default")]
     pub at_downstream_runtime: PkgPropagation,
+
+    // included specifically to catch the common error of putting
+    // this field on pkg options but having it be ignored
+    #[serde(default, skip_serializing, deserialize_with = "no_downstream_build")]
+    at_downstream_build: PhantomData<()>,
+}
+
+fn no_downstream_build<'de, D>(_deserializer: D) -> std::result::Result<PhantomData<()>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Err(no_downstream_build_error())
+}
+
+fn no_downstream_build_error<E: serde::de::Error>() -> E {
+    serde::de::Error::custom(
+        "The 'atDownstreamBuild' field does not really make \
+        sense for pkg options. Instead, use 'atDownstreamRuntime' \
+        with 'components: [build]' and/or any other relevant \
+        components that would require this dependency when used",
+    )
 }
 
 impl PkgOption {
@@ -399,14 +421,13 @@ impl<'de> serde::de::Visitor<'de> for PartialPkgVisitor {
         let pkg = map.next_value()?;
         let mut at_runtime = Option::<PkgPropagation>::None;
         let mut at_build = Option::<BuildCondition>::None;
-        let mut at_downstream_build = Option::<PkgPropagation>::None;
         let mut at_downstream_runtime = Option::<PkgPropagation>::None;
         let mut when = Option::<PkgPropagation>::None;
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
                 "atBuild" => at_build = Some(map.next_value()?),
                 "atRuntime" => at_runtime = Some(map.next_value()?),
-                "atDownstreamBuild" => at_downstream_build = Some(map.next_value()?),
+                "atDownstreamBuild" => return Err(no_downstream_build_error()),
                 "atDownstreamRuntime" => at_downstream_runtime = Some(map.next_value()?),
                 "when" => {
                     when = Some(PkgPropagation::Enabled {
@@ -431,9 +452,6 @@ impl<'de> serde::de::Visitor<'de> for PartialPkgVisitor {
         }
         Ok(PkgOption {
             at_runtime: at_runtime.or_else(|| when.clone()).unwrap_or_default(),
-            at_downstream_build: at_downstream_build
-            .or_else(|| when.clone())
-            .unwrap_or_default(),
             at_downstream_runtime: at_downstream_runtime.or_else(||when.clone()).unwrap_or_default(),
             at_build: at_build
             .or_else(|| {
@@ -449,6 +467,7 @@ impl<'de> serde::de::Visitor<'de> for PartialPkgVisitor {
                         None
                     }
                 }}).unwrap_or_default(),
+                at_downstream_build: PhantomData,
             pkg,
         })
     }
