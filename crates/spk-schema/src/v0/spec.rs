@@ -32,6 +32,7 @@ use crate::meta::Meta;
 use crate::v0::{BuildSpec, Inheritance, InstallSpec, Opt, TestSpec, UncheckedBuildSpec};
 use crate::{
     BuildEnv,
+    BuildEnvMember,
     ComponentSpec,
     Deprecate,
     DeprecateMut,
@@ -430,16 +431,15 @@ impl Recipe for Spec<VersionIdent> {
         Ok(source)
     }
 
-    fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<E>(&self, build_env: E) -> Result<Self::Output>
     where
-        E: BuildEnv<Package = P>,
-        P: Package,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
     {
         let mut updated = self.clone();
-        let specs: HashMap<_, _> = build_env
-            .packages()
-            .into_iter()
-            .map(|p| (p.name().to_owned(), p))
+        let by_name: HashMap<_, _> = build_env
+            .members()
+            .map(|p| (p.package().name().to_owned(), p))
             .collect();
         let options = build_env.options();
         for opt in updated.build.options.iter_mut() {
@@ -456,7 +456,7 @@ impl Recipe for Spec<VersionIdent> {
                     continue;
                 }
                 Opt::Pkg(opt) => {
-                    let spec = specs.get(&opt.pkg);
+                    let spec = by_name.get(&opt.pkg);
                     match spec {
                         None => {
                             return Err(Error::String(format!(
@@ -464,8 +464,11 @@ impl Recipe for Spec<VersionIdent> {
                                 opt.pkg
                             )));
                         }
-                        Some(spec) => {
-                            let rendered = spec.compat().render(HasVersion::version(spec));
+                        Some(member) => {
+                            let rendered = member
+                                .package()
+                                .compat()
+                                .render(HasVersion::version(member.package()));
                             opt.set_value(rendered)?;
                         }
                     }
@@ -475,7 +478,7 @@ impl Recipe for Spec<VersionIdent> {
 
         updated
             .install
-            .render_all_pins(&options, specs.iter().map(|(_, p)| p.ident()))?;
+            .render_all_pins(&options, by_name.iter().map(|(_, p)| p.package().ident()))?;
         let digest = updated.resolve_options(&options)?.digest();
         Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
     }

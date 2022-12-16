@@ -315,7 +315,7 @@ impl Solver {
         solver.update_options(opts.clone());
         let solution = solver.solve_build_environment(recipe).await?;
         recipe
-            .generate_binary_build(&solution)
+            .generate_binary_build(solution)
             .map_err(|err| err.into())
             .map(Arc::new)
     }

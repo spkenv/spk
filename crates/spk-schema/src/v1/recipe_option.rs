@@ -9,13 +9,13 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::name::OptNameBuf;
 use spk_schema_foundation::option_map::{OptionMap, Stringified};
-use spk_schema_foundation::spec_ops::Named;
+use spk_schema_foundation::spec_ops::{HasVersion, Named};
 use spk_schema_foundation::version::Compatibility;
 use spk_schema_ident::{NameAndValue, PkgRequest, RangeIdent, Request, Satisfy, VarRequest};
 
 use super::WhenBlock;
 use crate::v1::WhenCondition;
-use crate::BuildEnv;
+use crate::{BuildEnv, BuildEnvMember};
 
 #[cfg(test)]
 #[path = "./recipe_option_test.rs"]
@@ -50,10 +50,10 @@ impl RecipeOption {
     /// Determine if this option is enabled given the resolved
     /// build environment. If not, the returned compatibility will
     /// denote a reason why it has been disabled.
-    pub fn check_is_active_at_runtime<E, P>(&self, build_env: E) -> Compatibility
+    pub fn check_is_active_at_runtime<E>(&self, build_env: E) -> Compatibility
     where
-        E: BuildEnv<Package = P>,
-        P: Satisfy<PkgRequest> + Named,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest> + Named + HasVersion,
     {
         match self {
             Self::Pkg(p) => p.at_runtime.check_is_active(&p.pkg, build_env),
@@ -64,10 +64,10 @@ impl RecipeOption {
     /// Determine if this option is enabled given the resolved
     /// build environment. If not, the returned compatibility will
     /// denote a reason why it has been disabled.
-    pub fn check_is_active_at_downstream_build<E, P>(&self, build_env: E) -> Compatibility
+    pub fn check_is_active_at_downstream_build<E>(&self, build_env: E) -> Compatibility
     where
-        E: BuildEnv<Package = P>,
-        P: Satisfy<PkgRequest> + Named,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest> + Named,
     {
         match self {
             Self::Pkg(_) => Compatibility::incompatible(
@@ -80,10 +80,10 @@ impl RecipeOption {
     /// Determine if this option is enabled given the resolved
     /// build environment. If not, the returned compatibility will
     /// denote a reason why it has been disabled.
-    pub fn check_is_active_at_downstream_runtime<E, P>(&self, build_env: E) -> Compatibility
+    pub fn check_is_active_at_downstream_runtime<E>(&self, build_env: E) -> Compatibility
     where
-        E: BuildEnv<Package = P>,
-        P: Satisfy<PkgRequest> + Named,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest> + Named + HasVersion,
     {
         match self {
             Self::Pkg(p) => p.at_downstream_runtime.check_is_active(&p.pkg, build_env),
@@ -265,10 +265,10 @@ impl VarPropagation {
         self == &Self::default()
     }
 
-    pub fn check_is_active<E, P>(&self, build_env: E) -> Compatibility
+    pub fn check_is_active<E>(&self, build_env: E) -> Compatibility
     where
-        E: BuildEnv<Package = P>,
-        P: Satisfy<PkgRequest> + Named,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest> + Named,
     {
         match self {
             Self::Disabled => Compatibility::incompatible("This option was explicitly disabled"),
@@ -499,10 +499,10 @@ impl PkgPropagation {
         self == &Self::default()
     }
 
-    pub fn check_is_active<E, P>(&self, pkg: &RangeIdent, build_env: E) -> Compatibility
+    pub fn check_is_active<E>(&self, pkg: &RangeIdent, build_env: E) -> Compatibility
     where
-        E: BuildEnv<Package = P>,
-        P: Satisfy<PkgRequest> + Named,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest> + Named + HasVersion,
     {
         match self {
             Self::Disabled => Compatibility::incompatible("This option was explicitly disabled"),

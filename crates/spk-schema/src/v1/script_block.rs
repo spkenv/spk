@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use spk_schema_ident::{PkgRequest, Satisfy};
 
 use super::WhenBlock;
-use crate::{BuildEnv, Package};
+use crate::BuildEnv;
 
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct ScriptBlock(Vec<ScriptBlockEntry>);
@@ -17,11 +17,16 @@ impl ScriptBlock {
     }
 
     /// Reduce this script to a string, resolving all conditionals
-    pub fn to_string<E, P>(&self, build_env: &E) -> String
+    pub fn to_string<E>(&self, build_env: &E) -> String
     where
-        E: BuildEnv<Package = P>,
-        P: Package + Satisfy<PkgRequest>,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
     {
+        // NOTE(rbottriell): the argument here must be a reference, since
+        // there is a recursive call and without it, the compiler will try
+        // to infinitely generate more instances of this generic function
+        // with increasingly more references until it reaches the configured
+        // limit
         self.0
             .iter()
             .map(|block| block.to_string(build_env))
@@ -77,11 +82,16 @@ pub enum ScriptBlockEntry {
 
 impl ScriptBlockEntry {
     /// Reduce this script to a string, resolving all conditionals
-    pub fn to_string<E, P>(&self, build_env: &E) -> String
+    pub fn to_string<E>(&self, build_env: &E) -> String
     where
-        E: BuildEnv<Package = P>,
-        P: Package + Satisfy<PkgRequest>,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
     {
+        // NOTE(rbottriell): the argument here must be a reference, since
+        // there is a recursive call and without it, the compiler will try
+        // to infinitely generate more instances of this generic function
+        // with increasingly more references until it reaches the configured
+        // limit
         match self {
             Self::Simple(s) => s.clone(),
             Self::Conditional(entry) => {

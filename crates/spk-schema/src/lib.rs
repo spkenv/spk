@@ -22,7 +22,7 @@ pub mod v1;
 mod validation;
 mod variant;
 
-pub use build_env::BuildEnv;
+pub use build_env::{BuildEnv, BuildEnvMember};
 pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
 pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};

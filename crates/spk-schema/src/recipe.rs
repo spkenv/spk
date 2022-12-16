@@ -9,7 +9,7 @@ use spk_schema_ident::{PkgRequest, Satisfy, VersionIdent};
 
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
-use crate::{BuildEnv, Package, RequirementsList, Result, TestStage};
+use crate::{BuildEnv, RequirementsList, Result, TestStage};
 
 /// Can be used to build a package.
 #[enum_dispatch::enum_dispatch]
@@ -45,10 +45,10 @@ pub trait Recipe:
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output>;
 
     /// Create a new binary package from this recipe and the given parameters.
-    fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<E>(&self, build_env: E) -> Result<Self::Output>
     where
-        E: BuildEnv<Package = P>,
-        P: Package + Satisfy<PkgRequest>;
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>;
 }
 
 impl<T> Recipe for std::sync::Arc<T>
@@ -83,10 +83,10 @@ where
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<E>(&self, build_env: E) -> Result<Self::Output>
     where
-        E: BuildEnv<Package = P>,
-        P: Package + Satisfy<PkgRequest>,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
     {
         (**self).generate_binary_build(build_env)
     }
@@ -124,10 +124,10 @@ where
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<E>(&self, build_env: E) -> Result<Self::Output>
     where
-        E: BuildEnv<Package = P>,
-        P: Package + Satisfy<PkgRequest>,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
     {
         (**self).generate_binary_build(build_env)
     }

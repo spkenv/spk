@@ -14,12 +14,11 @@ use spk_schema::foundation::format::{
     FormatSolution,
 };
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::name::PkgNameBuf;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, RequestedBy};
 use spk_schema::prelude::*;
-use spk_schema::{BuildEnv, Package, Spec, SpecRecipe, VersionIdent};
+use spk_schema::{BuildEnv, BuildEnvMember, Package, Spec, SpecRecipe, VersionIdent};
 use spk_storage::RepositoryHandle;
 
 use crate::{Error, Result};
@@ -97,6 +96,18 @@ impl SolvedRequest {
     }
 }
 
+impl BuildEnvMember for SolvedRequest {
+    type Package = Arc<Spec>;
+
+    fn package(&self) -> &Self::Package {
+        &self.spec
+    }
+
+    fn used_components(&self) -> &std::collections::BTreeSet<Component> {
+        &self.request.pkg.components
+    }
+}
+
 /// Represents a set of resolved packages.
 #[derive(Clone, Debug, Default)]
 pub struct Solution {
@@ -149,7 +160,7 @@ impl Solution {
         match existing {
             Some(existing) => {
                 *existing = new;
-        }
+            }
             None => self.resolved.push(new),
         }
     }
@@ -186,7 +197,8 @@ impl Solution {
         out.retain(|name, _| !name.starts_with("SPK_PKG_"));
 
         out.insert("SPK_ACTIVE_PREFIX".to_owned(), "/spfs".to_owned());
-        for (_request, (spec, _source)) in self.resolved.iter() {
+        for resolved in self.resolved.iter() {
+            let spec = &resolved.spec;
             out.insert(format!("SPK_PKG_{}", spec.name()), spec.ident().to_string());
             out.insert(
                 format!("SPK_PKG_{}_VERSION", spec.name()),
@@ -225,20 +237,16 @@ impl Solution {
 }
 
 impl BuildEnv for Solution {
-    type PackageIter = std::vec::IntoIter<Self::Package>;
+    type PackageIter<'a> = std::slice::Iter<'a, SolvedRequest>;
+    type BuildEnvMember = SolvedRequest;
     type Package = Arc<Spec>;
 
     fn options(&self) -> std::borrow::Cow<'_, OptionMap> {
         Cow::Borrowed(&self.options)
     }
 
-    fn packages(&self) -> Self::PackageIter {
-        self.resolved
-            .iter()
-            .map(|(_, (spec, _))| spec)
-            .cloned()
-            .collect::<Vec<_>>()
-            .into_iter()
+    fn members(&self) -> Self::PackageIter<'_> {
+        self.items()
     }
 }
 

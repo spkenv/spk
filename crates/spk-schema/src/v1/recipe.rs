@@ -19,7 +19,9 @@ use crate::ident::{is_false, PkgRequest, Satisfy, VarRequest};
 use crate::meta::Meta;
 use crate::{
     BuildEnv,
+    BuildEnvMember,
     ComponentSpec,
+    ComponentSpecList,
     Deprecate,
     DeprecateMut,
     Package,
@@ -158,10 +160,10 @@ impl crate::Recipe for Recipe {
         Ok(source_build)
     }
 
-    fn generate_binary_build<E, P>(&self, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<E>(&self, build_env: E) -> Result<Self::Output>
     where
-        E: BuildEnv<Package = P>,
-        P: Package + Satisfy<PkgRequest>,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
     {
         let build_options = build_env.options();
         let build_digest = self.resolve_options(&build_options)?.digest();
@@ -172,12 +174,12 @@ impl crate::Recipe for Recipe {
             .filter(|option| option.check_is_active_at_build(&build_options).is_ok())
             .map(|option| {
                 let propagation = super::package_option::OptionPropagation {
-                    at_runtime: option.check_is_active_at_runtime(build_env).is_ok(),
+                    at_runtime: option.check_is_active_at_runtime(&build_env).is_ok(),
                     at_downstream_build: option
-                        .check_is_active_at_downstream_build(build_env)
+                        .check_is_active_at_downstream_build(&build_env)
                         .is_ok(),
                     at_downstream_runtime: option
-                        .check_is_active_at_downstream_runtime(build_env)
+                        .check_is_active_at_downstream_runtime(&build_env)
                         .is_ok(),
                 };
                 match option {
@@ -200,15 +202,16 @@ impl crate::Recipe for Recipe {
                 }
             })
             .collect();
-        let components = self
+
+        let components: ComponentSpecList<_> = self
             .package
             .components
             .iter()
-            .filter(|c| c.when.check_is_active(build_env).is_ok())
+            .filter(|c| c.when.check_is_active(&build_env).is_ok())
             .map(|c| (**c).clone())
             .collect();
         let test = self.package.test.clone();
-        let script = self.build.script.to_string(build_env);
+        let script = self.build.script.to_string(&build_env);
         Ok(super::Package {
             pkg,
             meta: self.meta.clone(),
