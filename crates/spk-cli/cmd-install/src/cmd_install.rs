@@ -54,7 +54,7 @@ impl Run for Install {
             .await?;
 
         for solved in env.items() {
-            solver.add_request(solved.request.into());
+            solver.add_request(solved.request.clone().into());
         }
         for request in requests {
             solver.add_request(request);
