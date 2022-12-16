@@ -24,7 +24,7 @@ mod test_spec;
 pub mod v0;
 mod validation;
 
-pub use build_env::BuildEnv;
+pub use build_env::{BuildEnv, BuildEnvMember};
 pub use build_spec::{BuildSpec, Script};
 pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
 pub use component_spec_list::ComponentSpecList;
