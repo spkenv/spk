@@ -40,7 +40,7 @@ pub struct Package {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<PackageOption>,
     #[serde(default)]
-    pub package: PackagePackagingSpec,
+    #[serde(default = "Package::default_script")]
     pub script: String,
 }
 
@@ -54,9 +54,12 @@ impl Package {
             deprecated: bool::default(),
             source: Default::default(),
             options: Default::default(),
-            package: Default::default(),
-            script: String::from("bash build.sh"),
+            script: Self::default_script(),
         }
+    }
+
+    fn default_script() -> String {
+        String::from("bash build.sh")
     }
 }
 
