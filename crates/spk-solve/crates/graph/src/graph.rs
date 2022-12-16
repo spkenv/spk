@@ -1093,12 +1093,12 @@ impl State {
     }
 
     pub fn as_solution(&self) -> Result<Solution> {
-        let mut solution = Solution::new(Some((&self.options).into()));
+        let mut solution = Solution::new((&self.options).into());
         for (spec, source) in self.packages.values() {
             let req = self
                 .get_merged_request(spec.name())
                 .map_err(GraphError::RequestError)?;
-            solution.add(&req, Arc::clone(spec), source.clone());
+            solution.add(req, Arc::clone(spec), source.clone());
         }
         Ok(solution)
     }

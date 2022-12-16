@@ -132,11 +132,11 @@ macro_rules! make_build_and_components {
                 let recipe = spec.clone().map_ident(|i| i.into_base());
                 let mut build_opts = $opts.clone();
                 #[allow(unused_mut)]
-                let mut solution = $crate::Solution::new(Some(build_opts.clone()));
+                let mut solution = $crate::Solution::new(build_opts.clone());
                 $(
                 let dep = Arc::new($dep.clone());
                 solution.add(
-                    &$crate::PkgRequest::from_ident(
+                    $crate::PkgRequest::from_ident(
                         $dep.ident().to_any(),
                         $crate::RequestedBy::SpkInternalTest,
                     ),

@@ -280,7 +280,7 @@ where
             // original options to be reapplied. It feels like this
             // shouldn't be necessary but I've not been able to isolate what
             // goes wrong when this is removed.
-            let mut opts = solution.options();
+            let mut opts = solution.options().clone();
             std::mem::swap(&mut opts, &mut all_options);
             all_options.extend(opts);
         }
@@ -387,7 +387,7 @@ where
         solution: &Solution,
         package: &Recipe::Output,
     ) -> Result<()> {
-        let solved_packages = solution.items().into_iter().map(|r| r.spec);
+        let solved_packages = solution.items().map(|r| &r.spec);
         let all_components = package.components();
         for spec in solved_packages {
             for component in all_components.names() {

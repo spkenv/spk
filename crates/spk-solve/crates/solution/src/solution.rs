@@ -84,6 +84,7 @@ impl PartialOrd for PackageSource {
 }
 
 /// Represents a package request that has been resolved.
+#[derive(Clone, Debug)]
 pub struct SolvedRequest {
     pub request: PkgRequest,
     pub spec: Arc<Spec>,
@@ -100,52 +101,29 @@ impl SolvedRequest {
 #[derive(Clone, Debug, Default)]
 pub struct Solution {
     options: OptionMap,
-    resolved: HashMap<PkgRequest, (Arc<Spec>, PackageSource)>,
-    by_name: HashMap<PkgNameBuf, Arc<Spec>>,
-    insertion_order: HashMap<PkgRequest, usize>,
+    resolved: Vec<SolvedRequest>,
 }
 
 impl Solution {
-    pub fn new(options: Option<OptionMap>) -> Self {
+    pub fn new(options: OptionMap) -> Self {
         Self {
-            options: options.unwrap_or_default(),
-            resolved: HashMap::default(),
-            by_name: HashMap::default(),
-            insertion_order: HashMap::default(),
+            options,
+            resolved: Default::default(),
         }
     }
 
-    pub fn items(&self) -> Vec<SolvedRequest> {
-        let mut items = self
-            .resolved
-            .clone()
-            .into_iter()
-            .map(|(request, (spec, source))| SolvedRequest {
-                request,
-                spec,
-                source,
-            })
-            .collect::<Vec<_>>();
-        // Test suite expects these items to be returned in original insertion order.
-        items.sort_by_key(|sr| self.insertion_order.get(&sr.request).unwrap());
-        items
+    pub fn items(&self) -> std::slice::Iter<'_, SolvedRequest> {
+        self.resolved.iter()
     }
 
-    pub fn get<S: AsRef<str>>(&self, name: S) -> Option<SolvedRequest> {
-        for (request, (spec, source)) in &self.resolved {
-            if request.pkg.name.as_str() == name.as_ref() {
-                return Some(SolvedRequest {
-                    request: request.clone(),
-                    spec: spec.clone(),
-                    source: source.clone(),
-                });
-            }
-        }
-        None
+    pub fn get<S: AsRef<str>>(&self, name: S) -> Option<&SolvedRequest> {
+        self.resolved
+            .iter()
+            .find(|r| r.request.pkg.name.as_str() == name.as_ref())
     }
 
-    pub fn options(&self) -> OptionMap {
-        self.options.clone()
+    pub fn options(&self) -> &OptionMap {
+        &self.options
     }
 
     /// The number of packages in this solution
@@ -161,24 +139,27 @@ impl Solution {
     }
 
     /// Add a resolved request to this solution
-    pub fn add(&mut self, request: &PkgRequest, package: Arc<Spec>, source: PackageSource) {
-        if self
-            .resolved
-            .insert(request.clone(), (package.clone(), source))
-            .is_none()
-        {
-            self.insertion_order
-                .insert(request.clone(), self.insertion_order.len());
+    pub fn add(&mut self, request: PkgRequest, spec: Arc<Spec>, source: PackageSource) {
+        let existing = self.resolved.iter_mut().find(|r| r.request == request);
+        let new = SolvedRequest {
+            request,
+            spec,
+            source,
+        };
+        match existing {
+            Some(existing) => {
+                *existing = new;
         }
-        self.by_name.insert(request.pkg.name.clone(), package);
+            None => self.resolved.push(new),
+        }
     }
 
     /// Return the set of repositories in this solution.
     pub fn repositories(&self) -> Vec<Arc<RepositoryHandle>> {
         let mut seen = HashSet::new();
         let mut repos = Vec::new();
-        for (_, source) in self.resolved.values() {
-            if let PackageSource::Repository { repo, .. } = source {
+        for resolved in self.resolved.iter() {
+            if let PackageSource::Repository { repo, .. } = &resolved.source {
                 let addr = repo.address();
                 if seen.contains(addr) {
                     continue;
@@ -275,7 +256,7 @@ impl FormatSolution for Solution {
             let mut installed =
                 PkgRequest::from_ident(req.spec.ident().to_any(), RequestedBy::DoesNotMatter);
 
-            if let PackageSource::Repository { components, .. } = req.source {
+            if let PackageSource::Repository { components, .. } = &req.source {
                 let mut installed_components = req.request.pkg.components.clone();
                 if installed_components.remove(&Component::All) {
                     installed_components.extend(components.keys().cloned());

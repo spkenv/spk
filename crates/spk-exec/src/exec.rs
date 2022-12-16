@@ -17,7 +17,7 @@ pub async fn resolve_runtime_layers(solution: &Solution) -> Result<Vec<Digest>> 
     let mut stack = Vec::new();
     let mut to_sync = Vec::new();
     for resolved in solution.items() {
-        let (repo, components) = match resolved.source {
+        let (repo, components) = match &resolved.source {
             PackageSource::Repository { repo, components } => (repo, components),
             PackageSource::Embedded => continue,
             PackageSource::BuildFromSource { .. } => {
@@ -40,7 +40,7 @@ pub async fn resolve_runtime_layers(solution: &Solution) -> Result<Vec<Digest>> 
             );
             continue;
         }
-        let mut desired_components = resolved.request.pkg.components;
+        let mut desired_components = resolved.request.pkg.components.clone();
         if desired_components.is_empty() {
             desired_components.insert(Component::All);
         }

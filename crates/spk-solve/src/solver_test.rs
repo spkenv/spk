@@ -77,7 +77,7 @@ macro_rules! assert_resolved {
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
-        match pkg.source {
+        match &pkg.source {
             PackageSource::Repository{components, ..} => {
                 resolved.extend(components.keys().map(ToString::to_string));
             }
@@ -664,7 +664,7 @@ async fn test_solver_option_injection(mut solver: Solver) {
 
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
-    let mut opts = solution.options();
+    let mut opts = solution.options().clone();
     assert_eq!(opts.remove(opt_name!("vnp3")), Some("~2.0.0".to_string()));
     assert_eq!(
         opts.remove(opt_name!("vnp3.python")),
@@ -1431,7 +1431,13 @@ async fn test_solver_components(mut solver: Solver) {
 
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
-    let resolved = solution.get("python").unwrap().request.pkg.components;
+    let resolved = solution
+        .get("python")
+        .unwrap()
+        .request
+        .pkg
+        .components
+        .clone();
     let expected = ["interpreter", "doc", "lib", "run"]
         .iter()
         .map(|c| Component::parse(c).map_err(|err| err.into()))
@@ -1478,7 +1484,13 @@ async fn test_solver_components_when_no_components_requested(mut solver: Solver)
 
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
-    let resolved = solution.get("python").unwrap().request.pkg.components;
+    let resolved = solution
+        .get("python")
+        .unwrap()
+        .request
+        .pkg
+        .components
+        .clone();
     let expected = [Component::default_for_run()]
         .iter()
         .map(|c| Component::parse(c).map_err(|err| err.into()))

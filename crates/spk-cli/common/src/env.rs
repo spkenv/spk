@@ -25,7 +25,7 @@ pub async fn current_env() -> crate::Result<Solution> {
     }
 
     let repo = Arc::new(storage::RepositoryHandle::Runtime(Default::default()));
-    let mut solution = Solution::new(None);
+    let mut solution = Solution::default();
     for name in repo.list_packages().await? {
         for version in repo.list_package_versions(&name).await?.iter() {
             let pkg = parse_ident(format!("{name}/{version}"))?;
@@ -47,7 +47,7 @@ pub async fn current_env() -> crate::Result<Solution> {
                 request.prerelease_policy = PreReleasePolicy::IncludeAll;
                 let repo = repo.clone();
                 solution.add(
-                    &request,
+                    request,
                     spec,
                     PackageSource::Repository { repo, components },
                 );
