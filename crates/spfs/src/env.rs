@@ -275,7 +275,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         return Ok(());
     }
 
-    match (monitor, mount_ns) {
+    match (monitor, mount_ns.clone()) {
         (Ok(mut monitor), _) => {
             tokio::task::spawn_blocking(move || {
                 // Normal behavior when the monitor was successfully created.
@@ -397,15 +397,68 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     let events_stream = events_stream.chunks_timeout(100, tokio::time::Duration::from_secs(1));
     tokio::pin!(events_stream);
 
+    async fn repair_tracked_processes<S>(tracked_processes: &Arc<DashSet<u32, S>>, ns: &Path)
+    where
+        S: std::hash::BuildHasher + Clone,
+    {
+        let current_pids = match find_processes_in_mount_namespace(ns).await {
+            Err(err) => {
+                tracing::error!(?err, "error while scanning active process tree");
+                return;
+            }
+            Ok(pids) => pids,
+        };
+
+        // `tracked_processes` is a concurrent set; take care to not leave it
+        // falsely empty at any point.
+
+        // If `current_pids` is empty, then we can efficiently clear our set.
+        if current_pids.is_empty() {
+            tracked_processes.clear();
+            return;
+        }
+
+        for pid in &current_pids {
+            tracked_processes.insert(*pid);
+        }
+
+        tracked_processes.retain(|key| current_pids.contains(key));
+    }
+
     while let Some(events) = events_stream.next().await {
         tracing::trace!(?tracked_processes, "runtime monitor");
         if tracked_processes.is_empty() {
-            break;
+            // If the mount namespace is known, verify there really aren't any
+            // more processes in the namespace. Since cnproc might not deliver
+            // every event, we may not know about processes that still exist.
+            if let Some(ns) = mount_ns.as_ref() {
+                repair_tracked_processes(&tracked_processes, ns).await;
+
+                if tracked_processes.is_empty() {
+                    // Confirmed there is none left.
+                    break;
+                }
+
+                // Log if this happens, out of curiosity to see if this ever
+                // actually happens in practice.
+                tracing::info!(?tracked_processes, "Discovered new pids after repairing");
+            } else {
+                // Have to trust cnproc...
+                break;
+            }
         }
 
         // Check for any timeouts...
         if events.iter().any(|event| event.is_err()) {
             tracing::trace!(?tracked_processes, "no pid events for a while");
+
+            // If the mount namespace is known, repair `tracked_processes` by
+            // walking the process tree. This will remove any pids that we
+            // didn't get notified about exiting.
+            if let Some(ns) = mount_ns.as_ref() {
+                repair_tracked_processes(&tracked_processes, ns).await;
+                tracing::trace!(?tracked_processes, "repaired");
+            }
         }
     }
     Ok(())
