@@ -18,6 +18,7 @@ use spk_schema_ident::{
     PkgRequest,
     Request,
     RequestedBy,
+    Satisfy,
     VersionIdent,
 };
 
@@ -28,6 +29,7 @@ use crate::metadata::Meta;
 use crate::option::VarOpt;
 use crate::{
     BuildEnv,
+    BuildEnvMember,
     BuildSpec,
     Deprecate,
     DeprecateMut,
@@ -236,11 +238,11 @@ impl Recipe for Platform {
         ))
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
-        E: BuildEnv<Package = P>,
-        P: Package,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
     {
         let Self {
             platform,
@@ -272,16 +274,13 @@ impl Recipe for Platform {
 
         // Add base requirements, if any, first.
         if let Some(base) = base.as_ref() {
-            let base = build_env
-                .packages()
-                .find(|package| package.name() == base.name())
-                .ok_or_else(|| {
-                    crate::Error::String(format!(
-                        "base platform '{}' not found in build environment",
-                        base.name()
-                    ))
-                })?;
-            for requirement in base.runtime_requirements().iter() {
+            let base = build_env.get_member(base.name()).ok_or_else(|| {
+                crate::Error::String(format!(
+                    "base platform '{}' not found in build environment",
+                    base.name()
+                ))
+            })?;
+            for requirement in base.package().runtime_requirements().iter() {
                 spec.install
                     .requirements
                     .insert_or_replace(requirement.clone());

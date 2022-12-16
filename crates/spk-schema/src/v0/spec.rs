@@ -48,6 +48,7 @@ use crate::metadata::Meta;
 use crate::option::VarOpt;
 use crate::{
     BuildEnv,
+    BuildEnvMember,
     BuildSpec,
     ComponentSpec,
     ComponentSpecList,
@@ -545,11 +546,11 @@ impl Recipe for Spec<VersionIdent> {
         Ok(source)
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
-        E: BuildEnv<Package = P>,
-        P: Package,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
     {
         let build_requirements = self.get_build_requirements(variant)?.into_owned();
 
@@ -557,9 +558,9 @@ impl Recipe for Spec<VersionIdent> {
         let mut updated = self.clone();
         updated.build.options = self.build.opts_for_variant(variant)?;
 
-        let specs: HashMap<_, _> = build_env
-            .packages()
-            .map(|p| (p.name().to_owned(), p))
+        let by_name: HashMap<_, _> = build_env
+            .members()
+            .map(|p| (p.package().name().to_owned(), p.package()))
             .collect();
         for opt in updated.build.options.iter_mut() {
             match opt {
@@ -575,7 +576,7 @@ impl Recipe for Spec<VersionIdent> {
                     continue;
                 }
                 Opt::Pkg(opt) => {
-                    let spec = specs.get(&opt.pkg);
+                    let spec = by_name.get(&opt.pkg);
                     match spec {
                         None => {
                             return Err(Error::String(format!(
@@ -583,8 +584,8 @@ impl Recipe for Spec<VersionIdent> {
                                 opt.pkg
                             )));
                         }
-                        Some(spec) => {
-                            let rendered = spec.compat().render(HasVersion::version(spec));
+                        Some(member) => {
+                            let rendered = member.compat().render(HasVersion::version(member));
                             opt.set_value(rendered)?;
                         }
                     }
@@ -594,7 +595,7 @@ impl Recipe for Spec<VersionIdent> {
 
         updated
             .install
-            .render_all_pins(&build_options, specs.values().map(|p| p.ident()))?;
+            .render_all_pins(&build_options, by_name.values().map(|p| p.ident()))?;
 
         // Update metadata fields from the output of the executable.
         let config = match spk_config::get_config() {
@@ -610,7 +611,7 @@ impl Recipe for Spec<VersionIdent> {
         let mut missing_runtime_requirements: HashMap<OptNameBuf, (String, Option<String>)> =
             HashMap::new();
 
-        for (_, spec) in specs {
+        for (_, spec) in by_name {
             let downstream_build = spec.downstream_build_requirements([]);
             for request in downstream_build.iter() {
                 match build_requirements.contains_request(request) {

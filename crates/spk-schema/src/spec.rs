@@ -391,11 +391,11 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
-        E: BuildEnv<Package = P>,
-        P: Package,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
     {
         match self {
             SpecRecipe::V0Package(r) => r

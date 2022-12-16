@@ -24,7 +24,7 @@ use spk_schema::ident::{PkgRequest, RequestedBy};
 use spk_schema::name::{PkgNameBuf, RepositoryNameBuf};
 use spk_schema::prelude::*;
 use spk_schema::version::Version;
-use spk_schema::{BuildEnv, BuildIdent, Package, Spec, SpecRecipe, VersionIdent};
+use spk_schema::{BuildEnv, BuildEnvMember, BuildIdent, Package, Spec, SpecRecipe, VersionIdent};
 use spk_storage::RepositoryHandle;
 
 use crate::{Error, PackageSolveData, PackagesToSolveData, Result};
@@ -281,6 +281,18 @@ pub fn get_spfs_layers_to_packages<'a>(
     }
 
     Ok(layers_to_packages)
+}
+
+impl BuildEnvMember for SolvedRequest {
+    type Package = Arc<Spec>;
+
+    fn package(&self) -> &Self::Package {
+        &self.spec
+    }
+
+    fn used_components(&self) -> &std::collections::BTreeSet<Component> {
+        &self.request.pkg.components
+    }
 }
 
 /// Represents a set of resolved packages.
@@ -629,19 +641,16 @@ impl Solution {
 }
 
 impl BuildEnv for Solution {
-    type PackageIter = std::vec::IntoIter<Self::Package>;
+    type PackageIter<'a> = std::slice::Iter<'a, SolvedRequest>;
+    type BuildEnvMember = SolvedRequest;
     type Package = Arc<Spec>;
 
     fn options(&self) -> std::borrow::Cow<'_, OptionMap> {
         Cow::Borrowed(&self.options)
     }
 
-    fn packages(&self) -> Self::PackageIter {
-        self.resolved
-            .iter()
-            .map(|resolved| Arc::clone(&resolved.spec))
-            .collect::<Vec<_>>()
-            .into_iter()
+    fn members(&self) -> Self::PackageIter<'_> {
+        self.resolved.iter()
     }
 
     fn env_vars(&self) -> HashMap<String, String> {

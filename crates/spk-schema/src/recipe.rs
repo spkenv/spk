@@ -5,13 +5,13 @@
 use std::borrow::Cow;
 use std::path::Path;
 
-use spk_schema_ident::VersionIdent;
+use spk_schema_ident::{PkgRequest, Satisfy, VersionIdent};
 
 use crate::foundation::ident_build::BuildId;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
 use crate::metadata::Meta;
-use crate::{BuildEnv, InputVariant, Package, RequirementsList, Result, TestStage, Variant};
+use crate::{BuildEnv, InputVariant, RequirementsList, Result, TestStage, Variant};
 
 /// Can be used to build a package.
 #[enum_dispatch::enum_dispatch]
@@ -73,11 +73,11 @@ pub trait Recipe:
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output>;
 
     /// Create a new binary package from this recipe and the given parameters.
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
-        E: BuildEnv<Package = P>,
-        P: Package;
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>;
 
     /// Return the metadata for this package.
     fn metadata(&self) -> &Meta;
@@ -131,11 +131,11 @@ where
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
-        E: BuildEnv<Package = P>,
-        P: Package,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
     {
         (**self).generate_binary_build(variant, build_env)
     }
@@ -193,11 +193,11 @@ where
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
-        E: BuildEnv<Package = P>,
-        P: Package,
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
     {
         (**self).generate_binary_build(variant, build_env)
     }

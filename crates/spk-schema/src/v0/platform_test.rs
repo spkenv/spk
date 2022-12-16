@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::collections::BTreeSet;
+
 use rstest::rstest;
+use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::HOST_OPTIONS;
 use spk_schema_ident::{BuildIdent, InclusionPolicy, Request};
@@ -12,7 +15,10 @@ use crate::v0::Spec;
 use crate::Opt::Var;
 use crate::Recipe;
 
-type TestBuildEnv = (option_map::OptionMap, Vec<Spec<BuildIdent>>);
+type TestBuildEnv = (
+    option_map::OptionMap,
+    Vec<(Spec<BuildIdent>, BTreeSet<Component>)>,
+);
 
 #[rstest]
 fn test_platform_is_valid_with_only_api_and_name() {
@@ -48,7 +54,7 @@ fn test_platform_add_pkg_requirement(#[case] spec: &str) {
     let build_env: TestBuildEnv = (Default::default(), Vec::new());
 
     let build = spec
-        .generate_binary_build(&option_map! {}, &&build_env)
+        .generate_binary_build(&option_map! {}, &build_env)
         .unwrap();
 
     let host_options = HOST_OPTIONS.get().unwrap();
@@ -88,20 +94,23 @@ fn test_platform_inheritance() {
     .unwrap();
     let build_env: TestBuildEnv = (
         Default::default(),
-        vec![serde_yaml::from_str(
-            r#"
+        vec![(
+            serde_yaml::from_str(
+                r#"
                 api: package/v0
                 pkg: base/1.0.0/3TCOOP2W
                 install:
                   requirements:
                     - pkg: inherit-me
             "#,
-        )
-        .unwrap()],
+            )
+            .unwrap(),
+            Default::default(),
+        )],
     );
 
     let build = spec
-        .generate_binary_build(&option_map! {}, &&build_env)
+        .generate_binary_build(&option_map! {}, &build_env)
         .unwrap();
 
     assert_eq!(build.install.requirements.len(), 2);
@@ -130,8 +139,9 @@ fn test_platform_inheritance_with_override_and_removal() {
     .unwrap();
     let build_env: TestBuildEnv = (
         Default::default(),
-        vec![serde_yaml::from_str(
-            r#"
+        vec![(
+            serde_yaml::from_str(
+                r#"
                 api: package/v0
                 pkg: base/1.0.0/3TCOOP2W
                 install:
@@ -140,12 +150,14 @@ fn test_platform_inheritance_with_override_and_removal() {
                     - pkg: inherit-me2/1.0.0
                     - pkg: inherit-me3/1.0.0
             "#,
-        )
-        .unwrap()],
+            )
+            .unwrap(),
+            Default::default(),
+        )],
     );
 
     let build = spec
-        .generate_binary_build(&option_map! {}, &&build_env)
+        .generate_binary_build(&option_map! {}, &build_env)
         .unwrap();
 
     assert_eq!(build.install.requirements.len(), 2);

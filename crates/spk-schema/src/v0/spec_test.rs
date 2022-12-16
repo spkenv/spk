@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::collections::BTreeSet;
 use std::io::Write;
 use std::str::FromStr;
 
@@ -19,7 +20,10 @@ use crate::option::PkgOpt;
 use crate::spec::SpecTemplate;
 use crate::{Opt, Recipe, Template, TemplateExt, Variant, VariantExt};
 
-type TestBuildEnv = (option_map::OptionMap, Vec<Spec<BuildIdent>>);
+type TestBuildEnv = (
+    option_map::OptionMap,
+    Vec<(Spec<BuildIdent>, BTreeSet<Component>)>,
+);
 
 #[rstest]
 fn test_spec_is_valid_with_only_name() {
@@ -175,8 +179,9 @@ fn test_strong_inheritance_injection() {
     .unwrap();
     let build_env: TestBuildEnv = (
         Default::default(),
-        vec![serde_yaml::from_str(
-            r#"
+        vec![(
+            serde_yaml::from_str(
+                r#"
                 api: package/v0
                 pkg: base/1.0.0/3TCOOP2W
                 build:
@@ -185,12 +190,14 @@ fn test_strong_inheritance_injection() {
                       static: 1.2.3
                       inheritance: Strong
             "#,
-        )
-        .unwrap()],
+            )
+            .unwrap(),
+            Default::default(),
+        )],
     );
 
     let built_package = spec
-        .generate_binary_build(&option_map! {}, &&build_env)
+        .generate_binary_build(&option_map! {}, &build_env)
         .unwrap();
 
     // Check that the built_package has inherited a build option on "inherit-me"
@@ -230,8 +237,9 @@ fn test_strong_inheritance_injection_transitivity() {
     .unwrap();
     let build_env: TestBuildEnv = (
         Default::default(),
-        vec![serde_yaml::from_str(
-            r#"
+        vec![(
+            serde_yaml::from_str(
+                r#"
             api: v0/package
             pkg: base/1.0.0/3TCOOP2W
             build:
@@ -240,12 +248,14 @@ fn test_strong_inheritance_injection_transitivity() {
                   static: 1.2.3
                   inheritance: Strong
         "#,
-        )
-        .unwrap()],
+            )
+            .unwrap(),
+            Default::default(),
+        )],
     );
 
     let built_package = spec
-        .generate_binary_build(&option_map! {}, &&build_env)
+        .generate_binary_build(&option_map! {}, &build_env)
         .unwrap();
 
     // Check that the built_package has inherited a build option on "inherit-me"
@@ -341,20 +351,23 @@ fn test_variants_can_append_components() {
     .unwrap();
     let build_env: TestBuildEnv = (
         Default::default(),
-        vec![serde_yaml::from_str(
-            r#"
+        vec![(
+            serde_yaml::from_str(
+                r#"
                 api: v0/package
                 pkg: dep-pkg/1.2.3/3TCOOP2W
             "#,
-        )
-        .unwrap()],
+            )
+            .unwrap(),
+            Default::default(),
+        )],
     );
 
     let variants = spec.default_variants(&OptionMap::default());
 
     let variant = variants[0].clone().with_overrides(option_map! {});
 
-    let built_package = spec.generate_binary_build(&variant, &&build_env).unwrap();
+    let built_package = spec.generate_binary_build(&variant, &build_env).unwrap();
 
     // Verify that after building the first variant, the built package has
     // requests for both comp1 and comp2 (the requests were merged).
@@ -406,20 +419,26 @@ fn test_variants_can_append_components_and_modify_version() {
     let build_env: TestBuildEnv = (
         Default::default(),
         vec![
-            serde_yaml::from_str(
-                r#"
+            (
+                serde_yaml::from_str(
+                    r#"
                 api: v0/package
                 pkg: dep-pkg/1.2.3/3TCOOP2W
             "#,
-            )
-            .unwrap(),
-            serde_yaml::from_str(
-                r#"
+                )
+                .unwrap(),
+                Default::default(),
+            ),
+            (
+                serde_yaml::from_str(
+                    r#"
                 api: v0/package
                 pkg: dep-pkg/1.2.4/3TCOOP2W
             "#,
-            )
-            .unwrap(),
+                )
+                .unwrap(),
+                Default::default(),
+            ),
         ],
     );
 
@@ -427,7 +446,7 @@ fn test_variants_can_append_components_and_modify_version() {
 
     let variant = variants[0].clone().with_overrides(option_map! {});
 
-    let built_package = spec.generate_binary_build(&variant, &&build_env).unwrap();
+    let built_package = spec.generate_binary_build(&variant, &build_env).unwrap();
 
     // Verify that after building the first variant, the built package has
     // requests for both comp1 and comp2 (the requests were merged).
