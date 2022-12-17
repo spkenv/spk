@@ -4,9 +4,9 @@
 
 //! Functions related to the setup and management of the spfs runtime environment
 //! and related system namespacing
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::os::unix::io::AsRawFd;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use futures::StreamExt;
 use tokio_stream::wrappers::IntervalStream;
@@ -359,6 +359,30 @@ pub async fn identify_mount_namespace_of_process(pid: u32) -> Result<Option<std:
             _ => Err(Error::RuntimeReadError(ns_path, err)),
         },
     }
+}
+
+/// Return an inventory of all known pids and their mount namespaces.
+pub async fn find_processes_and_mount_namespaces() -> Result<HashMap<u32, Option<PathBuf>>> {
+    let mut found_processes = HashMap::new();
+
+    let mut read_dir = tokio::fs::read_dir(PROC_DIR)
+        .await
+        .map_err(|err| Error::RuntimeReadError(PROC_DIR.into(), err))?;
+    while let Some(entry) = read_dir
+        .next_entry()
+        .await
+        .map_err(|err| Error::RuntimeReadError(PROC_DIR.into(), err))?
+    {
+        let pid = match entry.file_name().to_str().map(|s| s.parse::<u32>()) {
+            Some(Ok(pid)) => pid,
+            // don't bother reading proc dirs that are not named with a valid pid
+            _ => continue,
+        };
+        let link_path = entry.path().join("ns/mnt");
+        let found_ns = tokio::fs::read_link(&link_path).await.ok();
+        found_processes.insert(pid, found_ns);
+    }
+    Ok(found_processes)
 }
 
 /// Provided the namespace symlink content from /proc fs,
