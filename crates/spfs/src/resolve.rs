@@ -147,9 +147,14 @@ pub async fn compute_object_manifest(
 /// Compile the set of directories to be overlayed for a runtime.
 ///
 /// These are returned as a list, from bottom to top.
+///
+/// If `skip_runtime_save` is true, the runtime will not be saved, even if
+/// the `flattened_layers` property is modified. Only pass true here if the
+/// runtime is unconditionally saved shortly after calling this function.
 pub(crate) async fn resolve_overlay_dirs(
     runtime: &mut runtime::Runtime,
     repo: &storage::RepositoryHandle,
+    skip_runtime_save: bool,
 ) -> Result<Vec<graph::Manifest>> {
     enum ResolvedManifest {
         Existing {
@@ -278,7 +283,7 @@ pub(crate) async fn resolve_overlay_dirs(
 
     // Note the layers we manufactured here via flattening so they will have a
     // strong reference in the runtime.
-    if runtime.status.flattened_layers != flattened_layers {
+    if !skip_runtime_save && runtime.status.flattened_layers != flattened_layers {
         // If the additional layers has changed, then the runtime needs to be
         // re-saved.
         runtime.status.flattened_layers = flattened_layers;
@@ -292,14 +297,19 @@ pub(crate) async fn resolve_overlay_dirs(
 /// render them.
 ///
 /// These are returned as a list, from bottom to top.
+///
+/// If `skip_runtime_save` is true, the runtime will not be saved, even if
+/// the `flattened_layers` property is modified. Only pass true here if the
+/// runtime is unconditionally saved shortly after calling this function.
 pub(crate) async fn resolve_and_render_overlay_dirs(
     runtime: &mut runtime::Runtime,
+    skip_runtime_save: bool,
 ) -> Result<Vec<std::path::PathBuf>> {
     let config = get_config()?;
     let repo: storage::RepositoryHandle = config.get_local_repository().await?.into();
     let renders = repo.renders()?;
 
-    let manifests = resolve_overlay_dirs(runtime, &repo).await?;
+    let manifests = resolve_overlay_dirs(runtime, &repo, skip_runtime_save).await?;
 
     let mut to_render = HashSet::new();
     for digest in manifests.iter().map(|m| m.digest()) {

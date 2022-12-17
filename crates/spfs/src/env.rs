@@ -338,7 +338,7 @@ fn is_cnproc_disabled() -> bool {
 /// Identify the mount namespace of the provided process id.
 ///
 /// Return None if the pid is not found.
-async fn identify_mount_namespace_of_process(pid: u32) -> Result<Option<std::path::PathBuf>> {
+pub async fn identify_mount_namespace_of_process(pid: u32) -> Result<Option<std::path::PathBuf>> {
     let ns_path = std::path::Path::new(PROC_DIR)
         .join(pid.to_string())
         .join("ns/mnt");

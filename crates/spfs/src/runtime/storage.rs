@@ -116,6 +116,8 @@ pub struct Config {
     pub csh_startup_file: PathBuf,
     /// The location of the expect utility script used for csh-based shell environments
     pub csh_expect_file: PathBuf,
+    /// The name of the mount namespace this runtime is using, if known
+    pub mount_namespace: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -147,6 +149,7 @@ impl Config {
             csh_expect_file: root.join(Self::CSH_EXPECT_FILE),
             runtime_dir: Some(root),
             tmpfs_size,
+            mount_namespace: None,
         }
     }
 

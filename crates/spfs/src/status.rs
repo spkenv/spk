@@ -79,7 +79,7 @@ pub async fn active_runtime() -> Result<runtime::Runtime> {
 
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).
 pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<()> {
-    let dirs = resolve_and_render_overlay_dirs(rt).await?;
+    let dirs = resolve_and_render_overlay_dirs(rt, false).await?;
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(rt).await?;
 
@@ -95,10 +95,19 @@ pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<()> {
 
 /// Initialize the current runtime as rt.
 pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<()> {
-    let dirs = resolve_and_render_overlay_dirs(rt).await?;
+    let dirs = resolve_and_render_overlay_dirs(
+        rt,
+        // skip saving the runtime in this step because we will save it after
+        // learning the mount namespace below
+        true,
+    )
+    .await?;
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(rt).await?;
     env::enter_mount_namespace()?;
+    rt.config.mount_namespace =
+        env::identify_mount_namespace_of_process(std::process::id()).await?;
+    rt.save_state_to_storage().await?;
     let original = env::become_root()?;
     env::privatize_existing_mounts()?;
     env::ensure_mount_targets_exist(&rt.config)?;
