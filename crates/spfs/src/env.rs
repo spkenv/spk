@@ -393,8 +393,6 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     // Add a timeout to be able to detect when no relevant pid events are
     // arriving for a period of time.
     let events_stream = events_stream.timeout(tokio::time::Duration::from_secs(60));
-    // Limit the frequency of log updates by chunking them with a short timeout.
-    let events_stream = events_stream.chunks_timeout(100, tokio::time::Duration::from_secs(1));
     tokio::pin!(events_stream);
 
     async fn repair_tracked_processes<S>(tracked_processes: &Arc<DashSet<u32, S>>, ns: &Path)
@@ -425,9 +423,22 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         tracked_processes.retain(|key| current_pids.contains(key));
     }
 
-    while let Some(events) = events_stream.next().await {
-        tracing::trace!(?tracked_processes, "runtime monitor");
-        if tracked_processes.is_empty() {
+    const LOG_UPDATE_INTERVAL: tokio::time::Duration = tokio::time::Duration::from_secs(5);
+    let mut log_update_deadline = tokio::time::Instant::now() + LOG_UPDATE_INTERVAL;
+
+    while let Some(event) = events_stream.next().await {
+        let no_more_processes = tracked_processes.is_empty();
+
+        // Limit how often the process set is logged, but we want to always
+        // log when `tracked_processes` becomes empty, no matter when that
+        // happens.
+        let now = tokio::time::Instant::now();
+        if now >= log_update_deadline || no_more_processes {
+            tracing::trace!(?tracked_processes, "runtime monitor");
+            log_update_deadline = now + LOG_UPDATE_INTERVAL;
+        }
+
+        if no_more_processes {
             // If the mount namespace is known, verify there really aren't any
             // more processes in the namespace. Since cnproc might not deliver
             // every event, we may not know about processes that still exist.
@@ -449,7 +460,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         }
 
         // Check for any timeouts...
-        if events.iter().any(|event| event.is_err()) {
+        if event.is_err() {
             tracing::trace!(?tracked_processes, "no pid events for a while");
 
             // If the mount namespace is known, repair `tracked_processes` by
