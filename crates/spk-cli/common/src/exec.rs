@@ -37,8 +37,7 @@ pub async fn build_required_packages(solution: &Solution) -> Result<Solution> {
         );
         let (package, components) = BinaryPackageBuilder::from_recipe((**recipe).clone())
             .with_repositories(repos.clone())
-            .with_options(options.clone())
-            .build_and_publish(&*local_repo)
+            .build_and_publish(&options, &*local_repo)
             .await?;
         let source = PackageSource::Repository {
             repo: local_repo.clone(),

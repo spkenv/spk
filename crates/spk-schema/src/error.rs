@@ -41,6 +41,8 @@ pub enum Error {
     SpkIdentError(#[from] crate::ident::Error),
     #[error(transparent)]
     SpkNameError(#[from] crate::foundation::name::Error),
+    #[error(transparent)]
+    SpkOptionMapError(#[from] crate::foundation::option_map::Error),
     #[error("Error: {0}")]
     String(String),
     #[error("Failed to create temp dir: {0}")]

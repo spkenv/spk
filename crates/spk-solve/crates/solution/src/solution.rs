@@ -81,7 +81,7 @@ impl Ord for PackageSource {
             (Embedded { .. } | SpkInternalTest, BuildFromSource { .. }) => Ordering::Less,
             (BuildFromSource { .. }, Embedded { .. } | SpkInternalTest) => Ordering::Greater,
             (BuildFromSource { recipe: this }, BuildFromSource { recipe: other }) => {
-                this.cmp(other)
+                this.ident().cmp(other.ident())
             }
             (SpkInternalTest, SpkInternalTest) => Ordering::Equal,
         }

@@ -29,6 +29,7 @@ use crate::{
     Package,
     PackageMut,
     Recipe,
+    RequirementsList,
     Result,
     Template,
     TemplateExt,
@@ -176,7 +177,7 @@ impl TemplateExt for SpecTemplate {
 /// All build-able types have a recipe representation
 /// that can be serialized and deserialized from a human-written
 /// file or machine-managed persistent storage.
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize)]
 #[serde(tag = "api")]
 #[enum_dispatch(Deprecate, DeprecateMut)]
 pub enum SpecRecipe {
@@ -312,7 +313,7 @@ impl FromYaml for SpecRecipe {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum SpecVariant {
     V0(OptionMap),
 }
@@ -327,6 +328,12 @@ impl super::Variant for SpecVariant {
     fn options(&self) -> Cow<'_, OptionMap> {
         match self {
             Self::V0(v) => v.options(),
+        }
+    }
+
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList> {
+        match self {
+            Self::V0(v) => v.additional_requirements(),
         }
     }
 }
