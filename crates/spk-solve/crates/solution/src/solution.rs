@@ -70,7 +70,7 @@ impl Ord for PackageSource {
             (Embedded, BuildFromSource { .. }) => Ordering::Less,
             (BuildFromSource { .. }, Embedded) => Ordering::Greater,
             (BuildFromSource { recipe: this }, BuildFromSource { recipe: other }) => {
-                this.cmp(other)
+                this.ident().cmp(other.ident())
             }
         }
     }

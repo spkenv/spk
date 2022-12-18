@@ -522,6 +522,8 @@ pub enum RequestedBy {
     /// This requirement was asserted on a downstream package by the identified
     /// upstream build dependency that was used
     UpstreamRequirement(BuildIdent),
+    /// The request was added by the target variant during a binary build
+    Variant,
 }
 
 impl std::fmt::Display for RequestedBy {
@@ -543,6 +545,7 @@ impl std::fmt::Display for RequestedBy {
             RequestedBy::UpstreamRequirement(ident) => {
                 write!(f, "{ident} required this for downstream packages")
             }
+            RequestedBy::Variant => write!(f, "target variant"),
         }
     }
 }
