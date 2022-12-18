@@ -117,7 +117,7 @@ async fn test_build_workdir(tmpdir: tempfile::TempDir) {
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
     BinaryPackageBuilder::from_recipe(recipe)
         .with_source(BuildSource::LocalPath(tmpdir.path().to_owned()))
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(&option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
 
@@ -168,19 +168,21 @@ async fn test_build_package_options() {
     BinaryPackageBuilder::from_recipe(dep_spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(&option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
+    let variant = option_map! {
+        // option should be set in final published spec
+        "dep" => "2.0.0",
+        // specific option takes precedence
+        "top.dep" => "1.0.0",
+    };
     let (spec, _) = BinaryPackageBuilder::from_recipe(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
-        // option should be set in final published spec
-        .with_option(opt_name!("dep"), "2.0.0")
-        // specific option takes precedence
-        .with_option(opt_name!("top.dep"), "1.0.0")
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(variant, &*rt.tmprepo)
         .await
         .unwrap();
 
@@ -220,14 +222,14 @@ async fn test_build_package_pinning() {
     BinaryPackageBuilder::from_recipe(dep_spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
     let (spec, _) = BinaryPackageBuilder::from_recipe(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
 
@@ -259,7 +261,7 @@ async fn test_build_package_missing_deps() {
     BinaryPackageBuilder::from_recipe(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
 }
@@ -303,13 +305,13 @@ async fn test_build_var_pinning() {
     BinaryPackageBuilder::from_recipe(dep_spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
     let (spec, _) = BinaryPackageBuilder::from_recipe(spec)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
 
@@ -345,8 +347,7 @@ async fn test_build_bad_options() {
 
     let res = BinaryPackageBuilder::from_recipe(spec)
         .with_source(BuildSource::LocalPath(".".into()))
-        .with_option(opt_name!("debug"), "false")
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(option_map! {"debug" => "false"}, &*rt.tmprepo)
         .await;
 
     assert!(
@@ -390,7 +391,7 @@ async fn test_build_package_source_cleanup() {
 
     let (pkg, _) = BinaryPackageBuilder::from_recipe(spec)
         .with_repository(rt.tmprepo.clone())
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
 
@@ -446,7 +447,7 @@ async fn test_build_filters_unmodified_files() {
 
         let _ = BinaryPackageBuilder::from_recipe(spec)
             .with_repository(rt.tmprepo.clone())
-            .build_and_publish(&*rt.tmprepo)
+            .build_and_publish(option_map! {}, &*rt.tmprepo)
             .await
             .unwrap();
     }
@@ -480,7 +481,7 @@ async fn test_build_filters_unmodified_files() {
 
         let (pkg, _) = BinaryPackageBuilder::from_recipe(spec)
             .with_repository(rt.tmprepo.clone())
-            .build_and_publish(&*rt.tmprepo)
+            .build_and_publish(option_map! {}, &*rt.tmprepo)
             .await
             .unwrap();
 
@@ -545,7 +546,7 @@ async fn test_build_package_requirement_propagation() {
         .unwrap();
     let _base_pkg = BinaryPackageBuilder::from_recipe(base_spec)
         .with_repository(rt.tmprepo.clone())
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
 
@@ -555,7 +556,7 @@ async fn test_build_package_requirement_propagation() {
         .unwrap();
     let (top_pkg, _) = BinaryPackageBuilder::from_recipe(top_spec)
         .with_repository(rt.tmprepo.clone())
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
 
@@ -642,7 +643,7 @@ async fn test_build_components_metadata() {
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
     let (spec, _) = BinaryPackageBuilder::from_recipe(spec.clone())
         .with_source(BuildSource::LocalPath(".".into()))
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
     let runtime_repo = storage::RepositoryHandle::new_runtime();

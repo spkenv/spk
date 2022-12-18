@@ -377,6 +377,8 @@ pub enum RequestedBy {
     /// A package version/recipe that made the request as part of
     /// building from source during a solve
     PackageVersion(VersionIdent),
+    /// The request was added by the target variant during a binary build
+    Variant,
 }
 
 impl std::fmt::Display for RequestedBy {
@@ -396,6 +398,7 @@ impl std::fmt::Display for RequestedBy {
             RequestedBy::SpkInternalTest => write!(f, "spk's test suite"),
             RequestedBy::PackageBuild(ident) => write!(f, "{ident}"),
             RequestedBy::PackageVersion(ident) => write!(f, "{ident} recipe"),
+            RequestedBy::Variant => write!(f, "target variant"),
         }
     }
 }

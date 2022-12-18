@@ -9,8 +9,7 @@ use clap::Args;
 use futures::TryFutureExt;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{flags, spk_exe, CommandArgs, Run};
-use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
-use spk_schema::foundation::option_map::{host_options, OptionMap};
+use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::{PkgRequest, RangeIdent, RequestedBy};
 use spk_schema::prelude::*;
 use spk_storage as storage;
@@ -149,20 +148,16 @@ impl Run for MakeBinary {
             };
 
             for variant in variants_to_build {
-                let mut opts = if !self.options.no_host {
-                    host_options()?
-                } else {
-                    OptionMap::default()
-                };
+                let variant = spk_schema::ExtensionVariant::from(variant)
+                    .with_host_options(!self.options.no_host)?
+                    .with_overrides(options.clone());
 
-                opts.extend(variant.options().into_owned());
-                opts.extend(options.clone());
-                let digest = opts.digest_str();
-                if !built.insert(digest) {
+                if !built.insert(variant.clone()) {
+                    tracing::debug!("Skipping variant that was already built:\n{variant}");
                     continue;
                 }
 
-                tracing::info!("building variant {}", opts.format_option_map());
+                tracing::info!("building variant:\n{variant}");
 
                 // Always show the solution packages for the solves
                 let mut fmt_builder = self
@@ -179,7 +174,6 @@ impl Run for MakeBinary {
 
                 let mut builder = BinaryPackageBuilder::from_recipe((*recipe).clone());
                 builder
-                    .with_options(opts.clone())
                     .with_repositories(repos.iter().cloned())
                     .set_interactive(self.interactive)
                     .with_source_resolver(&src_formatter)
@@ -193,7 +187,7 @@ impl Run for MakeBinary {
                     // Use the source package `AnyIdent` if the caller supplied one.
                     builder.with_source(BuildSource::SourcePackage(ident.clone()));
                 }
-                let out = match builder.build_and_publish(&local).await {
+                let out = match builder.build_and_publish(&variant, &local).await {
                     Err(err @ spk_build::Error::SpkSolverError(_))
                     | Err(
                         err @ spk_build::Error::SpkStorageError(
@@ -202,7 +196,7 @@ impl Run for MakeBinary {
                             ),
                         ),
                     ) => {
-                        tracing::error!("variant failed {}", opts.format_option_map());
+                        tracing::error!("variant failed:\n{variant}");
                         return Err(err.into());
                     }
                     Ok((spec, _cmpts)) => spec,

@@ -58,7 +58,7 @@ pub use spk_schema_ident::{self as ident, AnyIdent, BuildIdent, VersionIdent};
 pub use template::{Template, TemplateExt};
 pub use test_spec::TestStage;
 pub use validation::{default_validators, ValidationSpec, Validator};
-pub use variant::Variant;
+pub use variant::{ExtensionVariant, Variant};
 pub use {serde_json, spk_schema_validators as validators};
 
 #[cfg(test)]
