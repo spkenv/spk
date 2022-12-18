@@ -172,10 +172,13 @@ impl TryFrom<Request> for Opt {
                     required_compat: request.required_compat,
                 }))
             }
-            Request::Var(_) => Err(Error::String(format!(
-                "Cannot convert {:?} to option",
-                request
-            ))),
+            Request::Var(request) => Ok(Opt::Var(VarOpt {
+                var: request.var,
+                default: request.value.clone(),
+                choices: Default::default(),
+                inheritance: Default::default(),
+                value: Some(request.value),
+            })),
         }
     }
 }
@@ -243,7 +246,7 @@ impl<'de> Deserialize<'de> for Opt {
                             }
                             NameAndValue::WithAssignedValue(_, v) => {
                                 return Err(serde::de::Error::custom(format!("Variable assignment not supported here, use a static value by adding `static: {v:?}")));
-                        }
+                            }
                         },
                         "prereleasePolicy" => {
                             self.prerelease_policy = Some(map.next_value::<PreReleasePolicy>()?)
@@ -257,7 +260,7 @@ impl<'de> Deserialize<'de> for Opt {
                             }
                             NameAndValue::WithAssignedValue(_, v) => {
                                 return Err(serde::de::Error::custom(format!("Variable assignment not supported here, use a static value by adding `static: {v:?}")));
-                        }
+                            }
                         },
                         "choices" => {
                             self.choices = Some(

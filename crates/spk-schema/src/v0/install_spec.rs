@@ -6,7 +6,6 @@ use spk_schema_ident::BuildIdent;
 
 use super::EmbeddedPackage;
 use crate::foundation::option_map::OptionMap;
-use crate::ident::Request;
 use crate::{ComponentSpecList, EnvOp, RequirementsList, Result};
 
 #[cfg(test)]
@@ -28,14 +27,6 @@ pub struct InstallSpec {
 }
 
 impl InstallSpec {
-    /// Add or update a requirement to the set of installation requirements.
-    ///
-    /// If a request exists for the same name, it is replaced with the given
-    /// one. Otherwise the new request is appended to the list.
-    pub fn upsert_requirement(&mut self, request: Request) {
-        self.requirements.upsert(request);
-    }
-
     pub fn is_default(&self) -> bool {
         self.requirements.is_empty() && self.embedded.is_empty() && self.components.is_default()
     }

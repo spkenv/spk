@@ -42,17 +42,35 @@ impl RequirementsList {
 
     /// Add or update a requirement in this list.
     ///
-    /// If a request exists for the same name, it is replaced with the given
-    /// one. Otherwise the new request is appended to the list.
-    pub fn upsert(&mut self, request: Request) {
+    /// If a request exists for the same name, it restricted to include
+    /// the provided one (if able).
+    pub fn insert_merge(&mut self, request: Request) -> Result<()> {
         let name = request.name();
-        for other in self.iter_mut() {
-            if other.name() == name {
-                let _ = std::mem::replace(other, request);
-                return;
+        let Some(existing) = self.iter_mut().find(|o| o.name() == name) else {
+            self.0.push(request);
+            return Ok(());
+        };
+        match (request, existing) {
+            (Request::Pkg(req), Request::Pkg(existing)) => {
+                existing.restrict(&req).map_err(Error::from)
             }
+            (Request::Var(req), Request::Var(existing)) if req.value == existing.value => Ok(()),
+            (request, existing) => Err(Error::String(format!(
+                "cannot add requirement '{request}', because an incompatible one already exists: '{existing}'"
+                // TODO: check how this error comes out for downstream requirements
+            ))),
         }
-        self.push(request);
+    }
+
+    /// Add an item to the end of this list of requests
+    ///
+    /// # Safety
+    /// This operation is deemed unsafe because it does not
+    /// check for existing requests of the same name, which
+    /// will cause errors is serialized and then deserialized use
+    /// [`Self::insert_merge`] instead.
+    pub unsafe fn push(&mut self, item: Request) {
+        self.0.push(item)
     }
 
     /// Reports whether the provided request would be satisfied by

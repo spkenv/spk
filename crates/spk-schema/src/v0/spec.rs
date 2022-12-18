@@ -367,7 +367,7 @@ impl Recipe for Spec<VersionIdent> {
                         // inject the default component for this context if needed
                         req.pkg.components.insert(Component::default_for_build());
                     }
-                    requests.push(req.into());
+                    requests.insert_merge(req.into())?;
                 }
                 Opt::Var(opt) => {
                     // If no value was specified in the spec, there's
@@ -375,7 +375,7 @@ impl Recipe for Spec<VersionIdent> {
                     // find a var with an empty value.
                     if let Some(value) = options.get(&opt.var) {
                         if !value.is_empty() {
-                            requests.push(opt.to_request(Some(value)).into());
+                            requests.insert_merge(opt.to_request(Some(value)).into())?;
                         }
                     }
                 }
@@ -460,6 +460,16 @@ impl Recipe for Spec<VersionIdent> {
                         }
                     }
                 }
+            }
+        }
+
+        for member in by_name.values() {
+            let pkg = member.package();
+            let downstream = pkg.downstream_requirements(member.used_components());
+            for request in downstream.iter().cloned() {
+                let required = Opt::try_from(request.clone())?;
+                updated.build.upsert_opt(required.clone());
+                updated.install.requirements.insert_merge(request)?;
             }
         }
 
