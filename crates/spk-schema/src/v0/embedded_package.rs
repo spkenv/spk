@@ -100,18 +100,11 @@ impl crate::Package for EmbeddedPackage {
         self.0.runtime_requirements(components)
     }
 
-    fn downstream_build_requirements<'a>(
+    fn downstream_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a spk_schema_foundation::ident_component::Component>,
     ) -> Cow<'_, crate::RequirementsList> {
-        self.0.downstream_build_requirements(components)
-    }
-
-    fn downstream_runtime_requirements<'a>(
-        &self,
-        components: impl IntoIterator<Item = &'a spk_schema_foundation::ident_component::Component>,
-    ) -> Cow<'_, crate::RequirementsList> {
-        self.0.downstream_runtime_requirements(components)
+        self.0.downstream_requirements(components)
     }
 
     fn validation(&self) -> &crate::ValidationSpec {

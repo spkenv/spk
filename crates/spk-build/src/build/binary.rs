@@ -399,7 +399,7 @@ where
                     match runtime_requirements.contains_request(request) {
                         Compatibility::Compatible => continue,
                         Compatibility::Incompatible(problem) => {
-                            return Err(Error::MissingDownstreamRuntimeRequest {
+                            return Err(Error::MissingDownstreamRequest {
                                 required_by: spec.ident().to_owned(),
                                 request: request.clone(),
                                 problem,

@@ -141,9 +141,7 @@ pub struct OptionPropagation {
     #[serde(default, skip_serializing_if = "is_false")]
     pub at_runtime: bool,
     #[serde(default, skip_serializing_if = "is_false")]
-    pub at_downstream_build: bool,
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub at_downstream_runtime: bool,
+    pub at_downstream: bool,
 }
 
 fn is_false(v: &bool) -> bool {

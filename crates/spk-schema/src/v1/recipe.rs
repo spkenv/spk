@@ -173,14 +173,9 @@ impl crate::Recipe for Recipe {
             .iter()
             .filter(|option| option.check_is_active_at_build(&build_options).is_ok())
             .map(|option| {
-                let propagation = super::package_option::OptionPropagation {
+                let propagation = super::package_option::Propagation {
                     at_runtime: option.check_is_active_at_runtime(&build_env).is_ok(),
-                    at_downstream_build: option
-                        .check_is_active_at_downstream_build(&build_env)
-                        .is_ok(),
-                    at_downstream_runtime: option
-                        .check_is_active_at_downstream_runtime(&build_env)
-                        .is_ok(),
+                    at_downstream: option.check_is_active_at_downstream(&build_env).is_ok(),
                 };
                 match option {
                     super::RecipeOption::Pkg(opt) => {

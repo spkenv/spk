@@ -56,24 +56,10 @@ pub trait Package:
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList>;
 
-    /// Requests that must be satisfied by the build
-    /// environment of any package built against this one, including
-    /// any additional ones when the named components are used
-    ///
-    /// These requirements are not injected downstream, instead
-    /// they need to be present in the downstream package itself
-    fn downstream_build_requirements<'a>(
-        &self,
-        components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList>;
-
-    /// Requests that must be satisfied by the runtime
-    /// environment of any package built against this one, including
-    /// any additional ones when the named components are used
-    ///
-    /// These requirements are not injected downstream, instead
-    /// they need to be present in the downstream package itself
-    fn downstream_runtime_requirements<'a>(
+    /// Requests that must be satisfied by the runtime environment
+    /// of any package built against this one when the named
+    /// components of this package are used at build time.
+    fn downstream_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList>;
@@ -130,18 +116,11 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).runtime_requirements(components)
     }
 
-    fn downstream_build_requirements<'a>(
+    fn downstream_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
-    }
-
-    fn downstream_runtime_requirements<'a>(
-        &self,
-        components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
+        (**self).downstream_requirements(components)
     }
 
     fn validation(&self) -> &super::ValidationSpec {
@@ -194,18 +173,11 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).runtime_requirements(components)
     }
 
-    fn downstream_build_requirements<'a>(
+    fn downstream_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
-    }
-
-    fn downstream_runtime_requirements<'a>(
-        &self,
-        components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
+        (**self).downstream_requirements(components)
     }
 
     fn validation(&self) -> &super::ValidationSpec {
@@ -258,18 +230,11 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).runtime_requirements(components)
     }
 
-    fn downstream_build_requirements<'a>(
+    fn downstream_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
-    }
-
-    fn downstream_runtime_requirements<'a>(
-        &self,
-        components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
+        (**self).downstream_requirements(components)
     }
 
     fn validation(&self) -> &super::ValidationSpec {

@@ -28,16 +28,7 @@ pub enum Error {
             This should not be possible, and points to a bug in the part of the \
             spk build process that turns recipes into packages."
     )]
-    MissingDownstreamBuildRequest {
-        /// The package that was in the build environment and created the need for this request
-        required_by: BuildIdent,
-        /// The minimum request that is required downstream
-        request: Request,
-        /// Additional reasoning why an existing request was not sufficient
-        problem: String,
-    },
-    #[error("Package must include a runtime requirement for {request}, because it's being built against {required_by}. However, {problem}.")]
-    MissingDownstreamRuntimeRequest {
+    MissingDownstreamRequest {
         /// The package that was in the build environment and created the need for this request
         required_by: BuildIdent,
         /// The minimum request that is required downstream

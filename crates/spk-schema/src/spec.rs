@@ -550,23 +550,13 @@ impl Package for Spec {
         }
     }
 
-    fn downstream_build_requirements<'a>(
+    fn downstream_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, crate::RequirementsList> {
         match self {
-            Spec::V0Package(spec) => spec.downstream_build_requirements(components),
-            Spec::V1Package(spec) => spec.downstream_build_requirements(components),
-        }
-    }
-
-    fn downstream_runtime_requirements<'a>(
-        &self,
-        components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, crate::RequirementsList> {
-        match self {
-            Spec::V0Package(spec) => spec.downstream_runtime_requirements(components),
-            Spec::V1Package(spec) => spec.downstream_runtime_requirements(components),
+            Spec::V0Package(spec) => spec.downstream_requirements(components),
+            Spec::V1Package(spec) => spec.downstream_requirements(components),
         }
     }
 

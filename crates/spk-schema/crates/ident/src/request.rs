@@ -519,12 +519,9 @@ pub enum RequestedBy {
     SpkInternalTest,
     /// A package build that made the request, usually during a solve
     PackageBuild(VersionIdent),
-    /// This requirement was asserted on a downstream package but the identified
-    /// upstream build dependency that it was using
-    UpstreamBuildRequirement(BuildIdent),
-    /// This requirement was asserted on a downstream package but the identified
-    /// upstream build dependency that it was using
-    UpstreamRuntimeRequirement(BuildIdent),
+    /// This requirement was asserted on a downstream package by the identified
+    /// upstream build dependency that was used
+    UpstreamRequirement(BuildIdent),
 }
 
 impl std::fmt::Display for RequestedBy {
@@ -543,8 +540,7 @@ impl std::fmt::Display for RequestedBy {
             RequestedBy::NoState => write!(f, "no state? this should not happen?"),
             RequestedBy::SpkInternalTest => write!(f, "spk's test suite"),
             RequestedBy::PackageBuild(ident) => write!(f, "{ident}"),
-            RequestedBy::UpstreamBuildRequirement(ident)
-            | RequestedBy::UpstreamRuntimeRequirement(ident) => {
+            RequestedBy::UpstreamRequirement(ident) => {
                 write!(f, "{ident} required this for downstream packages")
             }
         }
@@ -913,7 +909,7 @@ pub fn is_false(value: &bool) -> bool {
     !*value
 }
 
-/// A deserializable name and optional default or assinged value
+/// A deserializable name and optional default or assigned value
 /// where the value it identified by it's position following
 /// a forward slash and equals sign respectively (eg: '<name>/<value>')
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -961,7 +957,7 @@ where
     }
 
     /// The current value for this name/value pair. Any
-    /// direct assigment is considered first, followed by a default
+    /// direct assignment is considered first, followed by a default
     pub fn value<'a: 'out, 'b: 'out, 'out>(
         &'a self,
         given: Option<&'b String>,

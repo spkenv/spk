@@ -100,15 +100,11 @@ options:
   # abi that was used should be specified on the resulting package
   - var: abi/cp27m
     choices: [cp27m, cp27mu]
-    # this will cause a validation error when this package
-    # appears in a build environment but the package being built
-    # does not specify python.abi as one of its options 'atBuild'
-    atDownstreamBuild: true
-    # this options will cause a validation error when this
+    # this option requires
     # package appears in a build environment but the package
     # being built does not specify python.api as one of its
     # options 'atRuntime'.
-    atDownstreamRuntime: true
+    atDownstream: true
 
   # For all types options, the `when` field can be used
   # to further refine the contexts in which they are relevant

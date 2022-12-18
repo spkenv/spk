@@ -178,31 +178,18 @@ impl crate::Package for Package {
         Cow::Owned(requirements)
     }
 
-    fn downstream_build_requirements<'a>(
+    fn downstream_requirements<'a>(
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
         Cow::Owned(
             self.options
                 .iter()
-                .filter(|o| o.propagation().at_downstream_build)
+                .filter(|o| o.propagation().at_downstream)
                 .filter_map(|o| {
-                    o.to_request(|| RequestedBy::UpstreamBuildRequirement(self.pkg.to_owned()))
-                })
-                .collect(),
-        )
-    }
-
-    fn downstream_runtime_requirements<'a>(
-        &self,
-        _components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
-        Cow::Owned(
-            self.options
-                .iter()
-                .filter(|o| o.propagation().at_downstream_runtime)
-                .filter_map(|o| {
-                    o.to_request(|| RequestedBy::UpstreamRuntimeRequirement(self.pkg.to_owned()))
+                    o.to_request(None, || {
+                        RequestedBy::UpstreamRequirement(self.pkg.to_owned())
+                    })
                 })
                 .collect(),
         )

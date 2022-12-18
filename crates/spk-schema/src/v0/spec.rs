@@ -247,7 +247,7 @@ impl Package for Spec<BuildIdent> {
         requirements
     }
 
-    fn downstream_build_requirements<'a>(
+    fn downstream_requirements<'a>(
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
@@ -259,7 +259,13 @@ impl Package for Spec<BuildIdent> {
                 Opt::Var(v) => Some(v),
                 Opt::Pkg(_) => None,
             })
-            .filter(|o| o.inheritance != Inheritance::Weak)
+            .filter(|o| {
+                // the original "StrongForBuildOnly" variant was being injected
+                // but didn't actually have any effect on resolved build environments
+                // so we maintain the current behavior by only recognizing strongly
+                // inherited options
+                o.inheritance == Inheritance::Strong
+            })
             .map(|o| {
                 let var = o.var.with_default_namespace(self.name());
                 VarRequest {
@@ -270,25 +276,6 @@ impl Package for Spec<BuildIdent> {
                     pin: false,
                 }
             })
-            .map(Request::Var)
-            .collect();
-        Cow::Owned(requests)
-    }
-
-    fn downstream_runtime_requirements<'a>(
-        &self,
-        _components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
-        let requests = self
-            .build
-            .options
-            .iter()
-            .filter_map(|opt| match opt {
-                Opt::Var(v) => Some(v),
-                Opt::Pkg(_) => None,
-            })
-            .filter(|o| o.inheritance == Inheritance::Strong)
-            .map(|o| VarRequest::new(o.var.with_default_namespace(self.name())))
             .map(Request::Var)
             .collect();
         Cow::Owned(requests)

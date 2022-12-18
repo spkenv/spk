@@ -64,30 +64,14 @@ impl RecipeOption {
     /// Determine if this option is enabled given the resolved
     /// build environment. If not, the returned compatibility will
     /// denote a reason why it has been disabled.
-    pub fn check_is_active_at_downstream_build<E>(&self, build_env: E) -> Compatibility
-    where
-        E: BuildEnv,
-        E::Package: Satisfy<PkgRequest> + Named,
-    {
-        match self {
-            Self::Pkg(_) => Compatibility::incompatible(
-                "pkg options are handled in downstream builds via component requirements only",
-            ),
-            Self::Var(v) => v.at_downstream_build.check_is_active(build_env),
-        }
-    }
-
-    /// Determine if this option is enabled given the resolved
-    /// build environment. If not, the returned compatibility will
-    /// denote a reason why it has been disabled.
-    pub fn check_is_active_at_downstream_runtime<E>(&self, build_env: E) -> Compatibility
+    pub fn check_is_active_at_downstream<E>(&self, build_env: E) -> Compatibility
     where
         E: BuildEnv,
         E::Package: Satisfy<PkgRequest> + Named + HasVersion,
     {
         match self {
-            Self::Pkg(p) => p.at_downstream_runtime.check_is_active(&p.pkg, build_env),
-            Self::Var(v) => v.at_downstream_runtime.check_is_active(build_env),
+            Self::Pkg(p) => p.at_downstream.check_is_active(&p.pkg, build_env),
+            Self::Var(v) => v.at_downstream.check_is_active(build_env),
         }
     }
 }
@@ -147,10 +131,11 @@ pub struct VarOption {
     pub at_build: BuildCondition,
     #[serde(default, skip_serializing_if = "VarPropagation::is_default")]
     pub at_runtime: VarPropagation,
-    #[serde(default, skip_serializing_if = "VarPropagation::is_default")]
-    pub at_downstream_build: VarPropagation,
-    #[serde(default, skip_serializing_if = "VarPropagation::is_default")]
-    pub at_downstream_runtime: VarPropagation,
+    #[serde(
+        default = "VarPropagation::disabled",
+        skip_serializing_if = "VarPropagation::is_disabled"
+    )]
+    pub at_downstream: VarPropagation,
 }
 
 impl VarOption {
@@ -187,17 +172,15 @@ impl<'de> serde::de::Visitor<'de> for PartialVarVisitor {
         let var = map.next_value::<NameAndValue<OptNameBuf>>()?;
         let mut choices = Vec::new();
         let mut at_runtime = Option::<VarPropagation>::None;
-        let mut at_downstream_runtime = Option::<VarPropagation>::None;
+        let mut at_downstream = Option::<VarPropagation>::None;
         let mut at_build = Option::<BuildCondition>::None;
-        let mut at_downstream_build = Option::<VarPropagation>::None;
         let mut when = Option::<VarPropagation>::None;
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
                 "choices" => choices = map.next_value()?,
-                "atRuntime" => at_runtime = Some(map.next_value()?),
-                "atDownstreamRuntime" => at_downstream_runtime = Some(map.next_value()?),
                 "atBuild" => at_build = Some(map.next_value()?),
-                "atDownstreamBuild" => at_downstream_build = Some(map.next_value()?),
+                "atRuntime" => at_runtime = Some(map.next_value()?),
+                "atDownstream" => at_downstream = Some(map.next_value()?),
                 "when" => {
                     when = Some(VarPropagation::Enabled {
                         when: map.next_value()?,
@@ -219,10 +202,7 @@ impl<'de> serde::de::Visitor<'de> for PartialVarVisitor {
         }
         Ok(VarOption {
             at_runtime: at_runtime.or_else(|| when.clone()).unwrap_or_default(),
-            at_downstream_build: at_downstream_build
-            .or_else(|| when.clone())
-            .unwrap_or_default(),
-            at_downstream_runtime: at_downstream_runtime.or_else(||when.clone()).unwrap_or_default(),
+            at_downstream: at_downstream.or_else(|| when.clone()).unwrap_or_default(),
             at_build: at_build
             .or_else(|| {
                 let Some(when) = when else {
@@ -233,7 +213,7 @@ impl<'de> serde::de::Visitor<'de> for PartialVarVisitor {
                     Err(err) => {
                         tracing::warn!("Shared 'when' condition is invalid at build-time");
                         tracing::warn!(" > because: {err}");
-                        tracing::warn!(" > to remove this message, add 'atBuild: true' to the option for 'var: {}'", var.0);
+                        tracing::warn!(" > to remove this message, add 'atBuild: true' to the option for 'var: {}'", var.name());
                         None
                     }
                 }}).unwrap_or_default(),
@@ -360,7 +340,7 @@ pub struct PkgOption {
     #[serde(default, skip_serializing_if = "PkgPropagation::is_default")]
     pub at_runtime: PkgPropagation,
     #[serde(default, skip_serializing_if = "PkgPropagation::is_default")]
-    pub at_downstream_runtime: PkgPropagation,
+    pub at_downstream: PkgPropagation,
 
     // included specifically to catch the common error of putting
     // this field on pkg options but having it be ignored
@@ -378,7 +358,7 @@ where
 fn no_downstream_build_error<E: serde::de::Error>() -> E {
     serde::de::Error::custom(
         "The 'atDownstreamBuild' field does not really make \
-        sense for pkg options. Instead, use 'atDownstreamRuntime' \
+        sense for pkg options. Instead, use 'atDownstream' \
         with 'components: [build]' and/or any other relevant \
         components that would require this dependency when used",
     )
@@ -421,14 +401,14 @@ impl<'de> serde::de::Visitor<'de> for PartialPkgVisitor {
         let pkg = map.next_value()?;
         let mut at_runtime = Option::<PkgPropagation>::None;
         let mut at_build = Option::<BuildCondition>::None;
-        let mut at_downstream_runtime = Option::<PkgPropagation>::None;
+        let mut at_downstream = Option::<PkgPropagation>::None;
         let mut when = Option::<PkgPropagation>::None;
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
                 "atBuild" => at_build = Some(map.next_value()?),
                 "atRuntime" => at_runtime = Some(map.next_value()?),
                 "atDownstreamBuild" => return Err(no_downstream_build_error()),
-                "atDownstreamRuntime" => at_downstream_runtime = Some(map.next_value()?),
+                "atDownstream" => at_downstream = Some(map.next_value()?),
                 "when" => {
                     when = Some(PkgPropagation::Enabled {
                         version: None,
@@ -452,7 +432,7 @@ impl<'de> serde::de::Visitor<'de> for PartialPkgVisitor {
         }
         Ok(PkgOption {
             at_runtime: at_runtime.or_else(|| when.clone()).unwrap_or_default(),
-            at_downstream_runtime: at_downstream_runtime.or_else(||when.clone()).unwrap_or_default(),
+            at_downstream: at_downstream.or_else(||when.clone()).unwrap_or_default(),
             at_build: at_build
             .or_else(|| {
                 let Some(when) = when else {

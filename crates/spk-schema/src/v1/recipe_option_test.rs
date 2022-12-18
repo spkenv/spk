@@ -47,7 +47,7 @@ fn test_base_when_inheritance() {
         },
     };
     assert_eq!(opt.at_runtime, propagation);
-    assert_eq!(opt.at_downstream_runtime, propagation);
+    assert_eq!(opt.at_downstream, propagation);
 }
 
 #[rstest]
