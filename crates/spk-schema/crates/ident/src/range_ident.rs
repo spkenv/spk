@@ -76,7 +76,7 @@ impl PartialOrd for RangeIdent {
 }
 
 impl RangeIdent {
-    fn new<I>(ident: &AnyIdent, version_range: VersionRange, components: I) -> Self
+    pub fn new<I>(ident: &AnyIdent, version_range: VersionRange, components: I) -> Self
     where
         I: IntoIterator<Item = Component>,
     {

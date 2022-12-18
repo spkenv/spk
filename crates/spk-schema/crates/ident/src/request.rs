@@ -295,11 +295,16 @@ impl<'de> Deserialize<'de> for Request {
                             self.inclusion_policy = Some(map.next_value::<InclusionPolicy>()?)
                         }
                         "frombuildenv" => self.pin = Some(map.next_value::<PinValue>()?),
-                        "var" => {
-                            let NameAndValue(name, value) = map.next_value()?;
-                            self.var = Some(name);
-                            self.value = value;
-                        }
+                        "var" => match map.next_value::<NameAndValue>()? {
+                            NameAndValue::NameOnly(n) => self.var = Some(n),
+                            NameAndValue::WithDefaultValue(n, v) => {
+                                self.var = Some(n);
+                                self.value = Some(v);
+                            }
+                            NameAndValue::WithAssignedValue(v, n) => {
+                                return Err(serde::de::Error::custom(format!("Variable assignment not supported here, use a forward slash instead: `{n}/{v}`")));
+                            }
+                        },
                         "value" => self.value = Some(map.next_value::<String>()?),
                         "description" => self.description = Some(map.next_value::<String>()?),
                         _ => {
@@ -1118,13 +1123,75 @@ pub fn is_false(value: &bool) -> bool {
     !*value
 }
 
-/// A deserializable name and optional value where
-/// the value it identified by its position following
-/// a forward slash (eg: `/<value>`)
-pub struct NameAndValue<Name = OptNameBuf>(pub Name, pub Option<String>)
+/// A deserializable name and optional default or assigned value
+/// where the value it identified by it's position following
+/// a forward slash and equals sign respectively (eg: '<name>/<value>')
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NameAndValue<Name = OptNameBuf> {
+    /// Only a name, with no associated value
+    NameOnly(Name),
+    /// A name with a default associated value
+    WithDefaultValue(Name, String),
+    /// A name with a static, assigned value
+    WithAssignedValue(Name, String),
+}
+
+impl<Name> std::fmt::Display for NameAndValue<Name>
+where
+    Name: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NameAndValue::NameOnly(name) => name.fmt(f),
+            NameAndValue::WithDefaultValue(name, default) => {
+                name.fmt(f)?;
+                f.write_char('/')?;
+                default.fmt(f)
+            }
+            NameAndValue::WithAssignedValue(name, assigned) => {
+                name.fmt(f)?;
+                f.write_char('=')?;
+                assigned.fmt(f)
+            }
+        }
+    }
+}
+
+impl<Name> NameAndValue<Name>
 where
     Name: FromStr,
-    <Name as FromStr>::Err: std::fmt::Display;
+    <Name as FromStr>::Err: std::fmt::Display,
+{
+    pub fn name(&self) -> &Name {
+        match self {
+            NameAndValue::NameOnly(n) => n,
+            NameAndValue::WithDefaultValue(n, _) => n,
+            NameAndValue::WithAssignedValue(n, _) => n,
+        }
+    }
+
+    /// The current value for this name/value pair. Any
+    /// direct assignment is considered first, followed by a default
+    pub fn value<'a: 'out, 'b: 'out, 'out>(
+        &'a self,
+        given: Option<&'b String>,
+    ) -> Option<&'out String> {
+        match self {
+            NameAndValue::NameOnly(_) => given,
+            NameAndValue::WithDefaultValue(_, v) => given.or(Some(v)),
+            NameAndValue::WithAssignedValue(_, v) => Some(v),
+        }
+    }
+
+    /// The current value for this name/value pair, or an empty string
+    pub fn value_or_default(&self) -> &str {
+        match self {
+            NameAndValue::NameOnly(_) => "",
+            NameAndValue::WithDefaultValue(_, v) => v,
+            NameAndValue::WithAssignedValue(_, v) => v,
+        }
+    }
+}
 
 impl<'de, Name> Deserialize<'de> for NameAndValue<Name>
 where
@@ -1145,7 +1212,7 @@ where
             Name: FromStr,
             <Name as FromStr>::Err: std::fmt::Display,
         {
-            type Value = (Name, Option<String>);
+            type Value = NameAndValue<Name>;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("a var name an optional value (eg, `my-var`, `my-var/value`)")
@@ -1155,19 +1222,29 @@ where
             where
                 E: serde::de::Error,
             {
-                let mut parts = v.splitn(2, '/');
-                let name = parts
-                    .next()
-                    .unwrap()
-                    .parse()
-                    .map_err(serde::de::Error::custom)?;
-                Ok((name, parts.next().map(String::from)))
+                let split = v.find(['/', '=']);
+                let Some(split) = split else {
+                    return v
+                        .parse()
+                        .map_err(serde::de::Error::custom)
+                        .map(NameAndValue::NameOnly);
+                };
+                let name = v[..split].parse().map_err(serde::de::Error::custom)?;
+                match v.chars().nth(split) {
+                    Some('=') => Ok(NameAndValue::WithAssignedValue(
+                        name,
+                        v[split + 1..].to_string(),
+                    )),
+                    Some('/') => Ok(NameAndValue::WithDefaultValue(
+                        name,
+                        v[split + 1..].to_string(),
+                    )),
+                    _ => unreachable!(),
+                }
             }
         }
 
-        deserializer
-            .deserialize_str(NameAndValueVisitor::<Name>(PhantomData))
-            .map(|(n, v)| NameAndValue(n, v))
+        deserializer.deserialize_str(NameAndValueVisitor::<Name>(PhantomData))
     }
 }
 
