@@ -50,18 +50,19 @@ impl RecipeOptionList {
                 let RecipeOption::Var(var_opt) = option else {
                     continue;
                 };
-                let default = || var_opt.var.1.as_ref();
-                let Some(value) = given.get(&var_opt.var.0).or_else(default) else {
+                let Some(value) = var_opt.var.value(given.get(var_opt.var.name())) else {
                     continue;
                 };
                 if !var_opt.choices.is_empty() && !var_opt.choices.contains(value) {
                     return Err(Error::String(format!(
                         "invalid option value '{}={}', must be one of {:?}",
-                        var_opt.var.0, value, var_opt.choices
+                        var_opt.var.name(),
+                        value,
+                        var_opt.choices
                     )));
                 }
                 let value = value.clone();
-                match all.to_mut().entry(var_opt.var.0.to_owned()) {
+                match all.to_mut().entry(var_opt.var.name().clone()) {
                     Entry::Vacant(entry) => {
                         something_changed = true;
                         entry.insert(value.clone());
@@ -73,7 +74,7 @@ impl RecipeOptionList {
                         }
                     }
                 }
-                match resolved.entry(var_opt.var.0.to_owned()) {
+                match resolved.entry(var_opt.var.name().clone()) {
                     Entry::Vacant(entry) => {
                         entry.insert(value.clone());
                     }

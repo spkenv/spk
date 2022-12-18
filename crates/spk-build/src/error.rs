@@ -22,7 +22,12 @@ pub enum Error {
     FileWriteError(std::path::PathBuf, #[source] std::io::Error),
     #[error(transparent)]
     ProcessSpawnError(spfs::Error),
-    #[error("Package must include a build requirement for {request}, because it's being built against {required_by}. However, {problem}.")]
+    #[error(
+        "Package must include a build requirement for {request}, \
+            because it's being built against {required_by}. However, {problem}. \
+            This should not be possible, and points to a bug in the part of the \
+            spk build process that turns recipes into packages."
+    )]
     MissingDownstreamBuildRequest {
         /// The package that was in the build environment and created the need for this request
         required_by: BuildIdent,

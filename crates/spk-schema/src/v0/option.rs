@@ -234,25 +234,31 @@ impl<'de> Deserialize<'de> for Opt {
 
                 while let Some(key) = map.next_key::<Stringified>()? {
                     match key.as_str() {
-                        "pkg" => {
-                            let NameAndValue::<PkgNameBuf>(name, value) = map.next_value()?;
-                            self.pkg = Some(name);
-                            if value.is_some() {
+                        "pkg" => match map.next_value::<NameAndValue<PkgNameBuf>>()? {
+                            NameAndValue::NameOnly(n) => self.pkg = Some(n),
+                            NameAndValue::WithDefaultValue(n, v) => {
                                 check_existing_default(&self)?;
+                                self.pkg = Some(n);
+                                self.default = Some(v);
                             }
-                            self.default = value;
+                            NameAndValue::WithAssignedValue(_, v) => {
+                                return Err(serde::de::Error::custom(format!("Variable assignment not supported here, use a static value by adding `static: {v:?}")));
                         }
+                        },
                         "prereleasePolicy" => {
                             self.prerelease_policy = Some(map.next_value::<PreReleasePolicy>()?)
                         }
-                        "var" => {
-                            let NameAndValue(name, value) = map.next_value()?;
-                            self.var = Some(name);
-                            if value.is_some() {
+                        "var" => match map.next_value::<NameAndValue>()? {
+                            NameAndValue::NameOnly(n) => self.var = Some(n),
+                            NameAndValue::WithDefaultValue(n, v) => {
                                 check_existing_default(&self)?;
+                                self.var = Some(n);
+                                self.default = Some(v);
                             }
-                            self.default = value;
+                            NameAndValue::WithAssignedValue(_, v) => {
+                                return Err(serde::de::Error::custom(format!("Variable assignment not supported here, use a static value by adding `static: {v:?}")));
                         }
+                        },
                         "choices" => {
                             self.choices = Some(
                                 map.next_value::<Vec<Stringified>>()?

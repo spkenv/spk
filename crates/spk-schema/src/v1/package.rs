@@ -139,7 +139,7 @@ impl crate::Package for Package {
                 PackageOption::Var(v) => Some(v),
                 _ => None,
             })
-            .map(|o| (o.var.0.clone(), o.var.1.clone().unwrap_or_default()))
+            .map(|o| (o.var.name().clone(), o.var.value_or_default().to_owned()))
             .collect()
     }
 
@@ -301,7 +301,7 @@ impl Satisfy<VarRequest> for Package {
             .options
             .iter()
             .filter_map(PackageOption::as_var)
-            .filter(|o| o.var.0 == var_request.var);
+            .filter(|o| o.var.name() == &var_request.var);
         for option in options {
             let compat = option.check_satisfies_request(var_request);
             if !compat.is_ok() {

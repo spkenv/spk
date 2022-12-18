@@ -8,6 +8,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use itertools::Itertools;
 use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 use spk_exec::resolve_runtime_layers;
@@ -21,12 +22,13 @@ use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy, VersionIdent};
 use spk_schema::version::Compatibility;
 use spk_schema::{
+    BuildEnv,
+    BuildEnvMember,
     BuildIdent,
     ComponentFileMatchMode,
     ComponentSpecList,
     Package,
     PackageMut,
-    RequirementsList,
 };
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
@@ -272,7 +274,7 @@ where
         };
 
         tracing::debug!("Resolving build environment");
-        let (build_requirements, solution) = self.resolve_build_environment(&all_options).await?;
+        let solution = self.resolve_build_environment(&all_options).await?;
         self.environment
             .extend(solution.to_environment(Some(std::env::vars())));
 
@@ -293,7 +295,7 @@ where
         spfs::remount_runtime(&runtime).await?;
 
         let package = self.recipe.generate_binary_build(&solution)?;
-        self.validate_generated_package(&build_requirements, &solution, &package)?;
+        self.validate_generated_package(&solution, &package)?;
         let components = self
             .build_and_commit_artifacts(&package, &all_options)
             .await?;
@@ -359,10 +361,7 @@ where
         Ok(solution?)
     }
 
-    async fn resolve_build_environment(
-        &mut self,
-        options: &OptionMap,
-    ) -> Result<(RequirementsList, Solution)> {
+    async fn resolve_build_environment(&mut self, options: &OptionMap) -> Result<Solution> {
         self.solver.reset();
         self.solver.update_options(options.clone());
         self.solver.set_binary_only(true);
@@ -378,34 +377,24 @@ where
         let mut runtime = self.solver.run();
         let solution = self.build_resolver.solve(&mut runtime).await;
         self.last_solve_graph = runtime.graph();
-        Ok((build_requirements, solution?))
+        Ok(solution?)
     }
 
     fn validate_generated_package(
         &self,
-        build_requirements: &RequirementsList,
+        // FIXME: how do we handle this because the env has already been resolved...
         solution: &Solution,
         package: &Recipe::Output,
     ) -> Result<()> {
-        let solved_packages = solution.items().map(|r| &r.spec);
-        let all_components = package.components();
-        for spec in solved_packages {
-            for component in all_components.names() {
-                let downstream_build = spec.downstream_build_requirements([component]);
-                for request in downstream_build.iter() {
-                    match build_requirements.contains_request(request) {
-                        Compatibility::Compatible => continue,
-                        Compatibility::Incompatible(problem) => {
-                            return Err(Error::MissingDownstreamBuildRequest {
-                                required_by: spec.ident().to_owned(),
-                                request: request.clone(),
-                                problem,
-                            })
-                        }
-                    }
-                }
-                let runtime_requirements = package.runtime_requirements([component]);
-                let downstream_runtime = spec.downstream_build_requirements([component]);
+        for solved in solution.members() {
+            let spec = solved.package();
+            let used_components = solved.used_components();
+            let all_components = package.components().names_owned();
+            // XXX: do we actually need to cover all combinations here? And if so,
+            // would it ever become unreasonably long/slow to check them all?
+            for component_mix in all_components.iter().combinations(all_components.len()) {
+                let runtime_requirements = package.runtime_requirements(component_mix);
+                let downstream_runtime = spec.downstream_requirements(used_components);
                 for request in downstream_runtime.iter() {
                     match runtime_requirements.contains_request(request) {
                         Compatibility::Compatible => continue,

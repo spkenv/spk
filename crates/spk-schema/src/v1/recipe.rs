@@ -190,11 +190,14 @@ impl crate::Recipe for Recipe {
                         }))
                     }
                     super::RecipeOption::Var(opt) => {
-                        let value = build_options
-                            .get_for_package(self.pkg.name(), &opt.var.0)
-                            .or(opt.var.1.as_ref());
+                        let name = || opt.var.name().clone();
+                        let var = build_options
+                            .get_for_package(self.pkg.name(), opt.var.name())
+                            .or_else(|| opt.var.value(build_options.get(opt.var.name())))
+                            .map(|v| NameAndValue::WithAssignedValue(name(), v.clone()))
+                            .unwrap_or_else(|| NameAndValue::NameOnly(name()));
                         super::PackageOption::Var(Box::new(super::package_option::VarOption {
-                            var: NameAndValue(opt.var.0.clone(), value.cloned()),
+                            var,
                             choices: opt.choices.clone(),
                             propagation,
                         }))

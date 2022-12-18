@@ -305,10 +305,10 @@ impl<'de> serde::de::Visitor<'de> for WhenConditionVisitor {
                     spk_schema_ident::RequestedBy::DoesNotMatter,
                 ))),
                 "var" => {
-                    let NameAndValue(var, value) = map.next_value()?;
+                    let v = map.next_value::<NameAndValue>()?;
                     result.replace(WhenCondition::Var(VarRequest {
-                        var,
-                        value: value.unwrap_or_default(),
+                        var: v.name().clone(),
+                        value: v.value_or_default().to_owned(),
                         pin: false,
                     }))
                 }

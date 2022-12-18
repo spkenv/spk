@@ -30,14 +30,18 @@ impl PackageOption {
     pub fn name(&self) -> &OptName {
         match self {
             Self::Pkg(p) => p.pkg.name.as_opt_name(),
-            Self::Var(v) => &v.var.0,
+            Self::Var(v) => v.var.name(),
         }
     }
 
-    pub fn value(&self) -> String {
+    pub fn value(&self, given: Option<&String>) -> String {
         match self {
             Self::Pkg(p) => p.pkg.version.to_string(),
-            Self::Var(v) => v.var.1.clone().unwrap_or_default(),
+            Self::Var(v) => v
+                .var
+                .value(given)
+                .map(ToString::to_string)
+                .unwrap_or_default(),
         }
     }
 
@@ -48,10 +52,14 @@ impl PackageOption {
         }
     }
 
-    pub fn to_request(&self, requested_by: impl FnOnce() -> RequestedBy) -> Option<Request> {
+    pub fn to_request(
+        &self,
+        given: Option<&String>,
+        requested_by: impl FnOnce() -> RequestedBy,
+    ) -> Option<Request> {
         match self {
             Self::Pkg(p) => Some(Request::Pkg(p.to_request(requested_by()))),
-            Self::Var(v) => v.to_request().map(Request::Var),
+            Self::Var(v) => v.to_request(given).map(Request::Var),
         }
     }
 
@@ -82,24 +90,25 @@ pub struct VarOption {
 }
 
 impl VarOption {
-    pub fn to_request(&self) -> Option<VarRequest> {
-        self.var.1.clone().map(|value| VarRequest {
-            var: self.var.0.clone(),
+    pub fn to_request(&self, given: Option<&String>) -> Option<VarRequest> {
+        self.var.value(given).map(|value| VarRequest {
+            var: self.var.name().clone(),
             pin: false,
-            value,
+            value: value.to_owned(),
         })
     }
 }
 
 impl Satisfy<VarRequest> for VarOption {
     fn check_satisfies_request(&self, var_request: &VarRequest) -> Compatibility {
-        if self.var.0 != var_request.var {
+        if self.var.name() != &var_request.var {
             return Compatibility::incompatible(format!(
                 "request is for an entirely different var: want: '{}', got: '{}'",
-                self.var.0, var_request.var
+                self.var.name(),
+                var_request.var
             ));
         }
-        let needed_value = self.var.1.as_deref().unwrap_or_default();
+        let needed_value = self.var.value_or_default();
         if needed_value != var_request.value {
             return Compatibility::incompatible(format!(
                 "request is for an entirely different var: want: '{}', got: '{}'",
