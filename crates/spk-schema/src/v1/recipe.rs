@@ -132,7 +132,7 @@ impl crate::Recipe for Recipe {
             self.options
                 .iter()
                 .filter(|o| o.check_is_active_at_build(options).is_ok())
-                .filter_map(|o| o.to_request())
+                .filter_map(|o| o.to_request(options))
                 .collect(),
         ))
     }
@@ -173,7 +173,7 @@ impl crate::Recipe for Recipe {
             .iter()
             .filter(|option| option.check_is_active_at_build(&build_options).is_ok())
             .map(|option| {
-                let propagation = super::package_option::Propagation {
+                let propagation = super::package_option::OptionPropagation {
                     at_runtime: option.check_is_active_at_runtime(&build_env).is_ok(),
                     at_downstream: option.check_is_active_at_downstream(&build_env).is_ok(),
                 };
@@ -210,19 +210,34 @@ impl crate::Recipe for Recipe {
             .collect();
         let test = self.package.test.clone();
         let script = self.build.script.to_string(&build_env);
-        Ok(super::Package {
+        let mut package = super::Package {
             pkg,
             meta: self.meta.clone(),
             deprecated: false,
             compat: self.compat.clone(),
             source: self.source.clone(),
             options,
-                environment: self.package.environment.clone(),
-                components,
-                test,
-                validation: self.package.validation.clone(),
+            environment: self.package.environment.clone(),
+            components,
+            test,
+            validation: self.package.validation.clone(),
             script,
-        })
+        };
+
+        let mut at_downstream = Vec::new();
+        for member in build_env.members() {
+            let pkg = member.package();
+            let used = member.used_components();
+            at_downstream.extend(pkg.downstream_requirements(used).into_owned());
+        }
+        for component in package.components.iter_mut() {
+            // TODO: account for different components having different requirements
+            for downstream in at_downstream.iter() {
+                component.requirements.insert_merge(downstream.clone())?;
+            }
+        }
+
+        Ok(package)
     }
 }
 

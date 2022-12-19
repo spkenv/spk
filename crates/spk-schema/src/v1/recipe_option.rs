@@ -4,6 +4,7 @@
 
 use std::collections::BTreeSet;
 use std::marker::PhantomData;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
@@ -11,6 +12,7 @@ use spk_schema_foundation::name::OptNameBuf;
 use spk_schema_foundation::option_map::{OptionMap, Stringified};
 use spk_schema_foundation::spec_ops::{HasVersion, Named};
 use spk_schema_foundation::version::Compatibility;
+use spk_schema_foundation::version_range::Ranged;
 use spk_schema_ident::{NameAndValue, PkgRequest, RangeIdent, Request, Satisfy, VarRequest};
 
 use super::WhenBlock;
@@ -30,10 +32,13 @@ pub enum RecipeOption {
 
 impl RecipeOption {
     /// Create a solver request from this option
-    pub fn to_request(&self) -> Option<Request> {
+    pub fn to_request<V>(&self, variant: V) -> Option<Request>
+    where
+        V: crate::Variant,
+    {
         match self {
-            Self::Pkg(p) => Some(Request::Pkg(p.to_request())),
-            Self::Var(v) => v.to_request().map(Request::Var),
+            Self::Pkg(p) => Some(Request::Pkg(p.to_request(variant))),
+            Self::Var(v) => v.to_request(variant).map(Request::Var),
         }
     }
 
@@ -140,11 +145,17 @@ pub struct VarOption {
 
 impl VarOption {
     /// Create a solver request from this option, if appropriate
-    pub fn to_request(&self) -> Option<VarRequest> {
-        self.var.1.clone().map(|value| VarRequest {
-            var: self.var.0.clone(),
+    pub fn to_request<V>(&self, variant: V) -> Option<VarRequest>
+    where
+        V: crate::Variant,
+    {
+        let variant_options = variant.options();
+        // TODO: account for inheritance and the possible unqualified var name
+        let given = variant_options.get(self.var.name());
+        self.var.value(given).map(|value| VarRequest {
+            var: self.var.name().clone(),
             pin: false,
-            value,
+            value: value.to_owned(),
         })
     }
 }
@@ -217,8 +228,8 @@ impl<'de> serde::de::Visitor<'de> for PartialVarVisitor {
                         None
                     }
                 }}).unwrap_or_default(),
-            var,
-            choices,
+                var,
+                choices,
         })
     }
 }
@@ -243,6 +254,14 @@ impl Default for VarPropagation {
 impl VarPropagation {
     pub fn is_default(&self) -> bool {
         self == &Self::default()
+    }
+
+    pub fn is_disabled(&self) -> bool {
+        matches!(self, Self::Disabled)
+    }
+
+    pub fn disabled() -> Self {
+        Self::Disabled
     }
 
     pub fn check_is_active<E>(&self, build_env: E) -> Compatibility
@@ -366,9 +385,19 @@ fn no_downstream_build_error<E: serde::de::Error>() -> E {
 
 impl PkgOption {
     /// Create a solver request from this option
-    pub fn to_request(&self) -> PkgRequest {
+    pub fn to_request<V>(&self, variant: V) -> PkgRequest
+    where
+        V: crate::Variant,
+    {
+        let variant_options = variant.options();
+        let pkg = variant_options
+            .get(self.pkg.name.as_opt_name())
+            .map(|v| format!("{}/{v}", self.pkg.name))
+            // TODO: warn about the invalid value?
+            .and_then(|v| RangeIdent::from_str(&v).ok())
+            .unwrap_or_else(|| self.pkg.clone());
         PkgRequest {
-            pkg: self.pkg.clone(),
+            pkg,
             prerelease_policy: Default::default(),
             inclusion_policy: Default::default(),
             pin: Default::default(),
@@ -448,8 +477,8 @@ impl<'de> serde::de::Visitor<'de> for PartialPkgVisitor {
                     }
                 }}).unwrap_or_default(),
                 at_downstream_build: PhantomData,
-            pkg,
-        })
+                pkg,
+            })
     }
 }
 
@@ -491,9 +520,24 @@ impl PkgPropagation {
                 components: _,
                 when,
             } => {
-                let Some(_resolved) = build_env.packages().find(|p| p.name() == pkg.name()) else {
-                    return when.check_is_active(build_env);
-                };
+                if let Some(member) = build_env.get_member(pkg.name()) {
+                    let resolved_components = member.used_components();
+                    if !pkg
+                        .components
+                        .iter()
+                        .any(|c| resolved_components.contains(c))
+                    {
+                        return Compatibility::incompatible(format!(
+                            "None of the specified components are present {:?}",
+                            pkg.components
+                        ));
+                    }
+                    let resolved_package = member.package();
+                    let compat = pkg.version.is_applicable(resolved_package.version());
+                    if !compat.is_ok() {
+                        return compat;
+                    }
+                }
                 when.check_is_active(build_env)
             }
         }

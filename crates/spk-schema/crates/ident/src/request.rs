@@ -117,6 +117,13 @@ impl Request {
         matches!(self, Self::Pkg(_))
     }
 
+    pub fn as_pkg(&self) -> Option<&PkgRequest> {
+        match self {
+            Self::Pkg(p) => Some(p),
+            _ => None,
+        }
+    }
+
     pub fn into_pkg(self) -> Option<PkgRequest> {
         match self {
             Self::Pkg(p) => Some(p),
@@ -126,6 +133,13 @@ impl Request {
 
     pub fn is_var(&self) -> bool {
         matches!(self, Self::Var(_))
+    }
+
+    pub fn as_var(&self) -> Option<&VarRequest> {
+        match self {
+            Self::Var(v) => Some(v),
+            _ => None,
+        }
     }
 
     pub fn into_var(self) -> Option<VarRequest> {
@@ -215,7 +229,7 @@ impl<'de> Deserialize<'de> for Request {
                             NameAndValue::WithDefaultValue(n, v) => {
                                 self.var = Some(n);
                                 self.value = Some(v);
-                        }
+                            }
                             NameAndValue::WithAssignedValue(v, n) => {
                                 return Err(serde::de::Error::custom(format!("Variable assignment not supported here, use a forward slash instead: `{n}/{v}`")));
                             }
@@ -433,7 +447,7 @@ impl<'de> Deserialize<'de> for VarRequest {
                             NameAndValue::WithDefaultValue(n, v) => {
                                 var = Some(n);
                                 value = Some(v);
-                        }
+                            }
                             NameAndValue::WithAssignedValue(v, n) => {
                                 return Err(serde::de::Error::custom(format!("Variable assignment not supported here, use a forward slash instead: `{n}/{v}`")));
                             }
