@@ -122,16 +122,6 @@ impl<Ident> Spec<Ident> {
     }
 }
 
-impl Spec<VersionIdent> {
-    /// Check if this package spec satisfies the given request.
-    pub fn satisfies_request(&self, request: Request) -> Compatibility {
-        match request {
-            Request::Pkg(request) => Satisfy::check_satisfies_request(self, &request),
-            Request::Var(request) => Satisfy::check_satisfies_request(self, &request),
-        }
-    }
-}
-
 impl Spec<BuildIdent> {
     /// Check if this package spec satisfies the given request.
     pub fn satisfies_request(&self, request: Request) -> Compatibility {
@@ -478,44 +468,6 @@ impl Recipe for Spec<VersionIdent> {
             .render_all_pins(&options, by_name.iter().map(|(_, p)| p.package().ident()))?;
         let digest = updated.resolve_options(&options)?.digest();
         Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
-    }
-}
-
-impl Satisfy<PkgRequest> for Spec<VersionIdent> {
-    fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
-        if pkg_request.pkg.name != *self.pkg.name() {
-            return Compatibility::Incompatible(format!(
-                "different package name: {} != {}",
-                pkg_request.pkg.name,
-                self.pkg.name()
-            ));
-        }
-
-        if self.is_deprecated() {
-            // deprecated builds are only okay if their build
-            // was specifically requested
-            if pkg_request.pkg.build.is_none() {
-                return Compatibility::Incompatible(
-                    "Build is deprecated and was not specifically requested".to_string(),
-                );
-            }
-        }
-
-        if pkg_request.prerelease_policy == PreReleasePolicy::ExcludeAll
-            && !self.version().pre.is_empty()
-        {
-            return Compatibility::Incompatible("prereleases not allowed".to_string());
-        }
-
-        let c = pkg_request
-            .pkg
-            .version
-            .is_satisfied_by(self, CompatRule::API);
-        if !c.is_ok() {
-            return c;
-        }
-
-        Compatibility::Compatible
     }
 }
 

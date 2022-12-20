@@ -14,8 +14,8 @@ use super::{RecipeBuildSpec, RecipeOptionList, RecipePackagingSpec, SourceSpec};
 use crate::foundation::name::PkgName;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
-use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{is_false, PkgRequest, Satisfy, VarRequest};
+use crate::foundation::version::{Compat, Version};
+use crate::ident::{is_false, PkgRequest, Satisfy};
 use crate::meta::Meta;
 use crate::{
     BuildEnv,
@@ -238,17 +238,5 @@ impl crate::Recipe for Recipe {
         }
 
         Ok(package)
-    }
-}
-
-impl Satisfy<PkgRequest> for Recipe {
-    fn check_satisfies_request(&self, _pkg_request: &PkgRequest) -> Compatibility {
-        todo!()
-    }
-}
-
-impl Satisfy<VarRequest> for Recipe {
-    fn check_satisfies_request(&self, _var_request: &VarRequest) -> Compatibility {
-        todo!()
     }
 }

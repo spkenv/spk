@@ -42,6 +42,42 @@ impl RecipeOption {
         }
     }
 
+    pub fn is_pkg(&self) -> bool {
+        matches!(self, Self::Pkg(_))
+    }
+
+    pub fn as_pkg(&self) -> Option<&PkgOption> {
+        match self {
+            Self::Pkg(o) => Some(o),
+            _ => None,
+        }
+    }
+
+    pub fn into_pkg(self) -> Option<Box<PkgOption>> {
+        match self {
+            Self::Pkg(o) => Some(o),
+            _ => None,
+        }
+    }
+
+    pub fn is_var(&self) -> bool {
+        matches!(self, Self::Var(_))
+    }
+
+    pub fn as_var(&self) -> Option<&VarOption> {
+        match self {
+            Self::Var(o) => Some(o),
+            _ => None,
+        }
+    }
+
+    pub fn into_var(self) -> Option<Box<VarOption>> {
+        match self {
+            Self::Var(o) => Some(o),
+            _ => None,
+        }
+    }
+
     /// Determine if this option is enabled given the resolved
     /// build environment. If not, the returned compatibility will
     /// denote a reason why it has been disabled.
