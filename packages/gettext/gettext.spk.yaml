@@ -6,14 +6,17 @@ sources:
 
 build:
   options:
-    - autoconf
-    - automake/>=1.16.1
-    - gettext
-    - autopoint
-    - pkg-config
-    - texinfo
-    - gcc
-    - make # remove for bootstrapping from host
+    - var: os
+    - var: arch
+    - var: centos
+    - pkg: autoconf
+    - pkg: automake/>=1.16.1
+    - pkg: gettext
+    - pkg: autopoint
+    - pkg: pkg-config
+    - pkg: texinfo
+    - pkg: gcc
+    - pkg: make # remove for bootstrapping from host
   script:
     - ./bootstrap
     - ./configure --prefix=${PREFIX} MAKE_MAINTAINER_MODE= MAKE_CFLAGS=

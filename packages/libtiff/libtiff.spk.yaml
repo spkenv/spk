@@ -19,7 +19,6 @@ build:
     - var: arch    # rebuild if the arch changes
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
-    - pkg: stdfs
     - pkg: gcc/6.3
     - pkg: cmake/^3.13
     - pkg: libjpeg
