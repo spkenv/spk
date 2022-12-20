@@ -26,6 +26,7 @@ pub struct Publisher {
     from: Arc<storage::RepositoryHandle>,
     to: Arc<storage::RepositoryHandle>,
     skip_source_packages: bool,
+    allow_unstable_api: bool,
     force: bool,
 }
 
@@ -42,6 +43,7 @@ impl Publisher {
             from: source,
             to: destination,
             skip_source_packages: false,
+            allow_unstable_api: false,
             force: false,
         }
     }
@@ -61,6 +63,12 @@ impl Publisher {
     /// Do not publish source packages, even if they exist for the version being published.
     pub fn skip_source_packages(mut self, skip_source_packages: bool) -> Self {
         self.skip_source_packages = skip_source_packages;
+        self
+    }
+
+    /// Allow publishing packages defined with an unstable api version
+    pub fn allow_unstable_api(mut self, allow_unstable_api: bool) -> Self {
+        self.allow_unstable_api = allow_unstable_api;
         self
     }
 
@@ -99,6 +107,12 @@ impl Publisher {
             }
             Err(err) => return Err(err.into()),
             Ok(recipe) => {
+                if !recipe.api_version().is_stable() && !self.allow_unstable_api {
+                    return Err(Error::String(format!(
+                        "Recipe has unstable api version, and allow unstable is not set: {:?}",
+                        recipe.api_version()
+                    )));
+                }
                 tracing::info!("publishing recipe: {}", recipe.ident().format_ident());
                 if self.force {
                     self.to.force_publish_recipe(&recipe).await?;
@@ -142,6 +156,12 @@ impl Publisher {
 
             tracing::debug!("   loading package: {}", build.format_ident());
             let spec = self.from.read_package(build).await?;
+            if !spec.api_version().is_stable() && !self.allow_unstable_api {
+                return Err(Error::String(format!(
+                    "Package build has unstable api version, and allow unstable is not set: {:?}",
+                    spec.api_version()
+                )));
+            }
             let components = self.from.read_components(build).await?;
             tracing::info!("publishing package: {}", spec.ident().format_ident());
             let env_spec = components.values().cloned().collect();

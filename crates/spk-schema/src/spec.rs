@@ -186,8 +186,17 @@ impl TemplateExt for SpecTemplate {
 pub enum SpecRecipe {
     #[serde(rename = "v0/package")]
     V0Package(super::v0::Spec<VersionIdent>),
-    #[serde(rename = "v1/recipe")]
+    #[serde(rename = "v1alpha1/recipe")]
     V1Recipe(super::v1::Recipe),
+}
+
+impl SpecRecipe {
+    pub fn api_version(&self) -> RecipeApiVersion {
+        match self {
+            Self::V0Package(_) => RecipeApiVersion::V0Package,
+            Self::V1Recipe(_) => RecipeApiVersion::V1Recipe,
+        }
+    }
 }
 
 impl Recipe for SpecRecipe {
@@ -410,8 +419,17 @@ impl std::fmt::Display for SpecVariant {
 pub enum Spec {
     #[serde(rename = "v0/package")]
     V0Package(super::v0::Spec<BuildIdent>),
-    #[serde(rename = "v1/package")]
+    #[serde(rename = "v1alpha1/package")]
     V1Package(super::v1::Package),
+}
+
+impl Spec {
+    pub fn api_version(&self) -> PackageApiVersion {
+        match self {
+            Self::V0Package(_) => PackageApiVersion::V0Package,
+            Self::V1Package(_) => PackageApiVersion::V1Package,
+        }
+    }
 }
 
 impl Satisfy<PkgRequest> for Spec {
@@ -620,20 +638,32 @@ impl AsRef<Spec> for Spec {
     }
 }
 
-#[derive(Default, Deserialize, Serialize, Copy, Clone)]
+#[derive(Default, Debug, Deserialize, Serialize, Copy, Clone)]
 pub enum RecipeApiVersion {
     #[default]
     #[serde(rename = "v0/package")]
     V0Package,
-    #[serde(rename = "v1/recipe")]
+    #[serde(rename = "v1alpha1/recipe")]
     V1Recipe,
 }
 
-#[derive(Default, Deserialize, Serialize, Copy, Clone)]
+impl RecipeApiVersion {
+    pub fn is_stable(&self) -> bool {
+        matches!(self, Self::V0Package)
+    }
+}
+
+#[derive(Default, Debug, Deserialize, Serialize, Copy, Clone)]
 pub enum PackageApiVersion {
     #[default]
     #[serde(rename = "v0/package")]
     V0Package,
-    #[serde(rename = "v1/package")]
+    #[serde(rename = "v1alpha1/package")]
     V1Package,
+}
+
+impl PackageApiVersion {
+    pub fn is_stable(&self) -> bool {
+        matches!(self, Self::V0Package)
+    }
 }
