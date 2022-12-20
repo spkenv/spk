@@ -183,14 +183,6 @@ pub enum SpecRecipe {
     V0Package(super::v0::Spec<VersionIdent>),
 }
 
-impl Satisfy<PkgRequest> for SpecRecipe {
-    fn check_satisfies_request(&self, request: &PkgRequest) -> Compatibility {
-        match self {
-            SpecRecipe::V0Package(r) => r.check_satisfies_request(request),
-        }
-    }
-}
-
 impl Recipe for SpecRecipe {
     type Output = Spec;
 
