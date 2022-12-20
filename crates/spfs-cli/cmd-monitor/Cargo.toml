@@ -1,6 +1,6 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
-edition = "2021"
+edition = { workspace = true }
 name = "spfs-cli-monitor"
 version = "0.34.6"
 

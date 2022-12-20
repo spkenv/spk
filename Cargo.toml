@@ -18,6 +18,10 @@ members = [
     "crates/spk",
 ]
 
+[workspace.package]
+edition = "2021"
+version = "0.36.0"
+
 [workspace.dependencies]
 anyhow = "1.0"
 async-trait = "0.1"

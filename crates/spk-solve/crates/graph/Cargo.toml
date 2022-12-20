@@ -1,8 +1,8 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
-edition = "2021"
+edition = { workspace = true }
 name = "spk-solve-graph"
-version = "0.36.0"
+version = { workspace = true }
 
 [dependencies]
 async-recursion = "1.0"

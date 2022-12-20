@@ -1,8 +1,8 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
-edition = "2021"
+edition = { workspace = true }
 name = "spk-cli-group4"
-version = "0.36.0"
+version = { workspace = true }
 
 [dependencies]
 anyhow = { workspace = true }
