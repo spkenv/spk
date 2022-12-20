@@ -203,8 +203,30 @@ impl crate::Package for Package {
         Cow::Borrowed(&self.script)
     }
 
-    fn validate_options(&self, _given_options: &OptionMap) -> Compatibility {
-        todo!()
+    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
+        let mut must_exist = given_options.package_options_without_global(self.name());
+        let given_options = given_options.package_options(self.name());
+        for option in self.options.iter() {
+            let name = option.name();
+            let value = given_options
+                .get_for_package(self.pkg.name(), name)
+                .map(String::as_str);
+            let compat = option.validate(value);
+            if !compat.is_ok() {
+                return Compatibility::Incompatible(format!("invalid value for {name}: {compat}",));
+            }
+
+            must_exist.remove(name.without_namespace());
+        }
+
+        if !must_exist.is_empty() {
+            let missing = must_exist;
+            return Compatibility::Incompatible(format!(
+                "Package does not define requested build options: {missing:?}",
+            ));
+        }
+
+        Compatibility::Compatible
     }
 }
 

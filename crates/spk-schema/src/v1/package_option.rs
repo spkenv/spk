@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::{OptName, OptNameBuf};
 use spk_schema_foundation::version::Compatibility;
+use spk_schema_foundation::version_range::{Ranged, VersionRange};
 use spk_schema_ident::{
     NameAndValue,
     PkgRequest,
@@ -76,6 +79,13 @@ impl PackageOption {
             _ => None,
         }
     }
+
+    pub fn validate(&self, value: Option<&str>) -> Compatibility {
+        match self {
+            Self::Pkg(p) => p.validate(value),
+            Self::Var(v) => v.validate(value),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
@@ -96,6 +106,23 @@ impl VarOption {
             pin: false,
             value: value.to_owned(),
         })
+    }
+
+    pub fn validate(&self, value: Option<&str>) -> Compatibility {
+        let Some(value) = value else {
+            let default = self.var.value(None);
+            return self.validate(default.map(String::as_str));
+        };
+        match &self.var {
+            NameAndValue::NameOnly(_) => Compatibility::Compatible,
+            NameAndValue::WithDefaultValue(_, _v) => Compatibility::Compatible,
+            NameAndValue::WithAssignedValue(_, v) if value == v || value.is_empty() => {
+                Compatibility::Compatible
+            }
+            NameAndValue::WithAssignedValue(_, v) => Compatibility::incompatible(format!(
+                "incompatible option, wanted '{v}', got '{value:?}'",
+            )),
+        }
     }
 }
 
@@ -131,6 +158,18 @@ pub struct PkgOption {
 impl PkgOption {
     pub fn to_request(&self, requested_by: RequestedBy) -> PkgRequest {
         PkgRequest::new(self.pkg.clone(), requested_by)
+    }
+
+    pub fn validate(&self, value: Option<&str>) -> Compatibility {
+        let value = value.unwrap_or_default();
+
+        match VersionRange::from_str(value) {
+            Err(err) => Compatibility::Incompatible(format!(
+                "Invalid value '{}' for option '{}', not a valid package request: {}",
+                value, self.pkg, err
+            )),
+            Ok(value_range) => value_range.intersects(&self.pkg.version),
+        }
     }
 }
 
