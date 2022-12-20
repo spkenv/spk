@@ -5,6 +5,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Write;
+use std::marker::PhantomData;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -21,6 +22,17 @@ pub struct RecipeBuildSpec {
     pub script: ScriptBlock,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub test: Vec<TestScript>,
+
+    /// reserved to help avoid common mistakes in production
+    #[serde(
+        default,
+        deserialize_with = "super::source_spec::no_tests_field",
+        skip_serializing
+    )]
+    tests: PhantomData<()>,
+    /// reserved to help avoid common mistakes in production
+    #[serde(default, deserialize_with = "no_build_options_field", skip_serializing)]
+    options: PhantomData<()>,
 }
 
 /// Variants are compared and sorted without their name considered,
@@ -83,3 +95,12 @@ impl std::cmp::PartialEq for VariantSpec {
 }
 
 impl std::cmp::Eq for VariantSpec {}
+
+fn no_build_options_field<'de, D>(_deserializer: D) -> Result<PhantomData<()>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Err(serde::de::Error::custom(
+        "no field 'build.options'. The 'options' field lives at the root in v1, not under 'build'.",
+    ))
+}

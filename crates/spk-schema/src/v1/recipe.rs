@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::borrow::Cow;
+use std::marker::PhantomData;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -52,6 +53,13 @@ pub struct Recipe {
     pub build: RecipeBuildSpec,
     #[serde(default)]
     pub package: RecipePackagingSpec,
+
+    /// reserved to help avoid common mistakes in production
+    #[serde(default, deserialize_with = "no_field_sources", skip_serializing)]
+    sources: PhantomData<()>,
+    /// reserved to help avoid common mistakes in production
+    #[serde(default, deserialize_with = "no_global_tests_field", skip_serializing)]
+    tests: PhantomData<()>,
 }
 
 impl Recipe {
@@ -66,6 +74,8 @@ impl Recipe {
             source: Default::default(),
             build: Default::default(),
             package: Default::default(),
+            sources: PhantomData,
+            tests: PhantomData,
         }
     }
 }
@@ -239,4 +249,22 @@ impl crate::Recipe for Recipe {
 
         Ok(package)
     }
+}
+
+fn no_field_sources<'de, D>(_deserializer: D) -> std::result::Result<PhantomData<()>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Err(serde::de::Error::custom(
+        "no field 'sources', but there is a 'source' field.",
+    ))
+}
+
+fn no_global_tests_field<'de, D>(_deserializer: D) -> std::result::Result<PhantomData<()>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Err(serde::de::Error::custom(
+        "no field 'tests', in v1 there is a 'test' field under each of 'source', 'build' and 'package'.",
+    ))
 }

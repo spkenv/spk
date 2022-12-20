@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::marker::PhantomData;
+
 use serde::{Deserialize, Serialize};
 
 use super::{Conditional, TestScript};
@@ -18,4 +20,12 @@ pub struct RecipePackagingSpec {
     pub test: Vec<TestScript>,
     #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
     pub validation: ValidationSpec,
+
+    /// reserved to help avoid common mistakes in production
+    #[serde(
+        default,
+        deserialize_with = "super::source_spec::no_tests_field",
+        skip_serializing
+    )]
+    tests: PhantomData<()>,
 }

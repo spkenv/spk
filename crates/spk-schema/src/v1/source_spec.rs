@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::marker::PhantomData;
+
 use serde::{Deserialize, Serialize};
 
 use super::TestScript;
@@ -13,6 +15,10 @@ pub struct SourceSpec {
     pub collect: Vec<crate::SourceSpec>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub test: Vec<TestScript>,
+
+    /// reserved to help avoid common mistakes in production
+    #[serde(default, deserialize_with = "no_tests_field", skip_serializing)]
+    tests: PhantomData<()>,
 }
 
 impl SourceSpec {
@@ -26,10 +32,20 @@ impl Default for SourceSpec {
         Self {
             collect: default_sources(),
             test: Vec::new(),
+            tests: PhantomData,
         }
     }
 }
 
 fn default_sources() -> Vec<crate::SourceSpec> {
     vec![crate::SourceSpec::Local(Default::default())]
+}
+
+pub(super) fn no_tests_field<'de, D>(_deserializer: D) -> Result<PhantomData<()>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Err(serde::de::Error::custom(
+        "no field 'tests', but there is a 'test' field",
+    ))
 }
