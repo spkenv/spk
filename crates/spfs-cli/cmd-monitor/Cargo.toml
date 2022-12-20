@@ -12,7 +12,7 @@ path = "src/cmd_monitor.rs"
 sentry = ["spfs/sentry", "spfs-cli-common/sentry"]
 
 [dependencies]
-clap = { version = "3.2", features = ["derive", "env"] }
+clap = { workspace = true }
 spfs = { path = "../../spfs" }
 spfs-cli-common = { path = "../common" }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }

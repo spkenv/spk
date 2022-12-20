@@ -13,7 +13,7 @@ sentry = ["spfs-cli-common/sentry"]
 
 [dependencies]
 chrono = { workspace = true }
-clap = { version = "3.2", features = ["derive", "env"] }
+clap = { workspace = true }
 colored = "2.0"
 question = "0.2.2"
 spfs = { path = "../../spfs" }

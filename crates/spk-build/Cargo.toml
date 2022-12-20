@@ -18,8 +18,8 @@ spk-solve = { path = "../spk-solve" }
 spk-schema = { path = "../spk-schema" }
 spk-storage = { path = "../spk-storage" }
 thiserror = "1.0"
-tokio = { version = "1.20", features = ["rt"] }
-tracing = "0.1.35"
+tokio = { workspace = true, features = ["rt"] }
+tracing = { workspace = true }
 
 [dev-dependencies]
 rstest = "0.15.0"

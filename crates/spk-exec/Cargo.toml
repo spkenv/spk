@@ -10,4 +10,4 @@ spk-schema = { path = '../spk-schema' }
 spk-storage = { path = "../spk-storage" }
 spk-solve = { path = "../spk-solve" }
 thiserror = "1.0"
-tracing = "0.1.35"
+tracing = { workspace = true }

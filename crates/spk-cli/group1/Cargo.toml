@@ -8,10 +8,10 @@ version = "0.36.0"
 sentry = ["spk-solve/sentry"]
 
 [dependencies]
-anyhow = "1.0"
-async-trait = "0.1"
-clap = { version = "3.2", features = ["derive", "env"] }
-colored = "2.0.0"
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+clap = { workspace = true }
+colored = { workspace = true }
 futures = "0.3.9"
 itertools = "0.10"
 serde = { version = "1.0.117", features = ["derive"] }
@@ -22,8 +22,8 @@ spk-cli-common = { path = '../common' }
 spk-solve = { path = '../../spk-solve' }
 spk-schema = { path = '../../spk-schema' }
 spk-storage = { path = '../../spk-storage' }
-tokio = { version = "1.20", features = ["rt"] }
-tracing = "0.1.35"
+tokio = { workspace = true, features = ["rt"] }
+tracing = { workspace = true }
 
 [dev-dependencies]
 rstest = "0.15.0"
