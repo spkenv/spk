@@ -92,10 +92,10 @@ import:
 
 .PRECIOUS: bootstrap/*.spk.yaml
 bootstrap/%.spk.yaml : bootstrap/spk.yaml.in
-	if [ ! -f $@ ]; then \
-	cp $< $@ && \
-	sed -i 's|NAME|$*|g' $@; \
-	else touch $@; fi
+
+.PHONY: lint
+lint: $(shell find . -name "*.spk.yaml")
+	spk lint $^
 
 docker.%:
 	if [ ! -f ../dist/rpm/RPMS/x86_64/spk-*.rpm ]; then \
