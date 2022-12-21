@@ -68,16 +68,17 @@ impl PartialOrd for RangeIdent {
 }
 
 impl RangeIdent {
-    fn new<I>(ident: &AnyIdent, version_range: VersionRange, components: I) -> Self
+    pub fn new<N, I>(name: N, version_range: VersionRange, components: I) -> Self
     where
+        N: Into<PkgNameBuf>,
         I: IntoIterator<Item = Component>,
     {
         Self {
             repository_name: None,
-            name: ident.name().to_owned(),
+            name: name.into(),
             version: VersionFilter::single(version_range),
             components: components.into_iter().collect(),
-            build: ident.build().map(Clone::clone),
+            build: None,
         }
     }
 
@@ -88,11 +89,15 @@ impl RangeIdent {
     where
         I: IntoIterator<Item = Component>,
     {
-        Self::new(
-            ident,
-            DoubleEqualsVersion::from(ident.version().clone()).into(),
-            components,
-        )
+        Self {
+            repository_name: None,
+            name: ident.name().to_owned(),
+            version: VersionFilter::single(
+                DoubleEqualsVersion::from(ident.version().clone()).into(),
+            ),
+            components: components.into_iter().collect(),
+            build: ident.build().cloned(),
+        }
     }
 
     /// Create a range ident that requests the identified package using `=` semantics.
@@ -102,11 +107,13 @@ impl RangeIdent {
     where
         I: IntoIterator<Item = Component>,
     {
-        Self::new(
-            ident,
-            EqualsVersion::from(ident.version().clone()).into(),
-            components,
-        )
+        Self {
+            repository_name: None,
+            name: ident.name().to_owned(),
+            version: VersionFilter::single(EqualsVersion::from(ident.version().clone()).into()),
+            components: components.into_iter().collect(),
+            build: ident.build().cloned(),
+        }
     }
 
     pub fn name(&self) -> &PkgName {

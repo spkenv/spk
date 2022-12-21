@@ -190,7 +190,21 @@ impl crate::Recipe for Recipe {
                 match option {
                     super::RecipeOption::Pkg(opt) => {
                         super::PackageOption::Pkg(Box::new(super::package_option::PkgOption {
-                            pkg: opt.pkg.clone(),
+                            pkg: RangeIdent::new(
+                                opt.pkg.name(),
+                                // TODO: support other versions/components at runtime?
+                                CompatRange::new(
+                                    build_env
+                                        .get_member(opt.pkg.name())
+                                        .unwrap() // TODO: error
+                                        .package()
+                                        .version()
+                                        .clone(),
+                                    None,
+                                )
+                                .into(),
+                                opt.pkg.components.iter().cloned(),
+                            ),
                             propagation,
                         }))
                     }
