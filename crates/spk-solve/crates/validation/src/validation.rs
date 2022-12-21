@@ -77,8 +77,8 @@ impl ValidatorT for DeprecationValidator {
         if request.pkg.build.as_ref() == Some(spec.ident().build()) {
             return Ok(Compatibility::Compatible);
         }
-        Ok(Compatibility::Incompatible(
-            "build is deprecated (and not requested exactly)".to_owned(),
+        Ok(Compatibility::incompatible(
+            "build is deprecated (and not requested exactly)",
         ))
     }
 
@@ -88,8 +88,8 @@ impl ValidatorT for DeprecationValidator {
         recipe: &R,
     ) -> crate::Result<Compatibility> {
         if recipe.is_deprecated() {
-            Ok(Compatibility::Incompatible(
-                "recipe is deprecated for this version".to_owned(),
+            Ok(Compatibility::incompatible(
+                "recipe is deprecated for this version",
             ))
         } else {
             Ok(Compatibility::Compatible)
@@ -116,8 +116,8 @@ impl ValidatorT for BinaryOnlyValidator {
         _state: &State,
         _recipe: &R,
     ) -> crate::Result<Compatibility> {
-        Ok(Compatibility::Incompatible(
-            "building from source is not enabled".into(),
+        Ok(Compatibility::incompatible(
+            "building from source is not enabled",
         ))
     }
 }
@@ -138,12 +138,12 @@ impl ValidatorT for EmbeddedPackageValidator {
         let request = match state.get_merged_request(spec.name()) {
             Ok(request) => request,
             Err(GetMergedRequestError::NoRequestFor(name)) => {
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "package '{name}' was not requested [INTERNAL ERROR]"
                 )))
             }
             Err(err) => {
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
                     spec.name()
                 )))
@@ -178,8 +178,6 @@ impl EmbeddedPackageValidator {
         P: Package,
         E: Package + Satisfy<PkgRequest>,
     {
-        use Compatibility::{Compatible, Incompatible};
-
         // There may not be a "real" instance of the embedded package in the
         // solve already.
         if let Some((existing, _)) = state.get_resolved_packages().get(embedded.ident().name()) {
@@ -189,7 +187,7 @@ impl EmbeddedPackageValidator {
                 Build::Embedded(EmbeddedSource::Package(package))
                     if package.ident == spec.ident() => {}
                 _ => {
-                    return Ok(Incompatible(format!(
+                    return Ok(Compatibility::incompatible(format!(
                         "embedded package '{}' conflicts with existing package in solve: {}",
                         embedded.ident(),
                         existing.ident()
@@ -200,18 +198,20 @@ impl EmbeddedPackageValidator {
 
         let existing = match state.get_merged_request(embedded.name()) {
             Ok(request) => request,
-            Err(spk_solve_graph::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
+            Err(spk_solve_graph::GetMergedRequestError::NoRequestFor(_)) => {
+                return Ok(Compatibility::Compatible)
+            }
             Err(err) => return Err(err.into()),
         };
 
         let compat = existing.is_satisfied_by(embedded);
         if !&compat {
-            return Ok(Incompatible(format!(
+            return Ok(Compatibility::incompatible(format!(
                 "embedded package '{}' is incompatible: {compat}",
                 embedded.ident(),
             )));
         }
-        Ok(Compatible)
+        Ok(Compatibility::Compatible)
     }
 }
 
@@ -248,7 +248,7 @@ impl ValidatorT for OptionsValidator {
             }
             let compat = request.is_satisfied_by(spec);
             if !&compat {
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "doesn't satisfy requested option: {}",
                     compat
                 )));
@@ -263,7 +263,7 @@ impl ValidatorT for OptionsValidator {
         recipe: &R,
     ) -> crate::Result<Compatibility> {
         if let Err(err) = recipe.resolve_options(state.get_option_map()) {
-            Ok(Compatibility::Incompatible(err.to_string()))
+            Ok(Compatibility::incompatible(err))
         } else {
             Ok(Compatibility::Compatible)
         }
@@ -288,12 +288,12 @@ impl ValidatorT for PkgRequestValidator {
         let request = match state.get_merged_request(spec.name()) {
             Ok(request) => request,
             Err(GetMergedRequestError::NoRequestFor(name)) => {
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "package '{name}' was not requested [INTERNAL ERROR]"
                 )))
             }
             Err(err) => {
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
                     spec.name()
                 )))
@@ -303,7 +303,7 @@ impl ValidatorT for PkgRequestValidator {
             // If the request names a repository, then the source has to match.
             match source {
                 PackageSource::Repository { repo, .. } if repo.name() != rn => {
-                    return Ok(Compatibility::Incompatible(format!(
+                    return Ok(Compatibility::incompatible(format!(
                         "package did not come from requested repo: {} != {}",
                         repo.name(),
                         rn
@@ -312,16 +312,14 @@ impl ValidatorT for PkgRequestValidator {
                 PackageSource::Repository { .. } => {} // okay
                 PackageSource::Embedded => {
                     // TODO: from the right repo still?
-                    return Ok(Compatibility::Incompatible(
-                        "package did not come from requested repo (it was embedded in another)"
-                            .to_owned(),
+                    return Ok(Compatibility::incompatible(
+                        "package did not come from requested repo (it was embedded in another)",
                     ));
                 }
                 PackageSource::BuildFromSource { .. } => {
                     // TODO: from the right repo still?
-                    return Ok(Compatibility::Incompatible(
-                        "package did not come from requested repo (it comes from a spec)"
-                            .to_owned(),
+                    return Ok(Compatibility::incompatible(
+                        "package did not come from requested repo (it comes from a spec)",
                     ));
                 }
             };
@@ -343,12 +341,12 @@ impl ValidatorT for PkgRequestValidator {
         let request = match state.get_merged_request(recipe.name()) {
             Ok(request) => request,
             Err(GetMergedRequestError::NoRequestFor(name)) => {
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "package '{name}' was not requested [INTERNAL ERROR]"
                 )))
             }
             Err(err) => {
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
                     recipe.name()
                 )))
@@ -392,7 +390,7 @@ impl ValidatorT for ComponentsValidator {
             .filter(|n| !available_components.contains(n))
             .collect();
         if !missing_components.is_empty() {
-            return Ok(Compatibility::Incompatible(format!(
+            return Ok(Compatibility::incompatible(format!(
                 "no published files for some required components: [{}], found [{}]",
                 required_components
                     .iter()
@@ -447,12 +445,12 @@ impl ValidatorT for PkgRequirementsValidator {
         let request = match state.get_merged_request(spec.name()) {
             Ok(request) => request,
             Err(GetMergedRequestError::NoRequestFor(name)) => {
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "package '{name}' was not requested [INTERNAL ERROR]"
                 )))
             }
             Err(err) => {
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
                     spec.name()
                 )))
@@ -503,7 +501,9 @@ impl PkgRequirementsValidator {
             Ok(_) => restricted,
             // FIXME: only match ValueError
             Err(spk_schema::ident::Error::String(err)) => {
-                return Ok(Incompatible(format!("conflicting requirement: {}", err)))
+                return Ok(Incompatible {
+                    reason: format!("conflicting requirement: {}", err),
+                })
             }
             Err(err) => return Err(err.into()),
         };
@@ -551,7 +551,7 @@ impl PkgRequirementsValidator {
                     state,
                 )?;
                 if !&compat {
-                    return Ok(Compatibility::Incompatible(format!(
+                    return Ok(Compatibility::incompatible(format!(
                         "requires {}:{} which embeds {}, and {}",
                         resolved.name(),
                         component.name,
@@ -572,10 +572,9 @@ impl PkgRequirementsValidator {
         use Compatibility::{Compatible, Incompatible};
         let compat = request.is_satisfied_by(&**resolved);
         if !&compat {
-            return Ok(Incompatible(format!(
-                "conflicting requirement: '{}' {}",
-                request.pkg.name, compat
-            )));
+            return Ok(Incompatible {
+                reason: format!("conflicting requirement: '{}' {}", request.pkg.name, compat),
+            });
         }
 
         let required_components = resolved
@@ -586,7 +585,8 @@ impl PkgRequirementsValidator {
             .filter(|c| !provided_components.contains(c))
             .collect();
         if !missing_components.is_empty() {
-            return Ok(Incompatible(format!(
+            return Ok(Incompatible {
+                reason: format!(
                 "resolved package {} does not provide all required components: needed {}, have {}",
                 request.pkg.name,
                 missing_components
@@ -603,7 +603,8 @@ impl PkgRequirementsValidator {
                             .join("\n")
                     }
                 }
-            )));
+            ),
+            });
         }
 
         Ok(Compatible)
@@ -625,12 +626,12 @@ impl ValidatorT for VarRequirementsValidator {
         let request = match state.get_merged_request(spec.name()) {
             Ok(request) => request,
             Err(GetMergedRequestError::NoRequestFor(name)) => {
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "package '{name}' was not requested [INTERNAL ERROR]"
                 )))
             }
             Err(err) => {
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
                     spec.name()
                 )))
@@ -649,7 +650,7 @@ impl ValidatorT for VarRequirementsValidator {
                         continue;
                     }
                     if request.value != *value {
-                        return Ok(Compatibility::Incompatible(format!(
+                        return Ok(Compatibility::incompatible(format!(
                             "package wants {}={}, resolve has {}={}",
                             request.var, request.value, name, value,
                         )));

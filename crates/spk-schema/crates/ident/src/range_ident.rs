@@ -151,7 +151,7 @@ impl RangeIdent {
 
     pub fn contains(&self, other: &RangeIdent) -> Compatibility {
         if other.name != self.name {
-            return Compatibility::Incompatible(format!(
+            return Compatibility::incompatible(format!(
                 "Version selectors are for different packages: {} != {}",
                 self.name, other.name
             ));
@@ -165,7 +165,7 @@ impl RangeIdent {
         if other.build.is_none() || self.build == other.build || self.build.is_none() {
             Compatibility::Compatible
         } else {
-            Compatibility::Incompatible(format!("Incompatible builds: {} && {}", self, other))
+            Compatibility::incompatible(format!("Incompatible builds: {} && {}", self, other))
         }
     }
 

@@ -22,7 +22,7 @@ use spk_schema_ident::{
 #[path = "./package_option_test.rs"]
 mod package_option_test;
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum PackageOption {
     Var(Box<VarOption>),
@@ -88,7 +88,7 @@ impl PackageOption {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 #[serde(rename_all = "camelCase")]
 pub struct VarOption {
@@ -146,7 +146,7 @@ impl Satisfy<VarRequest> for VarOption {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 #[serde(rename_all = "camelCase")]
 pub struct PkgOption {
@@ -164,7 +164,7 @@ impl PkgOption {
         let value = value.unwrap_or_default();
 
         match VersionRange::from_str(value) {
-            Err(err) => Compatibility::Incompatible(format!(
+            Err(err) => Compatibility::incompatible(format!(
                 "Invalid value '{}' for option '{}', not a valid package request: {}",
                 value, self.pkg, err
             )),
@@ -173,16 +173,12 @@ impl PkgOption {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 #[serde(rename_all = "camelCase")]
 pub struct OptionPropagation {
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub at_runtime: bool,
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub at_downstream: bool,
-}
-
-fn is_false(v: &bool) -> bool {
-    !*v
+    #[serde(default)]
+    pub at_runtime: Compatibility,
+    #[serde(default)]
+    pub at_downstream: Compatibility,
 }

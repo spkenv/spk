@@ -9,7 +9,8 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::Component;
-use spk_schema_ident::{NameAndValue, VersionIdent};
+use spk_schema_foundation::version_range::CompatRange;
+use spk_schema_ident::{NameAndValue, RangeIdent, VersionIdent};
 
 use super::{RecipeBuildSpec, RecipeOptionList, RecipePackagingSpec, SourceSpec};
 use crate::foundation::name::PkgName;
@@ -181,11 +182,10 @@ impl crate::Recipe for Recipe {
         let options = self
             .options
             .iter()
-            .filter(|option| option.check_is_active_at_build(&build_options).is_ok())
             .map(|option| {
                 let propagation = super::package_option::OptionPropagation {
-                    at_runtime: option.check_is_active_at_runtime(&build_env).is_ok(),
-                    at_downstream: option.check_is_active_at_downstream(&build_env).is_ok(),
+                    at_runtime: option.check_is_active_at_runtime(&build_env),
+                    at_downstream: option.check_is_active_at_downstream(&build_env),
                 };
                 match option {
                     super::RecipeOption::Pkg(opt) => {

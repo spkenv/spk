@@ -87,17 +87,21 @@ impl Ord for CompatRule {
 }
 
 /// Denotes whether or not something is compatible.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Default, Hash, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(tag = "valid")]
 pub enum Compatibility {
+    #[default]
+    #[serde(rename = "yes")]
     Compatible,
-    Incompatible(String),
+    #[serde(rename = "no")]
+    Incompatible { reason: String },
 }
 
 impl std::fmt::Display for Compatibility {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Compatibility::Compatible => f.write_str(""),
-            Compatibility::Incompatible(msg) => f.write_str(msg),
+            Compatibility::Incompatible { reason } => f.write_str(reason),
         }
     }
 }
@@ -108,7 +112,7 @@ impl std::ops::Not for &'_ Compatibility {
     fn not(self) -> Self::Output {
         match self {
             super::Compatibility::Compatible => false,
-            super::Compatibility::Incompatible(_) => true,
+            super::Compatibility::Incompatible { .. } => true,
         }
     }
 }
@@ -116,8 +120,10 @@ impl std::ops::Not for &'_ Compatibility {
 impl Compatibility {
     /// Creates a compatibility instance denoting incompatibility
     /// for the provided reason
-    pub fn incompatible<S: Into<String>>(reason: S) -> Self {
-        Self::Incompatible(reason.into())
+    pub fn incompatible<S: ToString>(reason: S) -> Self {
+        Self::Incompatible {
+            reason: reason.to_string(),
+        }
     }
 
     pub fn is_ok(&self) -> bool {
@@ -127,7 +133,7 @@ impl Compatibility {
     pub fn message(&self) -> &str {
         match self {
             Compatibility::Compatible => "",
-            Compatibility::Incompatible(msg) => msg.as_ref(),
+            Compatibility::Incompatible { reason } => reason.as_ref(),
         }
     }
 }
@@ -354,7 +360,7 @@ impl Compat {
 
                 if let Some(ruleset) = optruleset {
                     if ruleset.0.contains(&CompatRule::None) {
-                        return Compatibility::Incompatible(format!(
+                        return Compatibility::incompatible(format!(
                             "Not compatible with {base} [{self} at {desc}: has {}, requires {}]",
                             b.to_string(),
                             a.to_string()
@@ -362,7 +368,7 @@ impl Compat {
                     }
 
                     if !ruleset.0.contains(&required) {
-                        return Compatibility::Incompatible(format!(
+                        return Compatibility::incompatible(format!(
                             "Not {:?} compatible with {base} [{self} at {desc}: has {}, requires {}]",
                             required,
                             b.to_string(),
@@ -382,7 +388,7 @@ impl Compat {
             if rule.0.contains(&CompatRule::None) {
                 match (a, b) {
                     (Some(a), Some(b)) if a != b => {
-                        return Compatibility::Incompatible(format!(
+                        return Compatibility::incompatible(format!(
                             "Not compatible with {base} [{self} at pos {} ({}): has {b}, requires {a}]",
                             i + 1,
                             version::get_version_position_label(i),
@@ -398,7 +404,7 @@ impl Compat {
                         continue;
                     }
                     (Some(a), Some(b)) => {
-                        return Compatibility::Incompatible(format!(
+                        return Compatibility::incompatible(format!(
                             "Not {:?} compatible with {base} [{self} at pos {} ({}): has {b}, requires {a}]",
                             required,
                             i + 1,
@@ -411,7 +417,7 @@ impl Compat {
 
             match (a, b) {
                 (Some(a), Some(b)) if b < a => {
-                    return Compatibility::Incompatible(format!(
+                    return Compatibility::incompatible(format!(
                         "Not {:?} compatible with {base} [{self} at pos {} ({}): (version) {b} < {a} (compat)]",
                         required,
                         i + 1,
@@ -424,7 +430,7 @@ impl Compat {
             }
         }
 
-        Compatibility::Incompatible(format!(
+        Compatibility::incompatible(format!(
             "Not compatible: {} ({}) [{:?} compatibility not specified]",
             base, self, required,
         ))

@@ -391,11 +391,11 @@ where
                 for request in downstream_runtime.iter() {
                     match runtime_requirements.contains_request(request) {
                         Compatibility::Compatible => continue,
-                        Compatibility::Incompatible(problem) => {
+                        Compatibility::Incompatible { reason } => {
                             return Err(Error::MissingDownstreamRequest {
                                 required_by: spec.ident().to_owned(),
                                 request: request.clone(),
-                                problem,
+                                problem: reason,
                             })
                         }
                     }

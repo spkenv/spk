@@ -249,7 +249,7 @@ impl<'de> serde::de::Visitor<'de> for PartialVarVisitor {
         }
         Ok(VarOption {
             at_runtime: at_runtime.or_else(|| when.clone()).unwrap_or_default(),
-            at_downstream: at_downstream.or_else(|| when.clone()).unwrap_or_default(),
+            at_downstream: at_downstream.or_else(|| when.clone()).unwrap_or(VarPropagation::Disabled),
             at_build: at_build
             .or_else(|| {
                 let Some(when) = when else {
@@ -306,7 +306,7 @@ impl VarPropagation {
         E::Package: Satisfy<PkgRequest> + Named,
     {
         match self {
-            Self::Disabled => Compatibility::incompatible("This option was explicitly disabled"),
+            Self::Disabled => Compatibility::incompatible("explicitly disabled"),
             Self::Enabled { when } => when.check_is_active(build_env),
         }
     }
@@ -497,7 +497,7 @@ impl<'de> serde::de::Visitor<'de> for PartialPkgVisitor {
         }
         Ok(PkgOption {
             at_runtime: at_runtime.or_else(|| when.clone()).unwrap_or_default(),
-            at_downstream: at_downstream.or_else(||when.clone()).unwrap_or_default(),
+            at_downstream: at_downstream.or_else(|| when.clone()).unwrap_or(PkgPropagation::Disabled),
             at_build: at_build
             .or_else(|| {
                 let Some(when) = when else {
@@ -520,11 +520,14 @@ impl<'de> serde::de::Visitor<'de> for PartialPkgVisitor {
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum PkgPropagation {
-    /// The package request is not propagated to downstream environments
+    /// The package request is not propagated to this environments
     Disabled,
     Enabled {
+        /// An alternate version to use when resolving this package
         version: Option<String>,
+        /// An alternate set of packages to resolve for this package
         components: BTreeSet<Component>,
+        /// Conditions for which to resolve this package
         when: WhenBlock,
     },
 }
@@ -558,14 +561,15 @@ impl PkgPropagation {
             } => {
                 if let Some(member) = build_env.get_member(pkg.name()) {
                     let resolved_components = member.used_components();
-                    if !pkg
-                        .components
-                        .iter()
-                        .any(|c| resolved_components.contains(c))
+                    if !pkg.components.is_empty()
+                        && !pkg
+                            .components
+                            .iter()
+                            .any(|c| resolved_components.contains(c))
                     {
                         return Compatibility::incompatible(format!(
-                            "None of the specified components are present {:?}",
-                            pkg.components
+                            "None of the specified components are present: wanted {:?}, found {:?}",
+                            pkg.components, resolved_components
                         ));
                     }
                     let resolved_package = member.package();

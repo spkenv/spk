@@ -411,7 +411,7 @@ impl std::fmt::Display for SpecVariant {
 ///
 /// All resolve-able types have a spec representation that can be serialized
 /// and deserialized from a `Repository`.
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize)]
 #[serde(tag = "api")]
 #[allow(clippy::large_enum_variant
 /*, reason = "These specs are intentionally different, the size difference is of no meaning" */)]

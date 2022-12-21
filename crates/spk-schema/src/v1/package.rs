@@ -34,7 +34,7 @@ use crate::{
 #[path = "./package_test.rs"]
 mod package_test;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct Package {
     pub pkg: BuildIdent,
@@ -185,7 +185,7 @@ impl crate::Package for Package {
         Cow::Owned(
             self.options
                 .iter()
-                .filter(|o| o.propagation().at_downstream)
+                .filter(|o| o.propagation().at_downstream.is_ok())
                 .filter_map(|o| {
                     o.to_request(None, || {
                         RequestedBy::UpstreamRequirement(self.pkg.to_owned())
@@ -213,7 +213,7 @@ impl crate::Package for Package {
                 .map(String::as_str);
             let compat = option.validate(value);
             if !compat.is_ok() {
-                return Compatibility::Incompatible(format!("invalid value for {name}: {compat}",));
+                return Compatibility::incompatible(format!("invalid value for {name}: {compat}",));
             }
 
             must_exist.remove(name.without_namespace());
@@ -221,7 +221,7 @@ impl crate::Package for Package {
 
         if !must_exist.is_empty() {
             let missing = must_exist;
-            return Compatibility::Incompatible(format!(
+            return Compatibility::incompatible(format!(
                 "Package does not define requested build options: {missing:?}",
             ));
         }
@@ -239,7 +239,7 @@ impl PackageMut for Package {
 impl Satisfy<PkgRequest> for Package {
     fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
         if pkg_request.pkg.name != *self.pkg.name() {
-            return Compatibility::Incompatible(format!(
+            return Compatibility::incompatible(format!(
                 "different package name: {} != {}",
                 pkg_request.pkg.name,
                 self.pkg.name()
@@ -247,15 +247,15 @@ impl Satisfy<PkgRequest> for Package {
         }
 
         if self.is_deprecated() && pkg_request.pkg.build.as_ref() != Some(self.pkg.build()) {
-            return Compatibility::Incompatible(
-                "Build is deprecated and was not specifically requested".to_string(),
+            return Compatibility::incompatible(
+                "Build is deprecated and was not specifically requested",
             );
         }
 
         if pkg_request.prerelease_policy == PreReleasePolicy::ExcludeAll
             && !self.version().pre.is_empty()
         {
-            return Compatibility::Incompatible("prereleases not allowed".to_string());
+            return Compatibility::incompatible("prereleases not allowed");
         }
 
         let source_package_requested = pkg_request.pkg.build == Some(Build::Source);
@@ -270,7 +270,7 @@ impl Satisfy<PkgRequest> for Package {
                 .map(ToString::to_string)
                 .collect_vec();
             if !missing_components.is_empty() {
-                return Compatibility::Incompatible(format!(
+                return Compatibility::incompatible(format!(
                     "does not define requested components: [{}], found [{}]",
                     missing_components.join(", "),
                     available_components
@@ -296,7 +296,7 @@ impl Satisfy<PkgRequest> for Package {
             return Compatibility::Compatible;
         }
 
-        Compatibility::Incompatible(format!(
+        Compatibility::incompatible(format!(
             "Package and request differ in builds: requested {:?}, got {:?}",
             pkg_request.pkg.build,
             self.pkg.build()

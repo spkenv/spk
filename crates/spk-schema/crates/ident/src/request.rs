@@ -776,7 +776,7 @@ impl PkgRequest {
     /// needing to load the whole package spec.
     pub fn is_version_applicable(&self, version: &Version) -> Compatibility {
         if self.prerelease_policy == PreReleasePolicy::ExcludeAll && !version.pre.is_empty() {
-            Compatibility::Incompatible("prereleases not allowed".to_owned())
+            Compatibility::incompatible("prereleases not allowed")
         } else {
             self.pkg.version.is_applicable(version)
         }

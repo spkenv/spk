@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use super::{Conditional, TestScript};
 use crate::{ComponentSpec, ComponentSpecList, EnvOp, ValidationSpec};
 
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct RecipePackagingSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
