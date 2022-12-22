@@ -28,7 +28,7 @@ async fn test_for_description_over_limit() {
         }
     ));
 
-    let mut environment = Solution::default();
+    let mut environment = Solution::new(package.ident().to_version_ident(), Default::default());
     environment.add(
         PkgRequest::from_ident(package.ident().to_any_ident(), RequestedBy::DoesNotMatter),
         package.clone(),

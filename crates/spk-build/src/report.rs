@@ -5,30 +5,30 @@
 use std::collections::HashMap;
 
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::{BuildIdent, Package, Variant};
+use spk_schema::{BuildIdent, Package, Variant, VersionIdent};
 use spk_solve::Solution;
 
 /// The build report is constructed by the [`crate::BinaryPackageBuilder`]
 /// during its execution and contains detailed information about
 /// the build setup, execution, and output.
-pub struct BuildReport<P, V>
+pub struct BuildReport<P, V, T = VersionIdent>
 where
     P: Package,
     V: Variant,
 {
-    pub setup: BuildSetupReport<P, V>,
+    pub setup: BuildSetupReport<P, V, T>,
     pub output: BuildOutputReport,
 }
 
 /// Details about all computation and setup done before the
 /// execution of the package's build script.
-pub struct BuildSetupReport<P, V>
+pub struct BuildSetupReport<P, V, T = VersionIdent>
 where
     P: Package,
     V: Variant,
 {
     /// The resolved build environment
-    pub environment: Solution,
+    pub environment: Solution<T>,
     /// The binary package created by this build
     pub package: P,
     /// The variant describing this build

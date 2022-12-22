@@ -37,7 +37,7 @@ async fn test_build_package_downstream_build_requests() {
         }
     );
 
-    let mut environment = Solution::default();
+    let mut environment = Solution::new(package.ident().to_version_ident(), Default::default());
     environment.add(
         PkgRequest::from_ident(base_spec.ident().to_any_ident(), RequestedBy::DoesNotMatter),
         base_spec.clone(),
@@ -105,7 +105,7 @@ async fn test_build_package_downstream_runtime_request() {
         }
     );
 
-    let mut environment = Solution::default();
+    let mut environment = Solution::new(package.ident().to_version_ident(), Default::default());
     environment.add(
         PkgRequest::from_ident(base_spec.ident().to_any_ident(), RequestedBy::DoesNotMatter),
         base_spec.clone(),

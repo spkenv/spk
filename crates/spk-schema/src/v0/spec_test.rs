@@ -21,6 +21,7 @@ use crate::spec::SpecTemplate;
 use crate::{Opt, Recipe, Template, TemplateExt, Variant, VariantExt};
 
 type TestBuildEnv = (
+    VersionIdent,
     option_map::OptionMap,
     Vec<(Spec<BuildIdent>, BTreeSet<Component>)>,
 );
@@ -178,6 +179,7 @@ fn test_strong_inheritance_injection() {
     )
     .unwrap();
     let build_env: TestBuildEnv = (
+        spec.ident().clone(),
         Default::default(),
         vec![(
             serde_yaml::from_str(
@@ -236,6 +238,7 @@ fn test_strong_inheritance_injection_transitivity() {
     )
     .unwrap();
     let build_env: TestBuildEnv = (
+        spec.ident().clone(),
         Default::default(),
         vec![(
             serde_yaml::from_str(
@@ -350,6 +353,7 @@ fn test_variants_can_append_components() {
     )
     .unwrap();
     let build_env: TestBuildEnv = (
+        spec.ident().clone(),
         Default::default(),
         vec![(
             serde_yaml::from_str(
@@ -417,6 +421,7 @@ fn test_variants_can_append_components_and_modify_version() {
     )
     .unwrap();
     let build_env: TestBuildEnv = (
+        spec.ident().clone(),
         Default::default(),
         vec![
             (

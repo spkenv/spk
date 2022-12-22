@@ -294,7 +294,7 @@ where
     pub async fn build<V>(
         &mut self,
         variant: V,
-    ) -> Result<BuildReport<Recipe::Output, Override<Override<V>>>>
+    ) -> Result<BuildReport<Recipe::Output, Override<Override<V>>, VersionIdent>>
     where
         V: Variant + Clone + Send + Sync,
     {
@@ -450,7 +450,7 @@ where
         &mut self,
         options: &OptionMap,
         variant: &V,
-    ) -> Result<Solution>
+    ) -> Result<Solution<VersionIdent>>
     where
         V: Variant,
     {
@@ -468,7 +468,7 @@ where
 
         let (solution, graph) = self.build_resolver.solve(&self.solver).await?;
         self.last_solve_graph = graph;
-        Ok(solution)
+        Ok(solution.with_target(self.recipe.ident().clone()))
     }
 
     async fn validate_build_setup<V>(&self, report: &BuildReport<Recipe::Output, V>) -> Result<()>
@@ -504,9 +504,9 @@ where
         Report::from_iter(validations.collect::<Vec<_>>().await).into_result()
     }
 
-    async fn build_and_commit_artifacts<V: Variant>(
+    async fn build_and_commit_artifacts<V: Variant, T>(
         &mut self,
-        input: &BuildSetupReport<Recipe::Output, V>,
+        input: &BuildSetupReport<Recipe::Output, V, T>,
     ) -> Result<BuildOutputReport> {
         let options = input.variant.options();
         self.build_artifacts(&input.package, &options).await?;
@@ -725,8 +725,8 @@ where
 ///
 /// Only the changes also present in `filter` will be committed. It is
 /// expected to contain paths relative to `$PREFIX`.
-pub async fn commit_component_layers<'a, P, V>(
-    input: &BuildSetupReport<P, V>,
+pub async fn commit_component_layers<'a, P, V, T>(
+    input: &BuildSetupReport<P, V, T>,
     collected_changes: Vec<spfs::tracking::Diff<BuildIdent, BuildIdent>>,
 ) -> Result<BuildOutputReport>
 where

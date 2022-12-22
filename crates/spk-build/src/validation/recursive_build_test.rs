@@ -34,7 +34,7 @@ async fn test_build_with_circular_dependency() {
         "pkg": "one/2.0.0/3TCOOP2W",
     }));
 
-    let mut environment = Solution::default();
+    let mut environment = Solution::new(new_build.ident().to_version_ident(), Default::default());
     environment.add(
         PkgRequest::from_ident(old_build.ident().to_any_ident(), RequestedBy::DoesNotMatter),
         old_build.clone(),

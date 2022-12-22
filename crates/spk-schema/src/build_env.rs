@@ -9,6 +9,7 @@ use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::spec_ops::Named;
+use spk_schema_ident::VersionIdent;
 
 /// Describes a resolved build environment in which
 /// a binary package may be created.
@@ -18,6 +19,9 @@ pub trait BuildEnv {
     type PackageIter<'a>: Iterator<Item = &'a Self::BuildEnvMember> + 'a
     where
         Self: 'a;
+
+    /// The package that this build environment was resolved for
+    fn target(&self) -> &VersionIdent;
 
     /// The full set of options for this build, including
     /// options for the package being build as well as any
@@ -52,6 +56,10 @@ where
     where
         Self: 'b;
 
+    fn target(&self) -> &VersionIdent {
+        (**self).target()
+    }
+
     fn options(&self) -> Cow<'_, OptionMap> {
         (**self).options()
     }
@@ -65,7 +73,7 @@ where
     }
 }
 
-impl<T> BuildEnv for (OptionMap, Vec<T>)
+impl<T> BuildEnv for (VersionIdent, OptionMap, Vec<T>)
 where
     T: BuildEnvMember + 'static,
 {
@@ -73,16 +81,20 @@ where
     type BuildEnvMember = T;
     type Package = T::Package;
 
+    fn target(&self) -> &VersionIdent {
+        &self.0
+    }
+
     fn options(&self) -> Cow<'_, OptionMap> {
-        Cow::Borrowed(&self.0)
+        Cow::Borrowed(&self.1)
     }
 
     fn members(&self) -> Self::PackageIter<'_> {
-        self.1.iter()
+        self.2.iter()
     }
 
     fn env_vars(&self) -> HashMap<String, String> {
-        self.0.to_environment()
+        self.1.to_environment()
     }
 }
 

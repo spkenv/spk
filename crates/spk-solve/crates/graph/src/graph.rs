@@ -1330,7 +1330,7 @@ impl State {
     }
 
     pub fn as_solution(&self) -> Result<Solution> {
-        let mut solution = Solution::new((&self.options).into());
+        let mut solution = Solution::for_options((&self.options).into());
 
         // Ensure the resolved packages are added to the solution in
         // resolve order to preserve that order in the solution.

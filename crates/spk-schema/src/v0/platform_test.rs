@@ -8,7 +8,7 @@ use rstest::rstest;
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::HOST_OPTIONS;
-use spk_schema_ident::{BuildIdent, InclusionPolicy, Request};
+use spk_schema_ident::{BuildIdent, InclusionPolicy, Request, VersionIdent};
 
 use super::Platform;
 use crate::v0::Spec;
@@ -16,6 +16,7 @@ use crate::Opt::Var;
 use crate::Recipe;
 
 type TestBuildEnv = (
+    VersionIdent,
     option_map::OptionMap,
     Vec<(Spec<BuildIdent>, BTreeSet<Component>)>,
 );
@@ -51,7 +52,7 @@ fn test_platform_is_valid_with_only_api_and_name() {
 )]
 fn test_platform_add_pkg_requirement(#[case] spec: &str) {
     let spec: Platform = serde_yaml::from_str(spec).unwrap();
-    let build_env: TestBuildEnv = (Default::default(), Vec::new());
+    let build_env: TestBuildEnv = (spec.ident().clone(), Default::default(), Vec::new());
 
     let build = spec
         .generate_binary_build(&option_map! {}, &build_env)
@@ -93,6 +94,7 @@ fn test_platform_inheritance() {
     )
     .unwrap();
     let build_env: TestBuildEnv = (
+        spec.ident().clone(),
         Default::default(),
         vec![(
             serde_yaml::from_str(
@@ -138,6 +140,7 @@ fn test_platform_inheritance_with_override_and_removal() {
     )
     .unwrap();
     let build_env: TestBuildEnv = (
+        spec.ident().clone(),
         Default::default(),
         vec![(
             serde_yaml::from_str(

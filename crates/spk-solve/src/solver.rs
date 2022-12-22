@@ -20,7 +20,16 @@ use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::version::{ComponentsMissingProblem, IncompatibleReason, IsSameReasonAs};
-use spk_schema::{try_recipe, BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
+use spk_schema::{
+    try_recipe,
+    BuildIdent,
+    Deprecate,
+    Package,
+    Recipe,
+    Spec,
+    SpecRecipe,
+    VersionIdent,
+};
 use spk_solve_graph::{
     Change,
     Decision,
@@ -992,7 +1001,7 @@ impl Solver {
                 ))
             })?;
 
-            let solution = Solution::new(OptionMap::default());
+            let solution = Solution::new(recipe.ident().clone(), OptionMap::default());
             let mut build_opts = OptionMap::default();
             let mut resolved_opts = recipe.resolve_options(&build_opts).unwrap().into_iter();
             build_opts.extend(&mut resolved_opts);
@@ -1159,9 +1168,14 @@ impl Solver {
     }
 
     /// Adds requests for all build requirements and solves
-    pub async fn solve_build_environment(&mut self, recipe: &SpecRecipe) -> Result<Solution> {
+    pub async fn solve_build_environment(
+        &mut self,
+        recipe: &SpecRecipe,
+    ) -> Result<Solution<VersionIdent>> {
         self.configure_for_build_environment(recipe)?;
-        self.solve().await
+        self.solve()
+            .await
+            .map(|s| s.with_target(recipe.ident().clone()))
     }
 
     pub fn update_options(&mut self, options: OptionMap) {

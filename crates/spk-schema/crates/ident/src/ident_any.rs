@@ -36,7 +36,7 @@ impl AnyIdent {
     }
 
     /// Convert a copy of this identifier into a [`crate::VersionIdent`]
-    pub fn to_version_ident(self) -> VersionIdent {
+    pub fn to_version_ident(&self) -> VersionIdent {
         self.base().clone()
     }
 

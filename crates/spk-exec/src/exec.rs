@@ -180,7 +180,7 @@ impl ResolvedLayers {
 }
 
 /// Return the necessary layers to have all solution packages.
-pub fn solution_to_resolved_runtime_layers(solution: &Solution) -> Result<ResolvedLayers> {
+pub fn solution_to_resolved_runtime_layers<T>(solution: &Solution<T>) -> Result<ResolvedLayers> {
     let mut seen = HashSet::new();
     let mut stack = Vec::new();
 
@@ -245,9 +245,9 @@ pub fn solution_to_resolved_runtime_layers(solution: &Solution) -> Result<Resolv
 /// The default Syncer reporter is used. See
 /// ['resolve_runtime_layers_with_reporter'] to be able to customize the
 /// reporter.
-pub async fn resolve_runtime_layers(
+pub async fn resolve_runtime_layers<T>(
     requires_localization: bool,
-    solution: &Solution,
+    solution: &Solution<T>,
 ) -> Result<Vec<Digest>> {
     resolve_runtime_layers_with_reporter(requires_localization, solution, SyncReporters::console)
         .await
@@ -257,9 +257,9 @@ pub async fn resolve_runtime_layers(
 /// required by the given runtime.
 ///
 /// The Syncer reporter is customizable.
-pub async fn resolve_runtime_layers_with_reporter<F>(
+pub async fn resolve_runtime_layers_with_reporter<F, T>(
     requires_localization: bool,
-    solution: &Solution,
+    solution: &Solution<T>,
     reporter: F,
 ) -> Result<Vec<Digest>>
 where

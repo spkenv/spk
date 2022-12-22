@@ -129,6 +129,7 @@ impl<'a> PackageBuildTester<'a> {
         }
 
         let (solution, _) = self.build_resolver.solve(&solver).await?;
+        let solution = solution.with_target(self.recipe.ident().clone());
 
         for layer in resolve_runtime_layers(requires_localization, &solution).await? {
             rt.push_digest(layer);

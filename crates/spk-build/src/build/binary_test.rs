@@ -810,8 +810,9 @@ async fn test_build_add_startup_files(tmpdir: tempfile::TempDir) {
     );
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
 
+    let build_env = Solution::<()>::default().with_target(recipe.ident().clone());
     let spec = recipe
-        .generate_binary_build(&option_map! {}, &Solution::default())
+        .generate_binary_build(&option_map! {}, &build_env)
         .unwrap();
     BinaryPackageBuilder::from_recipe(recipe)
         .with_prefix(tmpdir.path().into())
@@ -860,7 +861,10 @@ async fn test_build_multiple_priority_startup_files() {
     );
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
 
-    let _ = recipe.generate_binary_build(&option_map! {}, &Solution::default());
+    let _ = recipe.generate_binary_build(
+        &option_map! {},
+        &Solution::new(recipe.ident().clone(), Default::default()),
+    );
 }
 
 #[rstest]
@@ -880,7 +884,10 @@ async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir) {
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
 
     let spec = recipe
-        .generate_binary_build(&option_map! {}, &Solution::default())
+        .generate_binary_build(
+            &option_map! {},
+            &Solution::new(recipe.ident().clone(), Default::default()),
+        )
         .unwrap();
     BinaryPackageBuilder::from_recipe(recipe)
         .with_prefix(tmpdir.path().into())
@@ -1012,7 +1019,10 @@ async fn test_dependant_variable_substitution_in_startup_files(tmpdir: tempfile:
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
 
     let spec = recipe
-        .generate_binary_build(&option_map! {}, &Solution::default())
+        .generate_binary_build(
+            &option_map! {},
+            &Solution::new(recipe.ident().clone(), Default::default()),
+        )
         .unwrap();
     BinaryPackageBuilder::from_recipe(recipe)
         .with_prefix(tmpdir.path().into())

@@ -17,7 +17,7 @@ macro_rules! basic_setup {
     ($pkg:tt) => {{
         let package = Arc::new(spec!($pkg));
 
-        let environment = Solution::default();
+        let environment = Solution::new(package.ident().to_version_ident(), Default::default());
         BuildSetupReport {
             environment,
             variant: option_map! {},

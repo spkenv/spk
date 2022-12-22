@@ -40,7 +40,7 @@ async fn test_validate_build_changeset_collect_existing() {
             ..Default::default()
         },
         setup: BuildSetupReport {
-            environment: Solution::default(),
+            environment: Solution::new(package.ident().to_version_ident(), Default::default()),
             variant: package.build.variants.first().cloned().unwrap_or_default(),
             environment_filesystem,
             package,

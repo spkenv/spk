@@ -51,7 +51,7 @@ macro_rules! build_ident_methods {
             }
 
             /// Convert a copy of this identifier into a [`crate::VersionIdent`]
-            pub fn to_version_ident(self) -> VersionIdent {
+            pub fn to_version_ident(&self) -> VersionIdent {
                 self$(.$($access).+)?.base().clone()
             }
 
