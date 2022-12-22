@@ -314,7 +314,9 @@ impl Requests {
                 match stage {
                     TestStage::Sources => {
                         let ident = recipe.ident().to_any(Some(Build::Source));
-                        out.push(PkgRequest::from_ident(ident, RequestedBy::CommandLine).into());
+                        out.push(
+                            PkgRequest::from_ident_exact(ident, RequestedBy::CommandLine).into(),
+                        );
                     }
 
                     TestStage::Build => {
