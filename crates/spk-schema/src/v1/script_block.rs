@@ -95,7 +95,7 @@ impl ScriptBlockEntry {
         match self {
             Self::Simple(s) => s.clone(),
             Self::Conditional(entry) => {
-                if entry.when.check_is_active(build_env).is_ok() {
+                if entry.when.check_is_active(build_env).is_enabled_for_any() {
                     entry.script.to_string(build_env)
                 } else {
                     entry.else_script.to_string(build_env)

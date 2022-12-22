@@ -24,4 +24,4 @@ pub use recipe_packaging_spec::RecipePackagingSpec;
 pub use script_block::ScriptBlock;
 pub use source_spec::SourceSpec;
 pub use test_script::TestScript;
-pub use when::{Conditional, WhenBlock, WhenCondition};
+pub use when::{ConditionOutcome, Conditional, WhenBlock, WhenCondition};

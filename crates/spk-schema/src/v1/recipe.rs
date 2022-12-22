@@ -9,8 +9,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::Component;
-use spk_schema_foundation::version_range::CompatRange;
-use spk_schema_ident::{NameAndValue, RangeIdent, VersionIdent};
+use spk_schema_ident::VersionIdent;
 
 use super::{RecipeBuildSpec, RecipeOptionList, RecipePackagingSpec, SourceSpec};
 use crate::foundation::name::PkgName;
@@ -142,7 +141,7 @@ impl crate::Recipe for Recipe {
         Ok(Cow::Owned(
             self.options
                 .iter()
-                .filter(|o| o.check_is_active_at_build(options).is_ok())
+                .filter(|o| !o.check_is_active_at_build(options).is_disabled())
                 .filter_map(|o| o.to_request(options))
                 .collect(),
         ))
@@ -179,73 +178,40 @@ impl crate::Recipe for Recipe {
         let build_options = build_env.options();
         let build_digest = self.resolve_options(&build_options)?.digest();
         let pkg = self.pkg.to_build(Build::Digest(build_digest));
-        let options: Vec<_> = self
-            .options
-            .iter()
-            .map(|option| {
-                let propagation = super::package_option::OptionPropagation {
-                    at_runtime: option.check_is_active_at_runtime(&build_env),
-                    at_downstream: option.check_is_active_at_downstream(&build_env),
-                };
-                match option {
-                    super::RecipeOption::Pkg(opt) => {
-                        super::PackageOption::Pkg(Box::new(super::package_option::PkgOption {
-                            pkg: RangeIdent::new(
-                                opt.pkg.name(),
-                                // TODO: support other versions/components at runtime?
-                                CompatRange::new(
-                                    build_env
-                                        .get_member(opt.pkg.name())
-                                        .unwrap() // TODO: error
-                                        .package()
-                                        .version()
-                                        .clone(),
-                                    None,
-                                )
-                                .into(),
-                                opt.pkg.components.iter().cloned(),
-                            ),
-                            propagation,
-                        }))
-                    }
-                    super::RecipeOption::Var(opt) => {
-                        let name = || opt.var.name().clone();
-                        let var = build_options
-                            .get_for_package(self.pkg.name(), opt.var.name())
-                            .or_else(|| opt.var.value(build_options.get(opt.var.name())))
-                            .map(|v| NameAndValue::WithAssignedValue(name(), v.clone()))
-                            .unwrap_or_else(|| NameAndValue::NameOnly(name()));
-                        super::PackageOption::Var(Box::new(super::package_option::VarOption {
-                            var,
-                            choices: opt.choices.clone(),
-                            propagation,
-                        }))
-                    }
-                }
-            })
-            .collect();
-
         let mut components: ComponentSpecList<_> = self
             .package
             .components
             .iter()
-            .filter(|c| c.when.check_is_active(&build_env).is_ok())
+            .filter(|c| !c.when.check_is_active(&build_env).is_disabled())
             .map(|c| (**c).clone())
             .collect();
-        for component in components.iter_mut() {
-            for option in options
-                .iter()
-                .filter(|o| o.propagation().at_runtime.is_ok())
-                .filter_map(|o| {
-                    o.to_request(None, || {
-                        spk_schema_ident::RequestedBy::BinaryBuild(pkg.clone())
-                    })
-                })
-            {
-                // TODO check if active for component...
-                component.requirements.insert_merge(option)?;
+        let mut options = Vec::with_capacity(self.options.len());
+        for recipe_opt in self.options.iter() {
+            let pkg_option = match recipe_opt {
+                super::RecipeOption::Pkg(opt) => super::PackageOption::Pkg(Box::new(
+                    super::package_option::PkgOption::new(opt, &build_env)?,
+                )),
+                super::RecipeOption::Var(opt) => super::PackageOption::Var(Box::new(
+                    super::package_option::VarOption::new(opt, &build_env),
+                )),
+            };
+            for component in components.iter_mut() {
+                if !pkg_option
+                    .propagation()
+                    .at_runtime
+                    .is_enabled_for([&component.name])
+                {
+                    continue;
+                }
+                if let Some(r) = pkg_option.to_request(None, || {
+                    spk_schema_ident::RequestedBy::BinaryBuild(pkg.clone())
+                }) {
+                    component.requirements.insert_merge(r)?;
+                }
             }
+            options.push(pkg_option);
         }
+
         let test = self.package.test.clone();
         let script = self.build.script.to_string(&build_env);
         let mut package = super::Package {

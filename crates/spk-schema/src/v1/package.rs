@@ -180,12 +180,17 @@ impl crate::Package for Package {
 
     fn downstream_requirements<'a>(
         &self,
-        _components: impl IntoIterator<Item = &'a Component>,
+        components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
+        let components: Vec<_> = components.into_iter().collect();
         Cow::Owned(
             self.options
                 .iter()
-                .filter(|o| o.propagation().at_downstream.is_ok())
+                .filter(|o| {
+                    o.propagation()
+                        .at_downstream
+                        .is_enabled_for(components.clone())
+                })
                 .filter_map(|o| {
                     o.to_request(None, || {
                         RequestedBy::UpstreamRequirement(self.pkg.to_owned())

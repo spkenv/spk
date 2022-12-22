@@ -133,20 +133,25 @@ impl RangeIdent {
     ///
     /// Versions that are applicable are not necessarily satisfactory, but
     /// this cannot be fully determined without a complete package spec.
-    pub fn is_applicable(&self, pkg: &AnyIdent) -> bool {
+    pub fn is_applicable(&self, pkg: &AnyIdent) -> Compatibility {
         if pkg.name() != self.name {
-            return false;
+            return Compatibility::incompatible(format!(
+                "incorrect package: wanted {self}, got {pkg}"
+            ));
         }
 
-        if !self.version.is_applicable(pkg.version()).is_ok() {
-            return false;
+        let compat = self.version.is_applicable(pkg.version());
+        if !compat.is_ok() {
+            return compat;
         }
 
         if self.build.is_some() && self.build.as_ref() != pkg.build() {
-            return false;
+            return Compatibility::incompatible(format!(
+                "incorrect build: wanted: {self}, got {pkg}",
+            ));
         }
 
-        true
+        Compatibility::Compatible
     }
 
     pub fn contains(&self, other: &RangeIdent) -> Compatibility {

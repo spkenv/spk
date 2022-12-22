@@ -44,7 +44,7 @@ impl RecipeOptionList {
             let mut contention = HashMap::<OptNameBuf, HashSet<String>>::new();
             something_changed = false;
             for option in self.iter() {
-                if !option.check_is_active_at_build(&all).is_ok() {
+                if option.check_is_active_at_build(&all).is_disabled() {
                     continue;
                 }
                 let RecipeOption::Var(var_opt) = option else {

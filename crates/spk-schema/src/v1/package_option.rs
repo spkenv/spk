@@ -6,8 +6,9 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::{OptName, OptNameBuf};
+use spk_schema_foundation::spec_ops::HasVersion;
 use spk_schema_foundation::version::Compatibility;
-use spk_schema_foundation::version_range::{Ranged, VersionRange};
+use spk_schema_foundation::version_range::{CompatRange, Ranged, VersionRange};
 use spk_schema_ident::{
     NameAndValue,
     PkgRequest,
@@ -18,12 +19,15 @@ use spk_schema_ident::{
     VarRequest,
 };
 
+use super::ConditionOutcome;
+use crate::{BuildEnv, BuildEnvMember, Error, Result};
+
 #[cfg(test)]
 #[path = "./package_option_test.rs"]
 mod package_option_test;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-#[serde(tag = "kind")]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum PackageOption {
     Var(Box<VarOption>),
     Pkg(Box<PkgOption>),
@@ -100,6 +104,29 @@ pub struct VarOption {
 }
 
 impl VarOption {
+    pub fn new<E>(opt: &super::VarOption, build_env: E) -> Self
+    where
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
+    {
+        let propagation = super::package_option::OptionPropagation {
+            at_runtime: opt.at_runtime.check_is_active(&build_env),
+            at_downstream: opt.at_downstream.check_is_active(&build_env),
+        };
+        let build_options = build_env.options();
+        let name = || opt.var.name().clone();
+        let var = build_options
+            .get_for_package(build_env.target().name(), opt.var.name())
+            .or_else(|| opt.var.value(build_options.get(opt.var.name())))
+            .map(|v| NameAndValue::WithAssignedValue(name(), v.clone()))
+            .unwrap_or_else(|| NameAndValue::NameOnly(name()));
+        super::package_option::VarOption {
+            var,
+            choices: opt.choices.clone(),
+            propagation,
+        }
+    }
+
     pub fn to_request(&self, given: Option<&String>) -> Option<VarRequest> {
         self.var.value(given).map(|value| VarRequest {
             var: self.var.name().clone(),
@@ -156,6 +183,37 @@ pub struct PkgOption {
 }
 
 impl PkgOption {
+    /// Create a PkgOption from a recipe option and build environment.
+    ///
+    /// # Errors
+    /// - if the package that `recipe_opt` is for does not
+    ///   appear in the given build environment
+    pub fn new<E>(recipe_opt: &super::PkgOption, build_env: E) -> Result<Self>
+    where
+        E: BuildEnv,
+        E::Package: Satisfy<PkgRequest>,
+    {
+        let propagation = super::package_option::OptionPropagation {
+            at_runtime: recipe_opt
+                .at_runtime
+                .check_is_active(&recipe_opt.pkg, &build_env),
+            at_downstream: recipe_opt
+                .at_downstream
+                .check_is_active(&recipe_opt.pkg, &build_env),
+        };
+        let resolved = build_env.get_member(recipe_opt.pkg.name()).ok_or_else(|| Error::String(format!("Cannot compute package option for '{}': it was not resolved in the build environment", recipe_opt.pkg.name())))?;
+        let resolved_version = resolved.package().version().clone();
+        Ok(Self {
+            pkg: RangeIdent::new(
+                recipe_opt.pkg.name(),
+                // TODO: support other versions/components at runtime?
+                CompatRange::new(resolved_version, None).into(),
+                recipe_opt.pkg.components.iter().cloned(),
+            ),
+            propagation,
+        })
+    }
+
     pub fn to_request(&self, requested_by: RequestedBy) -> PkgRequest {
         PkgRequest::new(self.pkg.clone(), requested_by)
     }
@@ -178,7 +236,7 @@ impl PkgOption {
 #[serde(rename_all = "camelCase")]
 pub struct OptionPropagation {
     #[serde(default)]
-    pub at_runtime: Compatibility,
+    pub at_runtime: ConditionOutcome,
     #[serde(default)]
-    pub at_downstream: Compatibility,
+    pub at_downstream: ConditionOutcome,
 }

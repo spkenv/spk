@@ -15,7 +15,7 @@ use spk_schema_foundation::version::Compatibility;
 use spk_schema_foundation::version_range::Ranged;
 use spk_schema_ident::{NameAndValue, PkgRequest, RangeIdent, Request, Satisfy, VarRequest};
 
-use super::WhenBlock;
+use super::{ConditionOutcome, WhenBlock};
 use crate::v1::WhenCondition;
 use crate::{BuildEnv, BuildEnvMember};
 
@@ -81,7 +81,7 @@ impl RecipeOption {
     /// Determine if this option is enabled given the resolved
     /// build environment. If not, the returned compatibility will
     /// denote a reason why it has been disabled.
-    pub fn check_is_active_at_build(&self, options: &OptionMap) -> Compatibility {
+    pub fn check_is_active_at_build(&self, options: &OptionMap) -> ConditionOutcome {
         match self {
             Self::Pkg(p) => p.at_build.check_is_active(options),
             Self::Var(v) => v.at_build.check_is_active(options),
@@ -91,7 +91,7 @@ impl RecipeOption {
     /// Determine if this option is enabled given the resolved
     /// build environment. If not, the returned compatibility will
     /// denote a reason why it has been disabled.
-    pub fn check_is_active_at_runtime<E>(&self, build_env: E) -> Compatibility
+    pub fn check_is_active_at_runtime<E>(&self, build_env: E) -> ConditionOutcome
     where
         E: BuildEnv,
         E::Package: Satisfy<PkgRequest> + Named + HasVersion,
@@ -105,7 +105,7 @@ impl RecipeOption {
     /// Determine if this option is enabled given the resolved
     /// build environment. If not, the returned compatibility will
     /// denote a reason why it has been disabled.
-    pub fn check_is_active_at_downstream<E>(&self, build_env: E) -> Compatibility
+    pub fn check_is_active_at_downstream<E>(&self, build_env: E) -> ConditionOutcome
     where
         E: BuildEnv,
         E::Package: Satisfy<PkgRequest> + Named + HasVersion,
@@ -300,13 +300,13 @@ impl VarPropagation {
         Self::Disabled
     }
 
-    pub fn check_is_active<E>(&self, build_env: E) -> Compatibility
+    pub fn check_is_active<E>(&self, build_env: E) -> ConditionOutcome
     where
         E: BuildEnv,
         E::Package: Satisfy<PkgRequest> + Named,
     {
         match self {
-            Self::Disabled => Compatibility::incompatible("disabled"),
+            Self::Disabled => ConditionOutcome::disabled("disabled"),
             Self::Enabled { when } => when.check_is_active(build_env),
         }
     }
@@ -547,18 +547,14 @@ impl PkgPropagation {
         self == &Self::default()
     }
 
-    pub fn check_is_active<E>(&self, pkg: &RangeIdent, build_env: E) -> Compatibility
+    pub fn check_is_active<E>(&self, pkg: &RangeIdent, build_env: E) -> ConditionOutcome
     where
         E: BuildEnv,
         E::Package: Satisfy<PkgRequest> + Named + HasVersion,
     {
         match self {
-            Self::Disabled => Compatibility::incompatible("disabled"),
-            Self::Enabled {
-                version: _,
-                components: _,
-                when,
-            } => {
+            Self::Disabled => ConditionOutcome::disabled("disabled"),
+            Self::Enabled { when, .. } => {
                 if let Some(member) = build_env.get_member(pkg.name()) {
                     let resolved_components = member.used_components();
                     if !pkg.components.is_empty()
@@ -567,15 +563,15 @@ impl PkgPropagation {
                             .iter()
                             .any(|c| resolved_components.contains(c))
                     {
-                        return Compatibility::incompatible(format!(
+                        return ConditionOutcome::disabled(format!(
                             "None of the specified components are present: wanted {:?}, found {:?}",
                             pkg.components, resolved_components
                         ));
                     }
                     let resolved_package = member.package();
                     let compat = pkg.version.is_applicable(resolved_package.version());
-                    if !compat.is_ok() {
-                        return compat;
+                    if let Compatibility::Incompatible { reason } = compat {
+                        return ConditionOutcome::disabled(reason);
                     }
                 }
                 when.check_is_active(build_env)
@@ -697,9 +693,9 @@ impl BuildCondition {
         self == &Self::default()
     }
 
-    pub fn check_is_active(&self, options: &OptionMap) -> Compatibility {
+    pub fn check_is_active(&self, options: &OptionMap) -> ConditionOutcome {
         match self {
-            Self::Disabled => Compatibility::incompatible("disabled"),
+            Self::Disabled => ConditionOutcome::disabled("disabled"),
             Self::Enabled { when } => when.check_is_active_at_build(options),
         }
     }

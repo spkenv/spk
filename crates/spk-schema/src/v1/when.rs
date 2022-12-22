@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::BTreeSet;
 use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map::{OptionMap, Stringified};
 use spk_schema_foundation::version::Compatibility;
 use spk_schema_ident::{NameAndValue, PkgRequest, Satisfy, VarRequest};
@@ -53,22 +55,19 @@ impl WhenBlock<WhenCondition> {
     /// given build environment contents. If not satisfied,
     /// the returned compatibility should denote a reason
     /// for the miss.
-    pub fn check_is_active<E>(&self, build_env: E) -> Compatibility
+    pub fn check_is_active<E>(&self, build_env: E) -> ConditionOutcome
     where
         E: BuildEnv,
         E::Package: Satisfy<PkgRequest> + Named,
     {
         let conditions = match self {
-            Self::Always => return Compatibility::Compatible,
+            Self::Always => return ConditionOutcome::always(),
             Self::Sometimes { conditions } => conditions,
         };
-        for condition in conditions {
-            let compat = condition.check_is_satisfied(&build_env);
-            if !compat.is_ok() {
-                return compat;
-            }
-        }
-        Compatibility::Compatible
+        conditions
+            .iter()
+            .map(|condition| condition.check_is_satisfied(&build_env))
+            .collect()
     }
 }
 
@@ -77,9 +76,9 @@ impl WhenBlock<VarRequest> {
     /// given build variant. If not satisfied,
     /// the returned compatibility should denote a reason
     /// for the miss.
-    pub fn check_is_active_at_build(&self, options: &OptionMap) -> Compatibility {
+    pub fn check_is_active_at_build(&self, options: &OptionMap) -> ConditionOutcome {
         let conditions = match self {
-            Self::Always => return Compatibility::Compatible,
+            Self::Always => return ConditionOutcome::always(),
             Self::Sometimes { conditions } => conditions,
         };
         for condition in conditions {
@@ -89,18 +88,18 @@ impl WhenBlock<VarRequest> {
             let current = options.get(&condition.var);
             let current = current.map(String::as_str).unwrap_or_default();
             if current.is_empty() {
-                return Compatibility::incompatible(format!(
+                return ConditionOutcome::disabled(format!(
                     "needed {condition}, but no value was set"
                 ));
             }
 
             if current != condition.value {
-                return Compatibility::incompatible(format!(
+                return ConditionOutcome::disabled(format!(
                     "needed {condition}, but got {current:?}"
                 ));
             }
         }
-        Compatibility::Compatible
+        ConditionOutcome::always()
     }
 }
 
@@ -198,32 +197,50 @@ impl WhenCondition {
     /// given build environment contents. If not satisfied,
     /// the returned compatibility should denote a reason
     /// for the miss.
-    pub fn check_is_satisfied<E>(&self, build_env: E) -> Compatibility
+    pub fn check_is_satisfied<E>(&self, build_env: E) -> ConditionOutcome
     where
         E: BuildEnv,
         E::Package: Satisfy<PkgRequest> + Named,
     {
         let options = build_env.options();
+        let target = build_env.target();
         match self {
+            Self::Pkg(req) if req.pkg.name() == target.name() => {
+                if let Compatibility::Incompatible { reason } =
+                    req.pkg.is_applicable(&target.to_any(None))
+                {
+                    return ConditionOutcome::disabled(reason);
+                }
+                if req.pkg.components.is_empty() {
+                    ConditionOutcome::always()
+                } else {
+                    ConditionOutcome::Enabled {
+                        for_components: Some(req.pkg.components.clone()),
+                    }
+                }
+            }
             Self::Pkg(req) => {
                 let Some(resolved) = build_env.get_member(req.pkg.name()) else {
-                    return Compatibility::incompatible(format!("pkg: {} is not present in the build environment", req.pkg.name()));
+                    return ConditionOutcome::disabled(format!("pkg: {} is not present in the build environment", req.pkg.name()));
                 };
-                resolved.package().check_satisfies_request(req)
+                match resolved.package().check_satisfies_request(req) {
+                    Compatibility::Compatible => ConditionOutcome::always(),
+                    Compatibility::Incompatible { reason } => ConditionOutcome::disabled(reason),
+                }
             }
             Self::Var(req) => {
                 let value = options
                     .get(&req.var)
                     .or_else(|| options.get(req.var.without_namespace()));
                 let Some(value) = value else {
-                    return Compatibility::incompatible(format!("var: {} is not present in the build environment", req.var));
+                    return ConditionOutcome::disabled(format!("var: {} is not present in the build environment", req.var));
                 };
                 if value != &req.value {
-                    return Compatibility::incompatible(format!(
+                    return ConditionOutcome::disabled(format!(
                         "needed {req}, but the value was {value}"
                     ));
                 }
-                Compatibility::Compatible
+                ConditionOutcome::always()
             }
         }
     }
@@ -335,5 +352,104 @@ impl<'de> serde::de::Visitor<'de> for WhenConditionVisitor {
             }
         }
         result.ok_or_else(|| serde::de::Error::missing_field("pkg\" or \"var"))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
+#[serde(tag = "status", rename_all = "camelCase")]
+pub enum ConditionOutcome {
+    Disabled {
+        reason: String,
+    },
+    Enabled {
+        /// The components for which this condition is active.
+        ///
+        /// For example, when building 'my-package', an option
+        /// can be included with the condition 'my-package:run'
+        /// in which case the condition is only enabled for the
+        /// 'run' component of 'my-package'
+        for_components: Option<BTreeSet<Component>>,
+    },
+}
+
+impl ConditionOutcome {
+    /// Create a disabled variant with the specified reason
+    pub fn disabled<T: ToString>(reason: T) -> Self {
+        Self::Disabled {
+            reason: reason.to_string(),
+        }
+    }
+
+    /// A condition outcome that denotes being always enabled
+    pub fn always() -> Self {
+        Self::Enabled {
+            for_components: None,
+        }
+    }
+
+    pub fn is_enabled_for_any(&self) -> bool {
+        matches!(self, Self::Enabled { .. })
+    }
+
+    pub fn is_enabled_for<'a, I>(&self, components: I) -> bool
+    where
+        I: IntoIterator<Item = &'a Component>,
+    {
+        let Self::Enabled { for_components } = self else {
+            return false;
+        };
+        let Some(for_components) = for_components else {
+            return true;
+        };
+        components.into_iter().any(|c| for_components.contains(c))
+    }
+
+    pub fn is_disabled(&self) -> bool {
+        matches!(self, Self::Disabled { .. })
+    }
+}
+
+impl FromIterator<Self> for ConditionOutcome {
+    fn from_iter<T: IntoIterator<Item = Self>>(iter: T) -> Self {
+        let mut out = None;
+        for outcome in iter.into_iter() {
+            match (&mut out, outcome) {
+                (None, outcome) => {
+                    out = Some(outcome);
+                }
+                (Some(Self::Disabled { .. }), _) => {
+                    // only the first negative result is saved
+                }
+                (Some(Self::Enabled { .. }), outcome @ Self::Disabled { .. }) => {
+                    // conditions are treated like an 'all'
+                    out = Some(outcome);
+                    break;
+                }
+                (
+                    Some(Self::Enabled { for_components: a }),
+                    Self::Enabled { for_components: b },
+                ) => {
+                    match (a.as_mut(), b) {
+                        (None, None) => {}
+                        (None, Some(c)) => *a = Some(c),
+                        (Some(_), None) => {}
+                        // multiple conditions with different components are combined
+                        // as an intersection, where only conditions that appear in both
+                        // are valid (since the others are negated by one of the conditions)
+                        (Some(a), Some(b)) => a.retain(|c| b.contains(c)),
+                    };
+                }
+            }
+        }
+        out.unwrap_or_default()
+    }
+}
+
+impl Default for ConditionOutcome {
+    fn default() -> Self {
+        Self::Enabled {
+            for_components: None,
+        }
     }
 }
