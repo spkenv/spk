@@ -20,7 +20,7 @@ pub async fn build_required_packages(solution: &Solution) -> Result<Solution> {
     let local_repo = Arc::new(handle);
     let repos = solution.repositories();
     let options = solution.options();
-    let mut compiled_solution = Solution::new(options.clone());
+    let mut compiled_solution = Solution::for_options(options.clone());
     for item in solution.items() {
         let recipe = match &item.source {
             PackageSource::BuildFromSource { recipe } => recipe,

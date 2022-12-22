@@ -12,7 +12,7 @@ use spk_storage::{self as storage};
 use crate::{Error, Result};
 
 /// Pull and list the necessary layers to have all solution packages.
-pub async fn resolve_runtime_layers(solution: &Solution) -> Result<Vec<Digest>> {
+pub async fn resolve_runtime_layers<T>(solution: &Solution<T>) -> Result<Vec<Digest>> {
     let local_repo = storage::local_repository().await?;
     let mut stack = Vec::new();
     let mut to_sync = Vec::new();

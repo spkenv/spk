@@ -122,17 +122,54 @@ impl BuildEnvMember for SolvedRequest {
 }
 
 /// Represents a set of resolved packages.
-#[derive(Clone, Debug, Default)]
-pub struct Solution {
+///
+/// This type is generic over a `Target` type which can
+/// be used to add context to a solution, identifying
+/// the purpose for which it was resolved.
+#[derive(Clone, Debug)]
+pub struct Solution<Target = ()> {
+    /// The target of a solution identifies what the solution was
+    /// resolved for. For example, it might be the `VersionIdent` of a package
+    /// whose build environment is contained in this solution.
+    target: Target,
+    /// The options used when resolving this solution.
     options: OptionMap,
+    /// The resolved requests for this solution's environment.
     resolved: Vec<SolvedRequest>,
 }
 
-impl Solution {
-    pub fn new(options: OptionMap) -> Self {
+impl<Target> Default for Solution<Target>
+where
+    Target: Default,
+{
+    fn default() -> Self {
+        Self::new(Default::default(), Default::default())
+    }
+}
+
+impl<Target> Solution<Target>
+where
+    Target: Default,
+{
+    pub fn for_options(options: OptionMap) -> Self {
+        Self::new(Default::default(), options)
+    }
+}
+
+impl<Target> Solution<Target> {
+    pub fn new(target: Target, options: OptionMap) -> Self {
         Self {
+            target,
             options,
             resolved: Default::default(),
+        }
+    }
+
+    pub fn with_target<T>(self, target: T) -> Solution<T> {
+        Solution {
+            target,
+            options: self.options,
+            resolved: self.resolved,
         }
     }
 
@@ -249,10 +286,17 @@ impl Solution {
     }
 }
 
-impl BuildEnv for Solution {
+impl<Target> BuildEnv for Solution<Target>
+where
+    Target: AsRef<VersionIdent> + 'static,
+{
     type PackageIter<'a> = std::slice::Iter<'a, SolvedRequest>;
     type BuildEnvMember = SolvedRequest;
     type Package = Arc<Spec>;
+
+    fn target(&self) -> &VersionIdent {
+        self.target.as_ref()
+    }
 
     fn options(&self) -> std::borrow::Cow<'_, OptionMap> {
         Cow::Borrowed(&self.options)
