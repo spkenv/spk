@@ -95,6 +95,7 @@ fn test_activation(
     #[case] build_env: &str,
     #[case] expected: bool,
 ) {
+    let target = "my-package/1.0.0".parse().unwrap();
     let when = WhenBlock::from_yaml(yaml).expect("when condition should parse");
     let build_env = match Vec::<(crate::v1::Package, BTreeSet<Component>)>::from_yaml(build_env) {
         Err(err) => {
@@ -103,6 +104,6 @@ fn test_activation(
         }
         Ok(b) => b,
     };
-    let actual = when.check_is_active(&(build_options, build_env));
-    assert_eq!(actual.is_ok(), expected, "{actual}");
+    let actual = when.check_is_active(&(target, build_options, build_env));
+    assert_eq!(actual.is_enabled_for_any(), expected, "{actual:?}");
 }

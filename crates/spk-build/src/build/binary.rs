@@ -348,7 +348,7 @@ where
         &mut self,
         options: &OptionMap,
         additional_requirements: &RequirementsList,
-    ) -> Result<Solution> {
+    ) -> Result<Solution<VersionIdent>> {
         self.solver.reset();
         self.solver.update_options(options.clone());
         self.solver.set_binary_only(true);
@@ -368,7 +368,11 @@ where
         }
 
         let mut runtime = self.solver.run();
-        let solution = self.build_resolver.solve(&mut runtime).await;
+        let solution = self
+            .build_resolver
+            .solve(&mut runtime)
+            .await
+            .map(|s| s.with_target(self.recipe.ident().clone()));
         self.last_solve_graph = runtime.graph();
         Ok(solution?)
     }
@@ -376,7 +380,7 @@ where
     fn validate_generated_package(
         &self,
         // FIXME: how do we handle this because the env has already been resolved...
-        solution: &Solution,
+        solution: &Solution<VersionIdent>,
         package: &Recipe::Output,
     ) -> Result<()> {
         for solved in solution.members() {

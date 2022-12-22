@@ -130,7 +130,7 @@ impl<'a> PackageBuildTester<'a> {
         let mut runtime = solver.run();
         let solution = self.build_resolver.solve(&mut runtime).await;
         self.last_solve_graph = runtime.graph();
-        let solution = solution?;
+        let solution = solution?.with_target(self.recipe.ident().clone());
 
         for layer in resolve_runtime_layers(&solution).await? {
             rt.push_digest(layer);

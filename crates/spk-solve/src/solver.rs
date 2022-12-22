@@ -16,7 +16,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
-use spk_schema::{BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
+use spk_schema::{BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe, VersionIdent};
 use spk_solve_graph::{
     Change,
     Decision,
@@ -647,9 +647,14 @@ impl Solver {
     }
 
     /// Adds requests for all build requirements and solves
-    pub async fn solve_build_environment(&mut self, recipe: &SpecRecipe) -> Result<Solution> {
+    pub async fn solve_build_environment(
+        &mut self,
+        recipe: &SpecRecipe,
+    ) -> Result<Solution<VersionIdent>> {
         self.configure_for_build_environment(recipe)?;
-        self.solve().await
+        self.solve()
+            .await
+            .map(|s| s.with_target(recipe.ident().clone()))
     }
 
     pub fn update_options(&mut self, options: OptionMap) {

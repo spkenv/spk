@@ -1093,7 +1093,7 @@ impl State {
     }
 
     pub fn as_solution(&self) -> Result<Solution> {
-        let mut solution = Solution::new((&self.options).into());
+        let mut solution = Solution::for_options((&self.options).into());
         for (spec, source) in self.packages.values() {
             let req = self
                 .get_merged_request(spec.name())
