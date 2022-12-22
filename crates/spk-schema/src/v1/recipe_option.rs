@@ -306,7 +306,7 @@ impl VarPropagation {
         E::Package: Satisfy<PkgRequest> + Named,
     {
         match self {
-            Self::Disabled => Compatibility::incompatible("explicitly disabled"),
+            Self::Disabled => Compatibility::incompatible("disabled"),
             Self::Enabled { when } => when.check_is_active(build_env),
         }
     }
@@ -553,7 +553,7 @@ impl PkgPropagation {
         E::Package: Satisfy<PkgRequest> + Named + HasVersion,
     {
         match self {
-            Self::Disabled => Compatibility::incompatible("This option was explicitly disabled"),
+            Self::Disabled => Compatibility::incompatible("disabled"),
             Self::Enabled {
                 version: _,
                 components: _,
@@ -699,7 +699,7 @@ impl BuildCondition {
 
     pub fn check_is_active(&self, options: &OptionMap) -> Compatibility {
         match self {
-            Self::Disabled => Compatibility::incompatible("This option was explicitly disabled"),
+            Self::Disabled => Compatibility::incompatible("disabled"),
             Self::Enabled { when } => when.check_is_active_at_build(options),
         }
     }

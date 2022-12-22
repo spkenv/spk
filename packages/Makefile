@@ -1,3 +1,4 @@
+export SPFS_FILESYSTEM_TMPFS_SIZE=10G
 .PHONY: packages
 packages: \
 	bootstrap \
@@ -105,8 +106,7 @@ docker.%:
 	fi
 	cp builder.spfs.toml ../dist
 	docker build ../dist -t spk-package-builder -f Dockerfile
-	docker run --privileged --rm -i \
-	-e SPFS_FILESYSTEM_TMPFS_SIZE=10G \
+	-e SPFS_FILESYSTEM_TMPFS_SIZE \
 	-e RUST_LOG \
 	-v $$PWD/../build/packages/:/spfs-storage \
 	-v $$PWD/..:/work spk-package-builder bash -ex -c "\

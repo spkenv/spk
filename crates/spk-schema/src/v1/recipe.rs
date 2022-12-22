@@ -179,7 +179,7 @@ impl crate::Recipe for Recipe {
         let build_options = build_env.options();
         let build_digest = self.resolve_options(&build_options)?.digest();
         let pkg = self.pkg.to_build(Build::Digest(build_digest));
-        let options = self
+        let options: Vec<_> = self
             .options
             .iter()
             .map(|option| {
@@ -225,13 +225,27 @@ impl crate::Recipe for Recipe {
             })
             .collect();
 
-        let components: ComponentSpecList<_> = self
+        let mut components: ComponentSpecList<_> = self
             .package
             .components
             .iter()
             .filter(|c| c.when.check_is_active(&build_env).is_ok())
             .map(|c| (**c).clone())
             .collect();
+        for component in components.iter_mut() {
+            for option in options
+                .iter()
+                .filter(|o| o.propagation().at_runtime.is_ok())
+                .filter_map(|o| {
+                    o.to_request(None, || {
+                        spk_schema_ident::RequestedBy::BinaryBuild(pkg.clone())
+                    })
+                })
+            {
+                // TODO check if active for component...
+                component.requirements.insert_merge(option)?;
+            }
+        }
         let test = self.package.test.clone();
         let script = self.build.script.to_string(&build_env);
         let mut package = super::Package {
