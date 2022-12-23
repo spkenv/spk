@@ -5,6 +5,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use anyhow::Result;
 use clap::Args;
 use spfs::encoding::Encodable;
 
@@ -38,7 +39,7 @@ pub struct CmdCommit {
 }
 
 impl CmdCommit {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = Arc::new(
             config
                 .get_remote_repository_or_local(self.remote.as_ref())
@@ -48,7 +49,7 @@ impl CmdCommit {
         let result: spfs::graph::Object = if let Some(path) = &self.path {
             let manifest = spfs::commit_dir(Arc::clone(&repo), path).await?;
             if manifest.is_empty() {
-                return Err(spfs::Error::NothingToCommit);
+                return Err(spfs::Error::NothingToCommit.into());
             }
             repo.create_layer(&spfs::graph::Manifest::from(&manifest))
                 .await?

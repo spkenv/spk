@@ -2870,6 +2870,7 @@ dependencies = [
 name = "spfs-cli-clean"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "chrono",
  "clap 3.2.23",
  "colored",
@@ -2884,9 +2885,11 @@ dependencies = [
 name = "spfs-cli-common"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "clap 3.2.23",
  "libc",
  "sentry",
+ "sentry-anyhow",
  "sentry-tracing",
  "serde_json",
  "spfs",
@@ -2900,6 +2903,7 @@ dependencies = [
 name = "spfs-cli-enter"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "clap 3.2.23",
  "spfs",
  "spfs-cli-common",
@@ -2912,6 +2916,7 @@ dependencies = [
 name = "spfs-cli-join"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "clap 3.2.23",
  "spfs",
  "spfs-cli-common",
@@ -2923,6 +2928,7 @@ dependencies = [
 name = "spfs-cli-main"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "chrono",
  "clap 3.2.23",
  "colored",
@@ -2947,6 +2953,7 @@ dependencies = [
 name = "spfs-cli-monitor"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "clap 3.2.23",
  "spfs",
  "spfs-cli-common",
@@ -2959,6 +2966,7 @@ dependencies = [
 name = "spfs-cli-render"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "clap 3.2.23",
  "spfs",
  "spfs-cli-common",

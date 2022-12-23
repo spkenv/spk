@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use chrono::{Duration, Utc};
 use clap::Args;
 use tokio_stream::StreamExt;
@@ -34,7 +35,7 @@ pub struct CmdRuntimePrune {
 }
 
 impl CmdRuntimePrune {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let runtime_storage = match &self.remote {
             Some(remote) => {
                 let repo = config.get_remote(remote).await?;

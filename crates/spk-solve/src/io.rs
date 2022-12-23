@@ -1074,14 +1074,10 @@ impl DecisionFormatter {
 
             for solved in solved_requests {
                 let package = solved.spec.ident().clone();
-                let build = if let Some(b) = package.build {
-                    b.to_string()
-                } else {
-                    "".to_string()
-                };
+                let build = package.build().to_string();
                 let labels = Vec::from([
-                    format!("package={}", package.name),
-                    format!("version={}", package.version),
+                    format!("package={}", package.name()),
+                    format!("version={}", package.version()),
                     format!("build={}", build),
                 ]);
 

@@ -4,7 +4,9 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::fn_params_excessive_bools)]
+use std::fmt::Display;
 
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use spfs::Error;
 
@@ -41,6 +43,7 @@ mod cmd_version;
 mod cmd_write;
 
 use spfs_cli_common as cli;
+use spfs_cli_common::CommandName;
 
 cli::main!(Opt);
 
@@ -96,8 +99,14 @@ pub enum Command {
     External(Vec<String>),
 }
 
+impl CommandName for Opt {
+    fn name(&self) -> String {
+        self.cmd.to_string()
+    }
+}
+
 impl Opt {
-    async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         match &mut self.cmd {
             Command::Version(cmd) => cmd.run().await,
             Command::Edit(cmd) => cmd.run(config).await,
@@ -131,7 +140,46 @@ impl Opt {
     }
 }
 
-async fn run_external_subcommand(args: Vec<String>) -> spfs::Result<i32> {
+impl Display for Command {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Command::Version(_) => "version",
+            Command::Edit(_) => "edit",
+            Command::Commit(_) => "commit",
+            Command::Config(_) => "config",
+            Command::Reset(_) => "reset",
+            Command::Tag(_) => "tag",
+            Command::Untag(_) => "untag",
+            Command::Runtime(_) => "runtime",
+            Command::Layers(_) => "layers",
+            Command::Platforms(_) => "platforms",
+            Command::Tags(_) => "tags",
+            Command::Info(_) => "info",
+            Command::Log(_) => "log",
+            Command::Search(_) => "search",
+            Command::Diff(_) => "diff",
+            Command::LsTags(_) => "ls-tags",
+            Command::Ls(_) => "ls",
+            Command::Migrate(_) => "migrate",
+            Command::Check(_) => "check",
+            Command::Read(_) => "read",
+            Command::Write(_) => "write",
+            Command::Run(_) => "run",
+            Command::Shell(_) => "shell",
+            Command::Pull(_) => "pull",
+            Command::Push(_) => "push",
+            #[cfg(feature = "server")]
+            Command::Server(_) => "server",
+            Command::External(args) => match args.get(0) {
+                None => "external",
+                Some(c) => c,
+            },
+        };
+        write!(f, "{name}")
+    }
+}
+
+async fn run_external_subcommand(args: Vec<String>) -> Result<i32> {
     {
         let command = match args.get(0) {
             None => {

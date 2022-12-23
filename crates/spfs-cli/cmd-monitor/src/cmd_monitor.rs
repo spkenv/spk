@@ -7,9 +7,11 @@
 
 use std::time::Duration;
 
+use anyhow::Result;
 use clap::Parser;
 use spfs::Error;
 use spfs_cli_common as cli;
+use spfs_cli_common::CommandName;
 use tokio::io::AsyncReadExt;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::timeout;
@@ -34,8 +36,14 @@ pub struct CmdMonitor {
     runtime: String,
 }
 
+impl CommandName for CmdMonitor {
+    fn name(&self) -> String {
+        "monitor".to_string()
+    }
+}
+
 impl CmdMonitor {
-    pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
         let mut interrupt = signal(SignalKind::interrupt())
             .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
         let mut quit = signal(SignalKind::quit())

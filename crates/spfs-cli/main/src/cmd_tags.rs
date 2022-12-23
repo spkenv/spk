@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 use spfs::io::{self, DigestFormat};
@@ -24,7 +25,7 @@ pub struct CmdTags {
 }
 
 impl CmdTags {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         let mut tag_streams = repo.iter_tags();

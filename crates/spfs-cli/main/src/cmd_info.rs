@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 use colored::*;
 use spfs::io::{self, DigestFormat};
@@ -31,7 +32,7 @@ pub struct CmdInfo {
 }
 
 impl CmdInfo {
-    pub async fn run(&mut self, verbosity: usize, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, verbosity: usize, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         if self.refs.is_empty() {
@@ -49,7 +50,7 @@ impl CmdInfo {
         &self,
         digest: spfs::encoding::Digest,
         repo: &'repo spfs::storage::RepositoryHandle,
-    ) -> spfs::Result<String> {
+    ) -> Result<String> {
         if self.tags {
             io::format_digest(digest, DigestFormat::ShortenedWithTags(repo)).await
         } else if self.short {
@@ -57,6 +58,7 @@ impl CmdInfo {
         } else {
             io::format_digest(digest, DigestFormat::Full).await
         }
+        .map_err(|err| err.into())
     }
 
     async fn pretty_print_ref(
@@ -64,7 +66,7 @@ impl CmdInfo {
         obj: spfs::graph::Object,
         repo: &spfs::storage::RepositoryHandle,
         verbosity: usize,
-    ) -> spfs::Result<()> {
+    ) -> Result<()> {
         use spfs::graph::Object;
         match obj {
             Object::Platform(obj) => {
@@ -137,7 +139,7 @@ impl CmdInfo {
     }
 
     /// Display the status of the current runtime.
-    async fn print_global_info(&self, repo: &spfs::storage::RepositoryHandle) -> spfs::Result<()> {
+    async fn print_global_info(&self, repo: &spfs::storage::RepositoryHandle) -> Result<()> {
         let runtime = spfs::active_runtime().await?;
 
         println!("{}", "Active Runtime:".green());

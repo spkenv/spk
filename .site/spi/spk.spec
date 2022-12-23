@@ -34,6 +34,7 @@ dev toolchain install
 source ~/.bashrc
 export SENTRY_DSN=http://4506b47108ac4b648fdf18a8d803f403@sentry.spimageworks.com/25
 export SENTRY_ENVIRONMENT=production
+export SENTRY_USERNAME_OVERRIDE_VAR=GITLAB_USER_LOGIN
 export SPK_METRICS_STATSD_HOST=statsd.k8s.spimageworks.com
 export SPK_METRICS_STATSD_PORT=30111
 export SPK_METRICS_STATSD_PREFIX=

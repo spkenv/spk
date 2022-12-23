@@ -7,10 +7,12 @@
 
 use std::ffi::OsString;
 
+use anyhow::Result;
 use clap::Parser;
 use spfs::env::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
 use spfs::Error;
 use spfs_cli_common as cli;
+use spfs_cli_common::CommandName;
 use tokio::io::AsyncWriteExt;
 use tokio::signal::unix::{signal, SignalKind};
 
@@ -57,8 +59,14 @@ pub struct CmdEnter {
     args: Vec<OsString>,
 }
 
+impl CommandName for CmdEnter {
+    fn name(&self) -> String {
+        "enter".to_string()
+    }
+}
+
 impl CmdEnter {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         // we need a single-threaded runtime in order to properly setup
         // and enter the namespace of the runtime
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -73,7 +81,7 @@ impl CmdEnter {
         res
     }
 
-    pub async fn run_async(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run_async(&mut self, config: &spfs::Config) -> Result<i32> {
         let mut runtime = self.load_runtime(config).await?;
         if self.remount {
             spfs::reinitialize_runtime(&mut runtime).await?;
@@ -100,7 +108,7 @@ impl CmdEnter {
                             "failed to cleanup runtime data after failure to start monitor"
                         );
                     }
-                    return Err(err);
+                    return Err(err.into());
                 }
                 Ok(mut child) => child.stdin.take().ok_or_else(|| {
                     spfs::Error::from("monitor was spawned without stdin attached")
@@ -135,13 +143,12 @@ impl CmdEnter {
                     // proceed with using the runtime, so we don't ignore this
                     // error and hope for the best. Using this new environment
                     // puts whatever is using it at risk of data loss.
-                    return Err(
-                        format!(
-                            "spfs-monitor disappeared unexpectedly, it is unsafe to continue. Setting ${SPFS_MONITOR_FOREGROUND_LOGGING_VAR}=1 may provide more details"
-                        ).into());
+                    anyhow::bail!(
+                        "spfs-monitor disappeared unexpectedly, it is unsafe to continue. Setting ${SPFS_MONITOR_FOREGROUND_LOGGING_VAR}=1 may provide more details"
+                    );
                 }
                 Err(err) => {
-                    return Err(format!("Failed to inform spfs-monitor to start: {err}").into())
+                    anyhow::bail!("Failed to inform spfs-monitor to start: {err}");
                 }
             };
 
@@ -171,19 +178,22 @@ impl CmdEnter {
         }
     }
 
-    async fn load_runtime(&self, config: &spfs::Config) -> spfs::Result<spfs::runtime::Runtime> {
+    async fn load_runtime(&self, config: &spfs::Config) -> Result<spfs::runtime::Runtime> {
         let repo = match &self.runtime_storage {
             Some(address) => spfs::open_repository(address).await?,
             None => config.get_local_repository_handle().await?,
         };
         let storage = spfs::runtime::Storage::new(repo);
-        storage.read_runtime(&self.runtime).await
+        storage
+            .read_runtime(&self.runtime)
+            .await
+            .map_err(|err| err.into())
     }
 
     async fn exec_runtime_command(
         &mut self,
         rt: &spfs::runtime::OwnedRuntime,
-    ) -> spfs::Result<tokio::process::Child> {
+    ) -> Result<tokio::process::Child> {
         let cmd = match self.command.take() {
             Some(exe) if !exe.is_empty() => {
                 tracing::debug!("executing runtime command");
@@ -196,7 +206,8 @@ impl CmdEnter {
         };
         let mut proc = cmd.into_tokio();
         tracing::debug!("{:?}", proc);
-        proc.spawn()
-            .map_err(|err| Error::process_spawn_error("exec_runtime_command".into(), err, None))
+        proc.spawn().map_err(|err| {
+            Error::process_spawn_error("exec_runtime_command".into(), err, None).into()
+        })
     }
 }

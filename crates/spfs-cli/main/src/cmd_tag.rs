@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 use spfs::prelude::*;
 use spfs::{self};
@@ -23,7 +24,7 @@ pub struct CmdTag {
 }
 
 impl CmdTag {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         let target = repo.read_ref(self.reference.as_str()).await?.digest()?;

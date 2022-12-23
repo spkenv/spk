@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 use spfs_cli_common as cli;
 
@@ -27,7 +28,7 @@ pub struct CmdPush {
 }
 
 impl CmdPush {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let (repo, remote) = tokio::try_join!(
             config.get_local_repository_handle(),
             spfs::config::open_repository_from_string(config, Some(&self.remote)),

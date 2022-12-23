@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 use spfs_cli_common as cli;
 
@@ -32,7 +33,7 @@ pub struct CmdShell {
 }
 
 impl CmdShell {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let mut run_cmd = cmd_run::CmdRun {
             sync: self.sync.clone(),
             verbose: self.verbose,

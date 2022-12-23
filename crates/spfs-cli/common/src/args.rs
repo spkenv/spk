@@ -5,6 +5,7 @@
 #[cfg(feature = "sentry")]
 use std::panic::catch_unwind;
 
+use anyhow::Error;
 use spfs::storage::LocalRepository;
 use tracing_subscriber::prelude::*;
 
@@ -105,24 +106,27 @@ impl Render {
 }
 
 #[cfg(feature = "sentry")]
-fn get_cli_context() -> (
-    String,
-    std::collections::BTreeMap<String, serde_json::Value>,
-) {
+fn get_cli_context(command: String) -> std::collections::BTreeMap<String, serde_json::Value> {
     use serde_json::json;
 
     let args: Vec<_> = std::env::args().collect();
     let program = args[0].clone();
-    let command = args[1].clone();
     let cwd = std::env::current_dir().ok();
 
     let mut data = std::collections::BTreeMap::new();
     data.insert(String::from("program"), json!(program));
-    data.insert(String::from("command"), json!(command));
     data.insert(String::from("args"), json!(args.join(" ")));
     data.insert(String::from("cwd"), json!(cwd));
+    data.insert(String::from("command"), json!(command));
 
-    (command, data)
+    let env_vars_to_add = vec!["CI_JOB_URL"];
+    for env_var in env_vars_to_add {
+        if let Ok(value) = std::env::var(env_var) {
+            data.insert(String::from(env_var), json!(value));
+        }
+    }
+
+    data
 }
 
 #[cfg(feature = "sentry")]
@@ -136,15 +140,33 @@ fn remove_ansi_escapes(message: String) -> String {
 }
 
 #[cfg(feature = "sentry")]
-pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
+pub fn configure_sentry(command: String) -> Option<sentry::ClientInitGuard> {
     use std::borrow::Cow;
 
     use sentry::IntoDsn;
 
-    // Call this before `sentry::init` to avoid possible data race, SIGSEGV
-    // in `getpwuid_r ()` -> `getenv ()`. CentOS 7.6.1810.
-    // Thread 2 is always in `SSL_library_init ()` -> `EVP_rc2_cbc ()`.
-    let username = whoami::username();
+    // SENTRY_USERNAME_OVERRIDE_VAR should hold the name of another
+    // environment variable that can hold a username. If it does and
+    // the other environment variable exists, its value will be used
+    // to override the username given to sentry events. This for sites
+    // with automated processes triggered by humans, e.g. gitlab CI,
+    // that run as a non-human user and store the original human's
+    // username in an environment variable, e.g. GITLAB_USER_LOGIN.
+    let username_override_var = option_env!("SENTRY_USERNAME_OVERRIDE_VAR");
+    let username = match username_override_var {
+        Some(override_var) => {
+            if let Ok(value) = std::env::var(override_var) {
+                value
+            } else {
+                // Call this before `sentry::init` to avoid possible data
+                // race, SIGSEGV in `getpwuid_r ()` -> `getenv ()`. CentOS
+                // 7.6.1810.  Thread 2 is always in `SSL_library_init ()` ->
+                // `EVP_rc2_cbc ()`.
+                whoami::username()
+            }
+        }
+        None => whoami::username(),
+    };
 
     let guard = match catch_unwind(|| {
         let mut opts = sentry::ClientOptions {
@@ -208,7 +230,7 @@ pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
         }
     };
 
-    let (command, data) = get_cli_context();
+    let data = get_cli_context(command.clone());
 
     sentry::configure_scope(|scope| {
         scope.set_user(Some(sentry::protocol::User {
@@ -225,23 +247,6 @@ pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
     });
 
     guard
-}
-
-pub fn configure_spops(_verbosity: usize) {
-    // TODO: have something for this
-    // try:
-    //     spops.configure(
-    //         {
-    //             "statsd": {"host": "statsd.k8s.spimageworks.com", "port": 30111},
-    //             "labels": {
-    //                 "environment": os.getenv("SENTRY_ENVIRONMENT", "production"),
-    //                 "user": getpass.getuser(),
-    //                 "host": socket.gethostname(),
-    //             },
-    //         },
-    //     )
-    // except Exception as e:
-    //     print(f"failed to initialize spops: {e}", file=sys.stderr)
 }
 
 pub fn configure_logging(verbosity: usize) {
@@ -277,6 +282,13 @@ pub fn configure_logging(verbosity: usize) {
     let sub = registry.with(fmt_layer).with(sentry_tracing::layer());
 
     tracing::subscriber::set_global_default(sub).unwrap();
+}
+
+/// Trait all spfs cli command parsers must implement to provide the
+/// name of the spfs command that has been parsed. This method will be
+/// called when configuring sentry.
+pub trait CommandName {
+    fn name(&self) -> String;
 }
 
 #[macro_export]
@@ -340,11 +352,11 @@ macro_rules! configure {
         // sentry makes this process multithreaded, and must be disabled
         // for commands that use system calls which are bothered by this
         #[cfg(feature = "sentry")]
-        let sentry_guard = if $sentry { $crate::configure_sentry() } else { None };
+        // TODO: pass $opt into sentry and into the get cli?
+        let sentry_guard = if $sentry { $crate::configure_sentry($opt.name()) } else { None };
         #[cfg(not(feature = "sentry"))]
         let sentry_guard = 0;
         $crate::configure_logging($opt.verbose);
-        $crate::configure_spops($opt.verbose);
 
         match spfs::get_config() {
             Err(err) => {
@@ -360,13 +372,16 @@ macro_rules! configure {
 macro_rules! handle_result {
     ($result:ident) => {
         match $result {
-            Err(err) => match err {
-                spfs::Error::Errno(msg, errno) if errno == $crate::__private::libc::ENOSPC => {
+            //  Err(err) => match err {
+            Err(err) => match err.root_cause().downcast_ref::<spfs::Error>() {
+                Some(spfs::Error::Errno(msg, errno))
+                    if *errno == $crate::__private::libc::ENOSPC =>
+                {
                     tracing::error!("Out of disk space: {msg}");
                     1
                 }
-                spfs::Error::RuntimeWriteError(path, io_err)
-                | spfs::Error::StorageWriteError(_, path, io_err)
+                Some(spfs::Error::RuntimeWriteError(path, io_err))
+                | Some(spfs::Error::StorageWriteError(_, path, io_err))
                     if std::matches!(
                         io_err.raw_os_error(),
                         Some($crate::__private::libc::ENOSPC)
@@ -386,16 +401,17 @@ macro_rules! handle_result {
     };
 }
 
-pub fn capture_if_relevant(err: &spfs::Error) {
-    match err {
-        spfs::Error::NoActiveRuntime => (),
-        spfs::Error::UnknownObject(_) => (),
-        spfs::Error::UnknownReference(_) => (),
-        spfs::Error::AmbiguousReference(_) => (),
-        spfs::Error::NothingToCommit => (),
+pub fn capture_if_relevant(err: &Error) {
+    match err.root_cause().downcast_ref::<spfs::Error>() {
+        Some(spfs::Error::NoActiveRuntime) => (),
+        Some(spfs::Error::UnknownObject(_)) => (),
+        Some(spfs::Error::UnknownReference(_)) => (),
+        Some(spfs::Error::AmbiguousReference(_)) => (),
+        Some(spfs::Error::NothingToCommit) => (),
         _ => {
+            // This will always add a backtrace to the sentry event
             #[cfg(feature = "sentry")]
-            sentry::capture_error(err);
+            sentry_anyhow::capture_anyhow(err);
         }
     }
 }

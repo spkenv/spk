@@ -36,6 +36,7 @@ nix = "0.26.2"
 procfs = "0.13.2"
 sentry = { version = "0.27.0" }
 sentry-anyhow = { version = "0.27.0" }
+sentry-tracing = { version = "0.27.0" }
 strip-ansi-escapes = "0.1.1"
 tokio = { version = "1.20", features = ["rt"] }
 tokio-retry = "0.3.0"

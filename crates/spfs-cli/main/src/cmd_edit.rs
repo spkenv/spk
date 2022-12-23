@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 
 /// Make the current runtime editable
@@ -13,7 +14,7 @@ pub struct CmdEdit {
 }
 
 impl CmdEdit {
-    pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
         if !self.off {
             spfs::make_active_runtime_editable().await?;
             tracing::info!("edit mode enabled");
