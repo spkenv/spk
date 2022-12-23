@@ -190,9 +190,13 @@ impl TagStorage for FSRepository {
         // the lock file needs to be removed if the directory has any hope of being empty
         drop(lock);
 
+        let tags_root = self.tags_root();
         let mut filepath = filepath.as_path();
-        while filepath.starts_with(self.tags_root()) {
+        while filepath.starts_with(&tags_root) {
             if let Some(parent) = filepath.parent() {
+                if parent == tags_root {
+                    break;
+                }
                 tracing::trace!(?parent, "seeing if parent needs removing");
                 match tokio::fs::remove_dir(&parent).await {
                     Ok(_) => {
