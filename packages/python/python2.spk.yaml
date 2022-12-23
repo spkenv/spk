@@ -1,23 +1,28 @@
 pkg: python/2.7.5
-api: v0/package
-sources:
-  - git: https://github.com/python/cpython
-    ref: v2.7.5
+api: v1alpha1/recipe
+
+source:
+  collect:
+    - git: https://github.com/python/cpython
+      ref: v2.7.5
+
+options:
+  - var: os
+  - var: arch
+  - var: centos
+  - pkg: gcc
+    atRuntime:
+      when: Requested
+  - pkg: stdfs
+  - pkg: bzip2
+  - var: abi/cp27mu
+    choices: [cp27dm, cp27dmu, cp27m, cp27mu]
+    atDownstreamBuild: true
+    atDownstreamRuntime: true
+  - var: debug/off
+    choices: [on, off]
+
 build:
-  options:
-    - var: os
-    - var: arch
-    - var: centos
-    - pkg: gcc
-    - pkg: stdfs
-    - pkg: bzip2
-    - var: abi
-      default: cp27mu
-      choices: [cp27dm, cp27dmu, cp27m, cp27mu]
-      inheritance: Strong
-    - var: debug
-      default: off
-      choices: [on, off]
   variants:
     - { gcc: 4.8, abi: cp27m, debug: off }
     - { gcc: 4.8, abi: cp27mu, debug: off }
@@ -81,31 +86,10 @@ build:
     # do not package pyc files, spfs is best when pyc files are not generated at all
     - find /spfs -type f -name "*.pyc" | xargs rm
 
-tests:
-  - stage: install
-    script:
-      # Verify we built a python with the requested ABI
-      - python_abi=$(/spfs/bin/python -c 'import wheel.bdist_wheel;
-        print(wheel.bdist_wheel.get_abi_tag())')
-      - |
-        if [ "$python_abi" != "$SPK_OPT_abi" ]; then
-          echo "Python binary ABI does not match spk options: $python_abi != $SPK_OPT_abi"
-          exit 1
-        fi
-  - stage: install
-    script:
-      # Verify bz2 support is available by importing and not getting a traceback
-      - test -z "$(/spfs/bin/python -c 'import bz2' 2>&1)"
-
-install:
+package:
   environment:
     - set: PYTHONDONTWRITEBYTECODE
       value: 1
-  requirements:
-    - pkg: gcc
-      fromBuildEnv: x.x
-      include: IfAlreadyPresent
-    - pkg: stdfs
   components:
     - name: run
       files:
@@ -121,3 +105,16 @@ install:
     - name: man
       files:
         - /share/man
+  test:
+    - script:
+        # Verify we built a python with the requested ABI
+        - python_abi=$(/spfs/bin/python -c 'import wheel.bdist_wheel;
+          print(wheel.bdist_wheel.get_abi_tag())')
+        - |
+          if [ "$python_abi" != "$SPK_OPT_abi" ]; then
+            echo "Python binary ABI does not match spk options: $python_abi != $SPK_OPT_abi"
+            exit 1
+          fi
+    - script:
+        # Verify bz2 support is available by importing and not getting a traceback
+        - test -z "$(/spfs/bin/python -c 'import bz2' 2>&1)"

@@ -1,61 +1,53 @@
 pkg: python/3.7.3
-api: v0/package
-sources:
-  - git: https://github.com/python/cpython
-    ref: v3.7.3
+api: v1alpha1/recipe
+source:
+  collect:
+    - tar: https://github.com/python/cpython/archive/refs/tags/v3.7.3.tar.gz
+
+options:
+  - var: os
+  - var: arch
+  - var: centos
+  - pkg: gcc
+    atRuntime: false
+  - pkg: stdfs
+  - pkg: bzip2
+  - pkg: ncurses
+  - pkg: binutils
+  - pkg: libffi
+  - pkg: openssl
+  - pkg: zlib/1.2
+  - var: abi/cp37m
+    choices: [cp37m, cp37dm]
+    atDownstream:
+      components: [build]
+  - var: debug=on
+    when: {var: python.abi/cp37dm}
+  - var: debug=off
+    when: {var: python.abi/cp37m}
+  - var: optimizations/off
+    choices: [on, off]
+
 build:
-  options:
-    - var: os
-    - var: arch
-    - var: centos
-    - pkg: gcc
-    - pkg: stdfs
-    - pkg: bzip2
-    - pkg: ncurses
-    - pkg: binutils
-    - pkg: libffi
-    - pkg: openssl
-    - pkg: zlib/1.2
-    - var: abi
-      default: cp37m
-      choices: [cp37m, cp37dm]
-      inheritance: Strong
-    - var: debug
-      default: off
-      choices: [on, off]
   variants:
     - { gcc: 6.3, abi: cp37m, debug: off }
   script:
-    - |
-      case "$SPK_OPT_debug" in
-        on)
-          if ! [[ "$SPK_OPT_abi" =~ ^cp37.*d ]]; then
-            echo "Must use an abi with debug when building with debug enabled!"
-            exit 1
-          fi
-          DEBUG="--with-pydebug"
-          ;;
-        off)
-          if [[ "$SPK_OPT_abi" =~ ^cp37.*d ]]; then
-            echo "Must not use an abi with debug when building with debug disabled!"
-            exit 1
-          fi
-          DEBUG=""
-          ;;
-        *)
-          echo "Unsupported debug: $SPK_OPT_debug"
-          ;;
-      esac
+    - when: {var: python.debug/on}
+      do: DEBUG="--with-pydebug"
+      else: DEBUG=
+    - when: {var: python.optimizations/on}
+      do: OPTIMIZE="--enable-optimizations"
+      else: OPTIMIZE=
     - ./configure
       --prefix=${PREFIX}
       CC=$CC
       CXX=$CXX
       LDFLAGS='-Wl,--rpath=/spfs/lib,-L/spfs/lib'
       PKG_CONFIG_PATH=/spfs/share/pkgconfig:/spfs/lib/pkgconfig
-      CPPFLAGS='-I/spfs/include/ncurses'
+      CPPFLAGS='-I/spfs/include/ncurses -I/spfs/include'
       --enable-shared
       --with-ensurepip=no
-      --enable-optimizations
+      $OPTIMIZE
       $DEBUG
     - make -j$(nproc)
     - make install
@@ -66,42 +58,10 @@ build:
     # python is best in spfs when pyc files are not used at all
     - find /spfs -type f -name "*.pyc" | xargs rm
 
-tests:
-  - stage: install
-    script:
-      # Verify we built a python with the requested ABI
-      - python_abi=$(/spfs/bin/python -c 'import wheel.bdist_wheel; print(wheel.bdist_wheel.get_abi_tag())')
-      - |
-        if [ "$python_abi" != "$SPK_OPT_abi" ]; then
-          echo "Python binary ABI does not match spk options: $python_abi != $SPK_OPT_abi"
-          exit 1
-        fi
-  - stage: install
-    script:
-      # Verify bz2 support is available by importing and not getting a traceback
-      - test -z "$(/spfs/bin/python -c 'import bz2' 2>&1)"
-      # Verify zlib support is available by importing and not getting a traceback
-      - test -z "$(/spfs/bin/python -c 'import zlib' 2>&1)"
-
-install:
+package:
   environment:
     - set: PYTHONDONTWRITEBYTECODE
       value: 1
-  requirements:
-    - pkg: binutils
-      fromBuildEnv: Binary
-    - pkg: gcc
-      fromBuildEnv: Binary
-      include: IfAlreadyPresent
-    - pkg: stdfs
-    - pkg: libffi
-    - pkg: ncurses
-    - pkg: bzip2
-      fromBuildEnv: Binary
-    - pkg: zlib
-      fromBuildEnv: Binary
-    - pkg: openssl
-      fromBuildEnv: Binary
   components:
     - name: run
       files:
@@ -117,3 +77,19 @@ install:
     - name: man
       files:
         - /share/man
+  test:
+    - script:
+        # Verify we built a python with the requested ABI
+        - python_abi=$(/spfs/bin/python -c 'import wheel.bdist_wheel; print(wheel.bdist_wheel.get_abi_tag())')
+        - |
+          if [ "$python_abi" != "$SPK_OPT_abi" ]; then
+            echo "Python binary ABI does not match spk options: $python_abi != $SPK_OPT_abi"
+            exit 1
+          fi
+    - script:
+        # Verify ssl support is available by importing and not getting a traceback
+        - test -z "$(/spfs/bin/python -c 'import ssl' 2>&1)"
+        # Verify bz2 support is available by importing and not getting a traceback
+        - test -z "$(/spfs/bin/python -c 'import bz2' 2>&1)"
+        # Verify zlib support is available by importing and not getting a traceback
+        - test -z "$(/spfs/bin/python -c 'import zlib' 2>&1)"

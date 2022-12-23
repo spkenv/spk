@@ -1,5 +1,5 @@
 pkg: stdfs/1.0.0
-api: v0/package
+api: v1alpha1/recipe
 compat: x.ab
 build:
   script:

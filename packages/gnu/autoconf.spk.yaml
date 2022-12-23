@@ -1,19 +1,41 @@
 pkg: autoconf/2.71
-api: v0/package
+api: v1alpha1/recipe
 
-sources:
-  - tar: http://ftpmirror.gnu.org/gnu/autoconf/autoconf-2.71.tar.gz
+source:
+  collect:
+    - tar: http://ftpmirror.gnu.org/gnu/autoconf/autoconf-2.71.tar.gz
+
+options:
+  - var: arch
+  - var: os
+  - var: distro
+  - var: centos
+  - pkg: gettext
+    atRuntime: false
+  - pkg: help2man
+    atRuntime: false
+  - pkg: m4
+  - pkg: perl
+  - pkg: bash
+    atBuild: false
+  - pkg: perl-carp
+    atBuild: false
+  - pkg: perl-constant
+    atBuild: false
+  - pkg: perl-data-dumper
+    atBuild: false
+  - pkg: perl-exporter
+    atBuild: false
+  - pkg: perl-file-path
+    atBuild: false
+  - pkg: perl-getopt-long
+    atBuild: false
+  - pkg: perl-pathtools
+    atBuild: false
+  - pkg: perl-text-parsewords
+    atBuild: false
 
 build:
-  options:
-    - var: arch
-    - var: os
-    - var: distro
-    - var: centos
-    - pkg: m4
-    - pkg: perl
-    - pkg: help2man
-    - pkg: gettext
   script:
     - cd autoconf-2.71
     - autoreconf -f -i
@@ -24,19 +46,7 @@ build:
     - make
     - make install
 
-install:
+package:
   environment:
     - set: ACLOCAL_PATH
       value: /spfs/share/aclocal
-  requirements:
-   - pkg: bash
-   - pkg: perl
-   - pkg: m4
-   - pkg: perl-carp
-   - pkg: perl-pathtools
-   - pkg: perl-data-dumper
-   - pkg: perl-exporter
-   - pkg: perl-file-path
-   - pkg: perl-getopt-long
-   - pkg: perl-text-parsewords
-   - pkg: perl-constant

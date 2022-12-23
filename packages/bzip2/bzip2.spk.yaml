@@ -1,20 +1,19 @@
 pkg: bzip2/1.0.6
-api: v0/package
+api: v1alpha1/recipe
 
-sources:
-- tar: https://www.sourceware.org/pub/bzip2/bzip2-1.0.6.tar.gz
+source:
+  collect:
+  - tar: https://www.sourceware.org/pub/bzip2/bzip2-1.0.6.tar.gz
+
+options:
+- var: arch
+- var: os
+- var: centos
+- pkg: gcc
+  atRuntime: false
+- pkg: stdfs
 
 build:
-  options:
-  - var: arch
-  - var: os
-  - var: centos
-  - pkg: gcc
-  - pkg: stdfs
   script:
   - cd bzip2-1.0.6
   - make install PREFIX=/spfs CFLAGS=-fPIC
-
-install:
-  requirements:
-  - pkg: stdfs

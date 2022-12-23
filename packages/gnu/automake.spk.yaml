@@ -1,23 +1,49 @@
 pkg: automake/1.16
-api: v0/package
+api: v1alpha1/recipe
 
-sources:
-  - tar: http://ftpmirror.gnu.org/gnu/automake/automake-1.16.tar.gz
+source:
+  collect:
+   - tar: http://ftpmirror.gnu.org/gnu/automake/automake-1.16.tar.gz
+
+options:
+  - var: arch
+  - var: os
+  - var: distro
+  - var: centos
+  - pkg: autoconf
+  - pkg: automake
+    atRuntime: false
+  - pkg: bash
+    atBuild: false
+  - pkg: bison
+    atRuntime: false
+  - pkg: coreutils
+  - pkg: flex
+    atRuntime: false
+  - pkg: make
+    atRuntime: false
+  - pkg: perl
+  - pkg: perl-carp
+    atBuild: false
+  - pkg: perl-constant
+    atBuild: false
+  - pkg: perl-exporter
+    atBuild: false
+  - pkg: perl-file-path
+    atBuild: false
+  - pkg: perl-getopt-long
+    atBuild: false
+  - pkg: perl-pathtools
+    atBuild: false
+  - pkg: perl-test-harness
+    atBuild: false
+  - pkg: perl-thread-queue
+    atBuild: false
+  - pkg: perl-threads
+    atBuild: false
+  - pkg: sed
 
 build:
-  options:
-    - var: arch
-    - var: os
-    - var: distro
-    - var: centos
-    - pkg: make
-    - pkg: coreutils
-    - pkg: sed
-    - pkg: perl
-    - pkg: autoconf
-    - pkg: automake
-    - pkg: flex
-    - pkg: bison
   script:
     - cd automake-1.16
     - ls bin
@@ -25,20 +51,3 @@ build:
       --prefix=/spfs
     - make
     - make install
-
-install:
-  requirements:
-    - pkg: autoconf
-    - pkg: bash
-    - pkg: sed
-    - pkg: coreutils
-    - pkg: perl
-    - pkg: perl-carp
-    - pkg: perl-constant
-    - pkg: perl-exporter
-    - pkg: perl-file-path
-    - pkg: perl-getopt-long
-    - pkg: perl-pathtools
-    - pkg: perl-test-harness
-    - pkg: perl-thread-queue
-    - pkg: perl-threads
