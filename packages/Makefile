@@ -80,7 +80,6 @@ zlib/zlib.spk: cmake
 .PHONY: cmake
 cmake: cmake/cmake.spk
 
-
 .PHONY: opentimelineio
 opentimelineio: python3 opentimelineio/opentimelineio.spk
 
@@ -127,6 +126,8 @@ docker.%:
 	fi
 	cp builder.spfs.toml ../dist
 	docker build ../dist -t spk-package-builder -f Dockerfile
+	docker run --privileged --rm -i $(DOCKER_EXTRA_ARGS) \
+	--ulimit nofile=90000:90000 \
 	-e SPFS_FILESYSTEM_TMPFS_SIZE \
 	-e RUST_LOG \
 	-v $$PWD/../build/packages/:/spfs-storage \
