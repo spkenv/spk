@@ -241,15 +241,24 @@ impl RangeIdent {
             build: self.build,
         }
     }
+
+    /// This range ident as a string without
+    /// the leading repo and package names
+    pub fn range_value(&self) -> String {
+        format!("{self:#}")
+    }
 }
 
 impl std::fmt::Display for RangeIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if let Some(name) = &self.repository_name {
-            name.fmt(f)?;
-            f.write_char('/')?;
+        if !f.alternate() {
+            // alternate formatting excludes the repo and package name
+            if let Some(name) = &self.repository_name {
+                name.fmt(f)?;
+                f.write_char('/')?;
+            }
+            self.name.fmt(f)?;
         }
-        self.name.fmt(f)?;
         self.components.fmt_component_set(f)?;
         if !self.version.is_empty() {
             f.write_char('/')?;

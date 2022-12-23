@@ -8,11 +8,11 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
-use spk_schema_foundation::name::OptNameBuf;
+use spk_schema_foundation::name::{OptName, OptNameBuf};
 use spk_schema_foundation::option_map::{OptionMap, Stringified};
 use spk_schema_foundation::spec_ops::{HasVersion, Named};
 use spk_schema_foundation::version::Compatibility;
-use spk_schema_foundation::version_range::Ranged;
+use spk_schema_foundation::version_range::{Ranged, VersionRange};
 use spk_schema_ident::{NameAndValue, PkgRequest, RangeIdent, Request, Satisfy, VarRequest};
 
 use super::{ConditionOutcome, WhenBlock};
@@ -31,6 +31,27 @@ pub enum RecipeOption {
 }
 
 impl RecipeOption {
+    pub fn name(&self) -> &OptName {
+        match self {
+            Self::Pkg(p) => p.pkg.name.as_opt_name(),
+            Self::Var(v) => v.var.name().as_ref(),
+        }
+    }
+
+    pub fn value<'a: 'out, 'b: 'out, 'out>(&'a self, given: Option<&'b String>) -> Option<String> {
+        match self {
+            Self::Pkg(p) => p.value(given),
+            Self::Var(v) => v.var.value(given).cloned(),
+        }
+    }
+
+    pub fn validate(&self, value: &String) -> Compatibility {
+        match self {
+            Self::Pkg(p) => p.validate(value),
+            Self::Var(v) => v.validate(value),
+        }
+    }
+
     /// Create a solver request from this option
     pub fn to_request<V>(&self, variant: V) -> Option<Request>
     where
@@ -180,6 +201,18 @@ pub struct VarOption {
 }
 
 impl VarOption {
+    pub fn validate(&self, value: &String) -> Compatibility {
+        if !self.choices.is_empty() && !self.choices.contains(value) {
+            return Compatibility::incompatible(format!(
+                "invalid option value '{}={}', must be one of {:?}",
+                self.var.name(),
+                value,
+                self.choices
+            ));
+        }
+        Compatibility::Compatible
+    }
+
     /// Create a solver request from this option, if appropriate
     pub fn to_request<V>(&self, variant: V) -> Option<VarRequest>
     where
@@ -420,6 +453,24 @@ fn no_downstream_build_error<E: serde::de::Error>() -> E {
 }
 
 impl PkgOption {
+    pub fn value(&self, given: Option<&String>) -> Option<String> {
+        if self.pkg.version.is_empty() && self.pkg.build.is_none() {
+            given.cloned()
+        } else {
+            Some(self.pkg.range_value())
+        }
+    }
+
+    pub fn validate(&self, value: &String) -> Compatibility {
+        match VersionRange::from_str(value) {
+            Err(err) => Compatibility::incompatible(format!(
+                "Invalid value '{}' for option '{}', not a valid package request: {}",
+                value, self.pkg, err
+            )),
+            Ok(value_range) => value_range.intersects(&self.pkg.version),
+        }
+    }
+
     /// Create a solver request from this option
     pub fn to_request<V>(&self, variant: V) -> PkgRequest
     where

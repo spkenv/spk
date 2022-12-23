@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::OptNameBuf;
 use spk_schema_foundation::option_map::OptionMap;
+use spk_schema_foundation::version::Compatibility;
 
 use super::RecipeOption;
 use crate::{Error, Result};
@@ -43,26 +44,15 @@ impl RecipeOptionList {
         while something_changed {
             let mut contention = HashMap::<OptNameBuf, HashSet<String>>::new();
             something_changed = false;
-            for option in self.iter() {
-                if option.check_is_active_at_build(&all).is_disabled() {
-                    continue;
-                }
-                let RecipeOption::Var(var_opt) = option else {
+            for opt in self.iter() {
+                let Some(value) = opt.value(given.get(opt.name())) else {
                     continue;
                 };
-                let Some(value) = var_opt.var.value(given.get(var_opt.var.name())) else {
-                    continue;
-                };
-                if !var_opt.choices.is_empty() && !var_opt.choices.contains(value) {
-                    return Err(Error::String(format!(
-                        "invalid option value '{}={}', must be one of {:?}",
-                        var_opt.var.name(),
-                        value,
-                        var_opt.choices
-                    )));
+                if let Compatibility::Incompatible { reason } = opt.validate(&value) {
+                    return Err(Error::String(reason));
                 }
                 let value = value.clone();
-                match all.to_mut().entry(var_opt.var.name().clone()) {
+                match all.to_mut().entry(opt.name().to_owned()) {
                     Entry::Vacant(entry) => {
                         something_changed = true;
                         entry.insert(value.clone());
@@ -74,7 +64,7 @@ impl RecipeOptionList {
                         }
                     }
                 }
-                match resolved.entry(var_opt.var.name().clone()) {
+                match resolved.entry(opt.name().to_owned()) {
                     Entry::Vacant(entry) => {
                         entry.insert(value.clone());
                     }
