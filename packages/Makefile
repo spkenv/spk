@@ -95,7 +95,7 @@ import:
 %: $</$<.spk
 
 %.spk : %.spk.yaml
-	spk info -r local $<@source > /dev/null 2>&1 || spk make-source -v $<
+	spk info -r local $<@sources > /dev/null 2>&1 || spk make-source -v $<
 	spk mkb -r origin -v $<
 	spk export $< $@
 
