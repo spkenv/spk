@@ -193,22 +193,23 @@ impl TagStorage for FSRepository {
         let tags_root = self.tags_root();
         let mut filepath = filepath.as_path();
         while filepath.starts_with(&tags_root) {
-            if let Some(parent) = filepath.parent() {
-                if parent == tags_root {
-                    break;
+            let Some(parent) = filepath.parent() else {
+                break;
+            };
+            if parent == tags_root {
+                break;
+            }
+            tracing::trace!(?parent, "seeing if parent needs removing");
+            match tokio::fs::remove_dir(&parent).await {
+                Ok(_) => {
+                    tracing::debug!(path = ?parent, "removed tag parent dir");
+                    filepath = parent;
                 }
-                tracing::trace!(?parent, "seeing if parent needs removing");
-                match tokio::fs::remove_dir(&parent).await {
-                    Ok(_) => {
-                        tracing::debug!(path = ?parent, "removed tag parent dir");
-                        filepath = parent;
-                    }
-                    Err(err) => match err.raw_os_error() {
-                        Some(libc::ENOTEMPTY) => return Ok(()),
-                        Some(libc::ENOENT) => return Ok(()),
-                        _ => return Err(Error::StorageWriteError(parent.to_owned(), err)),
-                    },
-                }
+                Err(err) => match err.raw_os_error() {
+                    Some(libc::ENOTEMPTY) => return Ok(()),
+                    Some(libc::ENOENT) => return Ok(()),
+                    _ => return Err(Error::StorageWriteError(parent.to_owned(), err)),
+                },
             }
         }
         Ok(())
