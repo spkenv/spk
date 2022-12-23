@@ -1,4 +1,12 @@
 export SPFS_FILESYSTEM_TMPFS_SIZE=10G
+INTERACTIVE:=$(shell [ -t 0 ] && echo 1)
+ifdef INTERACTIVE
+# docker and the commands run under docker will be easier to
+# manage and have nicer output if we allocate a tty, but this only
+# works when the calling process is actually an interactive shell
+DOCKER_EXTRA_ARGS=-t
+endif
+
 .PHONY: packages
 packages: \
 	bootstrap \
@@ -91,8 +99,21 @@ import:
 	spk mkb -r origin -v $<
 	spk export $< $@
 
-.PRECIOUS: bootstrap/*.spk.yaml
+# a specific package.spk.yaml.in takes precedence over the
+# generic rule below that uses the simple spk.yaml.in
+bootstrap/%.spk.yaml : bootstrap/%.spk.yaml.in
+	export VERSION=$$(rpm -q --queryformat '%{VERSION}' $*) && \
+	if [ ! -f $@ ]; then cp $< $@; fi && \
+	sed -i "s|VERSION|$${VERSION}|g" $@ && \
+	touch $@
+
+# the above rule must appear first to take precedence over this one
 bootstrap/%.spk.yaml : bootstrap/spk.yaml.in
+	export VERSION=$$(rpm -q --queryformat '%{VERSION}' $*) && \
+	if [ ! -f $@ ]; then cp $< $@; fi && \
+	sed -i 's|NAME|$*|g' $@ && \
+	sed -i "s|VERSION|$${VERSION}|g" $@ && \
+	touch $@
 
 .PHONY: lint
 lint: $(shell find . -name "*.spk.yaml")

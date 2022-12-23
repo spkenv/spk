@@ -1,22 +1,27 @@
-# use a low version and explicit bootstrap tag to be clear
-pkg: NAME/0.0.0+bootstrap.1
-api: v0/package
+pkg: NAME/VERSION+bootstrap.1
+api: v1alpha1/recipe
+meta:
+  description: |
+    This is an package which is a relocated copy of the system package
+    of the same name, hence the bootstrapping idea... The files in this
+    package may not actually be used at runtime and may also not work when
+    relocated but if the original package is still installed on the host
+    then there should not be too much issue. THESE BOOTSTRAP PACKAGES SHOULD
+    NOT BE PUBLISHED OR SHARED.
 
-sources: [] # no source package files
+source:
+  collect: [] # no source package files
+
+options:
+  - var: arch
+  - var: os
+  - var: distro
+  - var: centos
+  - pkg: stdfs
+  - var: NAME.bootstrapped=yes
+    atDownstream: true
 
 build:
-  # this is an empty package which just assumes that NAME is installed and
-  # available to be used, hence the bootstrapping idea...
-  # Usually this package is only used to satisfy the dependencies of the
-  # real NAME package which requires itself to build itself
-  options:
-    - var: arch
-    - var: os
-    - var: distro
-    - var: centos
-    - pkg: stdfs
-    - var: bootstrapped/yes
-      inheritance: Strong
   script: |
     if ! rpm -q NAME; then
       echo "NAME is not installed on this system"
@@ -37,7 +42,3 @@ build:
       fi
     done
     [ ! -e /spfs/share/info ] || rm -r /spfs/share/info
-
-install:
-  requirements:
-    - pkg: stdfs

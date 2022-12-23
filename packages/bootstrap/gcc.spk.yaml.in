@@ -1,0 +1,11 @@
+pkg: gcc/VERSION+bootstrap.1
+api: v1alpha1/recipe
+meta:
+  description: |
+    This is an empty package which just assumes that gcc is installed and
+    available to be used, hence the bootstrapping idea...
+    Usually this package is only used to satisfy the dependencies of the
+    real gcc package which requires itself to build itself
+
+build:
+  script: echo "explicitly empty"

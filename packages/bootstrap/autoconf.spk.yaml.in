@@ -1,22 +1,25 @@
 # use a low version and explicit bootstrap tag to be clear
-pkg: autoconf/0.0.0+bootstrap.1
-api: v0/package
+pkg: autoconf/VERSION+bootstrap.1
+api: v1alpha1/recipe
+meta:
+  description: |
+    This is an empty package which copies an already installed version
+    of autoconf from the current system. It should not be published
+    or used outside of getting the package build process going
 
-sources: [] # no source package files
+source:
+  collect: [] # no source package files
+
+options:
+  - var: arch
+  - var: os
+  - var: distro
+  - var: centos
+  - pkg: stdfs
+  - var: autoconf.bootstrapped=yes
+    atDownstream: true
 
 build:
-  # this is an empty package which just assumes that autoconf is installed and
-  # available to be used, hence the bootstrapping idea...
-  # Usually this package is only used to satisfy the dependencies of the
-  # real autoconf package which requires itself to build itself
-  options:
-    - var: arch
-    - var: os
-    - var: distro
-    - var: centos
-    - pkg: stdfs
-    - var: bootstrapped/yes
-      inheritance: Strong
   script: |
     if ! rpm -q autoconf; then
       echo "autoconf is not installed on this system"
