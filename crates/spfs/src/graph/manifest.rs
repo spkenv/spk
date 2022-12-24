@@ -30,6 +30,12 @@ impl From<&tracking::Manifest> for Manifest {
     }
 }
 
+impl From<tracking::Manifest> for Manifest {
+    fn from(source: tracking::Manifest) -> Self {
+        Self::from(source.root())
+    }
+}
+
 impl From<&tracking::Entry> for Manifest {
     fn from(source: &tracking::Entry) -> Self {
         let mut manifest = Self::default();

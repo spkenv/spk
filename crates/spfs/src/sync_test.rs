@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use rand::Rng;
 use rstest::{fixture, rstest};
 use storage::RepositoryHandle;
 
@@ -261,6 +262,84 @@ async fn test_sync_through_tar(
 
     assert!(repo_b.read_ref("testing").await.is_ok());
     assert!(repo_b.has_layer(layer.digest().unwrap()).await);
+}
+
+#[rstest]
+#[case::fs(tmprepo("fs"), tmprepo("fs"))]
+#[case::tar(tmprepo("tar"), tmprepo("tar"))]
+#[cfg_attr(feature = "server", case::rpc(tmprepo("rpc"), tmprepo("rpc")))]
+#[tokio::test]
+async fn test_sync_with_payloads(
+    #[case]
+    #[future]
+    repo_a: TempRepo,
+    #[case]
+    #[future]
+    repo_b: TempRepo,
+    tmpdir: tempfile::TempDir,
+) {
+    init_logging();
+    let repo_a = repo_a.await;
+    let repo_b = repo_b.await;
+
+    let total_files = rand::thread_rng().gen_range(10_000..20_000);
+    generate_file_tree(tmpdir.path(), total_files);
+
+    let manifest = crate::commit_dir(repo_a.repo(), tmpdir.path())
+        .await
+        .expect("should not fail to commit generated dir");
+
+    // try to introduce contention issues by running the sync many times
+    let syncer = Syncer::new(&repo_a, &repo_b);
+    let _ = tokio::try_join!(
+        syncer.sync_manifest((&manifest).into()),
+        syncer.sync_manifest((&manifest).into()),
+        syncer.sync_manifest((&manifest).into()),
+        syncer.sync_manifest((&manifest).into())
+    )
+    .expect("Should not fail to sync");
+    let errors = match &*repo_b.repo() {
+        RepositoryHandle::FS(repo) => crate::graph::check_database_integrity(repo).await,
+        RepositoryHandle::Tar(repo) => crate::graph::check_database_integrity(repo).await,
+        RepositoryHandle::Rpc(repo) => crate::graph::check_database_integrity(repo).await,
+        RepositoryHandle::Proxy(repo) => crate::graph::check_database_integrity(&**repo).await,
+    };
+    for error in errors.iter() {
+        tracing::error!(%error);
+    }
+    if !errors.is_empty() {
+        panic!("Expected no database integrity issues");
+    }
+}
+
+fn generate_file_tree(root: &std::path::Path, mut file_count: usize) {
+    let mut rng = rand::thread_rng();
+    fn gen_name(len: usize) -> String {
+        rand::thread_rng()
+            .sample_iter(&rand::distributions::Alphanumeric)
+            .take(len)
+            .map(char::from)
+            .collect()
+    }
+    if file_count > 10 {
+        let dir_count = rng.gen_range(1..5);
+        let dir_portion = file_count / dir_count;
+        for _dir in 0..dir_count {
+            let dir_name = gen_name(12);
+            let dir_path = root.join(dir_name);
+            std::fs::create_dir(&dir_path).unwrap();
+            let dir_file_count = rng.gen_range(1..dir_portion);
+            generate_file_tree(&dir_path, dir_file_count);
+            file_count -= dir_file_count;
+        }
+    }
+    for _file in 0..file_count {
+        let file_name = gen_name(12);
+        // we want to create some payloads that are the same
+        let file_data = gen_name(2);
+        let file_path = root.join(file_name);
+        std::fs::write(&file_path, file_data).unwrap();
+    }
 }
 
 #[fixture]
