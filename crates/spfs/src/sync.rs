@@ -192,6 +192,7 @@ where
 
     /// Sync one environment item and any associated data.
     pub async fn sync_env_item(&self, item: tracking::EnvSpecItem) -> Result<SyncEnvItemResult> {
+        tracing::debug!(?item, "Syncing item");
         self.reporter.visit_env_item(&item);
         let res = match item {
             tracking::EnvSpecItem::Digest(digest) => self

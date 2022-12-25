@@ -15,6 +15,10 @@ pub struct CmdCheck {
     /// Attempt to fix problems by pulling from another repository. Defaults to "origin".
     #[clap(long)]
     pull: Option<Option<String>>,
+
+    /// Objects to recursively check, defaults to everything
+    #[clap(name = "REF")]
+    reference: Vec<String>,
 }
 
 impl CmdCheck {
@@ -44,12 +48,22 @@ impl CmdCheck {
             None => None,
         };
 
+        let root = match &self.reference {
+            Some(ref_string) => {
+                let obj = repo.read_ref(ref_string.as_str()).await?;
+                Some(obj.digest()?)
+            }
+            None => None,
+        };
+
         tracing::info!("walking repository...");
         let errors = match &repo {
-            RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo).await,
-            RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo).await,
-            RepositoryHandle::Rpc(repo) => spfs::graph::check_database_integrity(repo).await,
-            RepositoryHandle::Proxy(repo) => spfs::graph::check_database_integrity(&**repo).await,
+            RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo, root).await,
+            RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo, root).await,
+            RepositoryHandle::Rpc(repo) => spfs::graph::check_database_integrity(repo, root).await,
+            RepositoryHandle::Proxy(repo) => {
+                spfs::graph::check_database_integrity(&**repo, root).await
+            }
         };
         let mut repair_count = 0;
         for error in errors.iter() {
@@ -80,6 +94,7 @@ impl CmdCheck {
                 }
             }
         }
+
         if !errors.is_empty() && repair_count < errors.len() {
             if pull_from.is_none() {
                 tracing::info!("running with `--pull` may be able to resolve these issues")
