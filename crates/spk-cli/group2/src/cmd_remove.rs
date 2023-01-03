@@ -101,27 +101,44 @@ async fn remove_build(
     let repo_name = repo_name.bold();
     let pretty_pkg = pkg.format_ident();
     let (spec, package) = tokio::join!(repo.remove_recipe(pkg), repo.remove_package(pkg),);
+    // First inform on the things that actually happened.
     if spec.is_ok() {
         tracing::info!("removed build spec {pretty_pkg} from {repo_name}")
-    } else if let Err(spk_storage::Error::SpkValidatorsError(
-        spk_schema::validators::Error::PackageNotFoundError(_),
-    )) = spec
-    {
-        tracing::warn!("spec {pretty_pkg} not found in {repo_name}")
     }
     if package.is_ok() {
         tracing::info!("removed build      {pretty_pkg} from {repo_name}")
-    } else if let Err(spk_storage::Error::SpkValidatorsError(
-        spk_schema::validators::Error::PackageNotFoundError(_),
-    )) = package
-    {
-        tracing::warn!("build {pretty_pkg} not found in {repo_name}")
     }
-    if let Err(err) = spec {
-        return Err(err.into());
+    // Treat "not found" problems as warnings unless both parts were not
+    // found.
+    let spec_not_found = matches!(
+        spec,
+        Err(spk_storage::Error::SpkValidatorsError(
+            spk_schema::validators::Error::PackageNotFoundError(_)
+        ))
+    );
+    let pkg_not_found = matches!(
+        package,
+        Err(spk_storage::Error::SpkValidatorsError(
+            spk_schema::validators::Error::PackageNotFoundError(_)
+        ))
+    );
+    if spec_not_found && pkg_not_found {
+        // Both parts were not found; this is a hard error so don't
+        // emit warnings.
+        return Err(package.unwrap_err().into());
     }
-    if let Err(err) = package {
-        return Err(err.into());
+    // When not erroring above, emit a warning about the one that was missing.
+    if spec_not_found {
+        tracing::warn!("spec {pretty_pkg} not found in {repo_name}");
+    } else if pkg_not_found {
+        tracing::warn!("build {pretty_pkg} not found in {repo_name}");
+    }
+    // Now fail if anything errored for other reasons.
+    if package.is_err() && !pkg_not_found {
+        return Err(package.unwrap_err().into());
+    }
+    if spec.is_err() && !spec_not_found {
+        return Err(spec.unwrap_err().into());
     }
     Ok(())
 }
