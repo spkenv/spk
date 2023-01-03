@@ -265,7 +265,6 @@ pub fn configure_logging(verbosity: usize, syslog: bool) {
         config.push_str(&overrides);
     }
     let env_filter = tracing_subscriber::filter::EnvFilter::from(config);
-    let registry = tracing_subscriber::Registry::default().with(env_filter);
     let fmt_layer = tracing_subscriber::fmt::layer()
         .without_time()
         .with_target(verbosity > 2);
@@ -276,25 +275,76 @@ pub fn configure_logging(verbosity: usize, syslog: bool) {
         let identity =
             std::ffi::CStr::from_bytes_with_nul(b"spfs\0").expect("identity value is valid CStr");
         let (options, facility) = Default::default();
-        let fmt_layer = fmt_layer.with_writer(
+        let syslog_log = fmt_layer.with_writer(
             syslog_tracing::Syslog::new(identity, options, facility).expect("initialize Syslog"),
         );
 
         #[cfg(not(feature = "sentry"))]
-        let sub = registry.with(fmt_layer);
+        let sub =
+            tracing_subscriber::registry().with(syslog_log.with_filter(env_filter).with_filter(
+                tracing_subscriber::filter::filter_fn(|metadata| {
+                    // Don't log breadcrumbs to console, etc.
+                    !metadata.target().starts_with("sentry")
+                }),
+            ));
 
         #[cfg(feature = "sentry")]
-        let sub = registry.with(fmt_layer).with(sentry_tracing::layer());
+        let sub = {
+            let sentry_layer =
+                sentry_tracing::layer().with_filter(tracing_subscriber::filter::LevelFilter::INFO);
+
+            tracing_subscriber::registry()
+                .with(
+                    syslog_log
+                        .and_then(sentry_tracing::layer())
+                        .with_filter(env_filter)
+                        .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                            // Don't log breadcrumbs to console, etc.
+                            !metadata.target().starts_with("sentry")
+                        })),
+                )
+                .with(
+                    sentry_layer.with_filter(tracing_subscriber::filter::filter_fn(
+                        // Only log breadcrumbs here.
+                        |metadata| metadata.target().starts_with("sentry"),
+                    )),
+                )
+        };
 
         tracing::subscriber::set_global_default(sub).unwrap();
     } else {
-        let fmt_layer = fmt_layer.with_writer(std::io::stderr);
+        let stderr_log = fmt_layer.with_writer(std::io::stderr);
 
         #[cfg(not(feature = "sentry"))]
-        let sub = registry.with(fmt_layer);
+        let sub = tracing_subscriber::registry().with(stderr_log.with_filter(
+            tracing_subscriber::filter::filter_fn(|metadata| {
+                // Don't log breadcrumbs to console, etc.
+                !metadata.target().starts_with("sentry")
+            }),
+        ));
 
         #[cfg(feature = "sentry")]
-        let sub = registry.with(fmt_layer).with(sentry_tracing::layer());
+        let sub = {
+            let sentry_layer =
+                sentry_tracing::layer().with_filter(tracing_subscriber::filter::LevelFilter::INFO);
+
+            tracing_subscriber::registry()
+                .with(
+                    stderr_log
+                        .and_then(sentry_tracing::layer())
+                        .with_filter(env_filter)
+                        .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                            // Don't log breadcrumbs to console, etc.
+                            !metadata.target().starts_with("sentry")
+                        })),
+                )
+                .with(
+                    sentry_layer.with_filter(tracing_subscriber::filter::filter_fn(
+                        // Only log breadcrumbs here.
+                        |metadata| metadata.target().starts_with("sentry"),
+                    )),
+                )
+        };
 
         tracing::subscriber::set_global_default(sub).unwrap();
     };

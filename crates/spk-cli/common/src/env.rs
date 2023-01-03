@@ -15,6 +15,7 @@ use spk_solve::package_iterator::BUILD_SORT_TARGET;
 use spk_solve::solution::{PackageSource, Solution};
 use spk_solve::validation::IMPOSSIBLE_CHECKS_TARGET;
 use spk_storage::{self as storage};
+use tracing_subscriber::prelude::*;
 
 use crate::Error;
 
@@ -226,19 +227,42 @@ pub fn configure_logging(verbosity: u32) -> Result<()> {
     // takes over in it's current setup/state.
     std::env::set_var("RUST_LOG", &directives);
     let env_filter = tracing_subscriber::filter::EnvFilter::new(directives);
-    let registry = tracing_subscriber::Registry::default().with(env_filter);
-    let mut fmt_layer = tracing_subscriber::fmt::layer()
-        .with_writer(std::io::stderr)
-        .without_time();
-    if verbosity < 3 {
-        fmt_layer = fmt_layer.with_target(false);
-    }
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .without_time()
+        .with_target(verbosity > 2);
+
+    let stderr_log = fmt_layer.with_writer(std::io::stderr);
 
     #[cfg(not(feature = "sentry"))]
-    let sub = registry.with(fmt_layer);
+    let sub = tracing_subscriber::registry().with(stderr_log.with_filter(env_filter).with_filter(
+        tracing_subscriber::filter::filter_fn(|metadata| {
+            // Don't log breadcrumbs to console, etc.
+            !metadata.target().starts_with("sentry")
+        }),
+    ));
 
     #[cfg(feature = "sentry")]
-    let sub = registry.with(fmt_layer).with(sentry_tracing::layer());
+    let sub = {
+        let sentry_layer =
+            sentry_tracing::layer().with_filter(tracing_subscriber::filter::LevelFilter::INFO);
+
+        tracing_subscriber::registry()
+            .with(
+                stderr_log
+                    .and_then(sentry_tracing::layer())
+                    .with_filter(env_filter)
+                    .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                        // Don't log breadcrumbs to console, etc.
+                        !metadata.target().starts_with("sentry")
+                    })),
+            )
+            .with(
+                sentry_layer.with_filter(tracing_subscriber::filter::filter_fn(
+                    // Only log breadcrumbs here.
+                    |metadata| metadata.target().starts_with("sentry"),
+                )),
+            )
+    };
 
     tracing::subscriber::set_global_default(sub).context("Failed to set default logger")
 }
