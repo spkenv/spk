@@ -190,22 +190,26 @@ impl TagStorage for FSRepository {
         // the lock file needs to be removed if the directory has any hope of being empty
         drop(lock);
 
+        let tags_root = self.tags_root();
         let mut filepath = filepath.as_path();
-        while filepath.starts_with(self.tags_root()) {
-            if let Some(parent) = filepath.parent() {
-                tracing::trace!(?parent, "seeing if parent needs removing");
-                let path_to_remove = self.tags_root().join(parent);
-                match tokio::fs::remove_dir(&path_to_remove).await {
-                    Ok(_) => {
-                        tracing::debug!(path = ?parent, "removed tag parent dir");
-                        filepath = parent;
-                    }
-                    Err(err) => match err.raw_os_error() {
-                        Some(libc::ENOTEMPTY) => return Ok(()),
-                        Some(libc::ENOENT) => return Ok(()),
-                        _ => return Err(Error::StorageWriteError(path_to_remove, err)),
-                    },
+        while filepath.starts_with(&tags_root) {
+            let Some(parent) = filepath.parent() else {
+                break;
+            };
+            if parent == tags_root {
+                break;
+            }
+            tracing::trace!(?parent, "seeing if parent needs removing");
+            match tokio::fs::remove_dir(&parent).await {
+                Ok(_) => {
+                    tracing::debug!(path = ?parent, "removed tag parent dir");
+                    filepath = parent;
                 }
+                Err(err) => match err.raw_os_error() {
+                    Some(libc::ENOTEMPTY) => return Ok(()),
+                    Some(libc::ENOENT) => return Ok(()),
+                    _ => return Err(Error::StorageWriteError(parent.to_owned(), err)),
+                },
             }
         }
         Ok(())
