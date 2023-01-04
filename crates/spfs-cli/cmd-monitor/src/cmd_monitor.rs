@@ -39,14 +39,11 @@ impl CmdMonitor {
             .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
         let mut terminate = signal(SignalKind::terminate())
             .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
-        let repo = spfs::open_repository(&self.runtime_storage).await?;
-        let storage = spfs::runtime::Storage::new(repo);
-        let runtime = storage.read_runtime(&self.runtime).await?;
-
-        let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_monitor(runtime).await?;
 
         // Wait to be informed that it is now safe to read the mount namespace
-        // of the pid we are meant to be monitoring.
+        // of the pid we are meant to be monitoring. Also wait to read/write
+        // the runtime as well. spfs-enter promises to not modify the runtime
+        // once it sends us a message.
         let mut stdin = tokio::io::stdin();
         let mut buffer = [0; 64];
         let wait_for_ok = stdin.read(&mut buffer);
@@ -67,6 +64,12 @@ impl CmdMonitor {
                 tracing::warn!("Timeout waiting for parent process!");
             }
         }
+
+        let repo = spfs::open_repository(&self.runtime_storage).await?;
+        let storage = spfs::runtime::Storage::new(repo);
+        let runtime = storage.read_runtime(&self.runtime).await?;
+
+        let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_monitor(runtime).await?;
 
         let fut = spfs::env::wait_for_empty_runtime(&owned);
         let res = tokio::select! {

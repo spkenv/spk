@@ -107,6 +107,11 @@ impl CmdEnter {
             tracing::debug!("initializing runtime");
             spfs::initialize_runtime(&mut owned).await?;
 
+            // We promise to not mutate the runtime after this point.
+            // spfs-monitor will read and modify it after we tell it to
+            // proceed.
+            let owned = owned;
+
             // Now we have dropped privileges and are running as the invoking
             // user (same uid as spfs-monitor) and have entered the mount
             // namespace that spfs-monitor should be monitoring. Inform it to
