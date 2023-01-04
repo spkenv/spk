@@ -11,6 +11,9 @@ use super::{parse_ident, AnyIdent};
 #[case("package")]
 #[case("package/1.1.0")]
 #[case("package/2.0.0.1")]
+#[case("package/2.0.0/embedded")]
+#[case("package/2.0.0/src")]
+#[case("package/2.0.0/BGSHW3CN")]
 fn test_ident_to_str(#[case] input: &str) {
     let ident = parse_ident(input).unwrap();
     let out = ident.to_string();
