@@ -22,8 +22,6 @@ use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestSt
 use spk_solve::{self as solve};
 use spk_storage::{self as storage};
 
-use crate::Error;
-
 #[cfg(test)]
 #[path = "./flags_test.rs"]
 mod flags_test;
@@ -560,11 +558,9 @@ where
             Ok((Arc::new(recipe), path))
         }
         FindPackageTemplateResult::MultipleTemplateFiles(files) => {
+            // must_be_found() will exit the program when called on MultipleTemplateFiles
             FindPackageTemplateResult::MultipleTemplateFiles(files).must_be_found();
-            Err(Error::String(String::from(
-                "This won't happen because must_be_found() will exit the program in this case",
-            ))
-            .into())
+            unreachable!()
         }
         FindPackageTemplateResult::NoTemplateFiles | FindPackageTemplateResult::NotFound(_) => {
             // If couldn't find a template file, maybe there's an
