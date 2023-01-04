@@ -135,7 +135,10 @@ impl graph::Database for super::FSRepository {
 
         let metadata = tokio::fs::symlink_metadata(&filepath)
             .await
-            .map_err(|err| Error::StorageReadError(filepath.clone(), err))?;
+            .map_err(|err| match err.kind() {
+                std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
+                _ => Error::StorageReadError(filepath.clone(), err),
+            })?;
 
         let mtime = metadata
             .modified()
