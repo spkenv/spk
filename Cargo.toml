@@ -37,6 +37,7 @@ sentry = { version = "0.27.0" }
 sentry-anyhow = { version = "0.27.0" }
 strip-ansi-escapes = "0.1.1"
 tokio = { version = "1.20", features = ["rt"] }
+tokio-retry = "0.3.0"
 tracing = "0.1.35"
 tracing-capture = "0.1"
 tracing-subscriber = "0.3.14"

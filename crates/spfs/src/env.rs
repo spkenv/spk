@@ -7,8 +7,12 @@
 use std::collections::{HashMap, HashSet};
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use futures::StreamExt;
+use tokio_retry::strategy::{jitter, ExponentialBackoff};
+use tokio_retry::{Condition, RetryIf};
 use tokio_stream::wrappers::IntervalStream;
 
 use super::runtime;
@@ -177,8 +181,56 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         Some(pid) => pid,
     };
 
-    // Grab this as soon as possible before the pid has a chance to disappear.
-    let mount_ns = identify_mount_namespace_of_process(pid).await?;
+    // Grab the mount namespace as soon as possible before the pid has a
+    // chance to disappear.
+
+    // This was observed to require two retries before succeeding when set to
+    // 10ms.
+    let retry_strategy = ExponentialBackoff::from_millis(50).map(jitter).take(3);
+
+    struct RetryOnPermissionDenied {
+        had_to_retry: Arc<AtomicBool>,
+    }
+
+    impl Condition<Error> for RetryOnPermissionDenied {
+        fn should_retry(&mut self, error: &Error) -> bool {
+            #[cfg(feature = "sentry")]
+            tracing::info!(target: "sentry", ?error, "In should_retry after identify_mount_namespace_of_process");
+
+            // Only retry if the namespace couldn't be read because of EACCES.
+            match error {
+                Error::RuntimeReadError(_, err)
+                    if matches!(err.kind(), std::io::ErrorKind::PermissionDenied) =>
+                {
+                    self.had_to_retry.store(true, Ordering::Relaxed);
+
+                    true
+                }
+                _ => false,
+            }
+        }
+    }
+
+    let had_to_retry = Arc::new(AtomicBool::new(false));
+
+    let mount_ns = RetryIf::spawn(
+        retry_strategy,
+        || async { identify_mount_namespace_of_process(pid).await },
+        RetryOnPermissionDenied {
+            had_to_retry: Arc::clone(&had_to_retry),
+        },
+    )
+    .await
+    .map(|result| {
+        if had_to_retry.load(Ordering::Relaxed) {
+            // Want to know if this happened...
+            #[cfg(feature = "sentry")]
+            tracing::error!(target: "sentry", "read mount namespace succeeded after retries");
+        }
+
+        result
+    })
+    .unwrap_or_default();
 
     // we could use our own pid here, but then when running in a container
     // or pid namespace the process id would actually be wrong. Passing

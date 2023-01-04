@@ -70,6 +70,7 @@ tokio = { version = "1.20", features = [
     "process",
     "signal"
 ] }
+tokio-retry = { workspace = true }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.3", features = ["compat", "io"] }
 tonic = "0.8"
