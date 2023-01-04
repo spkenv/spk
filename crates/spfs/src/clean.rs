@@ -272,20 +272,17 @@ async fn clean_proxy(proxy_path: std::path::PathBuf, dry_run: bool) -> Result<bo
     // and can be removed.
     let mut files_exist = false;
     let mut files_were_deleted = false;
-    let mut iter = tokio::fs::read_dir(&proxy_path)
-        .await
-        .map_err(|err| Error::StorageReadError(proxy_path.clone(), err))?;
-    while let Some(entry) = iter
-        .next_entry()
-        .await
-        .map_err(|err| Error::StorageReadError(proxy_path.clone(), err))?
-    {
+    let mut iter = tokio::fs::read_dir(&proxy_path).await.map_err(|err| {
+        Error::StorageReadError("read_dir on proxy path", proxy_path.clone(), err)
+    })?;
+    while let Some(entry) = iter.next_entry().await.map_err(|err| {
+        Error::StorageReadError("next_entry on proxy path", proxy_path.clone(), err)
+    })? {
         files_exist = true;
 
-        let file_type = entry
-            .file_type()
-            .await
-            .map_err(|err| Error::StorageReadError(entry.path(), err))?;
+        let file_type = entry.file_type().await.map_err(|err| {
+            Error::StorageReadError("file_type on proxy path entry", entry.path(), err)
+        })?;
 
         if file_type.is_dir() {
             if clean_proxy(entry.path(), dry_run).await? {
@@ -298,10 +295,9 @@ async fn clean_proxy(proxy_path: std::path::PathBuf, dry_run: bool) -> Result<bo
                 }
             }
         } else if file_type.is_file() {
-            let metadata = entry
-                .metadata()
-                .await
-                .map_err(|err| Error::StorageReadError(entry.path(), err))?;
+            let metadata = entry.metadata().await.map_err(|err| {
+                Error::StorageReadError("metadata on proxy file", entry.path(), err)
+            })?;
 
             if metadata.st_nlink() != 1 {
                 continue;
@@ -313,9 +309,9 @@ async fn clean_proxy(proxy_path: std::path::PathBuf, dry_run: bool) -> Result<bo
             if dry_run {
                 tracing::info!("rm {}", entry.path().display());
             } else {
-                tokio::fs::remove_file(entry.path())
-                    .await
-                    .map_err(|err| Error::StorageReadError(entry.path(), err))?;
+                tokio::fs::remove_file(entry.path()).await.map_err(|err| {
+                    Error::StorageReadError("remove_file on proxy path entry", entry.path(), err)
+                })?;
             }
 
             files_were_deleted = true;

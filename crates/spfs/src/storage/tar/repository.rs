@@ -85,9 +85,10 @@ impl TarRepository {
             .as_ref()
             .canonicalize()
             .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
-        let mut file = BufReader::new(
-            std::fs::File::open(&path).map_err(|err| Error::StorageReadError(path.clone(), err))?,
-        );
+        let mut file =
+            BufReader::new(std::fs::File::open(&path).map_err(|err| {
+                Error::StorageReadError("open of tar repository", path.clone(), err)
+            })?);
         let mut archive = Archive::new(&mut file);
         let tmpdir = tempfile::Builder::new()
             .prefix("spfs-tar-repo")

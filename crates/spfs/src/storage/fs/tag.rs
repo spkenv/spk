@@ -43,7 +43,11 @@ impl TagStorage for FSRepository {
                 std::io::ErrorKind::NotFound => return Box::pin(futures::stream::empty()),
                 _ => {
                     return Box::pin(futures::stream::once(async {
-                        Err(Error::StorageReadError(filepath, err))
+                        Err(Error::StorageReadError(
+                            "read_dir on tags path",
+                            filepath,
+                            err,
+                        ))
                     }))
                 }
             },
@@ -51,7 +55,13 @@ impl TagStorage for FSRepository {
 
         let iter = read_dir.filter_map(move |entry| {
             let entry = match entry {
-                Err(err) => return Some(Err(Error::StorageReadError(filepath.clone(), err))),
+                Err(err) => {
+                    return Some(Err(Error::StorageReadError(
+                        "entry of tags path",
+                        filepath.clone(),
+                        err,
+                    )))
+                }
                 Ok(entry) => entry,
             };
             let path = entry.path();
@@ -279,6 +289,7 @@ impl Stream for TagStreamIter {
                     None => break Ready(None),
                     Some(Err(err)) => {
                         break Ready(Some(Err(Error::StorageReadError(
+                            "entry in tags stream",
                             self.root.clone(),
                             err.into(),
                         ))))
@@ -367,9 +378,9 @@ async fn read_tag_file<P>(path: P) -> Result<TagIter>
 where
     P: AsRef<Path>,
 {
-    let reader = tokio::fs::File::open(path.as_ref())
-        .await
-        .map_err(|err| Error::StorageReadError(path.as_ref().to_owned(), err))?;
+    let reader = tokio::fs::File::open(path.as_ref()).await.map_err(|err| {
+        Error::StorageReadError("open of tag file", path.as_ref().to_owned(), err)
+    })?;
     Ok(TagIter::new(
         Box::new(tokio::io::BufReader::new(reader)),
         path.as_ref().to_owned(),
@@ -464,6 +475,7 @@ impl Stream for TagIter {
                         Pending
                     }
                     Ready(Err(err)) => Ready(Some(Err(Error::StorageReadError(
+                        "read of tag",
                         self.filename.clone(),
                         err,
                     )))),
@@ -484,6 +496,7 @@ impl Stream for TagIter {
                                         .start_seek(SeekFrom::Start(last_tag_start))
                                     {
                                         Err(err) => Ready(Some(Err(Error::StorageReadError(
+                                            "start_seek on tag",
                                             self.filename.clone(),
                                             err,
                                         )))),
@@ -513,6 +526,7 @@ impl Stream for TagIter {
                         }
                         match Pin::new(&mut reader).start_seek(SeekFrom::Current(size)) {
                             Err(err) => Ready(Some(Err(Error::StorageReadError(
+                                "start_seek on tag",
                                 self.filename.clone(),
                                 err,
                             )))),
@@ -530,6 +544,7 @@ impl Stream for TagIter {
                     Pending
                 }
                 Ready(Err(err)) => Ready(Some(Err(Error::StorageReadError(
+                    "SeekingIndex on tag",
                     self.filename.clone(),
                     err,
                 )))),
@@ -549,6 +564,7 @@ impl Stream for TagIter {
                         Pending
                     }
                     Ready(Err(err)) => Ready(Some(Err(Error::StorageReadError(
+                        "SeekingTag",
                         self.filename.clone(),
                         err,
                     )))),
@@ -580,6 +596,7 @@ impl Stream for TagIter {
                         Pending
                     }
                     Ready(Err(err)) => Ready(Some(Err(Error::StorageReadError(
+                        "ReadingTag",
                         self.filename.clone(),
                         err,
                     )))),
@@ -601,6 +618,7 @@ impl Stream for TagIter {
                                     {
                                         Err(err) => {
                                             return Ready(Some(Err(Error::StorageReadError(
+                                                "start_seek in ReadingTag",
                                                 self.filename.clone(),
                                                 err,
                                             ))))

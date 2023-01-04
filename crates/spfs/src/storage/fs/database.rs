@@ -23,13 +23,13 @@ impl DatabaseView for super::FSRepository {
             tokio::io::BufReader::new(tokio::fs::File::open(&filepath).await.map_err(|err| {
                 match err.kind() {
                     std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
-                    _ => Error::StorageReadError(filepath.clone(), err),
+                    _ => Error::StorageReadError("open object file", filepath.clone(), err),
                 }
             })?);
         let mut buf = Vec::new();
-        file.read_to_end(&mut buf)
-            .await
-            .map_err(|err| Error::StorageReadError(filepath.clone(), err))?;
+        file.read_to_end(&mut buf).await.map_err(|err| {
+            Error::StorageReadError("read_to_end on object file", filepath.clone(), err)
+        })?;
         Object::decode(&mut buf.as_slice())
     }
 
@@ -137,12 +137,20 @@ impl graph::Database for super::FSRepository {
             .await
             .map_err(|err| match err.kind() {
                 std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
-                _ => Error::StorageReadError(filepath.clone(), err),
+                _ => Error::StorageReadError(
+                    "symlink_metadata on digest path",
+                    filepath.clone(),
+                    err,
+                ),
             })?;
 
-        let mtime = metadata
-            .modified()
-            .map_err(|err| Error::StorageReadError(filepath.clone(), err))?;
+        let mtime = metadata.modified().map_err(|err| {
+            Error::StorageReadError(
+                "modified on symlink metadata of digest path",
+                filepath.clone(),
+                err,
+            )
+        })?;
 
         if DateTime::<Utc>::from(mtime) >= older_than {
             return Ok(false);

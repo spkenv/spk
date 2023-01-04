@@ -35,7 +35,7 @@ impl crate::storage::PayloadStorage for FSRepository {
             Ok(file) => Ok((Box::pin(tokio::io::BufReader::new(file)), path)),
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => Err(Error::UnknownObject(digest)),
-                _ => Err(Error::StorageReadError(path, err)),
+                _ => Err(Error::StorageReadError("open on payload", path, err)),
             },
         }
     }

@@ -132,13 +132,23 @@ impl ManifestViewer for FSRepository {
 
         let metadata = match tokio::fs::symlink_metadata(&rendered_dirpath).await {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-            Err(err) => return Err(Error::StorageReadError(rendered_dirpath.clone(), err)),
+            Err(err) => {
+                return Err(Error::StorageReadError(
+                    "symlink_metadata on rendered dir path",
+                    rendered_dirpath.clone(),
+                    err,
+                ))
+            }
             Ok(metadata) => metadata,
         };
 
-        let mtime = metadata
-            .modified()
-            .map_err(|err| Error::StorageReadError(rendered_dirpath.clone(), err))?;
+        let mtime = metadata.modified().map_err(|err| {
+            Error::StorageReadError(
+                "modified on symlink metadata of rendered dir path",
+                rendered_dirpath.clone(),
+                err,
+            )
+        })?;
 
         if DateTime::<Utc>::from(mtime) >= older_than {
             return Ok(());
@@ -219,10 +229,9 @@ impl FSRepository {
         if entry.is_symlink() {
             let (mut reader, filename) = self.open_payload(entry.object).await?;
             let mut target = String::new();
-            reader
-                .read_to_string(&mut target)
-                .await
-                .map_err(|err| Error::StorageReadError(filename, err))?;
+            reader.read_to_string(&mut target).await.map_err(|err| {
+                Error::StorageReadError("read_to_string on render blob", filename, err)
+            })?;
             return if let Err(err) = std::os::unix::fs::symlink(&target, &rendered_path) {
                 match err.kind() {
                     std::io::ErrorKind::AlreadyExists => Ok(()),
@@ -373,18 +382,17 @@ impl FSRepository {
 async fn open_perms_and_remove_all(root: &Path) -> Result<()> {
     let mut read_dir = tokio::fs::read_dir(&root)
         .await
-        .map_err(|err| Error::StorageReadError(root.to_owned(), err))?;
+        .map_err(|err| Error::StorageReadError("read_dir on root", root.to_owned(), err))?;
     // TODO: parallelize this with async
     while let Some(entry) = read_dir
         .next_entry()
         .await
-        .map_err(|err| Error::StorageReadError(root.to_owned(), err))?
+        .map_err(|err| Error::StorageReadError("next_entry on root dir", root.to_owned(), err))?
     {
         let entry_path = root.join(entry.file_name());
-        let file_type = entry
-            .file_type()
-            .await
-            .map_err(|err| Error::StorageReadError(root.to_owned(), err))?;
+        let file_type = entry.file_type().await.map_err(|err| {
+            Error::StorageReadError("file_type on root entry", root.to_owned(), err)
+        })?;
         let _ =
             tokio::fs::set_permissions(&entry_path, std::fs::Permissions::from_mode(0o777)).await;
         if file_type.is_symlink() || file_type.is_file() {

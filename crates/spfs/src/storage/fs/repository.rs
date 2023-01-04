@@ -223,10 +223,12 @@ impl Repository for FSRepository {
         let mut render_dirs = Vec::new();
 
         let renders_dir = self.root.join("renders");
-        for entry in std::fs::read_dir(&renders_dir)
-            .map_err(|err| Error::StorageReadError(renders_dir.clone(), err))?
-        {
-            let entry = entry.map_err(|err| Error::StorageReadError(renders_dir.clone(), err))?;
+        for entry in std::fs::read_dir(&renders_dir).map_err(|err| {
+            Error::StorageReadError("read_dir on renders dir", renders_dir.clone(), err)
+        })? {
+            let entry = entry.map_err(|err| {
+                Error::StorageReadError("entry in renders dir", renders_dir.clone(), err)
+            })?;
 
             let dir = entry.path();
             if !dir.is_dir() {
@@ -279,7 +281,13 @@ pub async fn read_last_migration_version<P: AsRef<Path>>(
         Ok(version) => version,
         Err(err) => match err.kind() {
             std::io::ErrorKind::NotFound => return Ok(None),
-            _ => return Err(Error::StorageReadError(version_file, err)),
+            _ => {
+                return Err(Error::StorageReadError(
+                    "read_to_string on last migration version",
+                    version_file,
+                    err,
+                ))
+            }
         },
     };
 

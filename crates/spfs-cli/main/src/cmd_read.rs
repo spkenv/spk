@@ -58,7 +58,7 @@ impl CmdRead {
         let (mut payload, filename) = repo.open_payload(blob.digest()).await?;
         tokio::io::copy(&mut payload, &mut tokio::io::stdout())
             .await
-            .map_err(|err| Error::StorageReadError(filename, err))?;
+            .map_err(|err| Error::StorageReadError("copy of payload to stdout", filename, err))?;
         Ok(0)
     }
 }

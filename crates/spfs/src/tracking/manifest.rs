@@ -336,15 +336,13 @@ where
     ) -> Result<Entry> {
         tree_node.kind = EntryKind::Tree;
         let base = dirname.as_ref();
-        let mut read_dir = tokio::fs::read_dir(base)
-            .await
-            .map_err(|err| Error::StorageReadError(base.to_owned(), err))?;
+        let mut read_dir = tokio::fs::read_dir(base).await.map_err(|err| {
+            Error::StorageReadError("read_dir of tree node", base.to_owned(), err)
+        })?;
         let mut futures = FuturesUnordered::new();
-        while let Some(dir_entry) = read_dir
-            .next_entry()
-            .await
-            .map_err(|err| Error::StorageReadError(base.to_owned(), err))?
-        {
+        while let Some(dir_entry) = read_dir.next_entry().await.map_err(|err| {
+            Error::StorageReadError("next_entry of tree node dir", base.to_owned(), err)
+        })? {
             let dir_entry = Arc::new(dir_entry);
             let mb = Arc::clone(&mb);
             let path = base.join(dir_entry.file_name());
@@ -409,10 +407,22 @@ where
                             path.as_ref().display()
                         )))
                     }
-                    Err(err) => return Err(Error::StorageReadError(path.as_ref().to_owned(), err)),
+                    Err(err) => {
+                        return Err(Error::StorageReadError(
+                            "file_type of node dir_entry",
+                            path.as_ref().to_owned(),
+                            err,
+                        ))
+                    }
                 }
             }
-            Err(err) => return Err(Error::StorageReadError(path.as_ref().to_owned(), err)),
+            Err(err) => {
+                return Err(Error::StorageReadError(
+                    "symlink_metadata of node path",
+                    path.as_ref().to_owned(),
+                    err,
+                ))
+            }
         };
 
         entry.mode = stat_result.mode();
@@ -422,7 +432,9 @@ where
         if file_type.is_symlink() {
             let link_target = tokio::fs::read_link(&path)
                 .await
-                .map_err(|err| Error::StorageReadError(path.as_ref().to_owned(), err))?
+                .map_err(|err| {
+                    Error::StorageReadError("read_link of node", path.as_ref().to_owned(), err)
+                })?
                 .into_os_string()
                 .into_string()
                 .map_err(|_| {
@@ -443,11 +455,10 @@ where
             return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
         } else {
             entry.kind = EntryKind::Blob;
-            let reader = tokio::io::BufReader::new(
-                tokio::fs::File::open(&path)
-                    .await
-                    .map_err(|err| Error::StorageReadError(path.as_ref().to_owned(), err))?,
-            );
+            let reader =
+                tokio::io::BufReader::new(tokio::fs::File::open(&path).await.map_err(|err| {
+                    Error::StorageReadError("open of blob", path.as_ref().to_owned(), err)
+                })?);
             entry.object = mb.hasher.hasher(Box::pin(reader)).await?;
         }
         Ok(entry)
