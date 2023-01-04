@@ -572,10 +572,8 @@ where
             match package_name {
                 Some(name) => {
                     tracing::debug!("Unable to find package file: {}", name.as_ref());
-                    let name_version = match name.as_ref().split_once('@') {
-                        Some((nv, _)) => nv,
-                        None => name.as_ref(),
-                    };
+                    // there will be at least one item for any string
+                    let name_version = name.as_ref().split('@').next().unwrap();
 
                     let pkg = parse_ident(name_version)?;
                     tracing::debug!(
