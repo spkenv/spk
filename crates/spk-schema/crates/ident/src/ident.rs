@@ -53,7 +53,7 @@ macro_rules! build_ident {
 ///
 /// Every identifier is made up of a base and target,
 /// where the full identifier can be roughly represented
-/// as <base>/<target>. Using this pattern, different
+/// as `<base>/<target>`. Using this pattern, different
 /// identifiers can be defined and composed to identify
 /// packages with varying levels of specificity.
 ///
@@ -70,37 +70,37 @@ impl<Base, Target> Ident<Base, Target> {
         Self { base, target }
     }
 
-    /// Get a reference to this identifier's base (<base>/<target>)
+    /// Get a reference to this identifier's base (`<base>/<target>`)
     pub fn base(&self) -> &Base {
         &self.base
     }
 
-    /// Get a reference to this identifier's target (<base>/<target>)
+    /// Get a reference to this identifier's target (`<base>/<target>`)
     pub fn target(&self) -> &Target {
         &self.target
     }
 
-    /// Extract this identifier's base (<base>/<target>)
+    /// Extract this identifier's base (`<base>/<target>`)
     pub fn into_base(self) -> Base {
         self.base
     }
 
-    /// Extract this identifier's target (<base>/<target>)
+    /// Extract this identifier's target (`<base>/<target>`)
     pub fn into_target(self) -> Target {
         self.target
     }
 
-    /// Break this identifier into its components (<base>/<target>)
+    /// Break this identifier into its components (`<base>/<target>`)
     pub fn into_inner(self) -> (Base, Target) {
         (self.base, self.target)
     }
 
-    /// Set the base component of this identifier (<base>/<target>)
+    /// Set the base component of this identifier (`<base>/<target>`)
     pub fn set_base<B: Into<Base>>(&mut self, base: B) -> Base {
         std::mem::replace(&mut self.base, base.into())
     }
 
-    /// Set the target component of this identifier (<base>/<target>)
+    /// Set the target component of this identifier (`<base>/<target>`)
     pub fn set_target<T: Into<Target>>(&mut self, target: T) -> Target {
         std::mem::replace(&mut self.target, target.into())
     }
@@ -110,7 +110,7 @@ impl<Base, Target> Ident<Base, Target>
 where
     Target: Clone,
 {
-    /// Copy this identifier swapping out the base (<base>/<target>)
+    /// Copy this identifier swapping out the base (`<base>/<target>`)
     pub fn with_base<B: Into<Base>>(&self, base: B) -> Self {
         Self {
             base: base.into(),
@@ -123,7 +123,7 @@ impl<Base, Target> Ident<Base, Target>
 where
     Base: Clone,
 {
-    /// Copy this identifier swapping out the target (<base>/<target>)
+    /// Copy this identifier swapping out the target (`<base>/<target>`)
     pub fn with_target<T: Into<Target>>(&self, target: T) -> Self {
         Self {
             base: self.base.clone(),
