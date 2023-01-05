@@ -57,6 +57,7 @@ pub async fn render(spec: tracking::EnvSpec) -> Result<std::path::PathBuf> {
 pub async fn render_into_directory(
     env_spec: &tracking::EnvSpec,
     target: impl AsRef<std::path::Path>,
+    pull_from: Option<&storage::RepositoryHandle>,
 ) -> Result<()> {
     let repo = get_config()?.get_local_repository().await?;
     let mut stack = Vec::new();
@@ -75,7 +76,7 @@ pub async fn render_into_directory(
         manifest.update(&next.unlock());
     }
     let manifest = graph::Manifest::from(&manifest);
-    repo.render_manifest_into_dir(&manifest, &target, storage::fs::RenderType::Copy)
+    repo.render_manifest_into_dir(&manifest, &target, storage::fs::RenderType::Copy, pull_from)
         .await
 }
 
@@ -306,7 +307,12 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
     skip_runtime_save: bool,
 ) -> Result<Vec<std::path::PathBuf>> {
     let config = get_config()?;
-    let repo: storage::RepositoryHandle = config.get_local_repository().await?.into();
+    let (repo, remote) = tokio::join!(
+        config.get_local_repository_handle(),
+        crate::config::open_repository_from_string(&config, Some("origin")),
+    );
+    let repo = repo?;
+    let remote = remote.ok();
     let renders = repo.renders()?;
 
     let manifests = resolve_overlay_dirs(runtime, &repo, skip_runtime_save).await?;
@@ -339,7 +345,7 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
     }
     let mut overlay_dirs = Vec::with_capacity(manifests.len());
     for manifest in manifests {
-        let rendered_dir = renders.render_manifest(&manifest).await?;
+        let rendered_dir = renders.render_manifest(&manifest, remote.as_ref()).await?;
         overlay_dirs.push(rendered_dir);
     }
 

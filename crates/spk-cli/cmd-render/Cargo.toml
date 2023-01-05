@@ -11,5 +11,6 @@ clap = { workspace = true }
 spfs = { version = '0.34.6', path = "../../spfs" }
 spk-cli-common = { path = '../common' }
 spk-exec = { path = '../../spk-exec' }
+spk-storage = { path = '../../spk-storage' }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }

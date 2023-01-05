@@ -40,7 +40,7 @@ async fn test_render_manifest(tmpdir: tempfile::TempDir) {
 
     let expected = Manifest::from(&manifest);
     let rendered_path = storage
-        .render_manifest(&expected)
+        .render_manifest(&expected, None)
         .await
         .expect("should successfully render manifest");
     let actual = Manifest::from(&tracking::compute_manifest(rendered_path).await.unwrap());
@@ -80,7 +80,7 @@ async fn test_render_manifest_with_repo(tmpdir: tempfile::TempDir) {
         .renders
         .build_digest_path(&manifest.digest().unwrap());
     assert!(!render.exists(), "render should NOT be seen as existing");
-    tmprepo.render_manifest(&manifest).await.unwrap();
+    tmprepo.render_manifest(&manifest, None).await.unwrap();
     assert!(render.exists(), "render should be seen as existing");
     assert!(was_render_completed(&render));
     let rendered_manifest = tracking::compute_manifest(&render).await.unwrap();

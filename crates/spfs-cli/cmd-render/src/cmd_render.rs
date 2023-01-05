@@ -43,8 +43,14 @@ impl CmdRender {
             .await?;
 
         let path = match &self.target {
-            Some(target) => self.render_to_dir(synced.env, target).await?,
-            None => self.render_to_repo(synced.env, config).await?,
+            Some(target) => {
+                self.render_to_dir(synced.env, target, Some(&origin))
+                    .await?
+            }
+            None => {
+                self.render_to_repo(synced.env, config, Some(&origin))
+                    .await?
+            }
         };
 
         tracing::info!("render completed successfully");
@@ -56,6 +62,7 @@ impl CmdRender {
         &self,
         env_spec: spfs::tracking::EnvSpec,
         target: &std::path::Path,
+        pull_from: Option<&spfs::storage::RepositoryHandle>,
     ) -> spfs::Result<std::path::PathBuf> {
         tokio::fs::create_dir_all(&target)
             .await
@@ -75,7 +82,7 @@ impl CmdRender {
             return Err(format!("Directory is not empty {}", target_dir.display()).into());
         }
         tracing::info!("rendering into {}", target_dir.display());
-        spfs::render_into_directory(&env_spec, &target_dir).await?;
+        spfs::render_into_directory(&env_spec, &target_dir, pull_from).await?;
         Ok(target_dir)
     }
 
@@ -83,6 +90,7 @@ impl CmdRender {
         &self,
         env_spec: spfs::tracking::EnvSpec,
         config: &spfs::Config,
+        pull_from: Option<&spfs::storage::RepositoryHandle>,
     ) -> spfs::Result<std::path::PathBuf> {
         let repo = config.get_local_repository().await?;
         let renders = repo.renders()?;
@@ -110,7 +118,7 @@ impl CmdRender {
             },
         );
         renders
-            .render_manifest(&spfs::graph::Manifest::from(&merged))
+            .render_manifest(&spfs::graph::Manifest::from(&merged), pull_from)
             .await
     }
 }

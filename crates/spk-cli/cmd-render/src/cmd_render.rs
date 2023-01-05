@@ -64,7 +64,19 @@ impl Run for Render {
         tracing::info!("Rendering into dir: {path:?}");
         let items: Vec<String> = stack.iter().map(ToString::to_string).collect();
         let env_spec = items.join("+").parse()?;
-        spfs::render_into_directory(&env_spec, &path).await?;
+        spfs::render_into_directory(
+            &env_spec,
+            &path,
+            solver
+                .repositories()
+                .iter()
+                .find(|repo| repo.is_spfs() && repo.name() == "origin")
+                .and_then(|repo| match &**repo {
+                    spk_storage::RepositoryHandle::SPFS(spfs) => Some(&**spfs),
+                    _ => None,
+                }),
+        )
+        .await?;
         tracing::info!("Render completed: {path:?}");
         Ok(0)
     }

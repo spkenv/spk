@@ -70,7 +70,11 @@ pub trait ManifestViewer: Send + Sync {
     /// Create a rendered view of the given manifest on the local disk.
     ///
     /// Returns the local path to the root of the rendered manifest
-    async fn render_manifest(&self, manifest: &graph::Manifest) -> Result<std::path::PathBuf>;
+    async fn render_manifest(
+        &self,
+        manifest: &graph::Manifest,
+        pull_from: Option<&crate::storage::RepositoryHandle>,
+    ) -> Result<std::path::PathBuf>;
 
     /// Cleanup a previously rendered manifest from the local disk.
     async fn remove_rendered_manifest(&self, digest: encoding::Digest) -> Result<()>;

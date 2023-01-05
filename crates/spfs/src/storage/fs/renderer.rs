@@ -14,7 +14,7 @@ use tokio::io::AsyncReadExt;
 use super::FSRepository;
 use crate::encoding::{self, Encodable};
 use crate::runtime::makedirs_with_perms;
-use crate::storage::{ManifestViewer, PayloadStorage, Repository};
+use crate::storage::{self, ManifestViewer, PayloadStorage, Repository};
 use crate::{graph, tracking, Error, Result};
 
 #[cfg(test)]
@@ -65,7 +65,11 @@ impl ManifestViewer for FSRepository {
     ///
     /// # Errors:
     /// - if any of the blobs in the manifest are not available in this repo.
-    async fn render_manifest(&self, manifest: &crate::graph::Manifest) -> Result<PathBuf> {
+    async fn render_manifest(
+        &self,
+        manifest: &crate::graph::Manifest,
+        pull_from: Option<&storage::RepositoryHandle>,
+    ) -> Result<PathBuf> {
         let renders = self.get_render_storage()?;
         let rendered_dirpath = renders.build_digest_path(&manifest.digest()?);
         if was_render_completed(&rendered_dirpath) {
@@ -78,7 +82,7 @@ impl ManifestViewer for FSRepository {
         let working_dir = renders.workdir().join(uuid);
         makedirs_with_perms(&working_dir, 0o777)?;
 
-        self.render_manifest_into_dir(manifest, &working_dir, RenderType::HardLink)
+        self.render_manifest_into_dir(manifest, &working_dir, RenderType::HardLink, pull_from)
             .await?;
 
         renders.ensure_base_dir(&rendered_dirpath)?;
@@ -181,6 +185,7 @@ impl FSRepository {
         manifest: &crate::graph::Manifest,
         target_dir: impl AsRef<Path>,
         render_type: RenderType,
+        pull_from: Option<&storage::RepositoryHandle>,
     ) -> Result<()> {
         let walkable = manifest.unlock();
         let entries: Vec<_> = walkable
@@ -206,7 +211,7 @@ impl FSRepository {
                 }
                 tracking::EntryKind::Mask => continue,
                 tracking::EntryKind::Blob => {
-                    self.render_blob(node.path.to_path("/"), node.entry, &render_type)
+                    self.render_blob(node.path.to_path("/"), node.entry, &render_type, pull_from)
                         .await
                 }
             };
@@ -245,6 +250,7 @@ impl FSRepository {
         rendered_path: P,
         entry: &tracking::Entry,
         render_type: &RenderType,
+        pull_from: Option<&storage::RepositoryHandle>,
     ) -> Result<()> {
         if entry.is_symlink() {
             let (mut reader, filename) = self.open_payload(entry.object).await?;
@@ -307,27 +313,70 @@ impl FSRepository {
                                     err,
                                 )
                             })?;
-                            tokio::fs::copy(&payload_path, &temp_proxy_file)
-                                .await
-                                .map_err(|err| match err.kind() {
+                            if let Err(err) = tokio::fs::copy(&payload_path, &temp_proxy_file).await
+                            {
+                                match err.kind() {
                                     std::io::ErrorKind::NotFound
                                         if matches!(payload_path.try_exists(), Ok(false)) =>
                                     {
-                                        // The payload is missing.
-                                        Error::ObjectMissingPayload(
+                                        // The payload is missing. Attempt to
+                                        // repair the missing payload.
+                                        if let Some(pull_from) = pull_from {
+                                            let dest_repo = self.clone().into();
+
+                                            let syncer = crate::Syncer::new(pull_from, &dest_repo)
+                                                .with_policy(
+                                                    crate::sync::SyncPolicy::ResyncEverything,
+                                                )
+                                                .with_reporter(
+                                                    // There is already a
+                                                    // progress bar in use in
+                                                    // this context, so don't
+                                                    // make another one here.
+                                                    crate::sync::SilentSyncReporter::default(),
+                                                );
+                                            match syncer.sync_digest(entry.object).await {
+                                                Ok(_) => {
+                                                    tracing::info!(
+                                                        "Repaired a missing payload! {digest}",
+                                                        digest = entry.object
+                                                    );
+                                                    #[cfg(feature = "sentry")]
+                                                    tracing::error!(target: "sentry", object = %entry.object, "Repaired a missing payload!");
+                                                    continue;
+                                                }
+                                                Err(err) => {
+                                                    tracing::warn!(
+                                                        "Could not repair a missing payload: {err}"
+                                                    );
+                                                    #[cfg(feature = "sentry")]
+                                                    tracing::error!(
+                                                        target: "sentry",
+                                                        object = %entry.object,
+                                                        ?err,
+                                                        "Could not repair a missing payload"
+                                                    );
+                                                }
+                                            }
+                                        }
+
+                                        return Err(Error::ObjectMissingPayload(
                                             graph::Object::Blob(graph::Blob::new(
                                                 entry.object,
                                                 entry.size,
                                             )),
                                             entry.object,
-                                        )
+                                        ));
                                     }
-                                    _ => Error::StorageWriteError(
-                                        "copy of blob to proxy file",
-                                        temp_proxy_file.path().to_owned(),
-                                        err,
-                                    ),
-                                })?;
+                                    _ => {
+                                        return Err(Error::StorageWriteError(
+                                            "copy of blob to proxy file",
+                                            temp_proxy_file.path().to_owned(),
+                                            err,
+                                        ));
+                                    }
+                                }
+                            }
                             // Move temporary file into place.
                             if let Err(err) = temp_proxy_file.persist_noclobber(&proxy_path) {
                                 match err.error.kind() {

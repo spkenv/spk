@@ -123,7 +123,7 @@ impl<'a> Dynamic<'a> {
             let r = syncer.sync_env(env_spec).await.context("sync reference")?;
             let env_spec = r.env;
 
-            spfs::render_into_directory(&env_spec, temp_dir.path())
+            spfs::render_into_directory(&env_spec, temp_dir.path(), Some(remote))
                 .await
                 .context("render spfs platform")?;
 
