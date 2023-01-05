@@ -22,6 +22,7 @@ impl CmdRuntime {
 pub enum Command {
     Info(super::cmd_runtime_info::CmdRuntimeInfo),
     List(super::cmd_runtime_list::CmdRuntimeList),
+    Prune(super::cmd_runtime_prune::CmdRuntimePrune),
     Remove(super::cmd_runtime_remove::CmdRuntimeRemove),
 }
 
@@ -30,6 +31,7 @@ impl Command {
         match self {
             Self::Info(cmd) => cmd.run(config).await,
             Self::List(cmd) => cmd.run(config).await,
+            Self::Prune(cmd) => cmd.run(config).await,
             Self::Remove(cmd) => cmd.run(config).await,
         }
     }

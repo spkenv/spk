@@ -25,6 +25,7 @@ mod cmd_run;
 mod cmd_runtime;
 mod cmd_runtime_info;
 mod cmd_runtime_list;
+mod cmd_runtime_prune;
 mod cmd_runtime_remove;
 mod cmd_search;
 #[cfg(feature = "server")]
