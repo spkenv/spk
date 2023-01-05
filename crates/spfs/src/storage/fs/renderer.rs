@@ -22,6 +22,7 @@ use super::{FSRepository, RenderReporter, SilentRenderReporter};
 use crate::encoding::{self, Encodable};
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
+use crate::storage::LocalRepository;
 use crate::{graph, tracking, Error, Result};
 
 #[cfg(test)]
@@ -149,15 +150,15 @@ impl FSRepository {
 }
 
 /// Renders manifest data to a directory on disk
-pub struct Renderer<'repo, Reporter: RenderReporter = SilentRenderReporter> {
-    repo: &'repo FSRepository,
+pub struct Renderer<'repo, Repo, Reporter: RenderReporter = SilentRenderReporter> {
+    repo: &'repo Repo,
     reporter: Arc<Reporter>,
     blob_semaphore: Arc<Semaphore>,
     max_concurrent_branches: usize,
 }
 
-impl<'repo> Renderer<'repo, SilentRenderReporter> {
-    pub fn new(repo: &'repo FSRepository) -> Self {
+impl<'repo, Repo> Renderer<'repo, Repo, SilentRenderReporter> {
+    pub fn new(repo: &'repo Repo) -> Self {
         Self {
             repo,
             reporter: Arc::new(SilentRenderReporter::default()),
@@ -165,21 +166,15 @@ impl<'repo> Renderer<'repo, SilentRenderReporter> {
             max_concurrent_branches: DEFAULT_MAX_CONCURRENT_BRANCHES,
         }
     }
-
-    pub fn new_from_handle(repo: &'repo crate::storage::RepositoryHandle) -> Result<Self> {
-        let crate::storage::RepositoryHandle::FS(repo) = repo else {
-            return Err(Error::String(format!("Cannot render from a non-filesystem repository, got: {}", repo.address())));
-        };
-        Ok(Self::new(repo))
-    }
 }
 
-impl<'repo, Reporter> Renderer<'repo, Reporter>
+impl<'repo, Repo, Reporter> Renderer<'repo, Repo, Reporter>
 where
+    Repo: Repository + LocalRepository,
     Reporter: RenderReporter,
 {
     /// Report progress to the given instance, replacing any existing one
-    pub fn with_reporter<T, R>(self, reporter: T) -> Renderer<'repo, R>
+    pub fn with_reporter<T, R>(self, reporter: T) -> Renderer<'repo, Repo, R>
     where
         T: Into<Arc<R>>,
         R: RenderReporter,
@@ -273,8 +268,8 @@ where
         manifest: &graph::Manifest,
         render_type: Option<RenderType>,
     ) -> Result<PathBuf> {
-        let renders = self.repo.get_render_storage()?;
-        let rendered_dirpath = renders.build_digest_path(&manifest.digest()?);
+        let render_store = self.repo.render_store()?;
+        let rendered_dirpath = render_store.renders.build_digest_path(&manifest.digest()?);
         if was_render_completed(&rendered_dirpath) {
             tracing::trace!(path = ?rendered_dirpath, "render already completed");
             return Ok(rendered_dirpath);
@@ -282,7 +277,7 @@ where
         tracing::trace!(path = ?rendered_dirpath, "rendering manifest...");
 
         let uuid = uuid::Uuid::new_v4().to_string();
-        let working_dir = renders.workdir().join(uuid);
+        let working_dir = render_store.renders.workdir().join(uuid);
         makedirs_with_perms(&working_dir, 0o777)?;
 
         self.render_manifest_into_dir(
@@ -292,7 +287,7 @@ where
         )
         .await?;
 
-        renders.ensure_base_dir(&rendered_dirpath)?;
+        render_store.renders.ensure_base_dir(&rendered_dirpath)?;
         match tokio::fs::rename(&working_dir, &rendered_dirpath).await {
             Ok(_) => (),
             Err(err) => match err.kind() {
@@ -460,7 +455,6 @@ where
 
         Ok(())
     }
-
     /// Renders the file into a path on disk, changing its permissions
     /// as necessary / appropriate
     async fn render_blob<'a, Fd>(
@@ -477,12 +471,18 @@ where
             .acquire()
             .await
             .expect("semaphore should remain open");
+        // Note that opening the payload, even if the return value is not
+        // used, has a possible side effect of repairing a missing payload,
+        // depending on repository implementation.
+        // When the blob is not a symlink, the code below will try to access
+        // the payload file without calling `open_payload`. If `open_payload`
+        // is not called here, the non-symlink code may fail due to a missing
+        // a payload that could have been repaired.
+        let (mut reader, filename) = self.repo.open_payload(entry.object).await?;
         let target_dir_fd = dir_fd.as_raw_fd();
         if entry.is_symlink() {
             let mut target = String::new();
             {
-                // use a close to more quickly drop held file resources
-                let (mut reader, filename) = self.repo.open_payload(entry.object).await?;
                 reader.read_to_string(&mut target).await.map_err(|err| {
                     Error::StorageReadError("read_to_string on render blob", filename, err)
                 })?;
@@ -502,8 +502,10 @@ where
                 Ok(())
             };
         }
+        // Free up file resources as early as possible.
+        drop(reader);
 
-        let mut committed_path = self.repo.payloads.build_digest_path(&entry.object);
+        let mut committed_path = self.repo.payloads().build_digest_path(&entry.object);
         match render_type {
             RenderType::HardLink | RenderType::HardLinkNoProxy => {
                 let mut retry_count = 0;
@@ -518,7 +520,7 @@ where
                     // perms.
                     if matches!(render_type, RenderType::HardLinkNoProxy) {
                         // explicitly skip proxy generation
-                    } else if let Some(render_store) = &self.repo.renders {
+                    } else if let Ok(render_store) = self.repo.render_store() {
                         let proxy_path = render_store
                             .proxy
                             .build_digest_path(&entry.object)

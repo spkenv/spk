@@ -4,6 +4,7 @@
 
 use clap::Parser;
 use spfs::prelude::*;
+use spfs::storage::payload_fallback::PayloadFallback;
 use spfs::Error;
 use spfs_cli_common as cli;
 use strum::VariantNames;
@@ -40,20 +41,29 @@ pub struct CmdRender {
 impl CmdRender {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let env_spec = spfs::tracking::EnvSpec::parse(&self.reference)?;
-        let (repo, origin) = tokio::try_join!(
-            config.get_local_repository_handle(),
-            config.get_remote("origin")
+        let (repo, origin, remotes) = tokio::try_join!(
+            config.get_local_repository(),
+            config.get_remote("origin"),
+            config.list_remotes()
         )?;
 
+        let handle = repo.clone().into();
         let synced = self
             .sync
-            .get_syncer(&origin, &repo)
+            .get_syncer(&origin, &handle)
             .sync_env(env_spec)
             .await?;
 
+        // Use PayloadFallback to repair any missing payloads found in the
+        // local repository by copying from any of the configure remotes.
+        let payload_fallback = PayloadFallback::new(repo, remotes);
+
         let rendered = match &self.target {
-            Some(target) => vec![self.render_to_dir(synced.env, config, target).await?],
-            None => self.render_to_repo(synced.env, config).await?,
+            Some(target) => vec![
+                self.render_to_dir(payload_fallback, synced.env, target)
+                    .await?,
+            ],
+            None => self.render_to_repo(payload_fallback, synced.env).await?,
         };
 
         tracing::debug!("render(s) completed successfully");
@@ -65,11 +75,10 @@ impl CmdRender {
 
     async fn render_to_dir(
         &self,
+        repo: PayloadFallback,
         env_spec: spfs::tracking::EnvSpec,
-        config: &spfs::Config,
         target: &std::path::Path,
     ) -> spfs::Result<std::path::PathBuf> {
-        let repo = config.get_local_repository().await?;
         tokio::fs::create_dir_all(&target)
             .await
             .map_err(|err| Error::RuntimeWriteError(target.to_owned(), err))?;
@@ -101,10 +110,9 @@ impl CmdRender {
 
     async fn render_to_repo(
         &self,
+        repo: PayloadFallback,
         env_spec: spfs::tracking::EnvSpec,
-        config: &spfs::Config,
     ) -> spfs::Result<Vec<std::path::PathBuf>> {
-        let repo = config.get_local_repository().await?;
         let mut digests = Vec::with_capacity(env_spec.len());
         for env_item in env_spec.iter() {
             let env_item = env_item.to_string();

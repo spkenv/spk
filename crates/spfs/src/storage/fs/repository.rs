@@ -11,6 +11,7 @@ use super::hash_store::PROXY_DIRNAME;
 use super::FSHashStore;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
+use crate::storage::LocalRepository;
 use crate::{Error, Result};
 
 /// Configuration for an fs repository
@@ -207,6 +208,20 @@ impl PlatformStorage for FSRepository {}
 impl Repository for FSRepository {
     fn address(&self) -> url::Url {
         url::Url::from_directory_path(self.root()).unwrap()
+    }
+}
+
+impl LocalRepository for FSRepository {
+    #[inline]
+    fn payloads(&self) -> &FSHashStore {
+        &self.payloads
+    }
+
+    #[inline]
+    fn render_store(&self) -> Result<&RenderStore> {
+        self.renders
+            .as_ref()
+            .ok_or_else(|| Error::NoRenderStorage(self.address()))
     }
 }
 

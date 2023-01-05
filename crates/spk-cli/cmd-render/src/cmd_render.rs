@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 use clap::Args;
+use spfs::storage::payload_fallback::PayloadFallback;
 use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
 use spk_exec::resolve_runtime_layers;
 
@@ -63,14 +64,39 @@ impl Run for Render {
         let path = self.target.canonicalize()?;
         tracing::info!("Rendering into dir: {path:?}");
         let config = spfs::load_config().context("Failed to load spfs config")?;
-        let repo = config
+        let local = config
             .get_local_repository()
             .await
             .context("Failed to open local spfs repo")?;
-        spfs::storage::fs::Renderer::new(&repo)
-            .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
-            .render_into_directory(stack, &path, spfs::storage::fs::RenderType::Copy)
-            .await?;
+
+        // Find possible fallback repositories among the solver's repositories.
+        let mut fallback_repository_handles = Vec::with_capacity(solver.repositories().len());
+        for repo in solver.repositories().iter().filter(|repo| {
+            repo.is_spfs() && {
+                // XXX: is there a better way to identify the local repo?
+                repo.name() != "local"
+            }
+        }) {
+            // XXX: Can't find a better way to get an owned RepositoryHandle
+            // from the &Arc<RepositoryHandle> inside the Solver.
+            if let Ok(handle) = spfs::open_repository(repo.address()).await {
+                fallback_repository_handles.push(handle);
+            }
+        }
+
+        if fallback_repository_handles.is_empty() {
+            spfs::storage::fs::Renderer::new(&local)
+                .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
+                .render_into_directory(stack, &path, spfs::storage::fs::RenderType::Copy)
+                .await?;
+        } else {
+            let payload_fallback = PayloadFallback::new(local, fallback_repository_handles);
+            spfs::storage::fs::Renderer::new(&payload_fallback)
+                .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
+                .render_into_directory(stack, &path, spfs::storage::fs::RenderType::Copy)
+                .await?;
+        }
+
         tracing::info!("Render completed: {path:?}");
         Ok(0)
     }
