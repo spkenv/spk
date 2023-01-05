@@ -5,11 +5,11 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use spk_schema::foundation::ident_build::{Build, EmbeddedSource};
+use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::Version;
-use spk_schema::{Ident, Spec, SpecRecipe};
+use spk_schema::{BuildIdent, Spec, SpecRecipe, VersionIdent};
 use tokio::sync::RwLock;
 
 use super::repository::{PublishPolicy, Storage};
@@ -111,13 +111,10 @@ where
     type Recipe = Recipe;
     type Package = Package;
 
-    async fn get_concrete_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>> {
-        if let Some(versions) = self.packages.read().await.get(&pkg.name) {
-            if let Some(builds) = versions.get(&pkg.version) {
-                Ok(builds
-                    .keys()
-                    .map(|b| pkg.with_build(Some(b.clone())))
-                    .collect())
+    async fn get_concrete_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>> {
+        if let Some(versions) = self.packages.read().await.get(pkg.name()) {
+            if let Some(builds) = versions.get(pkg.version()) {
+                Ok(builds.keys().map(|b| pkg.to_build(b.clone())).collect())
             } else {
                 Ok(HashSet::new())
             }
@@ -126,13 +123,10 @@ where
         }
     }
 
-    async fn get_embedded_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>> {
-        if let Some(versions) = self.embedded_stubs.read().await.get(&pkg.name) {
-            if let Some(builds) = versions.get(&pkg.version) {
-                Ok(builds
-                    .keys()
-                    .map(|b| pkg.with_build(Some(b.clone())))
-                    .collect())
+    async fn get_embedded_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>> {
+        if let Some(versions) = self.embedded_stubs.read().await.get(pkg.name()) {
+            if let Some(builds) = versions.get(pkg.version()) {
+                Ok(builds.keys().map(|b| pkg.to_build(b.clone())).collect())
             } else {
                 Ok(HashSet::new())
             }
@@ -142,16 +136,7 @@ where
     }
 
     async fn publish_embed_stub_to_storage(&self, spec: &Self::Package) -> Result<()> {
-        let build = match &spec.ident().build {
-            Some(b) => b.to_owned(),
-            None => {
-                return Err(Error::String(format!(
-                    "Package must include a build in order to be published: {}",
-                    spec.ident()
-                )))
-            }
-        };
-
+        let build = spec.ident().build().to_owned();
         let mut embedded_stubs = self.embedded_stubs.write().await;
         let versions = embedded_stubs.entry(spec.name().to_owned()).or_default();
         let builds = versions.entry(spec.version().clone()).or_default();
@@ -166,7 +151,7 @@ where
         components: &ComponentMap,
     ) -> Result<()> {
         // Caller has already proven that build is `Some`.
-        let build = package.ident().build.as_ref().unwrap().clone();
+        let build = package.ident().build().clone();
 
         let mut packages = self.packages.write().await;
         let versions = packages.entry(package.name().to_owned()).or_default();
@@ -187,7 +172,7 @@ where
             && versions.contains_key(spec.version())
         {
             Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::VersionExistsError(spec.to_ident()),
+                spk_schema::validators::Error::VersionExistsError(spec.ident().clone()),
             ))
         } else {
             versions.insert(spec.version().clone(), Arc::new(spec.clone()));
@@ -195,141 +180,122 @@ where
         }
     }
 
-    async fn read_components_from_storage(&self, pkg: &Ident) -> Result<ComponentMap> {
-        match &pkg.build {
-            None => Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
-            )),
-            Some(build) => self
-                .packages
-                .read()
-                .await
-                .get(&pkg.name)
-                .ok_or_else(|| {
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.clone(),
-                    ))
-                })?
-                .get(&pkg.version)
-                .ok_or_else(|| {
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.clone(),
-                    ))
-                })?
-                .get(build)
-                .map(|(_, d)| d.to_owned())
-                .ok_or_else(|| {
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.clone(),
-                    ))
-                }),
-        }
+    async fn read_components_from_storage(&self, pkg: &BuildIdent) -> Result<ComponentMap> {
+        self.packages
+            .read()
+            .await
+            .get(pkg.name())
+            .ok_or_else(|| {
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.to_any(),
+                ))
+            })?
+            .get(pkg.version())
+            .ok_or_else(|| {
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.to_any(),
+                ))
+            })?
+            .get(pkg.build())
+            .map(|(_, d)| d.to_owned())
+            .ok_or_else(|| {
+                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                    pkg.to_any(),
+                ))
+            })
     }
 
     async fn read_package_from_storage(
         &self,
-        // TODO: use an ident type that must have a build
-        pkg: &Ident,
+        pkg: &BuildIdent,
     ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
-        let build = pkg.build.as_ref().ok_or_else(|| {
-            Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                pkg.clone(),
-            ))
-        })?;
         self.packages
             .read()
             .await
-            .get(&pkg.name)
+            .get(pkg.name())
             .ok_or_else(|| {
                 Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
+                    pkg.to_any(),
                 ))
             })?
-            .get(&pkg.version)
+            .get(pkg.version())
             .ok_or_else(|| {
                 Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
+                    pkg.to_any(),
                 ))
             })?
-            .get(build)
+            .get(pkg.build())
             .ok_or_else(|| {
                 Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
+                    pkg.to_any(),
                 ))
             })
             .map(|found| Arc::clone(&found.0))
     }
 
-    async fn remove_embed_stub_from_storage(&self, pkg: &Ident) -> Result<()> {
-        let build = match &pkg.build {
-            Some(b @ Build::Embedded(EmbeddedSource::Package { .. })) => b,
-            _ => {
-                return Err(Error::String(format!(
-                    "Package must identify an embedded package in order to be removed: {}",
-                    pkg
-                )))
-            }
+    async fn remove_embed_stub_from_storage(&self, pkg: &BuildIdent) -> Result<()> {
+        if !pkg.build().is_embedded() {
+            return Err(Error::String(format!(
+                "Package must identify an embedded package in order to be removed: {pkg}",
+            )));
         };
 
         let mut packages = self.embedded_stubs.write().await;
-        match packages.get_mut(&pkg.name) {
+        match packages.get_mut(pkg.name()) {
             Some(versions) => {
-                match versions.get_mut(&pkg.version) {
+                match versions.get_mut(pkg.version()) {
                     Some(builds) => {
-                        if builds.remove(build).is_none() {
+                        if builds.remove(pkg.build()).is_none() {
                             return Err(Error::SpkValidatorsError(
-                                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                                spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
                             ));
                         }
                         if builds.is_empty() {
-                            versions.remove(&pkg.version);
+                            versions.remove(pkg.version());
                         }
                     }
                     None => {
                         return Err(Error::SpkValidatorsError(
-                            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
-                        ))
+                            spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
+                        ));
                     }
                 };
                 if versions.is_empty() {
-                    packages.remove(&pkg.name);
+                    packages.remove(pkg.name());
                 }
             }
             None => {
                 return Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
-                ))
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
+                ));
             }
         };
         Ok(())
     }
 
-    async fn remove_package_from_storage(&self, pkg: &Ident) -> Result<()> {
-        // Caller has already proven that build is `Some`.
-        let build = pkg.build.as_ref().unwrap();
-
+    async fn remove_package_from_storage(&self, pkg: &BuildIdent) -> Result<()> {
         let mut packages = self.packages.write().await;
-        let versions = match packages.get_mut(&pkg.name) {
+        let versions = match packages.get_mut(pkg.name()) {
             Some(v) => v,
             None => {
                 return Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
                 ))
             }
         };
 
-        let builds = match versions.get_mut(&pkg.version) {
+        let builds = match versions.get_mut(pkg.version()) {
             Some(v) => v,
             None => {
                 return Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
                 ))
             }
         };
 
-        if builds.remove(build).is_none() {
+        if builds.remove(pkg.build()).is_none() {
             Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
             ))
         } else {
             Ok(())
@@ -380,18 +346,14 @@ where
         Ok(Arc::new(versions.into_iter().map(Arc::new).collect()))
     }
 
-    async fn list_build_components(&self, pkg: &Ident) -> Result<Vec<Component>> {
-        let build = match pkg.build.as_ref() {
-            Some(b) => b,
-            None => return Ok(Vec::new()),
-        };
+    async fn list_build_components(&self, pkg: &BuildIdent) -> Result<Vec<Component>> {
         Ok(self
             .packages
             .read()
             .await
-            .get(&pkg.name)
-            .and_then(|versions| versions.get(&pkg.version))
-            .and_then(|builds| builds.get(build))
+            .get(pkg.name())
+            .and_then(|versions| versions.get(pkg.version()))
+            .and_then(|builds| builds.get(pkg.build()))
             .map(|(_, build_map)| build_map)
             .map(|cmpts| cmpts.keys().cloned().collect::<Vec<_>>())
             .unwrap_or_default())
@@ -401,74 +363,66 @@ where
         self.name.as_ref()
     }
 
-    async fn read_embed_stub(&self, pkg: &Ident) -> Result<Arc<Self::Package>> {
-        let build = pkg.build.as_ref().ok_or_else(|| {
-            Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                pkg.clone(),
-            ))
-        })?;
+    async fn read_embed_stub(&self, pkg: &BuildIdent) -> Result<Arc<Self::Package>> {
         self.embedded_stubs
             .read()
             .await
-            .get(&pkg.name)
+            .get(pkg.name())
             .ok_or_else(|| {
                 Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
+                    pkg.to_any(),
                 ))
             })?
-            .get(&pkg.version)
+            .get(pkg.version())
             .ok_or_else(|| {
                 Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
+                    pkg.to_any(),
                 ))
             })?
-            .get(build)
+            .get(pkg.build())
             .ok_or_else(|| {
                 Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
+                    pkg.to_any(),
                 ))
             })
             .map(Arc::clone)
     }
 
-    async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
-        if pkg.build.is_some() {
-            return Err(format!("cannot read a recipe for a package build: {pkg}").into());
-        }
+    async fn read_recipe(&self, pkg: &VersionIdent) -> Result<Arc<Self::Recipe>> {
         self.specs
             .read()
             .await
-            .get(&pkg.name)
+            .get(pkg.name())
             .ok_or_else(|| {
                 Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
+                    pkg.to_any(None),
                 ))
             })?
-            .get(&pkg.version)
+            .get(pkg.version())
             .map(Arc::clone)
             .ok_or_else(|| {
                 Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
+                    pkg.to_any(None),
                 ))
             })
     }
 
-    async fn remove_recipe(&self, pkg: &Ident) -> Result<()> {
+    async fn remove_recipe(&self, pkg: &VersionIdent) -> Result<()> {
         let mut specs = self.specs.write().await;
-        match specs.get_mut(&pkg.name) {
+        match specs.get_mut(pkg.name()) {
             Some(versions) => {
-                if versions.remove(&pkg.version).is_none() {
+                if versions.remove(pkg.version()).is_none() {
                     return Err(Error::SpkValidatorsError(
-                        spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                        spk_schema::validators::Error::PackageNotFoundError(pkg.to_any(None)),
                     ));
                 }
                 if versions.is_empty() {
-                    specs.remove(&pkg.name);
+                    specs.remove(pkg.name());
                 }
             }
             None => {
                 return Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any(None)),
                 ))
             }
         };

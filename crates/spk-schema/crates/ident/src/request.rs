@@ -22,8 +22,8 @@ use spk_schema_foundation::version_range::{
     VersionFilter,
 };
 
-use super::Ident;
-use crate::{Error, RangeIdent, Result, Satisfy};
+use super::AnyIdent;
+use crate::{BuildIdent, Error, RangeIdent, Result, Satisfy, VersionIdent};
 
 #[cfg(test)]
 #[path = "./request_test.rs"]
@@ -345,15 +345,15 @@ pub enum RequestedBy {
     /// Embedded in another package
     Embedded,
     /// A source package that made the request during a source build resolve
-    SourceBuild(Ident),
+    SourceBuild(AnyIdent),
     /// A package that made the request as part of a binary build env setup
-    BinaryBuild(Ident),
+    BinaryBuild(BuildIdent),
     /// A source package that a made the request during a source test
-    SourceTest(Ident),
+    SourceTest(AnyIdent),
     /// The source package that made the request during a build test
-    BuildTest(Ident),
+    BuildTest(AnyIdent),
     /// The package that made the request to set up an install test
-    InstallTest(Ident),
+    InstallTest(VersionIdent),
     /// The request was made for the current environment, so from a
     /// previous spk solve which does not keep past requester data,
     /// and there isn't anymore information
@@ -374,7 +374,7 @@ pub enum RequestedBy {
     /// For a request made during spk's automated (unit) test code
     SpkInternalTest,
     /// A package build that made the request, usually during a solve
-    PackageBuild(Ident),
+    PackageBuild(VersionIdent),
 }
 
 impl std::fmt::Display for RequestedBy {
@@ -502,24 +502,28 @@ impl PkgRequest {
         self.requested_by.values().flatten().cloned().collect()
     }
 
-    pub fn from_ident(pkg: Ident, requester: RequestedBy) -> Self {
+    pub fn from_ident(pkg: AnyIdent, requester: RequestedBy) -> Self {
+        let (version_ident, build) = pkg.into_inner();
+        let (name, version) = version_ident.into_inner();
         let ri = RangeIdent {
             repository_name: None,
-            name: pkg.name,
+            name,
             components: Default::default(),
-            version: VersionFilter::single(EqualsVersion::version_range(pkg.version)),
-            build: pkg.build,
+            version: VersionFilter::single(EqualsVersion::version_range(version)),
+            build,
         };
         Self::new(ri, requester)
     }
 
-    pub fn from_ident_exact(pkg: Ident, requester: RequestedBy) -> Self {
+    pub fn from_ident_exact(pkg: AnyIdent, requester: RequestedBy) -> Self {
+        let (version_ident, build) = pkg.into_inner();
+        let (name, version) = version_ident.into_inner();
         let ri = RangeIdent {
             repository_name: None,
-            name: pkg.name,
+            name,
             components: Default::default(),
-            version: VersionFilter::single(DoubleEqualsVersion::version_range(pkg.version)),
-            build: pkg.build,
+            version: VersionFilter::single(DoubleEqualsVersion::version_range(version)),
+            build,
         };
         Self::new(ri, requester)
     }
@@ -552,14 +556,14 @@ impl PkgRequest {
     }
 
     /// Create a copy of this request with it's pin rendered out using 'pkg'.
-    pub fn render_pin(&self, pkg: &Ident) -> Result<PkgRequest> {
+    pub fn render_pin(&self, pkg: &BuildIdent) -> Result<PkgRequest> {
         match &self.pin {
             None => Err(Error::String(
                 "Request has no pin to be rendered".to_owned(),
             )),
             Some(pin) if pin == API_STR || pin == BINARY_STR => {
                 // Supply the full base (digit-only) part of the version
-                let base = pkg.version.base();
+                let base = pkg.version().base();
                 let mut rendered: Vec<char> = Vec::with_capacity(
                     pin.len()
                         // ':'
@@ -573,7 +577,7 @@ impl PkgRequest {
                 self.rendered_to_pkgrequest(rendered)
             }
             Some(pin) => {
-                let mut digits = pkg.version.parts.iter().chain(std::iter::repeat(&0));
+                let mut digits = pkg.version().parts.iter().chain(std::iter::repeat(&0));
                 let mut rendered = Vec::with_capacity(pin.len());
                 for char in pin.chars() {
                     if char == 'x' {

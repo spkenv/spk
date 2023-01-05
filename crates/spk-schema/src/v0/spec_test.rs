@@ -5,6 +5,7 @@
 use std::io::Write;
 
 use rstest::rstest;
+use spk_schema_ident::VersionIdent;
 
 use super::Spec;
 use crate::foundation::fixtures::*;
@@ -15,12 +16,12 @@ use crate::{Recipe, Template, TemplateExt};
 
 #[rstest]
 fn test_spec_is_valid_with_only_name() {
-    let _spec: Spec = serde_yaml::from_str("{pkg: test-pkg}").unwrap();
+    let _spec: Spec<VersionIdent> = serde_yaml::from_str("{pkg: test-pkg}").unwrap();
 }
 
 #[rstest]
 fn test_explicit_no_sources() {
-    let spec: Spec = serde_yaml::from_str("{pkg: test-pkg, sources: []}").unwrap();
+    let spec: Spec<VersionIdent> = serde_yaml::from_str("{pkg: test-pkg, sources: []}").unwrap();
     assert!(spec.sources.is_empty());
 }
 
@@ -110,7 +111,7 @@ fn test_yaml_error_context(#[case] yaml: &str, #[case] expected: &str) {
     // still show errors that are well placed and reasonably worded
 
     format_serde_error::never_color();
-    let err = Spec::from_yaml(yaml).expect_err("expected yaml parsing to fail");
+    let err = Spec::<VersionIdent>::from_yaml(yaml).expect_err("expected yaml parsing to fail");
     let message = err.to_string();
     assert_eq!(
         message, expected,

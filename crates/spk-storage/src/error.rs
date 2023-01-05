@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use spk_schema::Ident;
+use spk_schema::AnyIdent;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -17,7 +17,7 @@ pub enum Error {
     FileReadError(std::path::PathBuf, #[source] std::io::Error),
     #[error("Invalid package spec for {0}: {1}")]
     InvalidPackageSpec(
-        Ident,
+        AnyIdent,
         // ideally this would contain the original format_serde_error instance
         // but they are not clone-able and we need to be able to cache and duplicate
         // this error type

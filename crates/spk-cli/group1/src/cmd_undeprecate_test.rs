@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spk_schema::ident::parse_ident;
+use spk_schema::ident::parse_version_ident;
 use spk_schema::Deprecate;
 use spk_solve::make_repo;
 
@@ -44,7 +44,7 @@ async fn test_undeprecate_without_prompt() {
     // None of the packages should be deprecated anymore, although one
     // was already not deprecated (undeprecated) before the test.
     for name in &[name1, name2, name3] {
-        let ident = parse_ident(name).unwrap();
+        let ident = parse_version_ident(name).unwrap();
         let (_, r) = &repos[0];
         let recipe = r.read_recipe(&ident).await.unwrap();
         println!("checking: {}", ident);
@@ -146,7 +146,7 @@ async fn test_undeprecate_with_no_package_found() {
 
     // Test undeprecating a package, when there is no such package in
     // the repos. This should return a result of 4.
-    let missing_pkg = "nosuchpackage/1.0.0";
+    let missing_pkg = "no-such-package/1.0.0";
 
     let packages = vec![missing_pkg.to_string()];
     let yes = true;
@@ -165,7 +165,7 @@ async fn test_undeprecate_with_no_package_found() {
     // still be deprecated because the command should have exited
     // before it made any changes to them.
     for name in &[name1, name2] {
-        let ident = parse_ident(name).unwrap();
+        let ident = parse_version_ident(name).unwrap();
         let repo = &repos[0].1;
         let spec = repo.read_recipe(&ident).await.unwrap();
         assert!(spec.is_deprecated());

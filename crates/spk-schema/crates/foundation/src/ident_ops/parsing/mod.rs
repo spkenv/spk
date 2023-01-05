@@ -160,6 +160,23 @@ where
     version_and_optional_build(version, build)(input)
 }
 
+/// Parse a version and build in the context of an identity string.
+///
+/// This function parses into [`Version`] and [`Build`] instances.
+///
+/// See [crate::version::parse_version] for details on valid inputs.
+pub fn version_and_required_build<'a, E>(input: &'a str) -> IResult<&'a str, (Version, Build), E>
+where
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, crate::ident_build::Error>
+        + FromExternalError<&'a str, crate::version::Error>
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + TagError<&'a str, &'static str>,
+{
+    pair(version, preceded(char('/'), cut(build)))(input)
+}
+
 /// Expect a version-like expression and optional build.
 ///
 /// This function is generic over the type of version-like expression

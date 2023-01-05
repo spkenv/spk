@@ -29,7 +29,7 @@ fn test_empty_options_can_match_anything() {
 
     let spec = Arc::new(spec!(
         {
-            "pkg": "my-package/1.0.0",
+            "pkg": "my-package/1.0.0/3I42H3S6",
             "install": {"requirements": [{"var": "python.abi/cp37m"}]},
         }
     ));
@@ -69,7 +69,7 @@ fn test_qualified_var_supersedes_unqualified() {
     // with the unqualified request for the debug=off
     let spec = Arc::new(spec!(
         {
-            "pkg": "my-package/1.0.0",
+            "pkg": "my-package/1.0.0/3I42H3S6",
             "build": {"options": [{"var": "debug", "static": "on"}]},
         }
     ));
@@ -87,7 +87,7 @@ fn test_qualified_var_supersedes_unqualified() {
     // be on, even though there is an unqualified request for 'off'
     let spec = Arc::new(spec!(
         {
-            "pkg": "my-package/1.0.0",
+            "pkg": "my-package/1.0.0/3I42H3S6",
             "build": {"options": [{"var": "debug", "static": "off"}]},
         }
     ));

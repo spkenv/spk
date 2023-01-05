@@ -13,7 +13,7 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
-use spk_schema::{Ident, Recipe, SpecRecipe};
+use spk_schema::{AnyIdent, Recipe, SpecRecipe};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
@@ -36,7 +36,7 @@ pub struct PackageBuildTester<'a> {
 
 impl<'a> PackageBuildTester<'a> {
     pub fn new(recipe: SpecRecipe, script: String) -> Self {
-        let source = BuildSource::SourcePackage(recipe.to_ident().into_build(Build::Source).into());
+        let source = BuildSource::SourcePackage(recipe.ident().to_any(Some(Build::Source)).into());
         Self {
             prefix: PathBuf::from("/spfs"),
             recipe,
@@ -155,7 +155,7 @@ impl<'a> PackageBuildTester<'a> {
         self.execute_test_script(&source_dir, env, &rt)
     }
 
-    async fn resolve_source_package(&mut self, package: &Ident) -> Result<Solution> {
+    async fn resolve_source_package(&mut self, package: &AnyIdent) -> Result<Solution> {
         let mut solver = Solver::default();
         solver.update_options(self.options.clone());
         let local_repo: Arc<storage::RepositoryHandle> =

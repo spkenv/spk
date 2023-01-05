@@ -8,7 +8,7 @@ use itertools::Itertools;
 use spfs::tracking::{Diff, DiffMode};
 use spk_schema_foundation::env::data_path;
 use spk_schema_foundation::spec_ops::FileMatcher;
-use spk_schema_ident::Ident;
+use spk_schema_ident::BuildIdent;
 
 #[cfg(test)]
 #[path = "./validators_test.rs"]
@@ -16,7 +16,7 @@ mod validators_test;
 
 /// Validates that all remaining build files are collected into at least one component
 pub fn must_collect_all_files<'a, Files>(
-    pkg: &Ident,
+    pkg: &BuildIdent,
     files: Files,
     diffs: &[Diff],
 ) -> Option<String>

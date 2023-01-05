@@ -19,6 +19,12 @@ impl<T: Named> Named for Arc<T> {
     }
 }
 
+impl<T: Named> Named for Box<T> {
+    fn name(&self) -> &PkgName {
+        (**self).name()
+    }
+}
+
 impl<T: Named> Named for &T {
     fn name(&self) -> &PkgName {
         (**self).name()

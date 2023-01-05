@@ -23,9 +23,7 @@ use spk_schema::foundation::format::{
     FormatRequest,
     FormatSolution,
 };
-use spk_schema::foundation::ident_build::Build;
-use spk_schema::foundation::spec_ops::{Named, Versioned};
-use spk_schema::Package;
+use spk_schema::prelude::*;
 use spk_solve_graph::{
     Change,
     Decision,
@@ -275,7 +273,7 @@ where
                         use Change::*;
                         match change {
                             SetPackage(change) => {
-                                if matches!(change.spec.ident().build, Some(Build::Embedded(_))) {
+                                if change.spec.ident().is_embedded() {
                                     fill = ".";
                                 } else {
                                     fill = ">";
@@ -346,7 +344,7 @@ where
                 for package in packages.iter() {
                     let name = package.name().as_str();
                     let version = package.version().to_string();
-                    let build = package.ident().build.as_ref().unwrap().to_string();
+                    let build = package.ident().build().to_string();
                     let max_len = name.len().max(version.len()).max(build.len());
                     renders.push((name, version, build, max_len));
                 }
@@ -546,6 +544,24 @@ pub struct DecisionFormatter {
 }
 
 impl DecisionFormatter {
+    /// Create a decision formatter that's well configured for unit testing
+    pub fn new_testing() -> Self {
+        Self {
+            settings: DecisionFormatterSettings {
+                verbosity: 3,
+                report_time: false,
+                too_long: Duration::from_secs(5),
+                max_too_long_count: 1,
+                max_verbosity_increase_level: u32::MAX,
+                show_solution: true,
+                heading_prefix: String::new(),
+                long_solves_threshold: 1,
+                max_frequent_errors: 5,
+                status_bar: false,
+            },
+        }
+    }
+
     /// Run the solver to completion, printing each step to stdout
     /// as appropriate given a verbosity level.
     pub async fn run_and_print_resolve(&self, solver: &Solver) -> Result<Solution> {
@@ -916,6 +932,13 @@ impl DecisionFormatter {
 
 #[async_trait::async_trait]
 impl ResolverCallback for &DecisionFormatter {
+    async fn solve<'s, 'a: 's>(&'s self, r: &'a mut SolverRuntime) -> Result<Solution> {
+        self.run_and_print_decisions(r).await
+    }
+}
+
+#[async_trait::async_trait]
+impl ResolverCallback for DecisionFormatter {
     async fn solve<'s, 'a: 's>(&'s self, r: &'a mut SolverRuntime) -> Result<Solution> {
         self.run_and_print_decisions(r).await
     }

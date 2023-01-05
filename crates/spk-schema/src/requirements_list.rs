@@ -5,9 +5,10 @@
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
+use spk_schema_ident::BuildIdent;
 
 use crate::foundation::option_map::OptionMap;
-use crate::ident::{Ident, Request};
+use crate::ident::Request;
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -52,11 +53,11 @@ impl RequirementsList {
     pub fn render_all_pins<'a>(
         &mut self,
         options: &OptionMap,
-        resolved: impl Iterator<Item = &'a Ident>,
+        resolved: impl Iterator<Item = &'a BuildIdent>,
     ) -> Result<()> {
         let mut by_name = std::collections::HashMap::new();
         for pkg in resolved {
-            by_name.insert(&pkg.name, pkg);
+            by_name.insert(pkg.name(), pkg);
         }
         for request in self.iter_mut() {
             match request {
@@ -64,7 +65,7 @@ impl RequirementsList {
                     if request.pin.is_none() {
                         continue;
                     }
-                    match by_name.get(&request.pkg.name) {
+                    match by_name.get(request.pkg.name()) {
                         None => {
                             return Err(Error::String(
                                 format!("Cannot resolve fromBuildEnv, package not present: {}\nIs it missing from your package build options?", request.pkg.name)

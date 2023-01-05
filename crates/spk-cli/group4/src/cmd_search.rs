@@ -1,13 +1,13 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::ident::parse_ident;
-use spk_schema::Deprecate;
+use spk_schema::{Deprecate, VersionIdent};
 
 /// Search for packages by name/substring
 #[derive(Args)]
@@ -43,10 +43,10 @@ impl Run for Search {
                 if !name.as_str().contains(&self.term) {
                     continue;
                 }
-                let mut ident = parse_ident(&name)?;
                 let versions = repo.list_package_versions(&name).await?;
+                let mut ident = VersionIdent::new_zero(name);
                 for v in versions.iter() {
-                    ident.version = (**v).clone();
+                    ident.set_version((**v).clone());
 
                     let builds = repo.list_package_builds(&ident).await?;
                     if builds.is_empty() {

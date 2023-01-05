@@ -7,7 +7,7 @@ use spk_schema_foundation::version::{API_STR, BINARY_STR};
 use spk_schema_foundation::FromYaml;
 
 use super::{InclusionPolicy, PreReleasePolicy, Request};
-use crate::parse_ident;
+use crate::parse_build_ident;
 
 #[rstest]
 fn test_prerelease_policy() {
@@ -197,7 +197,7 @@ fn test_pkg_request_pin_rendering(
         .unwrap()
         .into_pkg()
         .expect("expected package request");
-    let version = parse_ident(format!("test/{}", version)).unwrap();
+    let version = parse_build_ident(format!("test/{}/src", version)).unwrap();
     let res = req
         .render_pin(&version)
         .expect("should not fail to render pin");

@@ -4,11 +4,11 @@
 
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::spec_ops::{Named, Versioned};
+use spk_schema_ident::BuildIdent;
 
 use crate::foundation::ident_component::Component;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::version::Compatibility;
-use crate::ident::Ident;
 use crate::DeprecateMut;
 
 #[cfg(test)]
@@ -25,7 +25,7 @@ pub trait Package:
     /// The full identifier for this package
     ///
     /// This includes the version and optional build
-    fn ident(&self) -> &Ident;
+    fn ident(&self) -> &BuildIdent;
 
     /// The values for this packages options used for this build.
     fn option_values(&self) -> OptionMap;
@@ -102,7 +102,61 @@ pub trait PackageMut: Package + DeprecateMut {
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
     type Package = T::Package;
 
-    fn ident(&self) -> &Ident {
+    fn ident(&self) -> &BuildIdent {
+        (**self).ident()
+    }
+
+    fn option_values(&self) -> OptionMap {
+        (**self).option_values()
+    }
+
+    fn options(&self) -> &Vec<super::Opt> {
+        (**self).options()
+    }
+
+    fn sources(&self) -> &Vec<super::SourceSpec> {
+        (**self).sources()
+    }
+
+    fn embedded(&self) -> &super::EmbeddedPackagesList {
+        (**self).embedded()
+    }
+
+    fn embedded_as_packages(
+        &self,
+    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
+        (**self).embedded_as_packages()
+    }
+
+    fn components(&self) -> &super::ComponentSpecList {
+        (**self).components()
+    }
+
+    fn runtime_environment(&self) -> &Vec<super::EnvOp> {
+        (**self).runtime_environment()
+    }
+
+    fn runtime_requirements(&self) -> &super::RequirementsList {
+        (**self).runtime_requirements()
+    }
+
+    fn validation(&self) -> &super::ValidationSpec {
+        (**self).validation()
+    }
+
+    fn build_script(&self) -> String {
+        (**self).build_script()
+    }
+
+    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
+        (**self).validate_options(given_options)
+    }
+}
+
+impl<T: Package + Send + Sync> Package for Box<T> {
+    type Package = T::Package;
+
+    fn ident(&self) -> &BuildIdent {
         (**self).ident()
     }
 
@@ -156,7 +210,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 impl<T: Package + Send + Sync> Package for &T {
     type Package = T::Package;
 
-    fn ident(&self) -> &Ident {
+    fn ident(&self) -> &BuildIdent {
         (**self).ident()
     }
 

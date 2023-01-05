@@ -12,16 +12,17 @@ use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::*;
 use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::env::data_path;
+use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::OptNameBuf;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
-use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
-use spk_schema::{ComponentFileMatchMode, ComponentSpecList, Ident, Package, PackageMut};
+use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy, VersionIdent};
+use spk_schema::{BuildIdent, ComponentFileMatchMode, ComponentSpecList, Package, PackageMut};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
-use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
+use spk_solve::{BoxedResolverCallback, ResolverCallback, Solver};
 use spk_storage::{self as storage};
 
 use crate::{Error, Result};
@@ -96,7 +97,7 @@ where
 {
     /// Create a new builder that builds a binary package from the given recipe
     pub fn from_recipe(recipe: Recipe) -> Self {
-        let source = BuildSource::SourcePackage(recipe.to_ident().into_build(Build::Source).into());
+        let source = BuildSource::SourcePackage(recipe.ident().to_build(Build::Source).into());
         Self {
             recipe,
             source,
@@ -104,8 +105,14 @@ where
             inputs: OptionMap::default(),
             solver: Solver::default(),
             environment: Default::default(),
-            source_resolver: Box::new(DefaultResolver {}),
-            build_resolver: Box::new(DefaultResolver {}),
+            #[cfg(test)]
+            source_resolver: Box::new(spk_solve::DecisionFormatter::new_testing()),
+            #[cfg(not(test))]
+            source_resolver: Box::new(spk_solve::DefaultResolver {}),
+            #[cfg(test)]
+            build_resolver: Box::new(spk_solve::DecisionFormatter::new_testing()),
+            #[cfg(not(test))]
+            build_resolver: Box::new(spk_solve::DefaultResolver {}),
             last_solve_graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
             repos: Default::default(),
             interactive: false,
@@ -223,6 +230,7 @@ where
         <T as storage::Storage>::Package: PackageMut,
     {
         let (package, components) = self.build().await?;
+        tracing::debug!("publishing build {}", package.ident().format_ident());
         repo.publish_package(&package, &components).await?;
         Ok((package, components))
     }
@@ -367,11 +375,9 @@ where
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
         self.build_artifacts(package, options).await?;
 
-        let source_ident = Ident {
-            name: self.recipe.name().to_owned(),
-            version: self.recipe.version().clone(),
-            build: Some(Build::Source),
-        };
+        let source_ident =
+            VersionIdent::new(self.recipe.name().to_owned(), self.recipe.version().clone())
+                .into_any(Some(Build::Source));
         let sources_dir = data_path(&source_ident);
 
         let mut runtime = spfs::active_runtime().await?;
@@ -558,11 +564,7 @@ where
     env.insert("SPK_PKG_VERSION".to_string(), spec.version().to_string());
     env.insert(
         "SPK_PKG_BUILD".to_string(),
-        spec.ident()
-            .build
-            .as_ref()
-            .map(Build::to_string)
-            .unwrap_or_default(),
+        spec.ident().build().to_string(),
     );
     env.insert(
         "SPK_PKG_VERSION_MAJOR".to_string(),
@@ -623,7 +625,7 @@ where
 }
 
 fn split_manifest_by_component(
-    pkg: &Ident,
+    pkg: &BuildIdent,
     manifest: &spfs::tracking::Manifest,
     components: &ComponentSpecList,
 ) -> Result<HashMap<Component, spfs::tracking::Manifest>> {
@@ -661,7 +663,12 @@ fn split_manifest_by_component(
         }
         for node in manifest.walk() {
             if relevant_paths.contains(&node.path) {
-                tracing::debug!("{}:{} collecting {:?}", pkg.name, component.name, node.path);
+                tracing::debug!(
+                    "{}:{} collecting {:?}",
+                    pkg.name(),
+                    component.name,
+                    node.path
+                );
                 let mut entry = node.entry.clone();
                 if entry.is_dir() {
                     // we will be building back up any directory with
@@ -679,7 +686,7 @@ fn split_manifest_by_component(
 }
 
 /// Return the file path for the given source package's files.
-pub fn source_package_path(pkg: &Ident) -> RelativePathBuf {
+pub fn source_package_path(pkg: &BuildIdent) -> RelativePathBuf {
     data_path(pkg)
 }
 
@@ -687,7 +694,7 @@ pub fn source_package_path(pkg: &Ident) -> RelativePathBuf {
 ///
 /// This file is created during a build and stores the full
 /// package spec of what was built.
-pub fn build_spec_path(pkg: &Ident) -> RelativePathBuf {
+pub fn build_spec_path(pkg: &BuildIdent) -> RelativePathBuf {
     data_path(pkg).join("spec.yaml")
 }
 
@@ -695,7 +702,7 @@ pub fn build_spec_path(pkg: &Ident) -> RelativePathBuf {
 ///
 /// This file is created during a build and stores the set
 /// of build options used when creating the package
-pub fn build_options_path(pkg: &Ident) -> RelativePathBuf {
+pub fn build_options_path(pkg: &BuildIdent) -> RelativePathBuf {
     data_path(pkg).join("options.json")
 }
 
@@ -703,7 +710,7 @@ pub fn build_options_path(pkg: &Ident) -> RelativePathBuf {
 ///
 /// This file is created during a build and stores the bash
 /// script used to build the package contents
-pub fn build_script_path(pkg: &Ident) -> RelativePathBuf {
+pub fn build_script_path(pkg: &BuildIdent) -> RelativePathBuf {
     data_path(pkg).join("build.sh")
 }
 
@@ -711,7 +718,7 @@ pub fn build_script_path(pkg: &Ident) -> RelativePathBuf {
 ///
 /// This file is created during a build and stores the bash
 /// script used to build the package contents
-pub fn component_marker_path(pkg: &Ident, name: &Component) -> RelativePathBuf {
+pub fn component_marker_path(pkg: &BuildIdent, name: &Component) -> RelativePathBuf {
     data_path(pkg).join(format!("{}.cmpt", name))
 }
 

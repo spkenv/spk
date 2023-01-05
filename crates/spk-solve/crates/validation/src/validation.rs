@@ -73,13 +73,8 @@ impl ValidatorT for DeprecationValidator {
         if !spec.is_deprecated() {
             return Ok(Compatibility::Compatible);
         }
-        if spec.ident().build.is_none() {
-            return Ok(Compatibility::Incompatible(
-                "package version is deprecated".to_owned(),
-            ));
-        }
         let request = state.get_merged_request(spec.name())?;
-        if request.pkg.build == spec.ident().build {
+        if request.pkg.build.as_ref() == Some(spec.ident().build()) {
             return Ok(Compatibility::Compatible);
         }
         Ok(Compatibility::Incompatible(
@@ -172,11 +167,11 @@ impl EmbeddedPackageValidator {
 
         // There may not be a "real" instance of the embedded package in the
         // solve already.
-        if let Some((existing, _)) = state.get_resolved_packages().get(&embedded.ident().name) {
+        if let Some((existing, _)) = state.get_resolved_packages().get(embedded.ident().name()) {
             // If found, it must be the stub of the package now being embedded
             // to be okay.
-            match &existing.ident().build {
-                Some(Build::Embedded(EmbeddedSource::Package(package)))
+            match existing.ident().build() {
+                Build::Embedded(EmbeddedSource::Package(package))
                     if package.ident == spec.ident() => {}
                 _ => {
                     return Ok(Incompatible(format!(
@@ -364,7 +359,7 @@ impl ValidatorT for ComponentsValidator {
         P: Package,
     {
         use Compatibility::Compatible;
-        if matches!(spec.ident().build, Some(Build::Embedded(_))) {
+        if spec.ident().build().is_embedded() {
             // Allow embedded stubs to validate.
             return Ok(Compatible);
         }

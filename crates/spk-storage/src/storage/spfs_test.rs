@@ -5,7 +5,7 @@ use rstest::rstest;
 use spfs::prelude::*;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::version::Version;
-use spk_schema::Ident;
+use spk_schema::BuildIdent;
 
 use super::SPFSRepository;
 use crate::storage::{CachePolicy, Repository};
@@ -77,7 +77,7 @@ async fn test_upgrade_changes_tags(tmpdir: tempfile::TempDir) {
         .await
         .unwrap();
 
-    let ident = Ident::from_str("mypkg/1.0.0/src").unwrap();
+    let ident = BuildIdent::from_str("mypkg/1.0.0/src").unwrap();
 
     // publish an "old style" package spec and build
     let mut old_path =

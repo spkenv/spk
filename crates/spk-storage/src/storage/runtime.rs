@@ -11,7 +11,7 @@ use spk_schema::foundation::ident_build::parse_build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::{parse_version, Version};
-use spk_schema::{FromYaml, Ident, Spec, SpecRecipe};
+use spk_schema::{BuildIdent, FromYaml, Spec, SpecRecipe, VersionIdent};
 
 use super::repository::{PublishPolicy, Storage};
 use super::Repository;
@@ -83,9 +83,9 @@ impl Storage for RuntimeRepository {
     type Recipe = SpecRecipe;
     type Package = Spec;
 
-    async fn get_concrete_package_builds(&self, pkg: &Ident) -> Result<HashSet<Ident>> {
-        let mut base = self.root.join(&pkg.name);
-        base.push(pkg.version.to_string());
+    async fn get_concrete_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>> {
+        let mut base = self.root.join(pkg.name());
+        base.push(pkg.version().to_string());
         Ok(get_all_filenames(&base)?
             .into_iter()
             .filter_map(|entry| {
@@ -97,7 +97,7 @@ impl Storage for RuntimeRepository {
             })
             .filter(|entry| base.join(entry).join("spec.yaml").exists())
             .filter_map(|candidate| match parse_build(&candidate) {
-                Ok(b) => Some(pkg.with_build(Some(b))),
+                Ok(b) => Some(pkg.to_build(b)),
                 Err(err) => {
                     tracing::debug!(
                         "Skipping invalid build in {:?}: [{}] {:?}",
@@ -111,7 +111,10 @@ impl Storage for RuntimeRepository {
             .collect())
     }
 
-    async fn get_embedded_package_builds(&self, _pkg: &Ident) -> Result<HashSet<Ident>> {
+    async fn get_embedded_package_builds(
+        &self,
+        _pkg: &VersionIdent,
+    ) -> Result<HashSet<BuildIdent>> {
         // Can't publish packages to a runtime so there can't be any stubs
         Ok(HashSet::default())
     }
@@ -144,7 +147,7 @@ impl Storage for RuntimeRepository {
 
     async fn read_components_from_storage(
         &self,
-        pkg: &Ident,
+        pkg: &BuildIdent,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
         let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
         let components: Vec<Component> = entries
@@ -163,7 +166,7 @@ impl Storage for RuntimeRepository {
                 .map_err(|err| {
                     if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
                         Error::SpkValidatorsError(
-                            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+                            spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
                         )
                     } else {
                         err
@@ -180,7 +183,7 @@ impl Storage for RuntimeRepository {
             let digest = find_layer_by_filename(path).await.map_err(|err| {
                 if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
                     Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.clone(),
+                        pkg.to_any(),
                     ))
                 } else {
                     err
@@ -194,7 +197,7 @@ impl Storage for RuntimeRepository {
 
     async fn read_package_from_storage(
         &self,
-        pkg: &Ident,
+        pkg: &BuildIdent,
     ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
         let mut path = self.root.join(pkg.to_string());
         path.push("spec.yaml");
@@ -202,7 +205,7 @@ impl Storage for RuntimeRepository {
         let mut reader = std::fs::File::open(&path).map_err(|err| {
             if err.kind() == std::io::ErrorKind::NotFound {
                 Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.clone(),
+                    pkg.to_any(),
                 ))
             } else {
                 Error::FileOpenError(path.to_owned(), err)
@@ -214,14 +217,14 @@ impl Storage for RuntimeRepository {
             .map_err(|err| Error::FileReadError(path.to_owned(), err))?;
         <Self::Recipe as spk_schema::Recipe>::Output::from_yaml(yaml)
             .map(Arc::new)
-            .map_err(|err| Error::InvalidPackageSpec(pkg.clone(), err.to_string()))
+            .map_err(|err| Error::InvalidPackageSpec(pkg.to_any(), err.to_string()))
     }
 
-    async fn remove_embed_stub_from_storage(&self, _pkg: &Ident) -> Result<()> {
+    async fn remove_embed_stub_from_storage(&self, _pkg: &BuildIdent) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 
-    async fn remove_package_from_storage(&self, _pkg: &Ident) -> Result<()> {
+    async fn remove_package_from_storage(&self, _pkg: &BuildIdent) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 }
@@ -276,10 +279,7 @@ impl Repository for RuntimeRepository {
         ))
     }
 
-    async fn list_build_components(&self, pkg: &Ident) -> Result<Vec<Component>> {
-        if pkg.build.is_none() {
-            return Ok(Vec::new());
-        }
+    async fn list_build_components(&self, pkg: &BuildIdent) -> Result<Vec<Component>> {
         let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
         entries
             .into_iter()
@@ -288,19 +288,19 @@ impl Repository for RuntimeRepository {
             .collect()
     }
 
-    async fn read_embed_stub(&self, pkg: &Ident) -> Result<Arc<Self::Package>> {
+    async fn read_embed_stub(&self, pkg: &BuildIdent) -> Result<Arc<Self::Package>> {
         Err(Error::SpkValidatorsError(
-            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+            spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
         ))
     }
 
-    async fn read_recipe(&self, pkg: &Ident) -> Result<Arc<Self::Recipe>> {
+    async fn read_recipe(&self, pkg: &VersionIdent) -> Result<Arc<Self::Recipe>> {
         Err(Error::SpkValidatorsError(
-            spk_schema::validators::Error::PackageNotFoundError(pkg.clone()),
+            spk_schema::validators::Error::PackageNotFoundError(pkg.to_any(None)),
         ))
     }
 
-    async fn remove_recipe(&self, _pkg: &Ident) -> Result<()> {
+    async fn remove_recipe(&self, _pkg: &VersionIdent) -> Result<()> {
         Err(Error::String("Cannot modify a runtime repository".into()))
     }
 }

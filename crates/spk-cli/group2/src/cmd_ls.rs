@@ -13,7 +13,7 @@ use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
-use spk_schema::ident::{parse_ident, Ident};
+use spk_schema::ident::{parse_ident, AnyIdent};
 use spk_schema::ident_ops::parsing::{ident_parts, IdentParts, KNOWN_REPOSITORY_NAMES};
 use spk_schema::{Deprecate, Package, Spec};
 use spk_storage::{self as storage};
@@ -134,7 +134,7 @@ impl<T: Output> Run for Ls<T> {
                     // inventory the builds of this version (do not depend on
                     // the existence of a "version spec").
 
-                    let mut builds = repo.list_package_builds(&ident).await?;
+                    let mut builds = repo.list_package_builds(ident.as_version()).await?;
                     if builds.is_empty() {
                         // Does a version with no builds really exist?
                         continue;
@@ -191,7 +191,7 @@ impl<T: Output> Run for Ls<T> {
                 // Given a package version (or build), list all its builds
                 let pkg = parse_ident(package)?;
                 for (_, repo) in repos {
-                    for build in repo.list_package_builds(&pkg).await? {
+                    for build in repo.list_package_builds(pkg.as_version()).await? {
                         // Doing this here slows the listing down, but
                         // the spec file is the only place that holds
                         // the deprecation status.
@@ -206,7 +206,7 @@ impl<T: Output> Run for Ls<T> {
                             // Hide deprecated packages by default
                             continue;
                         }
-                        set.insert(self.format_build(&build, &spec, &repo).await?);
+                        set.insert(self.format_build(&spec, &repo).await?);
                     }
                 }
                 results = set.into_iter().collect();
@@ -277,8 +277,8 @@ impl<T: Output> Ls<T> {
         for (package, index) in packages {
             let (repo_name, repo) = repos.get(index).unwrap();
             let mut versions = {
-                let base = Ident::from(package);
-                repo.list_package_versions(&base.name)
+                let base = AnyIdent::from(package);
+                repo.list_package_versions(base.name())
                     .await?
                     .iter()
                     .filter_map(|v| match search_term {
@@ -293,7 +293,7 @@ impl<T: Output> Ls<T> {
             versions.sort();
             versions.reverse();
             for pkg in versions {
-                let mut builds = repo.list_package_builds(&pkg).await?;
+                let mut builds = repo.list_package_builds(pkg.as_version()).await?;
                 builds.sort();
                 for build in builds {
                     if let Some(IdentParts {
@@ -301,10 +301,8 @@ impl<T: Output> Ls<T> {
                         ..
                     }) = search_term
                     {
-                        if let Some(this_build) = &build.build {
-                            if search_build != this_build.to_string() {
-                                continue;
-                            }
+                        if build.build().to_string() != search_build {
+                            continue;
                         }
                     }
 
@@ -331,41 +329,34 @@ impl<T: Output> Ls<T> {
                         );
                     }
                     self.output
-                        .println((self.format_build(&build, &spec, repo).await?).to_string());
+                        .println((self.format_build(&spec, repo).await?).to_string());
                 }
             }
         }
         Ok(0)
     }
 
-    async fn format_build(
-        &self,
-        pkg: &Ident,
-        spec: &Spec,
-        repo: &storage::RepositoryHandle,
-    ) -> Result<String> {
-        let mut item = pkg.format_ident();
+    async fn format_build(&self, spec: &Spec, repo: &storage::RepositoryHandle) -> Result<String> {
+        let mut item = spec.ident().format_ident();
         if spec.is_deprecated() {
             let _ = write!(item, " {}", "DEPRECATED".red());
         }
 
-        // Packages without builds, or /src packages have no further
-        // info to display
-        if pkg.build.is_none() || pkg.is_source() {
+        // /src packages have no further info to display
+        if spec.ident().is_source() {
             return Ok(item);
         }
 
         // Based on the verbosity, display more details for the
         // package build.
         if self.verbose > 0 {
-            let spec = repo.read_package(pkg).await?;
             let options = spec.option_values();
             item.push(' ');
             item.push_str(&options.format_option_map());
         }
 
         if self.verbose > 1 || self.components {
-            let cmpts = repo.read_components(pkg).await?;
+            let cmpts = repo.read_components(spec.ident()).await?;
             item.push(' ');
             item.push_str(
                 &ComponentSet::from(cmpts.keys().into_iter().cloned()).format_components(),

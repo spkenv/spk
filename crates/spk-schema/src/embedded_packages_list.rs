@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::EmbeddedSource;
+use spk_schema_ident::AnyIdent;
 
 use super::{BuildSpec, InstallSpec, Spec};
 use crate::foundation::ident_build::Build;
@@ -51,7 +52,7 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
                 let mut embedded_stubs = Vec::with_capacity(size_hint);
                 let mut default_build_spec = BuildSpec::default();
                 let mut default_install_spec = InstallSpec::default();
-                while let Some(mut embedded) = seq.next_element::<super::v0::Spec>()? {
+                while let Some(embedded) = seq.next_element::<super::v0::Spec<AnyIdent>>()? {
                     default_build_spec.options = embedded.build.options.clone();
                     if default_build_spec != embedded.build {
                         return Err(serde::de::Error::custom(
@@ -64,18 +65,10 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
                             "embedded packages can only specify install.components",
                         ));
                     }
-                    match &mut embedded.pkg.build {
-                        Some(Build::Embedded(EmbeddedSource::Unknown)) => {}
-                        None => embedded
-                            .pkg
-                            .set_build(Some(Build::Embedded(EmbeddedSource::Unknown))),
-                        Some(_) => {
-                            return Err(serde::de::Error::custom(format!(
-                                "embedded package should not specify a build, got: {}",
-                                embedded.pkg
-                            )));
-                        }
-                    }
+                    let embedded = embedded.map_ident(|i| {
+                        i.into_base()
+                            .into_build(Build::Embedded(EmbeddedSource::Unknown))
+                    });
                     embedded_stubs.push(Spec::V0Package(embedded));
                 }
                 Ok(EmbeddedPackagesList(embedded_stubs))

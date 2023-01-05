@@ -31,7 +31,7 @@ pub async fn current_env() -> crate::Result<Solution> {
     for name in repo.list_packages().await? {
         for version in repo.list_package_versions(&name).await?.iter() {
             let pkg = parse_ident(format!("{name}/{version}"))?;
-            for pkg in repo.list_package_builds(&pkg).await? {
+            for pkg in repo.list_package_builds(pkg.as_version()).await? {
                 let spec = repo.read_package(&pkg).await?;
                 let components = match repo.read_components(spec.ident()).await {
                     Ok(c) => c,
@@ -43,7 +43,8 @@ pub async fn current_env() -> crate::Result<Solution> {
                     }
                     Err(err) => return Err(err.into()),
                 };
-                let range_ident = RangeIdent::equals(spec.ident(), components.keys().cloned());
+                let range_ident =
+                    RangeIdent::equals(&spec.ident().to_any(), components.keys().cloned());
                 let mut request = PkgRequest::new(range_ident, RequestedBy::CurrentEnvironment);
                 request.prerelease_policy = PreReleasePolicy::IncludeAll;
                 let repo = repo.clone();

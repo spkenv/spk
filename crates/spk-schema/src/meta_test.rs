@@ -3,12 +3,13 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
+use spk_schema_ident::VersionIdent;
 
 use crate::v0;
 
 #[rstest]
 fn test_package_meta_missing() {
-    let spec: serde_yaml::Result<v0::Spec> = serde_yaml::from_str(
+    let spec: serde_yaml::Result<v0::Spec<VersionIdent>> = serde_yaml::from_str(
         r#"{
         pkg: meta/1.0.0
     }"#,

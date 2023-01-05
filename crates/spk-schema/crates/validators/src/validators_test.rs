@@ -9,14 +9,12 @@ use crate::validators::must_collect_all_files;
 
 #[test]
 fn test_validate_build_changeset_nothing() {
-    let _spec = v0::Spec::new("test-pkg".parse().unwrap());
     let res = must_install_something(&[], "/spfs");
     assert!(res.is_some())
 }
 
 #[test]
 fn test_validate_build_changeset_modified() {
-    let _spec = v0::Spec::new("test-pkg".parse().unwrap());
     let res = must_not_alter_existing_files(
         &vec![spfs::tracking::Diff {
             path: "/spfs/file.txt".into(),
@@ -29,7 +27,7 @@ fn test_validate_build_changeset_modified() {
 
 #[test]
 fn test_validate_build_changeset_collected() {
-    let mut spec = v0::Spec::new("test-pkg".parse().unwrap());
+    let mut spec = v0::Spec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
     // the default components are added and collect all files,
     // so we remove them to ensure nothing is collected
     let _ = spec.install.components.drain(..);

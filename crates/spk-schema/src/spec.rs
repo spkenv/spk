@@ -11,12 +11,13 @@ use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::Component;
+use spk_schema_ident::{BuildIdent, VersionIdent};
 
 use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
-use crate::foundation::spec_ops::{Named, Versioned};
+use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{Ident, PkgRequest, Request, Satisfy, VarRequest};
+use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
 use crate::test_spec::TestSpec;
 use crate::{
     BuildEnv,
@@ -71,7 +72,7 @@ macro_rules! recipe {
 /// # fn main() {
 /// spec!({
 ///   "api": "v0/package",
-///   "pkg": "my-pkg/1.0.0",
+///   "pkg": "my-pkg/1.0.0/src",
 ///   "build": {
 ///     "options": [
 ///       {"pkg": "dependency"}
@@ -179,7 +180,7 @@ impl TemplateExt for SpecTemplate {
 #[enum_dispatch(Deprecate, DeprecateMut)]
 pub enum SpecRecipe {
     #[serde(rename = "v0/package")]
-    V0Package(super::v0::Spec),
+    V0Package(super::v0::Spec<VersionIdent>),
 }
 
 impl Satisfy<PkgRequest> for SpecRecipe {
@@ -192,6 +193,12 @@ impl Satisfy<PkgRequest> for SpecRecipe {
 
 impl Recipe for SpecRecipe {
     type Output = Spec;
+
+    fn ident(&self) -> &VersionIdent {
+        match self {
+            SpecRecipe::V0Package(r) => Recipe::ident(r),
+        }
+    }
 
     fn default_variants(&self) -> &[OptionMap] {
         match self {
@@ -248,13 +255,15 @@ impl Named for SpecRecipe {
     }
 }
 
-impl Versioned for SpecRecipe {
+impl HasVersion for SpecRecipe {
     fn version(&self) -> &Version {
         match self {
             SpecRecipe::V0Package(r) => r.version(),
         }
     }
+}
 
+impl Versioned for SpecRecipe {
     fn compat(&self) -> &Compat {
         match self {
             SpecRecipe::V0Package(spec) => spec.compat(),
@@ -309,7 +318,7 @@ impl FromYaml for SpecRecipe {
 #[enum_dispatch(Deprecate, DeprecateMut)]
 pub enum Spec {
     #[serde(rename = "v0/package")]
-    V0Package(super::v0::Spec),
+    V0Package(super::v0::Spec<BuildIdent>),
 }
 
 impl Satisfy<PkgRequest> for Spec {
@@ -336,13 +345,15 @@ impl Named for Spec {
     }
 }
 
-impl Versioned for Spec {
+impl HasVersion for Spec {
     fn version(&self) -> &Version {
         match self {
             Spec::V0Package(r) => r.version(),
         }
     }
+}
 
+impl Versioned for Spec {
     fn compat(&self) -> &Compat {
         match self {
             Spec::V0Package(spec) => spec.compat(),
@@ -354,9 +365,9 @@ impl Versioned for Spec {
 impl Package for Spec {
     type Package = Self;
 
-    fn ident(&self) -> &Ident {
+    fn ident(&self) -> &BuildIdent {
         match self {
-            Spec::V0Package(spec) => spec.ident(),
+            Spec::V0Package(spec) => Package::ident(spec),
         }
     }
 

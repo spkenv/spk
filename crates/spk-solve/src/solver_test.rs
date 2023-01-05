@@ -9,10 +9,10 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::opt_name;
-use spk_schema::foundation::spec_ops::Versioned;
 use spk_schema::ident::{
-    ident,
+    build_ident,
     parse_ident_range,
+    version_ident,
     PkgRequest,
     RangeIdent,
     Request,
@@ -20,7 +20,8 @@ use spk_schema::ident::{
     VarRequest,
 };
 use spk_schema::ident_build::EmbeddedSource;
-use spk_schema::{recipe, v0, Package};
+use spk_schema::prelude::*;
+use spk_schema::{recipe, v0};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 
@@ -55,7 +56,6 @@ macro_rules! assert_resolved {
         assert_resolved!($solution, $pkg, version = $version, $message)
     };
     ($solution:ident, $pkg:literal, version = $version:literal, $message:literal) => {{
-        use $crate::Versioned;
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
@@ -69,7 +69,7 @@ macro_rules! assert_resolved {
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
-        assert_eq!(pkg.spec.ident().build, $build, $message);
+        assert_eq!(pkg.spec.ident().build(), &$build, $message);
     }};
 
     ($solution:ident, $pkg:literal, components = [$($component:literal),+ $(,)?]) => {{
@@ -130,8 +130,10 @@ async fn test_solver_package_with_no_recipe(mut solver: Solver) {
     let repo = RepositoryHandle::new_mem();
 
     let options = option_map! {};
-    let mut spec = v0::Spec::new(ident!("my-pkg/1.0.0"));
-    spec.pkg.set_build(Some(Build::Digest(options.digest())));
+    let spec = v0::Spec::new(build_ident!(format!(
+        "my-pkg/1.0.0/{}",
+        options.digest_str()
+    )));
 
     // publish package without publishing spec
     let components = vec![
@@ -204,8 +206,7 @@ async fn test_solver_single_package_no_deps(mut solver: Solver) {
     assert_eq!(packages.len(), 1, "expected one resolved package");
     let resolved = packages.get("my-pkg").unwrap();
     assert_eq!(&resolved.spec.version().to_string(), "1.0.0");
-    assert!(resolved.spec.ident().build.is_some());
-    assert_ne!(resolved.spec.ident().build, Some(Build::Source));
+    assert_ne!(resolved.spec.ident().build(), &Build::Source);
 }
 
 #[rstest]
@@ -850,8 +851,9 @@ async fn test_solver_deprecated_build(mut solver: Solver) {
 
     solver.reset();
     solver.add_repository(repo);
-    solver
-        .add_request(PkgRequest::from_ident(deprecated_build, RequestedBy::SpkInternalTest).into());
+    solver.add_request(
+        PkgRequest::from_ident(deprecated_build.to_any(), RequestedBy::SpkInternalTest).into(),
+    );
 
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_resolved!(
@@ -886,7 +888,7 @@ async fn test_solver_deprecated_version(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(
         PkgRequest::new(
-            RangeIdent::equals(deprecated.ident(), []),
+            RangeIdent::equals(&deprecated.ident().to_any(), []),
             RequestedBy::SpkInternalTest,
         )
         .into(),
@@ -922,7 +924,10 @@ async fn test_solver_build_from_source_deprecated(mut solver: Solver) {
         ],
         options = {"debug" => "off"}
     );
-    let spec = repo.read_recipe(&ident!("my-tool/1.2.0")).await.unwrap();
+    let spec = repo
+        .read_recipe(&version_ident!("my-tool/1.2.0"))
+        .await
+        .unwrap();
     repo.force_publish_recipe(&spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
@@ -962,13 +967,13 @@ async fn test_solver_embedded_package_adds_request(mut solver: Solver) {
     assert_resolved!(
         solution,
         "qt",
-        build = Some(Build::Embedded(EmbeddedSource::Unknown))
+        build = Build::Embedded(EmbeddedSource::Unknown)
     );
     assert_resolved!(solution, "qt", "5.12.6");
     assert_resolved!(
         solution,
         "qt",
-        build = Some(Build::Embedded(EmbeddedSource::Unknown))
+        build = Build::Embedded(EmbeddedSource::Unknown)
     );
 }
 
@@ -1004,7 +1009,7 @@ async fn test_solver_embedded_package_solvable(mut solver: Solver) {
     assert_resolved!(
         solution,
         "qt",
-        build = Some(Build::Embedded(EmbeddedSource::Unknown))
+        build = Build::Embedded(EmbeddedSource::Unknown)
     );
 }
 
@@ -1096,7 +1101,7 @@ async fn test_solver_embedded_package_replaces_real_package(mut solver: Solver) 
     assert_resolved!(
         solution,
         "qt",
-        build = Some(Build::Embedded(EmbeddedSource::Unknown))
+        build = Build::Embedded(EmbeddedSource::Unknown)
     );
     assert_not_resolved!(solution, "unwanted-dep");
 }
@@ -1307,8 +1312,8 @@ async fn test_solver_build_options_dont_affect_compat(mut solver: Solver) {
     //  - that option can conflict with another packages build options
     //  - as long as there is no explicit requirement on that option's value
 
-    let dep_v1 = spec!({"pkg": "build-dep/1.0.0"});
-    let dep_v2 = spec!({"pkg": "build-dep/2.0.0"});
+    let dep_v1 = spec!({"pkg": "build-dep/1.0.0/3I42H3S6"});
+    let dep_v2 = spec!({"pkg": "build-dep/2.0.0/3I42H3S6"});
 
     let a_spec = recipe!({
         "pkg": "pkga/1.0.0",
@@ -1503,7 +1508,7 @@ async fn test_solver_src_package_request_when_no_components_requested(mut solver
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
     let resolved = solution.get("mypkg").unwrap().spec.ident().clone();
 
-    let expected = ident!("mypkg/1.2.3/src");
+    let expected = build_ident!("mypkg/1.2.3/src");
     assert_eq!(resolved, expected);
 }
 
@@ -1741,7 +1746,7 @@ async fn test_solver_component_embedded(mut solver: Solver) {
     assert_resolved!(
         solution,
         "dep-e1",
-        build = Some(Build::Embedded(EmbeddedSource::Unknown))
+        build = Build::Embedded(EmbeddedSource::Unknown)
     );
 
     solver.reset();

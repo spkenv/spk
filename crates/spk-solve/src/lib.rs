@@ -11,11 +11,19 @@ mod status_line;
 pub use error::{Error, Result};
 pub use io::{DecisionFormatter, DecisionFormatterBuilder};
 pub use solver::{Solver, SolverRuntime};
+pub use spk_schema::foundation::ident_build::Build;
 pub use spk_schema::foundation::ident_component::Component;
 pub use spk_schema::foundation::option_map;
 pub use spk_schema::foundation::spec_ops::{Named, Versioned};
-pub use spk_schema::ident::{parse_ident_range, PkgRequest, Request, RequestedBy};
-pub use spk_schema::{recipe, spec, v0, Package, Recipe, Spec};
+pub use spk_schema::ident::{
+    parse_ident_range,
+    AnyIdent,
+    BuildIdent,
+    PkgRequest,
+    Request,
+    RequestedBy,
+};
+pub use spk_schema::{recipe, spec, v0, Package, Recipe, Spec, SpecRecipe};
 pub use spk_solve_solution::{PackageSource, Solution};
 pub use spk_storage::RepositoryHandle;
 pub(crate) use status_line::StatusLine;

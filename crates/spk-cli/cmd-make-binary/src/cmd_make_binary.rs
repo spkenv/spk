@@ -125,7 +125,7 @@ impl Run for MakeBinary {
 
             tracing::info!("rendering template for {}", template.name());
             let recipe = template.render(&options)?;
-            let ident = recipe.to_ident();
+            let ident = recipe.ident();
 
             tracing::info!("saving package recipe for {}", ident.format_ident());
             local.force_publish_recipe(&recipe).await?;
@@ -141,7 +141,7 @@ impl Run for MakeBinary {
                     anyhow::bail!(
                         "--variant {index} is out of range; {} variant(s) found in {}",
                         recipe.default_variants().len(),
-                        recipe.to_ident().format_ident(),
+                        recipe.ident().format_ident(),
                     );
                 }
                 None => recipe.default_variants().iter().skip(0).take(usize::MAX),
@@ -187,7 +187,7 @@ impl Run for MakeBinary {
                         std::env::current_dir().context("Failed to get current directory")?;
                     builder.with_source(BuildSource::LocalPath(here));
                 } else if let Some(PackageSpecifier::WithSourceIdent((_, ref ident))) = package {
-                    // Use the source package `Ident` if the caller supplied one.
+                    // Use the source package `AnyIdent` if the caller supplied one.
                     builder.with_source(BuildSource::SourcePackage(ident.clone()));
                 }
                 let out = match builder.build_and_publish(&local).await {
@@ -209,7 +209,7 @@ impl Run for MakeBinary {
 
                 if self.env {
                     let request =
-                        PkgRequest::from_ident(out.ident().clone(), RequestedBy::CommandLine);
+                        PkgRequest::from_ident(out.ident().to_any(), RequestedBy::CommandLine);
                     let mut cmd = std::process::Command::new(spk_exe());
                     cmd.args(["env", "--enable-repo", "local"])
                         .arg(request.pkg.to_string());
