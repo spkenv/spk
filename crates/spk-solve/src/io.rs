@@ -35,7 +35,16 @@ use spk_solve_graph::{
 };
 
 use crate::solver::ErrorFreq;
-use crate::{Error, ResolverCallback, Result, Solution, Solver, SolverRuntime, StatusLine};
+use crate::{
+    show_search_space_stats,
+    Error,
+    ResolverCallback,
+    Result,
+    Solution,
+    Solver,
+    SolverRuntime,
+    StatusLine,
+};
 
 static USER_CANCELLED: Lazy<Arc<AtomicBool>> = Lazy::new(|| {
     // Initialise the USER_CANCELLED value
@@ -401,6 +410,7 @@ pub struct DecisionFormatterBuilder {
     max_frequent_errors: usize,
     status_bar: bool,
     solver_output_from: MultiSolverKind,
+    show_search_space_size: bool,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -423,6 +433,7 @@ impl DecisionFormatterBuilder {
             max_frequent_errors: 0,
             status_bar: false,
             solver_output_from: MultiSolverKind::Unchanged,
+            show_search_space_size: false,
         }
     }
 
@@ -481,6 +492,11 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_search_space_size(&mut self, enable: bool) -> &mut Self {
+        self.show_search_space_size = enable;
+        self
+    }
+
     pub fn build(&self) -> DecisionFormatter {
         let too_long_seconds = if self.verbosity_increase_seconds == 0
             || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
@@ -519,6 +535,7 @@ impl DecisionFormatterBuilder {
                 max_frequent_errors: self.max_frequent_errors,
                 status_bar: self.status_bar,
                 solver_output_from: self.solver_output_from.clone(),
+                show_search_space_size: self.show_search_space_size,
             },
         }
     }
@@ -613,6 +630,7 @@ struct SolverTaskDone {
     pub(crate) verbosity: u32,
     pub(crate) solver_kind: MultiSolverKind,
     pub(crate) can_ignore_failure: bool,
+    pub(crate) show_search_space_size: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -636,6 +654,7 @@ impl DecisionFormatter {
                 max_frequent_errors: 5,
                 status_bar: false,
                 solver_output_from: MultiSolverKind::Unchanged,
+                show_search_space_size: false,
             },
         }
     }
@@ -897,6 +916,14 @@ impl DecisionFormatter {
                 output_location.output_message(format!("{}", mesg.yellow()));
                 output_location
                     .output_message(self.format_solve_stats(&runtime.solver, solve_time));
+
+                if self.settings.show_search_space_size {
+                    // This solution will be empty, partial, or may
+                    // have more packages than a complete solution
+                    let solution = runtime.current_solution().await;
+                    self.show_search_space_info(&solution, runtime).await?;
+                }
+
                 return Err(Error::SolverInterrupted(mesg));
             }
             LoopOutcome::Failed(e) => {
@@ -949,10 +976,42 @@ impl DecisionFormatter {
             }
         }
 
+        if self.settings.show_search_space_size {
+            self.show_search_space_info(&solution, runtime).await?;
+        }
+
         match solution {
             Err(err) => Err(err),
             Ok(s) => Ok((s, runtime.graph())),
         }
+    }
+
+    async fn show_search_space_info(
+        &self,
+        solution: &Result<Solution>,
+        runtime: &SolverRuntime,
+    ) -> Result<()> {
+        if let Ok(ref s) = *solution {
+            let start = Instant::now();
+
+            let initial_requests = runtime
+                .solver
+                .get_initial_state()
+                .get_pkg_requests()
+                .iter()
+                .map(|r| r.pkg.to_string())
+                .collect::<Vec<String>>();
+
+            show_search_space_stats(
+                &initial_requests,
+                s,
+                runtime.solver.repositories(),
+                self.settings.verbosity,
+            )
+            .await?;
+            println!("That took {} seconds", start.elapsed().as_secs_f64());
+        }
+        Ok(())
     }
 
     #[cfg(feature = "sentry")]

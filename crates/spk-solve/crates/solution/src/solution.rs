@@ -166,6 +166,7 @@ impl SolvedRequest {
 pub struct Solution {
     options: OptionMap,
     resolved: Vec<SolvedRequest>,
+    packages_in_solve_order: Arc<Vec<Arc<Spec>>>,
 }
 
 impl Solution {
@@ -173,9 +174,22 @@ impl Solution {
         Self {
             options,
             resolved: Default::default(),
+            packages_in_solve_order: Arc::new(Vec::new()),
         }
     }
 
+    pub fn set_solve_order(&mut self, packages_in_solve_order: Arc<Vec<Arc<Spec>>>) {
+        self.packages_in_solve_order = packages_in_solve_order;
+    }
+
+    /// The packages in the solution in the order they were resolved
+    /// (found by the solver).
+    pub fn packages_in_solve_order(&self) -> &Arc<Vec<Arc<Spec>>> {
+        &self.packages_in_solve_order
+    }
+
+    /// The solved requests in the solution in alphabetical order by
+    /// package name.
     pub fn items(&self) -> std::slice::Iter<'_, SolvedRequest> {
         self.resolved.iter()
     }

@@ -14,6 +14,7 @@ BuildRequires: openssl-devel
 BuildRequires: cmake3
 BuildRequires: make
 BuildRequires: spdev >= 0.28.2
+BuildRequires: m4
 
 Requires: bash
 Obsoletes: spfs
