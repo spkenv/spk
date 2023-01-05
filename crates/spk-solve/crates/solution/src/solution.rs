@@ -6,6 +6,7 @@ use std::fmt::Write;
 use std::iter::FromIterator;
 use std::sync::Arc;
 
+use colored::Colorize;
 use spk_schema::foundation::format::{
     FormatChangeOptions,
     FormatOptionMap,
@@ -16,11 +17,20 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, RequestedBy};
+use spk_schema::name::RepositoryNameBuf;
 use spk_schema::prelude::*;
+use spk_schema::version::Version;
 use spk_schema::{BuildEnv, BuildIdent, Package, Spec, SpecRecipe, VersionIdent};
 use spk_storage::RepositoryHandle;
 
 use crate::{Error, Result};
+
+const SOLUTION_FORMAT_EMPTY_REPORT: &str = "Nothing Installed";
+const SOLUTION_FORMAT_HEADING: &str = "Installed Packages:\n";
+const SOLUTION_FORMAT_FOOTER: &str = "Number of Packages:";
+
+const PACKAGE_COLUMN: usize = 0;
+const HIGHEST_VERSION_COLUMN: usize = 1;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PackageSource {
@@ -106,6 +116,49 @@ impl SolvedRequest {
     pub fn is_source_build(&self) -> bool {
         matches!(self.source, PackageSource::BuildFromSource { .. })
     }
+
+    /// Format this solved request as an installed package(build)
+    pub(crate) fn format_as_installed_package(&self) -> String {
+        let mut installed =
+            PkgRequest::from_ident(self.spec.ident().to_any(), RequestedBy::DoesNotMatter);
+
+        let mut repo_name: Option<RepositoryNameBuf> = None;
+        if let PackageSource::Repository { repo, components } = &self.source {
+            repo_name = Some(repo.name().to_owned());
+
+            let mut installed_components = self.request.pkg.components.clone();
+            if installed_components.remove(&Component::All) {
+                installed_components.extend(components.keys().cloned());
+            }
+            installed.pkg.components = installed_components;
+        }
+
+        // Pass zero verbosity to format_request(), via the format
+        // change options, to stop it outputting the internal details.
+        installed.format_request(
+            &repo_name,
+            self.spec.name(),
+            &FormatChangeOptions::default(),
+        )
+    }
+
+    /// Format the packages that required this solved request as one
+    /// of their dependencies.
+    pub(crate) fn format_package_requesters(&self) -> String {
+        let requested_by: Vec<String> = self
+            .request
+            .get_requesters()
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<String>>();
+        format!("(required by {})", requested_by.join(", "))
+    }
+
+    /// Format the options for this solved request (build)
+    pub(crate) fn format_package_options(&self) -> String {
+        let options = self.spec.option_values();
+        options.format_option_map()
+    }
 }
 
 /// Represents a set of resolved packages.
@@ -143,7 +196,7 @@ impl Solution {
         self.resolved.len()
     }
 
-    /// The number of packages in this solution
+    /// True if there are no packages in this solution
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.resolved.is_empty()
@@ -234,6 +287,165 @@ impl Solution {
         out.extend(self.options.to_environment().into_iter());
         out
     }
+
+    /// Helper to find the highest version number for package across
+    /// all the given repositories.
+    pub async fn find_highest_package_version(
+        &self,
+        name: PkgNameBuf,
+        repos: &[Arc<RepositoryHandle>],
+    ) -> Result<Arc<Version>> {
+        let mut max_version = Arc::new(Version::default());
+        for repo in repos.iter() {
+            if let Some(highest_version) = repo.highest_package_version(&name).await? {
+                if highest_version > max_version {
+                    max_version = highest_version;
+                }
+            };
+        }
+        Ok(max_version)
+    }
+
+    /// Helper to get the highest versions of all packages in this `Solution` in all the
+    /// given repositories.
+    pub async fn get_all_highest_package_versions(
+        &self,
+        repos: &[Arc<RepositoryHandle>],
+    ) -> Result<HashMap<PkgNameBuf, Arc<Version>>> {
+        let mut highest_versions: HashMap<PkgNameBuf, Arc<Version>> = HashMap::new();
+
+        for name in self.by_name.keys().map(|n| n.to_owned()) {
+            let max_version = self
+                .find_highest_package_version(name.clone(), repos)
+                .await?;
+            highest_versions.insert(name.clone(), max_version);
+        }
+        Ok(highest_versions)
+    }
+
+    /// Format the solution and include whether or not each resolved
+    /// package is also the highest version available in the repositories
+    pub async fn format_solution_with_highest_versions(
+        &self,
+        verbosity: u32,
+        repos: &[Arc<RepositoryHandle>],
+    ) -> Result<String> {
+        if self.is_empty() {
+            return Ok(SOLUTION_FORMAT_EMPTY_REPORT.to_string());
+        }
+        let highest_versions = self.get_all_highest_package_versions(repos).await?;
+
+        Ok(self.format_solution_with_padding_and_highest(verbosity, &highest_versions))
+    }
+
+    fn format_solution_without_padding_or_highest(&self, verbosity: u32) -> String {
+        let mut out = SOLUTION_FORMAT_HEADING.to_string();
+
+        let required_items = self.items();
+        let number_of_packages = required_items.len();
+        for req in required_items {
+            // Show the installed request with components and repo name included
+            let _ = write!(out, "  {}", req.format_as_installed_package());
+
+            if verbosity > 0 {
+                // Show all the things that requested this package
+                let _ = write!(out, " {} ", req.format_package_requesters());
+
+                if verbosity > 1 {
+                    // Show the options for this package (build)
+                    let _ = write!(out, " {}", req.format_package_options());
+                }
+            }
+            out.push('\n');
+        }
+
+        let _ = write!(out, " {SOLUTION_FORMAT_FOOTER} {number_of_packages}");
+        out
+    }
+
+    fn format_solution_with_padding_and_highest(
+        &self,
+        verbosity: u32,
+        highest_versions: &HashMap<PkgNameBuf, Arc<Version>>,
+    ) -> String {
+        let mut out = SOLUTION_FORMAT_HEADING.to_string();
+
+        let required_items = self.items();
+        let number_of_packages = required_items.len();
+
+        let mut max_widths: Vec<usize> = vec![0, 0, 0, 0];
+        let mut data: Vec<Vec<(usize, String)>> = Vec::with_capacity(number_of_packages);
+
+        // This only pads the first 2 columns at the moment: the
+        // packages and the highest_versions. The remaining columns
+        // are unpadded.
+        for req in required_items {
+            let mut line: Vec<(usize, String)> = Vec::new();
+
+            // Get installed request with components and repo name included
+            let package = req.format_as_installed_package();
+
+            let l = console::measure_text_width(&package);
+            if l > max_widths[PACKAGE_COLUMN] {
+                max_widths[PACKAGE_COLUMN] = l;
+            }
+            line.push((l, package));
+
+            // Add whether this request is for the highest version of
+            // the package, or what the highest version of the package is.
+            let highest_label = match highest_versions.get(req.spec.name()) {
+                Some(highest_version) => {
+                    if *req.spec.ident().version() == **highest_version {
+                        "highest".green()
+                    } else {
+                        highest_version.to_string().yellow()
+                    }
+                }
+                None => "".black(),
+            };
+
+            let l = console::measure_text_width(&highest_label);
+            if l > max_widths[HIGHEST_VERSION_COLUMN] {
+                max_widths[HIGHEST_VERSION_COLUMN] = l;
+            }
+            line.push((l, highest_label.to_string()));
+
+            // Optionally, add the last 2 columns: the things that
+            // requested this package, and the package's options
+            if verbosity > 0 {
+                // Zero because not padding this value's column
+                line.push((0, req.format_package_requesters()));
+
+                if verbosity > 1 {
+                    // Zero because not padding this value's column
+                    line.push((0, req.format_package_options()));
+                }
+            }
+
+            data.push(line);
+        }
+
+        // Output the data, one package per line, with padding between
+        // the values on each line.
+        for line in data {
+            out.push_str("  ");
+
+            for (col_index, (length, value)) in line.into_iter().enumerate() {
+                let mut max_width = max_widths[col_index];
+                if max_width == 0 {
+                    max_width = length
+                }
+                let padding = " ".repeat(max_width - length);
+
+                let _ = write!(out, "{}{} ", value, padding);
+            }
+
+            out.push('\n');
+        }
+
+        let _ = write!(out, " {} {}", SOLUTION_FORMAT_FOOTER, number_of_packages);
+        out
+    }
 }
 
 impl BuildEnv for Solution {
@@ -250,52 +462,9 @@ impl BuildEnv for Solution {
 impl FormatSolution for Solution {
     fn format_solution(&self, verbosity: u32) -> String {
         if self.is_empty() {
-            return "Nothing Installed".to_string();
+            return SOLUTION_FORMAT_EMPTY_REPORT.to_string();
         }
 
-        let mut out = "Installed Packages:\n".to_string();
-
-        let required_items = self.items();
-        let number_of_packages = required_items.len();
-        for req in required_items {
-            let mut installed =
-                PkgRequest::from_ident(req.spec.ident().to_any(), RequestedBy::DoesNotMatter);
-
-            if let PackageSource::Repository { components, .. } = &req.source {
-                let mut installed_components = req.request.pkg.components.clone();
-                if installed_components.remove(&Component::All) {
-                    installed_components.extend(components.keys().cloned());
-                }
-                installed.pkg.components = installed_components;
-            }
-
-            // Pass zero verbosity to format_request() to stop it
-            // outputting the internal details here.
-            let _ = write!(
-                out,
-                "  {}",
-                installed.format_request(&None, req.spec.name(), &FormatChangeOptions::default())
-            );
-            if verbosity > 0 {
-                // Get all the things that requested this request
-                let requested_by: Vec<String> = req
-                    .request
-                    .get_requesters()
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<String>>();
-                let _ = write!(out, " (required by {}) ", requested_by.join(", "));
-
-                if verbosity > 1 {
-                    // Show the options for this request (build)
-                    let options = req.spec.option_values();
-                    out.push(' ');
-                    out.push_str(&options.format_option_map());
-                }
-            }
-            out.push('\n');
-        }
-        let _ = write!(out, " Number of Packages: {number_of_packages}");
-        out
+        self.format_solution_without_padding_or_highest(verbosity)
     }
 }
