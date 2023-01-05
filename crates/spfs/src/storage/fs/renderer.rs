@@ -15,7 +15,7 @@ use super::FSRepository;
 use crate::encoding::{self, Encodable};
 use crate::runtime::makedirs_with_perms;
 use crate::storage::{ManifestViewer, PayloadStorage, Repository};
-use crate::{tracking, Error, Result};
+use crate::{graph, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./renderer_test.rs"]
@@ -309,12 +309,24 @@ impl FSRepository {
                             })?;
                             tokio::fs::copy(&payload_path, &temp_proxy_file)
                                 .await
-                                .map_err(|err| {
-                                    Error::StorageWriteError(
+                                .map_err(|err| match err.kind() {
+                                    std::io::ErrorKind::NotFound
+                                        if matches!(payload_path.try_exists(), Ok(false)) =>
+                                    {
+                                        // The payload is missing.
+                                        Error::ObjectMissingPayload(
+                                            graph::Object::Blob(graph::Blob::new(
+                                                entry.object,
+                                                entry.size,
+                                            )),
+                                            entry.object,
+                                        )
+                                    }
+                                    _ => Error::StorageWriteError(
                                         "copy of blob to proxy file",
                                         temp_proxy_file.path().to_owned(),
                                         err,
-                                    )
+                                    ),
                                 })?;
                             // Move temporary file into place.
                             if let Err(err) = temp_proxy_file.persist_noclobber(&proxy_path) {
