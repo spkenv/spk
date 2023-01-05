@@ -28,6 +28,7 @@ async-trait = "0.1"
 chrono = { version = "0.4.19", features = ["serde"] }
 clap = { version = "3.2", features = ["derive", "env"] }
 colored = "2.0.0"
+libc = "0.2.80"
 procfs = "0.13.2"
 sentry = { version = "0.27.0" }
 sentry-anyhow = { version = "0.27.0" }
