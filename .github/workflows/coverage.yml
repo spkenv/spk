@@ -45,7 +45,13 @@ jobs:
           make install-debug-spfs
       - name: Generate code coverage
         run: |
-          spfs run - -- bash -c 'cargo tarpaulin --workspace --verbose --timeout 120 --out Xml'
+          # Enable migration-to-components feature here so that the test suite
+          # is run with that feature enabled. Not specifically for coverage
+          # purposes, but because there wouldn't otherwise be a run of the
+          # test suite with this feature enabled anywhere in the currently
+          # configured github workflows. Tests have frequently not passed when
+          # this feature is enabled.
+          spfs run - -- bash -c 'cargo tarpaulin --features migration-to-components --workspace --verbose --timeout 120 --out Xml'
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
         with:
