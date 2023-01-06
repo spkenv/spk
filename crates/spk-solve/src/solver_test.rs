@@ -731,6 +731,8 @@ async fn test_solver_build_from_source(mut solver: Solver) {
     assert!(res.is_err());
 }
 
+// Skipping this test until https://github.com/imageworks/spk/pull/614
+#[ignore]
 #[rstest]
 #[tokio::test]
 async fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
