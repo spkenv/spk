@@ -116,7 +116,7 @@ impl Run for MakeBinary {
                 &repos,
             )
             .await?;
-            let ident = recipe.to_ident();
+            let ident = recipe.ident();
 
             tracing::info!("saving package recipe for {}", ident.format_ident());
             local.force_publish_recipe(&recipe).await?;

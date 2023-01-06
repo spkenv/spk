@@ -578,11 +578,11 @@ where
                     );
 
                     for repo in repos.iter() {
-                        match repo.read_recipe(&pkg).await {
+                        match repo.read_recipe(pkg.as_version()).await {
                             Ok(recipe) => {
                                 tracing::debug!(
                                     "Using recipe found for {}",
-                                    recipe.to_ident().format_ident(),
+                                    recipe.ident().format_ident(),
                                 );
                                 return Ok((recipe, std::path::PathBuf::from(&name.as_ref())));
                             }
