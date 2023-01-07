@@ -50,10 +50,12 @@ impl Run for Env {
             .ensure_active_runtime(&["env", "run", "shell"])
             .await?;
 
-        let (mut solver, requests) = tokio::try_join!(
-            self.solver.get_solver(&self.options),
-            self.requests.parse_requests(&self.requested, &self.options)
-        )?;
+        let mut solver = self.solver.get_solver(&self.options).await?;
+
+        let requests = self
+            .requests
+            .parse_requests(&self.requested, &self.options, solver.repositories())
+            .await?;
         for request in requests {
             solver.add_request(request)
         }

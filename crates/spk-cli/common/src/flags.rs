@@ -10,6 +10,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
 use solve::{DecisionFormatter, DecisionFormatterBuilder};
+use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{OptName, OptNameBuf};
@@ -17,7 +18,7 @@ use spk_schema::foundation::option_map::{host_options, OptionMap};
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{parse_ident, AnyIdent, PkgRequest, Request, RequestedBy, VarRequest};
-use spk_schema::{Recipe, SpecTemplate, Template, TemplateExt, TestStage};
+use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage};
 use spk_solve::{self as solve};
 use spk_storage::{self as storage};
 
@@ -224,16 +225,16 @@ pub struct Requests {
 
 impl Requests {
     /// Resolve command line requests to package identifiers.
-    pub fn parse_idents<'a, I: IntoIterator<Item = &'a str>>(
+    pub async fn parse_idents<'a, I: IntoIterator<Item = &'a str>>(
         &self,
         options: &OptionMap,
         packages: I,
+        repos: &[Arc<storage::RepositoryHandle>],
     ) -> Result<Vec<AnyIdent>> {
         let mut idents = Vec::new();
         for package in packages {
             if package.contains('@') {
-                let (template, _, stage) = parse_stage_specifier(package)?;
-                let recipe = template.render(options)?;
+                let (recipe, _, stage) = parse_stage_specifier(package, options, repos).await?;
 
                 match stage {
                     TestStage::Sources => {
@@ -267,16 +268,22 @@ impl Requests {
         &self,
         request: R,
         options: &Options,
+        repos: &[Arc<storage::RepositoryHandle>],
     ) -> Result<Request> {
         Ok(self
-            .parse_requests([request.as_ref()], options)
+            .parse_requests([request.as_ref()], options, repos)
             .await?
             .pop()
             .unwrap())
     }
 
     /// Parse and build requests from the given strings and these flags.
-    pub async fn parse_requests<I, S>(&self, requests: I, options: &Options) -> Result<Vec<Request>>
+    pub async fn parse_requests<I, S>(
+        &self,
+        requests: I,
+        options: &Options,
+        repos: &[Arc<storage::RepositoryHandle>],
+    ) -> Result<Vec<Request>>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
@@ -302,8 +309,7 @@ impl Requests {
         for r in requests.into_iter() {
             let r = r.as_ref();
             if r.contains('@') {
-                let (template, _, stage) = parse_stage_specifier(r)?;
-                let recipe = template.render(&options)?;
+                let (recipe, _, stage) = parse_stage_specifier(r, &options, repos).await?;
 
                 match stage {
                     TestStage::Sources => {
@@ -371,9 +377,11 @@ impl Requests {
 }
 
 /// Returns the spec, filename and stage for the given specifier
-pub fn parse_stage_specifier(
+pub async fn parse_stage_specifier(
     specifier: &str,
-) -> Result<(Arc<SpecTemplate>, std::path::PathBuf, TestStage)> {
+    options: &OptionMap,
+    repos: &[Arc<storage::RepositoryHandle>],
+) -> Result<(Arc<SpecRecipe>, std::path::PathBuf, TestStage)> {
     let (package, stage) = specifier.split_once('@').ok_or_else(|| {
         anyhow!(
             "Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
@@ -382,7 +390,9 @@ pub fn parse_stage_specifier(
 
     let stage = TestStage::from_str(stage)?;
 
-    let (filename, spec) = find_package_template(&Some(package))?.must_be_found();
+    let (spec, filename) =
+        find_package_recipe_from_template_or_repo(&Some(package), options, repos).await?;
+
     Ok((spec, filename, stage))
 }
 
@@ -399,7 +409,7 @@ pub enum FindPackageTemplateResult {
     },
     /// No package was specifically requested, and there are multiple
     /// files in the current repository.
-    MultipleTemplateFiles,
+    MultipleTemplateFiles(Vec<std::path::PathBuf>),
     /// No package was specifically requested, and there no template
     /// files in the current repository.
     NoTemplateFiles,
@@ -411,12 +421,15 @@ impl FindPackageTemplateResult {
         matches!(self, Self::Found { .. })
     }
 
-    /// Prints error messages and exists if no template file was found
+    /// Prints error messages and exits if no template file was found
     pub fn must_be_found(self) -> (std::path::PathBuf, Arc<SpecTemplate>) {
         match self {
             Self::Found { path, template } => return (path, template),
-            Self::MultipleTemplateFiles => {
-                tracing::error!("Multiple package specs in current directory");
+            Self::MultipleTemplateFiles(files) => {
+                tracing::error!("Multiple package specs in current directory:");
+                for file in files {
+                    tracing::error!("- {}", file.into_os_string().to_string_lossy());
+                }
                 tracing::error!(" > please specify a package name or filepath");
             }
             Self::NoTemplateFiles => {
@@ -450,20 +463,34 @@ where
             .context("Failed to discover spec files in current directory")
     };
 
+    // This must catch and convert all the errors into the appropriate
+    // FindPackageTemplateResult, e.g. NotFound(error_message), so
+    // that find_package_recipe_from_template_or_repo() can operate
+    // correctly.
     let package = match package {
         None => {
             let mut packages = find_packages()?;
-
             return match packages.len() {
                 1 => {
                     let path = packages.pop().unwrap();
-                    let template = SpecTemplate::from_file(&path)?;
+                    let template = match SpecTemplate::from_file(&path) {
+                        Ok(t) => t,
+                        Err(spk_schema::Error::InvalidPath(_, err)) => {
+                            return Ok(NotFound(format!("{err}")));
+                        }
+                        Err(spk_schema::Error::FileOpenError(_, err)) => {
+                            return Ok(NotFound(format!("{err}")));
+                        }
+                        Err(err) => {
+                            return Err(err.into());
+                        }
+                    };
                     Ok(Found {
                         path,
                         template: Arc::new(template),
                     })
                 }
-                2.. => Ok(MultipleTemplateFiles),
+                2.. => Ok(MultipleTemplateFiles(packages)),
                 _ => Ok(NoTemplateFiles),
             };
         }
@@ -471,18 +498,33 @@ where
     };
 
     match SpecTemplate::from_file(package.as_ref().as_ref()) {
+        Err(spk_schema::Error::InvalidPath(_, _err)) => {}
         Err(spk_schema::Error::FileOpenError(_, err))
             if err.kind() == std::io::ErrorKind::NotFound => {}
-        res => {
+        Err(err) => {
+            return Err(err.into());
+        }
+        Ok(res) => {
             return Ok(Found {
                 path: package.as_ref().into(),
-                template: Arc::new(res?),
-            })
+                template: Arc::new(res),
+            });
         }
     }
 
     for path in find_packages()? {
-        let template = SpecTemplate::from_file(&path)?;
+        let template = match SpecTemplate::from_file(&path) {
+            Ok(t) => t,
+            Err(spk_schema::Error::InvalidPath(_, _)) => {
+                continue;
+            }
+            Err(spk_schema::Error::FileOpenError(_, _)) => {
+                continue;
+            }
+            Err(err) => {
+                return Err(err.into());
+            }
+        };
         if template.name().as_str() == package.as_ref() {
             return Ok(Found {
                 path,
@@ -492,6 +534,80 @@ where
     }
 
     Ok(NotFound(package.as_ref().to_owned()))
+}
+
+/// Find a package recipe either from a template file in the current
+/// directory, or published version of the requested package, if any.
+///
+/// This function tries to discover the matching yaml template file
+/// and populate it using the options. If it cannot file a file, it
+/// will try to find the matching package/version in the repo and use
+/// the recipe published for that.
+///
+pub async fn find_package_recipe_from_template_or_repo<S>(
+    package_name: &Option<S>,
+    options: &OptionMap,
+    repos: &[Arc<storage::RepositoryHandle>],
+) -> Result<(Arc<SpecRecipe>, std::path::PathBuf)>
+where
+    S: AsRef<str>,
+{
+    match find_package_template(package_name)? {
+        FindPackageTemplateResult::Found { path, template } => {
+            let recipe = template.render(options)?;
+            Ok((Arc::new(recipe), path))
+        }
+        FindPackageTemplateResult::MultipleTemplateFiles(files) => {
+            // must_be_found() will exit the program when called on MultipleTemplateFiles
+            FindPackageTemplateResult::MultipleTemplateFiles(files).must_be_found();
+            unreachable!()
+        }
+        FindPackageTemplateResult::NoTemplateFiles | FindPackageTemplateResult::NotFound(_) => {
+            // If couldn't find a template file, maybe there's an
+            // existing package/version that's been published
+            match package_name {
+                Some(name) => {
+                    tracing::debug!("Unable to find package file: {}", name.as_ref());
+                    // there will be at least one item for any string
+                    let name_version = name.as_ref().split('@').next().unwrap();
+
+                    let pkg = parse_ident(name_version)?;
+                    tracing::debug!(
+                        "Looking in repositories for a package matching {} ...",
+                        pkg.format_ident()
+                    );
+
+                    for repo in repos.iter() {
+                        match repo.read_recipe(pkg.as_version()).await {
+                            Ok(recipe) => {
+                                tracing::debug!(
+                                    "Using recipe found for {}",
+                                    recipe.ident().format_ident(),
+                                );
+                                return Ok((recipe, std::path::PathBuf::from(&name.as_ref())));
+                            }
+                            Err(spk_storage::Error::SpkValidatorsError(
+                                spk_schema::validators::Error::PackageNotFoundError(_),
+                            )) => continue,
+                            Err(err) => return Err(err.into()),
+                        }
+                    }
+
+                    tracing::error!(
+                        "Unable to find {:?} as a file, or existing package/version recipe in any repo",
+                        name.as_ref()
+                    );
+                    anyhow::bail!(
+                        " > Please check that file path, or package/version request, is correct"
+                    );
+                }
+                None => {
+                    tracing::error!("Unable to find a spec file, or existing package/version");
+                    anyhow::bail!(" > Please provide a file path, or package/version request");
+                }
+            }
+        }
+    }
 }
 
 #[derive(Args, Clone)]

@@ -36,10 +36,12 @@ pub struct Render {
 #[async_trait::async_trait]
 impl Run for Render {
     async fn run(&mut self) -> Result<i32> {
-        let (mut solver, requests) = tokio::try_join!(
-            self.solver.get_solver(&self.options),
-            self.requests.parse_requests(&self.packages, &self.options)
-        )?;
+        let mut solver = self.solver.get_solver(&self.options).await?;
+
+        let requests = self
+            .requests
+            .parse_requests(&self.packages, &self.options, solver.repositories())
+            .await?;
         for name in requests {
             solver.add_request(name);
         }

@@ -2,30 +2,39 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::{Context, Result};
+use std::sync::Arc;
+
+use anyhow::Result;
 use clap::Args;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_schema::{Recipe, Template};
+use spk_schema::Recipe;
 
 /// Build a source package from a spec file.
 #[derive(Args)]
 pub struct NumVariants {
     #[clap(flatten)]
+    pub repos: flags::Repositories,
+    #[clap(flatten)]
     pub options: flags::Options,
 
-    /// The package or yaml spec file to report on
-    #[clap(name = "PKG|SPEC_FILE")]
+    /// The local package yaml spec file or published packages/version to report on
+    #[clap(name = "SPEC_FILE|PKG/VER")]
     pub package: Option<String>,
 }
 
 #[async_trait::async_trait]
 impl Run for NumVariants {
     async fn run(&mut self) -> Result<i32> {
-        let (_, template) = flags::find_package_template(&self.package)
-            .context("find package spec")?
-            .must_be_found();
         let options = self.options.get_options()?;
-        let recipe = template.render(&options)?;
+        let names_and_repos = self.repos.get_repos_for_non_destructive_operation().await?;
+        let repos = names_and_repos
+            .into_iter()
+            .map(|(_, r)| Arc::new(r))
+            .collect::<Vec<_>>();
+
+        let (recipe, _) =
+            flags::find_package_recipe_from_template_or_repo(&self.package, &options, &repos)
+                .await?;
 
         println!("{}", recipe.default_variants().len());
 

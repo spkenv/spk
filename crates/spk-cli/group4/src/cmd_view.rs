@@ -51,10 +51,12 @@ impl Run for View {
             Some(p) => p,
         };
 
-        let (mut solver, request) = tokio::try_join!(
-            self.solver.get_solver(&self.options),
-            self.requests.parse_request(&package, &self.options)
-        )?;
+        let mut solver = self.solver.get_solver(&self.options).await?;
+
+        let request = self
+            .requests
+            .parse_request(&package, &self.options, solver.repositories())
+            .await?;
         solver.add_request(request.clone());
         let request = match request {
             Request::Pkg(pkg) => pkg,

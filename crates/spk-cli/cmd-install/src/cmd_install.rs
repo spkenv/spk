@@ -43,11 +43,15 @@ pub struct Install {
 #[async_trait::async_trait]
 impl Run for Install {
     async fn run(&mut self) -> Result<i32> {
-        let (mut solver, requests, env) = tokio::try_join!(
+        let (mut solver, env) = tokio::try_join!(
             self.solver.get_solver(&self.options),
-            self.requests.parse_requests(&self.packages, &self.options),
             current_env().map_err(|err| err.into())
         )?;
+
+        let requests = self
+            .requests
+            .parse_requests(&self.packages, &self.options, solver.repositories())
+            .await?;
 
         for solved in env.items() {
             solver.add_request(solved.request.into());
