@@ -90,7 +90,13 @@ impl ManifestViewer for FSRepository {
                         tracing::warn!(path=?working_dir, "failed to clean up working directory: {:?}", err);
                     }
                 }
-                _ => return Err(Error::StorageWriteError(rendered_dirpath, err)),
+                _ => {
+                    return Err(Error::StorageWriteError(
+                        "rename on render",
+                        rendered_dirpath,
+                        err,
+                    ))
+                }
             },
         }
 
@@ -111,7 +117,11 @@ impl ManifestViewer for FSRepository {
         if let Err(err) = tokio::fs::rename(&rendered_dirpath, &working_dirpath).await {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Ok(()),
-                _ => Err(crate::Error::StorageWriteError(working_dirpath, err)),
+                _ => Err(crate::Error::StorageWriteError(
+                    "rename on render before removal",
+                    working_dirpath,
+                    err,
+                )),
             };
         }
 
@@ -186,7 +196,13 @@ impl FSRepository {
                     let path_to_create = node.path.to_path("/");
                     tokio::fs::create_dir_all(&path_to_create)
                         .await
-                        .map_err(|err| Error::StorageWriteError(path_to_create, err))
+                        .map_err(|err| {
+                            Error::StorageWriteError(
+                                "create_dir_all on render node base",
+                                path_to_create,
+                                err,
+                            )
+                        })
                 }
                 tracking::EntryKind::Mask => continue,
                 tracking::EntryKind::Blob => {
@@ -213,7 +229,11 @@ impl FSRepository {
             )
             .await
             {
-                return Err(Error::StorageWriteError(path_to_change, err));
+                return Err(Error::StorageWriteError(
+                    "set_permissions on render node",
+                    path_to_change,
+                    err,
+                ));
             }
         }
 
@@ -236,6 +256,7 @@ impl FSRepository {
                 match err.kind() {
                     std::io::ErrorKind::AlreadyExists => Ok(()),
                     _ => Err(Error::StorageWriteError(
+                        "symlink on rendered blob",
                         rendered_path.as_ref().to_owned(),
                         err,
                     )),
@@ -269,19 +290,31 @@ impl FSRepository {
                             tokio::fs::create_dir_all(&path_to_create)
                                 .await
                                 .map_err(|err| {
-                                    Error::StorageWriteError(path_to_create.to_owned(), err)
+                                    Error::StorageWriteError(
+                                        "create_dir_all on blob proxy base",
+                                        path_to_create.to_owned(),
+                                        err,
+                                    )
                                 })?;
                             // Write to a temporary file so that some other render
                             // process doesn't think a partially-written file is
                             // good.
                             let temp_proxy_file = tempfile::NamedTempFile::new_in(path_to_create)
                                 .map_err(|err| {
-                                Error::StorageWriteError(path_to_create.to_owned(), err)
+                                Error::StorageWriteError(
+                                    "create proxy temp file",
+                                    path_to_create.to_owned(),
+                                    err,
+                                )
                             })?;
                             tokio::fs::copy(&payload_path, &temp_proxy_file)
                                 .await
                                 .map_err(|err| {
-                                    Error::StorageWriteError(temp_proxy_file.path().to_owned(), err)
+                                    Error::StorageWriteError(
+                                        "copy of blob to proxy file",
+                                        temp_proxy_file.path().to_owned(),
+                                        err,
+                                    )
                                 })?;
                             // Move temporary file into place.
                             if let Err(err) = temp_proxy_file.persist_noclobber(&proxy_path) {
@@ -289,6 +322,7 @@ impl FSRepository {
                                     std::io::ErrorKind::AlreadyExists => (),
                                     _ => {
                                         return Err(Error::StorageWriteError(
+                                            "persist of blob proxy file",
                                             proxy_path.to_owned(),
                                             err.error,
                                         ))
@@ -324,6 +358,7 @@ impl FSRepository {
                             std::io::ErrorKind::AlreadyExists => (),
                             _ => {
                                 return Err(Error::StorageWriteError(
+                                    "hard_link of blob proxy to rendered path",
                                     rendered_path.as_ref().to_owned(),
                                     err,
                                 ))
@@ -355,10 +390,15 @@ impl FSRepository {
                         std::io::ErrorKind::NotFound => {
                             // in these cases it's more likely the committed path
                             // that was the issue
-                            return Err(Error::StorageWriteError(committed_path, err));
+                            return Err(Error::StorageWriteError(
+                                "copy of blob to rendered path (showing from)",
+                                committed_path,
+                                err,
+                            ));
                         }
                         _ => {
                             return Err(Error::StorageWriteError(
+                                "copy of blob to rendered path (showing to)",
                                 rendered_path.as_ref().to_owned(),
                                 err,
                             ))
@@ -396,17 +436,17 @@ async fn open_perms_and_remove_all(root: &Path) -> Result<()> {
         let _ =
             tokio::fs::set_permissions(&entry_path, std::fs::Permissions::from_mode(0o777)).await;
         if file_type.is_symlink() || file_type.is_file() {
-            tokio::fs::remove_file(&entry_path)
-                .await
-                .map_err(|err| Error::StorageWriteError(entry_path.clone(), err))?;
+            tokio::fs::remove_file(&entry_path).await.map_err(|err| {
+                Error::StorageWriteError("remove_file on render entry", entry_path.clone(), err)
+            })?;
         }
         if file_type.is_dir() {
             open_perms_and_remove_all(&entry_path).await?;
         }
     }
-    tokio::fs::remove_dir(&root)
-        .await
-        .map_err(|err| Error::StorageWriteError(root.to_owned(), err))?;
+    tokio::fs::remove_dir(&root).await.map_err(|err| {
+        Error::StorageWriteError("remove_dir on render root", root.to_owned(), err)
+    })?;
     Ok(())
 }
 
@@ -436,7 +476,13 @@ async fn mark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
         .write(true)
         .open(&marker_path)
         .await
-        .map_err(|err| Error::StorageWriteError(marker_path, err))?;
+        .map_err(|err| {
+            Error::StorageWriteError(
+                "open render completed marker path for write",
+                marker_path,
+                err,
+            )
+        })?;
     Ok(())
 }
 
@@ -451,7 +497,11 @@ async fn unmark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
     if let Err(err) = tokio::fs::remove_file(&marker_path).await {
         match err.kind() {
             std::io::ErrorKind::NotFound => Ok(()),
-            _ => Err(Error::StorageWriteError(marker_path, err)),
+            _ => Err(Error::StorageWriteError(
+                "remove file on render completed marker",
+                marker_path,
+                err,
+            )),
         }
     } else {
         Ok(())

@@ -193,7 +193,11 @@ impl TagStorage for FSRepository {
             Err(err) => {
                 return match err.raw_os_error() {
                     Some(libc::ENOENT) => Err(Error::UnknownReference(tag.to_string())),
-                    _ => Err(Error::StorageWriteError(filepath, err)),
+                    _ => Err(Error::StorageWriteError(
+                        "remove_file on tag stream file",
+                        filepath,
+                        err,
+                    )),
                 }
             }
         }
@@ -218,7 +222,13 @@ impl TagStorage for FSRepository {
                 Err(err) => match err.raw_os_error() {
                     Some(libc::ENOTEMPTY) => return Ok(()),
                     Some(libc::ENOENT) => return Ok(()),
-                    _ => return Err(Error::StorageWriteError(parent.to_owned(), err)),
+                    _ => {
+                        return Err(Error::StorageWriteError(
+                            "remove_dir on tag stream parent dir",
+                            parent.to_owned(),
+                            err,
+                        ))
+                    }
                 },
             }
         }
@@ -343,24 +353,36 @@ async fn write_tags_to_path(filepath: &PathBuf, tags: &[tracking::Tag]) -> Resul
             .create(true)
             .open(&filepath)
             .await
-            .map_err(|err| Error::StorageWriteError(filepath.to_owned(), err))?,
+            .map_err(|err| {
+                Error::StorageWriteError("open tag file for append", filepath.to_owned(), err)
+            })?,
     );
 
     for tag in tags.iter() {
         let buf = tag.encode_to_bytes()?;
         let size = buf.len();
-        file.write_i64(size as i64)
-            .await
-            .map_err(|err| Error::StorageWriteError(filepath.clone(), err))?;
+        file.write_i64(size as i64).await.map_err(|err| {
+            Error::StorageWriteError("write_i64 on tag file", filepath.clone(), err)
+        })?;
         file.write_all_buf(&mut buf.as_slice())
             .await
-            .map_err(|err| Error::StorageWriteError(filepath.clone(), err))?;
+            .map_err(|err| {
+                Error::StorageWriteError("write_all_buf on tag file", filepath.clone(), err)
+            })?;
     }
     if let Err(err) = file.flush().await {
-        return Err(Error::StorageWriteError(filepath.clone(), err));
+        return Err(Error::StorageWriteError(
+            "flush on tag file",
+            filepath.clone(),
+            err,
+        ));
     }
     if let Err(err) = file.into_inner().into_std().await.close() {
-        return Err(Error::StorageWriteError(filepath.clone(), err));
+        return Err(Error::StorageWriteError(
+            "close on tag file",
+            filepath.clone(),
+            err,
+        ));
     }
 
     let perms = std::fs::Permissions::from_mode(0o666);
@@ -686,7 +708,11 @@ impl TagLock {
                     }
                     break match err.raw_os_error() {
                         Some(libc::EEXIST) => Err("Tag already locked, cannot edit".into()),
-                        _ => Err(Error::StorageWriteError(lock_file, err)),
+                        _ => Err(Error::StorageWriteError(
+                            "open tag lock file for write exclusively",
+                            lock_file,
+                            err,
+                        )),
                     };
                 }
             }
@@ -729,9 +755,9 @@ impl TagWorkingFile {
     pub async fn write_tags(self, tags: &[tracking::Tag]) -> Result<()> {
         let working = self.original.with_extension("tag.work");
         if tags.is_empty() {
-            return tokio::fs::remove_file(&self.original)
-                .await
-                .map_err(|err| Error::StorageWriteError(self.original, err));
+            return tokio::fs::remove_file(&self.original).await.map_err(|err| {
+                Error::StorageWriteError("remove_file on tag stream file", self.original, err)
+            });
         }
         if let Err(err) = write_tags_to_path(&working, tags).await {
             if let Err(err) = tokio::fs::remove_file(&working).await {
@@ -743,7 +769,11 @@ impl TagWorkingFile {
             if let Err(err) = tokio::fs::remove_file(&working).await {
                 tracing::warn!("failed to clean up tag working file after failing to finalize the working file: {err}");
             }
-            return Err(Error::StorageWriteError(self.original, err));
+            return Err(Error::StorageWriteError(
+                "rename of tag stream file",
+                self.original,
+                err,
+            ));
         }
         Ok(())
     }

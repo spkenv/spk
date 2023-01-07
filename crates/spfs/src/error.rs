@@ -98,8 +98,8 @@ pub enum Error {
     RuntimeSetPermissionsError(std::path::PathBuf, #[source] io::Error),
     #[error("Storage read error from {0}: {1}")]
     StorageReadError(&'static str, std::path::PathBuf, #[source] io::Error),
-    #[error("Storage write error: {0}")]
-    StorageWriteError(std::path::PathBuf, #[source] io::Error),
+    #[error("Storage write error from {0}: {1}")]
+    StorageWriteError(&'static str, std::path::PathBuf, #[source] io::Error),
 
     #[error("'{0}' not found in PATH, was it installed properly?")]
     MissingBinary(&'static str),
@@ -149,7 +149,7 @@ impl Error {
             Error::RuntimeReadError(_, err) => handle_io_error(err),
             Error::RuntimeWriteError(_, err) => handle_io_error(err),
             Error::StorageReadError(_, _, err) => handle_io_error(err),
-            Error::StorageWriteError(_, err) => handle_io_error(err),
+            Error::StorageWriteError(_, _, err) => handle_io_error(err),
             Error::Errno(_, errno) => Some(*errno),
             Error::Nix(err) => Some(*err as i32),
             _ => None,

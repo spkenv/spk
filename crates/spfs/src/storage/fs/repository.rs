@@ -326,21 +326,42 @@ pub async fn set_last_migration<P: AsRef<Path>>(
 }
 
 fn write_version_file<P: AsRef<Path>>(root: P, version: &semver::Version) -> Result<()> {
-    let mut temp_version_file = tempfile::NamedTempFile::new_in(root.as_ref())
-        .map_err(|err| Error::StorageWriteError(root.as_ref().to_owned(), err))?;
+    let mut temp_version_file = tempfile::NamedTempFile::new_in(root.as_ref()).map_err(|err| {
+        Error::StorageWriteError(
+            "create version file temp file",
+            root.as_ref().to_owned(),
+            err,
+        )
+    })?;
     // This file can be read only. It will be replaced by a new file
     // if the contents need to be changed. But for interop with older
     // versions of spfs that need to write to it, enable write.
     temp_version_file
         .as_file()
         .set_permissions(Permissions::from_mode(0o666))
-        .map_err(|err| Error::StorageWriteError(temp_version_file.path().to_owned(), err))?;
+        .map_err(|err| {
+            Error::StorageWriteError(
+                "set_permissions on version file temp file",
+                temp_version_file.path().to_owned(),
+                err,
+            )
+        })?;
     temp_version_file
         .write_all(version.to_string().as_bytes())
-        .map_err(|err| Error::StorageWriteError(temp_version_file.path().to_owned(), err))?;
-    temp_version_file
-        .flush()
-        .map_err(|err| Error::StorageWriteError(temp_version_file.path().to_owned(), err))?;
+        .map_err(|err| {
+            Error::StorageWriteError(
+                "write_all on version file temp file",
+                temp_version_file.path().to_owned(),
+                err,
+            )
+        })?;
+    temp_version_file.flush().map_err(|err| {
+        Error::StorageWriteError(
+            "flush on version file temp file",
+            temp_version_file.path().to_owned(),
+            err,
+        )
+    })?;
     temp_version_file
         .persist(root.as_ref().join("VERSION"))
         .map_err(|err| crate::Error::String(err.to_string()))?;

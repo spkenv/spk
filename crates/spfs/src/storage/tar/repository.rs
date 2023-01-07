@@ -70,10 +70,20 @@ impl TarRepository {
                 .write(true)
                 .create_new(true)
                 .open(path)
-                .map_err(|err| Error::StorageWriteError(path.to_owned(), err))?;
-            Builder::new(&mut file)
-                .finish()
-                .map_err(|err| Error::StorageWriteError(path.to_owned(), err))?;
+                .map_err(|err| {
+                    Error::StorageWriteError(
+                        "open tar repository for write exclusively",
+                        path.to_owned(),
+                        err,
+                    )
+                })?;
+            Builder::new(&mut file).finish().map_err(|err| {
+                Error::StorageWriteError(
+                    "finish on tar repository builder in create",
+                    path.to_owned(),
+                    err,
+                )
+            })?;
         }
         Self::open(path).await
     }
@@ -93,11 +103,13 @@ impl TarRepository {
         let tmpdir = tempfile::Builder::new()
             .prefix("spfs-tar-repo")
             .tempdir()
-            .map_err(|err| Error::StorageWriteError("temp dir".into(), err))?;
+            .map_err(|err| {
+                Error::StorageWriteError("create tar repository temp dir", "temp dir".into(), err)
+            })?;
         let repo_path = tmpdir.path().to_path_buf();
-        archive
-            .unpack(&repo_path)
-            .map_err(|err| Error::StorageWriteError(repo_path.clone(), err))?;
+        archive.unpack(&repo_path).map_err(|err| {
+            Error::StorageWriteError("unpack of tar repository", repo_path.clone(), err)
+        })?;
         Ok(Self {
             up_to_date: AtomicBool::new(false),
             archive: path,
@@ -111,14 +123,30 @@ impl TarRepository {
             .write(true)
             .truncate(true)
             .open(&self.archive)
-            .map_err(|err| Error::StorageWriteError(self.archive.clone(), err))?;
+            .map_err(|err| {
+                Error::StorageWriteError(
+                    "open tar repository for write and truncate",
+                    self.archive.clone(),
+                    err,
+                )
+            })?;
         let mut builder = Builder::new(&mut file);
         builder
             .append_dir_all(".", self.repo_dir.path())
-            .map_err(|err| Error::StorageWriteError(self.archive.clone(), err))?;
-        builder
-            .finish()
-            .map_err(|err| Error::StorageWriteError(self.archive.clone(), err))?;
+            .map_err(|err| {
+                Error::StorageWriteError(
+                    "append_all_dir on tar repository builder",
+                    self.archive.clone(),
+                    err,
+                )
+            })?;
+        builder.finish().map_err(|err| {
+            Error::StorageWriteError(
+                "finish on tar repository builder in flush",
+                self.archive.clone(),
+                err,
+            )
+        })?;
         self.up_to_date
             .store(true, std::sync::atomic::Ordering::Release);
         Ok(())

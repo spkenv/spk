@@ -217,23 +217,41 @@ impl FSHashStore {
                 .write(true)
                 .open(&working_file)
                 .await
-                .map_err(|err| Error::StorageWriteError(working_file.clone(), err))?,
+                .map_err(|err| {
+                    Error::StorageWriteError(
+                        "open on hash store object for write",
+                        working_file.clone(),
+                        err,
+                    )
+                })?,
         );
         let mut hasher = encoding::Hasher::with_target(&mut writer);
         let copied = match tokio::io::copy(&mut reader, &mut hasher).await {
             Err(err) => {
                 let _ = tokio::fs::remove_file(&working_file).await;
-                return Err(Error::StorageWriteError(working_file, err));
+                return Err(Error::StorageWriteError(
+                    "copy on hash store object file",
+                    working_file,
+                    err,
+                ));
             }
             Ok(s) => s,
         };
 
         let digest = hasher.digest();
         if let Err(err) = writer.flush().await {
-            return Err(Error::StorageWriteError(working_file, err));
+            return Err(Error::StorageWriteError(
+                "flush on hash store object file",
+                working_file,
+                err,
+            ));
         }
         if let Err(err) = writer.into_inner().into_std().await.close() {
-            return Err(Error::StorageWriteError(working_file, err));
+            return Err(Error::StorageWriteError(
+                "close on hash store object file",
+                working_file,
+                err,
+            ));
         }
 
         self.persist_object_with_digest(
@@ -263,7 +281,13 @@ impl FSHashStore {
                     .truncate(true)
                     .open(&path)
                     .await
-                    .map_err(|err| Error::StorageWriteError(path.clone(), err))?;
+                    .map_err(|err| {
+                        Error::StorageWriteError(
+                            "open on hash store test empty file for write",
+                            path.clone(),
+                            err,
+                        )
+                    })?;
                 0
             }
             PersistableObject::WorkingFile {
@@ -274,7 +298,13 @@ impl FSHashStore {
                     let _ = tokio::fs::remove_file(&working_file).await;
                     match err.kind() {
                         ErrorKind::AlreadyExists => (),
-                        _ => return Err(Error::StorageWriteError(working_file, err)),
+                        _ => {
+                            return Err(Error::StorageWriteError(
+                                "rename on hash store object",
+                                path,
+                                err,
+                            ))
+                        }
                     }
                 }
                 copied

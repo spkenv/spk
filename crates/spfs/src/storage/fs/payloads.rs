@@ -46,7 +46,11 @@ impl crate::storage::PayloadStorage for FSRepository {
             Ok(()) => Ok(()),
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => Err(Error::UnknownObject(digest)),
-                _ => Err(Error::StorageWriteError(path, err)),
+                _ => Err(Error::StorageWriteError(
+                    "remove_file on payload",
+                    path,
+                    err,
+                )),
             },
         }
     }

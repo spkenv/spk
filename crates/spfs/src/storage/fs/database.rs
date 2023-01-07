@@ -81,19 +81,37 @@ impl graph::Database for super::FSRepository {
                 .write(true)
                 .open(&working_file)
                 .await
-                .map_err(|err| Error::StorageWriteError(working_file.clone(), err))?,
+                .map_err(|err| {
+                    Error::StorageWriteError(
+                        "open on object file for write",
+                        working_file.clone(),
+                        err,
+                    )
+                })?,
         );
         if let Err(err) = writer.write_all(encoded.as_slice()).await {
             let _ = tokio::fs::remove_file(&working_file).await;
-            return Err(Error::StorageWriteError(working_file, err));
+            return Err(Error::StorageWriteError(
+                "write_all on object file",
+                working_file,
+                err,
+            ));
         }
         if let Err(err) = writer.flush().await {
             let _ = tokio::fs::remove_file(&working_file).await;
-            return Err(Error::StorageWriteError(working_file, err));
+            return Err(Error::StorageWriteError(
+                "flush on object file",
+                working_file,
+                err,
+            ));
         }
         if let Err(err) = writer.into_inner().into_std().await.close() {
             let _ = tokio::fs::remove_file(&working_file).await;
-            return Err(Error::StorageWriteError(working_file.clone(), err));
+            return Err(Error::StorageWriteError(
+                "close on object file",
+                working_file.clone(),
+                err,
+            ));
         }
         self.objects.ensure_base_dir(&filepath)?;
         match tokio::fs::rename(&working_file, &filepath).await {
@@ -102,7 +120,11 @@ impl graph::Database for super::FSRepository {
                 let _ = tokio::fs::remove_file(&working_file).await;
                 match err.kind() {
                     std::io::ErrorKind::AlreadyExists => Ok(()),
-                    _ => Err(Error::StorageWriteError(filepath, err)),
+                    _ => Err(Error::StorageWriteError(
+                        "rename on object file",
+                        filepath,
+                        err,
+                    )),
                 }
             }
         }
@@ -117,7 +139,11 @@ impl graph::Database for super::FSRepository {
         if let Err(err) = tokio::fs::remove_file(&filepath).await {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Ok(()),
-                _ => Err(Error::StorageWriteError(filepath, err)),
+                _ => Err(Error::StorageWriteError(
+                    "remove_file on object file in remove_object",
+                    filepath,
+                    err,
+                )),
             };
         }
         Ok(())
@@ -159,7 +185,11 @@ impl graph::Database for super::FSRepository {
         if let Err(err) = tokio::fs::remove_file(&filepath).await {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Ok(true),
-                _ => Err(Error::StorageWriteError(filepath, err)),
+                _ => Err(Error::StorageWriteError(
+                    "remove_file on object file in remove_object_if_older_than",
+                    filepath,
+                    err,
+                )),
             };
         }
         Ok(true)
