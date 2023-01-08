@@ -2799,12 +2799,14 @@ dependencies = [
 name = "spfs-cli-main"
 version = "0.34.6"
 dependencies = [
+ "chrono",
  "clap 3.2.11",
  "colored",
  "futures",
  "hyper",
  "itertools",
  "nix",
+ "procfs",
  "relative-path",
  "serde_json",
  "spfs",

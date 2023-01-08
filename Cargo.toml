@@ -17,3 +17,7 @@ members = [
     "crates/spk-storage",
     "crates/spk",
 ]
+
+[workspace.dependencies]
+chrono = { version = "0.4.19", features = ["serde"] }
+procfs = "0.13.2"
