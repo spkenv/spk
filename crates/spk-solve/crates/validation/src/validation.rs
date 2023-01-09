@@ -152,12 +152,7 @@ impl PkgRequestValidatorT for DeprecationValidator {
         if !package.is_deprecated() {
             return Ok(Compatibility::Compatible);
         }
-        if package.ident().build.is_none() {
-            return Ok(Compatibility::Incompatible(
-                "package version is deprecated".to_owned(),
-            ));
-        }
-        if request.pkg.build == package.ident().build {
+        if request.pkg.build.as_ref() == Some(package.ident().build()) {
             return Ok(Compatibility::Compatible);
         }
         Ok(Compatibility::Incompatible(
@@ -201,8 +196,8 @@ impl PkgRequestValidatorT for BinaryOnlyValidator {
     where
         P: Satisfy<PkgRequest> + Package,
     {
-        if package.ident().build.is_none()
-            || (package.ident().is_source() && request.pkg.build != package.ident().build)
+        if package.ident().is_source()
+            && request.pkg.build.as_ref() != Some(package.ident().build())
         {
             return Ok(Compatibility::Incompatible(
                 "building from source is not enabled".into(),

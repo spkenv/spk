@@ -365,8 +365,9 @@ impl Solver {
         &self,
         unresolved: &HashMap<PkgNameBuf, PkgRequest>,
         builds: Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>,
-    ) -> Result<HashMap<Ident, Compatibility>> {
-        let mut builds_with_impossible_requests: HashMap<Ident, Compatibility> = HashMap::new();
+    ) -> Result<HashMap<BuildIdent, Compatibility>> {
+        let mut builds_with_impossible_requests: HashMap<BuildIdent, Compatibility> =
+            HashMap::new();
 
         let builds_lock = builds.lock().await;
         let mut builds_copy = dyn_clone::clone_box(&*builds_lock);
@@ -593,7 +594,7 @@ impl Solver {
                                 // which is a bad choice for any solve, so
                                 // discard this build and try another.
                                 notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                                    spec.ident().clone(),
+                                    spec.ident().to_any(),
                                     compat,
                                 )));
                                 self.number_builds_skipped += 1;

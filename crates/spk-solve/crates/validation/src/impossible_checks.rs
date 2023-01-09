@@ -14,7 +14,7 @@ use spk_schema::foundation::name::PkgNameBuf;
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, RangeIdent, Request};
 use spk_schema::spec_ops::Versioned;
-use spk_schema::{Ident, Package, RequirementsList, Spec};
+use spk_schema::{AnyIdent, BuildIdent, Package, RequirementsList, Spec};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 use tokio::sync::mpsc::{self, Sender};
@@ -67,7 +67,7 @@ enum Comms {
     /// a new version task to check all the builds in that version.
     /// Contains the pkg/version and the future for the new task.
     NewVersionTask {
-        pkg_version: Ident,
+        pkg_version: AnyIdent,
         task: tokio::task::JoinHandle<Result<Compatibility>>,
     },
     /// Send by the version tasks when they have are complete.
@@ -75,7 +75,7 @@ enum Comms {
     /// build and a compatible compat, if a valid build was found, or:
     /// the pkg_version and incompatible compat.
     VersionTaskDone {
-        build: Ident,
+        build: AnyIdent,
         compat: Compatibility,
         builds_read: u64,
     },
@@ -419,7 +419,7 @@ impl ImpossibleRequestsChecker {
         combined_request: &PkgRequest,
         repos: &[Arc<RepositoryHandle>],
     ) -> Result<bool> {
-        let package = Ident::from(combined_request.pkg.name.clone());
+        let package = AnyIdent::from(combined_request.pkg.name.clone());
 
         // Set up a channel for communication between this and the all
         // the spawned tasks. This will allow the processing to
@@ -556,7 +556,7 @@ impl ImpossibleRequestsChecker {
 /// because that validator does not look at the digests.
 async fn get_mock_build_components(
     repo: &Arc<RepositoryHandle>,
-    build: &Ident,
+    build: &BuildIdent,
 ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
     // An empty default digest is used to avoid calling
     // read_components() and the additional lookups it does (which do
@@ -600,14 +600,14 @@ fn validate_against_pkg_request(
 /// request
 async fn make_task_per_version(
     repos: Vec<Arc<RepositoryHandle>>,
-    package: Ident,
+    package: AnyIdent,
     request: PkgRequest,
     validators: Arc<std::sync::Mutex<Vec<Validators>>>,
     channel: Sender<Comms>,
 ) -> Result<()> {
     let mut number = 0;
     for repo in repos.iter() {
-        for version in repo.list_package_versions(&package.name).await?.iter() {
+        for version in repo.list_package_versions(package.name()).await?.iter() {
             let compat = request.is_version_applicable(version);
             if !&compat {
                 tracing::debug!(
@@ -682,7 +682,7 @@ async fn make_task_per_version(
 /// if there is a valid build, and Incompatible if there isn't.
 async fn any_valid_build_in_version(
     repo: Arc<RepositoryHandle>,
-    pkg_version: Ident,
+    pkg_version: AnyIdent,
     validators: Arc<std::sync::Mutex<Vec<Validators>>>,
     request: PkgRequest,
     channel: Sender<Comms>,
@@ -692,7 +692,7 @@ async fn any_valid_build_in_version(
     // version. That's okay this just needs to find one
     // that satisfies the request.
     let mut builds_read: u64 = 0;
-    let builds = repo.list_package_builds(&pkg_version).await?;
+    let builds = repo.list_package_builds(pkg_version.as_version()).await?;
     tracing::debug!(
         target: IMPOSSIBLE_CHECKS_TARGET,
         "Version task {pkg_version} got {} builds",
@@ -740,7 +740,7 @@ async fn any_valid_build_in_version(
             continue;
         } else {
             // Compatible, so send a message and return immediately
-            send_version_task_done_message(channel, build.clone(), compat.clone(), builds_read)
+            send_version_task_done_message(channel, build.to_any(), compat.clone(), builds_read)
                 .await;
 
             return Ok(compat);
@@ -765,7 +765,7 @@ async fn any_valid_build_in_version(
 /// Helper for sending VersionTaskDone messages to the channel
 async fn send_version_task_done_message(
     channel: Sender<Comms>,
-    build: Ident,
+    build: AnyIdent,
     compat: Compatibility,
     builds_read: u64,
 ) {

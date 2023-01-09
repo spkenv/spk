@@ -7,7 +7,7 @@ use std::sync::Arc;
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::opt_name;
-use spk_schema::ident::{ident, PkgRequest, Request, RequestedBy};
+use spk_schema::ident::{build_ident, version_ident, PkgRequest, Request, RequestedBy};
 use spk_schema::{spec, FromYaml};
 use spk_solve::recipe;
 use spk_solve_graph::State;
@@ -25,7 +25,7 @@ fn test_src_package_install_requests_are_not_considered() {
 
     let spec = Arc::new(recipe!(
         {
-            "pkg": "my-pkg/1.0.0/src",
+            "pkg": "my-pkg/1.0.0",
             "install": {
                 "embedded": [{"pkg": "embedded/9.0.0"}],
                 "requirements": [{"pkg": "dependency/=2"}, {"var": "debug/on"}],
@@ -35,9 +35,18 @@ fn test_src_package_install_requests_are_not_considered() {
 
     let state = State::new(
         vec![
-            PkgRequest::from_ident(ident!("my-pkg/1.0.0/src"), RequestedBy::SpkInternalTest),
-            PkgRequest::from_ident(ident!("embedded/1.0.0"), RequestedBy::SpkInternalTest),
-            PkgRequest::from_ident(ident!("dependency/1"), RequestedBy::SpkInternalTest),
+            PkgRequest::from_ident(
+                build_ident!("my-pkg/1.0.0/src").to_any(),
+                RequestedBy::SpkInternalTest,
+            ),
+            PkgRequest::from_ident(
+                version_ident!("embedded/1.0.0").to_any(None),
+                RequestedBy::SpkInternalTest,
+            ),
+            PkgRequest::from_ident(
+                version_ident!("dependency/1").to_any(None),
+                RequestedBy::SpkInternalTest,
+            ),
         ]
         .into_iter()
         .collect(),

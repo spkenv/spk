@@ -174,16 +174,13 @@ async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(mut so
     let repo = RepositoryHandle::new_mem();
 
     let options = option_map! {};
-    let mut spec = v0::Spec::new(ident!("my-pkg/1.0.0"));
-    spec.pkg.set_build(Some(Build::Digest(options.digest())));
+    let spec = spec!({ "pkg": format!("my-pkg/1.0.0/{}", options.digest_str()) });
 
     // publish package without publishing spec
     let components = vec![(Component::Run, EMPTY_DIGEST.into())]
         .into_iter()
         .collect();
-    repo.publish_package(&spec.into(), &components)
-        .await
-        .unwrap();
+    repo.publish_package(&spec, &components).await.unwrap();
 
     solver.update_options(options);
     solver.add_repository(Arc::new(repo));
@@ -1095,7 +1092,7 @@ async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
         options = {"debug" => "off"}
     );
     let spec = repo
-        .read_recipe(&parse_ident("my-tool/1.2.0").unwrap())
+        .read_recipe(&version_ident!("my-tool/1.2.0"))
         .await
         .unwrap();
     repo.force_publish_recipe(&spec).await.unwrap();
@@ -1335,7 +1332,7 @@ async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
             assert_resolved!(
                 solution,
                 "qt",
-                build = Some(Build::Embedded(EmbeddedSource::Unknown))
+                build = Build::Embedded(EmbeddedSource::Unknown)
             );
         }
         Err(err) => {
@@ -1411,7 +1408,7 @@ async fn test_solver_impossible_request_but_embedded_package_makes_solvable(mut 
             assert_resolved!(
                 solution,
                 "qt",
-                build = Some(Build::Embedded(EmbeddedSource::Unknown))
+                build = Build::Embedded(EmbeddedSource::Unknown)
             );
         }
         Err(err) => {
@@ -1427,8 +1424,8 @@ async fn test_solver_with_impossible_checks_in_build_keys(mut solver: Solver) {
     let options1 = option_map! {"dep" => "1.0.0"};
     let options2 = option_map! {"dep" => "2.0.0"};
 
-    let dep1 = spec!({"pkg": "dep/1.0.0"});
-    let dep2 = spec!({"pkg": "dep/2.0.0"});
+    let dep1 = spec!({"pkg": "dep/1.0.0/3I42H3S6"});
+    let dep2 = spec!({"pkg": "dep/2.0.0/3I42H3S6"});
 
     let a_spec = recipe!({
         "pkg": "pkg-a/1.0.0",

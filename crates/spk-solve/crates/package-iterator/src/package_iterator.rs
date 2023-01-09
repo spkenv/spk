@@ -463,7 +463,7 @@ impl SortedBuildIterator {
     pub async fn new(
         _options: OptionMap,
         source: Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>,
-        builds_with_impossible_requests: HashMap<Ident, Compatibility>,
+        builds_with_impossible_requests: HashMap<BuildIdent, Compatibility>,
     ) -> Result<Self> {
         // Note: _options is unused in this implementation, it was used
         // in the by_distance sorting implementation
@@ -488,7 +488,7 @@ impl SortedBuildIterator {
         spec: &Spec,
         ordered_names: &Vec<OptNameBuf>,
         build_name_values: &HashMap<BuildIdent, OptionMap>,
-        impossible_requests: bool,
+        makes_an_impossible_request: bool,
     ) -> BuildKey {
         let build_id = spec.ident();
         let empty = OptionMap::default();
@@ -508,7 +508,7 @@ impl SortedBuildIterator {
     /// differing values in those options
     async fn sort_by_build_option_values(
         &mut self,
-        builds_with_impossible_requests: HashMap<Ident, Compatibility>,
+        builds_with_impossible_requests: HashMap<BuildIdent, Compatibility>,
     ) {
         let start = Instant::now();
 

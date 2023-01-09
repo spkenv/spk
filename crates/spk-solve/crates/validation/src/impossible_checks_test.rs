@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
-use spk_schema::ident::{ident, PkgRequest, RequestedBy};
+use spk_schema::ident::{version_ident, PkgRequest, RequestedBy};
 use spk_schema::name::PkgNameBuf;
 use spk_schema::spec;
 use spk_solve::{make_build, make_repo};
@@ -19,7 +19,10 @@ use super::ImpossibleRequestsChecker;
 async fn test_impossible_requests_checker_set_binary() {
     init_logging();
 
-    let request = PkgRequest::from_ident(ident!("my-pkg/1"), RequestedBy::SpkInternalTest);
+    let request = PkgRequest::from_ident(
+        version_ident!("my-pkg/1").to_any(None),
+        RequestedBy::SpkInternalTest,
+    );
 
     let repo = make_repo!(
         [
@@ -126,7 +129,10 @@ async fn test_impossible_requests_checker_set_binary() {
 async fn test_impossible_requests_checker_any_build_valid_for_request_valid_build() {
     init_logging();
 
-    let request = PkgRequest::from_ident(ident!("my-pkg/1"), RequestedBy::SpkInternalTest);
+    let request = PkgRequest::from_ident(
+        version_ident!("my-pkg/1").to_any(None),
+        RequestedBy::SpkInternalTest,
+    );
     let repo = make_repo!(
         [
             { "pkg": "my-pkg/2.0.0" },
@@ -156,7 +162,10 @@ async fn test_impossible_requests_checker_any_build_valid_for_request_valid_buil
 async fn test_impossible_requests_checker_any_build_valid_for_request_no_valid_build() {
     init_logging();
 
-    let request = PkgRequest::from_ident(ident!("my-pkg/7.0.0"), RequestedBy::SpkInternalTest);
+    let request = PkgRequest::from_ident(
+        version_ident!("my-pkg/7.0.0").to_any(None),
+        RequestedBy::SpkInternalTest,
+    );
     let repo = make_repo!(
         [
             { "pkg": "my-pkg/2.0.0" },
@@ -188,22 +197,22 @@ async fn test_impossible_requests_checker_validate_pkg_requests_possible() {
 
     let repo = make_repo!(
         [
-            { "pkg": "new-pkg/2.0.0" },
+            { "pkg": "new-pkg/2.0.0/3I42H3S6" },
             { "pkg": "new-pkg/2.0.0/src" },
 
-            { "pkg": "my-pkg/2.0.0" },
-            { "pkg": "my-pkg/1.0.0" },
+            { "pkg": "my-pkg/2.0.0/3I42H3S6" },
+            { "pkg": "my-pkg/1.0.0/3I42H3S6" },
             { "pkg": "my-pkg/1.0.0/src" },
 
-            { "pkg": "my-pkg-b/3.0.0" },
-            { "pkg": "my-pkg-b/3.1.1" },
+            { "pkg": "my-pkg-b/3.0.0/3I42H3S6" },
+            { "pkg": "my-pkg-b/3.1.1/3I42H3S6" },
             { "pkg": "my-pkg-b/3.0.0/src" },
         ]
     );
     let arc_repo = Arc::new(repo);
 
     let spec = spec!(
-        { "pkg": "about-to-resolve/1.0.0",
+        { "pkg": "about-to-resolve/1.0.0/3I42H3S6",
            "install": {
                "requirements": [{"pkg": "my-pkg/1.0.0"}, {"pkg": "my-pkg-b/3.1.1"}],
            }
@@ -245,15 +254,15 @@ async fn test_impossible_requests_checker_validate_pkg_requests_impossible() {
 
     let repo = make_repo!(
         [
-            { "pkg": "new-pkg/2.0.0" },
+            { "pkg": "new-pkg/2.0.0/3I42H3S6" },
             { "pkg": "new-pkg/2.0.0/src" },
 
-            { "pkg": "my-pkg/2.0.0" },
-            { "pkg": "my-pkg/1.0.0" },
+            { "pkg": "my-pkg/2.0.0/3I42H3S6" },
+            { "pkg": "my-pkg/1.0.0/3I42H3S6" },
             { "pkg": "my-pkg/1.0.0/src" },
 
-            { "pkg": "my-pkg-b/3.0.0" },
-            { "pkg": "my-pkg-b/3.1.1" },
+            { "pkg": "my-pkg-b/3.0.0/3I42H3S6" },
+            { "pkg": "my-pkg-b/3.1.1/3I42H3S6" },
             { "pkg": "my-pkg-b/3.0.0/src" },
         ]
     );
@@ -263,7 +272,7 @@ async fn test_impossible_requests_checker_validate_pkg_requests_impossible() {
     // request is possible because it is just IfAlreadyPresent and has
     // not be requested by anything else yet.
     let spec = spec!(
-        { "pkg": "about-to-resolve/1.0.0",
+        { "pkg": "about-to-resolve/1.0.0/3I42H3S6",
            "install": {
                "requirements": [{"pkg": "not-present/1.0.0",
                                  "include": "IfAlreadyPresent"},
@@ -293,7 +302,7 @@ async fn test_impossible_requests_checker_validate_pkg_requests_impossible() {
     // This is for test coverage and should exercise the
     // ImpossibleRequestsChecker's cache.
     let spec2 = spec!(
-        { "pkg": "another-to-resolve/2.0.0",
+        { "pkg": "another-to-resolve/2.0.0/3I42H3S6",
            "install": {
                "requirements": [{"var": "python.abi/3.9.7"},
                                 {"pkg": "my-pkg/7.0.0"},
@@ -333,7 +342,10 @@ async fn test_impossible_requests_checker_validate_pkg_requests_no_requirements(
         }
     );
 
-    let request = PkgRequest::from_ident(ident!("my-pkg/2"), RequestedBy::SpkInternalTest);
+    let request = PkgRequest::from_ident(
+        version_ident!("my-pkg/2").to_any(None),
+        RequestedBy::SpkInternalTest,
+    );
 
     let mut unresolved_requests: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
     unresolved_requests.insert(request.pkg.name.clone(), request.clone());
@@ -359,21 +371,24 @@ async fn test_impossible_requests_checker_with_uncombinable_requests() {
 
     let repo = make_repo!(
         [
-            { "pkg": "my-pkg/1.0.0" },
+            { "pkg": "my-pkg/1.0.0/3I42H3S6" },
             { "pkg": "my-pkg/1.0.0/src" },
         ]
     );
     let arc_repo = Arc::new(repo);
 
     let spec = spec!(
-        { "pkg": "about-to-resolve/1.0.0",
+        { "pkg": "about-to-resolve/1.0.0/3I42H3S6",
            "install": {
                "requirements": [{"pkg": "my-pkg/21.0.0"}],
            }
         }
     );
 
-    let request = PkgRequest::from_ident(ident!("my-pkg/1.0.0"), RequestedBy::SpkInternalTest);
+    let request = PkgRequest::from_ident(
+        version_ident!("my-pkg/1.0.0").to_any(None),
+        RequestedBy::SpkInternalTest,
+    );
     let mut unresolved_requests: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
     unresolved_requests.insert(request.pkg.name.clone(), request);
 
