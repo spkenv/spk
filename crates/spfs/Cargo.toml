@@ -39,7 +39,7 @@ hyper = { version = "0.14.16", features = ["client"] }
 indicatif = "0.16.2"
 itertools = "0.10.3"
 lazy_static = "1.4"
-libc = "0.2.80"
+libc = { workspace = true }
 nix = "0.24.1"
 nonempty = "0.8.1"
 once_cell = "1.8"

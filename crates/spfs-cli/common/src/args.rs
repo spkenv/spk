@@ -317,11 +317,23 @@ macro_rules! configure {
 macro_rules! handle_result {
     ($result:ident) => {
         match $result {
-            Err(err) => {
-                $crate::capture_if_relevant(&err);
-                tracing::error!("{err}");
-                1
-            }
+            Err(err) => match err {
+                spfs::Error::RuntimeWriteError(path, io_err)
+                | spfs::Error::StorageWriteError(path, io_err)
+                    if std::matches!(
+                        io_err.raw_os_error(),
+                        Some($crate::__private::libc::ENOSPC)
+                    ) =>
+                {
+                    tracing::error!("Out of disk space writing to {path}", path = path.display());
+                    1
+                }
+                _ => {
+                    $crate::capture_if_relevant(&err);
+                    tracing::error!("{err}");
+                    1
+                }
+            },
             Ok(code) => code,
         }
     };

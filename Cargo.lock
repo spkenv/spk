@@ -2762,6 +2762,7 @@ name = "spfs-cli-common"
 version = "0.34.6"
 dependencies = [
  "clap 3.2.11",
+ "libc",
  "sentry",
  "sentry-tracing",
  "serde_json",
