@@ -118,7 +118,7 @@ pub(in crate::storage) mod internal {
     use spk_schema::foundation::ident_component::Component;
     use spk_schema::{Deprecate, DeprecateMut, Package, PackageMut, Recipe};
 
-    use crate::{with_cache_policy, CachePolicy, Result};
+    use crate::Result;
 
     /// Reusable methods for [`super::Repository`] that are not intended to be
     /// part of its public interface.
@@ -190,25 +190,6 @@ pub(in crate::storage) mod internal {
                     ))));
             self.remove_embed_stub_from_storage(&spec_for_embedded_pkg)
                 .await?;
-
-            // If this was the last stub and there are no other builds, remove
-            // the "version spec".
-            if let Ok(builds) = with_cache_policy!(self, CachePolicy::BypassCache, {
-                self.list_package_builds(spec_for_embedded_pkg.as_version())
-            })
-            .await
-            {
-                if builds.is_empty() {
-                    if let Err(err) = self.remove_recipe(spec_for_embedded_pkg.as_version()).await {
-                        tracing::warn!(
-                            ?spec_for_embedded_pkg,
-                            ?err,
-                            "Failed to remove version spec after removing last embed stub"
-                        );
-                    }
-                }
-            }
-
             Ok(())
         }
     }
