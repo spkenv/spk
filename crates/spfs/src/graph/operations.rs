@@ -13,11 +13,14 @@ use crate::{Digest, Error};
 /// Validate that all objects can be loaded and their children are accessible.
 pub async fn check_database_integrity<'db>(
     db: impl DatabaseView + PayloadStorage + 'db,
-    root: Option<Digest>,
+    refs: Vec<Digest>,
 ) -> Vec<Error> {
-    match root {
-        Some(root) => walk_root_all_objects(db, root).await,
-        None => iter_all_objects(db).await,
+    if refs.is_empty() {
+        iter_all_objects(db).await
+    } else {
+        refs.iter().map(async |r| {
+            walk_root_all_objects(db, r).await
+        }).collect::<Vec<_>>().await.into_iter().flatten().collect()
     }
 }
 

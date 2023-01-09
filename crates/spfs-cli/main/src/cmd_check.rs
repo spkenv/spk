@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
-use spfs::prelude::*;
+use spfs::{prelude::*, Digest};
 
 /// Check a repositories internal integrity
 #[derive(Debug, Args)]
@@ -48,21 +48,14 @@ impl CmdCheck {
             None => None,
         };
 
-        let root = match &self.reference {
-            Some(ref_string) => {
-                let obj = repo.read_ref(ref_string.as_str()).await?;
-                Some(obj.digest()?)
-            }
-            None => None,
-        };
-
         tracing::info!("walking repository...");
+
         let errors = match &repo {
-            RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo, root).await,
-            RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo, root).await,
-            RepositoryHandle::Rpc(repo) => spfs::graph::check_database_integrity(repo, root).await,
+            RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo, self.reference).await,
+            RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo, self.reference).await,
+            RepositoryHandle::Rpc(repo) => spfs::graph::check_database_integrity(repo, self.reference).await,
             RepositoryHandle::Proxy(repo) => {
-                spfs::graph::check_database_integrity(&**repo, root).await
+                spfs::graph::check_database_integrity(&**repo, self.reference).await
             }
         };
         let mut repair_count = 0;
