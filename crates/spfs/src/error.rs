@@ -96,10 +96,10 @@ pub enum Error {
     RuntimeWriteError(std::path::PathBuf, #[source] io::Error),
     #[error("Runtime set permissions error: {0}")]
     RuntimeSetPermissionsError(std::path::PathBuf, #[source] io::Error),
-    #[error("Storage read error: {0}")]
-    StorageReadError(std::path::PathBuf, #[source] io::Error),
-    #[error("Storage write error: {0}")]
-    StorageWriteError(std::path::PathBuf, #[source] io::Error),
+    #[error("Storage read error from {0}: {1}")]
+    StorageReadError(&'static str, std::path::PathBuf, #[source] io::Error),
+    #[error("Storage write error from {0}: {1}")]
+    StorageWriteError(&'static str, std::path::PathBuf, #[source] io::Error),
 
     #[error("'{0}' not found in PATH, was it installed properly?")]
     MissingBinary(&'static str),
@@ -148,8 +148,8 @@ impl Error {
             Error::ProcessSpawnError(_, err) => handle_io_error(err),
             Error::RuntimeReadError(_, err) => handle_io_error(err),
             Error::RuntimeWriteError(_, err) => handle_io_error(err),
-            Error::StorageReadError(_, err) => handle_io_error(err),
-            Error::StorageWriteError(_, err) => handle_io_error(err),
+            Error::StorageReadError(_, _, err) => handle_io_error(err),
+            Error::StorageWriteError(_, _, err) => handle_io_error(err),
             Error::Errno(_, errno) => Some(*errno),
             Error::Nix(err) => Some(*err as i32),
             _ => None,

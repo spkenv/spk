@@ -116,7 +116,11 @@ impl FSHashStore {
                 }
                 _ => {
                     return Box::pin(futures::stream::once(async move {
-                        Err(Error::StorageReadError(entry.path(), err))
+                        Err(Error::StorageReadError(
+                            "read_dir on hash store entry",
+                            entry.path(),
+                            err,
+                        ))
                     }))
                 }
             },
@@ -124,7 +128,7 @@ impl FSHashStore {
         };
 
         Box::pin(try_stream! {
-            while let Some(name) = subdir.next_entry().await.map_err(|err| Error::StorageReadError(entry.path(), err))? {
+            while let Some(name) = subdir.next_entry().await.map_err(|err| Error::StorageReadError("next_entry on hash store directory", entry.path(), err))? {
                 let digest_str = format!("{entry_filename}{}", name.file_name().to_string_lossy());
                 if digest_str.ends_with(".completed") {
                     // We're operating on a renders store.
@@ -160,8 +164,8 @@ impl FSHashStore {
         let root = self.root.clone();
 
         try_stream! {
-            let mut root_entries = tokio::fs::read_dir(&root).await.map_err(|err| Error::StorageReadError(root.clone(), err))?;
-            while let Some(entry) = root_entries.next_entry().await.map_err(|err| Error::StorageReadError(root.clone(), err))? {
+            let mut root_entries = tokio::fs::read_dir(&root).await.map_err(|err| Error::StorageReadError("read_dir on hash store root", root.clone(), err))?;
+            while let Some(entry) = root_entries.next_entry().await.map_err(|err| Error::StorageReadError("next_entry on hash store root entry", root.clone(), err))? {
                 let entry_filename = entry.file_name();
                 let entry_filename = entry_filename.to_string_lossy();
 
@@ -213,23 +217,41 @@ impl FSHashStore {
                 .write(true)
                 .open(&working_file)
                 .await
-                .map_err(|err| Error::StorageWriteError(working_file.clone(), err))?,
+                .map_err(|err| {
+                    Error::StorageWriteError(
+                        "open on hash store object for write",
+                        working_file.clone(),
+                        err,
+                    )
+                })?,
         );
         let mut hasher = encoding::Hasher::with_target(&mut writer);
         let copied = match tokio::io::copy(&mut reader, &mut hasher).await {
             Err(err) => {
                 let _ = tokio::fs::remove_file(&working_file).await;
-                return Err(Error::StorageWriteError(working_file, err));
+                return Err(Error::StorageWriteError(
+                    "copy on hash store object file",
+                    working_file,
+                    err,
+                ));
             }
             Ok(s) => s,
         };
 
         let digest = hasher.digest();
         if let Err(err) = writer.flush().await {
-            return Err(Error::StorageWriteError(working_file, err));
+            return Err(Error::StorageWriteError(
+                "flush on hash store object file",
+                working_file,
+                err,
+            ));
         }
         if let Err(err) = writer.into_inner().into_std().await.close() {
-            return Err(Error::StorageWriteError(working_file, err));
+            return Err(Error::StorageWriteError(
+                "close on hash store object file",
+                working_file,
+                err,
+            ));
         }
 
         self.persist_object_with_digest(
@@ -259,7 +281,13 @@ impl FSHashStore {
                     .truncate(true)
                     .open(&path)
                     .await
-                    .map_err(|err| Error::StorageWriteError(path.clone(), err))?;
+                    .map_err(|err| {
+                        Error::StorageWriteError(
+                            "open on hash store test empty file for write",
+                            path.clone(),
+                            err,
+                        )
+                    })?;
                 0
             }
             PersistableObject::WorkingFile {
@@ -270,7 +298,13 @@ impl FSHashStore {
                     let _ = tokio::fs::remove_file(&working_file).await;
                     match err.kind() {
                         ErrorKind::AlreadyExists => (),
-                        _ => return Err(Error::StorageWriteError(working_file, err)),
+                        _ => {
+                            return Err(Error::StorageWriteError(
+                                "rename on hash store object",
+                                path,
+                                err,
+                            ))
+                        }
                     }
                 }
                 copied
@@ -347,16 +381,18 @@ impl FSHashStore {
             Err(err) => {
                 return match err.kind() {
                     ErrorKind::NotFound => Err(Error::UnknownReference(short_digest)),
-                    _ => Err(Error::StorageReadError(dirpath.clone(), err)),
+                    _ => Err(Error::StorageReadError(
+                        "read_dir on full digest path",
+                        dirpath.clone(),
+                        err,
+                    )),
                 }
             }
             Ok(mut read_dir) => {
                 let mut mapped = Vec::new();
-                while let Some(next) = read_dir
-                    .next_entry()
-                    .await
-                    .map_err(|err| Error::StorageReadError(dirpath.clone(), err))?
-                {
+                while let Some(next) = read_dir.next_entry().await.map_err(|err| {
+                    Error::StorageReadError("next_entry on full digest path", dirpath.clone(), err)
+                })? {
                     mapped.push(next.file_name());
                 }
                 mapped
@@ -387,16 +423,22 @@ impl FSHashStore {
             Err(err) => {
                 return match err.kind() {
                     ErrorKind::NotFound => Err(Error::UnknownObject(*digest)),
-                    _ => Err(Error::StorageReadError(filepath_parent.to_owned(), err)),
+                    _ => Err(Error::StorageReadError(
+                        "read_dir on shortened digest",
+                        filepath_parent.to_owned(),
+                        err,
+                    )),
                 };
             }
             Ok(mut read_dir) => {
                 let mut mapped = Vec::new();
-                while let Some(next) = read_dir
-                    .next_entry()
-                    .await
-                    .map_err(|err| Error::StorageReadError(filepath_parent.to_owned(), err))?
-                {
+                while let Some(next) = read_dir.next_entry().await.map_err(|err| {
+                    Error::StorageReadError(
+                        "next_entry on shortened digest path",
+                        filepath_parent.to_owned(),
+                        err,
+                    )
+                })? {
                     mapped.push(next.file_name().to_string_lossy().to_string());
                 }
                 mapped

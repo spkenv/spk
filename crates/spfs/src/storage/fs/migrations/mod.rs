@@ -27,14 +27,18 @@ pub async fn upgrade_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
     let backup_path = root.with_file_name(format!("{repo_name}-backup"));
     tokio::fs::rename(&root, &backup_path)
         .await
-        .map_err(|err| Error::StorageWriteError(backup_path.clone(), err))?;
+        .map_err(|err| {
+            Error::StorageWriteError("rename on repo to backup", backup_path.clone(), err)
+        })?;
     tokio::fs::rename(&migrated_path, &root)
         .await
-        .map_err(|err| Error::StorageWriteError(root.clone(), err))?;
+        .map_err(|err| {
+            Error::StorageWriteError("rename on migrated path to root", root.clone(), err)
+        })?;
     tracing::info!("purging old data...");
     tokio::fs::remove_dir_all(&backup_path)
         .await
-        .map_err(|err| Error::StorageWriteError(backup_path, err))?;
+        .map_err(|err| Error::StorageWriteError("remove_all_dir on backup", backup_path, err))?;
     Ok(root)
 }
 
@@ -77,7 +81,9 @@ pub async fn migrate_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
         root = root.with_file_name(format!("{repo_name}-migrated"));
         tokio::fs::rename(&migrated_path, &root)
             .await
-            .map_err(|err| Error::StorageWriteError(root.clone(), err))?;
+            .map_err(|err| {
+                Error::StorageWriteError("rename on migrated repo", root.clone(), err)
+            })?;
     }
 
     Ok(root)

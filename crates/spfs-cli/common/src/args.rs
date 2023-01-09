@@ -319,7 +319,7 @@ macro_rules! handle_result {
         match $result {
             Err(err) => match err {
                 spfs::Error::RuntimeWriteError(path, io_err)
-                | spfs::Error::StorageWriteError(path, io_err)
+                | spfs::Error::StorageWriteError(_, path, io_err)
                     if std::matches!(
                         io_err.raw_os_error(),
                         Some($crate::__private::libc::ENOSPC)
