@@ -12,8 +12,8 @@ migration-to-components = []
 async-recursion = "1.0"
 async-stream = "0.3"
 async-trait = { workspace = true }
-colored = "2.0"
-console = "0.15"
+colored = { workspace = true }
+console = { workspace = true }
 crossterm = "0.24"
 ctrlc = "3.2"
 dyn-clone = { workspace = true }

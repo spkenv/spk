@@ -8,7 +8,7 @@ version = { workspace = true }
 async-recursion = "1.0"
 async-stream = "0.3"
 async-trait = { workspace = true }
-colored = "2.0"
+colored = { workspace = true }
 ctrlc = "3.2"
 dyn-clone = { workspace = true }
 futures = "0.3.9"

@@ -11,7 +11,7 @@ parsedbuf-serde = []
 migration-to-components = []
 
 [dependencies]
-colored = "2.0"
+colored = { workspace = true }
 data-encoding = "2.3"
 enum_dispatch = "0.3.8"
 format_serde_error = {version = "0.3", default_features = false, features = ["serde_yaml", "colored"]}

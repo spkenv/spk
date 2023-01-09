@@ -5,7 +5,7 @@ name = "spk-schema-ident"
 version = { workspace = true }
 
 [dependencies]
-colored = "2.0"
+colored = { workspace = true }
 format_serde_error = { version = "0.3", default_features = false, features = [
     "serde_yaml",
     "colored",

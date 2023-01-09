@@ -17,7 +17,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, RequestedBy};
-use spk_schema::name::RepositoryNameBuf;
+use spk_schema::name::{PkgNameBuf, RepositoryNameBuf};
 use spk_schema::prelude::*;
 use spk_schema::version::Version;
 use spk_schema::{BuildEnv, BuildIdent, Package, Spec, SpecRecipe, VersionIdent};
@@ -314,7 +314,7 @@ impl Solution {
     ) -> Result<HashMap<PkgNameBuf, Arc<Version>>> {
         let mut highest_versions: HashMap<PkgNameBuf, Arc<Version>> = HashMap::new();
 
-        for name in self.by_name.keys().map(|n| n.to_owned()) {
+        for name in self.resolved.iter().map(|r| r.request.pkg.name.clone()) {
             let max_version = self
                 .find_highest_package_version(name.clone(), repos)
                 .await?;
@@ -437,13 +437,13 @@ impl Solution {
                 }
                 let padding = " ".repeat(max_width - length);
 
-                let _ = write!(out, "{}{} ", value, padding);
+                let _ = write!(out, "{value}{padding} ");
             }
 
             out.push('\n');
         }
 
-        let _ = write!(out, " {} {}", SOLUTION_FORMAT_FOOTER, number_of_packages);
+        let _ = write!(out, " {SOLUTION_FORMAT_FOOTER} {number_of_packages}");
         out
     }
 }

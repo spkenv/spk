@@ -5,8 +5,8 @@ name = "spk-solve-solution"
 version = { workspace = true }
 
 [dependencies]
-colored = "2.0"
-console = "0.15"
+colored = { workspace = true }
+console =  { workspace = true }
 spfs = { version = '0.34.6', path = "../../../spfs" }
 spk-schema = { path = "../../../spk-schema" }
 spk-storage = { path = "../../../spk-storage" }
