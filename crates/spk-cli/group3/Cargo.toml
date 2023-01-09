@@ -1,21 +1,21 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
-edition = "2021"
+edition = { workspace = true }
 name = "spk-cli-group3"
-version = "0.36.0"
+version = { workspace = true }
 
 [dependencies]
-anyhow = "1.0"
-async-trait = "0.1"
-clap = { version = "3.2", features = ["derive", "env"] }
-colored = "2.0.0"
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+clap = { workspace = true }
+colored = { workspace = true }
 futures = "0.3.9"
 spfs = { path = "../../spfs" }
 spk-cli-common = { path = '../common' }
 spk-storage = { path = '../../spk-storage' }
 spk-schema = { path = '../../spk-schema' }
 spfs-cli-common = { path = '../../spfs-cli/common' }
-tracing = "0.1.35"
+tracing = { workspace = true }
 tokio = "1.20"
 
 [dev-dependencies]

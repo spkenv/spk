@@ -1,8 +1,8 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
-edition = "2021"
+edition = { workspace = true }
 name = "spk"
-version = "0.36.0"
+version = { workspace = true }
 default-run = "spk"
 
 [[bin]]
@@ -39,12 +39,12 @@ cli = [
 ]
 
 [dependencies]
-anyhow = "1.0"
-async-trait = "0.1"
-clap = { version = "3.2", features = ["derive", "env"] }
-colored = "2.0.0"
-sentry = { version = "0.27.0", optional = true }
-sentry-anyhow = { version = "0.27.0", optional = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+clap = { workspace = true }
+colored = { workspace = true }
+sentry = { workspace = true, optional = true }
+sentry-anyhow = { workspace = true, optional = true }
 spk-build = { path = '../spk-build' }
 spk-cli-common = { path = '../spk-cli/common', optional = true }
 spk-cli-group1 = { path = '../spk-cli/group1', optional = true }
@@ -65,5 +65,5 @@ spk-exec = { path = '../spk-exec' }
 spk-schema = { path = '../spk-schema' }
 spk-solve = { path = '../spk-solve' }
 spk-storage = { path = '../spk-storage' }
-tokio = { version = "1.20", features = ["rt"] }
-tracing = "0.1.35"
+tokio = { workspace = true, features = ["rt"] }
+tracing = { workspace = true }

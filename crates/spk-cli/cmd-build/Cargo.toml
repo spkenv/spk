@@ -1,13 +1,13 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
-edition = "2021"
+edition = { workspace = true }
 name = "spk-cmd-build"
-version = "0.36.0"
+version = { workspace = true }
 
 [dependencies]
-anyhow = "1.0"
-async-trait = "0.1"
-clap = { version = "3.2", features = ["derive", "env"] }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+clap = { workspace = true }
 spk-cli-common = { path = '../common' }
 spk-cmd-make-binary = { path = '../cmd-make-binary' }
 spk-cmd-make-source = { path = '../cmd-make-source' }

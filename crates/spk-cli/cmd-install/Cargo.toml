@@ -1,16 +1,16 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
-edition = "2021"
+edition = { workspace = true }
 name = "spk-cmd-install"
-version = "0.36.0"
+version = { workspace = true }
 
 [dependencies]
-anyhow = "1.0"
-async-trait = "0.1"
-clap = { version = "3.2", features = ["derive", "env"] }
-colored = "2.0.0"
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+clap = { workspace = true }
+colored = { workspace = true }
 futures = "0.3.9"
 spk-cli-common = { path = '../common' }
 spk-exec = { path = '../../spk-exec' }
 spk-schema = { path = '../../spk-schema' }
-tokio = { version = "1.20", features = ["rt"] }
+tokio = { workspace = true, features = ["rt"] }

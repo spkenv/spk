@@ -2,13 +2,13 @@
 authors = ["J Robert Ray <jrray@imageworks.com>"]
 name = "spk-launcher"
 version = "0.33.6"
-edition = "2021"
+edition = { workspace = true }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0"
+anyhow = { workspace = true }
 nix = "0.24.1"
 spfs = { version = '0.34.6', path = "../spfs" }
 tempfile = "3.3"
-tokio = { version = "1.20", features = ["rt"] }
+tokio = { workspace = true, features = ["rt"] }

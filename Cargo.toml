@@ -18,6 +18,18 @@ members = [
     "crates/spk",
 ]
 
+[workspace.package]
+edition = "2021"
+version = "0.36.0"
+
 [workspace.dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
 chrono = { version = "0.4.19", features = ["serde"] }
+clap = { version = "3.2", features = ["derive", "env"] }
+colored = "2.0.0"
 procfs = "0.13.2"
+sentry = { version = "0.27.0" }
+sentry-anyhow = { version = "0.27.0" }
+tokio = { version = "1.20", features = ["rt"] }
+tracing = "0.1.35"
