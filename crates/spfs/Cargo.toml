@@ -38,7 +38,7 @@ glob = "0.3.0"
 hyper = { version = "0.14.16", features = ["client"] }
 indicatif = "0.16.2"
 itertools = "0.10.3"
-lazy_static = "1.4"
+lazy_static = { workspace = true }
 libc = { workspace = true }
 nix = "0.24.1"
 nonempty = "0.8.1"
@@ -72,7 +72,7 @@ tokio = { version = "1.20", features = [
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.3", features = ["compat"] }
 tonic = "0.8"
-tracing = "0.1.22"
+tracing = { workspace = true }
 url = { version = "2.2", features = ["serde"] }
 uuid = { version = "1.1", features = ["v4"] }
 walkdir = "2.3"

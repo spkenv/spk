@@ -29,5 +29,5 @@ spfs-cli-common = { path = "../common" }
 tokio = { version = "1.20", features = ["io-util", "rt", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tonic = { version = "0.8", optional = true }
-tracing = "0.1.22"
+tracing = { workspace = true }
 url = { version = "2.2", optional = true }

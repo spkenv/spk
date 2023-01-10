@@ -32,7 +32,9 @@ sys-info = "0.9.0"
 tempfile = "3.3"
 thiserror = "1.0"
 tracing = { workspace = true }
-tracing-subscriber = "0.2.16"
+tracing-subscriber = { workspace = true }
+tracing-capture = { workspace = true }
+lazy_static = { workspace = true }
 
 [dev-dependencies]
 rstest = "0.15.0"
