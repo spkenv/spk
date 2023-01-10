@@ -272,7 +272,7 @@ impl FSHashStore {
         let path = self.build_digest_path(&digest);
         self.ensure_base_dir(&path)?;
 
-        let copied = match persistable_object {
+        let (copied, created_new_file) = match persistable_object {
             #[cfg(test)]
             PersistableObject::EmptyFile => {
                 tokio::fs::OpenOptions::new()
@@ -288,7 +288,7 @@ impl FSHashStore {
                             err,
                         )
                     })?;
-                0
+                (0, true)
             }
             PersistableObject::WorkingFile {
                 working_file,
@@ -301,24 +301,33 @@ impl FSHashStore {
                         path,
                         err,
                     ));
+                } else {
+                    (copied, true)
                 }
-                copied
             }
         };
 
-        if let Err(_err) = tokio::fs::set_permissions(
-            &path,
-            std::fs::Permissions::from_mode(self.file_permissions),
-        )
-        .await
-        {
-            // not a good enough reason to fail entirely
-            #[cfg(feature = "sentry")]
-            sentry::capture_event(sentry::protocol::Event {
-                message: Some(format!("{:?}", _err)),
-                level: sentry::protocol::Level::Warning,
-                ..Default::default()
-            });
+        // Only set the permissions on a newly created file (by us), and not
+        // an existing file. Once written, this file may get hard links of
+        // it and those hard links assume that the permissions on the file
+        // won't change. For example, writing a payload and then hard linking
+        // to that payload in a render that expects the file to have a certain
+        // permissions.
+        if created_new_file {
+            if let Err(_err) = tokio::fs::set_permissions(
+                &path,
+                std::fs::Permissions::from_mode(self.file_permissions),
+            )
+            .await
+            {
+                // not a good enough reason to fail entirely
+                #[cfg(feature = "sentry")]
+                sentry::capture_event(sentry::protocol::Event {
+                    message: Some(format!("{:?}", _err)),
+                    level: sentry::protocol::Level::Warning,
+                    ..Default::default()
+                });
+            }
         }
 
         Ok((digest, copied))
