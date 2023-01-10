@@ -357,6 +357,10 @@ macro_rules! handle_result {
     ($result:ident) => {
         match $result {
             Err(err) => match err {
+                spfs::Error::Errno(msg, errno) if errno == $crate::__private::libc::ENOSPC => {
+                    tracing::error!("Out of disk space: {msg}");
+                    1
+                }
                 spfs::Error::RuntimeWriteError(path, io_err)
                 | spfs::Error::StorageWriteError(_, path, io_err)
                     if std::matches!(
