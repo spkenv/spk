@@ -477,7 +477,7 @@ impl ImpossibleRequestsChecker {
                     self.num_build_specs_read
                         .fetch_add(builds_read, Ordering::Relaxed);
 
-                    if !&compat {
+                    if !compat.is_ok() {
                         tracing::debug!(
                             target: IMPOSSIBLE_CHECKS_TARGET,
                             "Invalid build {build} for the combined request: {compat}"
@@ -588,7 +588,7 @@ fn validate_against_pkg_request(
 ) -> Result<Compatibility> {
     for validator in validators.lock().unwrap().iter() {
         let compat = validator.validate_package_against_request(request, spec, source)?;
-        if !&compat {
+        if !compat.is_ok() {
             return Ok(compat);
         }
     }
@@ -609,7 +609,7 @@ async fn make_task_per_version(
     for repo in repos.iter() {
         for version in repo.list_package_versions(package.name()).await?.iter() {
             let compat = request.is_version_applicable(version);
-            if !&compat {
+            if !compat.is_ok() {
                 tracing::debug!(
                     target: IMPOSSIBLE_CHECKS_TARGET,
                     "version {version} isn't applicable to the request, skipping its builds: {compat}"
@@ -731,7 +731,7 @@ async fn any_valid_build_in_version(
                 components,
             },
         )?;
-        if !&compat {
+        if !compat.is_ok() {
             // Not compatible, move on to check the next build
             tracing::debug!(
                 target: IMPOSSIBLE_CHECKS_TARGET,

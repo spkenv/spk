@@ -414,7 +414,7 @@ impl Solver {
 
             // Only builds that generate any impossible requests are
             // recorded and returned
-            if !&compat {
+            if !compat.is_ok() {
                 builds_with_impossible_requests.insert(build_id, compat);
             }
         }
@@ -589,7 +589,7 @@ impl Solver {
                             let compat = self
                                 .check_requirements_for_impossible_requests(&spec, unresolved)
                                 .await?;
-                            if !&compat {
+                            if !compat.is_ok() {
                                 // This build would add an impossible requst,
                                 // which is a bad choice for any solve, so
                                 // discard this build and try another.
@@ -795,7 +795,7 @@ impl Solver {
                     return Err(crate::Error::String(err.to_string()));
                 }
             };
-            if !&compat {
+            if !compat.is_ok() {
                 tracing::warn!(
                     "Impossible initial request, no builds in the repos [{}] satisfy: {}",
                     self.repos
