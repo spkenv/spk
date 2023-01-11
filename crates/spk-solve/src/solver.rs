@@ -765,7 +765,7 @@ impl Solver {
             let dummy_spec = make_build!({"pkg": format!("initialrequest/{}", count + 1),
                                           "install": {
                                               "requirements": [
-                                                  {"pkg": format!("{}", req.pkg )}
+                                                  req
                                               ]
                                           }
             });
