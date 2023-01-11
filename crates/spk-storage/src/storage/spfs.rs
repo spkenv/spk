@@ -305,7 +305,7 @@ impl Storage for SPFSRepository {
             .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
         let digest = self
             .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)), None)
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
@@ -353,7 +353,7 @@ impl Storage for SPFSRepository {
             .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
         let digest = self
             .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)), None)
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
@@ -382,7 +382,7 @@ impl Storage for SPFSRepository {
             .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
         let digest = self
             .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .commit_blob(Box::pin(std::io::Cursor::new(payload)), None)
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
@@ -843,7 +843,7 @@ impl SPFSRepository {
         let yaml = serde_yaml::to_string(meta).map_err(Error::InvalidRepositoryMetadata)?;
         let digest = self
             .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(yaml.into_bytes())))
+            .commit_blob(Box::pin(std::io::Cursor::new(yaml.into_bytes())), None)
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();

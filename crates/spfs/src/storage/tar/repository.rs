@@ -239,10 +239,11 @@ impl PayloadStorage for TarRepository {
     async unsafe fn write_data(
         &self,
         reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        object_permissions: Option<u32>,
     ) -> Result<(encoding::Digest, u64)> {
         // Safety: we are wrapping the same underlying unsafe function and
         // so the same safety holds for our callers
-        let res = unsafe { self.repo.write_data(reader).await? };
+        let res = unsafe { self.repo.write_data(reader, object_permissions).await? };
         self.up_to_date
             .store(false, std::sync::atomic::Ordering::Release);
         Ok(res)

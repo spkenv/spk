@@ -27,6 +27,8 @@ impl storage::PayloadStorage for super::RpcRepository {
     async unsafe fn write_data(
         &self,
         reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        // XXX: object permissions is not respected in rpc backend
+        _object_permissions: Option<u32>,
     ) -> Result<(encoding::Digest, u64)> {
         let request = proto::WritePayloadRequest {};
         let option = self

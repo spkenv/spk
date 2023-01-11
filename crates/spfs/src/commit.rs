@@ -26,8 +26,9 @@ impl ManifestBuilderHasher for CommitBlobHasher {
     async fn hasher(
         &self,
         reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        object_permissions: Option<u32>,
     ) -> Result<encoding::Digest> {
-        self.repo.commit_blob(reader).await
+        self.repo.commit_blob(reader, object_permissions).await
     }
 }
 

@@ -264,6 +264,7 @@ impl ManifestBuilderHasher for DigestFromAsyncReader {
     async fn hasher(
         &self,
         reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        _object_permissions: Option<u32>,
     ) -> Result<encoding::Digest> {
         Ok(encoding::Digest::from_async_reader(reader).await?)
     }
@@ -279,6 +280,9 @@ pub trait ManifestBuilderHasher {
     async fn hasher(
         &self,
         reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        // XXX: Some users of this trait also write a new file so they need
+        // to know what permissions to assign that new file.
+        object_permissions: Option<u32>,
     ) -> Result<encoding::Digest>;
 }
 
@@ -462,7 +466,7 @@ where
             entry.kind = EntryKind::Blob;
             entry.object = mb
                 .hasher
-                .hasher(Box::pin(std::io::Cursor::new(link_target)))
+                .hasher(Box::pin(std::io::Cursor::new(link_target)), None)
                 .await?;
         } else if file_type.is_dir() {
             entry = Self::compute_tree_node(mb, root, path, entry).await?;
@@ -477,7 +481,7 @@ where
                 tokio::io::BufReader::new(tokio::fs::File::open(&path).await.map_err(|err| {
                     Error::StorageReadError("open of blob", path.as_ref().to_owned(), err)
                 })?);
-            entry.object = mb.hasher.hasher(Box::pin(reader)).await?;
+            entry.object = mb.hasher.hasher(Box::pin(reader), Some(entry.mode)).await?;
         }
         Ok(entry)
     }

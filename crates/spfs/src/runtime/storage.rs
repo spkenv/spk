@@ -575,8 +575,10 @@ impl Storage {
         let config_data = serde_json::to_string(&rt.data)?;
         let (_, config_digest) = tokio::try_join!(
             self.inner.write_object(&platform),
-            self.inner
-                .commit_blob(Box::pin(std::io::Cursor::new(config_data.into_bytes())))
+            self.inner.commit_blob(
+                Box::pin(std::io::Cursor::new(config_data.into_bytes())),
+                None
+            )
         )?;
 
         tokio::try_join!(

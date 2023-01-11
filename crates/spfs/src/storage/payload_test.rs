@@ -24,7 +24,7 @@ async fn test_payload_io(
     // Safety: we are intentionally calling this function to test it
     let (digest, size) = unsafe {
         tmprepo
-            .write_data(reader)
+            .write_data(reader, None)
             .await
             .expect("failed to write payload data")
     };
@@ -59,7 +59,7 @@ async fn test_payload_existence(
     // Safety: we are intentionally calling this unsafe function to test it
     let (digest, size) = unsafe {
         tmprepo
-            .write_data(reader)
+            .write_data(reader, None)
             .await
             .expect("failed to write payload data")
     };
@@ -97,15 +97,15 @@ async fn test_payloads_iter(
 
     let mut expected = vec![
         tmprepo
-            .commit_blob(reader_0)
+            .commit_blob(reader_0, None)
             .await
             .expect("failed to write payload data"),
         tmprepo
-            .commit_blob(reader_1)
+            .commit_blob(reader_1, None)
             .await
             .expect("failed to write payload data"),
         tmprepo
-            .commit_blob(reader_2)
+            .commit_blob(reader_2, None)
             .await
             .expect("failed to write payload data"),
     ];

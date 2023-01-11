@@ -39,7 +39,9 @@ impl CmdWrite {
             None => Box::pin(tokio::io::BufReader::new(tokio::io::stdin())),
         };
 
-        let digest = repo.commit_blob(reader).await?;
+        // TODO: get permissions from file
+
+        let digest = repo.commit_blob(reader, None).await?;
 
         tracing::info!(?digest, "created");
         for tag in self.tags.iter() {

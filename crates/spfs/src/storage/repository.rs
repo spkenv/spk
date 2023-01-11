@@ -105,10 +105,11 @@ pub trait Repository:
     async fn commit_blob(
         &self,
         reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        object_permissions: Option<u32>,
     ) -> Result<encoding::Digest> {
         // Safety: it is unsafe to write data without also creating a blob
         // to track that payload, which is exactly what this function is doing
-        let (digest, size) = unsafe { self.write_data(reader).await? };
+        let (digest, size) = unsafe { self.write_data(reader, object_permissions).await? };
         let blob = Blob::new(digest, size);
         self.write_object(&graph::Object::Blob(blob)).await?;
         Ok(digest)

@@ -4,6 +4,7 @@
 
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -14,6 +15,7 @@ use futures::future::ready;
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
+use nix::unistd::geteuid;
 use rand::seq::SliceRandom;
 use tokio::io::AsyncReadExt;
 use tokio::sync::Semaphore;
@@ -546,65 +548,115 @@ where
                                     )
                                 })?;
 
-                            // Write to a temporary file so that some other render
-                            // process doesn't think a partially-written file is
-                            // good.
-                            let temp_proxy_file = tempfile::NamedTempFile::new_in(path_to_create)
-                                .map_err(|err| {
-                                Error::StorageWriteError(
-                                    "create proxy temp file",
-                                    path_to_create.to_owned(),
-                                    err,
-                                )
-                            })?;
-                            let mut payload_file =
-                                tokio::fs::File::open(&payload_path).await.map_err(|err| {
-                                    if err.kind() == std::io::ErrorKind::NotFound {
-                                        // in the case of a corrupt repository, this is a more appropate error
-                                        Error::UnknownObject(entry.object)
-                                    } else {
-                                        Error::StorageReadError(
-                                            "open payload for proxying",
-                                            payload_path.clone(),
-                                            err,
-                                        )
+                            // To save on disk space, if the payload already
+                            // has the expected owner and perms, then the
+                            // proxy can be a hard link instead of a copy.
+                            // This assumes that the payload's owner and
+                            // permissions are never changed.
+                            let metadata = match tokio::fs::symlink_metadata(&payload_path).await {
+                                Err(err) => {
+                                    return Err(Error::StorageReadError(
+                                        "symlink_metadata on payload path",
+                                        payload_path.clone(),
+                                        err,
+                                    ))
+                                }
+                                Ok(metadata) => metadata,
+                            };
+
+                            let has_correct_mode = metadata.permissions().mode() == entry.mode;
+                            let has_correct_owner = metadata.uid() == geteuid().as_raw();
+
+                            if has_correct_mode && has_correct_owner {
+                                // This still creates the proxy "hop" to the
+                                // real payload file. It helps keep the code
+                                // simple and could be a debugging aid if
+                                // a proxy file is discovered to have the
+                                // wrong owner/permissions then we know there
+                                // is a bug somewhere.
+                                if let Err(err) =
+                                    tokio::fs::hard_link(&payload_path, &proxy_path).await
+                                {
+                                    match err.kind() {
+                                        std::io::ErrorKind::AlreadyExists => (),
+                                        _ => {
+                                            return Err(Error::StorageWriteError(
+                                                "hard_link of payload to proxy path",
+                                                proxy_path,
+                                                err,
+                                            ))
+                                        }
                                     }
-                                })?;
-                            let proxy_file_fd =
-                                nix::unistd::dup(temp_proxy_file.as_file().as_raw_fd())?;
-                            // Safety: from_raw_fd takes ownership of this fd which is what we want
-                            let mut proxy_file =
-                                unsafe { tokio::fs::File::from_raw_fd(proxy_file_fd) };
-                            tokio::io::copy(&mut payload_file, &mut proxy_file)
-                                .await
+                                }
+                            } else {
+                                if !has_correct_mode {
+                                    tracing::debug!(actual_mode = ?metadata.permissions().mode(), expected_mode = ?entry.mode, ?payload_path, "couldn't skip proxy copy; payload had wrong mode");
+                                } else if !has_correct_owner {
+                                    tracing::debug!(actual_uid = ?metadata.uid(), expected_uid = ?geteuid().as_raw(), ?payload_path, "couldn't skip proxy copy; payload had wrong uid");
+                                }
+
+                                // Write to a temporary file so that some other render
+                                // process doesn't think a partially-written file is
+                                // good.
+                                let temp_proxy_file = tempfile::NamedTempFile::new_in(
+                                    path_to_create,
+                                )
                                 .map_err(|err| {
                                     Error::StorageWriteError(
-                                        "copy of blob to proxy file",
-                                        temp_proxy_file.path().to_owned(),
+                                        "create proxy temp file",
+                                        path_to_create.to_owned(),
                                         err,
                                     )
                                 })?;
-                            nix::sys::stat::fchmod(
-                                proxy_file_fd,
-                                Mode::from_bits_truncate(entry.mode),
-                            )
-                            .map_err(|err| {
-                                Error::StorageWriteError(
-                                    "set permissions on proxy payload",
-                                    PathBuf::from(&entry.name),
-                                    err.into(),
+                                let mut payload_file =
+                                    tokio::fs::File::open(&payload_path).await.map_err(|err| {
+                                        if err.kind() == std::io::ErrorKind::NotFound {
+                                            // in the case of a corrupt repository, this is a more appropate error
+                                            Error::UnknownObject(entry.object)
+                                        } else {
+                                            Error::StorageReadError(
+                                                "open payload for proxying",
+                                                payload_path.clone(),
+                                                err,
+                                            )
+                                        }
+                                    })?;
+                                let proxy_file_fd =
+                                    nix::unistd::dup(temp_proxy_file.as_file().as_raw_fd())?;
+                                // Safety: from_raw_fd takes ownership of this fd which is what we want
+                                let mut proxy_file =
+                                    unsafe { tokio::fs::File::from_raw_fd(proxy_file_fd) };
+                                tokio::io::copy(&mut payload_file, &mut proxy_file)
+                                    .await
+                                    .map_err(|err| {
+                                        Error::StorageWriteError(
+                                            "copy of blob to proxy file",
+                                            temp_proxy_file.path().to_owned(),
+                                            err,
+                                        )
+                                    })?;
+                                nix::sys::stat::fchmod(
+                                    proxy_file_fd,
+                                    Mode::from_bits_truncate(entry.mode),
                                 )
-                            })?;
-                            // Move temporary file into place.
-                            if let Err(err) = temp_proxy_file.persist_noclobber(&proxy_path) {
-                                match err.error.kind() {
-                                    std::io::ErrorKind::AlreadyExists => (),
-                                    _ => {
-                                        return Err(Error::StorageWriteError(
-                                            "persist of blob proxy file",
-                                            proxy_path.to_owned(),
-                                            err.error,
-                                        ))
+                                .map_err(|err| {
+                                    Error::StorageWriteError(
+                                        "set permissions on proxy payload",
+                                        PathBuf::from(&entry.name),
+                                        err.into(),
+                                    )
+                                })?;
+                                // Move temporary file into place.
+                                if let Err(err) = temp_proxy_file.persist_noclobber(&proxy_path) {
+                                    match err.error.kind() {
+                                        std::io::ErrorKind::AlreadyExists => (),
+                                        _ => {
+                                            return Err(Error::StorageWriteError(
+                                                "persist of blob proxy file",
+                                                proxy_path.to_owned(),
+                                                err.error,
+                                            ))
+                                        }
                                     }
                                 }
                             }

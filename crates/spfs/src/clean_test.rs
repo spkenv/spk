@@ -26,7 +26,7 @@ use crate::{graph, storage, tracking, Error};
 async fn test_get_attached_objects(#[future] tmprepo: TempRepo) {
     let tmprepo = tmprepo.await;
     let reader = Box::pin("hello, world".as_bytes());
-    let payload_digest = tmprepo.commit_blob(reader).await.unwrap();
+    let payload_digest = tmprepo.commit_blob(reader, None).await.unwrap();
 
     assert_eq!(
         get_all_attached_objects(&tmprepo).await.unwrap(),
@@ -49,7 +49,7 @@ async fn test_get_attached_payloads(#[future] tmprepo: TempRepo) {
     let reader = Box::pin("hello, world".as_bytes());
     // Safety: we explicitly do not want this
     // payload to appear attached to the graph
-    let (payload_digest, _) = unsafe { tmprepo.write_data(reader).await.unwrap() };
+    let (payload_digest, _) = unsafe { tmprepo.write_data(reader, None).await.unwrap() };
     let mut expected = HashSet::new();
     expected.insert(payload_digest);
     assert_eq!(

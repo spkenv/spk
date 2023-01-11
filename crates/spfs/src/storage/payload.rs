@@ -25,6 +25,10 @@ pub trait PayloadStorage: Sync + Send {
 
     /// Store the contents of the given stream, returning its digest and size
     ///
+    /// If specified, the file written will have `object_permissions`. If the
+    /// file already existed, its permissions are untouched and may not have
+    /// the desired permissions!
+    ///
     /// # Safety
     ///
     /// It is unsafe to write payload data without also creating a blob
@@ -33,6 +37,7 @@ pub trait PayloadStorage: Sync + Send {
     async unsafe fn write_data(
         &self,
         reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        object_permissions: Option<u32>,
     ) -> Result<(encoding::Digest, u64)>;
 
     /// Return a handle and filename to the full content of a payload.
@@ -63,10 +68,11 @@ impl<T: PayloadStorage> PayloadStorage for &T {
     async unsafe fn write_data(
         &self,
         reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        object_permissions: Option<u32>,
     ) -> Result<(encoding::Digest, u64)> {
         // Safety: we are wrapping the same underlying unsafe function and
         // so the same safety holds for our callers
-        unsafe { PayloadStorage::write_data(&**self, reader).await }
+        unsafe { PayloadStorage::write_data(&**self, reader, object_permissions).await }
     }
 
     async fn open_payload(

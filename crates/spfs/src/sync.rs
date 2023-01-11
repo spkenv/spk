@@ -247,7 +247,7 @@ where
             res => res,
         };
         let obj = self.read_object_with_fallback(res?).await?;
-        self.sync_object(obj).await
+        self.sync_object(obj, None).await
     }
 
     pub async fn sync_digest(&self, digest: encoding::Digest) -> Result<SyncObjectResult> {
@@ -258,17 +258,23 @@ where
             return Ok(SyncObjectResult::Duplicate);
         }
         let obj = self.read_object_with_fallback(digest).await?;
-        self.sync_object(obj).await
+        self.sync_object(obj, None).await
     }
 
     #[async_recursion::async_recursion]
-    pub async fn sync_object(&self, obj: graph::Object) -> Result<SyncObjectResult> {
+    pub async fn sync_object(
+        &self,
+        obj: graph::Object,
+        object_permissions: Option<u32>,
+    ) -> Result<SyncObjectResult> {
         use graph::Object;
         self.reporter.visit_object(&obj);
         let res = match obj {
             Object::Layer(obj) => SyncObjectResult::Layer(self.sync_layer(obj).await?),
             Object::Platform(obj) => SyncObjectResult::Platform(self.sync_platform(obj).await?),
-            Object::Blob(obj) => SyncObjectResult::Blob(self.sync_blob(obj).await?),
+            Object::Blob(obj) => {
+                SyncObjectResult::Blob(self.sync_blob(obj, object_permissions).await?)
+            }
             Object::Manifest(obj) => SyncObjectResult::Manifest(self.sync_manifest(obj).await?),
             Object::Tree(obj) => SyncObjectResult::Tree(obj),
             Object::Mask => SyncObjectResult::Mask,
@@ -370,13 +376,17 @@ where
             payload: entry.object,
             size: entry.size,
         };
-        let result = self.sync_blob(blob).await?;
+        let result = self.sync_blob(blob, Some(entry.mode)).await?;
         let res = SyncEntryResult::Synced { entry, result };
         self.reporter.synced_entry(&res);
         Ok(res)
     }
 
-    pub async fn sync_blob(&self, blob: graph::Blob) -> Result<SyncBlobResult> {
+    pub async fn sync_blob(
+        &self,
+        blob: graph::Blob,
+        object_permissions: Option<u32>,
+    ) -> Result<SyncBlobResult> {
         let digest = blob.digest();
         if self.processed_digests.contains(&digest) {
             // do not insert here because blobs share a digest with payloads
@@ -394,7 +404,7 @@ where
         self.reporter.visit_blob(&blob);
         // Safety: sync_payload is unsafe to call unless the blob
         // is synced with it, which is the purpose of this function.
-        let result = unsafe { self.sync_payload(blob.payload).await? };
+        let result = unsafe { self.sync_payload(blob.payload, object_permissions).await? };
         self.dest.write_blob(blob.clone()).await?;
         self.processed_digests.insert(digest);
         let res = SyncBlobResult::Synced { blob, result };
@@ -409,7 +419,11 @@ where
     /// It is unsafe to call this sync function on its own,
     /// as any payload should be synced alongside its
     /// corresponding Blob instance - use [`Self::sync_blob`] instead
-    pub async unsafe fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
+    pub async unsafe fn sync_payload(
+        &self,
+        digest: encoding::Digest,
+        object_permissions: Option<u32>,
+    ) -> Result<SyncPayloadResult> {
         if self.processed_digests.contains(&digest) {
             return Ok(SyncPayloadResult::Duplicate);
         }
@@ -427,7 +441,8 @@ where
         let (payload, _) = self.src.open_payload(digest).await?;
         // Safety: this is the unsafe part where we actually create
         // the payload without a corresponsing blob
-        let (created_digest, size) = unsafe { self.dest.write_data(payload).await? };
+        let (created_digest, size) =
+            unsafe { self.dest.write_data(payload, object_permissions).await? };
         if digest != created_digest {
             return Err(Error::String(format!(
                 "Source repository provided payload that did not match the requested digest: wanted {digest}, got {created_digest}. wrote {size} bytes",

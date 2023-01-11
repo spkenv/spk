@@ -29,6 +29,7 @@ pub(crate) enum PersistableObject {
     WorkingFile {
         working_file: PathBuf,
         copied: u64,
+        object_permissions: Option<u32>,
     },
 }
 
@@ -205,6 +206,7 @@ impl FSHashStore {
     pub async fn write_data(
         &self,
         mut reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        object_permissions: Option<u32>,
     ) -> Result<(encoding::Digest, u64)> {
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_file = self.workdir().join(uuid);
@@ -258,6 +260,7 @@ impl FSHashStore {
             PersistableObject::WorkingFile {
                 working_file,
                 copied,
+                object_permissions,
             },
             digest,
         )
@@ -272,7 +275,7 @@ impl FSHashStore {
         let path = self.build_digest_path(&digest);
         self.ensure_base_dir(&path)?;
 
-        let (copied, created_new_file) = match persistable_object {
+        let (copied, created_new_file, object_permissions) = match persistable_object {
             #[cfg(test)]
             PersistableObject::EmptyFile => {
                 tokio::fs::OpenOptions::new()
@@ -288,12 +291,20 @@ impl FSHashStore {
                             err,
                         )
                     })?;
-                (0, true)
+                (0, true, None)
             }
             PersistableObject::WorkingFile {
                 working_file,
                 copied,
+                object_permissions,
             } => {
+                tracing::trace!(
+                    ?digest,
+                    ?working_file,
+                    ?copied,
+                    ?object_permissions,
+                    "writing object to hash store"
+                );
                 if let Err(err) = tokio::fs::rename(&working_file, &path).await {
                     let _ = tokio::fs::remove_file(&working_file).await;
                     return Err(Error::StorageWriteError(
@@ -302,7 +313,7 @@ impl FSHashStore {
                         err,
                     ));
                 } else {
-                    (copied, true)
+                    (copied, true, object_permissions)
                 }
             }
         };
@@ -314,16 +325,31 @@ impl FSHashStore {
         // to that payload in a render that expects the file to have a certain
         // permissions.
         if created_new_file {
-            if let Err(_err) = tokio::fs::set_permissions(
+            if let Err(err) = tokio::fs::set_permissions(
                 &path,
-                std::fs::Permissions::from_mode(self.file_permissions),
+                std::fs::Permissions::from_mode(
+                    object_permissions.unwrap_or(self.file_permissions),
+                ),
             )
             .await
             {
+                if object_permissions.is_some() {
+                    // If the caller wanted specific permissions set, then
+                    // make it a hard error if set_permissions failed.
+                    // XXX: At this time, it doesn't lead to misbehavior if
+                    // the permissions aren't changed, but it could cause
+                    // extra disk consumption unnecessarily.
+                    return Err(Error::StorageWriteError(
+                        "set_permissions on object file",
+                        path,
+                        err,
+                    ));
+                }
+
                 // not a good enough reason to fail entirely
                 #[cfg(feature = "sentry")]
                 sentry::capture_event(sentry::protocol::Event {
-                    message: Some(format!("{:?}", _err)),
+                    message: Some(format!("{:?}", err)),
                     level: sentry::protocol::Level::Warning,
                     ..Default::default()
                 });

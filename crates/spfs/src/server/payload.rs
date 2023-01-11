@@ -177,7 +177,15 @@ async fn handle_uncompressed_upload(
     // blob, but this payload http server is part of a larger repository
     // and does not intend to be responsible for ensuring the integrity
     // of the object graph - only the up/down of payload data
-    let result = unsafe { repo.write_data(reader).await };
+    let result = unsafe {
+        repo.write_data(
+            reader,
+            // XXX: This does not honor object_permissions but that may be
+            // desired in rpc server context anyway.
+            None,
+        )
+        .await
+    };
     let (digest, size) = result.map_err(|err| {
         crate::Error::String(format!(
             "An error occurred while spawning a thread for this operation: {err:?}"
