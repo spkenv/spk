@@ -525,12 +525,12 @@ enum SentryWarning {
 
 /// Trait for making a string with the appropriate pluralisation based on a count
 trait Pluralize {
-    fn pluralize(&self, count: u64) -> String;
+    fn pluralize<T: From<u8> + PartialOrd>(&self, count: T) -> String;
 }
 
 impl Pluralize for str {
-    fn pluralize(&self, count: u64) -> String {
-        if count > 1 {
+    fn pluralize<T: From<u8> + PartialOrd>(&self, count: T) -> String {
+        if count > 1.into() {
             format!("{self}s")
         } else {
             self.to_string()
@@ -855,9 +855,9 @@ impl DecisionFormatter {
 
         // Show numbers of incompatible versions and builds from the solver
         let num_vers = solver.get_number_of_incompatible_versions();
-        let versions = "version".pluralize(num_vers as u64);
+        let versions = "version".pluralize(num_vers);
         let num_builds = solver.get_number_of_incompatible_builds();
-        let mut builds = "build".pluralize(num_builds as u64);
+        let mut builds = "build".pluralize(num_builds);
         let _ =
             writeln!(out,
             " Solver skipped {num_vers} incompatible {versions} (total of {num_builds} {builds})",
@@ -872,7 +872,7 @@ impl DecisionFormatter {
 
         // Show the number of package builds considered in total
         let total_builds = solver.get_total_builds();
-        builds = "build".pluralize(total_builds as u64);
+        builds = "build".pluralize(total_builds);
         let _ = writeln!(
             out,
             " Solver considered {total_builds} package {builds} in total, at {:.3} builds/sec",
@@ -881,7 +881,7 @@ impl DecisionFormatter {
 
         // Grab number of steps from the solver
         let num_steps = solver.get_number_of_steps();
-        let mut steps = "step".pluralize(num_steps as u64);
+        let mut steps = "step".pluralize(num_steps);
         let _ = writeln!(out, " Solver took {num_steps} {steps} (resolves)");
 
         // Show the number of steps back from the solver
