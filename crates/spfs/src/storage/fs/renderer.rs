@@ -298,7 +298,19 @@ impl FSRepository {
         pull_from: Option<&storage::RepositoryHandle>,
     ) -> Result<()> {
         if entry.is_symlink() {
-            let (mut reader, filename) = self.open_payload(entry.object).await?;
+            let (mut reader, filename) = loop {
+                match self.open_payload(entry.object).await {
+                    Ok(payload) => break payload,
+                    Err(err @ Error::ObjectMissingPayload(_, _)) => {
+                        if self.repair_missing_payload(entry, pull_from).await {
+                            continue;
+                        } else {
+                            return Err(err);
+                        }
+                    }
+                    Err(err) => return Err(err),
+                };
+            };
             let mut target = String::new();
             reader.read_to_string(&mut target).await.map_err(|err| {
                 Error::StorageReadError("read_to_string on render blob", filename, err)
