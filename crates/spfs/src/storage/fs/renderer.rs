@@ -245,6 +245,51 @@ impl FSRepository {
         Ok(())
     }
 
+    /// Attempt to repair a missing payload by pulling it from the given
+    /// remote repository.
+    ///
+    /// Return true if the payload was successfully repaired.
+    async fn repair_missing_payload(
+        &self,
+        entry: &tracking::Entry,
+        pull_from: Option<&storage::RepositoryHandle>,
+    ) -> bool {
+        if let Some(pull_from) = pull_from {
+            let dest_repo = self.clone().into();
+
+            let syncer = crate::Syncer::new(pull_from, &dest_repo)
+                .with_policy(crate::sync::SyncPolicy::ResyncEverything)
+                .with_reporter(
+                    // There is already a progress bar in use in this context,
+                    // so don't make another one here.
+                    crate::sync::SilentSyncReporter::default(),
+                );
+            match syncer.sync_digest(entry.object).await {
+                Ok(_) => {
+                    tracing::info!(
+                        "Repaired a missing payload! {digest}",
+                        digest = entry.object
+                    );
+                    #[cfg(feature = "sentry")]
+                    tracing::error!(target: "sentry", object = %entry.object, "Repaired a missing payload!");
+                    return true;
+                }
+                Err(err) => {
+                    tracing::warn!("Could not repair a missing payload: {err}");
+                    #[cfg(feature = "sentry")]
+                    tracing::error!(
+                        target: "sentry",
+                        object = %entry.object,
+                        ?err,
+                        "Could not repair a missing payload"
+                    );
+                }
+            }
+        }
+
+        false
+    }
+
     async fn render_blob<P: AsRef<Path>>(
         &self,
         rendered_path: P,
@@ -319,54 +364,17 @@ impl FSRepository {
                                     std::io::ErrorKind::NotFound
                                         if matches!(payload_path.try_exists(), Ok(false)) =>
                                     {
-                                        // The payload is missing. Attempt to
-                                        // repair the missing payload.
-                                        if let Some(pull_from) = pull_from {
-                                            let dest_repo = self.clone().into();
-
-                                            let syncer = crate::Syncer::new(pull_from, &dest_repo)
-                                                .with_policy(
-                                                    crate::sync::SyncPolicy::ResyncEverything,
-                                                )
-                                                .with_reporter(
-                                                    // There is already a
-                                                    // progress bar in use in
-                                                    // this context, so don't
-                                                    // make another one here.
-                                                    crate::sync::SilentSyncReporter::default(),
-                                                );
-                                            match syncer.sync_digest(entry.object).await {
-                                                Ok(_) => {
-                                                    tracing::info!(
-                                                        "Repaired a missing payload! {digest}",
-                                                        digest = entry.object
-                                                    );
-                                                    #[cfg(feature = "sentry")]
-                                                    tracing::error!(target: "sentry", object = %entry.object, "Repaired a missing payload!");
-                                                    continue;
-                                                }
-                                                Err(err) => {
-                                                    tracing::warn!(
-                                                        "Could not repair a missing payload: {err}"
-                                                    );
-                                                    #[cfg(feature = "sentry")]
-                                                    tracing::error!(
-                                                        target: "sentry",
-                                                        object = %entry.object,
-                                                        ?err,
-                                                        "Could not repair a missing payload"
-                                                    );
-                                                }
-                                            }
-                                        }
-
-                                        return Err(Error::ObjectMissingPayload(
-                                            graph::Object::Blob(graph::Blob::new(
+                                        if self.repair_missing_payload(entry, pull_from).await {
+                                            continue;
+                                        } else {
+                                            return Err(Error::ObjectMissingPayload(
+                                                graph::Object::Blob(graph::Blob::new(
+                                                    entry.object,
+                                                    entry.size,
+                                                )),
                                                 entry.object,
-                                                entry.size,
-                                            )),
-                                            entry.object,
-                                        ));
+                                            ));
+                                        }
                                     }
                                     _ => {
                                         return Err(Error::StorageWriteError(
