@@ -374,7 +374,10 @@ pub enum RequestedBy {
     /// For a request made during spk's automated (unit) test code
     SpkInternalTest,
     /// A package build that made the request, usually during a solve
-    PackageBuild(VersionIdent),
+    PackageBuild(BuildIdent),
+    /// A package version/recipe that made the request as part of
+    /// building from source during a solve
+    PackageVersion(VersionIdent),
 }
 
 impl std::fmt::Display for RequestedBy {
@@ -393,6 +396,7 @@ impl std::fmt::Display for RequestedBy {
             RequestedBy::NoState => write!(f, "no state? this should not happen?"),
             RequestedBy::SpkInternalTest => write!(f, "spk's test suite"),
             RequestedBy::PackageBuild(ident) => write!(f, "{ident}"),
+            RequestedBy::PackageVersion(ident) => write!(f, "{ident} recipe"),
         }
     }
 }
