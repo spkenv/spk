@@ -149,6 +149,8 @@ class PipImporter:
                 "pip",
                 "download",
                 f"{name}{version}",
+                "--python-version",
+                self._python_version,
                 "--abi",
                 self._python_abi,
                 "--no-deps",
