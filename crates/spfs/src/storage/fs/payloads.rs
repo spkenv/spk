@@ -8,6 +8,7 @@ use std::pin::Pin;
 use futures::Stream;
 
 use super::FSRepository;
+use crate::storage::BlobStorage;
 use crate::{encoding, Error, Result};
 
 #[async_trait::async_trait]
@@ -34,7 +35,14 @@ impl crate::storage::PayloadStorage for FSRepository {
         match tokio::fs::File::open(&path).await {
             Ok(file) => Ok((Box::pin(tokio::io::BufReader::new(file)), path)),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Err(Error::UnknownObject(digest)),
+                ErrorKind::NotFound => {
+                    // Return an error specific to this situation, whether the
+                    // blob is really unknown or just the payload is missing.
+                    match self.read_blob(digest).await {
+                        Ok(blob) => Err(Error::ObjectMissingPayload(blob.into(), digest)),
+                        Err(_) => Err(Error::UnknownObject(digest)),
+                    }
+                }
                 _ => Err(Error::StorageReadError("open on payload", path, err)),
             },
         }

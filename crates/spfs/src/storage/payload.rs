@@ -6,6 +6,7 @@ use std::pin::Pin;
 
 use futures::Stream;
 
+use super::BlobStorage;
 use crate::{encoding, Result};
 
 #[cfg(test)]
@@ -14,7 +15,7 @@ mod payload_test;
 
 /// Stores arbitrary binary data payloads using their content digest.
 #[async_trait::async_trait]
-pub trait PayloadStorage: Sync + Send {
+pub trait PayloadStorage: BlobStorage + Sync + Send {
     /// Iterate all the payloads in this storage.
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
 
