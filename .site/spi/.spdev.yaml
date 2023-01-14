@@ -52,7 +52,7 @@ components:
         -v $PWD/.site/spi:/site
         -v $PWD/crates/spfs/tests/integration:/tests
         $CENTOS_IMAGE
-        bash -xc "yum install -y tcsh /tmp/rpms/*.rpm && /site/run_integration_tests.sh"
+        bash -xc "yum install -y sudo tcsh /tmp/rpms/*.rpm && /site/run_integration_tests.sh"
     ci_config:
       parallel: true
       needs:

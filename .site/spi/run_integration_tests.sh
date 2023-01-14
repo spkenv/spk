@@ -14,3 +14,5 @@ export SPFS_REMOTE_origin_ADDRESS="file://${ORIGIN_REPO}"
 # Run tests as a normal user to verify privilege escalation
 useradd -m e2e
 su e2e -c /tests/run_tests.sh
+# Run tests that need root
+tests/run_privileged_tests.sh
