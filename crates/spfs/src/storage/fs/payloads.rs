@@ -22,7 +22,13 @@ impl crate::storage::PayloadStorage for FSRepository {
         reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
         object_permissions: Option<u32>,
     ) -> Result<(encoding::Digest, u64)> {
-        self.payloads.write_data(reader, object_permissions).await
+        // Enforce that payload files are always written with all read bits
+        // enabled so if multiple users are sharing the same repo they don't
+        // run into permissions errors reading payloads written by other
+        // users.
+        self.payloads
+            .write_data(reader, object_permissions.map(|mode| mode | 0o444))
+            .await
     }
 
     async fn open_payload(
