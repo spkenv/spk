@@ -563,15 +563,38 @@ impl DecisionFormatter {
     }
 
     /// Run the solver to completion, printing each step to stdout
-    /// as appropriate given a verbosity level.
+    /// as appropriate.
     pub async fn run_and_print_resolve(&self, solver: &Solver) -> Result<Solution> {
         let mut runtime = solver.run();
         self.run_and_print_decisions(&mut runtime).await
     }
 
     /// Run the solver runtime to completion, printing each step to stdout
-    /// as appropriate given a verbosity level.
+    /// as appropriate.
     pub async fn run_and_print_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
+        self.run_and_format_decisions(runtime, |args| println!("{args}"))
+            .await
+    }
+
+    /// Run the solver to completion, logging each step as a
+    /// tracing info-level event as appropriate.
+    pub async fn run_and_log_resolve(&self, solver: &Solver) -> Result<Solution> {
+        let mut runtime = solver.run();
+        self.run_and_log_decisions(&mut runtime).await
+    }
+
+    /// Run the solver runtime to completion, logging each step as a
+    /// tracing info-level event as appropriate.
+    pub async fn run_and_log_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
+        self.run_and_format_decisions(runtime, |args| tracing::info!("{args}"))
+            .await
+    }
+
+    pub async fn run_and_format_decisions(
+        &self,
+        runtime: &mut SolverRuntime,
+        log_fn: impl Fn(std::fmt::Arguments),
+    ) -> Result<Solution> {
         enum LoopOutcome {
             Interrupted(String),
             Failed(Box<Error>),
@@ -590,7 +613,7 @@ impl DecisionFormatter {
             'outer: loop {
                 while let Some(line) = iter.next().await {
                     match line {
-                        Ok(message) => println!("{message}"),
+                        Ok(message) => log_fn(format_args!("{message}")),
                         Err(e) => {
                             match e {
                                 Error::SolverInterrupted(mesg) => {
@@ -625,8 +648,11 @@ impl DecisionFormatter {
                     },
                 );
 
-                eprintln!("{}", mesg.yellow());
-                eprintln!("{}", self.format_solve_stats(&runtime.solver, solve_time));
+                log_fn(format_args!("{}", mesg.yellow()));
+                log_fn(format_args!(
+                    "{}",
+                    self.format_solve_stats(&runtime.solver, solve_time)
+                ));
                 return Err(Error::SolverInterrupted(mesg));
             }
             LoopOutcome::Failed(e) => {
@@ -655,18 +681,21 @@ impl DecisionFormatter {
         // Note: this time includes the output time because the solver is
         // run in the iterator in the format_decisions_iter() loop above
         if self.settings.report_time {
-            println!("{}", self.format_solve_stats(&runtime.solver, solve_time));
+            log_fn(format_args!(
+                "{}",
+                self.format_solve_stats(&runtime.solver, solve_time)
+            ));
         }
 
         let solution = runtime.current_solution().await;
 
         if self.settings.show_solution {
             if let Ok(ref s) = solution {
-                println!(
+                log_fn(format_args!(
                     "{}{}",
                     self.settings.heading_prefix,
                     s.format_solution(self.settings.verbosity)
-                );
+                ));
             }
         }
 

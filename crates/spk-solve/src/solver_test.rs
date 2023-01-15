@@ -111,11 +111,20 @@ macro_rules! assert_not_resolved {
     }};
 }
 
-// Helper that wraps common solver_test boiler plate
+/// Runs the given solver, printing the output with reasonable output settings
+/// for unit test debugging and inspection.
 async fn run_and_print_resolve_for_tests(solver: &Solver) -> Result<super::Solution> {
     let formatter = DecisionFormatterBuilder::new().with_verbosity(100).build();
 
     formatter.run_and_print_resolve(solver).await
+}
+
+/// Runs the given solver, logging the output with reasonable output settings
+/// for unit test debugging and inspection.
+async fn run_and_log_resolve_for_tests(solver: &Solver) -> Result<super::Solution> {
+    let formatter = DecisionFormatterBuilder::new().with_verbosity(100).build();
+
+    formatter.run_and_log_resolve(solver).await
 }
 
 #[rstest]
@@ -731,24 +740,20 @@ async fn test_solver_build_from_source(mut solver: Solver) {
     assert!(res.is_err());
 }
 
-// Skipping this test until https://github.com/imageworks/spk/pull/614
-#[ignore]
 #[rstest]
 #[tokio::test]
 async fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
-    init_logging();
+    let log = init_logging();
     // test when no appropriate build exists but the source is available
     // - if the requested pkg cannot resolve a build environment
     // - this is flagged by the solver as impossible
 
     let gcc48 = make_build!({"pkg": "gcc/4.8"});
-    let build_with_48 = make_build!(
-        {
-            "pkg": "my-tool/1.2.0",
-            "build": {"options": [{"pkg": "gcc"}], "script": "echo BUILD"},
-        },
-        [gcc48]
-    );
+    let recipe = spk_schema::recipe!({
+        "pkg": "my-tool/1.2.0",
+        "build": {"options": [{"pkg": "gcc"}], "script": "echo BUILD"},
+    });
+    let build_with_48 = make_build!(recipe, [gcc48]);
     let repo = make_repo!(
         [
             gcc48,
@@ -760,15 +765,37 @@ async fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
         ],
         options={"gcc"=>"4.8"}
     );
+    // the macro adds a recipe for the source package, but we want
+    // to have the actual recipe that can generate a valid build with
+    // more than just a src component
+    // TODO: why is this the case, can we avoid this in the macro?
+    repo.remove_recipe(recipe.ident()).await.ok();
+    repo.publish_recipe(&recipe).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
     // the new option value should disqualify the existing build
     // and there is no 6.3 that can be resolved for this request
     solver.add_request(request!({"var": "gcc/6.3"}));
-    solver.add_request(request!("my-tool"));
+    solver.add_request(request!("my-tool:run"));
 
-    let res = run_and_print_resolve_for_tests(&solver).await;
-    assert!(res.is_err());
+    let res = run_and_log_resolve_for_tests(&solver).await;
+
+    assert!(res.is_err(), "should fail to resolve");
+    let log = log.lock();
+    let event = log.all_events().find(|e| {
+        let Some(msg) = e.message() else {
+            return false;
+        };
+        let Ok(msg) = strip_ansi_escapes::strip(msg) else {
+            return false;
+        };
+        let msg = String::from_utf8_lossy(&msg);
+        msg.ends_with("TRY my-tool/1.2.0/src - cannot resolve build env: Failed to resolve")
+    });
+    assert!(
+        event.is_some(),
+        "should block because of failed build env resolve"
+    );
 }
 
 #[rstest]

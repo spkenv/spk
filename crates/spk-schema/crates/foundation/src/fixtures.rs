@@ -3,14 +3,26 @@
 // https://github.com/imageworks/spk
 
 use rstest::fixture;
+use tracing_capture::{CaptureLayer, SharedStorage};
+use tracing_subscriber::prelude::*;
 
-pub fn init_logging() {
+lazy_static::lazy_static! {
+    static ref TRACING_STORAGE: SharedStorage = SharedStorage::default();
+}
+
+/// Initialize tracing logs for testing.
+///
+/// Returns a shared storage instance for checking
+/// events and spans that were logged
+pub fn init_logging() -> &'static SharedStorage {
     let sub = tracing_subscriber::FmtSubscriber::builder()
         .with_max_level(tracing::Level::TRACE)
         .without_time()
         .with_test_writer()
-        .finish();
+        .finish()
+        .with(CaptureLayer::new(&TRACING_STORAGE));
     let _ = tracing::subscriber::set_global_default(sub);
+    &TRACING_STORAGE
 }
 
 #[fixture]
