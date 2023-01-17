@@ -547,6 +547,21 @@ impl Pluralize for str {
     }
 }
 
+#[derive(Copy, Clone)]
+enum OutputKind {
+    Println,
+    Tracing,
+}
+
+impl OutputKind {
+    fn output_message(&self, message: String) {
+        match self {
+            OutputKind::Println => println!("{message}"),
+            OutputKind::Tracing => tracing::info!("{message}"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct DecisionFormatterSettings {
     pub(crate) verbosity: u32,
@@ -625,30 +640,49 @@ impl DecisionFormatter {
         }
     }
 
-    /// Run the solver to completion, printing each step to stdout
-    /// as appropriate.
+    /// Run the solver to completion, printing each step to stdout as
+    /// appropriate. This runs two solvers in parallel (one based on
+    /// the given solver, one with additional options) and takes the
+    /// result from the first to finish.
     pub async fn run_and_print_resolve(&self, solver: &Solver) -> Result<Solution> {
-        // Even if running multiple solvers is enabled, there's no point in
-        // running them if all the impossible checks are all already enabled.
-
-        // if self.settings.multi_solve && !solver.all_impossible_checks_enabled() {
-        //     let solvers = self.setup_solvers(solver);
-        //     self.run_multi_solve(solvers, |args| println!("{args}"))
-        //         .await
-        // } else {
-        //     let mut runtime = solver.run();
-        //     let start = Instant::now();
-        //     let loop_outcome = self
-        //         .run_solver_loop(&mut runtime, |args| println!("{args}"))
-        //         .await;
-        //     self.check_and_output_solver_results(loop_outcome, &start, &mut runtime, |args| {
-        //         println!("{args}")
-        //     })
-        //     .await
-        // }
-
         let solvers = self.setup_solvers(solver);
-        self.run_multi_solve(solvers, |args| println!("{args}"))
+        self.run_multi_solve(solvers, OutputKind::Println).await
+    }
+
+    /// Run the solver runtime to completion, printing each step to
+    /// stdout as appropriate. This does run multiple solver and won't
+    /// benefit from running solvers in parallell/
+    pub async fn run_and_print_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
+        // Note: this is only used directly by cmd_view/info when it
+        // runs a solve. Once 'spk info' no longer runs a solve we may
+        // be able to remove this method.
+        let start = Instant::now();
+        let output_to = OutputKind::Println;
+        let loop_outcome = self.run_solver_loop(runtime, output_to).await;
+        self.check_and_output_solver_results(loop_outcome, &start, runtime, output_to)
+            .await
+    }
+
+    /// Run the solver to completion, logging each step as a tracing
+    /// info-level event as appropriate. This runs two solvers in
+    /// parallel (one based on the given solver, one with additional
+    /// options) and takes the result from the first to finish.
+    pub async fn run_and_log_resolve(&self, solver: &Solver) -> Result<Solution> {
+        let solvers = self.setup_solvers(solver);
+        self.run_multi_solve(solvers, OutputKind::Tracing).await
+    }
+
+    /// Run the solver runtime to completion, logging each step as a
+    /// tracing info-level event as appropriate. This does run
+    /// multiple solver and won't benefit from running solvers in
+    /// parallell.
+    pub async fn run_and_log_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
+        // Note: this is not currently used directly. We may be able
+        // to remove this method.
+        let start = Instant::now();
+        let output_to = OutputKind::Tracing;
+        let loop_outcome = self.run_solver_loop(runtime, output_to).await;
+        self.check_and_output_solver_results(loop_outcome, &start, runtime, output_to)
             .await
     }
 
@@ -679,7 +713,7 @@ impl DecisionFormatter {
     fn launch_solver_tasks(
         &self,
         solvers: Vec<SolverTaskSettings>,
-        log_fn: impl Fn(std::fmt::Arguments) + Send + Sync,
+        output_location: OutputKind,
     ) -> FuturesUnordered<tokio::task::JoinHandle<SolverTaskDone>> {
         let tasks = FuturesUnordered::new();
 
@@ -696,12 +730,11 @@ impl DecisionFormatter {
                 task_formatter.settings.status_bar = false;
             }
             let mut task_solver_runtime = solver_settings.solver.run();
-            let task_log_fn = |args| log_fn(args);
 
             let task = async move {
                 let start = Instant::now();
                 let loop_outcome = task_formatter
-                    .run_solver_loop(&mut task_solver_runtime, task_log_fn)
+                    .run_solver_loop(&mut task_solver_runtime, output_location)
                     .await;
 
                 SolverTaskDone {
@@ -723,9 +756,9 @@ impl DecisionFormatter {
     async fn run_multi_solve(
         &self,
         solvers: Vec<SolverTaskSettings>,
-        log_fn: impl Fn(std::fmt::Arguments) + Send + Sync,
+        output_location: OutputKind,
     ) -> Result<Solution> {
-        let mut tasks = self.launch_solver_tasks(solvers, |args| log_fn(args));
+        let mut tasks = self.launch_solver_tasks(solvers, output_location);
 
         while let Some(result) = tasks.next().await {
             match result {
@@ -754,16 +787,27 @@ impl DecisionFormatter {
                         task.abort();
                     }
 
+                    let ending = if let LoopOutcome::Interrupted(_) = loop_outcome {
+                        "was interrupted"
+                    } else {
+                        "found a solution"
+                    };
+
                     tracing::debug!(
-                        "{solver_kind} solver found a solution. Stopped remaining solver tasks."
+                        "{solver_kind} solver {ending}. Stopped remaining solver tasks.",
                     );
 
                     let result = self
-                        .check_and_output_solver_results(loop_outcome, &start, &mut runtime, log_fn)
+                        .check_and_output_solver_results(
+                            loop_outcome,
+                            &start,
+                            &mut runtime,
+                            output_location,
+                        )
                         .await;
 
                     if self.settings.verbosity > 0 && verbosity == 0 {
-                        tracing::info!("The {solver_kind} solver found the solution but its output was disabled. To see its output, rerun the spk command with '--solver-output-from'");
+                        tracing::info!("The {solver_kind} solver {ending}, but its output was disabled. To see its output, rerun the spk command with '--solver-output-from'" );
                     }
 
                     return result;
@@ -781,7 +825,7 @@ impl DecisionFormatter {
     async fn run_solver_loop(
         &self,
         runtime: &mut SolverRuntime,
-        log_fn: impl Fn(std::fmt::Arguments),
+        output_location: OutputKind,
     ) -> LoopOutcome {
         // This block exists to shorten the scope of `runtime`'s borrow.
         let loop_outcome = {
@@ -793,7 +837,7 @@ impl DecisionFormatter {
             'outer: loop {
                 while let Some(line) = iter.next().await {
                     match line {
-                        Ok(message) => log_fn(format_args!("{message}")),
+                        Ok(message) => output_location.output_message(message),
                         Err(e) => {
                             match e {
                                 Error::SolverInterrupted(mesg) => {
@@ -817,7 +861,7 @@ impl DecisionFormatter {
         loop_outcome: LoopOutcome,
         start: &Instant,
         runtime: &mut SolverRuntime,
-        log_fn: impl Fn(std::fmt::Arguments),
+        output_location: OutputKind,
     ) -> Result<Solution> {
         match loop_outcome {
             LoopOutcome::Interrupted(mesg) => {
@@ -838,11 +882,9 @@ impl DecisionFormatter {
                     },
                 );
 
-                log_fn(format_args!("{}", mesg.yellow()));
-                log_fn(format_args!(
-                    "{}",
-                    self.format_solve_stats(&runtime.solver, solve_time)
-                ));
+                output_location.output_message(format!("{}", mesg.yellow()));
+                output_location
+                    .output_message(self.format_solve_stats(&runtime.solver, solve_time));
                 return Err(Error::SolverInterrupted(mesg));
             }
             LoopOutcome::Failed(e) => {
@@ -876,17 +918,14 @@ impl DecisionFormatter {
         // Note: this time includes the output time because the solver is
         // run in the iterator in the format_decisions_iter() loop above
         if self.settings.report_time {
-            log_fn(format_args!(
-                "{}",
-                self.format_solve_stats(&runtime.solver, solve_time)
-            ));
+            output_location.output_message(self.format_solve_stats(&runtime.solver, solve_time));
         }
 
         let solution = runtime.current_solution().await;
 
         if self.settings.show_solution {
             if let Ok(ref s) = solution {
-                log_fn(format_args!(
+                output_location.output_message(format!(
                     "{}{}",
                     self.settings.heading_prefix,
                     s.format_solution(self.settings.verbosity)
@@ -895,44 +934,6 @@ impl DecisionFormatter {
         }
 
         solution
-    }
-
-    /// Run the solver runtime to completion, printing each step to stdout
-    /// as appropriate given a verbosity level.
-    pub async fn run_and_print_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
-        // Note: this is only used directly by cmd_view/info when it runs
-        // a solve. Once 'spk info' no longer runs a solve we should be
-        // able to remove this whole function.
-        let start = Instant::now();
-
-        let loop_outcome = self
-            .run_solver_loop(runtime, |args| println!("{args}"))
-            .await;
-        self.check_and_output_solver_results(loop_outcome, &start, runtime, |args| {
-            println!("{args}")
-        })
-        .await
-    }
-
-    /// Run the solver to completion, logging each step as a
-    /// tracing info-level event as appropriate.
-    pub async fn run_and_log_resolve(&self, solver: &Solver) -> Result<Solution> {
-        let mut runtime = solver.run();
-        self.run_and_log_decisions(&mut runtime).await
-    }
-
-    /// Run the solver runtime to completion, logging each step as a
-    /// tracing info-level event as appropriate.
-    pub async fn run_and_log_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
-        let start = Instant::now();
-
-        let loop_outcome = self
-            .run_solver_loop(runtime, |args| tracing::info!("{args}"))
-            .await;
-        self.check_and_output_solver_results(loop_outcome, &start, runtime, |args| {
-            tracing::info!("{args}")
-        })
-        .await
     }
 
     #[cfg(feature = "sentry")]
@@ -1286,6 +1287,8 @@ impl DecisionFormatter {
     }
 }
 
+// Note: places calling this will not benefit from running multiple
+// solvers in parallel.
 #[async_trait::async_trait]
 impl ResolverCallback for &DecisionFormatter {
     async fn solve<'s, 'a: 's>(&'s self, r: &'a mut SolverRuntime) -> Result<Solution> {
@@ -1293,6 +1296,8 @@ impl ResolverCallback for &DecisionFormatter {
     }
 }
 
+// Note: places calling this will not benefit from running multiple
+// solvers in parallel.
 #[async_trait::async_trait]
 impl ResolverCallback for DecisionFormatter {
     async fn solve<'s, 'a: 's>(&'s self, r: &'a mut SolverRuntime) -> Result<Solution> {

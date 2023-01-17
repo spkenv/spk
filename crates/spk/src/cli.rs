@@ -61,8 +61,8 @@ impl Opt {
                 Some(Error::SpkSolverError(spk_solve::Error::SolverInterrupted(_))) => {
                     // SolverInterrupted errors are not sent to sentry
                     // here. A message has already been sent to sentry
-                    // from io::Decision::Formatter::run_and_print_decisions()
-                    // before it returns these errors.
+                    // from io::Decision::Formatter before it returns
+                    // these errors.
                 }
                 _ => {
                     // Send all other errors that reach this level to sentry
