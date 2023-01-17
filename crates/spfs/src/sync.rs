@@ -384,7 +384,11 @@ where
             // which should also must be visited at least once if needed
             return Ok(SyncBlobResult::Duplicate);
         }
-        if self.policy.check_existing_objects() && self.dest.has_blob(digest).await {
+
+        if self.policy.check_existing_objects()
+            && self.dest.has_blob(digest).await
+            && self.dest.has_payload(blob.payload).await
+        {
             return Ok(SyncBlobResult::Skipped);
         }
         self.reporter.visit_blob(&blob);
@@ -405,10 +409,12 @@ where
     /// as any payload should be synced alongside its
     /// corresponding Blob instance - use [`Self::sync_blob`] instead
     async unsafe fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
-        if !self.processed_digests.write().await.insert(digest) {
+        if self.processed_digests.write().await.contains(&digest) {
             return Ok(SyncPayloadResult::Duplicate);
         }
+
         if self.policy.check_existing_payloads() && self.dest.has_payload(digest).await {
+            self.processed_digests.write().await.insert(digest);
             return Ok(SyncPayloadResult::Skipped);
         }
 
@@ -424,11 +430,13 @@ where
         let (created_digest, size) = unsafe { self.dest.write_data(payload).await? };
         if digest != created_digest {
             return Err(Error::String(format!(
-                "Source repository provided payload that did not match the requested digest: wanted {digest}, got {created_digest}",
+                "Source repository provided payload that did not match the requested digest: wanted {digest}, got {created_digest}. wrote {size} bytes",
             )));
         }
+
         let res = SyncPayloadResult::Synced { size };
         self.reporter.synced_payload(&res);
+        self.processed_digests.write().await.insert(digest);
         Ok(res)
     }
 
