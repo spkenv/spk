@@ -378,6 +378,12 @@ where
     }
 
     pub async fn sync_blob(&self, blob: graph::Blob) -> Result<SyncBlobResult> {
+        let _permit = self.payload_semaphore.acquire().await;
+        debug_assert!(
+            matches!(_permit, Ok(_)),
+            "We never close the semaphore and so should never see errors"
+        );
+
         let digest = blob.digest();
         if self.processed_digests.read().await.contains(&digest) {
             // do not insert here because blobs share a digest with payloads
@@ -413,11 +419,6 @@ where
         }
 
         self.reporter.visit_payload(digest);
-        let _permit = self.payload_semaphore.acquire().await;
-        debug_assert!(
-            matches!(_permit, Ok(_)),
-            "We never close the semaphore and so should never see errors"
-        );
         let (payload, _) = self.src.open_payload(digest).await?;
         // Safety: this is the unsafe part where we actually create
         // the payload without a corresponsing blob
