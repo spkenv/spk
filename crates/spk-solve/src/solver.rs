@@ -358,7 +358,7 @@ impl Solver {
                 return Err(Error::OutOfOptions(OutOfOptions {
                     request: PkgRequest::new(
                         missing_embed_provider.clone().into(),
-                        RequestedBy::PackageBuild(unprovided_embedded.base().clone()),
+                        RequestedBy::PackageBuild(unprovided_embedded.clone()),
                     ),
                     notes,
                 }));

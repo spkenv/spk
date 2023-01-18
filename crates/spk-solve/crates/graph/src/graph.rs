@@ -142,7 +142,7 @@ impl FormatChange for Change {
                                 // display what requested them.
                                 match &c.source {
                                     PackageSource::BuildFromSource { recipe } => {
-                                        vec![RequestedBy::PackageBuild(recipe.ident().clone())
+                                        vec![RequestedBy::PackageVersion(recipe.ident().clone())
                                             .to_string()]
                                     }
                                     PackageSource::Embedded => {
@@ -257,7 +257,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 Arc::clone(recipe),
             )))];
 
-            let requested_by = RequestedBy::PackageBuild(spec.ident().base().clone());
+            let requested_by = RequestedBy::PackageBuild(spec.ident().clone());
             changes
                 .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
             changes.extend(self.components_to_changes(spec.components(), &requested_by));
@@ -280,7 +280,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 source,
             )))];
 
-            let requested_by = RequestedBy::PackageBuild(spec.ident().base().clone());
+            let requested_by = RequestedBy::PackageBuild(spec.ident().clone());
             changes
                 .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
             changes.extend(self.components_to_changes(spec.components(), &requested_by));
@@ -374,7 +374,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             if !added_components.contains(&component.name) {
                 continue;
             }
-            let requested_by = RequestedBy::PackageBuild(spec.ident().base().clone());
+            let requested_by = RequestedBy::PackageBuild(spec.ident().clone());
             changes.extend(self.requirements_to_changes(&component.requirements, &requested_by));
         }
         changes
