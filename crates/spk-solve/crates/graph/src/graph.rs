@@ -23,6 +23,7 @@ use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRe
 use spk_schema::prelude::*;
 use spk_schema::{
     AnyIdent,
+    BuildIdent,
     ComponentSpecList,
     EmbeddedPackagesList,
     RequirementsList,
@@ -135,18 +136,13 @@ impl FormatChange for Change {
                         Some(s) => match s.get_merged_request(c.spec.name()) {
                             Ok(r) => r.get_requesters().iter().map(ToString::to_string).collect(),
                             Err(_) => {
-                                // This happens with embedded requests
-                                // because they are requested and added in
-                                // the same state. Luckily we can use
-                                // their PackageSource::Spec data to
-                                // display what requested them.
                                 match &c.source {
                                     PackageSource::BuildFromSource { recipe } => {
                                         vec![RequestedBy::PackageVersion(recipe.ident().clone())
                                             .to_string()]
                                     }
                                     PackageSource::Embedded => {
-                                        vec![RequestedBy::Embedded.to_string()]
+                                        vec!["Embedded in unknown package".to_string()]
                                     }
                                     _ => {
                                         // Don't think this should happen
@@ -257,11 +253,12 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 Arc::clone(recipe),
             )))];
 
-            let requested_by = RequestedBy::PackageBuild(spec.ident().clone());
+            let requester_ident: &BuildIdent = spec.ident();
+            let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
             changes
                 .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
-            changes.extend(self.components_to_changes(spec.components(), &requested_by));
-            changes.extend(self.embedded_to_changes(spec.embedded()));
+            changes.extend(self.components_to_changes(spec.components(), requester_ident));
+            changes.extend(self.embedded_to_changes(spec.embedded(), requester_ident));
             changes.push(Self::options_to_change(spec));
 
             Ok(changes)
@@ -280,11 +277,12 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 source,
             )))];
 
-            let requested_by = RequestedBy::PackageBuild(spec.ident().clone());
+            let requester_ident: &BuildIdent = spec.ident();
+            let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
             changes
                 .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
-            changes.extend(self.components_to_changes(spec.components(), &requested_by));
-            changes.extend(self.embedded_to_changes(spec.embedded()));
+            changes.extend(self.components_to_changes(spec.components(), requester_ident));
+            changes.extend(self.embedded_to_changes(spec.embedded(), requester_ident));
             changes.push(Self::options_to_change(spec));
 
             changes
@@ -317,10 +315,12 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
     fn components_to_changes(
         &self,
         components: &ComponentSpecList,
-        requested_by: &RequestedBy,
+        requester: &BuildIdent,
     ) -> Vec<Change> {
         let mut changes = vec![];
         let required = components.resolve_uses(self.components.iter().cloned());
+
+        let requested_by = RequestedBy::PackageBuild(requester.clone());
         for component in components.iter() {
             if !required.contains(&component.name) {
                 // TODO: is this check still necessary? We used to get required
@@ -328,8 +328,8 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 // is buggy now
                 continue;
             }
-            changes.extend(self.requirements_to_changes(&component.requirements, requested_by));
-            changes.extend(self.embedded_to_changes(&component.embedded));
+            changes.extend(self.requirements_to_changes(&component.requirements, &requested_by));
+            changes.extend(self.embedded_to_changes(&component.embedded, requester));
         }
         changes
     }
@@ -380,14 +380,18 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         changes
     }
 
-    fn embedded_to_changes(&self, embedded: &EmbeddedPackagesList) -> Vec<Change> {
+    fn embedded_to_changes(
+        &self,
+        embedded: &EmbeddedPackagesList,
+        parent: &BuildIdent,
+    ) -> Vec<Change> {
         embedded
             .iter()
             .flat_map(|embedded| {
                 [
                     Change::RequestPackage(RequestPackage::new(PkgRequest::from_ident(
                         embedded.ident().to_any(),
-                        RequestedBy::Embedded,
+                        RequestedBy::Embedded(parent.clone()),
                     ))),
                     Change::SetPackage(Box::new(SetPackage::new(
                         Arc::new(embedded.clone()),
