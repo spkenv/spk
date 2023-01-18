@@ -12,7 +12,7 @@ use spk_cli_common::{configure_logging, CommandArgs, Error, Run};
 use spk_cli_group1::{cmd_bake, cmd_deprecate, cmd_undeprecate};
 use spk_cli_group2::{cmd_ls, cmd_new, cmd_num_variants, cmd_publish, cmd_remove};
 use spk_cli_group3::{cmd_export, cmd_import};
-use spk_cli_group4::{cmd_search, cmd_version, cmd_view};
+use spk_cli_group4::{cmd_lint, cmd_search, cmd_version, cmd_view};
 use spk_cmd_build::cmd_build;
 use spk_cmd_convert::cmd_convert;
 use spk_cmd_env::cmd_env;
@@ -122,6 +122,7 @@ pub enum Command {
     Export(cmd_export::Export),
     Import(cmd_import::Import),
     Install(cmd_install::Install),
+    Lint(cmd_lint::Lint),
     Ls(cmd_ls::Ls),
     MakeBinary(cmd_make_binary::MakeBinary),
     MakeSource(cmd_make_source::MakeSource),
@@ -155,6 +156,7 @@ impl Run for Command {
             Command::Export(cmd) => cmd.run().await,
             Command::Import(cmd) => cmd.run().await,
             Command::Install(cmd) => cmd.run().await,
+            Command::Lint(cmd) => cmd.run().await,
             Command::Ls(cmd) => cmd.run().await,
             Command::MakeBinary(cmd) => cmd.run().await,
             Command::MakeSource(cmd) => cmd.run().await,
@@ -185,6 +187,7 @@ impl CommandArgs for Command {
             Command::Export(cmd) => cmd.get_positional_args(),
             Command::Import(cmd) => cmd.get_positional_args(),
             Command::Install(cmd) => cmd.get_positional_args(),
+            Command::Lint(cmd) => cmd.get_positional_args(),
             Command::Ls(cmd) => cmd.get_positional_args(),
             Command::MakeBinary(cmd) => cmd.get_positional_args(),
             Command::MakeSource(cmd) => cmd.get_positional_args(),

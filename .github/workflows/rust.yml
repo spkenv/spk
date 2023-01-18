@@ -44,6 +44,11 @@ jobs:
         run: make test
       - name: Lint
         run: make lint
+      - name: Lint Package Specs
+        run: |
+          cargo build --bin spk
+          export PATH="$PWD/target/debug:$PATH"
+          make packages.lint
       - name: SPFS Integration Tests
         run: |
           # Run tests as a normal user to verify privilege escalation

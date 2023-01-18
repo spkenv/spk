@@ -4,6 +4,7 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
+pub mod cmd_lint;
 pub mod cmd_search;
 pub mod cmd_version;
 pub mod cmd_view;
