@@ -14,7 +14,6 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::{AnyIdent, Recipe, SpecRecipe};
-use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_storage::{self as storage};
@@ -31,7 +30,6 @@ pub struct PackageBuildTester<'a> {
     source: BuildSource,
     source_resolver: BoxedResolverCallback<'a>,
     build_resolver: BoxedResolverCallback<'a>,
-    last_solve_graph: Arc<tokio::sync::RwLock<Graph>>,
 }
 
 impl<'a> PackageBuildTester<'a> {
@@ -47,7 +45,6 @@ impl<'a> PackageBuildTester<'a> {
             source,
             source_resolver: Box::new(DefaultResolver {}),
             build_resolver: Box::new(DefaultResolver {}),
-            last_solve_graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
         }
     }
 
@@ -127,10 +124,8 @@ impl<'a> PackageBuildTester<'a> {
         for request in self.additional_requirements.drain(..) {
             solver.add_request(request)
         }
-        let mut runtime = solver.run();
-        let solution = self.build_resolver.solve(&mut runtime).await;
-        self.last_solve_graph = runtime.graph();
-        let solution = solution?;
+
+        let (solution, _) = self.build_resolver.solve(&solver).await?;
 
         for layer in resolve_runtime_layers(&solution).await? {
             rt.push_digest(layer);
@@ -177,10 +172,8 @@ impl<'a> PackageBuildTester<'a> {
 
         solver.add_request(request.into());
 
-        let mut runtime = solver.run();
-        let solution = self.source_resolver.solve(&mut runtime).await;
-        self.last_solve_graph = runtime.graph();
-        Ok(solution?)
+        let (solution, _) = self.source_resolver.solve(&solver).await?;
+        Ok(solution)
     }
 }
 

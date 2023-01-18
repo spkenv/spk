@@ -67,9 +67,9 @@ impl Run for View {
 
         let formatter = self.formatter_settings.get_formatter(self.verbose);
 
-        let solution = formatter.run_and_print_decisions(&mut runtime).await;
-        let solution = match solution {
-            Ok(s) => s,
+        let result = formatter.run_and_print_decisions(&mut runtime).await;
+        let solution = match result {
+            Ok((s, _)) => s,
             Err(err) => {
                 println!("{}", err.to_string().red());
                 match self.verbose {

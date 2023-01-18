@@ -344,10 +344,9 @@ where
 
         self.solver.add_request(request.into());
 
-        let mut runtime = self.solver.run();
-        let solution = self.source_resolver.solve(&mut runtime).await;
-        self.last_solve_graph = runtime.graph();
-        Ok(solution?)
+        let (solution, graph) = self.source_resolver.solve(&self.solver).await?;
+        self.last_solve_graph = graph;
+        Ok(solution)
     }
 
     async fn resolve_build_environment(&mut self, options: &OptionMap) -> Result<Solution> {
@@ -362,10 +361,9 @@ where
             self.solver.add_request(request);
         }
 
-        let mut runtime = self.solver.run();
-        let solution = self.build_resolver.solve(&mut runtime).await;
-        self.last_solve_graph = runtime.graph();
-        Ok(solution?)
+        let (solution, graph) = self.build_resolver.solve(&self.solver).await?;
+        self.last_solve_graph = graph;
+        Ok(solution)
     }
 
     async fn build_and_commit_artifacts(

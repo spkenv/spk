@@ -28,6 +28,7 @@ use spk_schema::prelude::*;
 use spk_solve_graph::{
     Change,
     Decision,
+    Graph,
     Node,
     Note,
     DUPLICATE_REQUESTS_COUNT,
@@ -644,7 +645,10 @@ impl DecisionFormatter {
     /// appropriate. This runs two solvers in parallel (one based on
     /// the given solver, one with additional options) and takes the
     /// result from the first to finish.
-    pub async fn run_and_print_resolve(&self, solver: &Solver) -> Result<Solution> {
+    pub async fn run_and_print_resolve(
+        &self,
+        solver: &Solver,
+    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         let solvers = self.setup_solvers(solver);
         self.run_multi_solve(solvers, OutputKind::Println).await
     }
@@ -652,7 +656,10 @@ impl DecisionFormatter {
     /// Run the solver runtime to completion, printing each step to
     /// stdout as appropriate. This does run multiple solver and won't
     /// benefit from running solvers in parallell/
-    pub async fn run_and_print_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
+    pub async fn run_and_print_decisions(
+        &self,
+        runtime: &mut SolverRuntime,
+    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         // Note: this is only used directly by cmd_view/info when it
         // runs a solve. Once 'spk info' no longer runs a solve we may
         // be able to remove this method.
@@ -667,7 +674,10 @@ impl DecisionFormatter {
     /// info-level event as appropriate. This runs two solvers in
     /// parallel (one based on the given solver, one with additional
     /// options) and takes the result from the first to finish.
-    pub async fn run_and_log_resolve(&self, solver: &Solver) -> Result<Solution> {
+    pub async fn run_and_log_resolve(
+        &self,
+        solver: &Solver,
+    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         let solvers = self.setup_solvers(solver);
         self.run_multi_solve(solvers, OutputKind::Tracing).await
     }
@@ -676,7 +686,10 @@ impl DecisionFormatter {
     /// tracing info-level event as appropriate. This does run
     /// multiple solver and won't benefit from running solvers in
     /// parallell.
-    pub async fn run_and_log_decisions(&self, runtime: &mut SolverRuntime) -> Result<Solution> {
+    pub async fn run_and_log_decisions(
+        &self,
+        runtime: &mut SolverRuntime,
+    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         // Note: this is not currently used directly. We may be able
         // to remove this method.
         let start = Instant::now();
@@ -757,7 +770,7 @@ impl DecisionFormatter {
         &self,
         solvers: Vec<SolverTaskSettings>,
         output_location: OutputKind,
-    ) -> Result<Solution> {
+    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         let mut tasks = self.launch_solver_tasks(solvers, output_location);
 
         while let Some(result) = tasks.next().await {
@@ -862,7 +875,7 @@ impl DecisionFormatter {
         start: &Instant,
         runtime: &mut SolverRuntime,
         output_location: OutputKind,
-    ) -> Result<Solution> {
+    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         match loop_outcome {
             LoopOutcome::Interrupted(mesg) => {
                 // Note: the solution probably won't be
@@ -933,7 +946,10 @@ impl DecisionFormatter {
             }
         }
 
-        solution
+        match solution {
+            Err(err) => Err(err),
+            Ok(s) => Ok((s, runtime.graph())),
+        }
     }
 
     #[cfg(feature = "sentry")]
@@ -1287,20 +1303,22 @@ impl DecisionFormatter {
     }
 }
 
-// Note: places calling this will not benefit from running multiple
-// solvers in parallel.
 #[async_trait::async_trait]
 impl ResolverCallback for &DecisionFormatter {
-    async fn solve<'s, 'a: 's>(&'s self, r: &'a mut SolverRuntime) -> Result<Solution> {
-        self.run_and_print_decisions(r).await
+    async fn solve<'s, 'a: 's>(
+        &'s self,
+        r: &'a Solver,
+    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
+        self.run_and_print_resolve(r).await
     }
 }
 
-// Note: places calling this will not benefit from running multiple
-// solvers in parallel.
 #[async_trait::async_trait]
 impl ResolverCallback for DecisionFormatter {
-    async fn solve<'s, 'a: 's>(&'s self, r: &'a mut SolverRuntime) -> Result<Solution> {
-        self.run_and_print_decisions(r).await
+    async fn solve<'s, 'a: 's>(
+        &'s self,
+        r: &'a Solver,
+    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
+        self.run_and_print_resolve(r).await
     }
 }

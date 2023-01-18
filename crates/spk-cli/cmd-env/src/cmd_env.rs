@@ -61,7 +61,7 @@ impl Run for Env {
         }
 
         let formatter = self.formatter_settings.get_formatter(self.verbose);
-        let solution = formatter.run_and_print_resolve(&solver).await?;
+        let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
 
         let solution = build_required_packages(&solution).await?;
         setup_runtime(&mut rt, &solution).await?;

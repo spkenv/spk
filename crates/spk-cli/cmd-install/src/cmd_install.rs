@@ -61,7 +61,7 @@ impl Run for Install {
         }
 
         let formatter = self.formatter_settings.get_formatter(self.verbose);
-        let solution = formatter.run_and_print_resolve(&solver).await?;
+        let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
 
         println!("The following packages will be installed:\n");
         let requested: HashSet<_> = solver
