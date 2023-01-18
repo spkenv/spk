@@ -57,9 +57,6 @@ pub const fn default_impossible_version_validators() -> &'static [Validators] {
     ]
 }
 
-//
-// Targetted for moving to another file
-//
 /// The valid messages that can be sent from tasks launched during
 /// impossible request checks.
 enum Comms {
@@ -89,30 +86,30 @@ enum Comms {
 /// Impossible and possible pkg requests are cached to speed up future
 /// checking.
 pub struct ImpossibleRequestsChecker {
-    // The validators this uses to check for impossible requests
+    /// The validators this uses to check for impossible requests
     validators: Arc<std::sync::Mutex<Vec<Validators>>>,
     // TODO: because this just stores RangeIdents and not PkgRequests,
     // we don't have what made the requests, do we need this here,
     // should it be PkgRequests, at least for impossibles?
-    // Cache of impossible request to number of times it has been seen
+    /// Cache of impossible request to number of times it has been seen
     impossible_requests: DashMap<RangeIdent, u64>,
-    // Cache of possible request to number of times is has been seen
+    /// Cache of possible request to number of times is has been seen
     possible_requests: DashMap<RangeIdent, u64>,
-    // Number of IfAlreadyPresent requests skipped during checks
+    /// Number of IfAlreadyPresent requests skipped during checks
     num_ifalreadypresent_requests: AtomicU64,
-    // Number of distinct impossible requests found
+    /// Number of distinct impossible requests found
     num_impossible_requests_found: AtomicU64,
-    // Number of distinct possible requests found
+    /// Number of distinct possible requests found
     num_possible_requests_found: AtomicU64,
-    // Number of impossible requests found using the cache
+    /// Number of impossible requests found using the cache
     num_impossible_cache_hits: AtomicU64,
-    // Number of possible requests found using the cache
+    /// Number of possible requests found using the cache
     num_possible_cache_hits: AtomicU64,
-    // Number of build specs read in during processing
+    /// Number of build specs read in during processing
     num_build_specs_read: AtomicU64,
-    // Number of version all builds reading tasks spawned during checks
+    /// Number of version all builds reading tasks spawned during checks
     num_read_tasks_spawned: AtomicU64,
-    // Number of spawned tasks stopped before they finished
+    /// Number of spawned tasks stopped before they finished
     num_read_tasks_stopped: AtomicU64,
 }
 
