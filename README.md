@@ -2,12 +2,19 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- https://github.com/imageworks/spk -->
 
-# SPK and SPFS
 
-**SPK** - A Package Manager for high velocity software environments, built on spfs.
-**SPFS** - Filesystem isolation, capture, and distribution.
+<img width="200px"
+alt="SPK Logo" src="website/static/images/spk_black.png#gh-light-mode-only"/>
+<img width="200px"
+alt="SPK Logo" src="website/static/images/spk_white.png#gh-dark-mode-only"/>
 
-[![Generic badge](https://img.shields.io/badge/docs-passing-green.svg)](https://getspk.io)
+[![Docs Badge](https://img.shields.io/badge/docs-passing-green.svg)](https://getspk.io)
+
+- **SPK** - A Package Manager for high velocity software environments, built on spfs.
+- **SPFS** - Filesystem isolation, capture, and distribution.
+
+---
+
 
 ## Motivation
 

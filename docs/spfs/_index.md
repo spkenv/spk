@@ -3,7 +3,9 @@ title: SPFS
 chapter: true
 ---
 
-## SPFS
+<img style="max-width: 200px"
+alt="SPFS Logo" src="/images/spfs_black.png"/>
+---
 
 SPFS is a file system isolation, capture and distribution system for software runtime management. In many ways, it's like a lightweight docker combined with git - providing some of the benefits of a container runtime while not creating too much isolation from the host environment.
 
