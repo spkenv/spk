@@ -3,7 +3,9 @@ title: Home
 chapter: true
 ---
 
-# SPK
+<img style="max-width: 200px"
+alt="SPK Logo" src="/images/spk_black.png"/>
+---
 
 **Package management and a software runtime for studio environments**
 
@@ -24,4 +26,3 @@ Additionally, SPK is built on top of a technology called SPFS, which lends a few
 - File-level de-duplication of package data
 - Efficient sync, transfer and localization of software
 - _More about spfs [here](/spfs)_
-
