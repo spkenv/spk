@@ -402,12 +402,11 @@ impl ValidatorT for PkgRequestValidator {
                     )));
                 }
                 PackageSource::Repository { .. } => {} // okay
-                PackageSource::Embedded => {
+                PackageSource::Embedded { parent } => {
                     // TODO: from the right repo still?
-                    return Ok(Compatibility::Incompatible(
-                        "package did not come from requested repo (it was embedded in another)"
-                            .to_owned(),
-                    ));
+                    return Ok(Compatibility::Incompatible(format!(
+                        "package did not come from requested repo (it was embedded in {parent})"
+                    )));
                 }
                 PackageSource::BuildFromSource { .. } => {
                     // TODO: from the right repo still?
@@ -636,7 +635,7 @@ impl PkgRequirementsValidator {
         let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
             Ok((spec, source)) => match source {
                 PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
-                PackageSource::BuildFromSource { .. } | PackageSource::Embedded => {
+                PackageSource::BuildFromSource { .. } | PackageSource::Embedded { .. } => {
                     (spec, spec.components().names())
                 }
             },

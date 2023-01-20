@@ -137,12 +137,16 @@ impl FormatChange for Change {
                             Ok(r) => r.get_requesters().iter().map(ToString::to_string).collect(),
                             Err(_) => {
                                 match &c.source {
+                                    // This happens with embedded requests because they are
+                                    // requested and added in the same state during a solve.
+                                    // We can use their PackageSource data to find what
+                                    // requested them.
                                     PackageSource::BuildFromSource { recipe } => {
                                         vec![RequestedBy::PackageVersion(recipe.ident().clone())
                                             .to_string()]
                                     }
-                                    PackageSource::Embedded => {
-                                        vec!["Embedded in unknown package".to_string()]
+                                    PackageSource::Embedded { parent } => {
+                                        vec![RequestedBy::Embedded(parent.clone()).to_string()]
                                     }
                                     _ => {
                                         // Don't think this should happen
@@ -395,7 +399,9 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                     ))),
                     Change::SetPackage(Box::new(SetPackage::new(
                         Arc::new(embedded.clone()),
-                        PackageSource::Embedded,
+                        PackageSource::Embedded {
+                            parent: parent.clone(),
+                        },
                     ))),
                 ]
             })

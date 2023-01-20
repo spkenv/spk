@@ -1,14 +1,14 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-
+use std::str::FromStr;
 use std::sync::Arc;
 
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::opt_name;
 use spk_schema::ident::{build_ident, version_ident, PkgRequest, Request, RequestedBy};
-use spk_schema::{spec, FromYaml};
+use spk_schema::{spec, BuildIdent, FromYaml};
 use spk_solve::recipe;
 use spk_solve_graph::State;
 use spk_solve_solution::PackageSource;
@@ -82,7 +82,10 @@ fn test_empty_options_can_match_anything() {
             "install": {"requirements": [{"var": "python.abi/cp37m"}]},
         }
     ));
-    let source = PackageSource::Embedded;
+    let fake_parent = BuildIdent::from_str("testpkg/1.0.0/3I42H3S6").unwrap();
+    let source = PackageSource::Embedded {
+        parent: fake_parent,
+    };
 
     assert!(
         validator
@@ -122,7 +125,10 @@ fn test_qualified_var_supersedes_unqualified() {
             "build": {"options": [{"var": "debug", "static": "on"}]},
         }
     ));
-    let source = PackageSource::Embedded;
+    let fake_parent = BuildIdent::from_str("testpkg/1.0.0/3I42H3S6").unwrap();
+    let source = PackageSource::Embedded {
+        parent: fake_parent,
+    };
 
     let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
@@ -139,7 +145,10 @@ fn test_qualified_var_supersedes_unqualified() {
             "build": {"options": [{"var": "debug", "static": "off"}]},
         }
     ));
-    let source = PackageSource::Embedded;
+    let fake_parent = BuildIdent::from_str("testpkg/1.0.0/3I42H3S6").unwrap();
+    let source = PackageSource::Embedded {
+        parent: fake_parent,
+    };
     let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
         !compat.is_ok(),

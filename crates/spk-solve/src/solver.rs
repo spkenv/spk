@@ -608,7 +608,7 @@ impl Solver {
                             .with_components(&request.pkg.components)
                             .resolve_package(&spec, source.clone())
                     } else {
-                        if let PackageSource::Embedded = source {
+                        if let PackageSource::Embedded { .. } = source {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
                                 spec.ident().to_any(),
                                 &compat,

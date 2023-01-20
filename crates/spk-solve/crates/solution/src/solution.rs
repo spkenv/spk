@@ -17,7 +17,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, RequestedBy};
 use spk_schema::prelude::*;
-use spk_schema::{BuildEnv, Package, Spec, SpecRecipe, VersionIdent};
+use spk_schema::{BuildEnv, BuildIdent, Package, Spec, SpecRecipe, VersionIdent};
 use spk_storage::RepositoryHandle;
 
 use crate::{Error, Result};
@@ -36,7 +36,7 @@ pub enum PackageSource {
         recipe: Arc<SpecRecipe>,
     },
     /// The package was embedded in another.
-    Embedded, // TODO: should this reference the source? (it makes the graph code uglier)
+    Embedded { parent: BuildIdent },
 }
 
 impl PackageSource {
@@ -48,7 +48,7 @@ impl PackageSource {
         match self {
             PackageSource::BuildFromSource { recipe } => Ok(Arc::clone(recipe)),
             PackageSource::Repository { repo, .. } => Ok(repo.read_recipe(ident).await?),
-            PackageSource::Embedded => {
+            PackageSource::Embedded { .. } => {
                 // TODO: what are the implications of this?
                 Err(Error::String("Embedded package has no recipe".into()))
             }
@@ -63,11 +63,11 @@ impl Ord for PackageSource {
         use PackageSource::*;
         match (self, other) {
             (this @ Repository { .. }, other @ Repository { .. }) => this.cmp(other),
-            (Repository { .. }, BuildFromSource { .. } | Embedded) => Ordering::Less,
-            (BuildFromSource { .. } | Embedded, Repository { .. }) => Ordering::Greater,
-            (Embedded, Embedded) => Ordering::Equal,
-            (Embedded, BuildFromSource { .. }) => Ordering::Less,
-            (BuildFromSource { .. }, Embedded) => Ordering::Greater,
+            (Repository { .. }, BuildFromSource { .. } | Embedded { .. }) => Ordering::Less,
+            (BuildFromSource { .. } | Embedded { .. }, Repository { .. }) => Ordering::Greater,
+            (Embedded { .. }, Embedded { .. }) => Ordering::Equal,
+            (Embedded { .. }, BuildFromSource { .. }) => Ordering::Less,
+            (BuildFromSource { .. }, Embedded { .. }) => Ordering::Greater,
             (BuildFromSource { recipe: this }, BuildFromSource { recipe: other }) => {
                 this.cmp(other)
             }

@@ -19,7 +19,7 @@ pub async fn resolve_runtime_layers(solution: &Solution) -> Result<Vec<Digest>> 
     for resolved in solution.items() {
         let (repo, components) = match &resolved.source {
             PackageSource::Repository { repo, components } => (repo, components),
-            PackageSource::Embedded => continue,
+            PackageSource::Embedded { .. } => continue,
             PackageSource::BuildFromSource { recipe } => {
                 // The resolved solution includes a package that needs
                 // to be built with specific options because such a
