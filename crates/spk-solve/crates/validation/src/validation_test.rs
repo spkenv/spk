@@ -2,18 +2,61 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::opt_name;
-use spk_schema::ident::{build_ident, version_ident, PkgRequest, Request, RequestedBy};
-use spk_schema::{spec, FromYaml};
+use spk_schema::ident::{build_ident, version_ident, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::name::{PkgName, PkgNameBuf};
+use spk_schema::{spec, FromYaml, OptionMap, Spec};
 use spk_solve::recipe;
-use spk_solve_graph::State;
+use spk_solve_graph::{CachedHash, GetCurrentResolveResult, GetMergedRequestResult, State};
 use spk_solve_solution::PackageSource;
 
-use super::{default_validators, OptionsValidator, ValidatorT, VarRequirementsValidator};
+use super::{
+    default_validators,
+    AllValidatableData,
+    OnlyPackageRequestsData,
+    OptionsValidator,
+    ValidatorT,
+    VarRequirementsValidator,
+};
+
+/// A validation data adapter for states for these tests
+struct TestValidationAdapter {
+    pub state: Arc<State>,
+}
+
+impl OnlyPackageRequestsData for TestValidationAdapter {
+    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequest> {
+        self.state.get_merged_request(name)
+    }
+}
+
+impl AllValidatableData for TestValidationAdapter {
+    fn get_resolved_packages(
+        &self,
+    ) -> &BTreeMap<PkgNameBuf, (CachedHash<Arc<Spec>>, PackageSource)> {
+        self.state.get_resolved_packages()
+    }
+
+    fn get_current_resolve(
+        &self,
+        name: &PkgName,
+    ) -> GetCurrentResolveResult<(&CachedHash<Arc<Spec>>, &PackageSource)> {
+        self.state.get_current_resolve(name)
+    }
+
+    fn get_var_requests(&self) -> &BTreeSet<VarRequest> {
+        self.state.get_var_requests()
+    }
+
+    fn get_option_map(&self) -> &OptionMap {
+        self.state.get_option_map()
+    }
+}
 
 #[rstest]
 fn test_src_package_install_requests_are_not_considered() {
@@ -54,10 +97,14 @@ fn test_src_package_install_requests_are_not_considered() {
         vec![],
         vec![(opt_name!("debug").to_owned(), "off".to_string())],
     );
+    let validation_adapter = TestValidationAdapter { state };
 
     for validator in validators {
         assert!(
-            validator.validate_recipe(&state, &*spec).unwrap().is_ok(),
+            validator
+                .validate_recipe(&validation_adapter, &*spec)
+                .unwrap()
+                .is_ok(),
             "Source package should be valid regardless of requirements but wasn't"
         );
     }
@@ -75,6 +122,7 @@ fn test_empty_options_can_match_anything() {
         // spec file, but is empty so should not cause a conflict
         vec![(opt_name!("python.abi").to_owned(), "".to_string())],
     );
+    let validation_adapter = TestValidationAdapter { state };
 
     let spec = Arc::new(spec!(
         {
@@ -86,7 +134,7 @@ fn test_empty_options_can_match_anything() {
 
     assert!(
         validator
-            .validate_package(&state, &spec, &source)
+            .validate_package(&validation_adapter, &spec, &source)
             .unwrap()
             .is_ok(),
         "empty option should not invalidate requirement"
@@ -113,6 +161,7 @@ fn test_qualified_var_supersedes_unqualified() {
         vec![],
         vec![],
     );
+    let validation_adapter = TestValidationAdapter { state };
 
     // this static value of debug=on should be valid even though it conflicts
     // with the unqualified request for the debug=off
@@ -124,7 +173,9 @@ fn test_qualified_var_supersedes_unqualified() {
     ));
     let source = PackageSource::Embedded;
 
-    let compat = validator.validate_package(&state, &*spec, &source).unwrap();
+    let compat = validator
+        .validate_package(&validation_adapter, &*spec, &source)
+        .unwrap();
     assert!(
         compat.is_ok(),
         "qualified var requests should superseded unqualified ones, got: {compat}"
@@ -140,7 +191,9 @@ fn test_qualified_var_supersedes_unqualified() {
         }
     ));
     let source = PackageSource::Embedded;
-    let compat = validator.validate_package(&state, &*spec, &source).unwrap();
+    let compat = validator
+        .validate_package(&validation_adapter, &*spec, &source)
+        .unwrap();
     assert!(
         !compat.is_ok(),
         "qualified var requests should supersede unqualified ones, got: {compat}",

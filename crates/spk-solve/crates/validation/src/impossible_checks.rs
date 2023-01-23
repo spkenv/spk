@@ -10,11 +10,12 @@ use dashmap::DashMap;
 use futures::stream::{FuturesUnordered, StreamExt};
 use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::name::PkgNameBuf;
+use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, RangeIdent, Request};
 use spk_schema::spec_ops::Versioned;
 use spk_schema::{AnyIdent, BuildIdent, Package, RequirementsList, Spec};
+use spk_solve_graph::{GetMergedRequestError, GetMergedRequestResult};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 use tokio::sync::mpsc::{self, Sender};
@@ -23,8 +24,9 @@ use crate::validation::{
     BinaryOnlyValidator,
     ComponentsValidator,
     DeprecationValidator,
+    OnlyPackageRequestsData,
     PkgRequestValidator,
-    PkgRequestValidatorT,
+    ValidatorT,
 };
 use crate::{Error, Result, Validators};
 
@@ -574,17 +576,45 @@ async fn get_mock_build_components(
     Ok(components)
 }
 
+/// A wrapper for the combined package request, for using the package
+/// request supporting validators.
+struct PotentialPackageRequest<'a> {
+    package_request: &'a PkgRequest,
+}
+
+impl<'a> PotentialPackageRequest<'a> {
+    pub fn new(package_request: &'a PkgRequest) -> Self {
+        PotentialPackageRequest { package_request }
+    }
+}
+
+impl OnlyPackageRequestsData for PotentialPackageRequest<'_> {
+    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequest> {
+        // This should only be used to validate the package named in
+        // the combined package request that it was created with. No
+        // other package requests are present.
+        if self.package_request.pkg.name() == name {
+            Ok(self.package_request.clone())
+        } else {
+            Err(GetMergedRequestError::NoRequestFor(format!(
+                "No requests for '{name}' [INTERNAL ERROR - impossible check validation only looking at a request for: {}]", self.package_request.pkg.name()
+            )))
+        }
+    }
+}
+
 /// Return Compatible if the given spec is valid for the pkg request,
 /// otherwise return the Incompatible reason from the first validation
 /// check that failed.
 fn validate_against_pkg_request(
     validators: &Arc<std::sync::Mutex<Vec<Validators>>>,
-    request: &PkgRequest,
+    combined_request: &PkgRequest,
     spec: &Spec,
     source: &PackageSource,
 ) -> Result<Compatibility> {
+    let packages_state = PotentialPackageRequest::new(combined_request);
     for validator in validators.lock().unwrap().iter() {
-        let compat = validator.validate_package_against_request(request, spec, source)?;
+        let compat = validator.validate_package_against_request(&packages_state, spec, source)?;
         if !compat.is_ok() {
             return Ok(compat);
         }

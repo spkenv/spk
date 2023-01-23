@@ -8,4 +8,11 @@ mod validation;
 
 pub use error::{Error, Result};
 pub use impossible_checks::{ImpossibleRequestsChecker, IMPOSSIBLE_CHECKS_TARGET};
-pub use validation::{default_validators, BinaryOnlyValidator, ValidatorT, Validators};
+pub use validation::{
+    default_validators,
+    AllValidatableData,
+    BinaryOnlyValidator,
+    OnlyPackageRequestsData,
+    ValidatorT,
+    Validators,
+};
