@@ -13,6 +13,7 @@ pub use validation::{
     AllValidatableData,
     BinaryOnlyValidator,
     OnlyPackageRequestsData,
+    ValidatableStateAdapter,
     ValidatorT,
     Validators,
 };

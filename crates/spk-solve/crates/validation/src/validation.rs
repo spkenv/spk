@@ -19,8 +19,11 @@ use spk_solve_graph::{
     GetCurrentResolveResult,
     GetMergedRequestError,
     GetMergedRequestResult,
+    State,
 };
 use spk_solve_solution::PackageSource;
+
+use crate::Error;
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]
@@ -87,7 +90,9 @@ pub trait ValidatorT {
     where
         P: Satisfy<PkgRequest> + Package,
     {
-        unimplemented!("validate_package_against_request() is not implemented for this Validator");
+        Err(Error::SolverError(
+            "validate_package_against_request() is not implemented for this Validator".to_string(),
+        ))
     }
 
     /// Check if the given recipe is appropriate as a source build for the provided state.
@@ -100,6 +105,48 @@ pub trait ValidatorT {
         _state_data: &B,
         _recipe: &R,
     ) -> crate::Result<Compatibility>;
+}
+
+/// A data adapter that wraps a state for using package and recipe
+/// validators and prevents other state methods/field from being
+/// accessed during validation.
+pub struct ValidatableStateAdapter<'a> {
+    state: &'a State,
+}
+
+impl<'a> ValidatableStateAdapter<'a> {
+    pub fn new(state: &'a State) -> Self {
+        ValidatableStateAdapter { state }
+    }
+}
+
+impl OnlyPackageRequestsData for ValidatableStateAdapter<'_> {
+    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequest> {
+        self.state.get_merged_request(name)
+    }
+}
+
+impl AllValidatableData for ValidatableStateAdapter<'_> {
+    fn get_resolved_packages(
+        &self,
+    ) -> &BTreeMap<PkgNameBuf, (CachedHash<Arc<Spec>>, PackageSource)> {
+        self.state.get_resolved_packages()
+    }
+
+    fn get_current_resolve(
+        &self,
+        name: &PkgName,
+    ) -> GetCurrentResolveResult<(&CachedHash<Arc<Spec>>, &PackageSource)> {
+        self.state.get_current_resolve(name)
+    }
+
+    fn get_var_requests(&self) -> &BTreeSet<VarRequest> {
+        self.state.get_var_requests()
+    }
+
+    fn get_option_map(&self) -> &OptionMap {
+        self.state.get_option_map()
+    }
 }
 
 /// Ensures that deprecated packages are not included unless specifically requested.
@@ -116,13 +163,6 @@ impl ValidatorT for DeprecationValidator {
     where
         P: Satisfy<PkgRequest> + Satisfy<VarRequest> + Package,
     {
-        // TODO: is this going to be slower because it is making a
-        // merged request that most of the time it will not need,
-        // because the spec will be active (non-deprecated)? The same
-        // is true of some of the other validators. Profile it and see
-        // how it looks. If it's a problem, we could move to merging
-        // requests when they are added to the states and remove the
-        // merge calls from the rest of the code.
         self.validate_package_against_request(state_data, spec, _source)
     }
 

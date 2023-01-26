@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::mem::take;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -20,11 +20,8 @@ use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::{BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
-    CachedHash,
     Change,
     Decision,
-    GetCurrentResolveResult,
-    GetMergedRequestResult,
     Graph,
     Node,
     Note,
@@ -46,10 +43,9 @@ use spk_solve_package_iterator::{
 use spk_solve_solution::{PackageSource, Solution};
 use spk_solve_validation::{
     default_validators,
-    AllValidatableData,
     BinaryOnlyValidator,
     ImpossibleRequestsChecker,
-    OnlyPackageRequestsData,
+    ValidatableStateAdapter,
     ValidatorT,
     Validators,
     IMPOSSIBLE_CHECKS_TARGET,
@@ -192,51 +188,6 @@ impl ErrorFreq {
             // returned as the "combined" message.
             None => error_key,
         }
-    }
-}
-
-// Note: Because State comes from the graph crate and validation
-// depends on the graph crate, graph can't depend on validation
-// because that makes a cyclic dependency. So State can't implement
-// the valiation data traits. Instead, we make a wrapper object that
-// can, and have the solver use with the validators.
-/// A data adapter that wraps a state for using package and recipe validators
-struct ValidatableStateAdapter<'a> {
-    state: &'a State,
-}
-
-impl<'a> ValidatableStateAdapter<'a> {
-    pub fn new(state: &'a State) -> Self {
-        ValidatableStateAdapter { state }
-    }
-}
-
-impl OnlyPackageRequestsData for ValidatableStateAdapter<'_> {
-    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequest> {
-        self.state.get_merged_request(name)
-    }
-}
-
-impl AllValidatableData for ValidatableStateAdapter<'_> {
-    fn get_resolved_packages(
-        &self,
-    ) -> &BTreeMap<PkgNameBuf, (CachedHash<Arc<Spec>>, PackageSource)> {
-        self.state.get_resolved_packages()
-    }
-
-    fn get_current_resolve(
-        &self,
-        name: &PkgName,
-    ) -> GetCurrentResolveResult<(&CachedHash<Arc<Spec>>, &PackageSource)> {
-        self.state.get_current_resolve(name)
-    }
-
-    fn get_var_requests(&self) -> &BTreeSet<VarRequest> {
-        self.state.get_var_requests()
-    }
-
-    fn get_option_map(&self) -> &OptionMap {
-        self.state.get_option_map()
     }
 }
 
