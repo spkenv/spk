@@ -25,7 +25,7 @@ use crate::encoding::{self, Encodable};
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
 use crate::storage::LocalRepository;
-use crate::{graph, tracking, Error, Result};
+use crate::{get_config, graph, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./renderer_test.rs"]
@@ -565,7 +565,21 @@ where
                             };
 
                             let has_correct_mode = metadata.permissions().mode() == entry.mode;
-                            let has_correct_owner = metadata.uid() == geteuid().as_raw();
+                            let mut has_correct_owner = metadata.uid() == geteuid().as_raw();
+
+                            // Can we still share this payload if it doesn't
+                            // have the correct owner?
+                            if has_correct_mode && !has_correct_owner && {
+                                // require that a file has the "other" read bit
+                                // enabled before sharing it with other users.
+                                (entry.mode & 0o004) != 0
+                            } {
+                                if let Ok(config) = get_config() {
+                                    if config.storage.allow_payload_sharing_between_users {
+                                        has_correct_owner = true;
+                                    }
+                                }
+                            }
 
                             if has_correct_mode && has_correct_owner {
                                 // This still creates the proxy "hop" to the

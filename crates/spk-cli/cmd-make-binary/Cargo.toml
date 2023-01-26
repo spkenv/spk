@@ -9,6 +9,7 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true }
 futures = "0.3.9"
+spfs = { path = '../../spfs' }
 spk-build = { path = '../../spk-build' }
 spk-cli-common = { path = '../common' }
 spk-schema = { path = '../../spk-schema' }

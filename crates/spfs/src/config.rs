@@ -42,6 +42,10 @@ impl Default for User {
 #[serde(default)]
 pub struct Storage {
     pub root: PathBuf,
+    /// If true, when rendering payloads, allow hard links even if the payload
+    /// is owned by a different user than the current user. Only applies to
+    /// payloads readable by "other".
+    pub allow_payload_sharing_between_users: bool,
 }
 
 impl Default for Storage {
@@ -49,6 +53,7 @@ impl Default for Storage {
         Self {
             root: expanduser::expanduser(DEFAULT_STORAGE_ROOT)
                 .unwrap_or_else(|_| PathBuf::from(FALLBACK_STORAGE_ROOT)),
+            allow_payload_sharing_between_users: false,
         }
     }
 }
