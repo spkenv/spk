@@ -445,7 +445,7 @@ pub struct PkgRequest {
     pub requested_by: BTreeMap<String, Vec<RequestedBy>>,
 }
 
-#[allow(clippy::derived_hash_with_manual_eq)]
+#[allow(clippy::derive_hash_xor_eq)]
 impl std::hash::Hash for PkgRequest {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.pkg.hash(state);

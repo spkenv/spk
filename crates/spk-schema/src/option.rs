@@ -316,7 +316,7 @@ pub struct VarOpt {
 
 // This is safe to allow because choices is IndexSet and has
 // deterministic iteration order.
-#[allow(clippy::derived_hash_with_manual_eq)]
+#[allow(clippy::derive_hash_xor_eq)]
 impl std::hash::Hash for VarOpt {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.var.hash(state);
