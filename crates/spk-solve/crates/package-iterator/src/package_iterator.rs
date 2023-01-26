@@ -263,8 +263,7 @@ impl RepositoryPackageIterator {
 
     async fn start(&mut self) -> Result<()> {
         self.version_map = self.build_version_map().await?;
-        let mut versions: Vec<Arc<Version>> =
-            self.version_map.keys().into_iter().cloned().collect();
+        let mut versions: Vec<Arc<Version>> = self.version_map.keys().cloned().collect();
         versions.sort();
         versions.reverse();
         self.versions = Some(VersionIterator::new(versions.into()));

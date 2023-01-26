@@ -66,12 +66,7 @@ pub fn host_options() -> Result<OptionMap> {
 
     let info = match sys_info::linux_os_release() {
         Ok(i) => i,
-        Err(err) => {
-            return Err(Error::String(format!(
-                "Failed to get linux info: {:?}",
-                err
-            )))
-        }
+        Err(err) => return Err(Error::String(format!("Failed to get linux info: {err:?}"))),
     };
 
     if let Some(id) = info.id {
@@ -136,7 +131,7 @@ impl std::fmt::Debug for OptionMap {
 
 impl std::fmt::Display for OptionMap {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let items: Vec<_> = self.iter().map(|(n, v)| format!("{}: {}", n, v)).collect();
+        let items: Vec<_> = self.iter().map(|(n, v)| format!("{n}: {v}")).collect();
         f.write_fmt(format_args!("{{{}}}", items.join(", ")))
     }
 }
@@ -155,7 +150,7 @@ impl OptionMap {
     pub fn to_environment(&self) -> HashMap<String, String> {
         let mut out = HashMap::default();
         for (name, value) in self.iter() {
-            let var_name = format!("SPK_OPT_{}", name);
+            let var_name = format!("SPK_OPT_{name}");
             out.insert(var_name, value.into());
         }
         out

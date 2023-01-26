@@ -86,7 +86,7 @@ async fn test_repo_read_package_empty(#[case] repo: RepoKind) {
     let nothing = parse_build_ident("nothing/1.0.0/src").unwrap();
     match repo.read_package(&nothing).await {
         Err(Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(_))) => {}
-        res => panic!("expected package not found error, got {:?}", res),
+        res => panic!("expected package not found error, got {res:?}"),
     }
 }
 

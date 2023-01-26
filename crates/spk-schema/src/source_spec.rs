@@ -139,8 +139,7 @@ impl LocalSource {
         {
             Some(0) => Ok(()),
             code => Err(Error::String(format!(
-                "rsync command failed with exit code {:?}",
-                code
+                "rsync command failed with exit code {code:?}"
             ))),
         }
     }
@@ -207,8 +206,7 @@ impl GitSource {
                 Some(0) => (),
                 code => {
                     return Err(Error::String(format!(
-                        "git command failed with exit code {:?}",
-                        code
+                        "git command failed with exit code {code:?}"
                     )))
                 }
             }
@@ -255,8 +253,7 @@ impl TarSource {
                 Some(0) => (),
                 code => {
                     return Err(Error::String(format!(
-                        "wget command failed with exit code {:?}",
-                        code
+                        "wget command failed with exit code {code:?}"
                     )))
                 }
             }
@@ -285,8 +282,7 @@ impl TarSource {
         {
             Some(0) => Ok(()),
             code => Err(Error::String(format!(
-                "tar command failed with exit code {:?}",
-                code
+                "tar command failed with exit code {code:?}"
             ))),
         }
     }
@@ -351,8 +347,7 @@ impl ScriptSource {
         match child.wait().map_err(Error::ProcessWaitError)?.code() {
             Some(0) => Ok(()),
             code => Err(Error::String(format!(
-                "source script failed with exit code {:?}",
-                code
+                "source script failed with exit code {code:?}"
             ))),
         }
     }

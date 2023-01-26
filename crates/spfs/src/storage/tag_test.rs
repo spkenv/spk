@@ -317,7 +317,6 @@ async fn test_rm_tags(
         .await;
     assert!(
         matches!(res, Err(crate::Error::UnknownReference(_))),
-        "should fail to remove a removed tag, got {:?}",
-        res
+        "should fail to remove a removed tag, got {res:?}"
     );
 }

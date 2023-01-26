@@ -69,10 +69,7 @@ async fn test_hash_store_find_digest(tmpdir: tempfile::TempDir) {
             // Something should have been removed.
             assert!(
                 len_before > matches.len(),
-                "Using StartsWith({}), {} was not found in matches: {:?}",
-                starts_with,
-                control,
-                original_matches
+                "Using StartsWith({starts_with}), {control} was not found in matches: {original_matches:?}"
             );
         }
         // because of base32 putting partial bytes into the final
@@ -82,9 +79,7 @@ async fn test_hash_store_find_digest(tmpdir: tempfile::TempDir) {
         matches.retain(|el| !el.to_string().starts_with(unambiguous_query));
         assert!(
             matches.is_empty(),
-            "Using StartsWith({}), got unexpected matches: {:?}",
-            starts_with,
-            matches
+            "Using StartsWith({starts_with}), got unexpected matches: {matches:?}"
         )
     }
 }

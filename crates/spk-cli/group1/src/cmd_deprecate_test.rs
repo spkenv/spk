@@ -36,7 +36,7 @@ async fn test_deprecate_without_prompt() {
         Ok(r) => assert_eq!(r, 0),
         Err(e) => {
             // This should not happen
-            println!("{}", e);
+            println!("{e}");
             std::panic::panic_any(e);
         }
     }
@@ -47,12 +47,12 @@ async fn test_deprecate_without_prompt() {
         let ident = parse_version_ident(name).unwrap();
         let (_, r) = &repos[0];
         let recipe = r.read_recipe(&ident).await.unwrap();
-        println!("checking: {}", ident);
+        println!("checking: {ident}");
         assert!(recipe.is_deprecated());
 
         for b in r.list_package_builds(&ident).await.unwrap() {
             let spec = r.read_package(&b).await.unwrap();
-            println!("checking: {}", b);
+            println!("checking: {b}");
             assert!(spec.is_deprecated());
         }
     }

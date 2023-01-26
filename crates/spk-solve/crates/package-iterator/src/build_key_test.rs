@@ -102,7 +102,7 @@ fn test_parse_value_to_build_key_extended_version_range(
     #[case] vrange: &str,
     #[case] expected: BuildKeyExpandedVersionRange,
 ) {
-    println!("ver: {}", vrange);
+    println!("ver: {vrange}");
     let maxmin = BuildKeyExpandedVersionRange::parse_from_range_value(vrange).unwrap();
     assert_eq!(maxmin, expected)
 }
@@ -186,7 +186,7 @@ fn test_parse_value_to_build_key_extended_version_range_invalid(
     // These are expected to fail with panics during the parsing
     // in this call. When the parsing is changed to allow these values,
     // this test will have to be updated.
-    println!("ver: {}", vrange);
+    println!("ver: {vrange}");
     let maxmin = BuildKeyExpandedVersionRange::parse_from_range_value(vrange).unwrap();
     assert_eq!(maxmin, expected)
 }

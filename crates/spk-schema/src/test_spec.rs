@@ -81,8 +81,7 @@ impl FromStr for TestStage {
             BUILD_NAME => Ok(Self::Build),
             INSTALL_NAME => Ok(Self::Install),
             other => Err(crate::Error::String(format!(
-                "Invalid test stage '{}', must be one of: {}, {}, {}",
-                other, SOURCES_NAME, BUILD_NAME, INSTALL_NAME,
+                "Invalid test stage '{other}', must be one of: {SOURCES_NAME}, {BUILD_NAME}, {INSTALL_NAME}",
             ))),
         }
     }

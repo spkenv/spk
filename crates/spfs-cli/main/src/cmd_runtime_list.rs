@@ -117,7 +117,7 @@ impl CmdRuntimeList {
                     println!("{message}");
                 }
                 Err(err) if !self.quiet => {
-                    eprintln!("Failed to read runtime: {}", err);
+                    eprintln!("Failed to read runtime: {err}");
                 }
                 Err(_) => {}
             }

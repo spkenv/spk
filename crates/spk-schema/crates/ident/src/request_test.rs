@@ -193,11 +193,11 @@ fn test_pkg_request_pin_rendering(
     #[case] pin: &str,
     #[case] expected: &str,
 ) {
-    let req = serde_yaml::from_str::<Request>(&format!("{{pkg: test, fromBuildEnv: {}}}", pin))
+    let req = serde_yaml::from_str::<Request>(&format!("{{pkg: test, fromBuildEnv: {pin}}}"))
         .unwrap()
         .into_pkg()
         .expect("expected package request");
-    let version = parse_build_ident(format!("test/{}/src", version)).unwrap();
+    let version = parse_build_ident(format!("test/{version}/src")).unwrap();
     let res = req
         .render_pin(&version)
         .expect("should not fail to render pin");

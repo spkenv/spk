@@ -103,8 +103,7 @@ impl ValidationSpec {
             if let Some(err) = validator.validate(package, &diffs, SPFS) {
                 return Err(
                     crate::foundation::ident_build::InvalidBuildError::new_error(format!(
-                        "{:?}: {}",
-                        validator, err
+                        "{validator:?}: {err}"
                     ))
                     .into(),
                 );

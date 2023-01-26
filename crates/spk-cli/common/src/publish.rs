@@ -149,8 +149,7 @@ impl Publisher {
                 (SPFS(src), SPFS(dest)) => {
                     tracing::debug!(
                         " syncing components: {}",
-                        ComponentSet::from(components.keys().into_iter().cloned())
-                            .format_components()
+                        ComponentSet::from(components.keys().cloned()).format_components()
                     );
                     let syncer = spfs::Syncer::new(src, dest)
                         .with_reporter(spfs::sync::ConsoleSyncReporter::default());

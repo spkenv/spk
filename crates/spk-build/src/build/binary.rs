@@ -395,7 +395,7 @@ where
             .validation()
             .validate_build_changeset(package)
             .await
-            .map_err(|err| BuildError::new_error(format_args!("{}", err)))?;
+            .map_err(|err| BuildError::new_error(format_args!("{err}")))?;
 
         tracing::info!("Committing package contents...");
         commit_component_layers(
@@ -433,7 +433,7 @@ where
                 .map_err(|err| Error::FileOpenError(build_script.to_owned(), err))?;
             writer
                 .write_all(package.build_script().as_bytes())
-                .map_err(|err| Error::String(format!("Failed to save build script: {}", err)))?;
+                .map_err(|err| Error::String(format!("Failed to save build script: {err}")))?;
             writer
                 .sync_data()
                 .map_err(|err| Error::FileWriteError(build_script.to_owned(), err))?;
@@ -442,7 +442,7 @@ where
             let mut writer = std::fs::File::create(&build_options)
                 .map_err(|err| Error::FileOpenError(build_options.to_owned(), err))?;
             serde_json::to_writer_pretty(&mut writer, &options)
-                .map_err(|err| Error::String(format!("Failed to save build options: {}", err)))?;
+                .map_err(|err| Error::String(format!("Failed to save build options: {err}")))?;
             writer
                 .sync_data()
                 .map_err(|err| Error::FileWriteError(build_options.to_owned(), err))?;
@@ -508,8 +508,7 @@ where
             Some(0) => (),
             Some(code) => {
                 return Err(BuildError::new_error(format_args!(
-                    "Build script returned non-zero exit status: {}",
-                    code
+                    "Build script returned non-zero exit status: {code}"
                 )))
             }
             None => {
@@ -719,7 +718,7 @@ pub fn build_script_path(pkg: &BuildIdent) -> RelativePathBuf {
 /// This file is created during a build and stores the bash
 /// script used to build the package contents
 pub fn component_marker_path(pkg: &BuildIdent, name: &Component) -> RelativePathBuf {
-    data_path(pkg).join(format!("{}.cmpt", name))
+    data_path(pkg).join(format!("{name}.cmpt"))
 }
 
 /// Expand a path to a list of itself and all of its parents

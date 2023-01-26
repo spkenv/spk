@@ -156,8 +156,7 @@ impl Config {
     pub fn make_current(self) -> Result<Arc<Self>> {
         let mut lock = CONFIG.write().map_err(|err| {
             crate::Error::String(format!(
-                "Cannot load config, lock has been poisoned: {:?}",
-                err
+                "Cannot load config, lock has been poisoned: {err:?}"
             ))
         })?;
         Ok(lock.insert(Arc::new(self)).clone())
@@ -273,8 +272,7 @@ impl Config {
 pub fn get_config() -> Result<Arc<Config>> {
     let lock = CONFIG.read().map_err(|err| {
         crate::Error::String(format!(
-            "Cannot load config, lock has been poisoned: {:?}",
-            err
+            "Cannot load config, lock has been poisoned: {err:?}"
         ))
     })?;
     if let Some(config) = &*lock {
@@ -372,7 +370,7 @@ pub async fn open_repository_from_string<S: AsRef<str>>(
                 }
 
                 // As a convenience, try turning the specifier into a valid file url.
-                let address = format!("file:{}", specifier);
+                let address = format!("file:{specifier}");
                 // User should see the error from this however this plays out.
                 return open_repository(address).await;
             }

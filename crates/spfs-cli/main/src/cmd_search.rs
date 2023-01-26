@@ -33,7 +33,7 @@ impl CmdSearch {
             while let Some(tag) = tag_streams.next().await {
                 let (tag, _) = tag?;
                 if tag.to_string().contains(&self.term) {
-                    println!("{:?}", tag);
+                    println!("{tag:?}");
                 }
             }
         }

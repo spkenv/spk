@@ -110,7 +110,7 @@ async fn test_build_workdir(tmpdir: tempfile::TempDir) {
     let recipe = recipe!({
         "pkg": "test/1.0.0",
         "build": {
-            "script": format!("echo $PWD > {:?}", out_file)
+            "script": format!("echo $PWD > {out_file:?}")
         }
     });
 
@@ -354,8 +354,7 @@ async fn test_build_bad_options() {
             res,
             Err(crate::Error::SpkSpecError(spk_schema::Error::String(_)))
         ),
-        "got {:?}",
-        res
+        "got {res:?}"
     );
 }
 

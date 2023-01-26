@@ -214,8 +214,7 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
             Compatibility::Compatible
         } else {
             Compatibility::Incompatible(format!(
-                "{} does not intersect with {}",
-                self_valid_range, other_valid_range
+                "{self_valid_range} does not intersect with {other_valid_range}"
             ))
         }
     }
@@ -426,8 +425,7 @@ impl WildcardRange {
         };
         if range.parts.iter().filter(|p| p.is_none()).count() != 1 {
             return Err(Error::String(format!(
-                "Expected exactly one wildcard in version range, got: {}",
-                range
+                "Expected exactly one wildcard in version range, got: {range}"
             )));
         }
         Ok(VersionRange::Wildcard(range))
@@ -606,7 +604,7 @@ impl Ranged for GreaterThanRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version <= &self.bound {
-            return Compatibility::Incompatible(format!("Not {} [too low]", self));
+            return Compatibility::Incompatible(format!("Not {self} [too low]"));
         }
         Compatibility::Compatible
     }
@@ -649,7 +647,7 @@ impl Ranged for LessThanRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version >= &self.bound {
-            return Compatibility::Incompatible(format!("Not {} [too high]", self));
+            return Compatibility::Incompatible(format!("Not {self} [too high]"));
         }
         Compatibility::Compatible
     }
@@ -692,7 +690,7 @@ impl Ranged for GreaterThanOrEqualToRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version < &self.bound {
-            return Compatibility::Incompatible(format!("Not {} [too low]", self));
+            return Compatibility::Incompatible(format!("Not {self} [too low]"));
         }
         Compatibility::Compatible
     }
@@ -735,7 +733,7 @@ impl Ranged for LessThanOrEqualToRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version > &self.bound {
-            return Compatibility::Incompatible(format!("Not {} [too high]", self));
+            return Compatibility::Incompatible(format!("Not {self} [too high]"));
         }
         Compatibility::Compatible
     }
@@ -856,7 +854,7 @@ impl Ranged for NotEqualsVersion {
             return Compatibility::Compatible;
         }
 
-        Compatibility::Incompatible(format!("excluded [{}]", self))
+        Compatibility::Incompatible(format!("excluded [{self}]"))
     }
 }
 
@@ -981,7 +979,7 @@ impl Ranged for DoubleNotEqualsVersion {
             return Compatibility::Compatible;
         }
 
-        Compatibility::Incompatible(format!("excluded precisely [{}]", self))
+        Compatibility::Incompatible(format!("excluded precisely [{self}]"))
     }
 }
 
@@ -1071,7 +1069,7 @@ impl Display for CompatRange {
             // get the alternate, long form representation
             // as this is what we expect when parsing
             // (eg 'Binary' instead of 'b')
-            f.write_fmt(format_args!("{:#}", r))?;
+            f.write_fmt(format_args!("{r:#}"))?;
             f.write_char(':')?;
         }
         f.write_str(&self.base.to_string())
@@ -1323,7 +1321,7 @@ impl Display for VersionFilter {
             })
             .map(|r| {
                 if f.alternate() {
-                    format!("{:#}", r)
+                    format!("{r:#}")
                 } else {
                     r.to_string()
                 }
@@ -1353,8 +1351,7 @@ impl FromStr for VersionFilter {
         for rule_str in range.split(VERSION_RANGE_SEP) {
             if rule_str.is_empty() {
                 return Err(Error::String(format!(
-                    "Empty segment not allowed in version range, got: {}",
-                    range
+                    "Empty segment not allowed in version range, got: {range}"
                 )));
             }
             let rule = VersionRange::from_str(rule_str)?;

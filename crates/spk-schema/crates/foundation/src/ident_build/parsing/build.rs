@@ -109,5 +109,5 @@ where
 
 #[inline]
 pub(crate) fn is_base32_digit(c: char) -> bool {
-    ('A'..='Z').contains(&c) || ('2'..='7').contains(&c)
+    c.is_ascii_uppercase() || ('2'..='7').contains(&c)
 }

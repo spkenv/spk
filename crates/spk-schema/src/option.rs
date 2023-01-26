@@ -40,7 +40,7 @@ pub enum Inheritance {
 
 impl std::fmt::Display for Inheritance {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
+        f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -173,8 +173,7 @@ impl TryFrom<Request> for Opt {
                 }))
             }
             Request::Var(_) => Err(Error::String(format!(
-                "Cannot convert {:?} to option",
-                request
+                "Cannot convert {request:?} to option"
             ))),
         }
     }
@@ -317,7 +316,7 @@ pub struct VarOpt {
 
 // This is safe to allow because choices is IndexSet and has
 // deterministic iteration order.
-#[allow(clippy::derive_hash_xor_eq)]
+#[allow(clippy::derived_hash_with_manual_eq)]
 impl std::hash::Hash for VarOpt {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.var.hash(state);
@@ -409,8 +408,7 @@ impl VarOpt {
                     Compatibility::Compatible
                 } else {
                     Compatibility::Incompatible(format!(
-                        "incompatible option, wanted '{}', got '{}'",
-                        assigned, value
+                        "incompatible option, wanted '{assigned}', got '{value}'"
                     ))
                 }
             }

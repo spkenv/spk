@@ -48,7 +48,7 @@ impl CmdTags {
             } else {
                 String::new()
             };
-            println!("{}{}", tag_spec, suffix);
+            println!("{tag_spec}{suffix}");
         }
         Ok(0)
     }

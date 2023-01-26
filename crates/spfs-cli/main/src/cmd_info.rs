@@ -125,7 +125,7 @@ impl CmdInfo {
                     spfs::io::format_size(obj.size)
                 );
             }
-            Object::Tree(_) | Object::Mask => println!("{:?}", obj),
+            Object::Tree(_) | Object::Mask => println!("{obj:?}"),
         }
         Ok(())
     }

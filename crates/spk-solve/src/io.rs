@@ -904,7 +904,7 @@ impl DecisionFormatter {
             let mut sorted_by_count: Vec<(&String, &u64)> = problem_packages.iter().collect();
             sorted_by_count.sort_by(|a, b| b.1.cmp(a.1));
             for (pkg, count) in sorted_by_count {
-                let _ = writeln!(out, "   {} ({} times)", pkg, count);
+                let _ = writeln!(out, "   {pkg} ({count} times)");
             }
         } else {
             out.push_str(" Solver encountered no problem requests\n");

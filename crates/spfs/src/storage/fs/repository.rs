@@ -32,7 +32,7 @@ impl FromUrl for Config {
     async fn from_url(url: &url::Url) -> Result<Self> {
         let params = if let Some(qs) = url.query() {
             serde_qs::from_str(qs).map_err(|err| {
-                crate::Error::String(format!("Invalid grpc repo parameters: {:?}", err))
+                crate::Error::String(format!("Invalid grpc repo parameters: {err:?}"))
             })?
         } else {
             Params::default()
@@ -135,8 +135,7 @@ impl FSRepository {
         let repo_version = repo.last_migration().await?;
         if repo_version.major > current_version.major {
             return Err(format!(
-                "Repository requires a newer version of spfs [{:?}]: {:?}",
-                repo_version, root
+                "Repository requires a newer version of spfs [{repo_version:?}]: {root:?}"
             )
             .into());
         }

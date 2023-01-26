@@ -324,7 +324,7 @@ impl<T: Output> Ls<T> {
                     if self.verbose > 0 {
                         print!(
                             "{:>width$} ",
-                            format!("[{}]", repo_name),
+                            format!("[{repo_name}]"),
                             width = max_repo_name_len + 2
                         );
                     }
@@ -358,9 +358,7 @@ impl<T: Output> Ls<T> {
         if self.verbose > 1 || self.components {
             let cmpts = repo.read_components(spec.ident()).await?;
             item.push(' ');
-            item.push_str(
-                &ComponentSet::from(cmpts.keys().into_iter().cloned()).format_components(),
-            );
+            item.push_str(&ComponentSet::from(cmpts.keys().cloned()).format_components());
         }
         Ok(item)
     }

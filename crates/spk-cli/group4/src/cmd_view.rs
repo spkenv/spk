@@ -132,7 +132,7 @@ impl View {
         let recipe = template.render(options)?;
 
         for (index, variant) in recipe.default_variants().iter().enumerate() {
-            println!("{}: {}", index, variant);
+            println!("{index}: {variant}");
         }
 
         Ok(0)

@@ -137,10 +137,7 @@ impl BufRead for TestStream {
     fn consume(&mut self, amt: usize) {
         let remaining_in_buffer = self.buffer.len();
         if amt > remaining_in_buffer {
-            panic!(
-                "Invalid amt given to consume: {} > {}",
-                amt, remaining_in_buffer
-            )
+            panic!("Invalid amt given to consume: {amt} > {remaining_in_buffer}")
         }
         self.buffer.drain(..amt);
     }

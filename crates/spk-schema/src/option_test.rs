@@ -22,7 +22,7 @@ use crate::foundation::FromYaml;
 fn test_pkg_opt_validation(#[case] spec: &str, #[case] value: &str, #[case] expect_err: bool) {
     let mut opt = Opt::from_yaml(spec).unwrap().into_pkg().unwrap();
     let res = opt.set_value(value.to_string());
-    assert_eq!(res.is_err(), expect_err, "{:?}", res);
+    assert_eq!(res.is_err(), expect_err, "{res:?}");
 }
 
 #[rstest]

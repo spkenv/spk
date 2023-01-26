@@ -23,7 +23,7 @@ async fn test_sync_ref_unknown(#[future] config: (tempfile::TempDir, Config)) {
     let syncer = Syncer::new(&local, &origin);
     match syncer.sync_ref("--test-unknown--").await {
         Err(Error::UnknownReference(_)) => (),
-        Err(err) => panic!("expected unknown reference error, got {:?}", err),
+        Err(err) => panic!("expected unknown reference error, got {err:?}"),
         Ok(_) => panic!("expected unknown reference error, got success"),
     }
 
@@ -32,7 +32,7 @@ async fn test_sync_ref_unknown(#[future] config: (tempfile::TempDir, Config)) {
         .await
     {
         Err(Error::UnknownObject(_)) => (),
-        Err(err) => panic!("expected unknown object error, got {:?}", err),
+        Err(err) => panic!("expected unknown object error, got {err:?}"),
         Ok(_) => panic!("expected unknown object error, got success"),
     }
 }

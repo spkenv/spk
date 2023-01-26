@@ -30,9 +30,9 @@ fn test_is_gt(#[case] base: &str, #[case] test: &str, #[case] expected: bool) {
     let b = parse_version(test).unwrap();
     let actual = a > b;
     if expected {
-        assert_eq!(actual, expected, "{} should be greater than {}", a, b);
+        assert_eq!(actual, expected, "{a} should be greater than {b}");
     } else {
-        assert_eq!(actual, expected, "{} should not be greater than {}", a, b);
+        assert_eq!(actual, expected, "{a} should not be greater than {b}");
     }
 }
 
@@ -67,7 +67,7 @@ fn test_parse_version_invalid(#[case] string: &str) {
     if let Err(super::Error::InvalidVersionError(_)) = result {
         // ok
     } else {
-        panic!("expected InvalidVersionError, got: {:?}", result)
+        panic!("expected InvalidVersionError, got: {result:?}")
     }
 }
 

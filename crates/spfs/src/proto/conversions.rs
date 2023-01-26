@@ -13,7 +13,7 @@ pub(crate) fn convert_to_datetime(
     let source =
         source.ok_or_else(|| Error::String("Expected non-null digest in rpc message".into()))?;
     chrono::DateTime::<chrono::Utc>::from_str(&source.iso_timestamp)
-        .map_err(|err| Error::String(format!("Received invalid timestamp string: {:?}", err)))
+        .map_err(|err| Error::String(format!("Received invalid timestamp string: {err:?}")))
 }
 
 pub(crate) fn convert_from_datetime(source: &chrono::DateTime<chrono::Utc>) -> super::DateTime {
@@ -102,7 +102,7 @@ impl From<Error> for super::Error {
             crate::Error::InvalidReference(message) => {
                 super::error::Kind::InvalidReference(super::InvalidReferenceError { message })
             }
-            err => super::error::Kind::Other(format!("{:?}", err)),
+            err => super::error::Kind::Other(format!("{err:?}")),
         });
         Self { kind }
     }

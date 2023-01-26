@@ -139,8 +139,7 @@ fn validate_pkg_name<S: AsRef<str>>(name: S) -> Result<()> {
             &name[(index + 1)..]
         );
         Err(InvalidNameError::new_error(format!(
-            "Invalid package name at pos {}: {}",
-            index, err_str
+            "Invalid package name at pos {index}: {err_str}"
         )))
     } else {
         Ok(())
@@ -278,8 +277,7 @@ fn validate_opt_base_name<S: AsRef<str>>(name: S) -> Result<()> {
             &name[(index + 1)..]
         );
         Err(InvalidNameError::new_error(format!(
-            "Invalid option name at pos {}: {}",
-            index, err_str
+            "Invalid option name at pos {index}: {err_str}"
         )))
     } else {
         Ok(())
@@ -304,8 +302,7 @@ pub fn validate_tag_name<S: AsRef<str>>(name: S) -> Result<()> {
             &name[(index + 1)..]
         );
         Err(InvalidNameError::new_error(format!(
-            "Invalid release tag name at pos {}: {}",
-            index, err_str
+            "Invalid release tag name at pos {index}: {err_str}"
         )))
     } else {
         Ok(())

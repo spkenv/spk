@@ -234,8 +234,7 @@ impl ValidatorT for OptionsValidator {
             let compat = request.is_satisfied_by(spec);
             if !&compat {
                 return Ok(Compatibility::Incompatible(format!(
-                    "doesn't satisfy requested option: {}",
-                    compat
+                    "doesn't satisfy requested option: {compat}"
                 )));
             }
         }
@@ -474,7 +473,7 @@ impl PkgRequirementsValidator {
             Ok(_) => restricted,
             // FIXME: only match ValueError
             Err(spk_schema::ident::Error::String(err)) => {
-                return Ok(Incompatible(format!("conflicting requirement: {}", err)))
+                return Ok(Incompatible(format!("conflicting requirement: {err}")))
             }
             Err(err) => return Err(err.into()),
         };

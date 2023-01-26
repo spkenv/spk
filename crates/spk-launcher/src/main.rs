@@ -66,7 +66,7 @@ impl<'a> SpfsTag for Dynamic<'a> {
         let mut buf = PathBuf::new();
         let lossy_exe_name = self.exe_name.to_string_lossy();
         buf.push("opt");
-        buf.push(format!("{}.dist", lossy_exe_name));
+        buf.push(format!("{lossy_exe_name}.dist"));
         buf.push(self.exe_name);
         buf
     }

@@ -116,7 +116,7 @@ impl CommandArgs for DeprecateCmd {
 /// Display a question for the user and get their input, typically to
 /// stdout and from stdin
 pub(crate) fn ask_user(prompt: &str) -> String {
-    print!("{}", prompt);
+    print!("{prompt}");
     let _ = std::io::stdout().flush();
 
     let mut input = String::new();

@@ -88,8 +88,7 @@ impl TryFrom<UncheckedBuildSpec> for BuildSpec {
                 .collect::<Vec<_>>()
                 .join("\n");
             return Err(crate::Error::String(format!(
-                "Multiple variants would produce the same build:\n{}",
-                details
+                "Multiple variants would produce the same build:\n{details}"
             )));
         }
 
