@@ -192,7 +192,7 @@ pub struct Decision {
 }
 
 impl Decision {
-    pub fn builder<'state>(base: &'state State) -> DecisionBuilder<'state, 'static> {
+    pub fn builder(base: &State) -> DecisionBuilder<'_, 'static> {
         DecisionBuilder::new(base)
     }
 
