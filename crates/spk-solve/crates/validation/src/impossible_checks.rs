@@ -24,7 +24,7 @@ use crate::validation::{
     BinaryOnlyValidator,
     ComponentsValidator,
     DeprecationValidator,
-    OnlyPackageRequestsData,
+    GetMergedRequest,
     PkgRequestValidator,
     ValidatorT,
 };
@@ -588,7 +588,7 @@ impl<'a> PotentialPackageRequest<'a> {
     }
 }
 
-impl OnlyPackageRequestsData for PotentialPackageRequest<'_> {
+impl GetMergedRequest for PotentialPackageRequest<'_> {
     fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequest> {
         // This should only be used to validate the package named in
         // the combined package request that it was created with. No

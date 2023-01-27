@@ -57,7 +57,7 @@ fn test_src_package_install_requests_are_not_considered() {
 
     for validator in validators {
         assert!(
-            validator.validate_recipe(&*state, &*spec).unwrap().is_ok(),
+            validator.validate_recipe(&state, &*spec).unwrap().is_ok(),
             "Source package should be valid regardless of requirements but wasn't"
         );
     }
@@ -86,7 +86,7 @@ fn test_empty_options_can_match_anything() {
 
     assert!(
         validator
-            .validate_package(&*state, &spec, &source)
+            .validate_package(&state, &spec, &source)
             .unwrap()
             .is_ok(),
         "empty option should not invalidate requirement"
@@ -124,9 +124,7 @@ fn test_qualified_var_supersedes_unqualified() {
     ));
     let source = PackageSource::Embedded;
 
-    let compat = validator
-        .validate_package(&*state, &*spec, &source)
-        .unwrap();
+    let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
         compat.is_ok(),
         "qualified var requests should superseded unqualified ones, got: {compat}"
@@ -142,9 +140,7 @@ fn test_qualified_var_supersedes_unqualified() {
         }
     ));
     let source = PackageSource::Embedded;
-    let compat = validator
-        .validate_package(&*state, &*spec, &source)
-        .unwrap();
+    let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
         !compat.is_ok(),
         "qualified var requests should supersede unqualified ones, got: {compat}",
