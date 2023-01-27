@@ -64,6 +64,38 @@ pub trait AllValidatableData: OnlyPackageRequestsData {
     fn get_option_map(&self) -> &OptionMap;
 }
 
+// These trait implementations for State are here because graph crate
+// contains the State definition, and this (validation) crate uses the
+// graph crate.
+impl OnlyPackageRequestsData for State {
+    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequest> {
+        State::get_merged_request(self, name)
+    }
+}
+
+impl AllValidatableData for State {
+    fn get_resolved_packages(
+        &self,
+    ) -> &BTreeMap<PkgNameBuf, (CachedHash<Arc<Spec>>, PackageSource)> {
+        State::get_resolved_packages(self)
+    }
+
+    fn get_current_resolve(
+        &self,
+        name: &PkgName,
+    ) -> GetCurrentResolveResult<(&CachedHash<Arc<Spec>>, &PackageSource)> {
+        State::get_current_resolve(self, name)
+    }
+
+    fn get_var_requests(&self) -> &BTreeSet<VarRequest> {
+        State::get_var_requests(self)
+    }
+
+    fn get_option_map(&self) -> &OptionMap {
+        State::get_option_map(self)
+    }
+}
+
 /// For validating a package or recipe against various subsets of state data
 #[enum_dispatch]
 pub trait ValidatorT {
@@ -105,48 +137,6 @@ pub trait ValidatorT {
         _state_data: &B,
         _recipe: &R,
     ) -> crate::Result<Compatibility>;
-}
-
-/// A data adapter that wraps a state for using package and recipe
-/// validators and prevents other state methods/field from being
-/// accessed during validation.
-pub struct ValidatableStateAdapter<'a> {
-    state: &'a State,
-}
-
-impl<'a> ValidatableStateAdapter<'a> {
-    pub fn new(state: &'a State) -> Self {
-        ValidatableStateAdapter { state }
-    }
-}
-
-impl OnlyPackageRequestsData for ValidatableStateAdapter<'_> {
-    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequest> {
-        self.state.get_merged_request(name)
-    }
-}
-
-impl AllValidatableData for ValidatableStateAdapter<'_> {
-    fn get_resolved_packages(
-        &self,
-    ) -> &BTreeMap<PkgNameBuf, (CachedHash<Arc<Spec>>, PackageSource)> {
-        self.state.get_resolved_packages()
-    }
-
-    fn get_current_resolve(
-        &self,
-        name: &PkgName,
-    ) -> GetCurrentResolveResult<(&CachedHash<Arc<Spec>>, &PackageSource)> {
-        self.state.get_current_resolve(name)
-    }
-
-    fn get_var_requests(&self) -> &BTreeSet<VarRequest> {
-        self.state.get_var_requests()
-    }
-
-    fn get_option_map(&self) -> &OptionMap {
-        self.state.get_option_map()
-    }
 }
 
 /// Ensures that deprecated packages are not included unless specifically requested.

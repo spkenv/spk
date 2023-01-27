@@ -45,7 +45,6 @@ use spk_solve_validation::{
     default_validators,
     BinaryOnlyValidator,
     ImpossibleRequestsChecker,
-    ValidatableStateAdapter,
     ValidatorT,
     Validators,
     IMPOSSIBLE_CHECKS_TARGET,
@@ -711,10 +710,8 @@ impl Solver {
     }
 
     fn validate_recipe<R: Recipe>(&self, state: &State, recipe: &R) -> Result<Compatibility> {
-        let state_data = ValidatableStateAdapter::new(state);
-
         for validator in self.validators.as_ref() {
-            let compat = validator.validate_recipe(&state_data, recipe)?;
+            let compat = validator.validate_recipe(state, recipe)?;
             if !&compat {
                 return Ok(compat);
             }
@@ -731,10 +728,8 @@ impl Solver {
     where
         P: Package + Satisfy<PkgRequest> + Satisfy<VarRequest>,
     {
-        let state_data = ValidatableStateAdapter::new(state);
-
         for validator in self.validators.as_ref() {
-            let compat = validator.validate_package(&state_data, spec, source)?;
+            let compat = validator.validate_package(state, spec, source)?;
             if !&compat {
                 return Ok(compat);
             }
