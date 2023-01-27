@@ -78,8 +78,7 @@ fn test_qualified_var_supersedes_unqualified() {
     let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
         compat.is_ok(),
-        "qualified var requests should superseded unqualified ones, got: {}",
-        compat
+        "qualified var requests should superseded unqualified ones, got: {compat}"
     );
 
     // where the above is valid, this spec should fail because debug

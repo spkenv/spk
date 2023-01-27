@@ -77,8 +77,7 @@ where
             for (name, num) in vec {
                 if tags.insert(name.to_owned(), num).is_some() {
                     return Err(InvalidVersionError::new_error(format!(
-                        "duplicate tag: {}",
-                        name
+                        "duplicate tag: {name}"
                     )));
                 }
             }
@@ -117,8 +116,7 @@ where
             for (name, _) in &tags {
                 if !set.insert(*name) {
                     return Err(InvalidVersionError::new_error(format!(
-                        "duplicate tag: {}",
-                        name
+                        "duplicate tag: {name}"
                     )));
                 }
             }

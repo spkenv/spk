@@ -31,7 +31,7 @@ impl FromUrl for Config {
         let mut address = url.clone();
         let params = if let Some(qs) = address.query() {
             serde_qs::from_str(qs).map_err(|err| {
-                crate::Error::String(format!("Invalid grpc repo parameters: {:?}", err))
+                crate::Error::String(format!("Invalid grpc repo parameters: {err:?}"))
             })?
         } else {
             Params::default()
@@ -45,8 +45,7 @@ impl Config {
     pub fn to_address(&self) -> Result<url::Url> {
         let query = serde_qs::to_string(&self.params).map_err(|err| {
             crate::Error::String(format!(
-                "Grpc repo parameters do not create a valid url: {:?}",
-                err
+                "Grpc repo parameters do not create a valid url: {err:?}"
             ))
         })?;
         let mut address = self.address.clone();
@@ -85,13 +84,11 @@ impl RpcRepository {
     /// Create a new rpc repository client for the given configuration
     pub async fn new(config: Config) -> Result<Self> {
         let endpoint = tonic::transport::Endpoint::from_shared(config.address.to_string())
-            .map_err(|err| {
-                Error::String(format!("invalid address for rpc repository: {:?}", err))
-            })?;
+            .map_err(|err| Error::String(format!("invalid address for rpc repository: {err:?}")))?;
         let channel = match config.params.lazy {
             true => endpoint.connect_lazy(),
             false => endpoint.connect().await.map_err(|err| {
-                Error::String(format!("failed to connect to rpc repository: {:?}", err))
+                Error::String(format!("failed to connect to rpc repository: {err:?}"))
             })?,
         };
         let repo_client = RepositoryClient::new(channel.clone());

@@ -78,13 +78,13 @@ impl FileMatcher {
         let rules: Vec<_> = rules.into_iter().map(Into::into).collect();
         let mut builder = ignore::gitignore::GitignoreBuilder::new("/");
         for rule in rules.iter() {
-            builder.add_line(None, rule).map_err(|err| {
-                Error::String(format!("Invalid file pattern '{}': {:?}", rule, err))
-            })?;
+            builder
+                .add_line(None, rule)
+                .map_err(|err| Error::String(format!("Invalid file pattern '{rule}': {err:?}")))?;
         }
         let gitignore = builder
             .build()
-            .map_err(|err| Error::String(format!("Failed to compile file patterns: {:?}", err)))?;
+            .map_err(|err| Error::String(format!("Failed to compile file patterns: {err:?}")))?;
         Ok(Self { rules, gitignore })
     }
 

@@ -193,7 +193,7 @@ pub fn configure_logging(verbosity: u32) -> Result<()> {
     if let Ok(overrides) = std::env::var("SPK_LOG") {
         // this is a common scenario because spk often calls itself
         if directives != overrides {
-            directives = format!("{},{}", directives, overrides);
+            directives = format!("{directives},{overrides}");
         }
     }
     std::env::set_var("SPK_LOG", &directives);

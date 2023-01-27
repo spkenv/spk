@@ -37,7 +37,7 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
         match self.read_object(digest).await {
             Err(err) => Err(err),
             Ok(Object::Platform(platform)) => Ok(platform),
-            Ok(_) => Err(format!("Object is not a platform: {:?}", digest).into()),
+            Ok(_) => Err(format!("Object is not a platform: {digest:?}").into()),
         }
     }
 

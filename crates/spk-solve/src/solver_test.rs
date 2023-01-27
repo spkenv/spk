@@ -163,8 +163,7 @@ async fn test_solver_package_with_no_recipe(mut solver: Solver) {
     let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(
         matches!(res, Ok(_)),
-        "'{:?}' should be an Ok(_) solution not an error.')",
-        res
+        "'{res:?}' should be an Ok(_) solution not an error.')"
     );
 }
 
@@ -196,8 +195,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(mut solver: Solver) {
     let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(
         matches!(res, Ok(_)),
-        "'{:?}' should be an Ok(_) solution not an error.')",
-        res
+        "'{res:?}' should be an Ok(_) solution not an error.')"
     );
 }
 
@@ -628,10 +626,7 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
         };
         assert!(
             value.starts_with(&expected),
-            "{} should start with ~{} to be valid for {}",
-            value,
-            expected,
-            pyver
+            "{value} should start with ~{expected} to be valid for {pyver}"
         );
     }
 }
@@ -1923,8 +1918,7 @@ fn test_problem_packages() {
     match problems.get(&a_package) {
         Some(count) => assert!(
             *count == 2,
-            " problem package count was incorrect, it should be 2 not {}",
-            count
+            " problem package count was incorrect, it should be 2 not {count}"
         ),
         None => panic!("problem package count was missing, should have been 2"),
     };

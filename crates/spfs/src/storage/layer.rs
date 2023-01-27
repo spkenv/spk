@@ -38,7 +38,7 @@ pub trait LayerStorage: graph::Database + Sync + Send {
         match self.read_object(digest).await {
             Err(err) => Err(err),
             Ok(Object::Layer(layer)) => Ok(layer),
-            Ok(_) => Err(format!("Object is not a layer: {:?}", digest).into()),
+            Ok(_) => Err(format!("Object is not a layer: {digest:?}").into()),
         }
     }
 

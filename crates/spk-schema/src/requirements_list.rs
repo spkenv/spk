@@ -128,8 +128,7 @@ impl<'de> Deserialize<'de> for RequirementsList {
                     let name = request.name();
                     if requirement_names.contains(name) {
                         return Err(serde::de::Error::custom(format!(
-                            "found multiple install requirements for '{}'",
-                            name
+                            "found multiple install requirements for '{name}'"
                         )));
                     }
                     requirement_names.insert(name.to_owned());

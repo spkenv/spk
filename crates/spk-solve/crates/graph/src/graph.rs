@@ -1178,8 +1178,7 @@ impl State {
         match merged {
             Some(merged) => Ok(merged),
             None => Err(super::error::GetMergedRequestError::NoRequestFor(format!(
-                "No requests for '{}' [INTERNAL ERROR]",
-                name
+                "No requests for '{name}' [INTERNAL ERROR]"
             ))),
         }
     }

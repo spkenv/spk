@@ -302,7 +302,7 @@ impl FormatSolution for Solution {
             }
             out.push('\n');
         }
-        let _ = write!(out, " Number of Packages: {}", number_of_packages);
+        let _ = write!(out, " Number of Packages: {number_of_packages}");
         out
     }
 }

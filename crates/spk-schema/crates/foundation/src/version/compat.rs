@@ -53,8 +53,7 @@ impl std::str::FromStr for CompatRule {
             API_STR => Ok(Self::API),
             BINARY_STR => Ok(Self::Binary),
             _ => Err(Error::String(format!(
-                "Unknown or unsupported compatibility rule: {}",
-                s
+                "Unknown or unsupported compatibility rule: {s}"
             ))),
         }
     }
@@ -235,7 +234,7 @@ impl FromStr for Compat {
         // Parse the main period-separated list of `CompatRule`s
         let (s, parts) =
             separated_list1(tag(VERSION_SEP), compat_rule_set)(value).map_err(|err| {
-                Error::String(format!("Failed to parse compat value '{}': {}", value, err))
+                Error::String(format!("Failed to parse compat value '{value}': {err}"))
             })?;
 
         enum PreOrPost {
@@ -274,8 +273,7 @@ impl FromStr for Compat {
         ))(s)
         .map_err(|err| {
             Error::String(format!(
-                "Failed to parse pre/post compat value '{}': {}",
-                value, err
+                "Failed to parse pre/post compat value '{value}': {err}"
             ))
         })?;
 
@@ -419,8 +417,7 @@ impl Compat {
         }
 
         Compatibility::Incompatible(format!(
-            "Not compatible: {} ({}) [{:?} compatibility not specified]",
-            base, self, required,
+            "Not compatible: {base} ({self}) [{required:?} compatibility not specified]",
         ))
     }
 }

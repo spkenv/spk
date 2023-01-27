@@ -175,7 +175,6 @@ fn test_makedirs_dont_change_existing(tmpdir: tempfile::TempDir) {
 fn listdir(path: std::path::PathBuf) -> Vec<String> {
     std::fs::read_dir(path)
         .expect("failed to read dir")
-        .into_iter()
         .map(|res| {
             res.expect("error while reading dir")
                 .file_name()

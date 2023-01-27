@@ -40,7 +40,7 @@ pub enum Inheritance {
 
 impl std::fmt::Display for Inheritance {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
+        f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -173,8 +173,7 @@ impl TryFrom<Request> for Opt {
                 }))
             }
             Request::Var(_) => Err(Error::String(format!(
-                "Cannot convert {:?} to option",
-                request
+                "Cannot convert {request:?} to option"
             ))),
         }
     }
@@ -409,8 +408,7 @@ impl VarOpt {
                     Compatibility::Compatible
                 } else {
                     Compatibility::Incompatible(format!(
-                        "incompatible option, wanted '{}', got '{}'",
-                        assigned, value
+                        "incompatible option, wanted '{assigned}', got '{value}'"
                     ))
                 }
             }

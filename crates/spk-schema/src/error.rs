@@ -19,7 +19,10 @@ pub enum Error {
     #[error("Invalid inheritance: {0}")]
     InvalidInheritance(#[source] serde_yaml::Error),
     #[error("Invalid package spec file {0}: {1}")]
-    InvalidPackageSpecFile(std::path::PathBuf, #[source] format_serde_error::SerdeError),
+    InvalidPackageSpecFile(
+        std::path::PathBuf,
+        #[source] Box<format_serde_error::SerdeError>,
+    ),
     #[error("Invalid path {0}")]
     InvalidPath(std::path::PathBuf, #[source] std::io::Error),
     #[error(transparent)]

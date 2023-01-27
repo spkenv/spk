@@ -141,7 +141,7 @@ async fn test_prune_tags(#[future] tmprepo: TempRepo) {
         let mut tags = HashMap::new();
         match tmprepo.remove_tag_stream(&tag).await {
             Ok(_) | Err(Error::UnknownReference(_)) => (),
-            Err(err) => panic!("{:?}", err),
+            Err(err) => panic!("{err:?}"),
         }
 
         for year in vec![2020, 2021, 2022, 2023, 2024, 2025].into_iter() {

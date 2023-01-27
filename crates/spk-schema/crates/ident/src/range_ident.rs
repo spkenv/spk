@@ -158,7 +158,7 @@ impl RangeIdent {
         if other.build.is_none() || self.build == other.build || self.build.is_none() {
             Compatibility::Compatible
         } else {
-            Compatibility::Incompatible(format!("Incompatible builds: {} && {}", self, other))
+            Compatibility::Incompatible(format!("Incompatible builds: {self} && {other}"))
         }
     }
 
@@ -203,8 +203,7 @@ impl RangeIdent {
             Ok(())
         } else {
             Err(Error::String(format!(
-                "Incompatible builds: {} && {}",
-                self, other
+                "Incompatible builds: {self} && {other}"
             )))
         }
     }
@@ -329,7 +328,7 @@ impl Serialize for RangeIdent {
         // "fromBuildEnv: foo/Binary:1.1.2"
         // instead of
         // "fromBuildEnv: foo/b:1.1.2"
-        serializer.serialize_str(&format!("{:#}", self))
+        serializer.serialize_str(&format!("{self:#}"))
     }
 }
 

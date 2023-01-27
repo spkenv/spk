@@ -161,8 +161,7 @@ async fn handle_upload(
     let result = unsafe { repo.write_data(reader).await };
     let (digest, size) = result.map_err(|err| {
         crate::Error::String(format!(
-            "An error occurred while spawning a thread for this operation: {:?}",
-            err
+            "An error occurred while spawning a thread for this operation: {err:?}"
         ))
     })?;
     let result = crate::proto::write_payload_response::UploadResponse::ok(

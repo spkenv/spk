@@ -85,10 +85,7 @@ fn test_version_range_is_applicable(
     assert_eq!(
         actual.is_ok(),
         expected,
-        "\"{}\".is_applicable({}) {}",
-        range,
-        version,
-        actual
+        "\"{range}\".is_applicable({version}) {actual}"
     );
 }
 
@@ -129,7 +126,7 @@ fn test_version_range_is_satisfied_recipe(
     let vr = parse_version_range(range).unwrap();
     let actual = vr.is_satisfied_by(&spec, CompatRule::Binary);
 
-    assert_eq!(actual.is_ok(), expected, "{} -> {:?}", range, actual);
+    assert_eq!(actual.is_ok(), expected, "{range} -> {actual:?}");
 }
 
 #[rstest]
@@ -169,7 +166,7 @@ fn test_version_range_is_satisfied_spec(
     let vr = parse_version_range(range).unwrap();
     let actual = vr.is_satisfied_by(&spec, CompatRule::Binary);
 
-    assert_eq!(actual.is_ok(), expected, "{} -> {:?}", range, actual);
+    assert_eq!(actual.is_ok(), expected, "{range} -> {actual:?}");
 }
 
 #[rstest]
@@ -198,9 +195,9 @@ fn test_intersects(#[case] range1: &str, #[case] range2: &str, #[case] expected:
     let a = parse_version_range(range1).unwrap();
     let b = parse_version_range(range2).unwrap();
     let c = a.intersects(&b);
-    assert_eq!(!&c, !expected, "a:{} + b:{} == {:?}", a, b, c);
+    assert_eq!(!&c, !expected, "a:{a} + b:{b} == {c:?}");
     let c = b.intersects(&a);
-    assert_eq!(!&c, !expected, "b:{} + a:{} == {:?}", b, a, c);
+    assert_eq!(!&c, !expected, "b:{b} + a:{a} == {c:?}");
 }
 
 prop_compose! {
@@ -525,7 +522,7 @@ fn test_contains(#[case] range1: &str, #[case] range2: &str, #[case] expected: b
     let a = parse_version_range(range1).unwrap();
     let b = parse_version_range(range2).unwrap();
     let c = a.contains(&b);
-    assert_eq!(c.is_ok(), expected, "{} contains {} == {:?}", a, b, c,);
+    assert_eq!(c.is_ok(), expected, "{a} contains {b} == {c:?}",);
 }
 
 #[rstest]

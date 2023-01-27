@@ -238,7 +238,7 @@ impl std::fmt::Display for BuildKeyEntry {
         match self {
             BuildKeyEntry::NotSet => f.write_str("NotSet"),
             BuildKeyEntry::Text(s) => f.write_str(s),
-            BuildKeyEntry::ExpandedVersion(v) => f.write_str(&format!("{}", v)),
+            BuildKeyEntry::ExpandedVersion(v) => f.write_str(&format!("{v}")),
         }
     }
 }
@@ -500,7 +500,7 @@ enum BuildKeyVersionNumberPiece {
 impl std::fmt::Display for BuildKeyVersionNumberPiece {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            BuildKeyVersionNumberPiece::Number(n) => f.write_str(&format!("{}", n)),
+            BuildKeyVersionNumberPiece::Number(n) => f.write_str(&format!("{n}")),
             BuildKeyVersionNumberPiece::Text(s) => f.write_str(s),
         }
     }

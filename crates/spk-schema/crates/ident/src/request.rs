@@ -29,8 +29,11 @@ use crate::{BuildIdent, Error, RangeIdent, Result, Satisfy, VersionIdent};
 #[path = "./request_test.rs"]
 mod request_test;
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Default,
+)]
 pub enum PreReleasePolicy {
+    #[default]
     ExcludeAll,
     IncludeAll,
 }
@@ -43,7 +46,7 @@ impl PreReleasePolicy {
 
 impl std::fmt::Display for PreReleasePolicy {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
+        f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -54,14 +57,11 @@ impl std::str::FromStr for PreReleasePolicy {
     }
 }
 
-impl Default for PreReleasePolicy {
-    fn default() -> Self {
-        PreReleasePolicy::ExcludeAll
-    }
-}
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Default,
+)]
 pub enum InclusionPolicy {
+    #[default]
     Always,
     IfAlreadyPresent,
 }
@@ -74,7 +74,7 @@ impl InclusionPolicy {
 
 impl std::fmt::Display for InclusionPolicy {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
+        f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -82,12 +82,6 @@ impl std::str::FromStr for InclusionPolicy {
     type Err = crate::Error;
     fn from_str(value: &str) -> crate::Result<Self> {
         serde_yaml::from_str(value).map_err(Error::InvalidInclusionPolicy)
-    }
-}
-
-impl Default for InclusionPolicy {
-    fn default() -> Self {
-        InclusionPolicy::Always
     }
 }
 
@@ -575,9 +569,9 @@ impl PkgRequest {
                         // version component lengths
                         + base.len(),
                 );
-                rendered.extend(pin.chars().into_iter());
+                rendered.extend(pin.chars());
                 rendered.push(':');
-                rendered.extend(base.chars().into_iter());
+                rendered.extend(base.chars());
                 self.rendered_to_pkgrequest(rendered)
             }
             Some(pin) => {
@@ -585,7 +579,7 @@ impl PkgRequest {
                 let mut rendered = Vec::with_capacity(pin.len());
                 for char in pin.chars() {
                     if char == 'x' {
-                        rendered.extend(digits.next().unwrap().to_string().chars().into_iter());
+                        rendered.extend(digits.next().unwrap().to_string().chars());
                     } else {
                         rendered.push(char);
                     }
@@ -702,7 +696,7 @@ impl FormatRequest for PkgRequest {
                 differences.push(format!("fromBuildEnv: {}", pin.to_string().cyan()));
             }
             if let Some(rc) = self.required_compat {
-                let req_compat = format!("{:#}", rc);
+                let req_compat = format!("{rc:#}");
                 differences.push(format!("RequiredCompat: {}", req_compat.cyan()));
             };
 

@@ -42,7 +42,7 @@ pub trait ManifestStorage: graph::Database + Sync + Send {
         match self.read_object(digest).await {
             Err(err) => Err(err),
             Ok(Object::Manifest(manifest)) => Ok(manifest),
-            Ok(_) => Err(format!("Object is not a manifest: {:?}", digest).into()),
+            Ok(_) => Err(format!("Object is not a manifest: {digest:?}").into()),
         }
     }
 }

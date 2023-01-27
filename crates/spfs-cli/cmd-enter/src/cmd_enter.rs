@@ -62,7 +62,7 @@ impl CmdEnter {
             .enable_all()
             .build()
             .map_err(|err| {
-                spfs::Error::String(format!("Failed to establish async runtime: {:?}", err))
+                spfs::Error::String(format!("Failed to establish async runtime: {err:?}"))
             })?;
         let res = rt.block_on(self.run_async(config));
         // do not block forever on drop because of any stuck blocking tasks

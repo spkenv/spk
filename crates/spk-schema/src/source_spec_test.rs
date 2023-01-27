@@ -16,7 +16,7 @@ fn test_local_source_dir(tmpdir: tempfile::TempDir) {
         std::fs::create_dir_all(&dest_dir).unwrap();
         std::fs::File::create(source_dir.join("file.txt")).unwrap();
     }
-    let spec = format!("{{path: {:?}}}", source_dir);
+    let spec = format!("{{path: {source_dir:?}}}");
     let source: LocalSource = serde_yaml::from_str(&spec).unwrap();
     source.collect(&dest_dir).unwrap();
 

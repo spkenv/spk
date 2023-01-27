@@ -29,7 +29,7 @@ impl storage::FromUrl for Config {
     async fn from_url(url: &url::Url) -> Result<Self> {
         match url.query() {
             Some(qs) => serde_qs::from_str(qs)
-                .map_err(|err| crate::Error::String(format!("Invalid proxy repo url: {:?}", err))),
+                .map_err(|err| crate::Error::String(format!("Invalid proxy repo url: {err:?}"))),
             None => Err(crate::Error::String(
                 "Stacked repo url had empty query string, this would create an unusable repo"
                     .to_string(),
@@ -243,6 +243,6 @@ impl Repository for ProxyRepository {
                 .collect(),
         };
         let query = serde_qs::to_string(&config).expect("We should not fail to create a url");
-        url::Url::parse(&format!("proxy:?{}", query)).unwrap()
+        url::Url::parse(&format!("proxy:?{query}")).unwrap()
     }
 }

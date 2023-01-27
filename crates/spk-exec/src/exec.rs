@@ -57,8 +57,7 @@ pub async fn resolve_runtime_layers(solution: &Solution) -> Result<Vec<Digest>> 
         for name in desired_components.into_iter() {
             let digest = components.get(&name).ok_or_else(|| {
                 Error::String(format!(
-                    "Resolved component '{}' went missing, this is likely a bug in the solver",
-                    name
+                    "Resolved component '{name}' went missing, this is likely a bug in the solver"
                 ))
             })?;
 

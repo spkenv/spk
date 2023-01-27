@@ -143,10 +143,7 @@ where
         std::fs::create_dir_all(&target_dir)
             .map_err(|err| Error::DirectoryCreateError(target_dir.to_owned(), err))?;
         source.collect(&target_dir, &env).map_err(|err| {
-            CollectionError::new_error(format_args!(
-                "Failed to collect source: {}\n{:?}",
-                err, source
-            ))
+            CollectionError::new_error(format_args!("Failed to collect source: {err}\n{source:?}"))
         })?;
     }
     Ok(())

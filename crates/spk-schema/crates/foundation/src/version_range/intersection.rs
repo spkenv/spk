@@ -77,13 +77,13 @@ impl<'a> std::fmt::Display for LimitedValidRange<'a> {
         // Format these ranges using rust slice syntax.
         match self {
             LimitedValidRange::RangeFrom(a) => {
-                write!(f, "{}..", a)
+                write!(f, "{a}..")
             }
             LimitedValidRange::RangeTo(a) => {
-                write!(f, "..{}", a)
+                write!(f, "..{a}")
             }
             LimitedValidRange::Range(a, b) => {
-                write!(f, "{}..{}", a, b)
+                write!(f, "{a}..{b}")
             }
         }
     }
@@ -117,7 +117,7 @@ impl<'a> std::fmt::Display for ValidRange<'a> {
             ValidRange::Total => f.pad(".."),
             ValidRange::Range(r) => r.fmt(f),
             ValidRange::Pair(p1, p2) => {
-                write!(f, "{},{}", p1, p2)
+                write!(f, "{p1},{p2}")
             }
         }
     }

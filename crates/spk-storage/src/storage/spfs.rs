@@ -162,7 +162,7 @@ impl<T> From<std::result::Result<T, &crate::Error>> for CacheValue<T> {
             Err(crate::Error::String(s)) => CacheValue::StringError(s.clone()),
             // Decorate the error message so we can tell it was a custom error
             // downgraded to a String.
-            Err(err) => CacheValue::StringifiedError(format!("Cached error: {}", err)),
+            Err(err) => CacheValue::StringifiedError(format!("Cached error: {err}")),
         }
     }
 }

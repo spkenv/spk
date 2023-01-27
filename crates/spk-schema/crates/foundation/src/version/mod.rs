@@ -102,7 +102,7 @@ impl ToString for TagSet {
         let parts: Vec<_> = self
             .tags
             .iter()
-            .map(|(name, num)| format!("{}.{}", name, num))
+            .map(|(name, num)| format!("{name}.{num}"))
             .collect();
         parts.join(TAG_SET_SEP)
     }
@@ -165,15 +165,13 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> Result<TagSet> {
         match (name, num) {
             ("", _) | (_, "") => {
                 return Err(InvalidVersionError::new_error(format!(
-                    "Version tag segment must be of the form <name>.<int>, got [{}]",
-                    tag
+                    "Version tag segment must be of the form <name>.<int>, got [{tag}]"
                 )))
             }
             _ => {
                 if tag_set.tags.contains_key(name) {
                     return Err(InvalidVersionError::new_error(format!(
-                        "duplicate tag: {}",
-                        name
+                        "duplicate tag: {name}"
                     )));
                 }
                 validate_tag_name(name)?;
@@ -183,8 +181,7 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> Result<TagSet> {
                     }
                     Err(_) => {
                         return Err(InvalidVersionError::new_error(format!(
-                            "Version tag segment must be of the form <name>.<int>, got [{}]",
-                            tag
+                            "Version tag segment must be of the form <name>.<int>, got [{tag}]"
                         )))
                     }
                 }
@@ -492,8 +489,7 @@ pub fn parse_version<S: AsRef<str>>(version: S) -> Result<Version> {
             Ok(p) => parts.push(p),
             Err(_) => {
                 return Err(InvalidVersionError::new_error(format!(
-                    "Version must be a sequence of integers, got '{}' in position {} [{}]",
-                    p, i, version
+                    "Version must be a sequence of integers, got '{p}' in position {i} [{version}]"
                 )))
             }
         }

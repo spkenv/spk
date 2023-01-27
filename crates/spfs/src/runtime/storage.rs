@@ -670,6 +670,6 @@ pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> Result<()>
 
 impl From<gitignore::Error> for Error {
     fn from(err: gitignore::Error) -> Self {
-        Self::new(format!("invalid glob pattern: {:?}", err))
+        Self::new(format!("invalid glob pattern: {err:?}"))
     }
 }

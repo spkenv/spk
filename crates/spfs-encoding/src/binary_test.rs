@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::io::{BufRead, Cursor, Read, Seek, SeekFrom, Write};
+use std::io::{BufRead, Cursor, Read, Seek, Write};
 
 use rand::distributions::{Alphanumeric, DistString};
 use rand::Rng;
@@ -32,7 +32,7 @@ fn test_write_read_header() {
     let header = b"HEADER";
     let mut stream = Cursor::new(Vec::<u8>::new());
     write_header(&mut stream, header).expect("failed to write header");
-    stream.seek(SeekFrom::Start(0)).unwrap();
+    stream.rewind().unwrap();
     consume_header(&mut stream, header).expect("failed to consume header");
     let mut remaining = String::new();
     stream.read_to_string(&mut remaining).unwrap();
@@ -44,7 +44,7 @@ fn test_read_write_int(value: i64) {
     let mut stream = Cursor::new(Vec::<u8>::new());
     write_int(&mut stream, value).unwrap();
     stream.write_all(b"postfix").unwrap();
-    stream.seek(SeekFrom::Start(0)).unwrap();
+    stream.rewind().unwrap();
     assert_eq!(read_int(&mut stream).unwrap(), value);
     let mut remaining = String::new();
     stream.read_to_string(&mut remaining).unwrap();
@@ -77,7 +77,7 @@ fn test_read_write_string(i: u64) {
     write_string(&mut stream, &value).unwrap();
     write_string(&mut stream, &postfix).unwrap();
     stream.write_all(b"postfix").unwrap();
-    stream.seek(SeekFrom::Start(0)).unwrap();
+    stream.rewind().unwrap();
     assert_eq!(read_string(&mut stream).unwrap(), value);
     assert_eq!(read_string(&mut stream).unwrap(), postfix);
     let mut remaining = String::new();
@@ -137,10 +137,7 @@ impl BufRead for TestStream {
     fn consume(&mut self, amt: usize) {
         let remaining_in_buffer = self.buffer.len();
         if amt > remaining_in_buffer {
-            panic!(
-                "Invalid amt given to consume: {} > {}",
-                amt, remaining_in_buffer
-            )
+            panic!("Invalid amt given to consume: {amt} > {remaining_in_buffer}")
         }
         self.buffer.drain(..amt);
     }

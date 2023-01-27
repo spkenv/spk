@@ -115,7 +115,7 @@ impl Run for Bake {
                     .join("\n")
             }
         };
-        println!("{}", data);
+        println!("{data}");
         Ok(0)
     }
 }
@@ -191,7 +191,7 @@ impl Bake {
                     // because this layer provides more than one
                     // component of the package.
                     if let Some((_p, c)) = layers_to_packages.get(layer) {
-                        component_label = format!("{},{}", c, component_label);
+                        component_label = format!("{c},{component_label}");
                     }
                 }
 

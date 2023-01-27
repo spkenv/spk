@@ -180,7 +180,7 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
             continue;
         }
         if let Err(err) = res {
-            println!("{:?}", err);
+            println!("{err:?}");
         }
         panic!(
             "expected object to be cleaned but it was not: {:?}",

@@ -81,7 +81,7 @@ pub fn spfs_binary() -> std::path::PathBuf {
             .expect("failed to build binary to test with")
             .code();
         if Some(0) != code {
-            panic!("failed to build binary to test with: {:?}", code);
+            panic!("failed to build binary to test with: {code:?}");
         };
     });
     let mut path = std::env::current_exe().expect("test must have current binary path");

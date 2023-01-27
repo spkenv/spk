@@ -463,7 +463,7 @@ proptest! {
             assert_eq!(parsed.build(), build.as_ref());
         }
         else {
-            assert!(parsed.is_err(), "expected '{}' to fail to parse", ident);
+            assert!(parsed.is_err(), "expected '{ident}' to fail to parse");
         }
     }
 }
@@ -512,7 +512,7 @@ proptest! {
             assert_eq!(parsed.build, build, "{:?} != {:?}", parsed.build, build);
         }
         else {
-            assert!(parsed.is_err(), "expected '{}' to fail to parse", ident);
+            assert!(parsed.is_err(), "expected '{ident}' to fail to parse");
         }
     }
 }
@@ -536,5 +536,5 @@ fn parse_ident_with_basic_errors() {
 #[test]
 fn check_wrong_tag_order_is_a_parse_error() {
     let r = all_consuming(crate::parsing::ident::<(_, ErrorKind)>)("pkg-name/1.0+a.0-b.0");
-    assert!(r.is_err(), "expected to fail; got {:?}", r);
+    assert!(r.is_err(), "expected to fail; got {r:?}");
 }

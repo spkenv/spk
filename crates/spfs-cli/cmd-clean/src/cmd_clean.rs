@@ -184,7 +184,7 @@ fn age_to_date(age: String) -> spfs::Result<DateTime<Utc>> {
     let (num, postfix) = age.split_at(age.len() - 1);
     let num: i64 = num
         .parse()
-        .map_err(|err| spfs::Error::from(format!("{:?}", err)))?;
+        .map_err(|err| spfs::Error::from(format!("{err:?}")))?;
     if num < 0 {
         return Err(format!("provided age must be greater than zero: '{age}'").into());
     }

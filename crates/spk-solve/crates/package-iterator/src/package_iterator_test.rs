@@ -193,7 +193,7 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
                 let expected = &expected_order_by_options[i];
                 let expected_v = match expected.get(&(*n)[..]) {
                     Some(value) => {
-                        println!("expected: {}={}", n, value);
+                        println!("expected: {n}={value}");
                         *value
                     }
                     None => "",

@@ -165,10 +165,7 @@ impl Drop for TarRepository {
             );
             #[cfg(test)]
             {
-                panic!(
-                    "failed to flush tar repository, archive may be corrupt: {:?}",
-                    err
-                );
+                panic!("failed to flush tar repository, archive may be corrupt: {err:?}");
             }
         }
     }
