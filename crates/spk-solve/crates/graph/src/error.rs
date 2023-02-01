@@ -20,7 +20,7 @@ pub enum Error {
     #[error(transparent)]
     Graph(#[from] GraphError),
     #[error("Package not found: {0}")]
-    PackageNotFoundDuringSolve(#[from] PkgRequest),
+    PackageNotFoundDuringSolve(PkgRequest),
     #[error("Solver error: {0}")]
     SolverError(String),
     #[error("Solver interrupted: {0}")]
