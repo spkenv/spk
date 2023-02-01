@@ -232,7 +232,7 @@ async fn test_build_package_pinning() {
         .unwrap();
 
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-    let req = spec.runtime_requirements().get(0).unwrap();
+    let req = spec.runtime_requirements().first().unwrap().clone();
     match req {
         Request::Pkg(req) => {
             assert_eq!(&req.pkg.to_string(), "dep/~1.0");

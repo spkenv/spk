@@ -174,7 +174,7 @@ impl Bake {
         // Get the layer(s) for the packages from their source repos
         let mut layers_to_packages: HashMap<Digest, (String, String)> = HashMap::new();
         for resolved in items {
-            let spfs_layers = match self.get_spfs_component_layers(&resolved) {
+            let spfs_layers = match self.get_spfs_component_layers(resolved) {
                 Ok(layers) => layers,
                 Err(Error::SkipEmbedded) => continue,
                 Err(e) => return Err(e.into()),
@@ -262,12 +262,12 @@ impl Bake {
         // the solve. Need to reverse it to match up with the spfs
         // layering order, which is the order they would come out of
         // an active runtime.
-        let mut items = solution.items();
+        let mut items = solution.items().collect::<Vec<_>>();
         items.reverse();
 
         let mut stack: Vec<BakeLayer> = Vec::with_capacity(items.len());
         for resolved in items {
-            let spfs_layers = match self.get_spfs_component_layers(&resolved) {
+            let spfs_layers = match self.get_spfs_component_layers(resolved) {
                 Ok(layers) => layers,
                 Err(Error::SkipEmbedded) => continue,
                 Err(e) => return Err(e.into()),

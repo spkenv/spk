@@ -17,7 +17,7 @@ pub async fn resolve_runtime_layers(solution: &Solution) -> Result<Vec<Digest>> 
     let mut stack = Vec::new();
     let mut to_sync = Vec::new();
     for resolved in solution.items() {
-        let (repo, components) = match resolved.source {
+        let (repo, components) = match &resolved.source {
             PackageSource::Repository { repo, components } => (repo, components),
             PackageSource::Embedded => continue,
             PackageSource::BuildFromSource { recipe } => {
@@ -25,7 +25,7 @@ pub async fn resolve_runtime_layers(solution: &Solution) -> Result<Vec<Digest>> 
                 // to be built with specific options because such a
                 // build doesn't exist in a repo.
                 let spec_options = recipe
-                    .resolve_options(&solution.options())
+                    .resolve_options(solution.options())
                     .unwrap_or_default();
                 return Err(Error::String(format!(
                     "Solution includes package that needs building from source: {} with these options: {}",
@@ -42,7 +42,7 @@ pub async fn resolve_runtime_layers(solution: &Solution) -> Result<Vec<Digest>> 
             );
             continue;
         }
-        let mut desired_components = resolved.request.pkg.components;
+        let mut desired_components = resolved.request.pkg.components.clone();
         if desired_components.is_empty() {
             desired_components.insert(Component::All);
         }

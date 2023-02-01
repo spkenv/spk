@@ -272,7 +272,7 @@ where
             // original options to be reapplied. It feels like this
             // shouldn't be necessary but I've not been able to isolate what
             // goes wrong when this is removed.
-            let mut opts = solution.options();
+            let mut opts = solution.options().clone();
             std::mem::swap(&mut opts, &mut all_options);
             all_options.extend(opts);
         }

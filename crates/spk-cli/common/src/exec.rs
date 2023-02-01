@@ -20,12 +20,12 @@ pub async fn build_required_packages(solution: &Solution) -> Result<Solution> {
     let local_repo = Arc::new(handle);
     let repos = solution.repositories();
     let options = solution.options();
-    let mut compiled_solution = Solution::new(Some(options.clone()));
+    let mut compiled_solution = Solution::new(options.clone());
     for item in solution.items() {
-        let recipe = match item.source {
+        let recipe = match &item.source {
             PackageSource::BuildFromSource { recipe } => recipe,
             source => {
-                compiled_solution.add(&item.request, item.spec, source);
+                compiled_solution.add(item.request.clone(), Arc::clone(&item.spec), source.clone());
                 continue;
             }
         };
@@ -35,7 +35,7 @@ pub async fn build_required_packages(solution: &Solution) -> Result<Solution> {
             item.spec.ident().format_ident(),
             options.format_option_map()
         );
-        let (package, components) = BinaryPackageBuilder::from_recipe((*recipe).clone())
+        let (package, components) = BinaryPackageBuilder::from_recipe((**recipe).clone())
             .with_repositories(repos.clone())
             .with_options(options.clone())
             .build_and_publish(&*local_repo)
@@ -44,7 +44,7 @@ pub async fn build_required_packages(solution: &Solution) -> Result<Solution> {
             repo: local_repo.clone(),
             components,
         };
-        compiled_solution.add(&item.request, Arc::new(package), source);
+        compiled_solution.add(item.request.clone(), Arc::new(package), source);
     }
     Ok(compiled_solution)
 }
