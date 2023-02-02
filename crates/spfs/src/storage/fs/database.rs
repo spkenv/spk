@@ -118,14 +118,11 @@ impl graph::Database for super::FSRepository {
             Ok(_) => Ok(()),
             Err(err) => {
                 let _ = tokio::fs::remove_file(&working_file).await;
-                match err.kind() {
-                    std::io::ErrorKind::AlreadyExists => Ok(()),
-                    _ => Err(Error::StorageWriteError(
-                        "rename on object file",
-                        filepath,
-                        err,
-                    )),
-                }
+                Err(Error::StorageWriteError(
+                    "rename on object file",
+                    filepath,
+                    err,
+                ))
             }
         }
     }

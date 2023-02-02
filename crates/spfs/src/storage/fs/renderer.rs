@@ -295,8 +295,15 @@ where
         renders.ensure_base_dir(&rendered_dirpath)?;
         match tokio::fs::rename(&working_dir, &rendered_dirpath).await {
             Ok(_) => (),
-            Err(err) => match err.kind() {
-                std::io::ErrorKind::AlreadyExists => {
+            Err(err) => match err.raw_os_error() {
+                // XXX: Replace with ErrorKind::DirectoryNotEmpty when
+                // stabilized.
+                Some(libc::EEXIST) | Some(libc::ENOTEMPTY) => {
+                    // The rename failed because the destination
+                    // `rendered_dirpath` exists and is a non-empty directory.
+                    // Assume we lost a race with some other process rendering
+                    // the same manifest. Treat this as a success, but clean up
+                    // the working directory left behind.
                     if let Err(err) = open_perms_and_remove_all(&working_dir).await {
                         tracing::warn!(path=?working_dir, "failed to clean up working directory: {:?}", err);
                     }
