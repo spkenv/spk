@@ -8,7 +8,7 @@ edition = { workspace = true }
 
 [dependencies]
 anyhow = { workspace = true }
-nix = "0.24.1"
+nix = { workspace = true }
 spfs = { version = '0.34.6', path = "../spfs" }
 tempfile = "3.3"
 tokio = { workspace = true, features = ["rt"] }

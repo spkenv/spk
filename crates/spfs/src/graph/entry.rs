@@ -29,6 +29,18 @@ impl Entry {
             name,
         }
     }
+
+    pub fn is_symlink(&self) -> bool {
+        (libc::S_IFMT & self.mode) == libc::S_IFLNK
+    }
+
+    pub fn is_dir(&self) -> bool {
+        (libc::S_IFMT & self.mode) == libc::S_IFDIR
+    }
+
+    pub fn is_regular_file(&self) -> bool {
+        (libc::S_IFMT & self.mode) == libc::S_IFREG
+    }
 }
 
 impl std::fmt::Display for Entry {
