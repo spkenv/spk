@@ -96,6 +96,8 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
     last_solve_graph: Arc<tokio::sync::RwLock<Graph>>,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     interactive: bool,
+    files_to_layers: HashMap<RelativePathBuf, ResolvedLayer>,
+    conflicting_packages: HashMap<(String, String), HashSet<RelativePathBuf>>,
 }
 
 impl<'a, Recipe> BinaryPackageBuilder<'a, Recipe>
@@ -124,6 +126,8 @@ where
             last_solve_graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
             repos: Default::default(),
             interactive: false,
+            files_to_layers: Default::default(),
+            conflicting_packages: Default::default(),
         }
     }
 
@@ -295,18 +299,18 @@ where
         let mut warning_found = false;
         let entries = resolved_layers.iter_entries();
         pin!(entries);
-        let mut conflicting_packages = HashMap::<(String, String), HashSet<RelativePathBuf>>::new();
-        let mut seen = HashMap::<_, &ResolvedLayer>::new();
+
         while let Some(entry) = entries.next().await {
             let (path, entry, resolved_layer) = match entry {
                 Err(spk_exec::Error::NonSPFSLayerInResolvedLayers) => continue,
                 Err(err) => return Err(err.into()),
                 Ok(entry) => entry,
             };
+
             if !matches!(entry.kind, EntryKind::Blob) {
                 continue;
             }
-            match seen.entry(path.clone()) {
+            match self.files_to_layers.entry(path.clone()) {
                 hash_map::Entry::Occupied(entry) => {
                     // This file has already been seen by a lower layer.
                     //
@@ -336,14 +340,15 @@ where
                     } else {
                         (pkg_b, pkg_a)
                     };
-                    let counter = conflicting_packages
+                    let counter = self
+                        .conflicting_packages
                         .entry(packages_key)
                         .or_insert_with(HashSet::new);
                     counter.insert(path.clone());
                 }
                 hash_map::Entry::Vacant(entry) => {
                     // This is the first layer that has this file.
-                    entry.insert(resolved_layer);
+                    entry.insert(resolved_layer.clone());
                 }
             };
         }
@@ -366,7 +371,7 @@ where
 
         let package = self.recipe.generate_binary_build(&all_options, &solution)?;
         let components = self
-            .build_and_commit_artifacts(&package, &all_options, &seen, &conflicting_packages)
+            .build_and_commit_artifacts(&package, &all_options)
             .await?;
         Ok((package, components))
     }
@@ -450,8 +455,6 @@ where
         &mut self,
         package: &Recipe::Output,
         options: &OptionMap,
-        files_to_layers: &HashMap<RelativePathBuf, &ResolvedLayer>,
-        conflicting_packages: &HashMap<(String, String), HashSet<RelativePathBuf>>,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
         self.build_artifacts(package, options).await?;
 
@@ -473,14 +476,15 @@ where
         tracing::info!("Validating package contents...");
         // Simplify this for use during the validation errors and to
         // avoid having to pass ResolvedLayers down into the validation.
-        let files_to_packages: HashMap<RelativePathBuf, BuildIdent> = files_to_layers
+        let files_to_packages: HashMap<RelativePathBuf, BuildIdent> = self
+            .files_to_layers
             .iter()
             .map(|(f, l)| (f.clone(), l.spec.ident().clone()))
             .collect();
 
         let changed_files = package
             .validation()
-            .validate_build_changeset(package, &files_to_packages, conflicting_packages)
+            .validate_build_changeset(package, &files_to_packages, &self.conflicting_packages)
             .await
             .map_err(|err| BuildError::new_error(format_args!("{err}")))?;
 
