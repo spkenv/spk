@@ -58,7 +58,6 @@ pub use resolve::{
     compute_manifest,
     compute_object_manifest,
     render,
-    render_into_directory,
     resolve_stack_to_layers,
     which,
     which_spfs,

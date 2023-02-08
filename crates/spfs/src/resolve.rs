@@ -8,7 +8,6 @@ use std::path::Path;
 use encoding::Encodable;
 use itertools::Itertools;
 use nonempty::NonEmpty;
-use storage::{ManifestStorage, Repository};
 use tokio_stream::StreamExt;
 
 use super::config::get_config;
@@ -48,35 +47,6 @@ pub async fn render(spec: tracking::EnvSpec) -> Result<std::path::PathBuf> {
             Err(format!("render failed:\n{}", stderr.to_string_lossy()).into())
         }
     }
-}
-
-/// Render a set of layers into an arbitrary target directory.
-///
-/// This method runs in the current thread and creates a copy
-/// of the desired data in the target directory
-pub async fn render_into_directory<P>(env_spec: &tracking::EnvSpec, target_dir: P) -> Result<()>
-where
-    P: AsRef<std::path::Path>,
-{
-    let repo = get_config()?.get_local_repository().await?;
-    let mut stack = Vec::new();
-    for target in env_spec.iter() {
-        let target = target.to_string();
-        let obj = repo.read_ref(target.as_str()).await?;
-        stack.push(obj.digest()?);
-    }
-    let layers = resolve_stack_to_layers(stack.iter(), None).await?;
-    let mut manifests = Vec::with_capacity(layers.len());
-    for layer in layers {
-        manifests.push(repo.read_manifest(layer.manifest).await?);
-    }
-    let mut manifest = tracking::Manifest::default();
-    for next in manifests.into_iter() {
-        manifest.update(&next.unlock());
-    }
-    let manifest = graph::Manifest::from(&manifest);
-    repo.render_manifest_into_dir(&manifest, target_dir, storage::fs::RenderType::Copy)
-        .await
 }
 
 /// Compute or load the spfs manifest representation for a saved reference.
@@ -347,11 +317,14 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
 }
 
 /// Given a sequence of tags and digests, resolve to the set of underlying layers.
-#[async_recursion::async_recursion]
-pub async fn resolve_stack_to_layers<D: AsRef<encoding::Digest> + Send>(
-    stack: impl Iterator<Item = D> + Send + 'async_recursion,
-    mut repo: Option<&'async_recursion storage::RepositoryHandle>,
-) -> Result<Vec<graph::Layer>> {
+pub async fn resolve_stack_to_layers<'iter, 'repo, D, I>(
+    stack: I,
+    mut repo: Option<&'repo storage::RepositoryHandle>,
+) -> Result<Vec<graph::Layer>>
+where
+    I: Iterator<Item = D> + Send + 'iter,
+    D: AsRef<encoding::Digest> + Send,
+{
     let owned_handle;
     let repo = match repo.take() {
         Some(repo) => repo,
@@ -361,7 +334,24 @@ pub async fn resolve_stack_to_layers<D: AsRef<encoding::Digest> + Send>(
             &owned_handle
         }
     };
+    match repo {
+        storage::RepositoryHandle::FS(r) => resolve_stack_to_layers_with_repo(stack, r).await,
+        storage::RepositoryHandle::Tar(r) => resolve_stack_to_layers_with_repo(stack, r).await,
+        storage::RepositoryHandle::Rpc(r) => resolve_stack_to_layers_with_repo(stack, r).await,
+        storage::RepositoryHandle::Proxy(r) => resolve_stack_to_layers_with_repo(stack, &**r).await,
+    }
+}
 
+#[async_recursion::async_recursion]
+pub(crate) async fn resolve_stack_to_layers_with_repo<I, D, R>(
+    stack: I,
+    repo: R,
+) -> Result<Vec<graph::Layer>>
+where
+    I: Iterator<Item = D> + Send + 'async_recursion,
+    D: AsRef<encoding::Digest> + Send,
+    R: storage::Repository + Send + Sync + Copy + 'async_recursion,
+{
     let mut layers = Vec::new();
     for reference in stack {
         let reference = reference.as_ref();
@@ -370,7 +360,8 @@ pub async fn resolve_stack_to_layers<D: AsRef<encoding::Digest> + Send>(
             graph::Object::Layer(layer) => layers.push(layer),
             graph::Object::Platform(platform) => {
                 let mut expanded =
-                    resolve_stack_to_layers(platform.stack.clone().into_iter(), Some(repo)).await?;
+                    resolve_stack_to_layers_with_repo(platform.stack.clone().into_iter(), repo)
+                        .await?;
                 layers.append(&mut expanded);
             }
             graph::Object::Manifest(manifest) => {

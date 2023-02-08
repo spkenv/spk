@@ -10,16 +10,18 @@ use std::sync::Arc;
 
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt};
+use futures::future::ready;
+use futures::{FutureExt, Stream, StreamExt};
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
+use rand::seq::SliceRandom;
 use tokio::io::AsyncReadExt;
 use tokio::sync::Semaphore;
 
-use super::FSRepository;
+use super::{FSRepository, RenderReporter, SilentRenderReporter};
 use crate::encoding::{self, Encodable};
 use crate::runtime::makedirs_with_perms;
-use crate::storage::{ManifestViewer, PayloadStorage, Repository};
+use crate::storage::{ManifestStorage, ManifestViewer, PayloadStorage, Repository};
 use crate::{graph, tracking, Error, Result};
 
 #[cfg(test)]
@@ -92,7 +94,8 @@ impl ManifestViewer for FSRepository {
         let working_dir = renders.workdir().join(uuid);
         makedirs_with_perms(&working_dir, 0o777)?;
 
-        self.render_manifest_into_dir(manifest, &working_dir, RenderType::HardLink)
+        Renderer::new(self)
+            .render_manifest_into_dir(manifest, &working_dir, RenderType::HardLink)
             .await?;
 
         renders.ensure_base_dir(&rendered_dirpath)?;
@@ -189,35 +192,49 @@ impl FSRepository {
             None => Err(Error::NoRenderStorage(self.address())),
         }
     }
-
-    pub async fn render_manifest_into_dir<P>(
-        &self,
-        manifest: &graph::Manifest,
-        target_dir: P,
-        render_type: RenderType,
-    ) -> Result<()>
-    where
-        P: AsRef<Path>,
-    {
-        Renderer::new(self)
-            .render_manifest_into_dir(manifest, target_dir, render_type)
-            .await
-    }
 }
 
 /// Renders manifest data to a directory on disk
-pub struct Renderer<'repo> {
+pub struct Renderer<'repo, Reporter: RenderReporter = SilentRenderReporter> {
     repo: &'repo FSRepository,
+    reporter: Arc<Reporter>,
     blob_semaphore: Arc<Semaphore>,
     max_concurrent_branches: usize,
 }
 
-impl<'repo> Renderer<'repo> {
-    fn new(repo: &'repo FSRepository) -> Self {
+impl<'repo> Renderer<'repo, SilentRenderReporter> {
+    pub fn new(repo: &'repo FSRepository) -> Self {
         Self {
             repo,
+            reporter: Arc::new(SilentRenderReporter::default()),
             blob_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_BLOBS)),
             max_concurrent_branches: DEFAULT_MAX_CONCURRENT_BRANCHES,
+        }
+    }
+
+    pub fn new_from_handle(repo: &'repo crate::storage::RepositoryHandle) -> Result<Self> {
+        let crate::storage::RepositoryHandle::FS(repo) = repo else {
+            return Err(Error::String(format!("Cannot render from a non-filesystem repository, got: {}", repo.address())));
+        };
+        Ok(Self::new(repo))
+    }
+}
+
+impl<'repo, Reporter> Renderer<'repo, Reporter>
+where
+    Reporter: RenderReporter,
+{
+    /// Report progress to the given instance, replacing any existing one
+    pub fn with_reporter<T, R>(self, reporter: T) -> Renderer<'repo, R>
+    where
+        T: Into<Arc<R>>,
+        R: RenderReporter,
+    {
+        Renderer {
+            repo: self.repo,
+            reporter: reporter.into(),
+            blob_semaphore: self.blob_semaphore,
+            max_concurrent_branches: self.max_concurrent_branches,
         }
     }
 
@@ -239,6 +256,35 @@ impl<'repo> Renderer<'repo> {
     pub fn with_max_concurrent_branches(mut self, max_concurrent_branches: usize) -> Self {
         self.max_concurrent_branches = max_concurrent_branches;
         self
+    }
+
+    /// Recreate the full structure of a stored environment on disk
+    pub async fn render_into_directory<E: Into<tracking::EnvSpec>, P: AsRef<Path>>(
+        &self,
+        env_spec: E,
+        target_dir: P,
+        render_type: RenderType,
+    ) -> Result<()> {
+        let env_spec = env_spec.into();
+        let mut stack = Vec::new();
+        for target in env_spec.iter() {
+            let target = target.to_string();
+            let obj = self.repo.read_ref(target.as_str()).await?;
+            stack.push(obj.digest()?);
+        }
+        let layers =
+            crate::resolve::resolve_stack_to_layers_with_repo(stack.iter(), self.repo).await?;
+        let mut manifests = Vec::with_capacity(layers.len());
+        for layer in layers {
+            manifests.push(self.repo.read_manifest(layer.manifest).await?);
+        }
+        let mut manifest = tracking::Manifest::default();
+        for next in manifests.into_iter() {
+            manifest.update(&next.unlock());
+        }
+        let manifest = graph::Manifest::from(&manifest);
+        self.render_manifest_into_dir(&manifest, target_dir, render_type)
+            .await
     }
 
     /// Recreate the full structure of a stored manifest on disk.
@@ -290,11 +336,8 @@ impl<'repo> Renderer<'repo> {
         render_type: RenderType,
     ) -> Result<()>
     where
-        Fd: AsRawFd + Send,
+        Fd: AsRawFd + Send + Sync,
     {
-        let root_dir_fd = root_dir_fd.as_raw_fd();
-        let branch_semaphore = Arc::new(Semaphore::new(self.max_concurrent_branches));
-
         // we used to get CAP_FOWNER here, but with async
         // it can no longer guarantee anything useful
         // (the process can happen in other threads, and
@@ -302,74 +345,81 @@ impl<'repo> Renderer<'repo> {
         // Instead, we try to rely on generating the structure
         // first with open permissions and then locking it down
 
-        let mut futures = futures::stream::FuturesUnordered::new();
-        for entry in tree.entries.into_iter() {
-            let branch_semaphore = Arc::clone(&branch_semaphore);
-            let fut = async move {
-                let mut root_path = PathBuf::from(&entry.name);
-                let mut res = match entry.kind {
-                    tracking::EntryKind::Tree => {
-                        let _permit = branch_semaphore
-                            .acquire()
-                            .await
-                            .expect("Semaphore should not expire");
-                        let tree = manifest.get_tree(&entry.object).ok_or_else(|| {
-                            Error::String(format!("Failed to render: manifest is internally inconsistent (missing child tree {})", entry.object))
-                        })?;
+        // randomize the entries so that multiple processes starting
+        // at the same time don't have as much contention trying to render
+        // the same files as one another at the same time. This can happen,
+        // for example, when multiple frames land on the same machine in a
+        // render farm and they both start to render the same env at the same time
+        let mut entries = tree.entries.into_iter().collect::<Vec<_>>();
+        entries.shuffle(&mut rand::thread_rng());
 
-                        let child_dir = create_and_open_dir_at(root_dir_fd, entry.name.clone())
-                            .await
-                            .map_err(|err| {
-                                Error::StorageWriteError(
-                                    "create dir during render",
-                                    PathBuf::from(&entry.name),
-                                    err,
-                                )
+        let root_dir_fd = root_dir_fd.as_raw_fd();
+        let mut stream = futures::stream::iter(entries)
+            .then(move |entry| {
+                self.reporter.visit_entry(&entry);
+                let fut = async move {
+                    let mut root_path = PathBuf::from(&entry.name);
+                    match entry.kind {
+                        tracking::EntryKind::Tree => {
+                            let tree = manifest.get_tree(&entry.object).ok_or_else(|| {
+                                Error::String(format!("Failed to render: manifest is internally inconsistent (missing child tree {})", entry.object))
                             })?;
-                        let mut res = self
-                            .render_into_dir_fd(
-                                child_dir.as_raw_fd(),
-                                tree.clone(),
-                                manifest,
-                                render_type,
-                            )
-                            .await;
-                        if res.is_ok() {
-                            res = tokio::task::spawn_blocking(move || {
-                                nix::sys::stat::fchmod(
-                                    child_dir.as_raw_fd(),
-                                    Mode::from_bits_truncate(entry.mode),
-                                )
-                            })
-                            .await
-                            .expect("syscall should not panic")
-                            .map_err(|err| {
-                                Error::StorageWriteError(
-                                    "set_permissions on rendered dir",
-                                    PathBuf::new(),
-                                    err.into(),
-                                )
-                            });
-                        }
-                        res
-                    }
-                    tracking::EntryKind::Mask => Ok(()),
-                    tracking::EntryKind::Blob => {
-                        return self.render_blob(root_dir_fd, entry, render_type).await;
-                    }
-                };
-                if let Err(Error::StorageWriteError(_, p, _)) = &mut res {
-                    root_path.push(p.as_path());
-                    *p = root_path;
-                }
-                res
-            };
-            futures.push(fut);
-        }
 
-        while let Some(res) = futures.next().await {
-            if res.is_err() {
-                return res;
+                            let child_dir = create_and_open_dir_at(root_dir_fd, entry.name.clone())
+                                .await
+                                .map_err(|err| {
+                                    Error::StorageWriteError(
+                                        "create dir during render",
+                                        PathBuf::from(&entry.name),
+                                        err,
+                                    )
+                                })?;
+                            let mut res = self
+                                .render_into_dir_fd(
+                                    child_dir.as_raw_fd(),
+                                    tree.clone(),
+                                    manifest,
+                                    render_type,
+                                )
+                                .await;
+                            if res.is_ok() {
+                                res = tokio::task::spawn_blocking(move || {
+                                    nix::sys::stat::fchmod(
+                                        child_dir.as_raw_fd(),
+                                        Mode::from_bits_truncate(entry.mode),
+                                    )
+                                })
+                                .await
+                                .expect("syscall should not panic")
+                                .map_err(|err| {
+                                    Error::StorageWriteError(
+                                        "set_permissions on rendered dir",
+                                        PathBuf::new(),
+                                        err.into(),
+                                    )
+                                });
+                            }
+                            if let Err(Error::StorageWriteError(_, p, _)) = &mut res {
+                                root_path.push(p.as_path());
+                                *p = root_path;
+                            }
+                            res
+                        }
+                        tracking::EntryKind::Mask => Ok(()),
+                        tracking::EntryKind::Blob => {
+                            self.render_blob(root_dir_fd, &entry, render_type).await
+                        }
+                    }.map(|_| entry)
+                };
+                ready(fut.boxed())
+            })
+            .buffer_unordered(self.max_concurrent_branches)
+            .boxed();
+
+        while let Some(res) = stream.next().await {
+            match res {
+                Err(error) => return Err(error),
+                Ok(entry) => self.reporter.rendered_entry(&entry),
             }
         }
 
@@ -381,7 +431,7 @@ impl<'repo> Renderer<'repo> {
     async fn render_blob<'a, Fd>(
         &self,
         dir_fd: Fd,
-        entry: graph::Entry,
+        entry: &graph::Entry,
         render_type: RenderType,
     ) -> Result<()>
     where

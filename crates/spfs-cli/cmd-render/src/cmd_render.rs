@@ -43,7 +43,7 @@ impl CmdRender {
             .await?;
 
         let path = match &self.target {
-            Some(target) => self.render_to_dir(synced.env, target).await?,
+            Some(target) => self.render_to_dir(synced.env, config, target).await?,
             None => self.render_to_repo(synced.env, config).await?,
         };
 
@@ -55,8 +55,10 @@ impl CmdRender {
     async fn render_to_dir(
         &self,
         env_spec: spfs::tracking::EnvSpec,
+        config: &spfs::Config,
         target: &std::path::Path,
     ) -> spfs::Result<std::path::PathBuf> {
+        let repo = config.get_local_repository().await?;
         tokio::fs::create_dir_all(&target)
             .await
             .map_err(|err| Error::RuntimeWriteError(target.to_owned(), err))?;
@@ -75,7 +77,10 @@ impl CmdRender {
             return Err(format!("Directory is not empty {}", target_dir.display()).into());
         }
         tracing::info!("rendering into {}", target_dir.display());
-        spfs::render_into_directory(&env_spec, &target_dir).await?;
+        spfs::storage::fs::Renderer::new(&repo)
+            .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
+            .render_into_directory(env_spec, &target_dir, spfs::storage::fs::RenderType::Copy)
+            .await?;
         Ok(target_dir)
     }
 

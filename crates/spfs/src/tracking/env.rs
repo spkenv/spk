@@ -162,6 +162,12 @@ impl<I: Into<EnvSpecItem>> std::iter::FromIterator<I> for EnvSpec {
     }
 }
 
+impl<I: Into<EnvSpecItem>> From<Vec<I>> for EnvSpec {
+    fn from(value: Vec<I>) -> Self {
+        Self::from_iter(value.into_iter())
+    }
+}
+
 impl<I> std::iter::Extend<I> for EnvSpec
 where
     I: Into<EnvSpecItem>,

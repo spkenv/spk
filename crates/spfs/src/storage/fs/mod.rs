@@ -12,7 +12,9 @@ mod repository;
 mod tag;
 
 pub mod migrations;
+mod render_reporter;
 
 pub use hash_store::FSHashStore;
+pub use render_reporter::{ConsoleRenderReporter, RenderReporter, SilentRenderReporter};
 pub use renderer::{RenderType, Renderer};
 pub use repository::{read_last_migration_version, Config, FSRepository};
