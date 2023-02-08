@@ -4,27 +4,28 @@
 
 use std::collections::HashSet;
 
-use tokio_stream::StreamExt;
+use futures::StreamExt;
 
 use super::database::DatabaseView;
 use crate::storage::PayloadStorage;
 use crate::{Digest, Error};
 
 /// Validate that all objects can be loaded and their children are accessible.
-pub async fn check_database_integrity<'db>(
-    db: impl DatabaseView + PayloadStorage + 'db,
-    refs: Vec<Digest>,
-) -> Vec<Error> {
+pub async fn check_database_integrity<'db, D>(db: &D, refs: Vec<Digest>) -> Vec<Error>
+where
+    D: DatabaseView + PayloadStorage + 'db,
+{
     if refs.is_empty() {
         iter_all_objects(db).await
     } else {
-        refs.iter().map(async |r| {
-            walk_root_all_objects(db, r).await
-        }).collect::<Vec<_>>().await.into_iter().flatten().collect()
+        iter_all_objects_from_roots(db, refs).await
     }
 }
 
-async fn iter_all_objects<'db>(db: impl DatabaseView + PayloadStorage + 'db) -> Vec<Error> {
+async fn iter_all_objects<'db, D>(db: &D) -> Vec<Error>
+where
+    D: DatabaseView + PayloadStorage + 'db,
+{
     let mut errors = Vec::new();
     let mut visited = HashSet::new();
     let mut objects = db.iter_objects();
@@ -60,13 +61,15 @@ async fn iter_all_objects<'db>(db: impl DatabaseView + PayloadStorage + 'db) -> 
     errors
 }
 
-async fn walk_root_all_objects<'db>(
-    db: impl DatabaseView + PayloadStorage + 'db,
-    root: Digest,
-) -> Vec<Error> {
+async fn iter_all_objects_from_roots<'db, D, I>(db: &D, roots: I) -> Vec<Error>
+where
+    D: DatabaseView + PayloadStorage + 'db,
+    I: IntoIterator<Item = Digest>,
+{
     let mut errors = Vec::new();
     let mut visited = HashSet::new();
-    let mut objects = db.walk_objects(&root);
+    let objects = roots.into_iter().map(|d| db.walk_objects(&d));
+    let mut objects = futures::stream::iter(objects).flatten();
     while let Some(obj) = objects.next().await {
         match obj {
             Err(err) => errors.push(format!("Error in walk_objects: {err}").into()),

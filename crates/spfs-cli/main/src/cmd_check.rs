@@ -3,7 +3,8 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
-use spfs::{prelude::*, Digest};
+use futures::{StreamExt, TryStreamExt};
+use spfs::prelude::*;
 
 /// Check a repositories internal integrity
 #[derive(Debug, Args)]
@@ -48,14 +49,25 @@ impl CmdCheck {
             None => None,
         };
 
+        let digests = futures::stream::iter(&self.reference)
+            .then(|reference| repo.resolve_ref(reference))
+            .try_collect()
+            .await?;
+
         tracing::info!("walking repository...");
 
         let errors = match &repo {
-            RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo, self.reference).await,
-            RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo, self.reference).await,
-            RepositoryHandle::Rpc(repo) => spfs::graph::check_database_integrity(repo, self.reference).await,
+            RepositoryHandle::FS(repo) => {
+                spfs::graph::check_database_integrity(repo, digests).await
+            }
+            RepositoryHandle::Tar(repo) => {
+                spfs::graph::check_database_integrity(repo, digests).await
+            }
+            RepositoryHandle::Rpc(repo) => {
+                spfs::graph::check_database_integrity(repo, digests).await
+            }
             RepositoryHandle::Proxy(repo) => {
-                spfs::graph::check_database_integrity(&**repo, self.reference).await
+                spfs::graph::check_database_integrity(&**repo, digests).await
             }
         };
         let mut repair_count = 0;

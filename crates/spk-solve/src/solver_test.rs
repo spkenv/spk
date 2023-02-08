@@ -283,8 +283,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
         // component
         assert!(
             matches!(res, Err(Error::InitialRequestsContainImpossibleError(_))),
-            "'{:?}' should be a Error::String('Initial requests contain 1 impossible request.')",
-            res
+            "'{res:?}' should be a Error::String('Initial requests contain 1 impossible request.')",
         );
     } else {
         // without the 'migration-to-components' feature, the
@@ -293,8 +292,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
         // which will pass validation
         assert!(
             matches!(res, Ok(_)),
-            "'{:?}' should be an Ok(_) solution not an error.')",
-            res
+            "'{res:?}' should be an Ok(_) solution not an error.')",
         );
     }
 }
@@ -1413,7 +1411,7 @@ async fn test_solver_impossible_request_but_embedded_package_makes_solvable(mut 
         }
         Err(err) => {
             // This should not happen
-            panic!("Expected a solution, but got this error: {}", err);
+            panic!("Expected a solution, but got this error: {err}");
         }
     };
 }
