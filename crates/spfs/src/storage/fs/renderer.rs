@@ -6,13 +6,15 @@ use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::Arc;
 
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
 use tokio::io::AsyncReadExt;
+use tokio::sync::Semaphore;
 
 use super::FSRepository;
 use crate::encoding::{self, Encodable};
@@ -23,6 +25,14 @@ use crate::{graph, tracking, Error, Result};
 #[cfg(test)]
 #[path = "./renderer_test.rs"]
 mod renderer_test;
+
+/// The default limit for concurrent blobs when rendering manifests to disk.
+/// See: [`Renderer::with_max_concurrent_blobs`]
+pub const DEFAULT_MAX_CONCURRENT_BLOBS: usize = 100;
+
+/// The default limit for concurrent branches when rendering manifests to disk.
+/// See: [`Renderer::with_max_concurrent_branches`]
+pub const DEFAULT_MAX_CONCURRENT_BRANCHES: usize = 5;
 
 #[derive(Debug, Copy, Clone)]
 pub enum RenderType {
@@ -180,12 +190,67 @@ impl FSRepository {
         }
     }
 
-    pub async fn render_manifest_into_dir<P: AsRef<Path>>(
+    pub async fn render_manifest_into_dir<P>(
         &self,
         manifest: &graph::Manifest,
         target_dir: P,
         render_type: RenderType,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        P: AsRef<Path>,
+    {
+        Renderer::new(self)
+            .render_manifest_into_dir(manifest, target_dir, render_type)
+            .await
+    }
+}
+
+/// Renders manifest data to a directory on disk
+pub struct Renderer<'repo> {
+    repo: &'repo FSRepository,
+    blob_semaphore: Arc<Semaphore>,
+    max_concurrent_branches: usize,
+}
+
+impl<'repo> Renderer<'repo> {
+    fn new(repo: &'repo FSRepository) -> Self {
+        Self {
+            repo,
+            blob_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_BLOBS)),
+            max_concurrent_branches: DEFAULT_MAX_CONCURRENT_BRANCHES,
+        }
+    }
+
+    /// Set how many blobs should be processed at once.
+    pub fn with_max_concurrent_blobs(mut self, max_concurrent_blobs: usize) -> Self {
+        self.blob_semaphore = Arc::new(Semaphore::new(max_concurrent_blobs));
+        self
+    }
+
+    /// Set how many branches should be processed at once.
+    ///
+    /// Each tree that is processed can have any number of subtrees. This number
+    /// limits the number of subtrees that can be processed at once for any given tree. This
+    /// means that the number compounds exponentially based on the depth of the manifest
+    /// being rendered. Eg: a limit of 2 allows two directories to be processed in the root
+    /// simultaneously and a further 2 within each of those two for a total of 4 branches, and so
+    /// on. When rendering extremely deep trees, a smaller, conservative number is better
+    /// to avoid open file limits.
+    pub fn with_max_concurrent_branches(mut self, max_concurrent_branches: usize) -> Self {
+        self.max_concurrent_branches = max_concurrent_branches;
+        self
+    }
+
+    /// Recreate the full structure of a stored manifest on disk.
+    pub async fn render_manifest_into_dir<P>(
+        &self,
+        manifest: &graph::Manifest,
+        target_dir: P,
+        render_type: RenderType,
+    ) -> Result<()>
+    where
+        P: AsRef<Path>,
+    {
         let root_node = manifest.root();
         let target_dir = target_dir.as_ref();
         tokio::fs::create_dir_all(target_dir).await.map_err(|err| {
@@ -195,16 +260,20 @@ impl FSRepository {
                 err,
             )
         })?;
-        // because we open with O_DIRECTORY and O_PATH, the mode and other
-        // access flags are ignored
-        let root_dir_fd = nix::fcntl::open(
-            target_dir,
-            OFlag::O_DIRECTORY | OFlag::O_PATH,
-            Mode::empty(),
-        )?;
+        let path = target_dir.to_owned();
+        let root_dir = tokio::task::spawn_blocking(move || -> Result<tokio::fs::File> {
+            let fd = nix::fcntl::open(&path, OFlag::O_DIRECTORY | OFlag::O_PATH, Mode::empty())
+                .map_err(|err| {
+                    Error::StorageWriteError("open render target dir", path, err.into())
+                })?;
+            // Safety: from_raw_fd takes ownership of this fd which is what we want
+            Ok(unsafe { tokio::fs::File::from_raw_fd(fd) })
+        })
+        .await
+        .expect("syscall should not panic")?;
 
         let mut res = self
-            .render_into_dir_fd(root_dir_fd, root_node, manifest, render_type)
+            .render_into_dir_fd(root_dir, root_node.clone(), manifest, render_type)
             .await;
         if let Err(Error::StorageWriteError(_, p, _)) = &mut res {
             *p = target_dir.join(p.as_path());
@@ -216,7 +285,7 @@ impl FSRepository {
     pub async fn render_into_dir_fd<Fd>(
         &self,
         root_dir_fd: Fd,
-        tree: &graph::Tree,
+        tree: graph::Tree,
         manifest: &graph::Manifest,
         render_type: RenderType,
     ) -> Result<()>
@@ -224,6 +293,7 @@ impl FSRepository {
         Fd: AsRawFd + Send,
     {
         let root_dir_fd = root_dir_fd.as_raw_fd();
+        let branch_semaphore = Arc::new(Semaphore::new(self.max_concurrent_branches));
 
         // we used to get CAP_FOWNER here, but with async
         // it can no longer guarantee anything useful
@@ -232,50 +302,74 @@ impl FSRepository {
         // Instead, we try to rely on generating the structure
         // first with open permissions and then locking it down
 
-        for entry in tree.entries.iter() {
-            let res = match entry.kind {
-                tracking::EntryKind::Tree => {
-                    let tree = manifest.get_tree(&entry.object).ok_or_else(|| {
-                        Error::String(format!("Failed to render: manifest is internally inconsistent (missing child tree {})", entry.object))
-                    })?;
-
-                    let child_dir_fd = create_and_open_dir_at(root_dir_fd, entry.name.clone())
-                        .await
-                        .map_err(|err| {
-                            Error::StorageWriteError(
-                                "create dir during render",
-                                PathBuf::from(&entry.name),
-                                err,
-                            )
+        let mut futures = futures::stream::FuturesUnordered::new();
+        for entry in tree.entries.into_iter() {
+            let branch_semaphore = Arc::clone(&branch_semaphore);
+            let fut = async move {
+                let mut root_path = PathBuf::from(&entry.name);
+                let mut res = match entry.kind {
+                    tracking::EntryKind::Tree => {
+                        let _permit = branch_semaphore
+                            .acquire()
+                            .await
+                            .expect("Semaphore should not expire");
+                        let tree = manifest.get_tree(&entry.object).ok_or_else(|| {
+                            Error::String(format!("Failed to render: manifest is internally inconsistent (missing child tree {})", entry.object))
                         })?;
-                    let mut res = self
-                        .render_into_dir_fd(child_dir_fd, tree, manifest, render_type)
-                        .await;
-                    if res.is_ok() {
-                        res = nix::sys::stat::fchmod(
-                            child_dir_fd,
-                            Mode::from_bits_truncate(entry.mode),
-                        )
-                        .map_err(|err| {
-                            Error::StorageWriteError(
-                                "set_permissions on rendered dir",
-                                PathBuf::new(),
-                                err.into(),
+
+                        let child_dir = create_and_open_dir_at(root_dir_fd, entry.name.clone())
+                            .await
+                            .map_err(|err| {
+                                Error::StorageWriteError(
+                                    "create dir during render",
+                                    PathBuf::from(&entry.name),
+                                    err,
+                                )
+                            })?;
+                        let mut res = self
+                            .render_into_dir_fd(
+                                child_dir.as_raw_fd(),
+                                tree.clone(),
+                                manifest,
+                                render_type,
                             )
-                        });
+                            .await;
+                        if res.is_ok() {
+                            res = tokio::task::spawn_blocking(move || {
+                                nix::sys::stat::fchmod(
+                                    child_dir.as_raw_fd(),
+                                    Mode::from_bits_truncate(entry.mode),
+                                )
+                            })
+                            .await
+                            .expect("syscall should not panic")
+                            .map_err(|err| {
+                                Error::StorageWriteError(
+                                    "set_permissions on rendered dir",
+                                    PathBuf::new(),
+                                    err.into(),
+                                )
+                            });
+                        }
+                        res
                     }
-                    res
+                    tracking::EntryKind::Mask => Ok(()),
+                    tracking::EntryKind::Blob => {
+                        return self.render_blob(root_dir_fd, entry, render_type).await;
+                    }
+                };
+                if let Err(Error::StorageWriteError(_, p, _)) = &mut res {
+                    root_path.push(p.as_path());
+                    *p = root_path;
                 }
-                tracking::EntryKind::Mask => continue,
-                tracking::EntryKind::Blob => {
-                    self.render_blob(root_dir_fd, entry, render_type).await
-                }
+                res
             };
-            if let Err(mut err) = res {
-                if let Error::StorageWriteError(_, p, _) = &mut err {
-                    *p = Path::new(&entry.name).join(p.as_path());
-                }
-                return Err(err);
+            futures.push(fut);
+        }
+
+        while let Some(res) = futures.next().await {
+            if res.is_err() {
+                return res;
             }
         }
 
@@ -284,19 +378,30 @@ impl FSRepository {
 
     /// Renders the file into a path on disk, changing its permissions
     /// as necessary / appropriate
-    async fn render_blob<'a, Fd: std::os::fd::AsRawFd>(
+    async fn render_blob<'a, Fd>(
         &self,
         dir_fd: Fd,
-        entry: &graph::Entry,
+        entry: graph::Entry,
         render_type: RenderType,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        Fd: std::os::fd::AsRawFd,
+    {
+        let _permit = self
+            .blob_semaphore
+            .acquire()
+            .await
+            .expect("semaphore should remain open");
         let target_dir_fd = dir_fd.as_raw_fd();
         if entry.is_symlink() {
-            let (mut reader, filename) = self.open_payload(entry.object).await?;
             let mut target = String::new();
-            reader.read_to_string(&mut target).await.map_err(|err| {
-                Error::StorageReadError("read_to_string on render blob", filename, err)
-            })?;
+            {
+                // use a close to more quickly drop held file resources
+                let (mut reader, filename) = self.repo.open_payload(entry.object).await?;
+                reader.read_to_string(&mut target).await.map_err(|err| {
+                    Error::StorageReadError("read_to_string on render blob", filename, err)
+                })?;
+            }
             return if let Err(err) =
                 nix::unistd::symlinkat(target.as_str(), Some(target_dir_fd), entry.name.as_str())
             {
@@ -313,12 +418,12 @@ impl FSRepository {
             };
         }
 
-        let mut committed_path = self.payloads.build_digest_path(&entry.object);
+        let mut committed_path = self.repo.payloads.build_digest_path(&entry.object);
         match render_type {
             RenderType::HardLink => {
-                let payload_path = committed_path;
                 let mut retry_count = 0;
                 loop {
+                    let payload_path = committed_path;
                     // All hard links to a file have shared metadata (owner, perms).
                     // Whereas the same blob may be rendered into multiple files
                     // across different users and/or will different expected perms.
@@ -326,7 +431,7 @@ impl FSRepository {
                     // combination of user and perms. Since each user has their own
                     // "proxy" directory, there needs only be a unique copy per
                     // perms.
-                    if let Some(render_store) = &self.renders {
+                    if let Some(render_store) = &self.repo.renders {
                         let proxy_path = render_store
                             .proxy
                             .build_digest_path(&entry.object)
@@ -343,6 +448,7 @@ impl FSRepository {
                                         err,
                                     )
                                 })?;
+
                             // Write to a temporary file so that some other render
                             // process doesn't think a partially-written file is
                             // good.
@@ -354,16 +460,28 @@ impl FSRepository {
                                     err,
                                 )
                             })?;
-                            let payload_fd =
-                                nix::fcntl::open(&payload_path, OFlag::O_RDONLY, Mode::empty())?;
-                            let proxy_file_fd = temp_proxy_file.as_file().as_raw_fd();
-                            copy_fd(payload_fd, proxy_file_fd).await.map_err(|err| {
-                                Error::StorageWriteError(
-                                    "copy of blob to proxy file",
-                                    temp_proxy_file.path().to_owned(),
-                                    err,
-                                )
-                            })?;
+                            let mut payload_file =
+                                tokio::fs::File::open(&payload_path).await.map_err(|err| {
+                                    Error::StorageWriteError(
+                                        "open payload for proxying",
+                                        payload_path,
+                                        err,
+                                    )
+                                })?;
+                            let proxy_file_fd =
+                                nix::unistd::dup(temp_proxy_file.as_file().as_raw_fd())?;
+                            // Safety: from_raw_fd takes ownership of this fd which is what we want
+                            let mut proxy_file =
+                                unsafe { tokio::fs::File::from_raw_fd(proxy_file_fd) };
+                            tokio::io::copy(&mut payload_file, &mut proxy_file)
+                                .await
+                                .map_err(|err| {
+                                    Error::StorageWriteError(
+                                        "copy of blob to proxy file",
+                                        temp_proxy_file.path().to_owned(),
+                                        err,
+                                    )
+                                })?;
                             nix::sys::stat::fchmod(
                                 proxy_file_fd,
                                 Mode::from_bits_truncate(entry.mode),
@@ -435,43 +553,70 @@ impl FSRepository {
                 }
             }
             RenderType::Copy => {
-                let payload_fd = nix::fcntl::open(&committed_path, OFlag::O_RDONLY, Mode::empty())?;
-                // create with open permissions, as they will be set to the proper mode in the future
-                let rendered_fd = nix::fcntl::openat(
-                    target_dir_fd,
-                    entry.name.as_str(),
-                    OFlag::O_RDWR | OFlag::O_CREAT,
-                    Mode::all(),
-                )
+                let name = entry.name.clone();
+                let mut payload_file =
+                    tokio::fs::File::open(&committed_path)
+                        .await
+                        .map_err(|err| {
+                            Error::StorageReadError(
+                                "open of payload source file",
+                                committed_path,
+                                err,
+                            )
+                        })?;
+                let mut rendered_file =
+                    tokio::task::spawn_blocking(move || -> std::io::Result<tokio::fs::File> {
+                        // create with open permissions, as they will be set to the proper mode in the future
+                        let fd = nix::fcntl::openat(
+                            target_dir_fd,
+                            name.as_str(),
+                            OFlag::O_RDWR | OFlag::O_CREAT | OFlag::O_TRUNC,
+                            Mode::all(),
+                        )?;
+                        // Safety: from_raw_fd takes ownership of this fd which is what we want
+                        Ok(unsafe { tokio::fs::File::from_raw_fd(fd) })
+                    })
+                    .await
+                    .expect("syscall should not panic")
+                    .map_err(|err| {
+                        Error::StorageWriteError(
+                            "creation of rendered blob file",
+                            PathBuf::from(&entry.name),
+                            err,
+                        )
+                    })?;
+                tokio::io::copy(&mut payload_file, &mut rendered_file)
+                    .await
+                    .map_err(|err| {
+                        Error::StorageWriteError(
+                            "copy of blob to rendered file",
+                            PathBuf::from(&entry.name),
+                            err,
+                        )
+                    })?;
+                let mode = entry.mode;
+                return tokio::task::spawn_blocking(move || {
+                    nix::sys::stat::fchmod(
+                        rendered_file.as_raw_fd(),
+                        Mode::from_bits_truncate(mode),
+                    )
+                })
+                .await
+                .expect("syscall should not panic")
                 .map_err(|err| {
                     Error::StorageWriteError(
-                        "creation of rendered blob file",
+                        "set permissions on copied payload",
                         PathBuf::from(&entry.name),
                         err.into(),
                     )
-                })?;
-                copy_fd(payload_fd, rendered_fd).await.map_err(|err| {
-                    Error::StorageWriteError(
-                        "copy of blob to rendered file",
-                        PathBuf::from(&entry.name),
-                        err,
-                    )
-                })?;
-                return nix::sys::stat::fchmod(rendered_fd, Mode::from_bits_truncate(entry.mode))
-                    .map_err(|err| {
-                        Error::StorageWriteError(
-                            "set permissions on copied payload",
-                            PathBuf::from(&entry.name),
-                            err.into(),
-                        )
-                    });
+                });
             }
         }
         Ok(())
     }
 }
 
-async fn create_and_open_dir_at<A>(dir_fd: A, name: String) -> std::io::Result<i32>
+async fn create_and_open_dir_at<A>(dir_fd: A, name: String) -> std::io::Result<tokio::fs::File>
 where
     A: AsRawFd + Send + 'static,
 {
@@ -483,33 +628,18 @@ where
             Ok(_) | Err(nix::errno::Errno::EEXIST) => {}
             Err(err) => return Err(err.into()),
         }
-        nix::fcntl::openat(
+        let fd = nix::fcntl::openat(
             dir_fd.as_raw_fd(),
             name.as_str(),
             OFlag::O_DIRECTORY | OFlag::O_RDONLY,
             Mode::all(),
         )
-        .map_err(std::io::Error::from)
+        .map_err(std::io::Error::from)?;
+        // Safety: from_raw_fd takes ownership of this fd which is what we want
+        Ok(unsafe { tokio::fs::File::from_raw_fd(fd) })
     })
     .await
     .map_err(|_join_err| std::io::Error::new(std::io::ErrorKind::Other, "mkdir task panic'd"))?
-}
-
-async fn copy_fd<Fd1, Fd2>(from_fd: Fd1, to_fd: Fd2) -> std::io::Result<u64>
-where
-    Fd1: AsRawFd + Send,
-    Fd2: AsRawFd + Send,
-{
-    let from_fd = nix::unistd::dup(from_fd.as_raw_fd())?;
-    let to_fd = nix::unistd::dup(to_fd.as_raw_fd())?;
-    // Safety: from_raw_fd takes ownership of the fd, but we
-    // are duplicating to ensure that this is guaranteed
-    let mut from = unsafe { tokio::fs::File::from_raw_fd(from_fd) };
-    let mut to = unsafe { tokio::fs::File::from_raw_fd(to_fd) };
-    // std::io::copy will try to use more efficient kernel functions if possible
-    let copied = tokio::io::copy(&mut from, &mut to).await?;
-    tokio::try_join!(from.sync_data(), to.sync_data())?;
-    Ok(copied)
 }
 
 /// Walks down a filesystem tree, opening permissions on each file before removing
