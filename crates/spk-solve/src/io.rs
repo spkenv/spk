@@ -523,6 +523,21 @@ enum SentryWarning {
     SolverInterruptedByTimeout,
 }
 
+/// Trait for making a string with the appropriate pluralisation based on a count
+trait Pluralize {
+    fn pluralize<T: From<u8> + PartialOrd>(&self, count: T) -> String;
+}
+
+impl Pluralize for str {
+    fn pluralize<T: From<u8> + PartialOrd>(&self, count: T) -> String {
+        if count > 1.into() {
+            format!("{self}s")
+        } else {
+            self.to_string()
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct DecisionFormatterSettings {
     pub(crate) verbosity: u32,
@@ -656,6 +671,11 @@ impl DecisionFormatter {
                 return Err(Error::SolverInterrupted(mesg));
             }
             LoopOutcome::Failed(e) => {
+                if self.settings.report_time {
+                    let solve_time = start.elapsed();
+                    eprintln!("{}", self.format_solve_stats(&runtime.solver, solve_time));
+                }
+
                 #[cfg(feature = "sentry")]
                 self.add_details_to_next_sentry_event(&runtime.solver, start.elapsed());
 
@@ -835,9 +855,9 @@ impl DecisionFormatter {
 
         // Show numbers of incompatible versions and builds from the solver
         let num_vers = solver.get_number_of_incompatible_versions();
-        let versions = if num_vers != 1 { "versions" } else { "version" };
+        let versions = "version".pluralize(num_vers);
         let num_builds = solver.get_number_of_incompatible_builds();
-        let builds = if num_builds != 1 { "builds" } else { "build" };
+        let mut builds = "build".pluralize(num_builds);
         let _ =
             writeln!(out,
             " Solver skipped {num_vers} incompatible {versions} (total of {num_builds} {builds})",
@@ -851,21 +871,22 @@ impl DecisionFormatter {
         );
 
         // Show the number of package builds considered in total
+        let total_builds = solver.get_total_builds();
+        builds = "build".pluralize(total_builds);
         let _ = writeln!(
             out,
-            " Solver considered {} package builds in total, at {:.3} builds/sec",
-            solver.get_total_builds(),
-            solver.get_total_builds() as f64 / seconds
+            " Solver considered {total_builds} package {builds} in total, at {:.3} builds/sec",
+            total_builds as f64 / seconds
         );
 
         // Grab number of steps from the solver
         let num_steps = solver.get_number_of_steps();
-        let steps = if num_steps != 1 { "steps" } else { "step" };
+        let mut steps = "step".pluralize(num_steps);
         let _ = writeln!(out, " Solver took {num_steps} {steps} (resolves)");
 
         // Show the number of steps back from the solver
         let num_steps_back = solver.get_number_of_steps_back();
-        let steps = if num_steps_back != 1 { "steps" } else { "step" };
+        steps = "step".pluralize(num_steps_back);
         let _ = writeln!(
             out,
             " Solver took {num_steps_back} {steps} back (unresolves)",
@@ -873,16 +894,17 @@ impl DecisionFormatter {
 
         // Show total number of steps and steps per second
         let total_steps = num_steps as u64 + num_steps_back;
+        steps = "step".pluralize(total_steps);
         let _ = writeln!(
             out,
-            " Solver took {total_steps} steps total, at {:.3} steps/sec",
+            " Solver took {total_steps} {steps} total, at {:.3} steps/sec",
             total_steps as f64 / seconds,
         );
 
         // Show number of requests for same package from RequestPackage
         // related counter
         let num_reqs = REQUESTS_FOR_SAME_PACKAGE_COUNT.load(Ordering::SeqCst);
-        let mut requests = if num_reqs != 1 { "requests" } else { "request" };
+        let mut requests = "request".pluralize(num_reqs);
         let _ = writeln!(
             out,
             " Solver hit {num_reqs} {requests} for the same package"
@@ -891,7 +913,7 @@ impl DecisionFormatter {
         // Show number of duplicate (identical) requests from
         // RequestPackage related counter
         let num_dups = DUPLICATE_REQUESTS_COUNT.load(Ordering::SeqCst);
-        requests = if num_dups != 1 { "requests" } else { "request" };
+        requests = "request".pluralize(num_dups);
         let _ = writeln!(out, " Solver hit {num_dups} identical duplicate {requests}");
 
         // Show all problem packages mentioned in BLOCKED step backs,
@@ -953,6 +975,98 @@ impl DecisionFormatter {
             out.push('\n');
         } else {
             out.push_str(" Solver hit no problems\n");
+        }
+
+        // Show impossible requests stats, only if the solver had any
+        // impossible request checks turned on
+        if solver.any_impossible_checks_enabled() {
+            let checker = solver.request_validator();
+
+            let num_ifalreadypresent = checker.num_ifalreadypresent_requests();
+            let mut times = "time".pluralize(num_ifalreadypresent);
+            let _ = writeln!(
+                out,
+                " Solver impossible checks found an IfAlreadyPresent request {num_ifalreadypresent} {times}"
+            );
+
+            let num_possible = checker.num_possible_requests_found();
+            times = "time".pluralize(num_possible);
+            let _ = writeln!(
+                out,
+                " Solver impossible checks found possible requests {num_possible} {times}"
+            );
+
+            let num_impossible = checker.num_impossible_requests_found();
+            times = "time".pluralize(num_impossible);
+            let _ = writeln!(
+                out,
+                " Solver impossible checks found impossible requests {num_impossible} {times}"
+            );
+
+            let num_possible_hits = checker.num_possible_hits();
+            times = "time".pluralize(num_possible_hits);
+            let _ = writeln!(
+                out,
+                " Solver impossible checks hit cached possible requests {num_possible_hits} {times}"
+            );
+
+            let num_impossible_hits = checker.num_impossible_hits();
+            times = "time".pluralize(num_impossible_hits);
+            let _ = writeln!(
+                out,
+                " Solver impossible checks hit cached impossible requests {num_impossible_hits} {times}"
+            );
+
+            let impossible_total = num_impossible + num_impossible_hits;
+            requests = "request".pluralize(impossible_total);
+            let _ = writeln!(
+                out,
+                " Solver impossible checks hit a total of impossible {impossible_total} {requests}",
+            );
+
+            let total = impossible_total + num_possible + checker.num_possible_hits();
+            requests = "request".pluralize(total);
+            let _ = writeln!(
+                out,
+                " Solver impossible checks examined a total of {total} {requests}"
+            );
+
+            let specs_read = checker.num_build_specs_read();
+            let specs = "spec".pluralize(specs_read);
+            let _ = writeln!(
+                out,
+                " Solver impossible checks read a total of {specs_read} package {specs}"
+            );
+
+            let num = checker.num_read_tasks_spawned();
+            let tasks = "task".pluralize(num);
+            let _ = writeln!(
+                out,
+                " Solver impossible checks spawned {num} version reading {tasks}"
+            );
+
+            let num_stop = checker.num_read_tasks_stopped();
+            let tasks_stop = "task".pluralize(num_stop);
+            let _ = writeln!(
+                out,
+                " Solver impossible checks stopped {num} version reading {tasks_stop}"
+            );
+
+            let _ = writeln!(
+                out,
+                " Solver's Impossible Cache:\n    {}",
+                checker
+                    .impossible_requests()
+                    .iter()
+                    .map(|ref_multi| {
+                        let (r, c) = ref_multi.pair();
+                        format!("{r} => {c}")
+                    })
+                    .collect::<Vec<String>>()
+                    .join("\n    "),
+            );
+        } else {
+            out.push_str(" Solver impossible request checks were disabled");
         }
 
         out

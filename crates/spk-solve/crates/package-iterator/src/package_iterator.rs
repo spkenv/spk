@@ -15,6 +15,7 @@ use spk_schema::foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Version;
 use spk_schema::ident::VersionIdent;
+use spk_schema::version::Compatibility;
 use spk_schema::{AnyIdent, BuildIdent, Package, Spec, SpecRecipe};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
@@ -61,7 +62,7 @@ pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
 
 /// A tracing target for additional build sorting output: times,
 /// building blocks, and keys.
-const BUILD_SORT_TARGET: &str = "build_sort";
+pub const BUILD_SORT_TARGET: &str = "build_sort";
 
 dyn_clone::clone_trait_object!(BuildIterator);
 
@@ -462,6 +463,7 @@ impl SortedBuildIterator {
     pub async fn new(
         _options: OptionMap,
         source: Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>,
+        builds_with_impossible_requests: HashMap<BuildIdent, Compatibility>,
     ) -> Result<Self> {
         // Note: _options is unused in this implementation, it was used
         // in the by_distance sorting implementation
@@ -475,7 +477,8 @@ impl SortedBuildIterator {
 
         let mut sbi = SortedBuildIterator { source, builds };
 
-        sbi.sort_by_build_option_values();
+        sbi.sort_by_build_option_values(builds_with_impossible_requests)
+            .await;
         Ok(sbi)
     }
 
@@ -485,6 +488,7 @@ impl SortedBuildIterator {
         spec: &Spec,
         ordered_names: &Vec<OptNameBuf>,
         build_name_values: &HashMap<BuildIdent, OptionMap>,
+        makes_an_impossible_request: bool,
     ) -> BuildKey {
         let build_id = spec.ident();
         let empty = OptionMap::default();
@@ -492,12 +496,20 @@ impl SortedBuildIterator {
             Some(nv) => nv,
             None => &empty,
         };
-        BuildKey::new(spec.ident(), ordered_names, name_values)
+        BuildKey::new(
+            spec.ident(),
+            ordered_names,
+            name_values,
+            makes_an_impossible_request,
+        )
     }
 
     /// Sorts builds by keys based on ordered build option names and
     /// differing values in those options
-    fn sort_by_build_option_values(&mut self) {
+    async fn sort_by_build_option_values(
+        &mut self,
+        builds_with_impossible_requests: HashMap<BuildIdent, Compatibility>,
+    ) {
         let start = Instant::now();
 
         let mut number_non_src_builds: u64 = 0;
@@ -608,6 +620,7 @@ impl SortedBuildIterator {
                 spec,
                 &ordered_names,
                 &build_name_values,
+                builds_with_impossible_requests.contains_key(&spec.ident().clone()),
             )
         });
 
@@ -622,7 +635,7 @@ impl SortedBuildIterator {
             target: BUILD_SORT_TARGET,
             "Sort by build option values: {} builds in {} secs",
             self.builds.len(),
-            duration.as_secs() as f64 + duration.subsec_nanos() as f64 * 1e-9
+            duration.as_secs_f64()
         );
         tracing::debug!(
             target: BUILD_SORT_TARGET,
@@ -647,6 +660,7 @@ impl SortedBuildIterator {
                             spec,
                             &ordered_names,
                             &build_name_values,
+                            builds_with_impossible_requests.contains_key(&spec.ident().clone()),
                         ),
                         spec.option_values(),
                     )

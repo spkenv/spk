@@ -255,12 +255,14 @@ fn test_generating_build_key() {
 
     // Generate the build's key based on the ordering of option names
     let ordering = vec![name1, name2, name3, name4, name5];
-    let key = BuildKey::new(a_build.ident(), &ordering, &resolved_options);
+    let impossible = false;
+    let key = BuildKey::new(a_build.ident(), &ordering, &resolved_options, impossible);
 
     // Expected build key structure for this ordering and build options:
     // "alib", "somevalue", "notinthisbuild", "apkg", "versionbuild" build digest
     //  1.2.3,  something,     notset,         >1,    4.1.0/DIGEST,  TESTTEST
     let expected = BuildKey::Binary(vec![
+        BuildKeyEntry::PossibleRequests(true),
         // 1.2.3
         BuildKeyEntry::ExpandedVersion(make_expanded_version_range_part(
             "1.2.3",
@@ -342,7 +344,8 @@ fn test_generating_build_key_src_build() {
     // names. Note: because this is a source build it won't use any of
     // the ordering or option names in the key generation
     let ordering = vec![name1, name2, name3, name4];
-    let key = BuildKey::new(a_build.ident(), &ordering, &resolved_options);
+    let impossible = true;
+    let key = BuildKey::new(a_build.ident(), &ordering, &resolved_options, impossible);
 
     // Expected build key structure
     let expected = BuildKey::Src;

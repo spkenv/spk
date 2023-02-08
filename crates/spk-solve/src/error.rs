@@ -34,6 +34,9 @@ pub enum Error {
     SpkSpecError(#[from] spk_schema::Error),
     #[error("Status bar IO error: {0}")]
     StatusBarIOError(#[source] std::io::Error),
+    #[error("Initial requests contain {0} impossible request{plural}.", plural = if *.0 == 1 { "" } else { "s" } )]
+    InitialRequestsContainImpossibleError(usize),
+
     #[error("Error: {0}")]
     String(String),
 }

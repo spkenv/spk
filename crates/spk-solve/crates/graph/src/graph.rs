@@ -1068,6 +1068,7 @@ pub struct State {
     cached_option_map: Arc<OnceCell<OptionMap>>,
     // How deep is this state?
     pub state_depth: u64,
+    cached_unresolved_pkg_requests: Arc<OnceCell<HashMap<PkgNameBuf, PkgRequest>>>,
 }
 
 impl State {
@@ -1105,6 +1106,7 @@ impl State {
             state_id,
             cached_option_map: Arc::new(OnceCell::new()),
             state_depth: 0,
+            cached_unresolved_pkg_requests: Arc::new(OnceCell::new()),
         };
         for (package, source) in packages.into_iter() {
             s = s.append_package(None, package, source)
@@ -1220,6 +1222,27 @@ impl State {
         &self.var_requests
     }
 
+    /// Get a mapping of pkg name -> merged request for the unresolved
+    /// PkgRequests in this state
+    pub fn get_unresolved_requests(&self) -> &HashMap<PkgNameBuf, PkgRequest> {
+        self.cached_unresolved_pkg_requests.get_or_init(|| {
+            let mut unresolved: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
+
+            for req in self.pkg_requests.iter() {
+                if unresolved.contains_key(&req.pkg.name) {
+                    continue;
+                }
+                if self.get_current_resolve(&req.pkg.name).is_err() {
+                    unresolved.insert(
+                        req.pkg.name.clone(),
+                        self.get_merged_request(&req.pkg.name).unwrap(),
+                    );
+                }
+            }
+            unresolved
+        })
+    }
+
     pub fn get_ordered_resolved_packages(&self) -> &Arc<Vec<Arc<Spec>>> {
         &self.packages_in_solve_order
     }
@@ -1247,6 +1270,8 @@ impl State {
             // options are changing
             cached_option_map: Arc::new(OnceCell::new()),
             state_depth: parent.state_depth + 1,
+            // unresolved pkg requests are the same
+            cached_unresolved_pkg_requests: Arc::clone(&self.cached_unresolved_pkg_requests),
         }
     }
 
@@ -1271,6 +1296,8 @@ impl State {
             // options are the same
             cached_option_map: Arc::clone(&self.cached_option_map),
             state_depth: parent.as_ref().map(|p| p.state_depth + 1).unwrap_or(0),
+            // unresolved pkg requests change because a package was resolved
+            cached_unresolved_pkg_requests: Arc::new(OnceCell::new()),
         }
     }
 
@@ -1290,6 +1317,8 @@ impl State {
             // options are the same
             cached_option_map: Arc::clone(&self.cached_option_map),
             state_depth: parent.state_depth + 1,
+            // unresolved pkg requests (may) change because a new request was added
+            cached_unresolved_pkg_requests: Arc::new(OnceCell::new()),
         }
     }
 
@@ -1312,6 +1341,8 @@ impl State {
             // options are changing
             cached_option_map: Arc::new(OnceCell::new()),
             state_depth: parent.state_depth + 1,
+            // unresolved pkg requests are the same
+            cached_unresolved_pkg_requests: Arc::clone(&self.cached_unresolved_pkg_requests),
         }
     }
 

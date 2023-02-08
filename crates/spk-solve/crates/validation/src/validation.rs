@@ -11,9 +11,12 @@ use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, Satisfy, VarRequest};
 use spk_schema::ident_build::{Build, EmbeddedSource};
+use spk_schema::name::PkgName;
 use spk_schema::{Package, Recipe, Spec};
-use spk_solve_graph::{CachedHash, GetMergedRequestError, State};
+use spk_solve_graph::{CachedHash, GetMergedRequestError, GetMergedRequestResult, State};
 use spk_solve_solution::PackageSource;
+
+use crate::Error;
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]
@@ -32,9 +35,24 @@ pub enum Validators {
     EmbeddedPackage(EmbeddedPackageValidator),
 }
 
+/// For validation methods that only operate on package requests
+pub trait GetMergedRequest {
+    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequest>;
+}
+
+// This trait implementation for State is here because graph crate
+// contains the State definition, and this (validation) crate uses the
+// graph crate.
+impl GetMergedRequest for State {
+    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequest> {
+        State::get_merged_request(self, name)
+    }
+}
+
+/// For validating a package or recipe against various subsets of state data
 #[enum_dispatch]
 pub trait ValidatorT {
-    /// Check if the given package is appropriate for the provided state.
+    /// Check if the given package is appropriate for the provided state data.
     fn validate_package<P>(
         &self,
         state: &State,
@@ -43,6 +61,25 @@ pub trait ValidatorT {
     ) -> crate::Result<Compatibility>
     where
         P: Satisfy<PkgRequest> + Satisfy<VarRequest> + Package;
+
+    /// Check if the given package is appropriate for the packages request data.
+    ///
+    /// This does not use options related data or data from already
+    /// reolved parts of a state.
+    fn validate_package_against_request<PR, P>(
+        &self,
+        _pkgrequest_data: &PR,
+        _package: &P,
+        _source: &PackageSource,
+    ) -> crate::Result<Compatibility>
+    where
+        PR: GetMergedRequest,
+        P: Satisfy<PkgRequest> + Package,
+    {
+        Err(Error::SolverError(
+            "validate_package_against_request() is not implemented for this Validator".to_string(),
+        ))
+    }
 
     /// Check if the given recipe is appropriate as a source build for the provided state.
     ///
@@ -68,18 +105,9 @@ impl ValidatorT for DeprecationValidator {
         _source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: Package,
+        P: Satisfy<PkgRequest> + Satisfy<VarRequest> + Package,
     {
-        if !spec.is_deprecated() {
-            return Ok(Compatibility::Compatible);
-        }
-        let request = state.get_merged_request(spec.name())?;
-        if request.pkg.build.as_ref() == Some(spec.ident().build()) {
-            return Ok(Compatibility::Compatible);
-        }
-        Ok(Compatibility::Incompatible(
-            "build is deprecated (and not requested exactly)".to_owned(),
-        ))
+        self.validate_package_against_request(state, spec, _source)
     }
 
     fn validate_recipe<R: Recipe>(
@@ -94,6 +122,28 @@ impl ValidatorT for DeprecationValidator {
         } else {
             Ok(Compatibility::Compatible)
         }
+    }
+
+    fn validate_package_against_request<PR, P>(
+        &self,
+        pkgrequest_data: &PR,
+        package: &P,
+        _source: &PackageSource,
+    ) -> crate::Result<Compatibility>
+    where
+        PR: GetMergedRequest,
+        P: Satisfy<PkgRequest> + Package,
+    {
+        if !package.is_deprecated() {
+            return Ok(Compatibility::Compatible);
+        }
+        let request = pkgrequest_data.get_merged_request(package.name())?;
+        if request.pkg.build.as_ref() == Some(package.ident().build()) {
+            return Ok(Compatibility::Compatible);
+        }
+        Ok(Compatibility::Incompatible(
+            "build is deprecated (and not requested exactly)".to_owned(),
+        ))
     }
 }
 
@@ -119,6 +169,27 @@ impl ValidatorT for BinaryOnlyValidator {
         Ok(Compatibility::Incompatible(
             "building from source is not enabled".into(),
         ))
+    }
+
+    fn validate_package_against_request<PR, P>(
+        &self,
+        pkgrequest_data: &PR,
+        package: &P,
+        _source: &PackageSource,
+    ) -> crate::Result<Compatibility>
+    where
+        PR: GetMergedRequest,
+        P: Satisfy<PkgRequest> + Package,
+    {
+        let request = pkgrequest_data.get_merged_request(package.name())?;
+        if package.ident().is_source()
+            && request.pkg.build.as_ref() != Some(package.ident().build())
+        {
+            return Ok(Compatibility::Incompatible(
+                "building from source is not enabled".into(),
+            ));
+        }
+        Ok(Compatibility::Compatible)
     }
 }
 
@@ -167,7 +238,7 @@ impl EmbeddedPackageValidator {
 
         // There may not be a "real" instance of the embedded package in the
         // solve already.
-        if let Some((existing, _)) = state.get_resolved_packages().get(embedded.ident().name()) {
+        if let Some((existing, _)) = state.get_resolved_packages().get(embedded.name()) {
             // If found, it must be the stub of the package now being embedded
             // to be okay.
             match existing.ident().build() {
@@ -193,7 +264,7 @@ impl EmbeddedPackageValidator {
         if !&compat {
             return Ok(Incompatible(format!(
                 "embedded package '{}' is incompatible: {compat}",
-                embedded.ident(),
+                embedded.ident()
             )));
         }
         Ok(Compatible)
@@ -269,7 +340,15 @@ impl ValidatorT for PkgRequestValidator {
     where
         P: Satisfy<PkgRequest> + Package,
     {
-        let request = match state.get_merged_request(spec.name()) {
+        self.validate_package_against_request(state, spec, source)
+    }
+
+    fn validate_recipe<R: Recipe>(
+        &self,
+        state: &State,
+        recipe: &R,
+    ) -> crate::Result<Compatibility> {
+        let request = match state.get_merged_request(recipe.name()) {
             Ok(request) => request,
             Err(GetMergedRequestError::NoRequestFor(name)) => {
                 return Ok(Compatibility::Incompatible(format!(
@@ -279,10 +358,39 @@ impl ValidatorT for PkgRequestValidator {
             Err(err) => {
                 return Ok(Compatibility::Incompatible(format!(
                     "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
-                    spec.name()
+                    recipe.name()
                 )))
             }
         };
+        Ok(request.is_version_applicable(recipe.version()))
+    }
+
+    #[allow(clippy::nonminimal_bool)]
+    fn validate_package_against_request<PR, P>(
+        &self,
+        pkgrequest_data: &PR,
+        package: &P,
+        source: &PackageSource,
+    ) -> crate::Result<Compatibility>
+    where
+        P: Satisfy<PkgRequest> + Package,
+        PR: GetMergedRequest,
+    {
+        let request = match pkgrequest_data.get_merged_request(package.name()) {
+            Ok(request) => request,
+            Err(GetMergedRequestError::NoRequestFor(name)) => {
+                return Ok(Compatibility::Incompatible(format!(
+                    "package '{name}' was not requested [INTERNAL ERROR]"
+                )))
+            }
+            Err(err) => {
+                return Ok(Compatibility::Incompatible(format!(
+                    "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
+                    package.name()
+                )))
+            }
+        };
+
         if let Some(rn) = &request.pkg.repository_name {
             // If the request names a repository, then the source has to match.
             match source {
@@ -312,33 +420,11 @@ impl ValidatorT for PkgRequestValidator {
         }
         // the initial check is more general and provides more user
         // friendly error messages that we'd like to get
-        let mut compat = request.is_version_applicable(spec.version());
+        let mut compat = request.is_version_applicable(package.version());
         if !!&compat {
-            compat = request.is_satisfied_by(spec)
+            compat = request.is_satisfied_by(package)
         }
         Ok(compat)
-    }
-
-    fn validate_recipe<R: Recipe>(
-        &self,
-        state: &State,
-        recipe: &R,
-    ) -> crate::Result<Compatibility> {
-        let request = match state.get_merged_request(recipe.name()) {
-            Ok(request) => request,
-            Err(GetMergedRequestError::NoRequestFor(name)) => {
-                return Ok(Compatibility::Incompatible(format!(
-                    "package '{name}' was not requested [INTERNAL ERROR]"
-                )))
-            }
-            Err(err) => {
-                return Ok(Compatibility::Incompatible(format!(
-                    "package '{}' has an invalid request stack [INTERNAL ERROR]: {err}",
-                    recipe.name()
-                )))
-            }
-        };
-        Ok(request.is_version_applicable(recipe.version()))
     }
 }
 
@@ -358,38 +444,21 @@ impl ValidatorT for ComponentsValidator {
         P: Package,
     {
         use Compatibility::Compatible;
-        if spec.ident().build().is_embedded() {
-            // Allow embedded stubs to validate.
+
+        if let Ok(Compatible) = self.check_for_embedded_stub(spec) {
             return Ok(Compatible);
         }
-        let available_components: std::collections::HashSet<_> = match source {
-            PackageSource::Repository { components, .. } => components.keys().collect(),
-            PackageSource::BuildFromSource { .. } => spec.components().names(),
-            PackageSource::Embedded => spec.components().names(),
-        };
+
         let request = state.get_merged_request(spec.name())?;
+        if let Ok(Compatibility::Incompatible(reason)) =
+            self.check_for_missing_components(&request, spec, source)
+        {
+            return Ok(Compatibility::Incompatible(reason));
+        }
+
         let required_components = spec
             .components()
             .resolve_uses(request.pkg.components.iter());
-        let missing_components: std::collections::HashSet<_> = required_components
-            .iter()
-            .filter(|n| !available_components.contains(n))
-            .collect();
-        if !missing_components.is_empty() {
-            return Ok(Compatibility::Incompatible(format!(
-                "no published files for some required components: [{}], found [{}]",
-                required_components
-                    .iter()
-                    .map(Component::to_string)
-                    .sorted()
-                    .join(", "),
-                available_components
-                    .into_iter()
-                    .map(Component::to_string)
-                    .sorted()
-                    .join(", ")
-            )));
-        }
 
         for component in spec.components().iter() {
             if !required_components.contains(&component.name) {
@@ -413,6 +482,92 @@ impl ValidatorT for ComponentsValidator {
         _state: &State,
         _recipe: &R,
     ) -> crate::Result<Compatibility> {
+        Ok(Compatibility::Compatible)
+    }
+
+    fn validate_package_against_request<PR, P>(
+        &self,
+        pkgrequest_data: &PR,
+        package: &P,
+        source: &PackageSource,
+    ) -> crate::Result<Compatibility>
+    where
+        PR: GetMergedRequest,
+        P: Package,
+    {
+        use Compatibility::Compatible;
+        if let Ok(Compatible) = self.check_for_embedded_stub(package) {
+            return Ok(Compatible);
+        }
+
+        let request = pkgrequest_data.get_merged_request(package.name())?;
+        if let Ok(Compatibility::Incompatible(reason)) =
+            self.check_for_missing_components(&request, package, source)
+        {
+            return Ok(Compatibility::Incompatible(reason));
+        }
+
+        Ok(Compatible)
+    }
+}
+
+impl ComponentsValidator {
+    fn check_for_embedded_stub<P>(&self, package: &P) -> crate::Result<Compatibility>
+    where
+        P: Package,
+    {
+        if package.ident().build().is_embedded() {
+            // Allow embedded stubs to validate.
+            return Ok(Compatibility::Compatible);
+        }
+
+        Ok(Compatibility::Incompatible(
+            "Not an embedded package".to_string(),
+        ))
+    }
+
+    fn check_for_missing_components<P>(
+        &self,
+        request: &PkgRequest,
+        package: &P,
+        source: &PackageSource,
+    ) -> crate::Result<Compatibility>
+    where
+        P: Package,
+    {
+        // Do the components available in the package match those
+        // required by the request?
+        let available_components: std::collections::HashSet<_> = match source {
+            PackageSource::Repository { components, .. } => components.keys().collect(),
+            PackageSource::BuildFromSource { .. } => package.components().names(),
+            PackageSource::Embedded => package.components().names(),
+        };
+
+        let required_components = package
+            .components()
+            .resolve_uses(request.pkg.components.iter());
+
+        let missing_components: std::collections::HashSet<_> = required_components
+            .iter()
+            .filter(|n| !available_components.contains(n))
+            .collect();
+
+        if !missing_components.is_empty() {
+            return Ok(Compatibility::Incompatible(format!(
+                "no published files for some required components: [{}], found [{}]",
+                required_components
+                    .iter()
+                    .map(Component::to_string)
+                    .sorted()
+                    .join(", "),
+                available_components
+                    .into_iter()
+                    .map(Component::to_string)
+                    .sorted()
+                    .join(", ")
+            )));
+        }
+
         Ok(Compatibility::Compatible)
     }
 }
@@ -545,7 +700,6 @@ impl PkgRequirementsValidator {
                 request.pkg.name, compat
             )));
         }
-
         let required_components = resolved
             .components()
             .resolve_uses(request.pkg.components.iter());
@@ -627,6 +781,7 @@ impl ValidatorT for VarRequirementsValidator {
 
 /// The default set of validators that is used for resolving packages
 pub const fn default_validators() -> &'static [Validators] {
+    // This controls the order the validators are checked
     &[
         Validators::Deprecation(DeprecationValidator {}),
         Validators::PackageRequest(PkgRequestValidator {}),

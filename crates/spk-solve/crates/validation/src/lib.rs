@@ -3,7 +3,15 @@
 // https://github.com/imageworks/spk
 
 mod error;
+mod impossible_checks;
 mod validation;
 
 pub use error::{Error, Result};
-pub use validation::{default_validators, BinaryOnlyValidator, ValidatorT, Validators};
+pub use impossible_checks::{ImpossibleRequestsChecker, IMPOSSIBLE_CHECKS_TARGET};
+pub use validation::{
+    default_validators,
+    BinaryOnlyValidator,
+    GetMergedRequest,
+    ValidatorT,
+    Validators,
+};

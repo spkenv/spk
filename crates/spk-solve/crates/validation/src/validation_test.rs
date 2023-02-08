@@ -1,18 +1,67 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use std::sync::Arc;
 
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::opt_name;
-use spk_schema::ident::Request;
+use spk_schema::ident::{build_ident, version_ident, PkgRequest, Request, RequestedBy};
 use spk_schema::{spec, FromYaml};
+use spk_solve::recipe;
 use spk_solve_graph::State;
 use spk_solve_solution::PackageSource;
 
-use super::{OptionsValidator, VarRequirementsValidator};
-use crate::validation::ValidatorT;
+use super::{default_validators, OptionsValidator, ValidatorT, VarRequirementsValidator};
+
+#[rstest]
+fn test_src_package_install_requests_are_not_considered() {
+    // Test for embedded packages in a src package: that a src
+    // package/recipe is valid even though one of its requirements is
+    // an embedded requirement that does not match the current state.
+    // TODO: not sure of this post-spec/package/recipe split
+    let validators = default_validators();
+
+    let spec = Arc::new(recipe!(
+        {
+            "pkg": "my-pkg/1.0.0",
+            "install": {
+                "embedded": [{"pkg": "embedded/9.0.0"}],
+                "requirements": [{"pkg": "dependency/=2"}, {"var": "debug/on"}],
+            },
+        }
+    ));
+
+    let state = State::new(
+        vec![
+            PkgRequest::from_ident(
+                build_ident!("my-pkg/1.0.0/src").to_any(),
+                RequestedBy::SpkInternalTest,
+            ),
+            PkgRequest::from_ident(
+                version_ident!("embedded/1.0.0").to_any(None),
+                RequestedBy::SpkInternalTest,
+            ),
+            PkgRequest::from_ident(
+                version_ident!("dependency/1").to_any(None),
+                RequestedBy::SpkInternalTest,
+            ),
+        ]
+        .into_iter()
+        .collect(),
+        vec![],
+        vec![],
+        vec![(opt_name!("debug").to_owned(), "off".to_string())],
+    );
+
+    for validator in validators {
+        assert!(
+            validator.validate_recipe(&state, &*spec).unwrap().is_ok(),
+            "Source package should be valid regardless of requirements but wasn't"
+        );
+    }
+}
 
 #[rstest]
 fn test_empty_options_can_match_anything() {

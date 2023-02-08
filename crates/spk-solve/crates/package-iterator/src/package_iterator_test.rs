@@ -9,7 +9,8 @@ use rstest::rstest;
 use spk_schema::foundation::name::PkgName;
 use spk_schema::foundation::option_map;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::{recipe, spec, Package, Spec};
+use spk_schema::foundation::version::Compatibility;
+use spk_schema::{recipe, spec, BuildIdent, Package, Spec};
 use spk_solve::{make_build, make_repo};
 
 use super::{BuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator};
@@ -169,12 +170,21 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
 
     let pkg_name = PkgName::new(package_name).unwrap();
 
-    let mut rp_iterator = RepositoryPackageIterator::new(pkg_name.to_owned(), vec![Arc::new(repo)]);
+    let builds_with_impossible_requests: HashMap<BuildIdent, Compatibility> = HashMap::new();
+
+    let arc_repo = Arc::new(repo);
+    let repos = vec![Arc::clone(&arc_repo)];
+
+    let mut rp_iterator = RepositoryPackageIterator::new(pkg_name.to_owned(), repos.clone());
     while let Some((_pkg, builds)) = rp_iterator.next().await.unwrap() {
         // This runs the test, by sorting the builds
-        let mut iterator = SortedBuildIterator::new(OptionMap::default(), builds)
-            .await
-            .unwrap();
+        let mut iterator = SortedBuildIterator::new(
+            OptionMap::default(),
+            builds,
+            builds_with_impossible_requests.clone(),
+        )
+        .await
+        .unwrap();
 
         // The rest of this is checking the test results
         let mut sorted_builds: Vec<Arc<Spec>> = Vec::new();

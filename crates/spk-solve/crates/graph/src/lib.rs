@@ -5,7 +5,14 @@
 mod error;
 mod graph;
 
-pub use error::{Error, GetCurrentResolveError, GetMergedRequestError, Result};
+pub use error::{
+    Error,
+    GetCurrentResolveError,
+    GetCurrentResolveResult,
+    GetMergedRequestError,
+    GetMergedRequestResult,
+    Result,
+};
 pub use graph::{
     CachedHash,
     Change,
