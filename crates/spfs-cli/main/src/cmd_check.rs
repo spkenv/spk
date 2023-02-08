@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
-use spfs::prelude::*;
+use spfs::{prelude::*, Digest};
 
 /// Check a repositories internal integrity
 #[derive(Debug, Args)]
@@ -15,6 +15,10 @@ pub struct CmdCheck {
     /// Attempt to fix problems by pulling from another repository. Defaults to "origin".
     #[clap(long)]
     pull: Option<Option<String>>,
+
+    /// Objects to recursively check, defaults to everything
+    #[clap(name = "REF")]
+    reference: Vec<String>,
 }
 
 impl CmdCheck {
@@ -45,11 +49,14 @@ impl CmdCheck {
         };
 
         tracing::info!("walking repository...");
+
         let errors = match &repo {
-            RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo).await,
-            RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo).await,
-            RepositoryHandle::Rpc(repo) => spfs::graph::check_database_integrity(repo).await,
-            RepositoryHandle::Proxy(repo) => spfs::graph::check_database_integrity(&**repo).await,
+            RepositoryHandle::FS(repo) => spfs::graph::check_database_integrity(repo, self.reference).await,
+            RepositoryHandle::Tar(repo) => spfs::graph::check_database_integrity(repo, self.reference).await,
+            RepositoryHandle::Rpc(repo) => spfs::graph::check_database_integrity(repo, self.reference).await,
+            RepositoryHandle::Proxy(repo) => {
+                spfs::graph::check_database_integrity(&**repo, self.reference).await
+            }
         };
         let mut repair_count = 0;
         for error in errors.iter() {
@@ -80,6 +87,7 @@ impl CmdCheck {
                 }
             }
         }
+
         if !errors.is_empty() && repair_count < errors.len() {
             if pull_from.is_none() {
                 tracing::info!("running with `--pull` may be able to resolve these issues")
