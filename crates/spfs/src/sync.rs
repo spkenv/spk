@@ -340,8 +340,7 @@ where
         );
 
         let entries: Vec<_> = manifest
-            .list_entries()
-            .into_iter()
+            .iter_entries()
             .cloned()
             .filter(|e| e.kind.is_blob())
             .collect();

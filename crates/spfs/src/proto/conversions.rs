@@ -218,7 +218,7 @@ impl TryFrom<super::Layer> for graph::Layer {
 
 impl From<&graph::Manifest> for super::Manifest {
     fn from(source: &graph::Manifest) -> Self {
-        let mut trees = source.list_trees().into_iter();
+        let mut trees = source.iter_trees();
         let root = trees.next().map(Into::into);
         Self {
             root,

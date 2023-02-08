@@ -318,6 +318,10 @@ where
         .await
         .expect("syscall should not panic")?;
 
+        for entry in manifest.iter_entries() {
+            self.reporter.visit_entry(entry);
+        }
+
         let mut res = self
             .render_into_dir_fd(root_dir, root_node.clone(), manifest, render_type)
             .await;
