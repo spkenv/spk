@@ -31,6 +31,8 @@ pub enum Error {
     // Bake Errors
     #[error("Skip embedded")]
     SkipEmbedded,
+    #[error("Skip spk internal test package source")]
+    SkipSpkInternalTest,
 
     // IO Errors
     #[error("Failed to write file {0}")]

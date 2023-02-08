@@ -1,7 +1,6 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::str::FromStr;
 use std::sync::Arc;
 
 use rstest::{fixture, rstest};
@@ -22,7 +21,7 @@ use spk_schema::ident::{
 };
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::prelude::*;
-use spk_schema::{recipe, v0, BuildIdent};
+use spk_schema::{recipe, v0};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 

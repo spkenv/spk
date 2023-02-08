@@ -126,25 +126,13 @@ macro_rules! make_build_and_components {
                 let mut solution = $crate::Solution::new(build_opts.clone());
                 $(
                 let dep = Arc::new($dep.clone());
-                // This induces extra 'use ...' requirements in code that, even indirectly,
-                // uses this macro.
-                let parent = BuildIdent::from_str("fake-parent-pkg/1.0.0/3I42H3S6").unwrap();
                 solution.add(
                     $crate::PkgRequest::from_ident(
                         $dep.ident().to_any(),
                         $crate::RequestedBy::SpkInternalTest,
                     ),
                     Arc::clone(&dep),
-                    // NOTE(rbottriell): this is not really appropriate, but
-                    // is not usually used by the 'generate_binary_build' process.
-                    // It might be necessary in the future to have a special enum
-                    // value for manually injected packages, but it's preferable
-                    // to avoid that.
-                    // The situation may have changed now that these need a parent
-                    // ident. It makes the use of an Embedded value, as a placeholder
-                    // for a PackageSource that doesn't matter for testing, a bit
-                    // more clunky.
-                    $crate::PackageSource::Embedded { parent },
+                    $crate::PackageSource::SpkInternalTest,
                 );
                 )*
                 let mut resolved_opts = recipe.resolve_options(&build_opts).unwrap().into_iter();

@@ -33,6 +33,7 @@ pub async fn resolve_runtime_layers(solution: &Solution) -> Result<Vec<Digest>> 
                     spec_options.format_option_map(),
                 )));
             }
+            PackageSource::SpkInternalTest => continue,
         };
 
         if resolved.request.pkg.components.is_empty() {

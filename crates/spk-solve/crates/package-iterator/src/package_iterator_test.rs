@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use rstest::rstest;

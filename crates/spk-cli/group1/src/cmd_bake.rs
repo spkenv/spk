@@ -152,6 +152,11 @@ impl Bake {
                 repo: _,
                 components,
             } => components.clone(),
+            PackageSource::SpkInternalTest => {
+                // Internal test builds don't have a layer of
+                // their own so they can be skipped over.
+                return Err(Error::SkipSpkInternalTest);
+            }
         };
 
         Ok(spfs_layers)

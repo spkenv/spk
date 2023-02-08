@@ -37,6 +37,9 @@ pub enum PackageSource {
     },
     /// The package was embedded in another.
     Embedded { parent: BuildIdent },
+    /// Only for a package being used in spk' automated (unit) test code
+    /// when the source of the package is not relevant for the test.
+    SpkInternalTest,
 }
 
 impl PackageSource {
@@ -52,6 +55,9 @@ impl PackageSource {
                 // TODO: what are the implications of this?
                 Err(Error::String("Embedded package has no recipe".into()))
             }
+            PackageSource::SpkInternalTest => Err(Error::String(
+                "Spk Internal test package has no recipe. Please use another PackageSource value if you need to read a recipe during this test.".into(),
+            )),
         }
     }
 }
@@ -63,14 +69,21 @@ impl Ord for PackageSource {
         use PackageSource::*;
         match (self, other) {
             (this @ Repository { .. }, other @ Repository { .. }) => this.cmp(other),
-            (Repository { .. }, BuildFromSource { .. } | Embedded { .. }) => Ordering::Less,
-            (BuildFromSource { .. } | Embedded { .. }, Repository { .. }) => Ordering::Greater,
+            (Repository { .. }, BuildFromSource { .. } | Embedded { .. } | SpkInternalTest) => {
+                Ordering::Less
+            }
+            (BuildFromSource { .. } | Embedded { .. } | SpkInternalTest, Repository { .. }) => {
+                Ordering::Greater
+            }
             (Embedded { .. }, Embedded { .. }) => Ordering::Equal,
-            (Embedded { .. }, BuildFromSource { .. }) => Ordering::Less,
-            (BuildFromSource { .. }, Embedded { .. }) => Ordering::Greater,
+            (Embedded { .. }, SpkInternalTest) => Ordering::Greater,
+            (SpkInternalTest, Embedded { .. }) => Ordering::Less,
+            (Embedded { .. } | SpkInternalTest, BuildFromSource { .. }) => Ordering::Less,
+            (BuildFromSource { .. }, Embedded { .. } | SpkInternalTest) => Ordering::Greater,
             (BuildFromSource { recipe: this }, BuildFromSource { recipe: other }) => {
                 this.cmp(other)
             }
+            (SpkInternalTest, SpkInternalTest) => Ordering::Equal,
         }
     }
 }

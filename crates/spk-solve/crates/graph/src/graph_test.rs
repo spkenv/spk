@@ -1,7 +1,6 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::str::FromStr;
 use std::sync::Arc;
 
 use rstest::rstest;
@@ -9,7 +8,7 @@ use spk_schema::foundation::format::{FormatChange, FormatChangeOptions};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::PkgName;
 use spk_schema::foundation::{opt_name, option_map};
-use spk_schema::{recipe, spec, BuildIdent};
+use spk_schema::{recipe, spec};
 use spk_solve_solution::PackageSource;
 
 use super::DecisionBuilder;
@@ -27,11 +26,7 @@ fn test_resolve_build_same_result() {
     let recipe = Arc::new(recipe);
     let build_spec = spec!({"pkg": "test/1.0.0/3I42H3S6"});
     let build_spec = Arc::new(build_spec);
-    let fake_parent = BuildIdent::from_str("testpkg/1.0.0/3I42H3S6").unwrap();
-    // TODO: ???
-    let source = PackageSource::Embedded {
-        parent: fake_parent,
-    };
+    let source = PackageSource::SpkInternalTest;
 
     let resolve = Decision::builder(&base).resolve_package(&build_spec, source);
     let build = Decision::builder(&base)
@@ -112,17 +107,10 @@ fn test_request_default_component() {
           ]
         }
     }));
-    let fake_parent = BuildIdent::from_str("testpkg/1.0.0/3I42H3S6").unwrap();
-
     let base = std::sync::Arc::new(super::State::default_state());
 
     let resolve_state = DecisionBuilder::new(&base)
-        .resolve_package(
-            &spec,
-            PackageSource::Embedded {
-                parent: fake_parent,
-            },
-        ) // TODO: embedded???
+        .resolve_package(&spec, PackageSource::SpkInternalTest)
         .apply(&base);
     let request = resolve_state
         .get_merged_request(PkgName::new("dependency").unwrap())
