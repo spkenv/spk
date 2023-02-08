@@ -54,10 +54,10 @@ pub async fn render(spec: tracking::EnvSpec) -> Result<std::path::PathBuf> {
 ///
 /// This method runs in the current thread and creates a copy
 /// of the desired data in the target directory
-pub async fn render_into_directory(
-    env_spec: &tracking::EnvSpec,
-    target: impl AsRef<std::path::Path>,
-) -> Result<()> {
+pub async fn render_into_directory<P>(env_spec: &tracking::EnvSpec, target_dir: P) -> Result<()>
+where
+    P: AsRef<std::path::Path>,
+{
     let repo = get_config()?.get_local_repository().await?;
     let mut stack = Vec::new();
     for target in env_spec.iter() {
@@ -75,7 +75,7 @@ pub async fn render_into_directory(
         manifest.update(&next.unlock());
     }
     let manifest = graph::Manifest::from(&manifest);
-    repo.render_manifest_into_dir(&manifest, &target, storage::fs::RenderType::Copy)
+    repo.render_manifest_into_dir(&manifest, target_dir, storage::fs::RenderType::Copy)
         .await
 }
 
