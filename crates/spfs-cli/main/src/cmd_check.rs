@@ -75,12 +75,12 @@ impl CmdCheck {
             tracing::error!("{error}");
 
             if let Some(pull_from) = pull_from.as_ref() {
+                let syncer = spfs::Syncer::new(pull_from, &repo)
+                    .with_policy(spfs::sync::SyncPolicy::ResyncEverything)
+                    .with_reporter(spfs::sync::ConsoleSyncReporter::default());
                 match error {
                     spfs::Error::UnknownObject(digest)
                     | spfs::Error::ObjectMissingPayload(_, digest) => {
-                        let syncer = spfs::Syncer::new(pull_from, &repo)
-                            .with_policy(spfs::sync::SyncPolicy::ResyncEverything)
-                            .with_reporter(spfs::sync::ConsoleSyncReporter::default());
                         match syncer.sync_digest(*digest).await {
                             Ok(_) => {
                                 // Drop syncer to be able to see tracing message.
