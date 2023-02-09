@@ -11,7 +11,7 @@ use std::sync::Arc;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::future::ready;
-use futures::{FutureExt, Stream, StreamExt};
+use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
 use rand::seq::SliceRandom;
@@ -21,7 +21,7 @@ use tokio::sync::Semaphore;
 use super::{FSRepository, RenderReporter, SilentRenderReporter};
 use crate::encoding::{self, Encodable};
 use crate::runtime::makedirs_with_perms;
-use crate::storage::{ManifestStorage, ManifestViewer, PayloadStorage, Repository};
+use crate::storage::prelude::*;
 use crate::{graph, tracking, Error, Result};
 
 #[cfg(test)]
@@ -42,9 +42,15 @@ pub enum RenderType {
     Copy,
 }
 
-#[async_trait::async_trait]
-impl ManifestViewer for FSRepository {
-    async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool {
+impl FSRepository {
+    fn get_render_storage(&self) -> Result<&super::FSHashStore> {
+        match &self.renders {
+            Some(render_store) => Ok(&render_store.renders),
+            None => Err(Error::NoRenderStorage(self.address())),
+        }
+    }
+
+    pub async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool {
         let renders = match &self.renders {
             Some(render_store) => &render_store.renders,
             None => return false,
@@ -53,7 +59,7 @@ impl ManifestViewer for FSRepository {
         was_render_completed(rendered_dir)
     }
 
-    fn iter_rendered_manifests<'db>(
+    pub fn iter_rendered_manifests<'db>(
         &'db self,
     ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + 'db>> {
         Box::pin(try_stream! {
@@ -65,64 +71,20 @@ impl ManifestViewer for FSRepository {
     }
 
     /// Return the path that the manifest would be rendered to.
-    fn manifest_render_path(&self, manifest: &graph::Manifest) -> Result<PathBuf> {
+    pub fn manifest_render_path(&self, manifest: &graph::Manifest) -> Result<PathBuf> {
         Ok(self
             .get_render_storage()?
             .build_digest_path(&manifest.digest()?))
     }
 
-    fn proxy_path(&self) -> Option<&std::path::Path> {
+    pub fn proxy_path(&self) -> Option<&std::path::Path> {
         self.renders
             .as_ref()
             .map(|render_store| render_store.proxy.root())
     }
 
-    /// Create a hard-linked rendering of the given file manifest.
-    ///
-    /// # Errors:
-    /// - if any of the blobs in the manifest are not available in this repo.
-    async fn render_manifest(&self, manifest: &graph::Manifest) -> Result<PathBuf> {
-        let renders = self.get_render_storage()?;
-        let rendered_dirpath = renders.build_digest_path(&manifest.digest()?);
-        if was_render_completed(&rendered_dirpath) {
-            tracing::trace!(path = ?rendered_dirpath, "render already completed");
-            return Ok(rendered_dirpath);
-        }
-        tracing::trace!(path = ?rendered_dirpath, "rendering manifest...");
-
-        let uuid = uuid::Uuid::new_v4().to_string();
-        let working_dir = renders.workdir().join(uuid);
-        makedirs_with_perms(&working_dir, 0o777)?;
-
-        Renderer::new(self)
-            .render_manifest_into_dir(manifest, &working_dir, RenderType::HardLink)
-            .await?;
-
-        renders.ensure_base_dir(&rendered_dirpath)?;
-        match tokio::fs::rename(&working_dir, &rendered_dirpath).await {
-            Ok(_) => (),
-            Err(err) => match err.kind() {
-                std::io::ErrorKind::AlreadyExists => {
-                    if let Err(err) = open_perms_and_remove_all(&working_dir).await {
-                        tracing::warn!(path=?working_dir, "failed to clean up working directory: {:?}", err);
-                    }
-                }
-                _ => {
-                    return Err(Error::StorageWriteError(
-                        "rename on render",
-                        rendered_dirpath,
-                        err,
-                    ))
-                }
-            },
-        }
-
-        mark_render_completed(&rendered_dirpath).await?;
-        Ok(rendered_dirpath)
-    }
-
     /// Remove the identified render from this storage.
-    async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
+    pub async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
         let renders = match &self.renders {
             Some(render_store) => &render_store.renders,
             None => return Ok(()),
@@ -146,7 +108,7 @@ impl ManifestViewer for FSRepository {
         open_perms_and_remove_all(&working_dirpath).await
     }
 
-    async fn remove_rendered_manifest_if_older_than(
+    pub async fn remove_rendered_manifest_if_older_than(
         &self,
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
@@ -182,15 +144,6 @@ impl ManifestViewer for FSRepository {
         }
 
         self.remove_rendered_manifest(digest).await
-    }
-}
-
-impl FSRepository {
-    fn get_render_storage(&self) -> Result<&super::FSHashStore> {
-        match &self.renders {
-            Some(render_store) => Ok(&render_store.renders),
-            None => Err(Error::NoRenderStorage(self.address())),
-        }
     }
 }
 
@@ -258,6 +211,25 @@ where
         self
     }
 
+    /// Render all layers in the given env to the render storage of the underlying
+    /// repository, returning the paths to all relevant layers in the appropriate order.
+    pub async fn render<I, D>(&self, stack: I) -> Result<Vec<PathBuf>>
+    where
+        I: Iterator<Item = D> + Send,
+        D: AsRef<encoding::Digest> + Send,
+    {
+        let layers = crate::resolve::resolve_stack_to_layers_with_repo(stack, self.repo).await?;
+        let mut futures = futures::stream::FuturesOrdered::new();
+        for layer in layers {
+            let fut = self
+                .repo
+                .read_manifest(layer.manifest)
+                .and_then(|manifest| async move { self.render_manifest(&manifest).await });
+            futures.push_back(fut);
+        }
+        futures.try_collect().await
+    }
+
     /// Recreate the full structure of a stored environment on disk
     pub async fn render_into_directory<E: Into<tracking::EnvSpec>, P: AsRef<Path>>(
         &self,
@@ -287,6 +259,47 @@ where
             .await
     }
 
+    /// Render a manifest into the renders area of the underlying repository,
+    /// returning the absolute local path of the directory.
+    pub async fn render_manifest(&self, manifest: &graph::Manifest) -> Result<PathBuf> {
+        let renders = self.repo.get_render_storage()?;
+        let rendered_dirpath = renders.build_digest_path(&manifest.digest()?);
+        if was_render_completed(&rendered_dirpath) {
+            tracing::trace!(path = ?rendered_dirpath, "render already completed");
+            return Ok(rendered_dirpath);
+        }
+        tracing::trace!(path = ?rendered_dirpath, "rendering manifest...");
+
+        let uuid = uuid::Uuid::new_v4().to_string();
+        let working_dir = renders.workdir().join(uuid);
+        makedirs_with_perms(&working_dir, 0o777)?;
+
+        self.render_manifest_into_dir(manifest, &working_dir, RenderType::HardLink)
+            .await?;
+
+        renders.ensure_base_dir(&rendered_dirpath)?;
+        match tokio::fs::rename(&working_dir, &rendered_dirpath).await {
+            Ok(_) => (),
+            Err(err) => match err.kind() {
+                std::io::ErrorKind::AlreadyExists => {
+                    if let Err(err) = open_perms_and_remove_all(&working_dir).await {
+                        tracing::warn!(path=?working_dir, "failed to clean up working directory: {:?}", err);
+                    }
+                }
+                _ => {
+                    return Err(Error::StorageWriteError(
+                        "rename on render",
+                        rendered_dirpath,
+                        err,
+                    ))
+                }
+            },
+        }
+
+        mark_render_completed(&rendered_dirpath).await?;
+        Ok(rendered_dirpath)
+    }
+
     /// Recreate the full structure of a stored manifest on disk.
     pub async fn render_manifest_into_dir<P>(
         &self,
@@ -297,6 +310,7 @@ where
     where
         P: AsRef<Path>,
     {
+        self.reporter.visit_layer(manifest);
         let root_node = manifest.root();
         let target_dir = target_dir.as_ref();
         tokio::fs::create_dir_all(target_dir).await.map_err(|err| {
@@ -328,7 +342,9 @@ where
         if let Err(Error::StorageWriteError(_, p, _)) = &mut res {
             *p = target_dir.join(p.as_path());
         }
-        res
+        res?;
+        self.reporter.rendered_layer(manifest);
+        Ok(())
     }
 
     #[async_recursion::async_recursion]

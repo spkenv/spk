@@ -11,15 +11,21 @@ use crate::graph;
 /// Unless the render runs into errors, every call to visit_* is
 /// followed up by a call to the corresponding rendered_*.
 pub trait RenderReporter: Send + Sync {
-    /// Called when an entry has been identified to sync
+    /// Called when a layer has been identified to render
+    fn visit_layer(&self, _manifest: &graph::Manifest) {}
+
+    /// Called when a layer has finished rendering
+    fn rendered_layer(&self, _manifest: &graph::Manifest) {}
+
+    /// Called when an entry has been identified to render
     fn visit_entry(&self, _entry: &graph::Entry) {}
 
-    /// Called when a environment has finished syncing
+    /// Called when an entry has finished rendering
     fn rendered_entry(&self, _entry: &graph::Entry) {}
 }
 
 #[derive(Default)]
-pub struct SilentRenderReporter {}
+pub struct SilentRenderReporter;
 impl RenderReporter for SilentRenderReporter {}
 
 /// Reports sync progress to an interactive console via progress bars
@@ -35,6 +41,16 @@ impl ConsoleRenderReporter {
 }
 
 impl RenderReporter for ConsoleRenderReporter {
+    fn visit_layer(&self, _: &graph::Manifest) {
+        let bars = self.get_bars();
+        bars.layers.inc_length(1);
+    }
+
+    fn rendered_layer(&self, _: &graph::Manifest) {
+        let bars = self.get_bars();
+        bars.layers.inc(1);
+    }
+
     fn visit_entry(&self, entry: &graph::Entry) {
         let bars = self.get_bars();
         bars.entries.inc_length(1);
@@ -54,6 +70,7 @@ impl RenderReporter for ConsoleRenderReporter {
 
 struct ConsoleRenderReporterBars {
     renderer: Option<std::thread::JoinHandle<()>>,
+    layers: indicatif::ProgressBar,
     entries: indicatif::ProgressBar,
     bytes: indicatif::ProgressBar,
 }
@@ -73,6 +90,11 @@ impl Default for ConsoleRenderReporterBars {
             .tick_strings(TICK_STRINGS)
             .progress_chars(PROGRESS_CHARS);
         let bars = indicatif::MultiProgress::new();
+        let layers = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(entries_style.clone())
+                .with_message("rendering layers"),
+        );
         let entries = bars.add(
             indicatif::ProgressBar::new(0)
                 .with_style(entries_style)
@@ -94,6 +116,7 @@ impl Default for ConsoleRenderReporterBars {
         }));
         Self {
             renderer,
+            layers,
             entries,
             bytes,
         }
@@ -104,6 +127,7 @@ impl Drop for ConsoleRenderReporterBars {
     fn drop(&mut self) {
         self.bytes.finish_and_clear();
         self.entries.finish_and_clear();
+        self.layers.finish_and_clear();
         if let Some(r) = self.renderer.take() {
             let _ = r.join();
         }

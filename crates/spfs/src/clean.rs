@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use tokio_stream::StreamExt;
 
+use crate::storage::RepositoryHandle;
 use crate::{encoding, storage, Error, Result};
 
 #[cfg(test)]
@@ -59,7 +60,10 @@ pub async fn purge_objects(
 ) -> Result<()> {
     let repo = &repo.address();
     let repo = Arc::new(crate::open_repository(repo).await?);
-    let renders_for_all_users = Arc::new(repo.renders_for_all_users()?);
+    let renders_for_all_users = Arc::new(match &*repo {
+        RepositoryHandle::FS(r) => r.renders_for_all_users()?,
+        _ => Vec::new(),
+    });
 
     let style = indicatif::ProgressStyle::default_bar()
         .template("       {msg:<21} [{bar:40}] {pos:>7}/{len:7}")
@@ -184,7 +188,7 @@ pub async fn purge_objects(
                 }
 
                 if let Err(err) =
-                    clean_render_for_user(older_than, username, &**manifest_viewer, digest, dry_run)
+                    clean_render_for_user(older_than, username, manifest_viewer, digest, dry_run)
                         .await
                 {
                     errors.push(err);
@@ -323,7 +327,7 @@ async fn clean_proxy(proxy_path: std::path::PathBuf, dry_run: bool) -> Result<bo
 async fn clean_render_for_user(
     older_than: DateTime<Utc>,
     username: &String,
-    viewer: &dyn storage::ManifestViewer,
+    viewer: &storage::fs::FSRepository,
     digest: encoding::Digest,
     dry_run: bool,
 ) -> Result<()> {
@@ -343,13 +347,13 @@ async fn clean_render_for_user(
 
 async fn clean_render(
     older_than: DateTime<Utc>,
-    renders_for_all_users: Arc<Vec<(String, Box<dyn storage::ManifestViewer>)>>,
+    renders_for_all_users: Arc<Vec<(String, storage::fs::FSRepository)>>,
     digest: encoding::Digest,
     dry_run: bool,
 ) -> Result<()> {
     let mut result = None;
     for (username, viewer) in renders_for_all_users.iter() {
-        match clean_render_for_user(older_than, username, &**viewer, digest, dry_run).await {
+        match clean_render_for_user(older_than, username, viewer, digest, dry_run).await {
             Ok(_) => continue,
             err @ Err(_) => {
                 // Remember this error but attempt to clean all the users.

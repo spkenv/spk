@@ -14,6 +14,9 @@ pub struct CmdRender {
     #[clap(flatten)]
     sync: cli::Sync,
 
+    #[clap(flatten)]
+    render: cli::Render,
+
     #[clap(short, long, parse(from_occurrences))]
     verbose: usize,
 
@@ -42,13 +45,15 @@ impl CmdRender {
             .sync_env(env_spec)
             .await?;
 
-        let path = match &self.target {
-            Some(target) => self.render_to_dir(synced.env, config, target).await?,
+        let rendered = match &self.target {
+            Some(target) => vec![self.render_to_dir(synced.env, config, target).await?],
             None => self.render_to_repo(synced.env, config).await?,
         };
 
-        tracing::info!("render completed successfully");
-        println!("{}", path.display());
+        tracing::debug!("render(s) completed successfully");
+        for path in rendered {
+            println!("{}", path.display());
+        }
         Ok(0)
     }
 
@@ -77,8 +82,8 @@ impl CmdRender {
             return Err(format!("Directory is not empty {}", target_dir.display()).into());
         }
         tracing::info!("rendering into {}", target_dir.display());
-        spfs::storage::fs::Renderer::new(&repo)
-            .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
+        let renderer = self.render.get_renderer(&repo);
+        renderer
             .render_into_directory(env_spec, &target_dir, spfs::storage::fs::RenderType::Copy)
             .await?;
         Ok(target_dir)
@@ -88,9 +93,8 @@ impl CmdRender {
         &self,
         env_spec: spfs::tracking::EnvSpec,
         config: &spfs::Config,
-    ) -> spfs::Result<std::path::PathBuf> {
+    ) -> spfs::Result<Vec<std::path::PathBuf>> {
         let repo = config.get_local_repository().await?;
-        let renders = repo.renders()?;
         let mut digests = Vec::with_capacity(env_spec.len());
         for env_item in env_spec.iter() {
             let env_item = env_item.to_string();
@@ -98,24 +102,10 @@ impl CmdRender {
             digests.push(digest);
         }
 
-        let handle = repo.into();
-        let layers = spfs::resolve_stack_to_layers(digests.iter(), Some(&handle)).await?;
-        let mut manifests = Vec::with_capacity(layers.len());
-        for layer in layers {
-            manifests.push(handle.read_manifest(layer.manifest).await?);
-        }
-        if manifests.len() > 1 {
-            tracing::info!("merging {} layers into one", manifests.len())
-        }
-        let merged = manifests.into_iter().map(|m| m.unlock()).fold(
-            spfs::tracking::Manifest::default(),
-            |mut acc, m| {
-                acc.update(&m);
-                acc
-            },
-        );
-        renders
-            .render_manifest(&spfs::graph::Manifest::from(&merged))
+        let layers = spfs::resolve_stack_to_layers_with_repo(digests.iter(), &repo).await?;
+        let renderer = self.render.get_renderer(&repo);
+        renderer
+            .render(layers.into_iter().map(|l| l.manifest))
             .await
     }
 }

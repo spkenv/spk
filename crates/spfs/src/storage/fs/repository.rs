@@ -208,15 +208,21 @@ impl Repository for FSRepository {
     fn address(&self) -> url::Url {
         url::Url::from_directory_path(self.root()).unwrap()
     }
-    fn renders(&self) -> Result<Box<dyn ManifestViewer>> {
-        match &self.renders {
-            Some(_) => Ok(Box::new(self.clone())),
-            None => Err("repository has not been setup for rendering manifests".into()),
-        }
+}
+
+impl FSRepository {
+    /// True if this repo is setup to generate local manifest renders.
+    pub fn has_renders(&self) -> bool {
+        self.renders.is_some()
     }
-    fn renders_for_all_users(&self) -> Result<Vec<(String, Box<dyn ManifestViewer>)>> {
-        if self.renders.is_none() {
-            return Err("repository has not been setup for rendering manifests".into());
+
+    /// Returns a list of the render storage for all the users
+    /// with renders found in the repository, if any.
+    ///
+    /// Returns tuples of (username, `ManifestViewer`).
+    pub fn renders_for_all_users(&self) -> Result<Vec<(String, Self)>> {
+        if !self.has_renders() {
+            return Ok(Vec::new());
         }
 
         let mut render_dirs = Vec::new();
@@ -245,10 +251,10 @@ impl Repository for FSRepository {
 
         Ok(render_dirs
             .into_iter()
-            .map(|(username, dir)| -> (String, Box<dyn ManifestViewer>) {
+            .map(|(username, dir)| -> (String, FSRepository) {
                 (
                     username,
-                    Box::new(Self {
+                    Self {
                         objects: FSHashStore::open_unchecked(self.root.join("objects")),
                         payloads: FSHashStore::open_unchecked(self.root.join("payloads")),
                         renders: self
@@ -256,7 +262,7 @@ impl Repository for FSRepository {
                             .as_ref()
                             .and_then(|_| RenderStore::for_user(self.root.as_ref(), dir).ok()),
                         root: self.root.clone(),
-                    }),
+                    },
                 )
             })
             .collect())

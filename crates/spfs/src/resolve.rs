@@ -8,22 +8,23 @@ use std::path::Path;
 use encoding::Encodable;
 use itertools::Itertools;
 use nonempty::NonEmpty;
-use tokio_stream::StreamExt;
 
 use super::config::get_config;
+use crate::storage::prelude::*;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./resolve_test.rs"]
 mod resolve_test;
 
-/// Render the given environment in the local repository
-///
-/// All items in the spec will be merged and rendered, so
-/// it's usually best to only include one thing in the spec if
-/// building up layers for use in an spfs runtime
-pub async fn render(spec: tracking::EnvSpec) -> Result<std::path::PathBuf> {
-    use std::os::unix::ffi::OsStrExt;
+/// Render the given environment in the local repository by
+/// calling the `spfs-render` binary (ensuring the necessary
+/// privileges are available)
+async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<()> {
+    if spec.is_empty() {
+        return Ok(());
+    }
+
     let render_cmd = match super::which_spfs("render") {
         Some(cmd) => cmd,
         None => return Err(Error::MissingBinary("spfs-render")),
@@ -31,22 +32,21 @@ pub async fn render(spec: tracking::EnvSpec) -> Result<std::path::PathBuf> {
     let mut cmd = tokio::process::Command::new(render_cmd);
     cmd.arg(spec.to_string());
     tracing::debug!("{:?}", cmd);
-    let output = cmd
-        .output()
+    let status = cmd
+        .status()
         .await
         .map_err(|err| Error::process_spawn_error("spfs-render".to_owned(), err, None))?;
-    eprint!("{}", String::from_utf8_lossy(output.stderr.as_slice()));
-    let mut bytes = output.stdout.as_slice();
-    while let Some(b) = bytes.strip_suffix(&[b'\n']) {
-        bytes = b
+    if !status.success() {
+        return Err(Error::process_spawn_error(
+            "spfs-render".to_owned(),
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "process exited with non-zero status",
+            ),
+            None,
+        ))?;
     }
-    match output.status.code() {
-        Some(0) => Ok(std::path::PathBuf::from(std::ffi::OsStr::from_bytes(bytes))),
-        _ => {
-            let stderr = std::ffi::OsStr::from_bytes(output.stderr.as_slice());
-            Err(format!("render failed:\n{}", stderr.to_string_lossy()).into())
-        }
-    }
+    Ok(())
 }
 
 /// Compute or load the spfs manifest representation for a saved reference.
@@ -123,7 +123,7 @@ pub async fn compute_object_manifest(
 /// runtime is unconditionally saved shortly after calling this function.
 pub(crate) async fn resolve_overlay_dirs(
     runtime: &mut runtime::Runtime,
-    repo: &storage::RepositoryHandle,
+    repo: &storage::fs::FSRepository,
     skip_runtime_save: bool,
 ) -> Result<Vec<graph::Manifest>> {
     enum ResolvedManifest {
@@ -167,7 +167,7 @@ pub(crate) async fn resolve_overlay_dirs(
         }
     }
 
-    let layers = resolve_stack_to_layers(runtime.status.stack.iter(), Some(repo)).await?;
+    let layers = resolve_stack_to_layers_with_repo(runtime.status.stack.iter(), repo).await?;
     let mut manifests = Vec::with_capacity(layers.len());
     for (index, layer) in layers.iter().enumerate() {
         manifests.push(ResolvedManifest::Existing {
@@ -176,14 +176,12 @@ pub(crate) async fn resolve_overlay_dirs(
         });
     }
 
-    let renders = repo.renders()?;
-
     // Determine if layers need to be combined to stay within the length limits
     // of mount args.
     loop {
         let mut overlay_dirs = Vec::with_capacity(manifests.len());
         for manifest in &manifests {
-            let rendered_dir = renders.manifest_render_path(manifest.manifest())?;
+            let rendered_dir = repo.manifest_render_path(manifest.manifest())?;
             overlay_dirs.push(rendered_dir);
         }
         if crate::env::get_overlay_args(runtime, overlay_dirs).is_ok() {
@@ -276,43 +274,15 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
     skip_runtime_save: bool,
 ) -> Result<Vec<std::path::PathBuf>> {
     let config = get_config()?;
-    let repo: storage::RepositoryHandle = config.get_local_repository().await?.into();
-    let renders = repo.renders()?;
+    let repo = config.get_local_repository().await?;
 
     let manifests = resolve_overlay_dirs(runtime, &repo, skip_runtime_save).await?;
-
-    let mut to_render = HashSet::new();
-    for digest in manifests.iter().map(|m| m.digest()) {
-        let digest = digest?;
-        if !renders.has_rendered_manifest(digest).await {
-            to_render.insert(digest);
-        }
-    }
-    if !to_render.is_empty() {
-        tracing::info!("{} layers require rendering", to_render.len());
-
-        let style = indicatif::ProgressStyle::default_bar()
-            .template("       {msg} [{bar:40}] {pos:>7}/{len:7}")
-            .progress_chars("=>-");
-        let bar = indicatif::ProgressBar::new(to_render.len() as u64).with_style(style);
-        bar.set_message("rendering layers");
-        let mut futures: futures::stream::FuturesUnordered<_> = to_render
-            .into_iter()
-            .map(move |digest| tokio::spawn(render(digest.into())))
-            .collect();
-        while let Some(result) = futures.next().await {
-            bar.inc(1);
-            result
-                .map_err(|e| Error::String(format!("Unexpected error in render process: {e}")))
-                .and_then(|r| r)?;
-        }
-    }
-    let mut overlay_dirs = Vec::with_capacity(manifests.len());
-    for manifest in manifests {
-        let rendered_dir = renders.render_manifest(&manifest).await?;
-        overlay_dirs.push(rendered_dir);
-    }
-
+    let to_render = manifests.iter().map(|m| m.digest()).try_collect()?;
+    render_via_subcommand(to_render).await?;
+    let overlay_dirs = manifests
+        .iter()
+        .map(|m| repo.manifest_render_path(m))
+        .try_collect()?;
     Ok(overlay_dirs)
 }
 
@@ -342,8 +312,9 @@ where
     }
 }
 
+/// See [`resolve_stack_to_layers`].
 #[async_recursion::async_recursion]
-pub(crate) async fn resolve_stack_to_layers_with_repo<I, D, R>(
+pub async fn resolve_stack_to_layers_with_repo<I, D, R>(
     stack: I,
     repo: R,
 ) -> Result<Vec<graph::Layer>>

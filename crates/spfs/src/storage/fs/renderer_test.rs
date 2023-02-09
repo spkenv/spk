@@ -11,7 +11,7 @@ use crate::encoding::Encodable;
 use crate::fixtures::*;
 use crate::graph::Manifest;
 use crate::storage::fs::FSRepository;
-use crate::storage::{ManifestViewer, Repository, RepositoryHandle};
+use crate::storage::{Repository, RepositoryHandle};
 use crate::tracking;
 
 #[rstest]
@@ -42,7 +42,7 @@ async fn test_render_manifest(tmpdir: tempfile::TempDir) {
     }
 
     let expected = Manifest::from(&manifest);
-    let rendered_path = storage
+    let rendered_path = crate::storage::fs::Renderer::new(&storage)
         .render_manifest(&expected)
         .await
         .expect("should successfully render manifest");
@@ -83,7 +83,10 @@ async fn test_render_manifest_with_repo(tmpdir: tempfile::TempDir) {
         .renders
         .build_digest_path(&manifest.digest().unwrap());
     assert!(!render.exists(), "render should NOT be seen as existing");
-    tmprepo.render_manifest(&manifest).await.unwrap();
+    super::Renderer::new(tmprepo)
+        .render_manifest(&manifest)
+        .await
+        .unwrap();
     assert!(render.exists(), "render should be seen as existing");
     assert!(was_render_completed(&render));
     let rendered_manifest = tracking::compute_manifest(&render).await.unwrap();

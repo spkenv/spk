@@ -19,7 +19,7 @@ pub mod tar;
 
 pub use blob::BlobStorage;
 pub use layer::LayerStorage;
-pub use manifest::{ManifestStorage, ManifestViewer};
+pub use manifest::ManifestStorage;
 pub use payload::PayloadStorage;
 pub use platform::PlatformStorage;
 pub use proxy::{Config, ProxyRepository};

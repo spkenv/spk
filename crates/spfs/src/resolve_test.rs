@@ -38,13 +38,11 @@ async fn test_auto_merge_layers(tmpdir: tempfile::TempDir) {
     const NUM_LAYERS: usize = 50;
     // This test must use the "local" repository for spfs-render to succeed.
     let config = crate::get_config().expect("get config");
-    let repo = Arc::new(
-        config
-            .get_local_repository()
-            .await
-            .expect("get local repository")
-            .into(),
-    );
+    let fs_repo = config
+        .get_local_repository()
+        .await
+        .expect("get local repository");
+    let repo = Arc::new(fs_repo.clone().into());
     let mut layers = Vec::with_capacity(NUM_LAYERS);
     for num in 0..NUM_LAYERS {
         let data_dir = tmpdir.path().join("work").join(format!("dir_{num}"));
@@ -68,7 +66,7 @@ async fn test_auto_merge_layers(tmpdir: tempfile::TempDir) {
         runtime.push_digest(layer.digest().unwrap());
     }
 
-    let dirs = crate::resolve::resolve_overlay_dirs(&mut runtime, &repo, true)
+    let dirs = crate::resolve::resolve_overlay_dirs(&mut runtime, &fs_repo, true)
         .await
         .expect("resolve overlay dirs successfully");
 
