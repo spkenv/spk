@@ -992,6 +992,7 @@ impl DecisionFormatter {
         runtime: &SolverRuntime,
     ) -> Result<()> {
         if let Ok(ref s) = *solution {
+            println!("Calculating search space stats. This may take some time...");
             let start = Instant::now();
 
             let initial_requests = runtime

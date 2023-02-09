@@ -8,7 +8,7 @@ use std::sync::Arc;
 use rug::Integer;
 use spk_schema::ident::PkgRequest;
 use spk_schema::name::PkgNameBuf;
-use spk_schema::{BuildIdent, Deprecate, Package, VersionIdent};
+use spk_schema::{BuildIdent, Deprecate, Package, Spec, VersionIdent};
 use spk_solve_solution::Solution;
 use spk_storage::RepositoryHandle;
 
@@ -18,21 +18,27 @@ use crate::{Error, Result};
 // scientific notation
 const DIGITS_LIMIT: usize = 10;
 
-// Verbosity level that show more details
+// Verbosity levels that show more details:
+// This changes size numbers display from "1.04 x 10^5" to "10423"
 const SHOW_FULL_DIGITS_LEVEL: u32 = 1;
+// This adds calculation detail to output, e.g.
+//   9844560*6 python-pyside2 (so far: 69062469) +
+//   59067360*3 python-pytest (so far: 246264549) + ...
 const SHOW_FULL_CALCULATION_LEVEL: u32 = 2;
 
+/// Shows a report on search space sizes and related stats based on
+/// the given requests, their solution, and packages in the repos.
 pub async fn show_search_space_stats(
     initial_requests: &[String],
     solution: &Solution,
     repos: &[Arc<RepositoryHandle>],
     verbosity: u32,
 ) -> Result<()> {
-    println!("Calculating search space stats. This may take some time...");
-
-    // Get names of all packages from solve, in the order they where
-    // resolved. Keeping this order is important for the search space
-    // size calculation.
+    // The names of all packages in the solution are needed to gather
+    // data on all their versions and builds. The order the packages
+    // where resolved must be kept the same as the order the solver
+    // found (resolved) them during its search for search space size
+    // calculations to be correct.
     let solution_packages = solution
         .packages_in_solve_order()
         .iter()
@@ -40,12 +46,10 @@ pub async fn show_search_space_stats(
         .collect::<Vec<BuildIdent>>();
     let names = solution_packages.iter().map(|p| p.name().into()).collect();
 
-    // Get the all the builds, of all the versions, of all the named
-    // packages so they can be used to compute the search space
     let data = get_package_version_build_states(&names, repos).await?;
 
-    // Get the requests that made the solution so they be used to
-    // refine some of the search space numbers
+    // The package requests that constrained (made) the solution are
+    // needed to restrict and refine some of the search space sub-reports.
     let solution_requests = solution
         .items()
         .map(|sr| (sr.request.pkg.name.clone(), sr.request.clone()))
@@ -61,12 +65,13 @@ pub async fn show_search_space_stats(
     Ok(())
 }
 
+/// Returns a list of all the builds for all the versions of the given
+/// list of package names.
 async fn get_package_version_build_states(
     package_names: &Vec<PkgNameBuf>,
     repos: &[Arc<RepositoryHandle>],
-) -> Result<Vec<(BuildIdent, bool, bool)>> {
-    // A list of (package ident, is it deprecated?, is it source?)
-    let mut data: Vec<(BuildIdent, bool, bool)> = Vec::new();
+) -> Result<Vec<Arc<Spec>>> {
+    let mut data: Vec<Arc<Spec>> = Vec::new();
 
     for repo in repos.iter() {
         for package in package_names {
@@ -84,15 +89,11 @@ async fn get_package_version_build_states(
                 };
 
                 for build in builds {
-                    let is_src = build.is_source();
-
                     let spec = match repo.read_package(&build).await {
                         Ok(s) => s,
                         Err(err) => return Err(Error::String(err.to_string())),
                     };
-                    let is_deprecated = spec.is_deprecated();
-
-                    data.push((build.clone(), is_deprecated, is_src));
+                    data.push(spec);
                 }
             }
         }
@@ -101,46 +102,54 @@ async fn get_package_version_build_states(
     Ok(data)
 }
 
+/// This produces and outputs 4 sets of search space stats based on
+/// the given request, resolve order of the packages, and package
+/// build data. The sets are:
+/// 1) if all builds without any restrictions were examined
+/// 2) if all non-deprecated, non-src builds were examined
+/// 3) if all non-deprecated, non-src, non-embedded builds were examined
+/// 4) if only non-deprecated, non-src, non-embedded build that also fall within
+///    the version ranges of the requests were examined.
 fn display_search_space_stats(
     initial_requests: &[String],
     packages: &Vec<BuildIdent>,
-    extracted_data: &Vec<(BuildIdent, bool, bool)>,
+    extracted_data: &Vec<Arc<Spec>>,
     verbosity: u32,
     requests: &HashMap<PkgNameBuf, PkgRequest>,
 ) {
-    // Count what was extracted by package name based on the builds
-    // and their statuses.
     let mut total_counters: HashMap<PkgNameBuf, u64> = HashMap::new();
     let mut counters: HashMap<PkgNameBuf, u64> = HashMap::new();
     let mut without_embedded_counters: HashMap<PkgNameBuf, u64> = HashMap::new();
     let mut version_range_counters: HashMap<PkgNameBuf, u64> = HashMap::new();
 
-    for (ident, is_deprecated, is_src) in extracted_data {
+    for spec in extracted_data {
+        let ident = spec.ident();
         let pkg_name = ident.name();
 
         // All builds
         let counter = total_counters.entry(pkg_name.into()).or_insert(0);
         *counter += 1;
 
-        // Active, non-src builds
-        if !*is_deprecated && !*is_src {
+        // Active (i.e. non-deprecated), non-src builds
+        if !spec.is_deprecated() && !ident.is_source() {
             let counter = counters.entry(pkg_name.into()).or_insert(0);
             *counter += 1;
         }
 
         // Active, non-src, non-embedded builds
-        if !*is_deprecated && !*is_src & !ident.is_embedded() {
+        if !spec.is_deprecated() && !ident.is_source() & !ident.is_embedded() {
             let counter = without_embedded_counters
                 .entry(pkg_name.into())
                 .or_insert(0);
             *counter += 1;
         }
 
-        // Active, version range matching (so only those that fall within
-        // the request's version range), non-src, non-embedded builds
-        if !*is_deprecated && !*is_src & !ident.is_embedded() {
+        // Active, non-src, non-embedded builds, version range
+        // matching (so only those that could fall within the
+        // request's version range)
+        if !spec.is_deprecated() && !ident.is_source() & !ident.is_embedded() {
             if let Some(request) = requests.get(pkg_name) {
-                if request.is_version_applicable(ident.version()).is_ok() {
+                if request.is_satisfied_by(spec).is_ok() {
                     let counter = version_range_counters.entry(pkg_name.into()).or_insert(0);
                     *counter += 1;
                 }
@@ -166,20 +175,22 @@ fn display_search_space_stats(
     show_total_stats(&version_range_counters, packages, verbosity);
 }
 
+/// This calculates and outputs estimates of the full decision tree's
+/// node count based on the given package data. These numbers are
+/// "extreme unlikely to happen" upper limits because they do not
+/// account for all the dependency subsets, changes, reordering,
+/// compat ranges, or per-version expansions of the solver. However,
+/// because they represent the number of nodes that would have to be
+/// expanded and verified if the entire search tree was visited by a
+/// brute force search, they are useful for showing the impact of
+/// deprecation and more restrictive requests on the search.
 fn show_total_stats(
     counters: &HashMap<PkgNameBuf, u64>,
     packages: &Vec<BuildIdent>,
     verbosity: u32,
 ) {
-    // Show some calculation estimates about the decision tree's nodes
-    // based on the package data. These are "extreme unlikely to
-    // happen" upper limits because they do not account for all the
-    // dependency subsets, reordering, compat ranges, or per-version
-    // expansion of the solver. But they represent the number of nodes
-    // that would have to be expanded and verified if the entire
-    // search tree was visited by a brute force search.
-    let mut calc: String = "0".to_string();
-    let mut total = Integer::new();
+    let mut calc: String = "1".to_string();
+    let mut total: Integer = Integer::new() + 1;
     let mut total_builds = Integer::new();
     let mut avg_branches = Integer::new();
     let mut previous_num_nodes: Integer = Integer::new() + 1;
