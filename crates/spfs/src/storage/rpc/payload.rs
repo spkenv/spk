@@ -4,11 +4,11 @@
 use std::convert::TryInto;
 use std::pin::Pin;
 
-use futures::{Stream, TryStreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
 use prost::Message;
 
 use crate::proto::{self, RpcResult};
-use crate::{encoding, storage, Result};
+use crate::{encoding, storage, Error, Result};
 
 #[async_trait::async_trait]
 impl storage::PayloadStorage for super::RpcRepository {
@@ -26,7 +26,7 @@ impl storage::PayloadStorage for super::RpcRepository {
 
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         let request = proto::WritePayloadRequest {};
         let option = self
@@ -37,10 +37,14 @@ impl storage::PayloadStorage for super::RpcRepository {
             .into_inner()
             .to_result()?;
         let client = hyper::Client::new();
-        let stream =
-            tokio_util::codec::FramedRead::new(reader, tokio_util::codec::BytesCodec::new());
+        let compressed_reader = async_compression::tokio::bufread::BzEncoder::new(reader);
+        let stream = tokio_util::codec::FramedRead::new(
+            compressed_reader,
+            tokio_util::codec::BytesCodec::new(),
+        );
         let request = hyper::Request::builder()
             .method(hyper::Method::POST)
+            .header(hyper::http::header::CONTENT_TYPE, "application/x-bzip2")
             .uri(&option.url)
             .body(hyper::Body::wrap_stream(stream))
             .map_err(|err| {
@@ -70,7 +74,7 @@ impl storage::PayloadStorage for super::RpcRepository {
         &self,
         digest: encoding::Digest,
     ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
         std::path::PathBuf,
     )> {
         let request = proto::OpenPayloadRequest {
@@ -88,10 +92,16 @@ impl storage::PayloadStorage for super::RpcRepository {
             .locations
             .get(0)
             .ok_or_else(|| crate::Error::String("upload option gave no locations to try".into()))?;
-        let url = url_str.parse().map_err(|err| {
-            crate::Error::String(format!("upload option gave invalid uri: {err:?}"))
-        })?;
-        let resp = client.get(url).await.map_err(|err| {
+        let req = hyper::Request::builder()
+            .uri(url_str)
+            .method(hyper::http::Method::GET)
+            .header(hyper::http::header::ACCEPT, "application/x-bzip2")
+            .header(hyper::http::header::ACCEPT, "application/octet-stream")
+            .body(hyper::Body::empty())
+            .map_err(|err| {
+                crate::Error::String(format!("Failed to build download request: {err:?}"))
+            })?;
+        let resp = client.request(req).await.map_err(|err| {
             crate::Error::String(format!("Failed to send download request: {err:?}"))
         })?;
         if !resp.status().is_success() {
@@ -102,11 +112,8 @@ impl storage::PayloadStorage for super::RpcRepository {
                 resp.status()
             )));
         }
-        let stream = resp
-            .into_body()
-            .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e));
-        use tokio_util::compat::FuturesAsyncReadCompatExt;
-        Ok((Box::pin(stream.into_async_read().compat()), url_str.into()))
+        let stream = open_download_stream(resp)?;
+        Ok((stream, url_str.into()))
     }
 
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
@@ -121,4 +128,30 @@ impl storage::PayloadStorage for super::RpcRepository {
             .to_result()?;
         Ok(())
     }
+}
+
+fn open_download_stream(
+    mut resp: hyper::http::Response<hyper::Body>,
+) -> Result<Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>> {
+    let content_type = resp.headers_mut().remove(hyper::http::header::CONTENT_TYPE);
+    let reader = body_to_reader(resp.into_body());
+    match content_type.as_ref().map(|v| v.to_str()) {
+        None | Some(Ok("application/octet-stream")) => Ok(Box::pin(reader)),
+        Some(Ok("application/x-bzip2")) => {
+            let reader = async_compression::tokio::bufread::BzDecoder::new(reader);
+            Ok(Box::pin(tokio::io::BufReader::new(reader)))
+        }
+        _ => Err(Error::String(format!(
+            "Invalid or unsupported Content-Type from the server: {content_type:?}"
+        ))),
+    }
+}
+
+fn body_to_reader(body: hyper::Body) -> impl tokio::io::AsyncBufRead + Send + Sync + 'static {
+    // the stream must return io errors in order to be converted to a reader
+    let mapped_stream =
+        body.map(|chunk| chunk.map_err(|e| futures::io::Error::new(std::io::ErrorKind::Other, e)));
+    let stream_reader = tokio_util::io::StreamReader::new(mapped_stream);
+    let buffered_reader = tokio::io::BufReader::new(stream_reader);
+    Box::pin(buffered_reader)
 }

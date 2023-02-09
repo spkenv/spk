@@ -18,7 +18,7 @@ impl crate::storage::PayloadStorage for FSRepository {
 
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         self.payloads.write_data(reader).await
     }
@@ -27,7 +27,7 @@ impl crate::storage::PayloadStorage for FSRepository {
         &self,
         digest: encoding::Digest,
     ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
         std::path::PathBuf,
     )> {
         let path = self.payloads.build_digest_path(&digest);

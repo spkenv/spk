@@ -29,13 +29,14 @@ impl CmdWrite {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
-        let reader: std::pin::Pin<Box<dyn tokio::io::AsyncRead + Sync + Send>> = match &self.file {
-            Some(file) => Box::pin(
+        let reader: std::pin::Pin<Box<dyn tokio::io::AsyncBufRead + Sync + Send>> = match &self.file
+        {
+            Some(file) => Box::pin(tokio::io::BufReader::new(
                 tokio::fs::File::open(&file)
                     .await
                     .map_err(|err| Error::RuntimeWriteError(file.clone(), err))?,
-            ),
-            None => Box::pin(tokio::io::stdin()),
+            )),
+            None => Box::pin(tokio::io::BufReader::new(tokio::io::stdin())),
         };
 
         let digest = repo.commit_blob(reader).await?;

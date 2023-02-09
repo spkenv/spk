@@ -114,11 +114,8 @@ impl hyper::service::Service<hyper::http::Request<hyper::Body>> for PayloadServi
 
     fn call(&mut self, req: hyper::http::Request<hyper::Body>) -> Self::Future {
         match *req.method() {
-            hyper::Method::POST => Box::pin(handle_upload(self.repo.clone(), req.into_body())),
-            hyper::Method::GET => Box::pin(handle_download(
-                self.repo.clone(),
-                req.uri().path().trim_start_matches('/').to_string(),
-            )),
+            hyper::Method::POST => Box::pin(handle_upload(self.repo.clone(), req)),
+            hyper::Method::GET => Box::pin(handle_download(self.repo.clone(), req)),
             _ => Box::pin(futures::future::ready(
                 hyper::Response::builder()
                     .status(hyper::http::StatusCode::METHOD_NOT_ALLOWED)
@@ -151,9 +148,31 @@ impl PayloadService {
 
 async fn handle_upload(
     repo: Arc<storage::RepositoryHandle>,
-    body: hyper::Body,
+    mut req: hyper::http::Request<hyper::Body>,
 ) -> crate::Result<hyper::http::Response<hyper::Body>> {
-    let reader = body_to_reader(body);
+    let content_type = req.headers_mut().remove(hyper::http::header::CONTENT_TYPE);
+    let reader = body_to_reader(req.into_body());
+    match content_type.as_ref().map(|v| v.to_str()) {
+        None | Some(Ok("application/octet-stream")) => {
+            let reader = Box::pin(reader);
+            handle_uncompressed_upload(repo, reader).await
+        }
+        Some(Ok("application/x-bzip2")) => {
+            let reader = async_compression::tokio::bufread::BzDecoder::new(reader);
+            let reader = Box::pin(tokio::io::BufReader::new(reader));
+            handle_uncompressed_upload(repo, reader).await
+        }
+        _ => hyper::http::Response::builder()
+            .status(hyper::http::StatusCode::UNSUPPORTED_MEDIA_TYPE)
+            .body(hyper::Body::from("Invalid or unsupported Content-Type"))
+            .map_err(|e| crate::Error::String(e.to_string())),
+    }
+}
+
+async fn handle_uncompressed_upload(
+    repo: Arc<storage::RepositoryHandle>,
+    reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+) -> crate::Result<hyper::http::Response<hyper::Body>> {
     // Safety: it is unsafe to create a payload without it's corresponding
     // blob, but this payload http server is part of a larger repository
     // and does not intend to be responsible for ensuring the integrity
@@ -177,22 +196,53 @@ async fn handle_upload(
         .map_err(|e| crate::Error::String(e.to_string()))
 }
 
-fn body_to_reader(body: hyper::Body) -> Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>> {
-    Box::pin(tokio_util::io::StreamReader::new(body.map(|chunk| {
-        chunk.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-    })))
+fn body_to_reader(body: hyper::Body) -> impl tokio::io::AsyncBufRead + Send + Sync + 'static {
+    // the stream must return io errors in order to be converted to a reader
+    let mapped_stream =
+        body.map(|chunk| chunk.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
+    let stream_reader = tokio_util::io::StreamReader::new(mapped_stream);
+    let buffered_reader = tokio::io::BufReader::new(stream_reader);
+    Box::pin(buffered_reader)
 }
 
 async fn handle_download(
     repo: Arc<storage::RepositoryHandle>,
-    relative_path: String,
+    mut req: hyper::http::Request<hyper::Body>,
 ) -> crate::Result<hyper::http::Response<hyper::Body>> {
-    let digest = crate::encoding::Digest::parse(&relative_path)?;
-    let (reader, _) = repo.open_payload(digest).await?;
+    let relative_path = req.uri().path().trim_start_matches('/');
+    let digest = crate::encoding::Digest::parse(relative_path)?;
+    let (uncompressed_reader, _) = repo.open_payload(digest).await?;
+    let accepted = req
+        .headers_mut()
+        .get_all(hyper::http::header::ACCEPT)
+        .into_iter();
+    let get_body_and_content_type = move || -> (hyper::Body, hyper::http::HeaderValue) {
+        for accepted in accepted {
+            match accepted.to_str() {
+                Ok("application/octet-stream") => {
+                    // this is the default, uncompressed
+                    break;
+                }
+                Ok("application/x-bzip2") => {
+                    return (
+                        hyper::Body::wrap_stream(tokio_util::io::ReaderStream::new(
+                            async_compression::tokio::bufread::BzEncoder::new(uncompressed_reader),
+                        )),
+                        accepted.to_owned(),
+                    )
+                }
+                _ => continue,
+            }
+        }
+        (
+            hyper::Body::wrap_stream(tokio_util::io::ReaderStream::new(uncompressed_reader)),
+            hyper::http::HeaderValue::from_static("application/octet-stream"),
+        )
+    };
+    let (body, content_type) = get_body_and_content_type();
     hyper::Response::builder()
         .status(hyper::http::StatusCode::OK)
-        .body(hyper::Body::wrap_stream(tokio_util::io::ReaderStream::new(
-            reader,
-        )))
+        .header(hyper::http::header::CONTENT_TYPE, content_type)
+        .body(body)
         .map_err(|e| crate::Error::String(e.to_string()))
 }

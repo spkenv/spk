@@ -238,7 +238,7 @@ impl PayloadStorage for TarRepository {
 
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
     ) -> Result<(encoding::Digest, u64)> {
         // Safety: we are wrapping the same underlying unsafe function and
         // so the same safety holds for our callers
@@ -252,7 +252,7 @@ impl PayloadStorage for TarRepository {
         &self,
         digest: encoding::Digest,
     ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>,
+        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
         std::path::PathBuf,
     )> {
         self.repo.open_payload(digest).await
