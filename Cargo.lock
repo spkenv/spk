@@ -2822,7 +2822,7 @@ dependencies = [
  "serde_qs",
  "serial_test",
  "spfs-encoding",
- "strum_macros",
+ "strum",
  "tar",
  "tempfile",
  "thiserror",
@@ -2934,6 +2934,7 @@ dependencies = [
  "clap 3.2.11",
  "spfs",
  "spfs-cli-common",
+ "strum",
  "tokio",
  "tracing",
 ]
@@ -3567,6 +3568,15 @@ name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
+
+[[package]]
+name = "strum"
+version = "0.24.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "063e6045c0e62079840579a7e47a355ae92f60eb74daaf156fb1e84ba164e63f"
+dependencies = [
+ "strum_macros",
+]
 
 [[package]]
 name = "strum_macros"

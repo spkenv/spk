@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use futures::stream::{FuturesUnordered, TryStreamExt};
 use once_cell::sync::OnceCell;
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::Semaphore;
 
 use crate::prelude::*;
 use crate::{encoding, graph, storage, tracking, Error, Result};

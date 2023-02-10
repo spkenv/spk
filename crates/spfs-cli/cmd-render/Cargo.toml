@@ -15,5 +15,6 @@ sentry = ["spfs-cli-common/sentry"]
 clap = { workspace = true }
 spfs = { path = "../../spfs" }
 spfs-cli-common = { path = "../common" }
+strum = { version = "0.24", features = ["derive"] }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }

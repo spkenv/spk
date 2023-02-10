@@ -275,7 +275,7 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
     };
 
     storage::fs::Renderer::new(tmprepo)
-        .render_manifest(&graph::Manifest::from(&manifest))
+        .render_manifest(&graph::Manifest::from(&manifest), None)
         .await
         .unwrap();
 

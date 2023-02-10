@@ -6,6 +6,7 @@ use clap::Parser;
 use spfs::prelude::*;
 use spfs::Error;
 use spfs_cli_common as cli;
+use strum::VariantNames;
 
 cli::main!(CmdRender);
 
@@ -23,6 +24,11 @@ pub struct CmdRender {
     /// Allow re-rendering when the target directory is not empty
     #[clap(long = "allow-existing")]
     allow_existing: bool,
+
+    /// The strategy to use when rendering. Defaults to `Copy` when
+    /// using a local directory and `HardLink` for the repository.
+    #[clap(long, value_names = spfs::storage::fs::RenderType::VARIANTS)]
+    strategy: Option<spfs::storage::fs::RenderType>,
 
     /// The tag or digest of what to render, use a '+' to join multiple layers
     reference: String,
@@ -84,7 +90,11 @@ impl CmdRender {
         tracing::info!("rendering into {}", target_dir.display());
         let renderer = self.render.get_renderer(&repo);
         renderer
-            .render_into_directory(env_spec, &target_dir, spfs::storage::fs::RenderType::Copy)
+            .render_into_directory(
+                env_spec,
+                &target_dir,
+                self.strategy.unwrap_or(spfs::storage::fs::RenderType::Copy),
+            )
             .await?;
         Ok(target_dir)
     }
@@ -105,7 +115,7 @@ impl CmdRender {
         let layers = spfs::resolve_stack_to_layers_with_repo(digests.iter(), &repo).await?;
         let renderer = self.render.get_renderer(&repo);
         renderer
-            .render(layers.into_iter().map(|l| l.manifest))
+            .render(layers.into_iter().map(|l| l.manifest), self.strategy)
             .await
     }
 }

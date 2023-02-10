@@ -25,6 +25,5 @@ pub use entry::Entry;
 pub use layer::Layer;
 pub use manifest::Manifest;
 pub use object::{Object, ObjectKind};
-pub use operations::check_database_integrity;
 pub use platform::Platform;
 pub use tree::Tree;

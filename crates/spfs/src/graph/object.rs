@@ -4,7 +4,7 @@
 
 use std::io::BufRead;
 
-use strum_macros::Display;
+use strum::Display;
 
 use super::{Blob, Layer, Manifest, Platform, Tree};
 use crate::{encoding, Error};

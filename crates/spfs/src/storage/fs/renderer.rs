@@ -36,7 +36,7 @@ pub const DEFAULT_MAX_CONCURRENT_BLOBS: usize = 100;
 /// See: [`Renderer::with_max_concurrent_branches`]
 pub const DEFAULT_MAX_CONCURRENT_BRANCHES: usize = 5;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, strum::EnumString, strum::EnumVariantNames)]
 pub enum RenderType {
     HardLink,
     HardLinkNoProxy,
@@ -214,7 +214,11 @@ where
 
     /// Render all layers in the given env to the render storage of the underlying
     /// repository, returning the paths to all relevant layers in the appropriate order.
-    pub async fn render<I, D>(&self, stack: I) -> Result<Vec<PathBuf>>
+    pub async fn render<I, D>(
+        &self,
+        stack: I,
+        render_type: Option<RenderType>,
+    ) -> Result<Vec<PathBuf>>
     where
         I: Iterator<Item = D> + Send,
         D: AsRef<encoding::Digest> + Send,
@@ -225,7 +229,9 @@ where
             let fut = self
                 .repo
                 .read_manifest(layer.manifest)
-                .and_then(|manifest| async move { self.render_manifest(&manifest).await });
+                .and_then(
+                    |manifest| async move { self.render_manifest(&manifest, render_type).await },
+                );
             futures.push_back(fut);
         }
         futures.try_collect().await
@@ -262,7 +268,11 @@ where
 
     /// Render a manifest into the renders area of the underlying repository,
     /// returning the absolute local path of the directory.
-    pub async fn render_manifest(&self, manifest: &graph::Manifest) -> Result<PathBuf> {
+    pub async fn render_manifest(
+        &self,
+        manifest: &graph::Manifest,
+        render_type: Option<RenderType>,
+    ) -> Result<PathBuf> {
         let renders = self.repo.get_render_storage()?;
         let rendered_dirpath = renders.build_digest_path(&manifest.digest()?);
         if was_render_completed(&rendered_dirpath) {
@@ -275,8 +285,12 @@ where
         let working_dir = renders.workdir().join(uuid);
         makedirs_with_perms(&working_dir, 0o777)?;
 
-        self.render_manifest_into_dir(manifest, &working_dir, RenderType::HardLink)
-            .await?;
+        self.render_manifest_into_dir(
+            manifest,
+            &working_dir,
+            render_type.unwrap_or(RenderType::HardLink),
+        )
+        .await?;
 
         renders.ensure_base_dir(&rendered_dirpath)?;
         match tokio::fs::rename(&working_dir, &rendered_dirpath).await {
