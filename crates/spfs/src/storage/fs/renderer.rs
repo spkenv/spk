@@ -39,6 +39,7 @@ pub const DEFAULT_MAX_CONCURRENT_BRANCHES: usize = 5;
 #[derive(Debug, Copy, Clone)]
 pub enum RenderType {
     HardLink,
+    HardLinkNoProxy,
     Copy,
 }
 
@@ -490,7 +491,7 @@ where
 
         let mut committed_path = self.repo.payloads.build_digest_path(&entry.object);
         match render_type {
-            RenderType::HardLink => {
+            RenderType::HardLink | RenderType::HardLinkNoProxy => {
                 let mut retry_count = 0;
                 loop {
                     let payload_path = committed_path;
@@ -501,7 +502,9 @@ where
                     // combination of user and perms. Since each user has their own
                     // "proxy" directory, there needs only be a unique copy per
                     // perms.
-                    if let Some(render_store) = &self.repo.renders {
+                    if matches!(render_type, RenderType::HardLinkNoProxy) {
+                        // explicitly skip proxy generation
+                    } else if let Some(render_store) = &self.repo.renders {
                         let proxy_path = render_store
                             .proxy
                             .build_digest_path(&entry.object)
