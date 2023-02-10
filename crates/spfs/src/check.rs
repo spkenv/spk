@@ -1,0 +1,767 @@
+// Copyright (c) Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+
+use std::sync::Arc;
+
+use futures::stream::{FuturesUnordered, TryStreamExt};
+use once_cell::sync::OnceCell;
+
+use crate::prelude::*;
+use crate::sync::{SyncObjectResult, SyncPayloadResult, SyncPolicy};
+use crate::{encoding, graph, storage, tracking, Error, Result};
+
+#[cfg(test)]
+#[path = "./check_test.rs"]
+mod check_test;
+
+/// Handles the validation of data within a repository
+///
+/// The checker can be cloned efficiently
+pub struct Checker<'repo, 'sync, Reporter: CheckReporter = SilentCheckReporter> {
+    repo: &'repo storage::RepositoryHandle,
+    repair_with: Option<super::Syncer<'sync, 'repo>>,
+    reporter: Arc<Reporter>,
+    processed_digests: Arc<dashmap::DashSet<encoding::Digest>>,
+}
+
+impl<'repo> Checker<'repo, 'static> {
+    pub fn new(repo: &'repo storage::RepositoryHandle) -> Self {
+        Self {
+            repo,
+            reporter: Arc::new(SilentCheckReporter::default()),
+            repair_with: None,
+            processed_digests: Arc::new(Default::default()),
+        }
+    }
+}
+
+impl<'repo, 'sync, Reporter> Checker<'repo, 'sync, Reporter>
+where
+    Reporter: CheckReporter,
+{
+    /// Report progress to the given instance, replacing any existing one
+    pub fn with_reporter<T, R>(self, reporter: T) -> Checker<'repo, 'sync, R>
+    where
+        T: Into<Arc<R>>,
+        R: CheckReporter,
+    {
+        Checker {
+            repo: self.repo,
+            reporter: reporter.into(),
+            repair_with: self.repair_with,
+            processed_digests: self.processed_digests,
+        }
+    }
+
+    /// Report progress to the given instance, replacing any existing one
+    pub fn with_repair_source<'sync2>(
+        self,
+        source: &'sync2 storage::RepositoryHandle,
+    ) -> Checker<'repo, 'sync2, Reporter> {
+        Checker {
+            repo: self.repo,
+            reporter: self.reporter,
+            repair_with: Some(
+                crate::Syncer::new(source, self.repo)
+                    .with_policy(SyncPolicy::LatestTagsAndResyncObjects),
+            ),
+            processed_digests: self.processed_digests,
+        }
+    }
+
+    pub async fn check_all_tags(&self) -> Result<Vec<CheckTagStreamResult>> {
+        self.repo
+            .iter_tags()
+            .and_then(|(tag, _)| async move { self.check_tag_stream(tag).await })
+            .try_collect()
+            .await
+    }
+
+    pub async fn check_all_objects(&self) -> Result<Vec<CheckObjectResult>> {
+        self.repo
+            .find_digests(graph::DigestSearchCriteria::All)
+            .and_then(|digest| self.check_digest(digest))
+            .try_collect()
+            .await
+    }
+
+    /// Check the object(s) graph referenced by the given string.
+    ///
+    /// Any valid [`crate::tracking::EnvSpec`] is accepted as a reference.
+    pub async fn check_ref<R: AsRef<str>>(&self, reference: R) -> Result<CheckEnvResult> {
+        let env_spec = reference.as_ref().parse()?;
+        self.check_env(env_spec).await
+    }
+
+    /// Check all of the objects identified by the given env.
+    pub async fn check_env(&self, env: tracking::EnvSpec) -> Result<CheckEnvResult> {
+        let mut futures = FuturesUnordered::new();
+        for item in env.iter().cloned() {
+            futures.push(self.check_env_item(item));
+        }
+        let mut results = Vec::with_capacity(env.len());
+        while let Some(result) = futures.try_next().await? {
+            results.push(result);
+        }
+        let res = CheckEnvResult { env, results };
+        Ok(res)
+    }
+
+    /// Check one environment item and any associated data.
+    pub async fn check_env_item(&self, item: tracking::EnvSpecItem) -> Result<CheckEnvItemResult> {
+        tracing::debug!(?item, "Checking item");
+        let res = match item {
+            tracking::EnvSpecItem::Digest(digest) => self
+                .check_digest(digest)
+                .await
+                .map(CheckEnvItemResult::Object)?,
+            tracking::EnvSpecItem::PartialDigest(digest) => self
+                .check_partial_digest(digest)
+                .await
+                .map(CheckEnvItemResult::Object)?,
+            tracking::EnvSpecItem::TagSpec(tag_spec) => self
+                .check_tag_stream(tag_spec)
+                .await
+                .map(CheckEnvItemResult::Tag)?,
+        };
+        Ok(res)
+    }
+
+    /// Check the identified tag stream and its history.
+    pub async fn check_tag_stream(&self, tag: tracking::TagSpec) -> Result<CheckTagStreamResult> {
+        self.reporter.visit_tag_stream(&tag);
+        let stream = match self.repo.read_tag(&tag).await {
+            Err(Error::UnknownReference(_)) => return Ok(CheckTagStreamResult::Missing),
+            Err(err) => return Err(err),
+            Ok(stream) => stream,
+        };
+
+        let results = stream
+            .and_then(|tag| self.check_tag(tag))
+            .try_collect()
+            .await?;
+        let res = CheckTagStreamResult::Checked { tag, results };
+        self.reporter.checked_tag_stream(&res);
+        Ok(res)
+    }
+
+    /// Check the identified tag and it's target.
+    pub async fn check_tag_spec(&self, tag: tracking::TagSpec) -> Result<CheckTagResult> {
+        match self.repo.resolve_tag(&tag).await {
+            Err(Error::UnknownReference(_)) => Ok(CheckTagResult::Missing),
+            Err(err) => Err(err),
+            Ok(tag) => self.check_tag(tag).await,
+        }
+    }
+
+    /// Check the identified tag instance and its target.
+    pub async fn check_tag(&self, tag: tracking::Tag) -> Result<CheckTagResult> {
+        self.reporter.visit_tag(&tag);
+        let result = self.check_digest(tag.target).await?;
+        let res = CheckTagResult::Checked { tag, result };
+        self.reporter.checked_tag(&res);
+        Ok(res)
+    }
+
+    pub async fn check_partial_digest(
+        &self,
+        partial: encoding::PartialDigest,
+    ) -> Result<CheckObjectResult> {
+        let digest = self.repo.resolve_full_digest(&partial).await?;
+        let obj = self.read_object_with_fallback(digest).await?;
+        self.check_object(obj).await
+    }
+
+    pub async fn check_digest(&self, digest: encoding::Digest) -> Result<CheckObjectResult> {
+        // don't write the digest here, as that is the responsibility
+        // of the function that actually handles the data copying.
+        // a short-circuit is still nice when possible, though
+        if self.processed_digests.contains(&digest) {
+            return Ok(CheckObjectResult::Duplicate);
+        }
+        self.reporter.visit_digest(&digest);
+        match self.read_object_with_fallback(digest).await {
+            Err(Error::UnknownObject(_)) => Ok(CheckObjectResult::Missing),
+            Err(err) => Err(err),
+            Ok(obj) => self.check_object(obj).await,
+        }
+    }
+
+    #[async_recursion::async_recursion]
+    pub async fn check_object(&self, obj: graph::Object) -> Result<CheckObjectResult> {
+        use graph::Object;
+        if self.processed_digests.contains(&obj.digest()?) {
+            return Ok(CheckObjectResult::Duplicate);
+        }
+        self.reporter.visit_object(&obj);
+        let res = match obj {
+            Object::Layer(obj) => CheckObjectResult::Layer(self.check_layer(obj).await?.into()),
+            Object::Platform(obj) => CheckObjectResult::Platform(self.check_platform(obj).await?),
+            Object::Blob(obj) => CheckObjectResult::Blob(self.check_blob(obj).await?),
+            Object::Manifest(obj) => CheckObjectResult::Manifest(self.check_manifest(obj).await?),
+            Object::Tree(obj) => CheckObjectResult::Tree(obj),
+            Object::Mask => CheckObjectResult::Mask,
+        };
+        self.reporter.checked_object(&res);
+        Ok(res)
+    }
+
+    pub async fn check_platform(&self, platform: graph::Platform) -> Result<CheckPlatformResult> {
+        let futures: FuturesUnordered<_> = platform
+            .stack
+            .iter()
+            .map(|d| self.check_digest(*d))
+            .collect();
+        let results = futures.try_collect().await?;
+        let res = CheckPlatformResult { platform, results };
+        Ok(res)
+    }
+
+    pub async fn check_layer(&self, layer: graph::Layer) -> Result<CheckLayerResult> {
+        let result = self.check_digest(layer.manifest).await?;
+        let res = CheckLayerResult { layer, result };
+        Ok(res)
+    }
+
+    pub async fn check_manifest(&self, manifest: graph::Manifest) -> Result<CheckManifestResult> {
+        let futures: FuturesUnordered<_> = manifest
+            .iter_entries()
+            .cloned()
+            .filter(|e| e.kind.is_blob())
+            .map(|e| self.check_entry(e))
+            .collect();
+        let results = futures.try_collect().await?;
+        let res = CheckManifestResult { manifest, results };
+        Ok(res)
+    }
+
+    async fn check_entry(&self, entry: graph::Entry) -> Result<CheckEntryResult> {
+        if !entry.kind.is_blob() {
+            return Ok(CheckEntryResult::Skipped);
+        }
+        let blob = graph::Blob {
+            payload: entry.object,
+            size: entry.size,
+        };
+        let result = self.check_blob(blob).await?;
+        let res = CheckEntryResult::Checked { entry, result };
+        Ok(res)
+    }
+
+    pub async fn check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
+        let digest = blob.digest();
+        if !self.processed_digests.insert(digest) {
+            return Ok(CheckBlobResult::Duplicate);
+        }
+
+        self.reporter.visit_blob(&blob);
+        let result = self.check_payload(digest).await?;
+        let res = CheckBlobResult::Checked { blob, result };
+        self.reporter.checked_blob(&res);
+        Ok(res)
+    }
+
+    /// Check a payload with the provided digest
+    async fn check_payload(&self, digest: encoding::Digest) -> Result<CheckPayloadResult> {
+        if !self.processed_digests.insert(digest) {
+            return Ok(CheckPayloadResult::Duplicate);
+        }
+
+        self.reporter.visit_payload(digest);
+        let mut result = CheckPayloadResult::Missing;
+        if self.repo.has_payload(digest).await {
+            result = CheckPayloadResult::Ok;
+        } else if let Some(syncer) = &self.repair_with {
+            // Safety: blobs must be synced with payloads, but we've
+            // already determined that the blob exists
+            if let Ok(r) = unsafe { syncer.sync_payload(digest).await } {
+                self.reporter.repaired_payload(&r);
+                result = CheckPayloadResult::Ok;
+            }
+        }
+        self.reporter.checked_payload(&result);
+        Ok(result)
+    }
+
+    async fn read_object_with_fallback(&self, digest: encoding::Digest) -> Result<graph::Object> {
+        let res = self.repo.read_object(digest).await;
+        match res {
+            Err(err) => {
+                let Error::UnknownObject(digest) = err else {
+                    return Err(err);
+                };
+                let Some(syncer) = &self.repair_with else {
+                    return Err(err);
+                };
+                if let Ok(result) = syncer.sync_digest(digest).await {
+                    self.reporter.repaired_object(&result);
+                    self.repo.read_object(digest).await
+                } else {
+                    Err(err)
+                }
+            }
+            res => res,
+        }
+    }
+}
+
+/// Receives updates from a check process to be reported.
+///
+/// Unless the check runs into errors, every call to visit_* is
+/// followed up by a call to the corresponding checked_*.
+pub trait CheckReporter: Send + Sync {
+    /// Called when a tag stream has been identified to check
+    fn visit_tag_stream(&self, _tag: &tracking::TagSpec) {}
+
+    /// Called when a tag stream has finished being checked
+    fn checked_tag_stream(&self, _result: &CheckTagStreamResult) {}
+
+    /// Called when a tag has been identified to check
+    fn visit_tag(&self, _tag: &tracking::Tag) {}
+
+    /// Called when a tag has finished being checked
+    fn checked_tag(&self, _result: &CheckTagResult) {}
+
+    /// Called when an object has been identified to load and check
+    fn visit_digest(&self, _digest: &encoding::Digest) {}
+
+    /// Called when an object has been identified to check
+    fn visit_object(&self, _obj: &graph::Object) {}
+
+    /// Called when a object was found to be missing and successfully repaired
+    fn repaired_object(&self, _result: &SyncObjectResult) {}
+
+    /// Called when a object has finished being checked
+    fn checked_object(&self, _result: &CheckObjectResult) {}
+
+    /// Called when a blob has been identified to check
+    fn visit_blob(&self, _blob: &graph::Blob) {}
+
+    /// Called when a blob has finished being checked
+    fn checked_blob(&self, _result: &CheckBlobResult) {}
+
+    /// Called when a payload has been identified to check
+    fn visit_payload(&self, _digest: encoding::Digest) {}
+
+    /// Called when a payload has finished being checked
+    fn checked_payload(&self, _result: &CheckPayloadResult) {}
+
+    /// Called when a payload was found to be missing and successfully repaired
+    fn repaired_payload(&self, _result: &SyncPayloadResult) {}
+}
+
+#[derive(Default)]
+pub struct SilentCheckReporter {}
+impl CheckReporter for SilentCheckReporter {}
+
+/// Reports check progress to an interactive console via progress bars
+#[derive(Default)]
+pub struct ConsoleCheckReporter {
+    bars: OnceCell<ConsoleCheckReporterBars>,
+}
+
+impl ConsoleCheckReporter {
+    fn get_bars(&self) -> &ConsoleCheckReporterBars {
+        self.bars.get_or_init(Default::default)
+    }
+}
+
+impl CheckReporter for ConsoleCheckReporter {
+    fn visit_digest(&self, _: &encoding::Digest) {
+        self.get_bars().objects.inc_length(1);
+    }
+
+    fn checked_object(&self, result: &CheckObjectResult) {
+        let bars = self.get_bars();
+        bars.objects.inc(1);
+        if matches!(result, CheckObjectResult::Missing) {
+            bars.missing.inc_length(1);
+        }
+    }
+
+    fn repaired_object(&self, _result: &SyncObjectResult) {
+        let bars = self.get_bars();
+        bars.missing.inc_length(1);
+        bars.missing.inc(1);
+    }
+
+    fn visit_blob(&self, blob: &graph::Blob) {
+        let bars = self.get_bars();
+        bars.bytes.inc_length(blob.size);
+    }
+
+    fn visit_payload(&self, _digest: encoding::Digest) {
+        let bars = self.get_bars();
+        bars.objects.inc_length(1);
+    }
+
+    fn checked_payload(&self, result: &CheckPayloadResult) {
+        let bars = self.get_bars();
+        if matches!(result, CheckPayloadResult::Missing) {
+            bars.missing.inc_length(1);
+        }
+    }
+
+    fn repaired_payload(&self, result: &SyncPayloadResult) {
+        let bars = self.get_bars();
+        bars.missing.inc_length(1);
+        bars.missing.inc(1);
+        bars.bytes.inc(result.summary().synced_payload_bytes);
+    }
+}
+
+struct ConsoleCheckReporterBars {
+    renderer: Option<std::thread::JoinHandle<()>>,
+    objects: indicatif::ProgressBar,
+    missing: indicatif::ProgressBar,
+    bytes: indicatif::ProgressBar,
+}
+
+impl Default for ConsoleCheckReporterBars {
+    fn default() -> Self {
+        static TICK_STRINGS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        static PROGRESS_CHARS: &str = "=>-";
+        let layers_style = indicatif::ProgressStyle::default_bar()
+            .template(
+                "      {spinner} {msg:<18.green} {pos:>9} reached in {elapsed:.cyan} [{per_sec}]",
+            )
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
+        let payloads_style = indicatif::ProgressStyle::default_bar()
+            .template(
+                "      {spinner} {msg:<18.green} {len:>9} errors, {len} repaired ({percent}%)",
+            )
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
+        let bytes_style = indicatif::ProgressStyle::default_bar()
+            .template("      {spinner} {msg:<18.green} {total_bytes:>9}, {bytes} repaired")
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
+        let bars = indicatif::MultiProgress::new();
+        let objects = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(layers_style)
+                .with_message("scanning objects"),
+        );
+        let payloads = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(payloads_style)
+                .with_message("finding issues"),
+        );
+        let bytes = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(bytes_style)
+                .with_message("payloads footprint"),
+        );
+        objects.enable_steady_tick(100);
+        payloads.enable_steady_tick(100);
+        bytes.enable_steady_tick(100);
+        // the progress bar must be awaited from some thread
+        // or nothing will be shown in the terminal
+        let renderer = Some(std::thread::spawn(move || {
+            if let Err(err) = bars.join() {
+                tracing::error!("Failed to render check progress: {err}");
+            }
+        }));
+        Self {
+            renderer,
+            objects,
+            missing: payloads,
+            bytes,
+        }
+    }
+}
+
+impl Drop for ConsoleCheckReporterBars {
+    fn drop(&mut self) {
+        self.bytes.finish_at_current_pos();
+        self.missing.finish_at_current_pos();
+        self.objects.finish_at_current_pos();
+        if let Some(r) = self.renderer.take() {
+            let _ = r.join();
+        }
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct CheckSummary {
+    /// The number of missing tags
+    pub missing_tags: usize,
+    /// The number of tags checked
+    pub checked_tags: usize,
+    /// The number of missing objects
+    pub missing_objects: usize,
+    /// The number of objects checked
+    pub checked_objects: usize,
+    /// The number of missing payloads
+    pub missing_payloads: usize,
+    /// The number of payloads checked
+    pub checked_payloads: usize,
+    /// The total number of payload bytes checked
+    pub checked_payload_bytes: u64,
+}
+
+impl CheckSummary {
+    fn checked_one_object() -> Self {
+        Self {
+            checked_objects: 1,
+            ..Default::default()
+        }
+    }
+}
+
+impl std::ops::AddAssign for CheckSummary {
+    fn add_assign(&mut self, rhs: Self) {
+        self.missing_tags += rhs.missing_tags;
+        self.checked_tags += rhs.checked_tags;
+        self.missing_objects += rhs.missing_objects;
+        self.checked_objects += rhs.checked_objects;
+        self.checked_payloads += rhs.checked_payloads;
+        self.checked_payload_bytes += rhs.checked_payload_bytes;
+    }
+}
+
+impl std::iter::Sum<CheckSummary> for CheckSummary {
+    fn sum<I: Iterator<Item = CheckSummary>>(iter: I) -> Self {
+        iter.fold(Default::default(), |mut cur, next| {
+            cur += next;
+            cur
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct CheckEnvResult {
+    pub env: tracking::EnvSpec,
+    pub results: Vec<CheckEnvItemResult>,
+}
+
+impl CheckEnvResult {
+    pub fn summary(&self) -> CheckSummary {
+        self.results.iter().map(|r| r.summary()).sum()
+    }
+}
+
+#[derive(Debug)]
+pub enum CheckEnvItemResult {
+    Tag(CheckTagStreamResult),
+    Object(CheckObjectResult),
+}
+
+impl CheckEnvItemResult {
+    pub fn summary(&self) -> CheckSummary {
+        match self {
+            Self::Tag(r) => r.summary(),
+            Self::Object(r) => r.summary(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CheckTagStreamResult {
+    /// The tag stream was missing from the repository
+    Missing,
+    /// The tag stream was checked
+    Checked {
+        tag: tracking::TagSpec,
+        results: Vec<CheckTagResult>,
+    },
+}
+
+impl CheckTagStreamResult {
+    pub fn summary(&self) -> CheckSummary {
+        match self {
+            Self::Missing => CheckSummary {
+                missing_tags: 1,
+                ..Default::default()
+            },
+            Self::Checked { results, .. } => {
+                let mut summary = CheckSummary::default();
+                for result in results {
+                    summary += result.summary();
+                }
+                summary
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CheckTagResult {
+    /// The tag was missing from the repository
+    Missing,
+    /// The tag was checked
+    Checked {
+        tag: tracking::Tag,
+        result: CheckObjectResult,
+    },
+}
+
+impl CheckTagResult {
+    pub fn summary(&self) -> CheckSummary {
+        match self {
+            Self::Missing => CheckSummary {
+                missing_tags: 1,
+                ..Default::default()
+            },
+            Self::Checked { result, .. } => {
+                let mut summary = result.summary();
+                summary.checked_tags += 1;
+                summary
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CheckObjectResult {
+    /// The object was already checked in this session
+    Duplicate,
+    /// The object was found to be missing from the database
+    Missing,
+    Platform(CheckPlatformResult),
+    Layer(Box<CheckLayerResult>),
+    Blob(CheckBlobResult),
+    Manifest(CheckManifestResult),
+    Tree(graph::Tree),
+    Mask,
+}
+
+impl CheckObjectResult {
+    pub fn summary(&self) -> CheckSummary {
+        use CheckObjectResult::*;
+        match self {
+            Duplicate => CheckSummary::default(),
+            Missing => CheckSummary {
+                missing_objects: 1,
+                ..Default::default()
+            },
+            Platform(res) => res.summary(),
+            Layer(res) => res.summary(),
+            Blob(res) => res.summary(),
+            Manifest(res) => res.summary(),
+            Mask | Tree(_) => CheckSummary::default(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CheckPlatformResult {
+    pub platform: graph::Platform,
+    pub results: Vec<CheckObjectResult>,
+}
+
+impl CheckPlatformResult {
+    pub fn summary(&self) -> CheckSummary {
+        let mut summary = self.results.iter().map(|r| r.summary()).sum();
+        summary += CheckSummary::checked_one_object();
+        summary
+    }
+}
+
+#[derive(Debug)]
+pub struct CheckLayerResult {
+    pub layer: graph::Layer,
+    pub result: CheckObjectResult,
+}
+
+impl CheckLayerResult {
+    pub fn summary(&self) -> CheckSummary {
+        let mut summary = self.result.summary();
+        summary += CheckSummary::checked_one_object();
+        summary
+    }
+}
+
+#[derive(Debug)]
+pub struct CheckManifestResult {
+    pub manifest: graph::Manifest,
+    pub results: Vec<CheckEntryResult>,
+}
+
+impl CheckManifestResult {
+    pub fn summary(&self) -> CheckSummary {
+        let mut summary = self.results.iter().map(|r| r.summary()).sum();
+        summary += CheckSummary::checked_one_object();
+        summary
+    }
+}
+
+#[derive(Debug)]
+pub enum CheckEntryResult {
+    /// The entry was not one that needed checking
+    Skipped,
+    /// The entry was checked
+    Checked {
+        entry: graph::Entry,
+        result: CheckBlobResult,
+    },
+}
+
+impl CheckEntryResult {
+    pub fn summary(&self) -> CheckSummary {
+        match self {
+            Self::Skipped => CheckSummary::default(),
+            Self::Checked { result, .. } => {
+                let mut summary = result.summary();
+                summary += CheckSummary::checked_one_object();
+                summary
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CheckBlobResult {
+    /// The blob was already checked in this session
+    Duplicate,
+    /// The blob was checked
+    Checked {
+        blob: graph::Blob,
+        result: CheckPayloadResult,
+    },
+}
+
+impl CheckBlobResult {
+    pub fn summary(&self) -> CheckSummary {
+        match self {
+            Self::Duplicate => CheckSummary::default(),
+            Self::Checked { result, blob } => {
+                let mut summary = result.summary();
+                summary += CheckSummary {
+                    checked_objects: 1,
+                    checked_payload_bytes: blob.size,
+                    ..Default::default()
+                };
+                summary
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CheckPayloadResult {
+    /// The payload was already checked in this session
+    Duplicate,
+    /// The payload is missing from this repository
+    Missing,
+    /// The payload was checked and is present
+    Ok,
+}
+
+impl CheckPayloadResult {
+    pub fn summary(&self) -> CheckSummary {
+        match self {
+            Self::Duplicate => CheckSummary::default(),
+            Self::Missing => CheckSummary {
+                missing_payloads: 1,
+                ..Default::default()
+            },
+            Self::Ok => CheckSummary {
+                checked_payloads: 1,
+                ..Default::default()
+            },
+        }
+    }
+}

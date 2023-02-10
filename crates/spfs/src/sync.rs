@@ -409,7 +409,7 @@ where
     /// It is unsafe to call this sync function on its own,
     /// as any payload should be synced alongside its
     /// corresponding Blob instance - use [`Self::sync_blob`] instead
-    async unsafe fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
+    pub async unsafe fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
         if self.processed_digests.contains(&digest) {
             return Ok(SyncPayloadResult::Duplicate);
         }

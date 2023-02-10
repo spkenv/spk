@@ -3,8 +3,7 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
-use futures::{StreamExt, TryStreamExt};
-use spfs::prelude::*;
+use futures::TryStreamExt;
 
 /// Check a repositories internal integrity
 #[derive(Debug, Args)]
@@ -49,61 +48,34 @@ impl CmdCheck {
             None => None,
         };
 
-        let digests = futures::stream::iter(&self.reference)
-            .then(|reference| repo.resolve_ref(reference))
-            .try_collect()
-            .await?;
-
-        tracing::info!("walking repository...");
-
-        let errors = match &repo {
-            RepositoryHandle::FS(repo) => {
-                spfs::graph::check_database_integrity(repo, digests).await
-            }
-            RepositoryHandle::Tar(repo) => {
-                spfs::graph::check_database_integrity(repo, digests).await
-            }
-            RepositoryHandle::Rpc(repo) => {
-                spfs::graph::check_database_integrity(repo, digests).await
-            }
-            RepositoryHandle::PayloadFallback(repo) => {
-                spfs::graph::check_database_integrity(&**repo, digests).await
-            }
-            RepositoryHandle::Proxy(repo) => {
-                spfs::graph::check_database_integrity(&**repo, digests).await
-            }
-        };
-        let mut repair_count = 0;
-        for error in errors.iter() {
-            tracing::error!("{error}");
-
-            if let Some(pull_from) = pull_from.as_ref() {
-                let syncer = spfs::Syncer::new(pull_from, &repo)
-                    .with_policy(spfs::sync::SyncPolicy::ResyncEverything)
-                    .with_reporter(spfs::sync::ConsoleSyncReporter::default());
-                match error {
-                    spfs::Error::UnknownObject(digest)
-                    | spfs::Error::ObjectMissingPayload(_, digest) => {
-                        match syncer.sync_digest(*digest).await {
-                            Ok(_) => {
-                                // Drop syncer to be able to see tracing message.
-                                drop(syncer);
-                                tracing::info!("Successfully repaired!");
-                                repair_count += 1;
-                            }
-                            Err(err) => {
-                                // Drop syncer to be able to see tracing message.
-                                drop(syncer);
-                                tracing::warn!("Could not repair: {err}");
-                            }
-                        }
-                    }
-                    _ => {}
-                }
+        let mut checker =
+            spfs::Checker::new(&repo).with_reporter(spfs::check::ConsoleCheckReporter::default());
+        if let Some(pull_from) = &pull_from {
+            checker = checker.with_repair_source(pull_from);
+        }
+        let mut summary = spfs::check::CheckSummary::default();
+        if self.reference.is_empty() {
+            summary = checker
+                .check_all_objects()
+                .await?
+                .into_iter()
+                .map(|r| r.summary())
+                .sum();
+        } else {
+            let mut futures: futures::stream::FuturesUnordered<_> = self
+                .reference
+                .iter()
+                .map(|reference| checker.check_ref(reference))
+                .collect();
+            while let Some(result) = futures.try_next().await? {
+                summary += result.summary();
             }
         }
 
-        if !errors.is_empty() && repair_count < errors.len() {
+        drop(checker); // clean up progress bars
+        println!("{summary:#?}");
+
+        if summary.missing_objects + summary.missing_payloads != 0 {
             if pull_from.is_none() {
                 tracing::info!("running with `--pull` may be able to resolve these issues")
             }
