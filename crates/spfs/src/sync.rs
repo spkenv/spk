@@ -78,7 +78,7 @@ pub struct Syncer<'src, 'dst, Reporter: SyncReporter = SilentSyncReporter> {
     policy: SyncPolicy,
     manifest_semaphore: Arc<Semaphore>,
     payload_semaphore: Arc<Semaphore>,
-    processed_digests: Arc<RwLock<HashSet<encoding::Digest>>>,
+    processed_digests: Arc<dashmap::DashSet<encoding::Digest>>,
 }
 
 impl<'src, 'dst> Syncer<'src, 'dst> {
@@ -93,7 +93,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             policy: SyncPolicy::default(),
             manifest_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_MANIFESTS)),
             payload_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_PAYLOADS)),
-            processed_digests: Arc::new(RwLock::new(HashSet::new())),
+            processed_digests: Arc::new(Default::default()),
         }
     }
 }
@@ -255,7 +255,7 @@ where
         // don't write the digest here, as that is the responsibility
         // of the function that actually handles the data copying.
         // a short-circuit is still nice when possible, though
-        if self.processed_digests.read().await.contains(&digest) {
+        if self.processed_digests.contains(&digest) {
             return Ok(SyncObjectResult::Duplicate);
         }
         let obj = self.read_object_with_fallback(digest).await?;
@@ -280,7 +280,7 @@ where
 
     pub async fn sync_platform(&self, platform: graph::Platform) -> Result<SyncPlatformResult> {
         let digest = platform.digest()?;
-        if !self.processed_digests.write().await.insert(digest) {
+        if !self.processed_digests.insert(digest) {
             return Ok(SyncPlatformResult::Duplicate);
         }
         if self.policy.check_existing_objects() && self.dest.has_platform(digest).await {
@@ -306,7 +306,7 @@ where
 
     pub async fn sync_layer(&self, layer: graph::Layer) -> Result<SyncLayerResult> {
         let layer_digest = layer.digest()?;
-        if !self.processed_digests.write().await.insert(layer_digest) {
+        if !self.processed_digests.insert(layer_digest) {
             return Ok(SyncLayerResult::Duplicate);
         }
         if self.policy.check_existing_objects() && self.dest.has_layer(layer_digest).await {
@@ -326,7 +326,7 @@ where
 
     pub async fn sync_manifest(&self, manifest: graph::Manifest) -> Result<SyncManifestResult> {
         let manifest_digest = manifest.digest()?;
-        if !self.processed_digests.write().await.insert(manifest_digest) {
+        if !self.processed_digests.insert(manifest_digest) {
             return Ok(SyncManifestResult::Duplicate);
         }
         if self.policy.check_existing_objects() && self.dest.has_manifest(manifest_digest).await {
@@ -379,7 +379,7 @@ where
 
     pub async fn sync_blob(&self, blob: graph::Blob) -> Result<SyncBlobResult> {
         let digest = blob.digest();
-        if self.processed_digests.read().await.contains(&digest) {
+        if self.processed_digests.contains(&digest) {
             // do not insert here because blobs share a digest with payloads
             // which should also must be visited at least once if needed
             return Ok(SyncBlobResult::Duplicate);
@@ -389,6 +389,7 @@ where
             && self.dest.has_blob(digest).await
             && self.dest.has_payload(blob.payload).await
         {
+            self.processed_digests.insert(digest);
             return Ok(SyncBlobResult::Skipped);
         }
         self.reporter.visit_blob(&blob);
@@ -396,6 +397,7 @@ where
         // is synced with it, which is the purpose of this function.
         let result = unsafe { self.sync_payload(blob.payload).await? };
         self.dest.write_blob(blob.clone()).await?;
+        self.processed_digests.insert(digest);
         let res = SyncBlobResult::Synced { blob, result };
         self.reporter.synced_blob(&res);
         Ok(res)
@@ -409,12 +411,11 @@ where
     /// as any payload should be synced alongside its
     /// corresponding Blob instance - use [`Self::sync_blob`] instead
     async unsafe fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
-        if self.processed_digests.write().await.contains(&digest) {
+        if self.processed_digests.contains(&digest) {
             return Ok(SyncPayloadResult::Duplicate);
         }
 
         if self.policy.check_existing_payloads() && self.dest.has_payload(digest).await {
-            self.processed_digests.write().await.insert(digest);
             return Ok(SyncPayloadResult::Skipped);
         }
 
@@ -436,7 +437,6 @@ where
 
         let res = SyncPayloadResult::Synced { size };
         self.reporter.synced_payload(&res);
-        self.processed_digests.write().await.insert(digest);
         Ok(res)
     }
 

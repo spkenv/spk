@@ -29,6 +29,7 @@ close-err = "1.0"
 cnproc = { git = "https://github.com/rydrman/cnproc-rs", branch = "act-like-iterator" }
 colored = "2.0"
 config = "0.13.1"
+dashmap = "5.4.0"
 data-encoding = "2.3"
 expanduser = "1.2"
 faccess = "0.2.3"
@@ -54,7 +55,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
 serde_json = "1.0"
 serde_qs = "0.10.1"
-spfs-encoding = {path = "../spfs-encoding"}
+spfs-encoding = { path = "../spfs-encoding" }
 strum_macros = "0.24.2"
 tar = "0.4.30"
 tempfile = "3.3"

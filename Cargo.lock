@@ -2792,6 +2792,7 @@ dependencies = [
  "colored",
  "config",
  "criterion",
+ "dashmap",
  "data-encoding",
  "expanduser",
  "faccess",
