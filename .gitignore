@@ -30,3 +30,4 @@ target/
 .devcontainer/
 .cache/
 .hugo_build.lock
+/.cargo/
