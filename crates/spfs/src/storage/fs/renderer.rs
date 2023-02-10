@@ -508,7 +508,7 @@ where
             RenderType::HardLink | RenderType::HardLinkNoProxy => {
                 let mut retry_count = 0;
                 loop {
-                    let payload_path = committed_path;
+                    let payload_path = committed_path.clone();
                     // All hard links to a file have shared metadata (owner, perms).
                     // Whereas the same blob may be rendered into multiple files
                     // across different users and/or will different expected perms.
@@ -549,11 +549,16 @@ where
                             })?;
                             let mut payload_file =
                                 tokio::fs::File::open(&payload_path).await.map_err(|err| {
-                                    Error::StorageWriteError(
-                                        "open payload for proxying",
-                                        payload_path,
-                                        err,
-                                    )
+                                    if err.kind() == std::io::ErrorKind::NotFound {
+                                        // in the case of a corrupt repository, this is a more appropate error
+                                        Error::UnknownObject(entry.object)
+                                    } else {
+                                        Error::StorageReadError(
+                                            "open payload for proxying",
+                                            payload_path.clone(),
+                                            err,
+                                        )
+                                    }
                                 })?;
                             let proxy_file_fd =
                                 nix::unistd::dup(temp_proxy_file.as_file().as_raw_fd())?;
@@ -625,10 +630,29 @@ where
                                 retry_count += 1;
                                 continue;
                             }
+                            nix::errno::Errno::ENOENT if !committed_path.exists() => {
+                                return Err(if committed_path == payload_path {
+                                    // in the case of a corrupt repository, this is a more appropate error
+                                    Error::UnknownObject(entry.object)
+                                } else {
+                                    Error::StorageWriteError(
+                                        "hard_link from committed path",
+                                        committed_path,
+                                        err.into(),
+                                    )
+                                });
+                            }
                             nix::errno::Errno::EEXIST => (),
-                            _ => {
+                            _ if matches!(render_type, RenderType::HardLink) => {
                                 return Err(Error::StorageWriteError(
                                     "hard_link of blob proxy to rendered path",
+                                    PathBuf::from(&entry.name),
+                                    err.into(),
+                                ))
+                            }
+                            _ => {
+                                return Err(Error::StorageWriteError(
+                                    "hard_link of blob to rendered path",
                                     PathBuf::from(&entry.name),
                                     err.into(),
                                 ))
