@@ -70,6 +70,8 @@ where
         }
     }
 
+    /// Validate that all of the targets and their children exist for all
+    /// of the tags in the repository, including tag history.
     pub async fn check_all_tags(&self) -> Result<Vec<CheckTagStreamResult>> {
         self.repo
             .iter_tags()
@@ -78,6 +80,7 @@ where
             .await
     }
 
+    /// Validate that all of the children exist for all of the objects in the repository.
     pub async fn check_all_objects(&self) -> Result<Vec<CheckObjectResult>> {
         self.repo
             .find_digests(graph::DigestSearchCriteria::All)
@@ -110,7 +113,6 @@ where
 
     /// Check one environment item and any associated data.
     pub async fn check_env_item(&self, item: tracking::EnvSpecItem) -> Result<CheckEnvItemResult> {
-        tracing::debug!(?item, "Checking item");
         let res = match item {
             tracking::EnvSpecItem::Digest(digest) => self
                 .check_digest(digest)
@@ -121,7 +123,7 @@ where
                 .await
                 .map(CheckEnvItemResult::Object)?,
             tracking::EnvSpecItem::TagSpec(tag_spec) => self
-                .check_tag_stream(tag_spec)
+                .check_tag_spec(tag_spec)
                 .await
                 .map(CheckEnvItemResult::Tag)?,
         };
@@ -130,6 +132,7 @@ where
 
     /// Check the identified tag stream and its history.
     pub async fn check_tag_stream(&self, tag: tracking::TagSpec) -> Result<CheckTagStreamResult> {
+        tracing::debug!(?tag, "Checking tag stream");
         self.reporter.visit_tag_stream(&tag);
         let stream = match self.repo.read_tag(&tag).await {
             Err(Error::UnknownReference(_)) => return Ok(CheckTagStreamResult::Missing),
@@ -148,6 +151,7 @@ where
 
     /// Check the identified tag and it's target.
     pub async fn check_tag_spec(&self, tag: tracking::TagSpec) -> Result<CheckTagResult> {
+        tracing::debug!(?tag, "Checking tag spec");
         match self.repo.resolve_tag(&tag).await {
             Err(Error::UnknownReference(_)) => Ok(CheckTagResult::Missing),
             Err(err) => Err(err),
@@ -157,6 +161,7 @@ where
 
     /// Check the identified tag instance and its target.
     pub async fn check_tag(&self, tag: tracking::Tag) -> Result<CheckTagResult> {
+        tracing::debug!(?tag, "Checking tag");
         self.reporter.visit_tag(&tag);
         let result = self.check_digest(tag.target).await?;
         let res = CheckTagResult::Checked { tag, result };
@@ -164,6 +169,7 @@ where
         Ok(res)
     }
 
+    /// Validate that the identified object exists and all of its children.
     pub async fn check_partial_digest(
         &self,
         partial: encoding::PartialDigest,
@@ -173,6 +179,7 @@ where
         self.check_object(obj).await
     }
 
+    /// Validate that the identified object exists and all of its children.
     pub async fn check_digest(&self, digest: encoding::Digest) -> Result<CheckObjectResult> {
         // don't write the digest here, as that is the responsibility
         // of the function that actually handles the data copying.
@@ -180,6 +187,7 @@ where
         if self.processed_digests.contains(&digest) {
             return Ok(CheckObjectResult::Duplicate);
         }
+        tracing::trace!(?digest, "Checking digest");
         self.reporter.visit_digest(&digest);
         match self.read_object_with_fallback(digest).await {
             Err(Error::UnknownObject(_)) => Ok(CheckObjectResult::Missing),
@@ -188,17 +196,20 @@ where
         }
     }
 
+    /// Validate that the identified object's children all exist.
+    ///
+    /// To also check if the object object exists, use [`Self::check_digest`]
     #[async_recursion::async_recursion]
     pub async fn check_object(&self, obj: graph::Object) -> Result<CheckObjectResult> {
         use graph::Object;
-        if self.processed_digests.contains(&obj.digest()?) {
+        if !self.processed_digests.insert(obj.digest()?) {
             return Ok(CheckObjectResult::Duplicate);
         }
         self.reporter.visit_object(&obj);
         let res = match obj {
             Object::Layer(obj) => CheckObjectResult::Layer(self.check_layer(obj).await?.into()),
             Object::Platform(obj) => CheckObjectResult::Platform(self.check_platform(obj).await?),
-            Object::Blob(obj) => CheckObjectResult::Blob(self.check_blob(obj).await?),
+            Object::Blob(obj) => CheckObjectResult::Blob(self.must_check_blob(obj).await?),
             Object::Manifest(obj) => CheckObjectResult::Manifest(self.check_manifest(obj).await?),
             Object::Tree(obj) => CheckObjectResult::Tree(obj),
             Object::Mask => CheckObjectResult::Mask,
@@ -207,6 +218,9 @@ where
         Ok(res)
     }
 
+    /// Validate that the identified platform's children all exist.
+    ///
+    /// To also check if the platform object exists, use [`Self::check_digest`]
     pub async fn check_platform(&self, platform: graph::Platform) -> Result<CheckPlatformResult> {
         let futures: FuturesUnordered<_> = platform
             .stack
@@ -218,12 +232,18 @@ where
         Ok(res)
     }
 
+    /// Validate that the identified layer's children all exist.
+    ///
+    /// To also check if the layer object exists, use [`Self::check_digest`]
     pub async fn check_layer(&self, layer: graph::Layer) -> Result<CheckLayerResult> {
         let result = self.check_digest(layer.manifest).await?;
         let res = CheckLayerResult { layer, result };
         Ok(res)
     }
 
+    /// Validate that the identified manifest's children all exist.
+    ///
+    /// To also check if the manifest object exists, use [`Self::check_digest`]
     pub async fn check_manifest(&self, manifest: graph::Manifest) -> Result<CheckManifestResult> {
         let futures: FuturesUnordered<_> = manifest
             .iter_entries()
@@ -249,14 +269,25 @@ where
         Ok(res)
     }
 
+    /// Validate that the identified blob has it's payload.
+    ///
+    /// To also check if the blob object exists, use [`Self::check_digest`]
     pub async fn check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
         let digest = blob.digest();
         if !self.processed_digests.insert(digest) {
             return Ok(CheckBlobResult::Duplicate);
         }
+        self.must_check_blob(blob).await
+    }
 
+    /// Checks a blob, ignoring whether it has already been checked and
+    /// without logging that it has been checked
+    async fn must_check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
         self.reporter.visit_blob(&blob);
-        let result = self.check_payload(digest).await?;
+        if let Err(Error::UnknownObject(_)) = self.repo.read_blob(blob.payload).await {
+            return Ok(CheckBlobResult::Missing);
+        }
+        let result = self.check_payload(blob.payload).await?;
         let res = CheckBlobResult::Checked { blob, result };
         self.reporter.checked_blob(&res);
         Ok(res)
@@ -264,10 +295,6 @@ where
 
     /// Check a payload with the provided digest
     async fn check_payload(&self, digest: encoding::Digest) -> Result<CheckPayloadResult> {
-        if !self.processed_digests.insert(digest) {
-            return Ok(CheckPayloadResult::Duplicate);
-        }
-
         self.reporter.visit_payload(digest);
         let mut result = CheckPayloadResult::Missing;
         if self.repo.has_payload(digest).await {
@@ -488,15 +515,15 @@ impl Drop for ConsoleCheckReporterBars {
 pub struct CheckSummary {
     /// The number of missing tags
     pub missing_tags: usize,
-    /// The number of tags checked
+    /// The number of tags checked and found to be okay
     pub checked_tags: usize,
     /// The number of missing objects
     pub missing_objects: usize,
-    /// The number of objects checked
+    /// The number of objects checked and found to be okay
     pub checked_objects: usize,
     /// The number of missing payloads
     pub missing_payloads: usize,
-    /// The number of payloads checked
+    /// The number of payloads checked and found to be okay
     pub checked_payloads: usize,
     /// The total number of payload bytes checked
     pub checked_payload_bytes: u64,
@@ -513,12 +540,24 @@ impl CheckSummary {
 
 impl std::ops::AddAssign for CheckSummary {
     fn add_assign(&mut self, rhs: Self) {
-        self.missing_tags += rhs.missing_tags;
-        self.checked_tags += rhs.checked_tags;
-        self.missing_objects += rhs.missing_objects;
-        self.checked_objects += rhs.checked_objects;
-        self.checked_payloads += rhs.checked_payloads;
-        self.checked_payload_bytes += rhs.checked_payload_bytes;
+        // destructure to ensure that all fields are processed
+        // (causing compile errors for new ones that need to be added)
+        let CheckSummary {
+            missing_tags,
+            checked_tags,
+            missing_objects,
+            checked_objects,
+            checked_payloads,
+            missing_payloads,
+            checked_payload_bytes,
+        } = rhs;
+        self.missing_tags += missing_tags;
+        self.checked_tags += checked_tags;
+        self.missing_objects += missing_objects;
+        self.checked_objects += checked_objects;
+        self.checked_payloads += checked_payloads;
+        self.missing_payloads += missing_payloads;
+        self.checked_payload_bytes += checked_payload_bytes;
     }
 }
 
@@ -545,7 +584,7 @@ impl CheckEnvResult {
 
 #[derive(Debug)]
 pub enum CheckEnvItemResult {
-    Tag(CheckTagStreamResult),
+    Tag(CheckTagResult),
     Object(CheckObjectResult),
 }
 
@@ -703,11 +742,7 @@ impl CheckEntryResult {
     pub fn summary(&self) -> CheckSummary {
         match self {
             Self::Skipped => CheckSummary::default(),
-            Self::Checked { result, .. } => {
-                let mut summary = result.summary();
-                summary += CheckSummary::checked_one_object();
-                summary
-            }
+            Self::Checked { result, .. } => result.summary(),
         }
     }
 }
@@ -716,6 +751,8 @@ impl CheckEntryResult {
 pub enum CheckBlobResult {
     /// The blob was already checked in this session
     Duplicate,
+    /// The blob was not found in the database
+    Missing,
     /// The blob was checked
     Checked {
         blob: graph::Blob,
@@ -727,6 +764,10 @@ impl CheckBlobResult {
     pub fn summary(&self) -> CheckSummary {
         match self {
             Self::Duplicate => CheckSummary::default(),
+            Self::Missing => CheckSummary {
+                missing_objects: 1,
+                ..Default::default()
+            },
             Self::Checked { result, blob } => {
                 let mut summary = result.summary();
                 summary += CheckSummary {
@@ -742,8 +783,6 @@ impl CheckBlobResult {
 
 #[derive(Debug)]
 pub enum CheckPayloadResult {
-    /// The payload was already checked in this session
-    Duplicate,
     /// The payload is missing from this repository
     Missing,
     /// The payload was checked and is present
@@ -753,7 +792,6 @@ pub enum CheckPayloadResult {
 impl CheckPayloadResult {
     pub fn summary(&self) -> CheckSummary {
         match self {
-            Self::Duplicate => CheckSummary::default(),
             Self::Missing => CheckSummary {
                 missing_payloads: 1,
                 ..Default::default()
