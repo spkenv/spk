@@ -3,7 +3,9 @@
 // https://github.com/imageworks/spk
 
 use clap::Args;
+use colored::Colorize;
 use futures::TryStreamExt;
+use number_prefix::NumberPrefix;
 
 /// Check a repositories internal integrity
 #[derive(Debug, Args)]
@@ -54,6 +56,7 @@ impl CmdCheck {
             checker = checker.with_repair_source(pull_from);
         }
         let mut summary = spfs::check::CheckSummary::default();
+        let start = std::time::Instant::now();
         if self.reference.is_empty() {
             summary = checker
                 .check_all_objects()
@@ -71,17 +74,46 @@ impl CmdCheck {
                 summary += result.summary();
             }
         }
+        let duration = std::time::Instant::now() - start;
 
         drop(checker); // clean up progress bars
-        println!("{summary:#?}");
+        let spfs::check::CheckSummary {
+            missing_tags,
+            checked_tags,
+            missing_objects,
+            repaired_objects,
+            checked_objects,
+            missing_payloads,
+            repaired_payloads,
+            checked_payloads,
+            checked_payload_bytes,
+        } = summary;
+        let missing_objects = missing_objects.len();
+        let missing_payloads = missing_payloads.len();
 
-        if summary.missing_objects.len() + summary.missing_payloads.len() != 0 {
+        println!("{} after {duration:.0?}:", "Finished".bold());
+        let missing = "missing".red().italic();
+        let repaired = "repaired".cyan().italic();
+        println!("{checked_tags:>12} tags visited     ({missing_tags} {missing})");
+        println!(
+            "{checked_objects:>12} objects visited  ({missing_objects} {missing}, {repaired_objects} {repaired})",
+        );
+        println!(
+            "{checked_payloads:>12} payloads visited ({missing_payloads} {missing}, {repaired_payloads} {repaired})",
+        );
+        let human_bytes = match NumberPrefix::binary(checked_payload_bytes as f64) {
+            NumberPrefix::Standalone(amt) => format!("{amt} bytes"),
+            NumberPrefix::Prefixed(p, amt) => format!("{amt:.2} {}B", p.symbol()),
+        };
+        println!("{human_bytes:>12} total payload footprint");
+
+        if missing_objects + missing_payloads != 0 {
             if pull_from.is_none() {
                 tracing::info!("running with `--pull` may be able to resolve these issues")
             }
             return Ok(1);
         }
-        tracing::info!("repository OK");
+        println!("No issues found");
         Ok(0)
     }
 }

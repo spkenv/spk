@@ -2904,6 +2904,7 @@ dependencies = [
  "hyper",
  "itertools",
  "nix 0.26.2",
+ "number_prefix",
  "procfs",
  "relative-path",
  "serde_json",

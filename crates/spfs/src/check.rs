@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use colored::Colorize;
 use futures::stream::{FuturesUnordered, TryStreamExt};
 use once_cell::sync::OnceCell;
 
@@ -424,7 +425,8 @@ impl CheckReporter for ConsoleCheckReporter {
         let bars = self.get_bars();
         bars.objects.inc(1);
         if let CheckObjectResult::Missing(digest) = result {
-            println!("Missing: {digest}");
+            bars.missing
+                .println(format!("{}: {digest}", "Missing".red()));
             bars.missing.inc_length(1);
         }
     }
@@ -448,7 +450,8 @@ impl CheckReporter for ConsoleCheckReporter {
     fn checked_payload(&self, result: &CheckPayloadResult) {
         let bars = self.get_bars();
         if let CheckPayloadResult::Missing(digest) = result {
-            println!("Missing: {digest}");
+            bars.missing
+                .println(format!("{}: {digest}", "Missing".red()));
             bars.missing.inc_length(1);
         }
     }
@@ -525,9 +528,9 @@ impl Default for ConsoleCheckReporterBars {
 
 impl Drop for ConsoleCheckReporterBars {
     fn drop(&mut self) {
-        self.bytes.finish_at_current_pos();
-        self.missing.finish_at_current_pos();
-        self.objects.finish_at_current_pos();
+        self.bytes.finish_and_clear();
+        self.missing.finish_and_clear();
+        self.objects.finish_and_clear();
         if let Some(r) = self.renderer.take() {
             let _ = r.join();
         }
