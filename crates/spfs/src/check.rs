@@ -249,23 +249,12 @@ where
             .iter_entries()
             .cloned()
             .filter(|e| e.kind.is_blob())
-            .map(|e| self.check_entry(e))
+            // run through check_digest to ensure that blobs can be loaded
+            // from the db and allow for possible repairs
+            .map(|e| self.check_digest(e.object))
             .collect();
         let results = futures.try_collect().await?;
         let res = CheckManifestResult { manifest, results };
-        Ok(res)
-    }
-
-    async fn check_entry(&self, entry: graph::Entry) -> Result<CheckEntryResult> {
-        if !entry.kind.is_blob() {
-            return Ok(CheckEntryResult::Skipped);
-        }
-        let blob = graph::Blob {
-            payload: entry.object,
-            size: entry.size,
-        };
-        let result = self.check_blob(blob).await?;
-        let res = CheckEntryResult::Checked { entry, result };
         Ok(res)
     }
 
@@ -284,9 +273,6 @@ where
     /// without logging that it has been checked
     async fn must_check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
         self.reporter.visit_blob(&blob);
-        if let Err(Error::UnknownObject(_)) = self.repo.read_blob(blob.payload).await {
-            return Ok(CheckBlobResult::Missing);
-        }
         let result = self.check_payload(blob.payload).await?;
         let res = CheckBlobResult::Checked { blob, result };
         self.reporter.checked_blob(&res);
@@ -716,7 +702,7 @@ impl CheckLayerResult {
 #[derive(Debug)]
 pub struct CheckManifestResult {
     pub manifest: graph::Manifest,
-    pub results: Vec<CheckEntryResult>,
+    pub results: Vec<CheckObjectResult>,
 }
 
 impl CheckManifestResult {
