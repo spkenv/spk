@@ -423,7 +423,8 @@ impl CheckReporter for ConsoleCheckReporter {
     fn checked_object(&self, result: &CheckObjectResult) {
         let bars = self.get_bars();
         bars.objects.inc(1);
-        if matches!(result, CheckObjectResult::Missing(_)) {
+        if let CheckObjectResult::Missing(digest) = result {
+            println!("Missing: {digest}");
             bars.missing.inc_length(1);
         }
     }
@@ -446,7 +447,8 @@ impl CheckReporter for ConsoleCheckReporter {
 
     fn checked_payload(&self, result: &CheckPayloadResult) {
         let bars = self.get_bars();
-        if matches!(result, CheckPayloadResult::Missing(_)) {
+        if let CheckPayloadResult::Missing(digest) = result {
+            println!("Missing: {digest}");
             bars.missing.inc_length(1);
         }
     }
@@ -483,7 +485,7 @@ impl Default for ConsoleCheckReporterBars {
             .tick_strings(TICK_STRINGS)
             .progress_chars(PROGRESS_CHARS);
         let bytes_style = indicatif::ProgressStyle::default_bar()
-            .template("      {spinner} {msg:<18.green} {total_bytes:>9}, {bytes} repaired")
+            .template("      {spinner} {msg:<18.green} {total_bytes:>9} seen,   {bytes} pulled")
             .tick_strings(TICK_STRINGS)
             .progress_chars(PROGRESS_CHARS);
         let bars = indicatif::MultiProgress::new();

@@ -73,10 +73,6 @@ impl CmdCheck {
         }
 
         drop(checker); // clean up progress bars
-
-        for digest in summary.missing_objects.union(&summary.missing_payloads) {
-            println!("Missing: {digest}");
-        }
         println!("{summary:#?}");
 
         if summary.missing_objects.len() + summary.missing_payloads.len() != 0 {
