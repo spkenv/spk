@@ -52,11 +52,15 @@ async fn test_check_missing_payload(#[future] tmprepo: TempRepo) {
         total_blobs - 1,
         "expected all payloads to be visited except missing one"
     );
-    assert_eq!(
-        summary.missing_payloads, 1,
+    assert!(
+        summary.missing_payloads.contains(&file.object),
         "should find one missing payload"
     );
-    assert_eq!(summary.missing_objects, 0, "should see no missing objects");
+    assert_eq!(
+        summary.missing_objects.len(),
+        0,
+        "should see no missing objects"
+    );
 }
 
 #[rstest]
@@ -100,9 +104,12 @@ async fn test_check_missing_object(#[future] tmprepo: TempRepo) {
         total_blobs - 1,
         "one payload should not be seen because of missing object"
     );
-    assert_eq!(summary.missing_objects, 1, "should find one missing object");
-    assert_eq!(
-        summary.missing_payloads, 0,
+    assert!(
+        summary.missing_objects.contains(&file.object),
+        "should find one missing object"
+    );
+    assert!(
+        summary.missing_payloads.is_empty(),
         "should see no missing payloads"
     );
 }
@@ -154,12 +161,18 @@ async fn test_check_missing_payload_recover(#[future] tmprepo: TempRepo) {
         summary.checked_payloads, total_blobs,
         "expected all payloads to be visited after repair"
     );
-    assert_eq!(summary.missing_payloads, 0, "should repair missing payload");
+    assert!(
+        summary.missing_payloads.is_empty(),
+        "should repair missing payload"
+    );
     assert_eq!(
         summary.repaired_payloads, 1,
         "should repair missing payload"
     );
-    assert_eq!(summary.missing_objects, 0, "should see no missing objects");
+    assert!(
+        summary.missing_objects.is_empty(),
+        "should see no missing objects"
+    );
 }
 
 #[rstest]
@@ -209,11 +222,14 @@ async fn test_check_missing_object_recover(#[future] tmprepo: TempRepo) {
         summary.checked_payloads, total_blobs,
         "all payloads should be seen after repair"
     );
-    assert_eq!(summary.missing_objects, 0, "should repair missing object");
+    assert!(
+        summary.missing_objects.is_empty(),
+        "should repair missing object"
+    );
     assert_eq!(summary.repaired_objects, 1, "should repair missing object");
-    assert_eq!(
-        summary.missing_payloads, 0,
-        "should see no missing payloads"
+    assert!(
+        summary.missing_payloads.is_empty(),
+        "should see no missing payloads",
     );
 }
 

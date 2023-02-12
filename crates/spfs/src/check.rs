@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use futures::stream::{FuturesUnordered, TryStreamExt};
@@ -189,7 +190,7 @@ where
         tracing::trace!(?digest, "Checking digest");
         self.reporter.visit_digest(&digest);
         match self.read_object_with_fallback(digest).await {
-            Err(Error::UnknownObject(_)) => Ok(CheckObjectResult::Missing),
+            Err(Error::UnknownObject(_)) => Ok(CheckObjectResult::Missing(digest)),
             Err(err) => Err(err),
             Ok((obj, Fallback::None)) => self.check_object(obj).await,
             Ok((obj, Fallback::Repaired)) => {
@@ -302,7 +303,7 @@ where
     /// Check a payload with the provided digest
     async fn check_payload(&self, digest: encoding::Digest) -> Result<CheckPayloadResult> {
         self.reporter.visit_payload(digest);
-        let mut result = CheckPayloadResult::Missing;
+        let mut result = CheckPayloadResult::Missing(digest);
         if self.repo.has_payload(digest).await {
             result = CheckPayloadResult::Ok;
         } else if let Some(syncer) = &self.repair_with {
@@ -422,7 +423,7 @@ impl CheckReporter for ConsoleCheckReporter {
     fn checked_object(&self, result: &CheckObjectResult) {
         let bars = self.get_bars();
         bars.objects.inc(1);
-        if matches!(result, CheckObjectResult::Missing) {
+        if matches!(result, CheckObjectResult::Missing(_)) {
             bars.missing.inc_length(1);
         }
     }
@@ -445,7 +446,7 @@ impl CheckReporter for ConsoleCheckReporter {
 
     fn checked_payload(&self, result: &CheckPayloadResult) {
         let bars = self.get_bars();
-        if matches!(result, CheckPayloadResult::Missing) {
+        if matches!(result, CheckPayloadResult::Missing(_)) {
             bars.missing.inc_length(1);
         }
     }
@@ -537,14 +538,14 @@ pub struct CheckSummary {
     pub missing_tags: usize,
     /// The number of tags checked and found to be okay
     pub checked_tags: usize,
-    /// The number of missing objects
-    pub missing_objects: usize,
+    /// The missing objects that were discovered
+    pub missing_objects: HashSet<encoding::Digest>,
     /// The number of missing objects that were repaired
     pub repaired_objects: usize,
     /// The number of objects checked and found to be okay
     pub checked_objects: usize,
-    /// The number of missing payloads
-    pub missing_payloads: usize,
+    /// The missing payloads that were discovered
+    pub missing_payloads: HashSet<encoding::Digest>,
     /// The number of missing payloads that were repaired
     pub repaired_payloads: usize,
     /// The number of payloads checked and found to be okay
@@ -579,10 +580,10 @@ impl std::ops::AddAssign for CheckSummary {
         } = rhs;
         self.missing_tags += missing_tags;
         self.checked_tags += checked_tags;
-        self.missing_objects += missing_objects;
+        self.missing_objects.extend(missing_objects);
         self.checked_objects += checked_objects;
         self.checked_payloads += checked_payloads;
-        self.missing_payloads += missing_payloads;
+        self.missing_payloads.extend(missing_payloads);
         self.checked_payload_bytes += checked_payload_bytes;
         self.repaired_objects += repaired_objects;
         self.repaired_payloads += repaired_payloads;
@@ -686,7 +687,7 @@ pub enum CheckObjectResult {
     /// The object was already checked in this session
     Duplicate,
     /// The object was found to be missing from the database
-    Missing,
+    Missing(encoding::Digest),
     Platform(CheckPlatformResult),
     Layer(Box<CheckLayerResult>),
     Blob(CheckBlobResult),
@@ -701,7 +702,7 @@ impl CheckObjectResult {
     fn set_repaired(&mut self) {
         match self {
             CheckObjectResult::Duplicate => (),
-            CheckObjectResult::Missing => (),
+            CheckObjectResult::Missing(_) => (),
             CheckObjectResult::Platform(r) => r.set_repaired(),
             CheckObjectResult::Layer(r) => r.set_repaired(),
             CheckObjectResult::Blob(r) => r.set_repaired(),
@@ -715,8 +716,8 @@ impl CheckObjectResult {
         use CheckObjectResult::*;
         match self {
             Duplicate => CheckSummary::default(),
-            Missing => CheckSummary {
-                missing_objects: 1,
+            Missing(digest) => CheckSummary {
+                missing_objects: Some(*digest).into_iter().collect(),
                 ..Default::default()
             },
             Platform(res) => res.summary(),
@@ -745,7 +746,6 @@ impl CheckPlatformResult {
         let mut summary: CheckSummary = self.results.iter().map(|r| r.summary()).sum();
         summary += CheckSummary::checked_one_object();
         if self.repaired {
-            summary.missing_objects += 1;
             summary.repaired_objects += 1;
         }
         summary
@@ -769,7 +769,6 @@ impl CheckLayerResult {
         let mut summary = self.result.summary();
         summary += CheckSummary::checked_one_object();
         if self.repaired {
-            summary.missing_objects += 1;
             summary.repaired_objects += 1;
         }
         summary
@@ -824,7 +823,7 @@ pub enum CheckBlobResult {
     /// The blob was already checked in this session
     Duplicate,
     /// The blob was not found in the database
-    Missing,
+    Missing(encoding::Digest),
     /// The blob was checked
     Checked {
         repaired: bool,
@@ -844,8 +843,8 @@ impl CheckBlobResult {
     pub fn summary(&self) -> CheckSummary {
         match self {
             Self::Duplicate => CheckSummary::default(),
-            Self::Missing => CheckSummary {
-                missing_objects: 1,
+            Self::Missing(digest) => CheckSummary {
+                missing_objects: Some(*digest).into_iter().collect(),
                 ..Default::default()
             },
             Self::Checked {
@@ -869,7 +868,7 @@ impl CheckBlobResult {
 #[derive(Debug)]
 pub enum CheckPayloadResult {
     /// The payload is missing from this repository
-    Missing,
+    Missing(encoding::Digest),
     /// The payload was missing from this repository but was repaired
     Repaired,
     /// The payload was checked and is present
@@ -879,8 +878,8 @@ pub enum CheckPayloadResult {
 impl CheckPayloadResult {
     pub fn summary(&self) -> CheckSummary {
         match self {
-            Self::Missing => CheckSummary {
-                missing_payloads: 1,
+            Self::Missing(digest) => CheckSummary {
+                missing_payloads: Some(*digest).into_iter().collect(),
                 ..Default::default()
             },
             Self::Repaired => CheckSummary {

@@ -73,9 +73,13 @@ impl CmdCheck {
         }
 
         drop(checker); // clean up progress bars
+
+        for digest in summary.missing_objects.union(&summary.missing_payloads) {
+            println!("Missing: {digest}");
+        }
         println!("{summary:#?}");
 
-        if summary.missing_objects + summary.missing_payloads != 0 {
+        if summary.missing_objects.len() + summary.missing_payloads.len() != 0 {
             if pull_from.is_none() {
                 tracing::info!("running with `--pull` may be able to resolve these issues")
             }
