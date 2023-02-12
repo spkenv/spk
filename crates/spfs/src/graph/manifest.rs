@@ -136,7 +136,7 @@ impl Manifest {
         self.iter_trees().flat_map(|t| t.entries.iter())
     }
 
-    /// Unlock creates a tracking manifest that is more workable
+    /// Unlock this manifest into a more workable form for editing.
     pub fn unlock(&self) -> tracking::Manifest {
         let mut root = tracking::Entry::default();
 
