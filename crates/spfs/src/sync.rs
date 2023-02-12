@@ -664,13 +664,24 @@ impl SyncSummary {
 
 impl std::ops::AddAssign for SyncSummary {
     fn add_assign(&mut self, rhs: Self) {
-        self.skipped_tags += rhs.skipped_tags;
-        self.synced_tags += rhs.synced_tags;
-        self.skipped_objects += rhs.skipped_objects;
-        self.synced_objects += rhs.synced_objects;
-        self.skipped_payloads += rhs.skipped_payloads;
-        self.synced_payloads += rhs.synced_payloads;
-        self.synced_payload_bytes += rhs.synced_payload_bytes;
+        // destructure to ensure that all fields are processed
+        // (causing compile errors for new ones that need to be added)
+        let SyncSummary {
+            skipped_tags,
+            synced_tags,
+            skipped_objects,
+            synced_objects,
+            skipped_payloads,
+            synced_payloads,
+            synced_payload_bytes,
+        } = rhs;
+        self.skipped_tags += skipped_tags;
+        self.synced_tags += synced_tags;
+        self.skipped_objects += skipped_objects;
+        self.synced_objects += synced_objects;
+        self.skipped_payloads += skipped_payloads;
+        self.synced_payloads += synced_payloads;
+        self.synced_payload_bytes += synced_payload_bytes;
     }
 }
 
