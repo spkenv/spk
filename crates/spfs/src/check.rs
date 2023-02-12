@@ -175,8 +175,7 @@ where
         partial: encoding::PartialDigest,
     ) -> Result<CheckObjectResult> {
         let digest = self.repo.resolve_full_digest(&partial).await?;
-        let obj = self.read_object_with_fallback(digest).await?;
-        self.check_object(obj).await
+        self.check_digest(digest).await
     }
 
     /// Validate that the identified object exists and all of its children.
@@ -192,7 +191,12 @@ where
         match self.read_object_with_fallback(digest).await {
             Err(Error::UnknownObject(_)) => Ok(CheckObjectResult::Missing),
             Err(err) => Err(err),
-            Ok(obj) => self.check_object(obj).await,
+            Ok((obj, Fallback::None)) => self.check_object(obj).await,
+            Ok((obj, Fallback::Repaired)) => {
+                let mut res = self.check_object(obj).await?;
+                res.set_repaired();
+                Ok(res)
+            }
         }
     }
 
@@ -228,7 +232,11 @@ where
             .map(|d| self.check_digest(*d))
             .collect();
         let results = futures.try_collect().await?;
-        let res = CheckPlatformResult { platform, results };
+        let res = CheckPlatformResult {
+            platform,
+            results,
+            repaired: false,
+        };
         Ok(res)
     }
 
@@ -237,7 +245,11 @@ where
     /// To also check if the layer object exists, use [`Self::check_digest`]
     pub async fn check_layer(&self, layer: graph::Layer) -> Result<CheckLayerResult> {
         let result = self.check_digest(layer.manifest).await?;
-        let res = CheckLayerResult { layer, result };
+        let res = CheckLayerResult {
+            layer,
+            result,
+            repaired: false,
+        };
         Ok(res)
     }
 
@@ -254,7 +266,11 @@ where
             .map(|e| self.check_digest(e.object))
             .collect();
         let results = futures.try_collect().await?;
-        let res = CheckManifestResult { manifest, results };
+        let res = CheckManifestResult {
+            manifest,
+            results,
+            repaired: false,
+        };
         Ok(res)
     }
 
@@ -274,7 +290,11 @@ where
     async fn must_check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
         self.reporter.visit_blob(&blob);
         let result = self.check_payload(blob.payload).await?;
-        let res = CheckBlobResult::Checked { blob, result };
+        let res = CheckBlobResult::Checked {
+            blob,
+            result,
+            repaired: false,
+        };
         self.reporter.checked_blob(&res);
         Ok(res)
     }
@@ -290,14 +310,18 @@ where
             // already determined that the blob exists
             if let Ok(r) = unsafe { syncer.sync_payload(digest).await } {
                 self.reporter.repaired_payload(&r);
-                result = CheckPayloadResult::Ok;
+                result = CheckPayloadResult::Repaired;
             }
         }
         self.reporter.checked_payload(&result);
         Ok(result)
     }
 
-    async fn read_object_with_fallback(&self, digest: encoding::Digest) -> Result<graph::Object> {
+    /// Returns the object, and whether or not it was repaired
+    async fn read_object_with_fallback(
+        &self,
+        digest: encoding::Digest,
+    ) -> Result<(graph::Object, Fallback)> {
         let res = self.repo.read_object(digest).await;
         match res {
             Err(err) => {
@@ -309,14 +333,24 @@ where
                 };
                 if let Ok(result) = syncer.sync_digest(digest).await {
                     self.reporter.repaired_object(&result);
-                    self.repo.read_object(digest).await
+                    self.repo
+                        .read_object(digest)
+                        .await
+                        .map(|o| (o, Fallback::Repaired))
                 } else {
                     Err(err)
                 }
             }
-            res => res,
+            res => res.map(|o| (o, Fallback::None)),
         }
     }
+}
+
+enum Fallback {
+    /// No fallback was necessary, the item was already present
+    None,
+    /// The item was not present but was successfully repaired
+    Repaired,
 }
 
 /// Receives updates from a check process to be reported.
@@ -505,10 +539,14 @@ pub struct CheckSummary {
     pub checked_tags: usize,
     /// The number of missing objects
     pub missing_objects: usize,
+    /// The number of missing objects that were repaired
+    pub repaired_objects: usize,
     /// The number of objects checked and found to be okay
     pub checked_objects: usize,
     /// The number of missing payloads
     pub missing_payloads: usize,
+    /// The number of missing payloads that were repaired
+    pub repaired_payloads: usize,
     /// The number of payloads checked and found to be okay
     pub checked_payloads: usize,
     /// The total number of payload bytes checked
@@ -536,6 +574,8 @@ impl std::ops::AddAssign for CheckSummary {
             checked_payloads,
             missing_payloads,
             checked_payload_bytes,
+            repaired_objects,
+            repaired_payloads,
         } = rhs;
         self.missing_tags += missing_tags;
         self.checked_tags += checked_tags;
@@ -544,6 +584,8 @@ impl std::ops::AddAssign for CheckSummary {
         self.checked_payloads += checked_payloads;
         self.missing_payloads += missing_payloads;
         self.checked_payload_bytes += checked_payload_bytes;
+        self.repaired_objects += repaired_objects;
+        self.repaired_payloads += repaired_payloads;
     }
 }
 
@@ -654,6 +696,21 @@ pub enum CheckObjectResult {
 }
 
 impl CheckObjectResult {
+    /// Marks this result as being repaired, if possible.
+    /// A [`Self::Missing`] or [`Self::Duplicate`] result cannot be changed this way.
+    fn set_repaired(&mut self) {
+        match self {
+            CheckObjectResult::Duplicate => (),
+            CheckObjectResult::Missing => (),
+            CheckObjectResult::Platform(r) => r.set_repaired(),
+            CheckObjectResult::Layer(r) => r.set_repaired(),
+            CheckObjectResult::Blob(r) => r.set_repaired(),
+            CheckObjectResult::Manifest(r) => r.set_repaired(),
+            CheckObjectResult::Tree(_) => (),
+            CheckObjectResult::Mask => (),
+        }
+    }
+
     pub fn summary(&self) -> CheckSummary {
         use CheckObjectResult::*;
         match self {
@@ -673,42 +730,71 @@ impl CheckObjectResult {
 
 #[derive(Debug)]
 pub struct CheckPlatformResult {
+    pub repaired: bool,
     pub platform: graph::Platform,
     pub results: Vec<CheckObjectResult>,
 }
 
 impl CheckPlatformResult {
+    /// Marks this result as being repaired.
+    fn set_repaired(&mut self) {
+        self.repaired = true;
+    }
+
     pub fn summary(&self) -> CheckSummary {
-        let mut summary = self.results.iter().map(|r| r.summary()).sum();
+        let mut summary: CheckSummary = self.results.iter().map(|r| r.summary()).sum();
         summary += CheckSummary::checked_one_object();
+        if self.repaired {
+            summary.missing_objects += 1;
+            summary.repaired_objects += 1;
+        }
         summary
     }
 }
 
 #[derive(Debug)]
 pub struct CheckLayerResult {
+    pub repaired: bool,
     pub layer: graph::Layer,
     pub result: CheckObjectResult,
 }
 
 impl CheckLayerResult {
+    /// Marks this result as being repaired.
+    fn set_repaired(&mut self) {
+        self.repaired = true;
+    }
+
     pub fn summary(&self) -> CheckSummary {
         let mut summary = self.result.summary();
         summary += CheckSummary::checked_one_object();
+        if self.repaired {
+            summary.missing_objects += 1;
+            summary.repaired_objects += 1;
+        }
         summary
     }
 }
 
 #[derive(Debug)]
 pub struct CheckManifestResult {
+    pub repaired: bool,
     pub manifest: graph::Manifest,
     pub results: Vec<CheckObjectResult>,
 }
 
 impl CheckManifestResult {
+    /// Marks this result as being repaired.
+    fn set_repaired(&mut self) {
+        self.repaired = true;
+    }
+
     pub fn summary(&self) -> CheckSummary {
-        let mut summary = self.results.iter().map(|r| r.summary()).sum();
+        let mut summary: CheckSummary = self.results.iter().map(|r| r.summary()).sum();
         summary += CheckSummary::checked_one_object();
+        if self.repaired {
+            summary.repaired_objects += 1;
+        }
         summary
     }
 }
@@ -741,12 +827,20 @@ pub enum CheckBlobResult {
     Missing,
     /// The blob was checked
     Checked {
+        repaired: bool,
         blob: graph::Blob,
         result: CheckPayloadResult,
     },
 }
 
 impl CheckBlobResult {
+    /// Marks this result as being repaired.
+    fn set_repaired(&mut self) {
+        if let Self::Checked { repaired, .. } = self {
+            *repaired = true;
+        }
+    }
+
     pub fn summary(&self) -> CheckSummary {
         match self {
             Self::Duplicate => CheckSummary::default(),
@@ -754,11 +848,16 @@ impl CheckBlobResult {
                 missing_objects: 1,
                 ..Default::default()
             },
-            Self::Checked { result, blob } => {
+            Self::Checked {
+                repaired,
+                result,
+                blob,
+            } => {
                 let mut summary = result.summary();
                 summary += CheckSummary {
                     checked_objects: 1,
                     checked_payload_bytes: blob.size,
+                    repaired_objects: *repaired as usize,
                     ..Default::default()
                 };
                 summary
@@ -771,6 +870,8 @@ impl CheckBlobResult {
 pub enum CheckPayloadResult {
     /// The payload is missing from this repository
     Missing,
+    /// The payload was missing from this repository but was repaired
+    Repaired,
     /// The payload was checked and is present
     Ok,
 }
@@ -780,6 +881,11 @@ impl CheckPayloadResult {
         match self {
             Self::Missing => CheckSummary {
                 missing_payloads: 1,
+                ..Default::default()
+            },
+            Self::Repaired => CheckSummary {
+                checked_payloads: 1,
+                repaired_payloads: 1,
                 ..Default::default()
             },
             Self::Ok => CheckSummary {

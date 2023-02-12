@@ -155,6 +155,10 @@ async fn test_check_missing_payload_recover(#[future] tmprepo: TempRepo) {
         "expected all payloads to be visited after repair"
     );
     assert_eq!(summary.missing_payloads, 0, "should repair missing payload");
+    assert_eq!(
+        summary.repaired_payloads, 1,
+        "should repair missing payload"
+    );
     assert_eq!(summary.missing_objects, 0, "should see no missing objects");
 }
 
@@ -206,6 +210,7 @@ async fn test_check_missing_object_recover(#[future] tmprepo: TempRepo) {
         "all payloads should be seen after repair"
     );
     assert_eq!(summary.missing_objects, 0, "should repair missing object");
+    assert_eq!(summary.repaired_objects, 1, "should repair missing object");
     assert_eq!(
         summary.missing_payloads, 0,
         "should see no missing payloads"
