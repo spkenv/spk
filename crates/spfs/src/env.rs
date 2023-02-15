@@ -17,6 +17,7 @@ use tokio_stream::wrappers::{IntervalStream, UnboundedReceiverStream};
 use tokio_stream::StreamExt;
 
 use super::runtime;
+use crate::repeating_timeout::RepeatingTimeout;
 use crate::{Error, Result};
 
 const PROC_DIR: &str = "/proc";
@@ -392,7 +393,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
 
     // Add a timeout to be able to detect when no relevant pid events are
     // arriving for a period of time.
-    let events_stream = events_stream.timeout(tokio::time::Duration::from_secs(60));
+    let events_stream = RepeatingTimeout::new(events_stream, tokio::time::Duration::from_secs(60));
     tokio::pin!(events_stream);
 
     async fn repair_tracked_processes<S>(tracked_processes: &Arc<DashSet<u32, S>>, ns: &Path)

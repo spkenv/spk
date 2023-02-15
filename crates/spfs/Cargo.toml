@@ -43,6 +43,7 @@ libc = { workspace = true }
 nix = { workspace = true }
 nonempty = "0.8.1"
 once_cell = { workspace = true }
+pin-project-lite = { workspace = true }
 procfs = { workspace = true }
 prost = "0.11"
 rand = "0.8.5"
