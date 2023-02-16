@@ -14,12 +14,29 @@ use spk_schema::Package;
 use spk_solve::solution::{PackageSource, SolvedRequest};
 use spk_solve::Component;
 
+// Verbosity level above which repo and component names will be
+// included in the package display values.
+const NO_VERBOSITY: u32 = 0;
+
 // Constants for the valid output formats
 const LAYER_FORMAT: &str = "layers";
 const BUILD_FORMAT: &str = "builds";
 const YAML_FORMAT: &str = "yaml";
 const JSON_FORMAT: &str = "json";
 const OUTPUT_FORMATS: &[&str] = &[LAYER_FORMAT, BUILD_FORMAT, YAML_FORMAT, JSON_FORMAT];
+
+// TODO: a duplicate of this exists in spk-cli/common/src hidden
+// behind the "sentry" feature. Might want consider refactoring these
+// two functions to a single place not hidden behind any feature.
+/// Utility for removing ansi-colour/terminal escape codes from a String
+fn remove_ansi_escapes(message: String) -> String {
+    if let Ok(b) = strip_ansi_escapes::strip(message.clone()) {
+        if let Ok(s) = std::str::from_utf8(&b) {
+            return s.to_string();
+        }
+    }
+    message
+}
 
 /// Bake an executable environment from a set of requests or the current environment.
 #[derive(Args)]
@@ -66,6 +83,8 @@ struct BakeLayer {
     spk_requester: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     spfs_tag: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    spfs_repo_name: String,
 }
 
 const EMPTY_TAG: &str = "";
@@ -200,8 +219,17 @@ impl Bake {
                     }
                 }
 
-                layers_to_packages
-                    .insert(*layer, (resolved.spec.ident().to_string(), component_label));
+                layers_to_packages.insert(
+                    *layer,
+                    (
+                        if self.verbose > NO_VERBOSITY {
+                            remove_ansi_escapes(resolved.format_as_installed_package())
+                        } else {
+                            resolved.spec.ident().to_string()
+                        },
+                        component_label,
+                    ),
+                );
             }
         }
 
@@ -237,6 +265,7 @@ impl Bake {
                 spk_component: component,
                 spk_requester: requested_by,
                 spfs_tag,
+                spfs_repo_name: runtime.name().to_string(),
             });
         }
 
@@ -286,6 +315,15 @@ impl Bake {
                 .map(ToString::to_string)
                 .collect::<Vec<String>>();
 
+            // The repo name for this package is valid if the package comes from a
+            // repository, otherwise a broad placeholder is used.
+            let repo_name = match &resolved.source {
+                PackageSource::Repository { repo, .. } => repo.name().to_string(),
+                PackageSource::BuildFromSource { .. } => "source".to_string(),
+                PackageSource::Embedded { .. } => "embedded".to_string(),
+                PackageSource::SpkInternalTest => "internal test".to_string(),
+            };
+
             // There's no spfs tag information for this yet.
             // TODO: need to expose spfs's repository's
             // find_aliases()/find_tags() in spk to get this from a digest
@@ -294,10 +332,15 @@ impl Bake {
             for (component, layer) in spfs_layers.iter() {
                 stack.push(BakeLayer {
                     spfs_layer: layer.to_string(),
-                    spk_package: resolved.spec.ident().to_string(),
+                    spk_package: if self.verbose > NO_VERBOSITY {
+                        remove_ansi_escapes(resolved.format_as_installed_package())
+                    } else {
+                        resolved.spec.ident().to_string()
+                    },
                     spk_component: component.to_string(),
                     spk_requester: requested_by.join(", "),
                     spfs_tag: spfs_tag.clone(),
+                    spfs_repo_name: repo_name.clone(),
                 });
             }
         }

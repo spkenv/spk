@@ -118,7 +118,7 @@ impl SolvedRequest {
     }
 
     /// Format this solved request as an installed package(build)
-    pub(crate) fn format_as_installed_package(&self) -> String {
+    pub fn format_as_installed_package(&self) -> String {
         let mut installed =
             PkgRequest::from_ident(self.spec.ident().to_any(), RequestedBy::DoesNotMatter);
 
