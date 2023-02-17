@@ -30,6 +30,7 @@ async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<()> {
         None => return Err(Error::MissingBinary("spfs-render")),
     };
     let mut cmd = tokio::process::Command::new(render_cmd);
+    cmd.stdout(std::process::Stdio::null());
     cmd.arg(spec.to_string());
     tracing::debug!("{:?}", cmd);
     let status = cmd
