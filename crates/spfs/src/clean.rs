@@ -2,458 +2,663 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
+use std::fmt::Write;
+use std::future::ready;
 use std::os::linux::fs::MetadataExt;
-use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
-use futures::FutureExt;
-use tokio_stream::StreamExt;
+use chrono::{DateTime, Duration, Local, Utc};
+use colored::Colorize;
+use dashmap::DashSet;
+use futures::{FutureExt, TryFutureExt, TryStreamExt};
+use once_cell::sync::OnceCell;
 
-use crate::storage::RepositoryHandle;
-use crate::{encoding, storage, Error, Result};
+use super::prune::PruneParameters;
+use crate::{encoding, graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./clean_test.rs"]
 mod clean_test;
 
-/// Clean all untagged objects from the given repo.
-pub async fn clean_untagged_objects(
-    older_than: DateTime<Utc>,
-    repo: &storage::RepositoryHandle,
+const MAX_CONCURRENT_TAG_STREAMS: usize = 50;
+const MAX_CONCURRENT_REMOVALS: usize = 50;
+
+/// Runs a cleaning operation on a repository.
+///
+/// Primarily, this operation looks to remove data
+/// which cannot be reached via a tag. Additional
+/// parameters can be given to remove old and redundant
+/// tags to free further objects to be removed.
+pub struct Cleaner<'repo, Reporter = SilentCleanReporter>
+where
+    Reporter: CleanReporter,
+{
+    repo: &'repo storage::RepositoryHandle,
+    reporter: Reporter,
+    attached: DashSet<encoding::Digest>,
     dry_run: bool,
-) -> Result<()> {
-    let unattached = get_all_unattached_objects(repo).await?;
-    if unattached.is_empty() {
-        tracing::info!("nothing to clean!");
-    } else {
-        tracing::info!("removing orphaned data");
-        let count = unattached.len();
-        purge_objects(
-            older_than,
-            &unattached.iter().collect::<Vec<_>>(),
+    must_be_older_than: DateTime<Utc>,
+    prune_repeated_tags: bool,
+    prune_params: PruneParameters,
+}
+
+impl<'repo> Cleaner<'repo, SilentCleanReporter> {
+    pub fn new(repo: &'repo storage::RepositoryHandle) -> Self {
+        Self {
             repo,
-            None,
-            dry_run,
-        )
-        .await?;
-        tracing::info!("cleaned {count} objects");
+            reporter: SilentCleanReporter,
+            attached: Default::default(),
+            dry_run: false,
+            must_be_older_than: Utc::now(),
+            prune_repeated_tags: false,
+            prune_params: Default::default(),
+        }
     }
-    Ok(())
 }
 
-/// Remove the identified objects from the given repository.
-///
-/// Objects younger than the given threshold will not be touched.
-///
-/// If the set of all attached objects is provided, also purge renders of
-/// objects that are no longer attached.
-///
-/// # Errors
-/// - [`Error::IncompleteClean`]: An accumulation of any errors hit during the prune process
-pub async fn purge_objects(
-    older_than: DateTime<Utc>,
-    objects: &[&encoding::Digest],
-    repo: &storage::RepositoryHandle,
-    attached_objects: Option<&HashSet<encoding::Digest>>,
-    dry_run: bool,
-) -> Result<()> {
-    let repo = &repo.address();
-    let repo = Arc::new(crate::open_repository(repo).await?);
-    let renders_for_all_users = Arc::new(match &*repo {
-        RepositoryHandle::FS(r) => r.renders_for_all_users()?,
-        _ => Vec::new(),
-    });
+impl<'repo, Reporter> Cleaner<'repo, Reporter>
+where
+    Reporter: CleanReporter + Send + Sync,
+{
+    /// Report all progress to the given instance, replacing
+    /// and existing reporter.
+    pub fn with_reporter<R: CleanReporter>(self, reporter: R) -> Cleaner<'repo, R> {
+        Cleaner {
+            repo: self.repo,
+            reporter,
+            attached: self.attached,
+            dry_run: self.dry_run,
+            must_be_older_than: self.must_be_older_than,
+            prune_repeated_tags: self.prune_repeated_tags,
+            prune_params: self.prune_params,
+        }
+    }
 
-    let style = indicatif::ProgressStyle::default_bar()
-        .template("       {msg:<21} [{bar:40}] {pos:>7}/{len:7}")
-        .progress_chars("=>-");
-    let obj_count = objects.len() as u64;
-    let multibar = std::sync::Arc::new(indicatif::MultiProgress::new());
-    let obj_bar = multibar.add(indicatif::ProgressBar::new(obj_count));
-    obj_bar.set_style(style.clone());
-    obj_bar.set_message("cleaning objects");
-    let payload_bar = multibar.add(indicatif::ProgressBar::new(obj_count));
-    payload_bar.set_style(style.clone());
-    payload_bar.set_message("cleaning payloads");
-    let render_bar = multibar.add(indicatif::ProgressBar::new(obj_count));
-    render_bar.set_style(style.clone());
-    render_bar.set_message("cleaning renders");
-    let user_render_bar = attached_objects.as_ref().map(|_| {
-        let bar = multibar.add(indicatif::ProgressBar::new(
-            renders_for_all_users.len().try_into().unwrap_or(u64::MAX),
-        ));
-        bar.set_style(style);
-        bar.set_message("cleaning user renders");
-        bar
-    });
+    /// When dry run is enabled, the clean process doesn't actually
+    /// remove any data, but otherwise operates as normal and reports on
+    /// the decisions that would be made and data that would be removed
+    pub fn with_dry_run(mut self, dry_run: bool) -> Self {
+        self.dry_run = dry_run;
+        self
+    }
 
-    let mut errors = Vec::new();
+    /// Objects that have been in the repository for less
+    /// than this amount of time are never removed, even
+    /// if they are detached from a tag.
+    ///
+    /// This helps to ensure that active commit operations
+    /// and regular write operations are not corrupted.
+    pub fn with_required_age(mut self, age: Duration) -> Self {
+        self.must_be_older_than = Utc::now() - age;
+        self
+    }
 
-    let bars_future = tokio::task::spawn_blocking(move || multibar.join());
-    let map_err = |e| Error::String(format!("Unexpected error in clean process: {e}"));
+    /// When walking the history of a tag, delete older entries
+    /// that have the same target as a more recent one.
+    pub fn with_prune_repeated_tags(mut self, prune_repeated_tags: bool) -> Self {
+        self.prune_repeated_tags = prune_repeated_tags;
+        self
+    }
 
-    let mut cleaned_objects = Vec::new();
+    /// When walking the history of a tag, delete entries
+    /// older than this date time
+    pub fn with_prune_tags_older_than(
+        mut self,
+        prune_if_older_than: Option<DateTime<Utc>>,
+    ) -> Self {
+        self.prune_params.prune_if_older_than = prune_if_older_than;
+        self
+    }
 
-    // we still do each of these pieces separately, because we'd like
-    // to ensure that objects are removed successfully before any
-    // related payloads, etc...
-    let mut futures: futures::stream::FuturesUnordered<_> = objects
-        .iter()
-        .map(|digest| {
-            tokio::spawn(clean_object(
-                older_than,
-                Arc::clone(&repo),
-                **digest,
-                dry_run,
-            ))
-            .map(move |f| (*digest, f))
-        })
-        .collect();
-    while let Some((digest, result)) = futures.next().await {
-        match result.map_err(map_err).and_then(|e| e) {
-            Ok(deleted) if deleted => cleaned_objects.push(digest),
-            Ok(_) => {}
-            Err(err) => errors.push(err),
+    /// When walking the history of a tag, never delete entries
+    /// newer than this date time
+    pub fn with_keep_tags_newer_than(mut self, keep_if_newer_than: Option<DateTime<Utc>>) -> Self {
+        self.prune_params.keep_if_newer_than = keep_if_newer_than;
+        self
+    }
+
+    /// When walking the history of a tag, delete all additional
+    /// entries leaving this number in the stream
+    pub fn with_prune_tags_if_version_more_than(
+        mut self,
+        prune_if_version_more_than: Option<u64>,
+    ) -> Self {
+        self.prune_params.prune_if_version_more_than = prune_if_version_more_than;
+        self
+    }
+
+    /// When walking the history of a tag, never leave less than
+    /// this number of tags in the stream, regardless of other settings
+    pub fn with_keep_tags_if_version_less_than(
+        mut self,
+        keep_if_version_less_than: Option<u64>,
+    ) -> Self {
+        self.prune_params.keep_if_version_less_than = keep_if_version_less_than;
+        self
+    }
+
+    /// Provide a human-readable summary of the current
+    /// configuration for this cleaner.
+    ///
+    /// This plan is intended to serve as a resource
+    /// for confirming that the current configuration is
+    /// setup as desired.
+    pub fn format_plan(&self) -> String {
+        let find = "FIND".cyan();
+        let scan = "SCAN".cyan();
+        let remove = "REMOVE".red();
+        let prune = "PRUNE".yellow();
+        let identify = "IDENTIFY".cyan();
+
+        let mut out = format!("{}:\n", "Cleaning Plan".bold());
+        let _ = writeln!(&mut out, "First, {scan} all of the tags in the repository.",);
+        let _ = writeln!(
+            &mut out,
+            " - {} each item in the tag's history, and for each one:",
+            "VISIT".cyan()
+        );
+        if self.prune_repeated_tags || !self.prune_params.is_empty() {
+            if self.prune_repeated_tags {
+                let _ = writeln!(
+                    &mut out,
+                    " - {prune} any entry that has a the same target as a more recent entry",
+                );
+            }
+            let PruneParameters {
+                prune_if_older_than,
+                keep_if_newer_than,
+                prune_if_version_more_than,
+                keep_if_version_less_than,
+            } = &self.prune_params;
+            if let Some(dt) = prune_if_older_than {
+                let _ = writeln!(
+                    &mut out,
+                    " - {identify} any tags older than {}",
+                    dt.with_timezone(&Local)
+                );
+            }
+            if let Some(v) = prune_if_version_more_than {
+                let _ = writeln!(&mut out, " - {identify} any tags greater than version {v}",);
+            }
+            if keep_if_newer_than.is_some() || keep_if_version_less_than.is_some() {
+                let _ = writeln!(&mut out, "{prune} the identified tags unless:");
+                if let Some(dt) = keep_if_newer_than {
+                    let _ = writeln!(
+                        &mut out,
+                        " - the tag was created after {}",
+                        dt.with_timezone(&Local)
+                    );
+                }
+                if let Some(v) = keep_if_version_less_than {
+                    let _ = writeln!(&mut out, " - the tag's version is less than {v}",);
+                }
+            }
+            let _ = writeln!(
+                &mut out,
+                " - otherwise, {find} all the objects and payloads connected to it",
+            );
+        } else {
+            let _ = writeln!(
+                &mut out,
+                " - {find} all the objects and payloads connected to it",
+            );
+        }
+
+        let _ = writeln!(
+            &mut out,
+            "Then, {scan} all of the objects in the repository"
+        );
+        let _ = writeln!(
+            &mut out,
+            " - {identify} any object that is not connected to a tag"
+        );
+        let _ = writeln!(
+            &mut out,
+            " - {remove} that object unless it was created after {}",
+            self.must_be_older_than.with_timezone(&Local)
+        );
+        let _ = writeln!(
+            &mut out,
+            "Then, {scan} all of the payloads in the repository"
+        );
+        let _ = writeln!(
+            &mut out,
+            " - {remove} any payload that is not connected to a blob"
+        );
+        let _ = writeln!(
+            &mut out,
+            "Then, {scan} all of the renders in the repository"
+        );
+        let _ = writeln!(
+            &mut out,
+            " - {remove} any render that is not connected to an object"
+        );
+        out
+    }
+
+    /// Visit all tags, pruning as configured and then cleaning detatched objects
+    pub async fn prune_all_tags_and_clean(&self) -> Result<()> {
+        let mut stream = self.repo.iter_tag_streams();
+        let mut futures = futures::stream::FuturesUnordered::new();
+        while let Some((tag_spec, _stream)) = stream.try_next().await? {
+            if futures.len() > MAX_CONCURRENT_TAG_STREAMS {
+                // if we've reached the limit, let the fastest half finish
+                // before adding additional futures. This is a crude way to
+                // try and maximize parallel processing while also not leaving
+                // completed futures for too long or needing to wait for the
+                // slowest ones too often
+                while futures.len() > MAX_CONCURRENT_TAG_STREAMS / 2 {
+                    futures.try_next().await?;
+                }
+            }
+            futures.push(self.prune_tag_stream_and_walk(tag_spec));
+        }
+        while let Some(_result) = futures.try_next().await? {}
+        tokio::try_join!(
+            self.remove_unvisited_objects_and_payloads(),
+            self.remove_unvisited_renders(),
+        )?;
+        Ok(())
+    }
+
+    async fn prune_tag_stream_and_walk(&self, tag_spec: tracking::TagSpec) -> Result<()> {
+        let history = self
+            .repo
+            .read_tag(&tag_spec)
+            .await?
+            .try_collect::<Vec<_>>()
+            .await?;
+        let mut to_prune = Vec::with_capacity(history.len() / 2);
+        let mut to_keep = Vec::with_capacity(history.len() / 2);
+        let mut seen_targets = std::collections::HashSet::new();
+        for tag in history {
+            self.reporter.visit_tag(&tag);
+            if !seen_targets.insert(tag.target) && self.prune_repeated_tags {
+                to_prune.push(tag);
+                continue;
+            }
+            if self.prune_params.should_prune(&tag_spec, &tag) {
+                to_prune.push(tag);
+            } else {
+                to_keep.push(tag);
+            }
+        }
+
+        for tag in to_prune {
+            if !self.dry_run {
+                self.repo.remove_tag(&tag).await?;
+            }
+            self.reporter.tag_removed(&tag);
+        }
+
+        for tag in to_keep {
+            self.discover_attached_objects(tag.target).await?;
+        }
+
+        Ok(())
+    }
+
+    #[async_recursion::async_recursion]
+    async fn discover_attached_objects(&self, digest: encoding::Digest) -> Result<()> {
+        if !self.attached.insert(digest) {
+            return Ok(());
+        }
+
+        let obj = self.repo.read_object(digest).await?;
+        self.reporter.visit_object(&obj);
+        if let graph::Object::Blob(b) = &obj {
+            self.reporter.visit_payload(b);
+        }
+        for child in obj.child_objects() {
+            self.discover_attached_objects(child).await?;
+        }
+        Ok(())
+    }
+
+    async fn remove_unvisited_objects_and_payloads(&self) -> Result<()> {
+        let mut stream = self
+            .repo
+            .iter_objects()
+            .try_filter(|(digest, _object)| ready(!self.attached.contains(digest)))
+            .and_then(|obj| {
+                self.reporter.visit_object(&obj.1);
+                ready(Ok(obj))
+            })
+            .and_then(|(digest, object)| {
+                let future = self
+                    .repo
+                    .remove_object_if_older_than(self.must_be_older_than, digest)
+                    .map(|res| {
+                        if let Err(Error::UnknownObject(_)) = res {
+                            return Ok(true);
+                        }
+                        res
+                    })
+                    .map_ok(|removed| (object, removed));
+                ready(Ok(future))
+            })
+            .try_buffer_unordered(MAX_CONCURRENT_REMOVALS)
+            .try_filter_map(|(obj, removed)| ready(Ok(removed.then_some(obj))))
+            .and_then(|obj| {
+                self.reporter.object_removed(&obj);
+                ready(Ok(obj))
+            })
+            .try_filter_map(|obj| match obj {
+                graph::Object::Blob(blob) => ready(Ok(Some(blob))),
+                _ => ready(Ok(None)),
+            })
+            .and_then(|blob| {
+                self.reporter.visit_payload(&blob);
+                let future = self
+                    .repo
+                    .remove_payload(blob.payload)
+                    .map(|res| {
+                        if let Err(Error::UnknownObject(_)) = res {
+                            return Ok(());
+                        }
+                        res
+                    })
+                    .map_ok(|_| blob);
+                ready(Ok(future))
+            })
+            .try_buffer_unordered(MAX_CONCURRENT_REMOVALS);
+        while let Some(blob) = stream.try_next().await? {
+            self.reporter.payload_removed(&blob)
+        }
+
+        let mut stream = self
+            .repo
+            .iter_payload_digests()
+            .try_filter_map(|payload| {
+                if self.attached.contains(&payload) {
+                    return ready(Ok(None));
+                }
+                // TODO: this should be able to get the size of the payload, but
+                // currently there is no way to do this unless you start with
+                // the blob
+                let blob = graph::Blob { payload, size: 0 };
+                ready(Ok(Some(blob)))
+            })
+            .and_then(|blob| {
+                self.reporter.visit_payload(&blob);
+                let future = self.repo.remove_payload(blob.payload).map_ok(|_| blob);
+                ready(Ok(future))
+            })
+            .try_buffer_unordered(MAX_CONCURRENT_REMOVALS);
+        while let Some(blob) = stream.try_next().await? {
+            self.reporter.payload_removed(&blob)
+        }
+
+        Ok(())
+    }
+
+    async fn remove_unvisited_renders(&self) -> Result<()> {
+        let storage::RepositoryHandle::FS(repo) = self.repo else {
+            return Ok(());
         };
-        obj_bar.inc(1);
-    }
-    obj_bar.finish();
 
-    // `cleaned_objects` contain the objects that were old enough to be cleaned,
-    // only remove the payloads and renders for those.
+        self.remove_unvisited_renders_for_storage(repo).await?;
 
-    let mut futures: futures::stream::FuturesUnordered<_> = cleaned_objects
-        .iter()
-        .map(|digest| tokio::spawn(clean_payload(Arc::clone(&repo), **digest, dry_run)))
-        .collect();
-    while let Some(result) = futures.next().await {
-        if let Err(err) = result.map_err(map_err).and_then(|e| e) {
-            errors.push(err);
+        let renders_for_all_users = repo.renders_for_all_users()?;
+
+        for (_username, sub_repo) in renders_for_all_users.iter() {
+            self.remove_unvisited_renders_for_storage(sub_repo).await?;
         }
-        payload_bar.inc(1);
-    }
-    payload_bar.finish();
-
-    let mut futures: futures::stream::FuturesUnordered<_> = cleaned_objects
-        .iter()
-        .map(|digest| {
-            tokio::spawn(clean_render(
-                older_than,
-                Arc::clone(&renders_for_all_users),
-                **digest,
-                dry_run,
-            ))
-        })
-        .collect();
-    while let Some(result) = futures.next().await {
-        if let Err(err) = result.map_err(map_err).and_then(|e| e) {
-            errors.push(err);
-        }
-        render_bar.inc(1);
-    }
-    render_bar.finish();
-
-    if let (Some(attached_objects), Some(user_render_bar)) =
-        (attached_objects, user_render_bar.as_ref())
-    {
-        for (username, manifest_viewer) in renders_for_all_users.iter() {
-            let mut iter = manifest_viewer.iter_rendered_manifests();
-            while let Some(digest) = iter.next().await {
-                let digest = match digest {
-                    Ok(digest) => digest,
-                    Err(Error::NoRenderStorage(_)) => {
-                        // This can happen if the renders/<username> directory
-                        // is empty.
-                        //
-                        // Go to next user.
-                        break;
-                    }
-                    Err(err) => {
-                        errors.push(Error::String(format!(
-                            "Error iterating rendered manifests for user {username}: {err}"
-                        )));
-                        // Go to next user.
-                        break;
-                    }
-                };
-
-                // Note that if there are a small number of these trace lines
-                // output, they might be covered up by the progress bars.
-                tracing::trace!(?username, ?digest, "rendered object");
-
-                if attached_objects.contains(&digest) {
-                    tracing::trace!(?username, ?digest, "still attached");
-                    continue;
-                }
-
-                if let Err(err) =
-                    clean_render_for_user(older_than, username, manifest_viewer, digest, dry_run)
-                        .await
-                {
-                    errors.push(err);
-                }
-            }
-            user_render_bar.inc(1);
-        }
-    }
-    if let Some(bar) = user_render_bar {
-        bar.finish()
-    }
-
-    let mut futures: futures::stream::FuturesUnordered<_> = renders_for_all_users
-        .iter()
-        .filter_map(|(_, proxy)| {
-            proxy
-                .proxy_path()
-                .map(|proxy_path| tokio::spawn(clean_proxy(proxy_path.to_owned(), dry_run)))
-        })
-        .collect();
-    while let Some(result) = futures.next().await {
-        if let Err(err) = result.map_err(map_err).and_then(|e| e) {
-            errors.push(err);
-        }
-    }
-
-    match bars_future.await {
-        Err(err) => tracing::warn!("{err}"),
-        Ok(Err(err)) => tracing::warn!("{err}"),
-        _ => (),
-    }
-
-    if !errors.is_empty() {
-        Err(Error::IncompleteClean { errors })
-    } else {
         Ok(())
     }
-}
 
-async fn clean_object(
-    older_than: DateTime<Utc>,
-    repo: Arc<storage::RepositoryHandle>,
-    digest: encoding::Digest,
-    dry_run: bool,
-) -> Result<bool> {
-    if dry_run {
-        tracing::info!("remove object: {digest}");
-        return Ok(true);
-    }
+    async fn remove_unvisited_renders_for_storage(
+        &self,
+        repo: &storage::fs::FSRepository,
+    ) -> Result<()> {
+        let mut stream = repo
+            .iter_rendered_manifests()
+            .try_filter_map(|digest| {
+                self.reporter.visit_render(&digest);
+                if self.attached.contains(&digest) {
+                    return ready(Ok(None));
+                }
+                ready(Ok(Some(digest)))
+            })
+            .and_then(|digest| {
+                let future = repo
+                    .remove_rendered_manifest_if_older_than(self.must_be_older_than, digest)
+                    .map_ok(move |removed| (digest, removed));
+                ready(Ok(future))
+            })
+            .try_buffer_unordered(MAX_CONCURRENT_REMOVALS)
+            .try_filter_map(|(digest, removed)| ready(Ok(removed.then_some(digest))));
+        while let Some(digest) = stream.try_next().await? {
+            self.reporter.render_removed(&digest);
+        }
 
-    let res = repo.remove_object_if_older_than(older_than, digest).await;
-    if let Err(Error::UnknownObject(_)) = res {
-        // Treat this as if the object was deleted, so there is an attempt to
-        // delete the payload, etc.
-        Ok(true)
-    } else {
-        res
-    }
-}
-
-async fn clean_payload(
-    repo: Arc<storage::RepositoryHandle>,
-    digest: encoding::Digest,
-    dry_run: bool,
-) -> Result<()> {
-    if dry_run {
-        tracing::info!("remove payload: {digest}");
-        return Ok(());
-    }
-
-    let res = repo.remove_payload(digest).await;
-    if let Err(Error::UnknownObject(_)) = res {
+        if let Some(proxy_path) = repo.proxy_path() {
+            self.clean_proxy(proxy_path.to_owned()).await?;
+        }
         Ok(())
-    } else {
-        res
     }
-}
 
-/// Remove any unused proxy files.
-///
-/// Return true if any files were deleted, or if an empty directory was found.
-#[async_recursion::async_recursion]
-async fn clean_proxy(proxy_path: std::path::PathBuf, dry_run: bool) -> Result<bool> {
-    // Any files in the proxy area that have a st_nlink count of 1 are unused
-    // and can be removed.
-    let mut files_exist = false;
-    let mut files_were_deleted = false;
-    let mut iter = tokio::fs::read_dir(&proxy_path).await.map_err(|err| {
-        Error::StorageReadError("read_dir on proxy path", proxy_path.clone(), err)
-    })?;
-    while let Some(entry) = iter.next_entry().await.map_err(|err| {
-        Error::StorageReadError("next_entry on proxy path", proxy_path.clone(), err)
-    })? {
-        files_exist = true;
-
-        let file_type = entry.file_type().await.map_err(|err| {
-            Error::StorageReadError("file_type on proxy path entry", entry.path(), err)
+    /// Remove any unused proxy files.
+    ///
+    /// Return true if any files were deleted, or if an empty directory was found.
+    #[async_recursion::async_recursion]
+    async fn clean_proxy(&self, proxy_path: std::path::PathBuf) -> Result<bool> {
+        // Any files in the proxy area that have a st_nlink count of 1 are unused
+        // and can be removed.
+        let mut files_exist = false;
+        let mut files_were_deleted = false;
+        let mut iter = tokio::fs::read_dir(&proxy_path).await.map_err(|err| {
+            Error::StorageReadError("read_dir on proxy path", proxy_path.clone(), err)
         })?;
+        while let Some(entry) = iter.next_entry().await.map_err(|err| {
+            Error::StorageReadError("next_entry on proxy path", proxy_path.clone(), err)
+        })? {
+            files_exist = true;
 
-        if file_type.is_dir() {
-            if clean_proxy(entry.path(), dry_run).await? {
-                // If some files were deleted, attempt to delete the directory
-                // itself. It may now be empty. Ignore any failures.
-                if dry_run {
-                    tracing::info!("rmdir {}", entry.path().display());
-                } else if (tokio::fs::remove_dir(entry.path()).await).is_ok() {
-                    files_were_deleted = true;
-                }
-            }
-        } else if file_type.is_file() {
-            let metadata = entry.metadata().await.map_err(|err| {
-                Error::StorageReadError("metadata on proxy file", entry.path(), err)
+            let file_type = entry.file_type().await.map_err(|err| {
+                Error::StorageReadError("file_type on proxy path entry", entry.path(), err)
             })?;
 
-            if metadata.st_nlink() != 1 {
-                continue;
-            }
-
-            // This file with st_nlink count of 1 is "safe" to remove. There
-            // may be some other process that is about to create a hard link
-            // to this file, and will fail if it goes missing.
-            if dry_run {
-                tracing::info!("rm {}", entry.path().display());
-            } else {
-                tokio::fs::remove_file(entry.path()).await.map_err(|err| {
-                    Error::StorageReadError("remove_file on proxy path entry", entry.path(), err)
+            if file_type.is_dir() {
+                if self.clean_proxy(entry.path()).await? {
+                    // If some files were deleted, attempt to delete the directory
+                    // itself. It may now be empty. Ignore any failures.
+                    if self.dry_run {
+                        tracing::debug!("rmdir {}", entry.path().display());
+                    } else if (tokio::fs::remove_dir(entry.path()).await).is_ok() {
+                        files_were_deleted = true;
+                    }
+                }
+            } else if file_type.is_file() {
+                let metadata = entry.metadata().await.map_err(|err| {
+                    Error::StorageReadError("metadata on proxy file", entry.path(), err)
                 })?;
-            }
 
-            files_were_deleted = true;
-        }
-    }
-    Ok(files_were_deleted || !files_exist)
-}
-
-async fn clean_render_for_user(
-    older_than: DateTime<Utc>,
-    username: &String,
-    viewer: &storage::fs::FSRepository,
-    digest: encoding::Digest,
-    dry_run: bool,
-) -> Result<()> {
-    if dry_run {
-        tracing::info!("remove render for user {username}: {digest}");
-        return Ok(());
-    }
-
-    match viewer
-        .remove_rendered_manifest_if_older_than(older_than, digest)
-        .await
-    {
-        Ok(_) | Err(crate::Error::UnknownObject(_)) => Ok(()),
-        Err(err) => Err(err),
-    }
-}
-
-async fn clean_render(
-    older_than: DateTime<Utc>,
-    renders_for_all_users: Arc<Vec<(String, storage::fs::FSRepository)>>,
-    digest: encoding::Digest,
-    dry_run: bool,
-) -> Result<()> {
-    let mut result = None;
-    for (username, viewer) in renders_for_all_users.iter() {
-        match clean_render_for_user(older_than, username, viewer, digest, dry_run).await {
-            Ok(_) => continue,
-            err @ Err(_) => {
-                // Remember this error but attempt to clean all the users.
-                result = Some(err);
-            }
-        }
-    }
-    result.unwrap_or(Ok(()))
-}
-
-#[derive(Debug)]
-pub struct AttachedAndUnattachedObjects {
-    pub attached: HashSet<encoding::Digest>,
-    pub unattached: HashSet<encoding::Digest>,
-}
-
-pub async fn get_all_attached_and_unattached_objects(
-    repo: &storage::RepositoryHandle,
-) -> Result<AttachedAndUnattachedObjects> {
-    tracing::info!("evaluating repository digraph");
-    let mut digests = HashSet::new();
-    let mut digest_stream = repo.find_digests(crate::graph::DigestSearchCriteria::All);
-    while let Some(digest) = digest_stream.next().await {
-        digests.insert(digest?);
-    }
-    let attached = get_all_attached_objects(repo).await?;
-    let unattached = digests.difference(&attached).copied().collect();
-    Ok(AttachedAndUnattachedObjects {
-        attached,
-        unattached,
-    })
-}
-
-pub async fn get_all_unattached_objects(
-    repo: &storage::RepositoryHandle,
-) -> Result<HashSet<encoding::Digest>> {
-    get_all_attached_and_unattached_objects(repo)
-        .await
-        .map(|objects| objects.unattached)
-}
-
-pub async fn get_all_unattached_payloads(
-    repo: &storage::RepositoryHandle,
-) -> Result<HashSet<encoding::Digest>> {
-    tracing::info!("searching for orphaned payloads");
-    let mut orphaned_payloads = HashSet::new();
-    let mut payloads = repo.iter_payload_digests();
-    while let Some(digest) = payloads.next().await {
-        let digest = digest?;
-        match repo.read_blob(digest).await {
-            Err(Error::UnknownObject(_)) => {
-                orphaned_payloads.insert(digest);
-            }
-            Err(Error::ObjectNotABlob(..)) => {
-                tracing::warn!("Found payload with object that was not a blob: {digest}");
-                continue;
-            }
-            Err(err) => return Err(err),
-            Ok(_) => continue,
-        }
-    }
-    Ok(orphaned_payloads)
-}
-
-pub async fn get_all_attached_objects(
-    repo: &storage::RepositoryHandle,
-) -> Result<HashSet<encoding::Digest>> {
-    let mut to_process = Vec::new();
-    let mut tag_streams = repo.iter_tag_streams();
-    while let Some(item) = tag_streams.next().await {
-        let (_, mut stream) = item?;
-        while let Some(tag) = stream.next().await {
-            to_process.push(tag?.target);
-        }
-    }
-
-    let mut reachable_objects = HashSet::new();
-    loop {
-        match to_process.pop() {
-            None => break,
-            Some(digest) => {
-                if reachable_objects.contains(&digest) {
+                if metadata.st_nlink() != 1 {
                     continue;
                 }
-                tracing::debug!(?digest, "walking");
-                let obj = match repo.read_object(digest).await {
-                    Ok(obj) => obj,
-                    Err(err) => match err {
-                        crate::Error::UnknownObject(err) => {
-                            tracing::warn!(?err, "child object missing in database");
-                            continue;
-                        }
-                        _ => return Err(err),
-                    },
-                };
-                to_process.extend(obj.child_objects());
-                reachable_objects.insert(digest);
+
+                // This file with st_nlink count of 1 is "safe" to remove. There
+                // may be some other process that is about to create a hard link
+                // to this file, and will fail if it goes missing.
+                if self.dry_run {
+                    tracing::debug!("rm {}", entry.path().display());
+                } else {
+                    tokio::fs::remove_file(entry.path()).await.map_err(|err| {
+                        Error::StorageReadError(
+                            "remove_file on proxy path entry",
+                            entry.path(),
+                            err,
+                        )
+                    })?;
+                }
+
+                files_were_deleted = true;
             }
         }
+        Ok(files_were_deleted || !files_exist)
+    }
+}
+
+pub trait CleanReporter {
+    /// Called when the cleaner visits a tag
+    fn visit_tag(&self, _tag: &tracking::Tag) {}
+
+    /// Called when a tag is pruned from the repository
+    fn tag_removed(&self, _tag: &tracking::Tag) {}
+
+    /// Called when the cleaner visits an object in the graph
+    fn visit_object(&self, _object: &graph::Object) {}
+
+    /// Called when the cleaner removes an object from the database
+    fn object_removed(&self, _object: &graph::Object) {}
+
+    /// Called when the cleaner visits a payload during scanning
+    fn visit_payload(&self, _payload: &graph::Blob) {}
+
+    /// Called when the cleaner removes an payload from the database
+    fn payload_removed(&self, _payload: &graph::Blob) {}
+
+    /// Called when the cleaner visits a rendered directory during scanning
+    fn visit_render(&self, _render: &encoding::Digest) {}
+
+    /// Called when the cleaner removes an render from disk
+    fn render_removed(&self, _render: &encoding::Digest) {}
+}
+
+pub struct SilentCleanReporter;
+
+impl CleanReporter for SilentCleanReporter {}
+
+/// Reports sync progress to an interactive console via progress bars
+#[derive(Default)]
+pub struct ConsoleCleanReporter {
+    bars: OnceCell<ConsoleCleanReporterBars>,
+}
+
+impl ConsoleCleanReporter {
+    fn get_bars(&self) -> &ConsoleCleanReporterBars {
+        self.bars.get_or_init(Default::default)
+    }
+}
+
+impl CleanReporter for ConsoleCleanReporter {
+    fn visit_tag(&self, _tag: &tracking::Tag) {
+        self.get_bars().tags.inc_length(1);
     }
 
-    Ok(reachable_objects)
+    fn tag_removed(&self, _tag: &tracking::Tag) {
+        self.get_bars().tags.inc(1);
+    }
+
+    fn visit_object(&self, _object: &graph::Object) {
+        self.get_bars().objects.inc_length(1);
+    }
+
+    fn object_removed(&self, _object: &graph::Object) {
+        self.get_bars().objects.inc(1);
+    }
+
+    fn visit_payload(&self, payload: &graph::Blob) {
+        self.get_bars().payloads.inc_length(payload.size);
+    }
+
+    fn payload_removed(&self, payload: &graph::Blob) {
+        self.get_bars().payloads.inc(payload.size);
+    }
+
+    fn visit_render(&self, _render: &encoding::Digest) {
+        self.get_bars().renders.inc_length(1);
+    }
+
+    fn render_removed(&self, _render: &encoding::Digest) {
+        self.get_bars().renders.inc(1);
+    }
+}
+
+struct ConsoleCleanReporterBars {
+    renderer: Option<std::thread::JoinHandle<()>>,
+    tags: indicatif::ProgressBar,
+    objects: indicatif::ProgressBar,
+    renders: indicatif::ProgressBar,
+    payloads: indicatif::ProgressBar,
+}
+
+impl Default for ConsoleCleanReporterBars {
+    fn default() -> Self {
+        static TICK_STRINGS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        static PROGRESS_CHARS: &str = "=>-";
+        let tags_style = indicatif::ProgressStyle::default_bar()
+            .template(
+                "      {spinner} {msg:<17.green} {len:>10.cyan} found {pos:>10.yellow} to prune",
+            )
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
+        let objects_style = indicatif::ProgressStyle::default_bar()
+            .template(
+                "      {spinner} {msg:<17.green} {len:>10.cyan} found {pos:>10.yellow} to remove",
+            )
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
+        let bytes_style = indicatif::ProgressStyle::default_bar()
+            .template("      {spinner} {msg:<17.green} {total_bytes:>10.cyan} found {bytes:>10.yellow} to remove")
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
+        let renders_style = indicatif::ProgressStyle::default_bar()
+            .template(
+                "      {spinner} {msg:<17.green} {len:>10.cyan} found {pos:>10.yellow} to remove",
+            )
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
+        let bars = indicatif::MultiProgress::new();
+        let tags = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(tags_style)
+                .with_message("cleaning tags"),
+        );
+        let objects = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(objects_style)
+                .with_message("cleaning objects"),
+        );
+        let payloads = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(bytes_style)
+                .with_message("cleaning payloads"),
+        );
+        let renders = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(renders_style)
+                .with_message("cleaning renders"),
+        );
+        tags.enable_steady_tick(100);
+        objects.enable_steady_tick(100);
+        renders.enable_steady_tick(100);
+        payloads.enable_steady_tick(100);
+        // the progress bar must be awaited from some thread
+        // or nothing will be shown in the terminal
+        let renderer = Some(std::thread::spawn(move || {
+            if let Err(err) = bars.join() {
+                tracing::error!("Failed to render clean progress: {err}");
+            }
+        }));
+        Self {
+            renderer,
+            tags,
+            objects,
+            payloads,
+            renders,
+        }
+    }
+}
+
+impl Drop for ConsoleCleanReporterBars {
+    fn drop(&mut self) {
+        self.payloads.finish_at_current_pos();
+        self.renders.finish_at_current_pos();
+        self.objects.finish_at_current_pos();
+        self.tags.finish_at_current_pos();
+        if let Some(r) = self.renderer.take() {
+            let _ = r.join();
+        }
+    }
 }

@@ -112,19 +112,20 @@ impl FSRepository {
         open_perms_and_remove_all(&working_dirpath).await
     }
 
+    /// Returns true if the render was actually removed
     pub async fn remove_rendered_manifest_if_older_than(
         &self,
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let renders = match &self.renders {
             Some(render_store) => &render_store.renders,
-            None => return Ok(()),
+            None => return Ok(false),
         };
         let rendered_dirpath = renders.build_digest_path(&digest);
 
         let metadata = match tokio::fs::symlink_metadata(&rendered_dirpath).await {
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(false),
             Err(err) => {
                 return Err(Error::StorageReadError(
                     "symlink_metadata on rendered dir path",
@@ -144,10 +145,11 @@ impl FSRepository {
         })?;
 
         if DateTime::<Utc>::from(mtime) >= older_than {
-            return Ok(());
+            return Ok(false);
         }
 
-        self.remove_rendered_manifest(digest).await
+        self.remove_rendered_manifest(digest).await?;
+        Ok(true)
     }
 }
 
