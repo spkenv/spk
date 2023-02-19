@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 use std::future::ready;
 use std::os::linux::fs::MetadataExt;
@@ -87,8 +88,22 @@ where
     ///
     /// This helps to ensure that active commit operations
     /// and regular write operations are not corrupted.
+    ///
+    /// Overrides and previous value for [`Self::with_required_age_cutoff`]
     pub fn with_required_age(mut self, age: Duration) -> Self {
         self.must_be_older_than = Utc::now() - age;
+        self
+    }
+
+    /// Objects that are newer than this amount of time
+    /// will never be removed.
+    ///
+    /// This helps to ensure that active commit operations
+    /// and regular write operations are not corrupted.
+    ///
+    /// Overrides and previous value for [`Self::with_required_age`]
+    pub fn with_required_age_cutoff(mut self, cutoff: DateTime<Utc>) -> Self {
+        self.must_be_older_than = cutoff;
         self
     }
 
@@ -235,8 +250,9 @@ where
         out
     }
 
-    /// Visit all tags, pruning as configured and then cleaning detatched objects
-    pub async fn prune_all_tags_and_clean(&self) -> Result<()> {
+    /// Visit all tags, pruning as configured and then cleaning detached objects
+    pub async fn prune_all_tags_and_clean(&self) -> Result<CleanResult> {
+        let mut result = CleanResult::default();
         let mut stream = self.repo.iter_tag_streams();
         let mut futures = futures::stream::FuturesUnordered::new();
         while let Some((tag_spec, _stream)) = stream.try_next().await? {
@@ -252,15 +268,17 @@ where
             }
             futures.push(self.prune_tag_stream_and_walk(tag_spec));
         }
-        while let Some(_result) = futures.try_next().await? {}
+        while let Some(r) = futures.try_next().await? {
+            result += r;
+        }
         tokio::try_join!(
             self.remove_unvisited_objects_and_payloads(),
             self.remove_unvisited_renders(),
         )?;
-        Ok(())
+        Ok(result)
     }
 
-    async fn prune_tag_stream_and_walk(&self, tag_spec: tracking::TagSpec) -> Result<()> {
+    async fn prune_tag_stream_and_walk(&self, tag_spec: tracking::TagSpec) -> Result<CleanResult> {
         let history = self
             .repo
             .read_tag(&tag_spec)
@@ -270,31 +288,35 @@ where
         let mut to_prune = Vec::with_capacity(history.len() / 2);
         let mut to_keep = Vec::with_capacity(history.len() / 2);
         let mut seen_targets = std::collections::HashSet::new();
-        for tag in history {
+        for (i, tag) in history.into_iter().enumerate() {
+            let spec = tag.to_spec(i as u64);
             self.reporter.visit_tag(&tag);
             if !seen_targets.insert(tag.target) && self.prune_repeated_tags {
                 to_prune.push(tag);
                 continue;
             }
-            if self.prune_params.should_prune(&tag_spec, &tag) {
+            if self.prune_params.should_prune(&spec, &tag) {
                 to_prune.push(tag);
             } else {
                 to_keep.push(tag);
             }
         }
 
-        for tag in to_prune {
+        for tag in to_prune.iter() {
             if !self.dry_run {
-                self.repo.remove_tag(&tag).await?;
+                self.repo.remove_tag(tag).await?;
             }
-            self.reporter.tag_removed(&tag);
+            self.reporter.tag_removed(tag);
         }
 
         for tag in to_keep {
             self.discover_attached_objects(tag.target).await?;
         }
 
-        Ok(())
+        let mut result = CleanResult::default();
+        result.pruned_tags.insert(tag_spec, to_prune);
+
+        Ok(result)
     }
 
     #[async_recursion::async_recursion]
@@ -303,7 +325,15 @@ where
             return Ok(());
         }
 
-        let obj = self.repo.read_object(digest).await?;
+        let obj = match self.repo.read_object(digest).await {
+            Ok(obj) => obj,
+            Err(Error::UnknownObject(_)) => {
+                // TODO: it would be nice to have an option to prune
+                // broken tags that cause this error
+                return Ok(());
+            }
+            Err(err) => return Err(err),
+        };
         self.reporter.visit_object(&obj);
         if let graph::Object::Blob(b) = &obj {
             self.reporter.visit_payload(b);
@@ -324,6 +354,9 @@ where
                 ready(Ok(obj))
             })
             .and_then(|(digest, object)| {
+                if self.dry_run {
+                    return ready(Ok(ready(Ok((digest, object, true))).boxed()));
+                }
                 let future = self
                     .repo
                     .remove_object_if_older_than(self.must_be_older_than, digest)
@@ -333,11 +366,18 @@ where
                         }
                         res
                     })
-                    .map_ok(|removed| (object, removed));
-                ready(Ok(future))
+                    .map_ok(move |removed| (digest, object, removed));
+                ready(Ok(future.boxed()))
             })
             .try_buffer_unordered(MAX_CONCURRENT_REMOVALS)
-            .try_filter_map(|(obj, removed)| ready(Ok(removed.then_some(obj))))
+            .try_filter_map(|(digest, obj, removed)| {
+                if !removed {
+                    // objects that are too new to be removed become
+                    // implicitly attached
+                    self.attached.insert(digest);
+                }
+                ready(Ok(removed.then_some(obj)))
+            })
             .and_then(|obj| {
                 self.reporter.object_removed(&obj);
                 ready(Ok(obj))
@@ -347,6 +387,9 @@ where
                 _ => ready(Ok(None)),
             })
             .and_then(|blob| {
+                if self.dry_run {
+                    return ready(Ok(ready(Ok(blob)).boxed()));
+                }
                 self.reporter.visit_payload(&blob);
                 let future = self
                     .repo
@@ -358,7 +401,7 @@ where
                         res
                     })
                     .map_ok(|_| blob);
-                ready(Ok(future))
+                ready(Ok(future.boxed()))
             })
             .try_buffer_unordered(MAX_CONCURRENT_REMOVALS);
         while let Some(blob) = stream.try_next().await? {
@@ -380,8 +423,20 @@ where
             })
             .and_then(|blob| {
                 self.reporter.visit_payload(&blob);
-                let future = self.repo.remove_payload(blob.payload).map_ok(|_| blob);
-                ready(Ok(future))
+                if self.dry_run {
+                    return ready(Ok(ready(Ok(blob)).boxed()));
+                }
+                let future = self
+                    .repo
+                    .remove_payload(blob.payload)
+                    .map(|res| {
+                        if let Err(Error::UnknownObject(_)) = res {
+                            return Ok(());
+                        }
+                        res
+                    })
+                    .map_ok(|_| blob);
+                ready(Ok(future.boxed()))
             })
             .try_buffer_unordered(MAX_CONCURRENT_REMOVALS);
         while let Some(blob) = stream.try_next().await? {
@@ -420,10 +475,19 @@ where
                 ready(Ok(Some(digest)))
             })
             .and_then(|digest| {
+                if self.dry_run {
+                    return ready(Ok(ready(Ok((digest, true))).boxed()));
+                }
                 let future = repo
                     .remove_rendered_manifest_if_older_than(self.must_be_older_than, digest)
+                    .map(|res| {
+                        if let Err(Error::UnknownObject(_)) = res {
+                            return Ok(false);
+                        }
+                        res
+                    })
                     .map_ok(move |removed| (digest, removed));
-                ready(Ok(future))
+                ready(Ok(future.boxed()))
             })
             .try_buffer_unordered(MAX_CONCURRENT_REMOVALS)
             .try_filter_map(|(digest, removed)| ready(Ok(removed.then_some(digest))));
@@ -499,6 +563,27 @@ where
     }
 }
 
+#[derive(Debug, Default)]
+pub struct CleanResult {
+    pub pruned_tags: HashMap<tracking::TagSpec, Vec<tracking::Tag>>,
+    pub removed_objects: HashSet<encoding::Digest>,
+}
+
+impl CleanResult {
+    pub fn into_all_tags(self) -> Vec<tracking::Tag> {
+        self.pruned_tags.into_values().flatten().collect()
+    }
+}
+
+impl std::ops::AddAssign for CleanResult {
+    fn add_assign(&mut self, rhs: Self) {
+        for (spec, tags) in rhs.pruned_tags {
+            self.pruned_tags.entry(spec).or_default().extend(tags);
+        }
+        self.removed_objects.extend(rhs.removed_objects);
+    }
+}
+
 pub trait CleanReporter {
     /// Called when the cleaner visits a tag
     fn visit_tag(&self, _tag: &tracking::Tag) {}
@@ -528,6 +613,43 @@ pub trait CleanReporter {
 pub struct SilentCleanReporter;
 
 impl CleanReporter for SilentCleanReporter {}
+
+/// Logs all events using tracing
+pub struct TracingCleanReporter;
+
+impl CleanReporter for TracingCleanReporter {
+    fn visit_tag(&self, tag: &tracking::Tag) {
+        tracing::info!(?tag, "visit tag");
+    }
+
+    fn tag_removed(&self, tag: &tracking::Tag) {
+        tracing::info!(?tag, "tag removed");
+    }
+
+    fn visit_object(&self, object: &graph::Object) {
+        tracing::info!(?object, "visit object");
+    }
+
+    fn object_removed(&self, object: &graph::Object) {
+        tracing::info!(?object, "object removed");
+    }
+
+    fn visit_payload(&self, payload: &graph::Blob) {
+        tracing::info!(?payload, "visit payload");
+    }
+
+    fn payload_removed(&self, payload: &graph::Blob) {
+        tracing::info!(?payload, "payload removed");
+    }
+
+    fn visit_render(&self, render: &encoding::Digest) {
+        tracing::info!(?render, "visit render");
+    }
+
+    fn render_removed(&self, render: &encoding::Digest) {
+        tracing::info!(?render, "render removed");
+    }
+}
 
 /// Reports sync progress to an interactive console via progress bars
 #[derive(Default)]
