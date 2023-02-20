@@ -94,10 +94,15 @@ impl FSRepository {
             None => return Ok(()),
         };
         let rendered_dirpath = renders.build_digest_path(&digest);
+        let workdir = renders.workdir();
+        makedirs_with_perms(&workdir, renders.directory_permissions)?;
+        Self::remove_dir_atomically(&rendered_dirpath, &workdir).await
+    }
+
+    pub(crate) async fn remove_dir_atomically(dirpath: &Path, workdir: &Path) -> Result<()> {
         let uuid = uuid::Uuid::new_v4().to_string();
-        let working_dirpath = renders.workdir().join(uuid);
-        renders.ensure_base_dir(&working_dirpath)?;
-        if let Err(err) = tokio::fs::rename(&rendered_dirpath, &working_dirpath).await {
+        let working_dirpath = workdir.join(uuid);
+        if let Err(err) = tokio::fs::rename(&dirpath, &working_dirpath).await {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Ok(()),
                 _ => Err(crate::Error::StorageWriteError(
@@ -108,7 +113,7 @@ impl FSRepository {
             };
         }
 
-        unmark_render_completed(&rendered_dirpath).await?;
+        unmark_render_completed(&dirpath).await?;
         open_perms_and_remove_all(&working_dirpath).await
     }
 
@@ -864,7 +869,7 @@ where
 /// It does assume that the current user owns the file, as it may not be possible to
 /// change permissions before removal otherwise.
 #[async_recursion::async_recursion]
-async fn open_perms_and_remove_all(root: &Path) -> Result<()> {
+pub async fn open_perms_and_remove_all(root: &Path) -> Result<()> {
     let mut read_dir = tokio::fs::read_dir(&root)
         .await
         .map_err(|err| Error::StorageReadError("read_dir on root", root.to_owned(), err))?;

@@ -5,15 +5,16 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 use std::future::ready;
-use std::os::linux::fs::MetadataExt;
 
 use chrono::{DateTime, Duration, Local, Utc};
 use colored::Colorize;
 use dashmap::DashSet;
-use futures::{FutureExt, TryFutureExt, TryStreamExt};
+use futures::{FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 use once_cell::sync::OnceCell;
 
 use super::prune::PruneParameters;
+use crate::runtime::makedirs_with_perms;
+use crate::storage::fs::FSRepository;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
@@ -271,10 +272,11 @@ where
         while let Some(r) = futures.try_next().await? {
             result += r;
         }
-        tokio::try_join!(
+        let (r1, _) = tokio::try_join!(
             self.remove_unvisited_objects_and_payloads(),
-            self.remove_unvisited_renders(),
+            self.remove_unvisited_renders_and_proxies(),
         )?;
+        result += r1;
         Ok(result)
     }
 
@@ -344,11 +346,14 @@ where
         Ok(())
     }
 
-    async fn remove_unvisited_objects_and_payloads(&self) -> Result<()> {
+    async fn remove_unvisited_objects_and_payloads(&self) -> Result<CleanResult> {
         let mut stream = self
             .repo
             .iter_objects()
+            // we have no interest in removing attached items
             .try_filter(|(digest, _object)| ready(!self.attached.contains(digest)))
+            // we have already visited all attached objects
+            // but also want to report these ones
             .and_then(|obj| {
                 self.reporter.visit_object(&obj.1);
                 ready(Ok(obj))
@@ -382,6 +387,8 @@ where
                 self.reporter.object_removed(&obj);
                 ready(Ok(obj))
             })
+            // also try to remove the corresponding payload
+            // each removed blob
             .try_filter_map(|obj| match obj {
                 graph::Object::Blob(blob) => ready(Ok(Some(blob))),
                 _ => ready(Ok(None)),
@@ -404,7 +411,9 @@ where
                 ready(Ok(future.boxed()))
             })
             .try_buffer_unordered(MAX_CONCURRENT_REMOVALS);
+        let mut result = CleanResult::default();
         while let Some(blob) = stream.try_next().await? {
+            result.removed_objects.insert(blob.payload);
             self.reporter.payload_removed(&blob)
         }
 
@@ -440,31 +449,38 @@ where
             })
             .try_buffer_unordered(MAX_CONCURRENT_REMOVALS);
         while let Some(blob) = stream.try_next().await? {
+            result.removed_objects.insert(blob.payload);
             self.reporter.payload_removed(&blob)
         }
 
-        Ok(())
+        Ok(result)
     }
 
-    async fn remove_unvisited_renders(&self) -> Result<()> {
+    async fn remove_unvisited_renders_and_proxies(&self) -> Result<CleanResult> {
+        let mut result = CleanResult::default();
         let storage::RepositoryHandle::FS(repo) = self.repo else {
-            return Ok(());
+            return Ok(result);
         };
 
-        self.remove_unvisited_renders_for_storage(repo).await?;
+        result += self
+            .remove_unvisited_renders_and_proxies_for_storage(None, repo)
+            .await?;
 
         let renders_for_all_users = repo.renders_for_all_users()?;
 
-        for (_username, sub_repo) in renders_for_all_users.iter() {
-            self.remove_unvisited_renders_for_storage(sub_repo).await?;
+        for (username, sub_repo) in renders_for_all_users.iter() {
+            result += self
+                .remove_unvisited_renders_and_proxies_for_storage(Some(username.clone()), sub_repo)
+                .await?;
         }
-        Ok(())
+        Ok(result)
     }
 
-    async fn remove_unvisited_renders_for_storage(
+    async fn remove_unvisited_renders_and_proxies_for_storage(
         &self,
+        username: Option<String>,
         repo: &storage::fs::FSRepository,
-    ) -> Result<()> {
+    ) -> Result<CleanResult> {
         let mut stream = repo
             .iter_rendered_manifests()
             .try_filter_map(|digest| {
@@ -491,85 +507,97 @@ where
             })
             .try_buffer_unordered(MAX_CONCURRENT_REMOVALS)
             .try_filter_map(|(digest, removed)| ready(Ok(removed.then_some(digest))));
+        let mut result = CleanResult::default();
+        let removed_for_user = result.removed_renders.entry(username.clone()).or_default();
         while let Some(digest) = stream.try_next().await? {
+            removed_for_user.insert(digest);
             self.reporter.render_removed(&digest);
         }
 
         if let Some(proxy_path) = repo.proxy_path() {
-            self.clean_proxy(proxy_path.to_owned()).await?;
+            result += self.clean_proxies(username, proxy_path.to_owned()).await?;
         }
-        Ok(())
+        Ok(result)
     }
 
     /// Remove any unused proxy files.
-    ///
-    /// Return true if any files were deleted, or if an empty directory was found.
     #[async_recursion::async_recursion]
-    async fn clean_proxy(&self, proxy_path: std::path::PathBuf) -> Result<bool> {
+    async fn clean_proxies(
+        &self,
+        username: Option<String>,
+        proxy_path: std::path::PathBuf,
+    ) -> Result<CleanResult> {
         // Any files in the proxy area that have a st_nlink count of 1 are unused
         // and can be removed.
-        let mut files_exist = false;
-        let mut files_were_deleted = false;
-        let mut iter = tokio::fs::read_dir(&proxy_path).await.map_err(|err| {
-            Error::StorageReadError("read_dir on proxy path", proxy_path.clone(), err)
-        })?;
-        while let Some(entry) = iter.next_entry().await.map_err(|err| {
-            Error::StorageReadError("next_entry on proxy path", proxy_path.clone(), err)
-        })? {
-            files_exist = true;
+        let mut result = CleanResult::default();
+        let removed = result.removed_proxies.entry(username).or_default();
 
-            let file_type = entry.file_type().await.map_err(|err| {
-                Error::StorageReadError("file_type on proxy path entry", entry.path(), err)
-            })?;
-
-            if file_type.is_dir() {
-                if self.clean_proxy(entry.path()).await? {
-                    // If some files were deleted, attempt to delete the directory
-                    // itself. It may now be empty. Ignore any failures.
-                    if self.dry_run {
-                        tracing::debug!("rmdir {}", entry.path().display());
-                    } else if (tokio::fs::remove_dir(entry.path()).await).is_ok() {
-                        files_were_deleted = true;
+        // the hash store is used to nicely iterate all stored digests
+        let proxy_storage = storage::fs::FSHashStore::open_unchecked(proxy_path);
+        let mut stream = proxy_storage
+            .iter()
+            .try_filter_map(|digest| {
+                self.reporter.visit_proxy(&digest);
+                if self.attached.contains(&digest) {
+                    return ready(Ok(None));
+                }
+                ready(Ok(Some(digest)))
+            })
+            .and_then(|digest| {
+                let path = proxy_storage.build_digest_path(&digest);
+                let workdir = proxy_storage.workdir();
+                let _ = makedirs_with_perms(&workdir, proxy_storage.directory_permissions);
+                let future = async move {
+                    if !self.dry_run {
+                        tracing::trace!(?path, "removing proxy render");
+                        FSRepository::remove_dir_atomically(&path, &workdir).await?;
                     }
-                }
-            } else if file_type.is_file() {
-                let metadata = entry.metadata().await.map_err(|err| {
-                    Error::StorageReadError("metadata on proxy file", entry.path(), err)
-                })?;
+                    Ok(digest)
+                };
+                ready(Ok(future.boxed()))
+            })
+            // buffer/parallelize the removal operations
+            .try_buffer_unordered(MAX_CONCURRENT_REMOVALS)
+            .boxed();
 
-                if metadata.st_nlink() != 1 {
-                    continue;
+        while let Some(res) = stream.next().await {
+            tracing::warn!(?res);
+            match res {
+                Ok(digest) => {
+                    self.reporter.proxy_removed(&digest);
+                    removed.insert(digest);
                 }
-
-                // This file with st_nlink count of 1 is "safe" to remove. There
-                // may be some other process that is about to create a hard link
-                // to this file, and will fail if it goes missing.
-                if self.dry_run {
-                    tracing::debug!("rm {}", entry.path().display());
-                } else {
-                    tokio::fs::remove_file(entry.path()).await.map_err(|err| {
-                        Error::StorageReadError(
-                            "remove_file on proxy path entry",
-                            entry.path(),
-                            err,
-                        )
-                    })?;
-                }
-
-                files_were_deleted = true;
+                Err(err) => result.errors.push(err),
             }
         }
-        Ok(files_were_deleted || !files_exist)
+
+        Ok(result)
     }
 }
 
 #[derive(Debug, Default)]
 pub struct CleanResult {
+    /// The tags pruned from the database
     pub pruned_tags: HashMap<tracking::TagSpec, Vec<tracking::Tag>>,
+    /// The objects and payloads removed
     pub removed_objects: HashSet<encoding::Digest>,
+    /// The renders removed (by associated username)
+    pub removed_renders: HashMap<Option<String>, HashSet<encoding::Digest>>,
+    /// The proxy payloads removed (by associated username)
+    pub removed_proxies: HashMap<Option<String>, HashSet<encoding::Digest>>,
+    /// Non-fatal errors encountered while cleaning.
+    ///
+    /// These are errors that stopped one or more items from
+    /// being cleaned. For example, if the deletion of an object
+    /// failed the error will be logged but the clean will continue
+    pub errors: Vec<Error>,
 }
 
 impl CleanResult {
+    pub fn is_ok(&self) -> bool {
+        self.errors.is_empty()
+    }
+
     pub fn into_all_tags(self) -> Vec<tracking::Tag> {
         self.pruned_tags.into_values().flatten().collect()
     }
@@ -577,10 +605,30 @@ impl CleanResult {
 
 impl std::ops::AddAssign for CleanResult {
     fn add_assign(&mut self, rhs: Self) {
-        for (spec, tags) in rhs.pruned_tags {
+        let CleanResult {
+            pruned_tags,
+            removed_objects,
+            removed_renders,
+            removed_proxies,
+            errors,
+        } = rhs;
+        for (spec, tags) in pruned_tags {
             self.pruned_tags.entry(spec).or_default().extend(tags);
         }
-        self.removed_objects.extend(rhs.removed_objects);
+        for (user, removed) in removed_proxies {
+            self.removed_proxies
+                .entry(user)
+                .or_default()
+                .extend(removed);
+        }
+        for (user, removed) in removed_renders {
+            self.removed_renders
+                .entry(user)
+                .or_default()
+                .extend(removed);
+        }
+        self.removed_objects.extend(removed_objects);
+        self.errors.extend(errors);
     }
 }
 
@@ -594,19 +642,25 @@ pub trait CleanReporter {
     /// Called when the cleaner visits an object in the graph
     fn visit_object(&self, _object: &graph::Object) {}
 
-    /// Called when the cleaner removes an object from the database
+    /// Called when the cleaner removes ao object from the database
     fn object_removed(&self, _object: &graph::Object) {}
 
     /// Called when the cleaner visits a payload during scanning
     fn visit_payload(&self, _payload: &graph::Blob) {}
 
-    /// Called when the cleaner removes an payload from the database
+    /// Called when the cleaner removes a payload from the database
     fn payload_removed(&self, _payload: &graph::Blob) {}
+
+    /// Called when the cleaner visits a proxy during scanning
+    fn visit_proxy(&self, _proxy: &encoding::Digest) {}
+
+    /// Called when the cleaner removes a proxy from the database
+    fn proxy_removed(&self, _proxy: &encoding::Digest) {}
 
     /// Called when the cleaner visits a rendered directory during scanning
     fn visit_render(&self, _render: &encoding::Digest) {}
 
-    /// Called when the cleaner removes an render from disk
+    /// Called when the cleaner removes a render from disk
     fn render_removed(&self, _render: &encoding::Digest) {}
 }
 
@@ -640,6 +694,14 @@ impl CleanReporter for TracingCleanReporter {
 
     fn payload_removed(&self, payload: &graph::Blob) {
         tracing::info!(?payload, "payload removed");
+    }
+
+    fn visit_proxy(&self, proxy: &encoding::Digest) {
+        tracing::info!(?proxy, "visit proxy");
+    }
+
+    fn proxy_removed(&self, proxy: &encoding::Digest) {
+        tracing::info!(?proxy, "proxy removed");
     }
 
     fn visit_render(&self, render: &encoding::Digest) {
@@ -688,6 +750,14 @@ impl CleanReporter for ConsoleCleanReporter {
         self.get_bars().payloads.inc(payload.size);
     }
 
+    fn visit_proxy(&self, _proxy: &encoding::Digest) {
+        self.get_bars().proxies.inc_length(1);
+    }
+
+    fn proxy_removed(&self, _proxy: &encoding::Digest) {
+        self.get_bars().proxies.inc(1);
+    }
+
     fn visit_render(&self, _render: &encoding::Digest) {
         self.get_bars().renders.inc_length(1);
     }
@@ -703,43 +773,32 @@ struct ConsoleCleanReporterBars {
     objects: indicatif::ProgressBar,
     renders: indicatif::ProgressBar,
     payloads: indicatif::ProgressBar,
+    proxies: indicatif::ProgressBar,
 }
 
 impl Default for ConsoleCleanReporterBars {
     fn default() -> Self {
         static TICK_STRINGS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
         static PROGRESS_CHARS: &str = "=>-";
-        let tags_style = indicatif::ProgressStyle::default_bar()
+        let counter_style = indicatif::ProgressStyle::default_bar()
             .template(
-                "      {spinner} {msg:<17.green} {len:>10.cyan} found {pos:>10.yellow} to prune",
-            )
-            .tick_strings(TICK_STRINGS)
-            .progress_chars(PROGRESS_CHARS);
-        let objects_style = indicatif::ProgressStyle::default_bar()
-            .template(
-                "      {spinner} {msg:<17.green} {len:>10.cyan} found {pos:>10.yellow} to remove",
+                " {spinner} {msg:<17.green} {len:>10.cyan} found {pos:>10.yellow} to remove ({percent}%)",
             )
             .tick_strings(TICK_STRINGS)
             .progress_chars(PROGRESS_CHARS);
         let bytes_style = indicatif::ProgressStyle::default_bar()
-            .template("      {spinner} {msg:<17.green} {total_bytes:>10.cyan} found {bytes:>10.yellow} to remove")
-            .tick_strings(TICK_STRINGS)
-            .progress_chars(PROGRESS_CHARS);
-        let renders_style = indicatif::ProgressStyle::default_bar()
-            .template(
-                "      {spinner} {msg:<17.green} {len:>10.cyan} found {pos:>10.yellow} to remove",
-            )
+            .template(" {spinner} {msg:<17.green} {total_bytes:>10.cyan} found {bytes:>10.yellow} to remove ({percent}%)")
             .tick_strings(TICK_STRINGS)
             .progress_chars(PROGRESS_CHARS);
         let bars = indicatif::MultiProgress::new();
         let tags = bars.add(
             indicatif::ProgressBar::new(0)
-                .with_style(tags_style)
+                .with_style(counter_style.clone())
                 .with_message("cleaning tags"),
         );
         let objects = bars.add(
             indicatif::ProgressBar::new(0)
-                .with_style(objects_style)
+                .with_style(counter_style.clone())
                 .with_message("cleaning objects"),
         );
         let payloads = bars.add(
@@ -749,12 +808,18 @@ impl Default for ConsoleCleanReporterBars {
         );
         let renders = bars.add(
             indicatif::ProgressBar::new(0)
-                .with_style(renders_style)
+                .with_style(counter_style.clone())
                 .with_message("cleaning renders"),
+        );
+        let proxies = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(counter_style)
+                .with_message("cleaning proxies"),
         );
         tags.enable_steady_tick(100);
         objects.enable_steady_tick(100);
         renders.enable_steady_tick(100);
+        proxies.enable_steady_tick(100);
         payloads.enable_steady_tick(100);
         // the progress bar must be awaited from some thread
         // or nothing will be shown in the terminal
@@ -768,6 +833,7 @@ impl Default for ConsoleCleanReporterBars {
             tags,
             objects,
             payloads,
+            proxies,
             renders,
         }
     }
@@ -776,6 +842,7 @@ impl Default for ConsoleCleanReporterBars {
 impl Drop for ConsoleCleanReporterBars {
     fn drop(&mut self) {
         self.payloads.finish_at_current_pos();
+        self.proxies.finish_at_current_pos();
         self.renders.finish_at_current_pos();
         self.objects.finish_at_current_pos();
         self.tags.finish_at_current_pos();

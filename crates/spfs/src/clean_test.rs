@@ -184,6 +184,7 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
 #[rstest]
 #[tokio::test]
 async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRepo) {
+    init_logging();
     let tmprepo = tmprepo.await;
     let manifest = tracking::Manifest::default();
     let layer = tmprepo
@@ -218,6 +219,7 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
 #[rstest]
 #[tokio::test]
 async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
+    init_logging();
     let tmprepo = Arc::new(
         storage::fs::FSRepository::create(tmpdir.path())
             .await
@@ -241,7 +243,6 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         .await
         .unwrap();
 
-    // Safety: tmprepo was created as an FSRepository
     let fs_repo = match &*tmprepo {
         RepositoryHandle::FS(fs) => fs,
         _ => panic!("Unexpected tmprepo type!"),
@@ -263,7 +264,11 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
     println!("{result:#?}");
 
     let files = list_files(fs_repo.renders.as_ref().unwrap().renders.root());
-    assert!(files.is_empty(), "should remove all created data files");
+    assert_eq!(
+        files,
+        Vec::<String>::new(),
+        "should remove all created data files"
+    );
 }
 
 fn list_files<P: AsRef<std::path::Path>>(dirname: P) -> Vec<String> {
