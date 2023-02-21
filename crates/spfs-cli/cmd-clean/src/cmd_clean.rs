@@ -5,9 +5,12 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::fn_params_excessive_bools)]
 
+use std::collections::HashSet;
+
 use anyhow::Result;
 use chrono::prelude::*;
 use clap::Parser;
+use colored::Colorize;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
 
@@ -57,6 +60,36 @@ pub struct CmdClean {
     /// Always keep at least this number of tags in a stream
     #[clap(long = "keep-if-less-than")]
     keep_if_less_than: Option<u64>,
+
+    // The number of concurrent tag stream scanning operations
+    // that are buffered and allowed to run concurrently
+    #[clap(
+        long,
+        env = "SPFS_CLEAN_MAX_TAG_STREAM_CONCURRENCY",
+        default_value = "500"
+    )]
+    max_tag_stream_concurrency: usize,
+
+    // The number of concurrent remove operations that are
+    // buffered and allowed to run concurrently
+    #[clap(
+        long,
+        env = "SPFS_CLEAN_MAX_REMOVAL_CONCURRENCY",
+        default_value = "500"
+    )]
+    max_removal_concurrency: usize,
+
+    // The number of concurrent discover/scan operations that are
+    // buffered and allowed to run concurrently.
+    //
+    // This number is applied in a recursive manner, and so can grow
+    // exponentially in deeply complex repositories.
+    #[clap(
+        long,
+        env = "SPFS_CLEAN_MAX_DISCOVER_CONCURRENCY",
+        default_value = "50"
+    )]
+    max_discover_concurrency: usize,
 }
 
 impl CommandName for CmdClean {
@@ -94,7 +127,57 @@ impl CmdClean {
             }
         }
 
-        cleaner.prune_all_tags_and_clean().await?;
+        let start = std::time::Instant::now();
+        let result = cleaner.prune_all_tags_and_clean().await?;
+        let duration = std::time::Instant::now() - start;
+        drop(cleaner); // clean up the progress bars
+
+        let spfs::clean::CleanResult {
+            visited_tags,
+            pruned_tags,
+            visited_objects,
+            removed_objects,
+            visited_payloads,
+            removed_payloads,
+            visited_renders,
+            removed_renders,
+            visited_proxies,
+            removed_proxies,
+            errors,
+        } = result;
+
+        println!("{} after {duration:.0?}:", "Finished".bold());
+        let removed = if self.dry_run {
+            "to remove".yellow().italic()
+        } else {
+            "removed".red().italic()
+        };
+        println!(
+            "{visited_tags:>12} tags visited     [{:>6} {removed}]",
+            pruned_tags.values().map(Vec::len).sum::<usize>()
+        );
+        println!(
+            "{visited_objects:>12} objects visited  [{:>6} {removed}]",
+            removed_objects.len()
+        );
+        println!(
+            "{visited_payloads:>12} payloads visited [{:>6} {removed}]",
+            removed_payloads.len()
+        );
+        println!(
+            "{visited_renders:>12} renders visited  [{:>6} {removed}]",
+            removed_renders.values().map(HashSet::len).sum::<usize>()
+        );
+        println!(
+            "{visited_proxies:>12} proxies visited  [{:>6} {removed}]",
+            removed_proxies.values().map(HashSet::len).sum::<usize>()
+        );
+
+        if !errors.is_empty() {
+            println!("Encountered {} {}", errors.len(), "errors".red());
+            println!(" > the 'spfs check' command may provide more details");
+        }
+
         Ok(0)
     }
 }

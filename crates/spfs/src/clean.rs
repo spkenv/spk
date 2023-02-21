@@ -21,9 +21,6 @@ use crate::{encoding, graph, storage, tracking, Error, Result};
 #[path = "./clean_test.rs"]
 mod clean_test;
 
-const MAX_CONCURRENT_TAG_STREAMS: usize = 50;
-const MAX_CONCURRENT_REMOVALS: usize = 50;
-
 /// Runs a cleaning operation on a repository.
 ///
 /// Primarily, this operation looks to remove data
@@ -36,6 +33,9 @@ where
 {
     repo: &'repo storage::RepositoryHandle,
     reporter: Reporter,
+    tag_stream_concurrency: usize,
+    removal_concurrency: usize,
+    discover_concurrency: usize,
     attached: DashSet<encoding::Digest>,
     dry_run: bool,
     must_be_older_than: DateTime<Utc>,
@@ -48,6 +48,9 @@ impl<'repo> Cleaner<'repo, SilentCleanReporter> {
         Self {
             repo,
             reporter: SilentCleanReporter,
+            removal_concurrency: 500,
+            discover_concurrency: 50,
+            tag_stream_concurrency: 500,
             attached: Default::default(),
             dry_run: false,
             must_be_older_than: Utc::now(),
@@ -72,7 +75,34 @@ where
             must_be_older_than: self.must_be_older_than,
             prune_repeated_tags: self.prune_repeated_tags,
             prune_params: self.prune_params,
+            removal_concurrency: self.removal_concurrency,
+            discover_concurrency: self.discover_concurrency,
+            tag_stream_concurrency: self.tag_stream_concurrency,
         }
+    }
+
+    // The number of concurrent tag stream scanning operations
+    // that are buffered and allowed to run concurrently
+    pub fn with_tag_stream_concurrency(mut self, tag_stream_concurrency: usize) -> Self {
+        self.tag_stream_concurrency = tag_stream_concurrency;
+        self
+    }
+
+    // The number of concurrent remove operations that are
+    // buffered and allowed to run concurrently
+    pub fn with_removal_concurrency(mut self, removal_concurrency: usize) -> Self {
+        self.removal_concurrency = removal_concurrency;
+        self
+    }
+
+    // The number of concurrent discover/scan operations that are
+    // buffered and allowed to run concurrently.
+    //
+    // This number is applied in a recursive manner, and so can grow
+    // exponentially in deeply complex repositories.
+    pub fn with_discover_concurrency(mut self, discover_concurrency: usize) -> Self {
+        self.discover_concurrency = discover_concurrency;
+        self
     }
 
     /// When dry run is enabled, the clean process doesn't actually
@@ -257,13 +287,13 @@ where
         let mut stream = self.repo.iter_tag_streams();
         let mut futures = futures::stream::FuturesUnordered::new();
         while let Some((tag_spec, _stream)) = stream.try_next().await? {
-            if futures.len() > MAX_CONCURRENT_TAG_STREAMS {
+            if futures.len() > self.tag_stream_concurrency {
                 // if we've reached the limit, let the fastest half finish
                 // before adding additional futures. This is a crude way to
                 // try and maximize parallel processing while also not leaving
                 // completed futures for too long or needing to wait for the
                 // slowest ones too often
-                while futures.len() > MAX_CONCURRENT_TAG_STREAMS / 2 {
+                while futures.len() > self.tag_stream_concurrency / 2 {
                     futures.try_next().await?;
                 }
             }
@@ -272,11 +302,10 @@ where
         while let Some(r) = futures.try_next().await? {
             result += r;
         }
-        let (r1, _) = tokio::try_join!(
-            self.remove_unvisited_objects_and_payloads(),
-            self.remove_unvisited_renders_and_proxies(),
-        )?;
-        result += r1;
+        // because we don't yet know if some detached objects will be
+        // kept due to age, we cannot process these two steps in parallel
+        result += self.remove_unvisited_objects_and_payloads().await?;
+        result += self.remove_unvisited_renders_and_proxies().await?;
         Ok(result)
     }
 
@@ -304,6 +333,11 @@ where
             }
         }
 
+        let mut result = CleanResult {
+            visited_tags: to_prune.len() as u64 + to_keep.len() as u64,
+            ..CleanResult::default()
+        };
+
         for tag in to_prune.iter() {
             if !self.dry_run {
                 self.repo.remove_tag(tag).await?;
@@ -311,20 +345,24 @@ where
             self.reporter.tag_removed(tag);
         }
 
-        for tag in to_keep {
-            self.discover_attached_objects(tag.target).await?;
-        }
-
-        let mut result = CleanResult::default();
         result.pruned_tags.insert(tag_spec, to_prune);
+
+        let mut walk_stream = futures::stream::iter(to_keep.iter())
+            .then(|tag| ready(self.discover_attached_objects(tag.target).boxed()))
+            .buffer_unordered(self.discover_concurrency)
+            .boxed();
+        while let Some(res) = walk_stream.try_next().await? {
+            result += res;
+        }
 
         Ok(result)
     }
 
     #[async_recursion::async_recursion]
-    async fn discover_attached_objects(&self, digest: encoding::Digest) -> Result<()> {
+    async fn discover_attached_objects(&self, digest: encoding::Digest) -> Result<CleanResult> {
+        let mut result = CleanResult::default();
         if !self.attached.insert(digest) {
-            return Ok(());
+            return Ok(result);
         }
 
         let obj = match self.repo.read_object(digest).await {
@@ -332,21 +370,32 @@ where
             Err(Error::UnknownObject(_)) => {
                 // TODO: it would be nice to have an option to prune
                 // broken tags that cause this error
-                return Ok(());
+                return Ok(result);
             }
-            Err(err) => return Err(err),
+            Err(err) => {
+                self.reporter.error_encountered(&err);
+                result.errors.push(err);
+                return Ok(result);
+            }
         };
         self.reporter.visit_object(&obj);
+        result.visited_objects += 1;
         if let graph::Object::Blob(b) = &obj {
+            result.visited_payloads += 1;
             self.reporter.visit_payload(b);
         }
-        for child in obj.child_objects() {
-            self.discover_attached_objects(child).await?;
+        let mut walk_stream = futures::stream::iter(obj.child_objects())
+            .then(|child| ready(self.discover_attached_objects(child).boxed()))
+            .buffer_unordered(self.discover_concurrency)
+            .boxed();
+        while let Some(res) = walk_stream.try_next().await? {
+            result += res;
         }
-        Ok(())
+        Ok(result)
     }
 
     async fn remove_unvisited_objects_and_payloads(&self) -> Result<CleanResult> {
+        let mut result = CleanResult::default();
         let mut stream = self
             .repo
             .iter_objects()
@@ -356,6 +405,7 @@ where
             // but also want to report these ones
             .and_then(|obj| {
                 self.reporter.visit_object(&obj.1);
+                result.visited_objects += 1;
                 ready(Ok(obj))
             })
             .and_then(|(digest, object)| {
@@ -374,7 +424,7 @@ where
                     .map_ok(move |removed| (digest, object, removed));
                 ready(Ok(future.boxed()))
             })
-            .try_buffer_unordered(MAX_CONCURRENT_REMOVALS)
+            .try_buffer_unordered(self.removal_concurrency)
             .try_filter_map(|(digest, obj, removed)| {
                 if !removed {
                     // objects that are too new to be removed become
@@ -398,6 +448,7 @@ where
                     return ready(Ok(ready(Ok(blob)).boxed()));
                 }
                 self.reporter.visit_payload(&blob);
+                result.visited_payloads += 1;
                 let future = self
                     .repo
                     .remove_payload(blob.payload)
@@ -410,10 +461,10 @@ where
                     .map_ok(|_| blob);
                 ready(Ok(future.boxed()))
             })
-            .try_buffer_unordered(MAX_CONCURRENT_REMOVALS);
+            .try_buffer_unordered(self.removal_concurrency);
         let mut result = CleanResult::default();
         while let Some(blob) = stream.try_next().await? {
-            result.removed_objects.insert(blob.payload);
+            result.removed_payloads.insert(blob.payload);
             self.reporter.payload_removed(&blob)
         }
 
@@ -432,6 +483,7 @@ where
             })
             .and_then(|blob| {
                 self.reporter.visit_payload(&blob);
+                result.visited_payloads += 1;
                 if self.dry_run {
                     return ready(Ok(ready(Ok(blob)).boxed()));
                 }
@@ -447,11 +499,12 @@ where
                     .map_ok(|_| blob);
                 ready(Ok(future.boxed()))
             })
-            .try_buffer_unordered(MAX_CONCURRENT_REMOVALS);
+            .try_buffer_unordered(self.removal_concurrency);
         while let Some(blob) = stream.try_next().await? {
-            result.removed_objects.insert(blob.payload);
+            result.removed_payloads.insert(blob.payload);
             self.reporter.payload_removed(&blob)
         }
+        drop(stream);
 
         Ok(result)
     }
@@ -481,10 +534,12 @@ where
         username: Option<String>,
         repo: &storage::fs::FSRepository,
     ) -> Result<CleanResult> {
+        let mut result = CleanResult::default();
         let mut stream = repo
             .iter_rendered_manifests()
             .try_filter_map(|digest| {
                 self.reporter.visit_render(&digest);
+                result.visited_renders += 1;
                 if self.attached.contains(&digest) {
                     return ready(Ok(None));
                 }
@@ -505,14 +560,14 @@ where
                     .map_ok(move |removed| (digest, removed));
                 ready(Ok(future.boxed()))
             })
-            .try_buffer_unordered(MAX_CONCURRENT_REMOVALS)
+            .try_buffer_unordered(self.removal_concurrency)
             .try_filter_map(|(digest, removed)| ready(Ok(removed.then_some(digest))));
-        let mut result = CleanResult::default();
         let removed_for_user = result.removed_renders.entry(username.clone()).or_default();
         while let Some(digest) = stream.try_next().await? {
             removed_for_user.insert(digest);
             self.reporter.render_removed(&digest);
         }
+        drop(stream);
 
         if let Some(proxy_path) = repo.proxy_path() {
             result += self.clean_proxies(username, proxy_path.to_owned()).await?;
@@ -538,6 +593,7 @@ where
             .iter()
             .try_filter_map(|digest| {
                 self.reporter.visit_proxy(&digest);
+                result.visited_proxies += 1;
                 if self.attached.contains(&digest) {
                     return ready(Ok(None));
                 }
@@ -557,19 +613,22 @@ where
                 ready(Ok(future.boxed()))
             })
             // buffer/parallelize the removal operations
-            .try_buffer_unordered(MAX_CONCURRENT_REMOVALS)
+            .try_buffer_unordered(self.removal_concurrency)
             .boxed();
 
         while let Some(res) = stream.next().await {
-            tracing::warn!(?res);
             match res {
                 Ok(digest) => {
                     self.reporter.proxy_removed(&digest);
                     removed.insert(digest);
                 }
-                Err(err) => result.errors.push(err),
+                Err(err) => {
+                    self.reporter.error_encountered(&err);
+                    result.errors.push(err);
+                }
             }
         }
+        drop(stream);
 
         Ok(result)
     }
@@ -577,14 +636,31 @@ where
 
 #[derive(Debug, Default)]
 pub struct CleanResult {
+    /// The number of tags visited when walking the database
+    pub visited_tags: u64,
     /// The tags pruned from the database
     pub pruned_tags: HashMap<tracking::TagSpec, Vec<tracking::Tag>>,
-    /// The objects and payloads removed
+
+    /// The number of objects visited when walking the database
+    pub visited_objects: u64,
+    /// The objects removed
     pub removed_objects: HashSet<encoding::Digest>,
+
+    /// The number of payloads visited when walking the database
+    pub visited_payloads: u64,
+    /// The payloads removed
+    pub removed_payloads: HashSet<encoding::Digest>,
+
+    /// The number of renders visited when walking the database
+    pub visited_renders: u64,
     /// The renders removed (by associated username)
     pub removed_renders: HashMap<Option<String>, HashSet<encoding::Digest>>,
+
+    /// The number of proxies visited when walking the database
+    pub visited_proxies: u64,
     /// The proxy payloads removed (by associated username)
     pub removed_proxies: HashMap<Option<String>, HashSet<encoding::Digest>>,
+
     /// Non-fatal errors encountered while cleaning.
     ///
     /// These are errors that stopped one or more items from
@@ -605,10 +681,18 @@ impl CleanResult {
 
 impl std::ops::AddAssign for CleanResult {
     fn add_assign(&mut self, rhs: Self) {
+        // destructure to ensure that newly added fields
+        // are accounted for in this function
         let CleanResult {
+            visited_tags,
             pruned_tags,
+            visited_objects,
             removed_objects,
+            visited_payloads,
+            removed_payloads,
+            visited_renders,
             removed_renders,
+            visited_proxies,
             removed_proxies,
             errors,
         } = rhs;
@@ -627,7 +711,13 @@ impl std::ops::AddAssign for CleanResult {
                 .or_default()
                 .extend(removed);
         }
+        self.visited_tags += visited_tags;
+        self.visited_objects += visited_objects;
         self.removed_objects.extend(removed_objects);
+        self.visited_payloads += visited_payloads;
+        self.removed_payloads.extend(removed_payloads);
+        self.visited_renders += visited_renders;
+        self.visited_proxies += visited_proxies;
         self.errors.extend(errors);
     }
 }
@@ -662,6 +752,9 @@ pub trait CleanReporter {
 
     /// Called when the cleaner removes a render from disk
     fn render_removed(&self, _render: &encoding::Digest) {}
+
+    /// Called when a non-fatal error is encountered while cleaning
+    fn error_encountered(&self, _err: &Error) {}
 }
 
 pub struct SilentCleanReporter;
@@ -711,6 +804,10 @@ impl CleanReporter for TracingCleanReporter {
     fn render_removed(&self, render: &encoding::Digest) {
         tracing::info!(?render, "render removed");
     }
+
+    fn error_encountered(&self, err: &Error) {
+        tracing::error!(%err);
+    }
 }
 
 /// Reports sync progress to an interactive console via progress bars
@@ -727,43 +824,48 @@ impl ConsoleCleanReporter {
 
 impl CleanReporter for ConsoleCleanReporter {
     fn visit_tag(&self, _tag: &tracking::Tag) {
-        self.get_bars().tags.inc_length(1);
-    }
-
-    fn tag_removed(&self, _tag: &tracking::Tag) {
         self.get_bars().tags.inc(1);
     }
 
-    fn visit_object(&self, _object: &graph::Object) {
-        self.get_bars().objects.inc_length(1);
+    fn tag_removed(&self, _tag: &tracking::Tag) {
+        self.get_bars().tags.inc_length(1);
     }
 
-    fn object_removed(&self, _object: &graph::Object) {
+    fn visit_object(&self, _object: &graph::Object) {
         self.get_bars().objects.inc(1);
     }
 
-    fn visit_payload(&self, payload: &graph::Blob) {
-        self.get_bars().payloads.inc_length(payload.size);
+    fn object_removed(&self, _object: &graph::Object) {
+        self.get_bars().objects.inc_length(1);
     }
 
-    fn payload_removed(&self, payload: &graph::Blob) {
-        self.get_bars().payloads.inc(payload.size);
+    fn visit_payload(&self, _payload: &graph::Blob) {
+        self.get_bars().payloads.inc(1);
+    }
+
+    fn payload_removed(&self, _payload: &graph::Blob) {
+        self.get_bars().payloads.inc_length(1);
     }
 
     fn visit_proxy(&self, _proxy: &encoding::Digest) {
-        self.get_bars().proxies.inc_length(1);
-    }
-
-    fn proxy_removed(&self, _proxy: &encoding::Digest) {
         self.get_bars().proxies.inc(1);
     }
 
+    fn proxy_removed(&self, _proxy: &encoding::Digest) {
+        self.get_bars().proxies.inc_length(1);
+    }
+
     fn visit_render(&self, _render: &encoding::Digest) {
-        self.get_bars().renders.inc_length(1);
+        self.get_bars().renders.inc(1);
     }
 
     fn render_removed(&self, _render: &encoding::Digest) {
-        self.get_bars().renders.inc(1);
+        self.get_bars().renders.inc_length(1);
+    }
+
+    fn error_encountered(&self, err: &Error) {
+        let msg = err.to_string().red().to_string();
+        self.get_bars().tags.println(msg);
     }
 }
 
@@ -782,12 +884,8 @@ impl Default for ConsoleCleanReporterBars {
         static PROGRESS_CHARS: &str = "=>-";
         let counter_style = indicatif::ProgressStyle::default_bar()
             .template(
-                " {spinner} {msg:<17.green} {len:>10.cyan} found {pos:>10.yellow} to remove ({percent}%)",
+                " {spinner} {msg:<17.green} {pos:>10.cyan} found {len:>10.yellow} to remove [{per_sec}]",
             )
-            .tick_strings(TICK_STRINGS)
-            .progress_chars(PROGRESS_CHARS);
-        let bytes_style = indicatif::ProgressStyle::default_bar()
-            .template(" {spinner} {msg:<17.green} {total_bytes:>10.cyan} found {bytes:>10.yellow} to remove ({percent}%)")
             .tick_strings(TICK_STRINGS)
             .progress_chars(PROGRESS_CHARS);
         let bars = indicatif::MultiProgress::new();
@@ -803,7 +901,7 @@ impl Default for ConsoleCleanReporterBars {
         );
         let payloads = bars.add(
             indicatif::ProgressBar::new(0)
-                .with_style(bytes_style)
+                .with_style(counter_style.clone())
                 .with_message("cleaning payloads"),
         );
         let renders = bars.add(
@@ -841,11 +939,11 @@ impl Default for ConsoleCleanReporterBars {
 
 impl Drop for ConsoleCleanReporterBars {
     fn drop(&mut self) {
-        self.payloads.finish_at_current_pos();
-        self.proxies.finish_at_current_pos();
-        self.renders.finish_at_current_pos();
-        self.objects.finish_at_current_pos();
-        self.tags.finish_at_current_pos();
+        self.payloads.finish_and_clear();
+        self.proxies.finish_and_clear();
+        self.renders.finish_and_clear();
+        self.objects.finish_and_clear();
+        self.tags.finish_and_clear();
         if let Some(r) = self.renderer.take() {
             let _ = r.join();
         }

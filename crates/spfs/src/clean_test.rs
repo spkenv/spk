@@ -20,7 +20,7 @@ use crate::{graph, storage, tracking, Error};
 async fn test_attached_objects(#[future] tmprepo: TempRepo) {
     let tmprepo = tmprepo.await;
 
-    let manifest = generate_tree(&tmprepo).await.lock();
+    let manifest = generate_tree(&tmprepo).await.to_graph_manifest();
 
     let cleaner = Cleaner::new(&tmprepo).with_reporter(TracingCleanReporter);
     cleaner
