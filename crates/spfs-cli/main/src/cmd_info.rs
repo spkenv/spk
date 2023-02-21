@@ -21,9 +21,13 @@ pub struct CmdInfo {
     #[clap(value_name = "REF")]
     refs: Vec<String>,
 
-    /// Also find and report any tags that point to any identified digest
+    /// Also find and report any tags that point to any identified digest (implies '--short')
     #[clap(long)]
     tags: bool,
+
+    /// Use shortened digests in the output (nicer, but slower)
+    #[clap(long)]
+    short: bool,
 }
 
 impl CmdInfo {
@@ -48,8 +52,10 @@ impl CmdInfo {
     ) -> spfs::Result<String> {
         if self.tags {
             io::format_digest(digest, DigestFormat::ShortenedWithTags(repo)).await
-        } else {
+        } else if self.short {
             io::format_digest(digest, DigestFormat::Shortened(repo)).await
+        } else {
+            io::format_digest(digest, DigestFormat::Full).await
         }
     }
 
