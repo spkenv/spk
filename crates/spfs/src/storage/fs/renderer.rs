@@ -463,6 +463,7 @@ where
 
     /// Renders the file into a path on disk, changing its permissions
     /// as necessary / appropriate
+    #[async_recursion::async_recursion]
     async fn render_blob<'a, Fd>(
         &self,
         dir_fd: Fd,
@@ -470,7 +471,7 @@ where
         render_type: RenderType,
     ) -> Result<()>
     where
-        Fd: std::os::fd::AsRawFd,
+        Fd: std::os::fd::AsRawFd + Send,
     {
         let _permit = self
             .blob_semaphore
@@ -643,6 +644,14 @@ where
                                 });
                             }
                             nix::errno::Errno::EEXIST => (),
+                            nix::errno::Errno::EMLINK => {
+                                // hard-linking can fail if we have reached the maximum number of links
+                                // for the underlying file system. Often this number is arbitrarily large,
+                                // but on some systems and filers, or at certain scales the possibility is
+                                // very real. In these cases, our only real course of action other than failing
+                                // is to fall back to a real copy of the file.
+                                return self.render_blob(dir_fd, entry, RenderType::Copy).await;
+                            }
                             _ if matches!(render_type, RenderType::HardLink) => {
                                 return Err(Error::StorageWriteError(
                                     "hard_link of blob proxy to rendered path",
