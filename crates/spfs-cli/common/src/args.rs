@@ -61,6 +61,45 @@ impl Sync {
     }
 }
 
+/// Command line flags for configuring render operations
+#[derive(Debug, Clone, clap::Args)]
+pub struct Render {
+    /// The total number of blobs that can be rendererd concurrently
+    #[clap(
+        long,
+        env = "SPFS_RENDER_MAX_CONCURRENT_BLOBS",
+        default_value_t = spfs::storage::fs::DEFAULT_MAX_CONCURRENT_BLOBS
+    )]
+    pub max_concurrent_blobs: usize,
+
+    /// The total number of branches that can be processed concurrently
+    /// at each level of the rendered file tree.
+    ///
+    /// The number of active trees being processed can grow exponentially
+    /// by this exponent for each additional level of depth in the rendered
+    /// file tree. In general, this number should be kept low.
+    #[clap(
+        long,
+        env = "SPFS_RENDER_MAX_CONCURRENT_BRANCHES",
+        default_value_t = spfs::storage::fs::DEFAULT_MAX_CONCURRENT_BRANCHES
+    )]
+    pub max_concurrent_branches: usize,
+}
+
+impl Render {
+    /// Construct a new renderer instance configured based on these flags
+    #[allow(dead_code)] // not all commands use this function but some do
+    pub fn get_renderer<'repo>(
+        &self,
+        repo: &'repo spfs::storage::fs::FSRepository,
+    ) -> spfs::storage::fs::Renderer<'repo, spfs::storage::fs::ConsoleRenderReporter> {
+        spfs::storage::fs::Renderer::new(repo)
+            .with_max_concurrent_blobs(self.max_concurrent_blobs)
+            .with_max_concurrent_branches(self.max_concurrent_branches)
+            .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
+    }
+}
+
 #[cfg(feature = "sentry")]
 fn get_cli_context() -> (
     String,

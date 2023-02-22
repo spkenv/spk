@@ -41,7 +41,7 @@ impl From<&tracking::Entry> for Manifest {
             let converted = match node.entry.kind {
                 tracking::EntryKind::Tree => {
                     let sub = Self::from(node.entry);
-                    for tree in sub.list_trees().into_iter() {
+                    for tree in sub.iter_trees() {
                         manifest
                             .insert_tree(tree.clone())
                             .expect("should not fail to insert tree entry");
@@ -84,7 +84,7 @@ impl Manifest {
     /// Return the digests of objects that this manifest refers to.
     pub fn child_objects(&self) -> Vec<encoding::Digest> {
         let mut children = BTreeSet::new();
-        for tree in self.list_trees().into_iter() {
+        for tree in self.iter_trees() {
             for entry in tree.entries.iter() {
                 if let tracking::EntryKind::Blob = entry.kind {
                     children.insert(entry.object);
@@ -123,28 +123,17 @@ impl Manifest {
     ///
     /// Will panic if this manifest is internally inconsistent, though this
     /// would point to a programming error or bug.
-    pub fn list_trees(&self) -> Vec<&Tree> {
-        let mut trees = vec![&self.root];
-        for digest in &self.tree_order {
-            match self.trees.get(digest) {
-                Some(tree) => trees.push(tree),
-                None => {
-                    panic!("manifest is internally inconsistent (missing indexed tree)");
-                }
-            }
-        }
-        trees
+    pub fn iter_trees(&self) -> impl Iterator<Item = &Tree> {
+        std::iter::once(&self.root).chain(self.tree_order.iter().map(|digest| {
+            self.trees
+                .get(digest)
+                .expect("manifest is internally inconsistent (missing indexed tree)")
+        }))
     }
 
     /// Iterate all of the entries in this manifest.
-    pub fn list_entries(&self) -> Vec<&Entry> {
-        let mut children = Vec::new();
-        for tree in self.list_trees().into_iter() {
-            for entry in tree.entries.iter() {
-                children.push(entry);
-            }
-        }
-        children
+    pub fn iter_entries(&self) -> impl Iterator<Item = &Entry> {
+        self.iter_trees().flat_map(|t| t.entries.iter())
     }
 
     /// Unlock creates a tracking manifest that is more workable

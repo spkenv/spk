@@ -274,8 +274,8 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         _ => panic!("Unexpected tmprepo type!"),
     };
 
-    tmprepo
-        .render_manifest(&graph::Manifest::from(&manifest))
+    storage::fs::Renderer::new(tmprepo)
+        .render_manifest(&graph::Manifest::from(&manifest), None)
         .await
         .unwrap();
 

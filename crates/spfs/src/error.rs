@@ -96,9 +96,9 @@ pub enum Error {
     RuntimeWriteError(std::path::PathBuf, #[source] io::Error),
     #[error("Runtime set permissions error: {0}")]
     RuntimeSetPermissionsError(std::path::PathBuf, #[source] io::Error),
-    #[error("Storage read error from {0}: {1}")]
+    #[error("Storage read error from {0} at {1}: {2}")]
     StorageReadError(&'static str, std::path::PathBuf, #[source] io::Error),
-    #[error("Storage write error from {0}: {1}")]
+    #[error("Storage write error from {0} at {1}: {2}")]
     StorageWriteError(&'static str, std::path::PathBuf, #[source] io::Error),
 
     #[error("'{0}' not found in PATH, was it installed properly?")]

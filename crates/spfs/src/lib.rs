@@ -57,9 +57,8 @@ pub use prune::{get_prunable_tags, prune_tags, PruneParameters};
 pub use resolve::{
     compute_manifest,
     compute_object_manifest,
-    render,
-    render_into_directory,
     resolve_stack_to_layers,
+    resolve_stack_to_layers_with_repo,
     which,
     which_spfs,
 };

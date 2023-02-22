@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use futures::stream::{FuturesUnordered, TryStreamExt};
 use once_cell::sync::OnceCell;
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::Semaphore;
 
 use crate::prelude::*;
 use crate::{encoding, graph, storage, tracking, Error, Result};
@@ -78,7 +77,7 @@ pub struct Syncer<'src, 'dst, Reporter: SyncReporter = SilentSyncReporter> {
     policy: SyncPolicy,
     manifest_semaphore: Arc<Semaphore>,
     payload_semaphore: Arc<Semaphore>,
-    processed_digests: Arc<RwLock<HashSet<encoding::Digest>>>,
+    processed_digests: Arc<dashmap::DashSet<encoding::Digest>>,
 }
 
 impl<'src, 'dst> Syncer<'src, 'dst> {
@@ -93,7 +92,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             policy: SyncPolicy::default(),
             manifest_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_MANIFESTS)),
             payload_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_PAYLOADS)),
-            processed_digests: Arc::new(RwLock::new(HashSet::new())),
+            processed_digests: Arc::new(Default::default()),
         }
     }
 }
@@ -255,7 +254,7 @@ where
         // don't write the digest here, as that is the responsibility
         // of the function that actually handles the data copying.
         // a short-circuit is still nice when possible, though
-        if self.processed_digests.read().await.contains(&digest) {
+        if self.processed_digests.contains(&digest) {
             return Ok(SyncObjectResult::Duplicate);
         }
         let obj = self.read_object_with_fallback(digest).await?;
@@ -280,7 +279,7 @@ where
 
     pub async fn sync_platform(&self, platform: graph::Platform) -> Result<SyncPlatformResult> {
         let digest = platform.digest()?;
-        if !self.processed_digests.write().await.insert(digest) {
+        if !self.processed_digests.insert(digest) {
             return Ok(SyncPlatformResult::Duplicate);
         }
         if self.policy.check_existing_objects() && self.dest.has_platform(digest).await {
@@ -306,7 +305,7 @@ where
 
     pub async fn sync_layer(&self, layer: graph::Layer) -> Result<SyncLayerResult> {
         let layer_digest = layer.digest()?;
-        if !self.processed_digests.write().await.insert(layer_digest) {
+        if !self.processed_digests.insert(layer_digest) {
             return Ok(SyncLayerResult::Duplicate);
         }
         if self.policy.check_existing_objects() && self.dest.has_layer(layer_digest).await {
@@ -326,7 +325,7 @@ where
 
     pub async fn sync_manifest(&self, manifest: graph::Manifest) -> Result<SyncManifestResult> {
         let manifest_digest = manifest.digest()?;
-        if !self.processed_digests.write().await.insert(manifest_digest) {
+        if !self.processed_digests.insert(manifest_digest) {
             return Ok(SyncManifestResult::Duplicate);
         }
         if self.policy.check_existing_objects() && self.dest.has_manifest(manifest_digest).await {
@@ -340,8 +339,7 @@ where
         );
 
         let entries: Vec<_> = manifest
-            .list_entries()
-            .into_iter()
+            .iter_entries()
             .cloned()
             .filter(|e| e.kind.is_blob())
             .collect();
@@ -380,12 +378,17 @@ where
 
     pub async fn sync_blob(&self, blob: graph::Blob) -> Result<SyncBlobResult> {
         let digest = blob.digest();
-        if self.processed_digests.read().await.contains(&digest) {
+        if self.processed_digests.contains(&digest) {
             // do not insert here because blobs share a digest with payloads
             // which should also must be visited at least once if needed
             return Ok(SyncBlobResult::Duplicate);
         }
-        if self.policy.check_existing_objects() && self.dest.has_blob(digest).await {
+
+        if self.policy.check_existing_objects()
+            && self.dest.has_blob(digest).await
+            && self.dest.has_payload(blob.payload).await
+        {
+            self.processed_digests.insert(digest);
             return Ok(SyncBlobResult::Skipped);
         }
         self.reporter.visit_blob(&blob);
@@ -393,6 +396,7 @@ where
         // is synced with it, which is the purpose of this function.
         let result = unsafe { self.sync_payload(blob.payload).await? };
         self.dest.write_blob(blob.clone()).await?;
+        self.processed_digests.insert(digest);
         let res = SyncBlobResult::Synced { blob, result };
         self.reporter.synced_blob(&res);
         Ok(res)
@@ -406,9 +410,10 @@ where
     /// as any payload should be synced alongside its
     /// corresponding Blob instance - use [`Self::sync_blob`] instead
     async unsafe fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
-        if !self.processed_digests.write().await.insert(digest) {
+        if self.processed_digests.contains(&digest) {
             return Ok(SyncPayloadResult::Duplicate);
         }
+
         if self.policy.check_existing_payloads() && self.dest.has_payload(digest).await {
             return Ok(SyncPayloadResult::Skipped);
         }
@@ -425,9 +430,10 @@ where
         let (created_digest, size) = unsafe { self.dest.write_data(payload).await? };
         if digest != created_digest {
             return Err(Error::String(format!(
-                "Source repository provided payload that did not match the requested digest: wanted {digest}, got {created_digest}",
+                "Source repository provided payload that did not match the requested digest: wanted {digest}, got {created_digest}. wrote {size} bytes",
             )));
         }
+
         let res = SyncPayloadResult::Synced { size };
         self.reporter.synced_payload(&res);
         Ok(res)

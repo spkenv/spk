@@ -89,8 +89,8 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
         _ => panic!("Unexpected tmprepo type!"),
     };
 
-    let rendered_dir = tmprepo
-        .render_manifest(&Manifest::from(&manifest))
+    let rendered_dir = fs::Renderer::new(tmprepo)
+        .render_manifest(&Manifest::from(&manifest), None)
         .await
         .expect("failed to render manifest");
     let rendered_symlink = rendered_dir.join(symlink_path);

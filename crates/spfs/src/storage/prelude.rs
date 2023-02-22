@@ -7,7 +7,6 @@ pub use super::{
     BlobStorage,
     LayerStorage,
     ManifestStorage,
-    ManifestViewer,
     PayloadStorage,
     PlatformStorage,
     Repository,

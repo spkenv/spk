@@ -62,9 +62,15 @@ impl Run for Render {
 
         let path = self.target.canonicalize()?;
         tracing::info!("Rendering into dir: {path:?}");
-        let items: Vec<String> = stack.iter().map(ToString::to_string).collect();
-        let env_spec = items.join("+").parse()?;
-        spfs::render_into_directory(&env_spec, &path).await?;
+        let config = spfs::load_config().context("Failed to load spfs config")?;
+        let repo = config
+            .get_local_repository()
+            .await
+            .context("Failed to open local spfs repo")?;
+        spfs::storage::fs::Renderer::new(&repo)
+            .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
+            .render_into_directory(stack, &path, spfs::storage::fs::RenderType::Copy)
+            .await?;
         tracing::info!("Render completed: {path:?}");
         Ok(0)
     }
