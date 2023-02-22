@@ -8,7 +8,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use futures::TryStreamExt;
+use futures::StreamExt;
 use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::*;
 use spfs::tracking::EntryKind;
@@ -296,7 +296,12 @@ where
         let entries = resolved_layers.iter_entries();
         pin!(entries);
         let mut seen = HashMap::<_, &ResolvedLayer>::new();
-        while let Some((path, entry, resolved_layer)) = entries.try_next().await? {
+        while let Some(entry) = entries.next().await {
+            let (path, entry, resolved_layer) = match entry {
+                Err(spk_exec::Error::NonSPFSLayerInResolvedLayers) => continue,
+                Err(err) => return Err(err.into()),
+                Ok(entry) => entry,
+            };
             if !matches!(entry.kind, EntryKind::Blob) {
                 continue;
             }

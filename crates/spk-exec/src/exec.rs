@@ -55,7 +55,7 @@ impl ResolvedLayers {
                             _ => continue,
                         }
                     }
-                    _ => continue,
+                    _ => Err(Error::NonSPFSLayerInResolvedLayers)?,
                 };
                 let unlock = manifest.unlock();
                 let walker = unlock.walk();
