@@ -132,12 +132,7 @@ macro_rules! make_build_and_components {
                         $crate::RequestedBy::SpkInternalTest,
                     ),
                     Arc::clone(&dep),
-                    // NOTE(rbottriell): this is not really appropriate, but
-                    // is not usually used by the 'generate_binary_build' process.
-                    // It might be necessary in the future to have a special enum
-                    // value for manually injected packages, but it's preferable
-                    // to avoid that.
-                    $crate::PackageSource::Embedded,
+                    $crate::PackageSource::SpkInternalTest,
                 );
                 )*
                 let mut resolved_opts = recipe.resolve_options(&build_opts).unwrap().into_iter();

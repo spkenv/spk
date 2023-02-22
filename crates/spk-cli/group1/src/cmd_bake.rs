@@ -138,7 +138,7 @@ impl Bake {
         resolved: &SolvedRequest,
     ) -> Result<HashMap<Component, Digest>> {
         let spfs_layers = match &resolved.source {
-            PackageSource::Embedded => {
+            PackageSource::Embedded { .. } => {
                 // Embedded builds are provided by another package
                 // in the solve. They don't have a layer of their
                 // own so they can be skipped over.
@@ -152,6 +152,11 @@ impl Bake {
                 repo: _,
                 components,
             } => components.clone(),
+            PackageSource::SpkInternalTest => {
+                // Internal test builds don't have a layer of
+                // their own so they can be skipped over.
+                return Err(Error::SkipSpkInternalTest);
+            }
         };
 
         Ok(spfs_layers)

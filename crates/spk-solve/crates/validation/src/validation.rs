@@ -402,17 +402,22 @@ impl ValidatorT for PkgRequestValidator {
                     )));
                 }
                 PackageSource::Repository { .. } => {} // okay
-                PackageSource::Embedded => {
+                PackageSource::Embedded { parent } => {
                     // TODO: from the right repo still?
-                    return Ok(Compatibility::Incompatible(
-                        "package did not come from requested repo (it was embedded in another)"
-                            .to_owned(),
-                    ));
+                    return Ok(Compatibility::Incompatible(format!(
+                        "package did not come from requested repo (it was embedded in {parent})"
+                    )));
                 }
                 PackageSource::BuildFromSource { .. } => {
                     // TODO: from the right repo still?
                     return Ok(Compatibility::Incompatible(
                         "package did not come from requested repo (it comes from a spec)"
+                            .to_owned(),
+                    ));
+                }
+                PackageSource::SpkInternalTest => {
+                    return Ok(Compatibility::Incompatible(
+                        "package did not come from requested repo (it comes from an internal test setup)"
                             .to_owned(),
                     ));
                 }
@@ -540,7 +545,8 @@ impl ComponentsValidator {
         let available_components: std::collections::HashSet<_> = match source {
             PackageSource::Repository { components, .. } => components.keys().collect(),
             PackageSource::BuildFromSource { .. } => package.components().names(),
-            PackageSource::Embedded => package.components().names(),
+            PackageSource::Embedded { .. } => package.components().names(),
+            PackageSource::SpkInternalTest => package.components().names(),
         };
 
         let required_components = package
@@ -636,9 +642,9 @@ impl PkgRequirementsValidator {
         let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
             Ok((spec, source)) => match source {
                 PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
-                PackageSource::BuildFromSource { .. } | PackageSource::Embedded => {
-                    (spec, spec.components().names())
-                }
+                PackageSource::BuildFromSource { .. }
+                | PackageSource::Embedded { .. }
+                | PackageSource::SpkInternalTest => (spec, spec.components().names()),
             },
             Err(spk_solve_graph::GetCurrentResolveError::PackageNotResolved(_)) => {
                 return Ok(Compatible)

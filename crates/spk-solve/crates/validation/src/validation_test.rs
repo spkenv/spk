@@ -1,7 +1,6 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-
 use std::sync::Arc;
 
 use rstest::rstest;
@@ -82,7 +81,7 @@ fn test_empty_options_can_match_anything() {
             "install": {"requirements": [{"var": "python.abi/cp37m"}]},
         }
     ));
-    let source = PackageSource::Embedded;
+    let source = PackageSource::SpkInternalTest;
 
     assert!(
         validator
@@ -122,7 +121,7 @@ fn test_qualified_var_supersedes_unqualified() {
             "build": {"options": [{"var": "debug", "static": "on"}]},
         }
     ));
-    let source = PackageSource::Embedded;
+    let source = PackageSource::SpkInternalTest;
 
     let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
@@ -139,7 +138,8 @@ fn test_qualified_var_supersedes_unqualified() {
             "build": {"options": [{"var": "debug", "static": "off"}]},
         }
     ));
-    let source = PackageSource::Embedded;
+    let source = PackageSource::SpkInternalTest;
+
     let compat = validator.validate_package(&state, &*spec, &source).unwrap();
     assert!(
         !compat.is_ok(),

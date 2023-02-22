@@ -26,7 +26,7 @@ fn test_resolve_build_same_result() {
     let recipe = Arc::new(recipe);
     let build_spec = spec!({"pkg": "test/1.0.0/3I42H3S6"});
     let build_spec = Arc::new(build_spec);
-    let source = PackageSource::Embedded; // TODO: ???
+    let source = PackageSource::SpkInternalTest;
 
     let resolve = Decision::builder(&base).resolve_package(&build_spec, source);
     let build = Decision::builder(&base)
@@ -110,7 +110,7 @@ fn test_request_default_component() {
     let base = std::sync::Arc::new(super::State::default_state());
 
     let resolve_state = DecisionBuilder::new(&base)
-        .resolve_package(&spec, PackageSource::Embedded) // TODO: embedded???
+        .resolve_package(&spec, PackageSource::SpkInternalTest)
         .apply(&base);
     let request = resolve_state
         .get_merged_request(PkgName::new("dependency").unwrap())
