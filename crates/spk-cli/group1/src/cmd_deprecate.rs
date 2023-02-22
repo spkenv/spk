@@ -190,6 +190,11 @@ pub(crate) async fn change_deprecation_state(
                                 }
                             };
                             for build in builds {
+                                if build.is_embedded() {
+                                    // Don't attempt to deprecate an embedded package; the stub
+                                    // will be deprecated when deprecating its provider.
+                                    continue;
+                                }
                                 let spec = match repo.read_package(&build).await {
                                     Ok(b) => b,
                                     Err(err) => {

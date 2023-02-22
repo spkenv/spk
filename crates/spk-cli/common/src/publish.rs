@@ -140,6 +140,12 @@ impl Publisher {
                 continue;
             }
 
+            if build.is_embedded() {
+                // Don't attempt to publish an embedded package; the stub
+                // will be recreated when publishing its provider.
+                continue;
+            }
+
             tracing::debug!("   loading package: {}", build.format_ident());
             let spec = self.from.read_package(build).await?;
             let components = self.from.read_components(build).await?;
