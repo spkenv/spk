@@ -20,7 +20,6 @@ pub mod env;
 mod error;
 pub mod graph;
 pub mod io;
-mod ls_tags;
 pub mod prelude;
 pub mod proto;
 mod prune;
@@ -52,7 +51,6 @@ pub use commit::{commit_dir, commit_layer, commit_layer_with_filter, commit_plat
 pub use diff::diff;
 pub use encoding::Digest;
 pub use error::{Error, Result};
-pub use ls_tags::ls_tags;
 pub use prune::{get_prunable_tags, prune_tags, PruneParameters};
 pub use resolve::{
     compute_manifest,
