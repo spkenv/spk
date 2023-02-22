@@ -578,6 +578,18 @@ where
                                     tokio::fs::hard_link(&payload_path, &proxy_path).await
                                 {
                                     match err.kind() {
+                                        std::io::ErrorKind::NotFound if retry_count < 3 => {
+                                            // At least on xfs filesystems, it
+                                            // is observed that this hard_link
+                                            // can fail if another process has
+                                            // renamed a different file on top
+                                            // of the source file. Confusingly,
+                                            // `payload_path_exists` is true in
+                                            // this situation, despite the "not
+                                            // found" error.
+                                            retry_count += 1;
+                                            continue;
+                                        }
                                         std::io::ErrorKind::AlreadyExists => (),
                                         _ => {
                                             return Err(Error::StorageWriteError(
@@ -587,6 +599,11 @@ where
                                             ))
                                         }
                                     }
+                                } else {
+                                    // Reset the retry counter after this phase
+                                    // so the next retryable section gets a
+                                    // fair number of retries too.
+                                    retry_count = 0;
                                 }
                             } else {
                                 if !has_correct_mode {
