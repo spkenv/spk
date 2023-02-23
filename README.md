@@ -18,7 +18,7 @@ alt="SPK Logo" src="website/static/images/spk_white.png#gh-dark-mode-only"/>
 
 ## Motivation
 
-SpFS provides a powerful set of tools for capturing and isolating process filesystems at runtime, but not a lot of great workflows for managing and organizing the environments and layers. SPK is the solution to this problem, adding the concept of software packages and the process of environment and dependency resolution for a better workflow.
+SPFS provides a powerful set of tools for capturing and isolating process filesystems at runtime, but not a lot of great workflows for managing and organizing the environments and layers. SPK is the solution to this problem, adding the concept of software packages and the process of environment and dependency resolution for a better workflow.
 
 ## Usage
 
@@ -71,7 +71,7 @@ make build FEATURES=spfs/protobuf-src
 
 ### Binaries and Capabilities
 
-Spfs builds into a number of separate binaries, all of which can be run through the main `spfs` binary. Some of these binaries require special capabilities to be set in order to function properly. The `setcaps_debug.sh` script can be used to set these capabilities on your locally-compiled debug binaries.
+SPFS builds into a number of separate binaries, all of which can be run through the main `spfs` binary. Some of these binaries require special capabilities to be set in order to function properly. The `setcaps_debug.sh` script can be used to set these capabilities on your locally-compiled debug binaries.
 
 ```sh
 # assign the necessary capabilities to the debug binaries
@@ -184,7 +184,7 @@ sudo yum install -y \
     zip \
     zlib
 ```
-Spfs has a number of unit tests written in rust that can be run using the `cargo` command.
+SPFS has a number of unit tests written in rust that can be run using the `cargo` command.
 
 ```sh
 cargo test
