@@ -296,16 +296,11 @@ impl FSHashStore {
             } => {
                 if let Err(err) = tokio::fs::rename(&working_file, &path).await {
                     let _ = tokio::fs::remove_file(&working_file).await;
-                    match err.kind() {
-                        ErrorKind::AlreadyExists => (),
-                        _ => {
-                            return Err(Error::StorageWriteError(
-                                "rename on hash store object",
-                                path,
-                                err,
-                            ))
-                        }
-                    }
+                    return Err(Error::StorageWriteError(
+                        "rename on hash store object",
+                        path,
+                        err,
+                    ));
                 }
                 copied
             }
