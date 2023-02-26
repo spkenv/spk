@@ -120,6 +120,18 @@ pub struct Config {
     pub csh_expect_file: PathBuf,
     /// The name of the mount namespace this runtime is using, if known
     pub mount_namespace: Option<PathBuf>,
+    /// The type of mount being used in this runtime
+    #[serde(
+        default,
+        skip_serializing_if = "MountBackend::is_overlayfs_with_renders"
+    )]
+    pub mount_backend: MountBackend,
+    /// Additional repositories being used to support this runtime
+    ///
+    /// Typically, these are only relevant for runtimes that can read
+    /// data from multiple repositories on-the-fly (eg FUSE)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub secondary_repositories: Vec<url::Url>,
 }
 
 impl Default for Config {
@@ -157,6 +169,8 @@ impl Config {
             runtime_dir: Some(root),
             tmpfs_size,
             mount_namespace: None,
+            mount_backend: MountBackend::OverlayFsWithRenders,
+            secondary_repositories: Vec::new(),
         }
     }
 
@@ -169,6 +183,57 @@ impl Config {
         self.sh_startup_file = root.join(Self::SH_STARTUP_FILE);
         self.csh_startup_file = root.join(Self::CSH_STARTUP_FILE);
         self.runtime_dir = Some(root);
+    }
+}
+
+/// Identifies a filesystem backend for spfs
+#[derive(
+    Default,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    strum::Display,
+    strum::EnumString,
+    strum::EnumVariantNames,
+    Serialize,
+    Deserialize,
+)]
+pub enum MountBackend {
+    /// Renders each layer to a folder on disk, before mounting
+    /// the whole stack as lower directories in overlayfs. Edits
+    /// are stored in the overlayfs upper directory.
+    #[default]
+    OverlayFsWithRenders,
+    // Mounts a since fuse filesystem as the lower directory to
+    // overlayfs, using the overlayfs upper directory for edits
+    OverlayFsWithFuse,
+    // Mounts a fuse filesystem directly
+    FuseOnly,
+}
+
+impl MountBackend {
+    pub fn is_overlayfs_with_renders(&self) -> bool {
+        matches!(self, Self::OverlayFsWithRenders)
+    }
+
+    pub fn is_overlayfs_with_with_fuse(&self) -> bool {
+        matches!(self, Self::OverlayFsWithRenders)
+    }
+
+    pub fn is_fuse_only(&self) -> bool {
+        matches!(self, Self::FuseOnly)
+    }
+
+    /// Reports whether this mount backend requires that all
+    /// data be synced to the local repository before being executed
+    pub fn requires_localization(&self) -> bool {
+        match self {
+            Self::OverlayFsWithRenders => true,
+            Self::OverlayFsWithFuse => false,
+            Self::FuseOnly => false,
+        }
     }
 }
 
@@ -400,6 +465,16 @@ impl Runtime {
         self.status.stack = new_stack;
     }
 
+    /// Generate a platform with all the layers from this runtime
+    /// properly stacked.
+    pub fn to_platform(&self) -> graph::Platform {
+        let mut platform = graph::Platform {
+            stack: self.status.stack.clone(),
+        };
+        platform.stack.extend(self.status.flattened_layers.iter());
+        platform
+    }
+
     /// Write out the startup script data to disk, ensuring
     /// that all required startup files are present in their
     /// defined location.
@@ -568,13 +643,11 @@ impl Storage {
         Ok(rt)
     }
 
-    /// Save the state of the provided runtime for later retrieval
+    /// Save the state of the provided runtime for later retrieval.
     pub async fn save_runtime(&self, rt: &Runtime) -> Result<()> {
         let payload_tag = runtime_tag(RuntimeDataType::Payload, rt.name())?;
         let meta_tag = runtime_tag(RuntimeDataType::Metadata, rt.name())?;
-        let mut platform = graph::Platform::new(&mut rt.status.stack.iter())?;
-        platform.stack.extend(rt.status.flattened_layers.iter());
-        let platform: graph::Object = platform.into();
+        let platform: graph::Object = rt.to_platform().into();
         let platform_digest = platform.digest()?;
         let config_data = serde_json::to_string(&rt.data)?;
         let (_, config_digest) = tokio::try_join!(

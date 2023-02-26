@@ -128,7 +128,7 @@ impl CmdEnter {
                 })?,
             };
 
-            tracing::debug!("initializing runtime");
+            tracing::debug!("initializing runtime {owned:#?}");
             let start_time = Instant::now();
             let render_summary = spfs::initialize_runtime(&mut owned).await?;
             self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());

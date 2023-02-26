@@ -12,6 +12,8 @@ BuildRequires: gcc-c++
 BuildRequires: make
 BuildRequires: cmake3
 BuildRequires: openssl-devel
+BuildRequires: fuse-devel
+BuildRequires: m4
 
 %define debug_package %{nil}
 
