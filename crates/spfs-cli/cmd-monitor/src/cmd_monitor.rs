@@ -43,13 +43,34 @@ impl CommandName for CmdMonitor {
 }
 
 impl CmdMonitor {
-    pub async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
-        let mut interrupt = signal(SignalKind::interrupt())
-            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
-        let mut quit = signal(SignalKind::quit())
-            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
-        let mut terminate = signal(SignalKind::terminate())
-            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
+    pub fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
+        // create an initial runtime that will wait for the
+        // caller to signal that we are ready to start processing
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .max_blocking_threads(1)
+            .enable_all()
+            .build()
+            .context("Failed to establish async runtime")?;
+        rt.block_on(self.wait_for_ready());
+        // clean up this runtime and all other threads before detaching
+        drop(rt);
+
+        const NO_CHDIR: bool = false;
+        const NO_CLOSE: bool = false;
+        nix::unistd::daemon(NO_CHDIR, NO_CLOSE)
+            .context("Failed to daemonize the monitor process")?;
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .max_blocking_threads(2)
+            .enable_all()
+            .build()
+            .context("Failed to establish async runtime")?;
+        let code = rt.block_on(self.run_async())?;
+        // the monitor is running in the background and, although not expected,
+        // can take extra time to shutdown if needed
+        rt.shutdown_timeout(std::time::Duration::from_secs(5));
+        Ok(code)
+    }
 
         // Wait to be informed that it is now safe to read the mount namespace
         // of the pid we are meant to be monitoring. Also wait to read/write
@@ -84,7 +105,10 @@ impl CmdMonitor {
 
         let fut = spfs::env::wait_for_empty_runtime(&owned);
         let res = tokio::select! {
-            res = fut => res,
+            res = fut => {
+                tracing::info!("Monitor detected no more processes, cleaning up runtime...");
+                res
+            }
             // we explicitly catch any signal related to interruption
             // and will act by cleaning up the runtime early
             _ = terminate.recv() => Err(spfs::Error::String("Terminate signal received, cleaning up runtime early".to_string())),
@@ -98,9 +122,24 @@ impl CmdMonitor {
         // here is unfortunate but not fatal.
         owned.status.running = false;
         let _ = owned.save_state_to_storage().await;
+
+        match owned.config.mount_backend {
+            spfs::runtime::MountBackend::OverlayFsWithRenders => {}
+            spfs::runtime::MountBackend::OverlayFsWithFuse
+            | spfs::runtime::MountBackend::FuseOnly => {
+                // the mounted FUSE filesystem needs to be explicitly unmounted
+                // upon exit as the daemonized server will keep the mount namespace
+                // alive and never exit
+                const LAZY: bool = false; // it must clean up fully because the runtime is shutting down
+                if let Err(err) = spfs::env::unmount_env_fuse(&owned, LAZY).await {
+                    tracing::error!("{err}");
+                }
+            }
+        }
         if let Err(err) = owned.delete().await {
             tracing::error!("failed to clean up runtime data: {err:?}")
         }
+
         res?;
         Ok(0)
     }

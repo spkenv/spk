@@ -158,9 +158,32 @@ impl RemoteConfig {
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
+pub struct Filesystem {
+    /// The default mount backend to be used for new runtimes.
+    pub backend: crate::runtime::MountBackend,
+    /// The named remotes that can be used by the runtime
+    /// file systems to find object data (if possible)
+    ///
+    /// This option is typically only relevant for virtual file
+    /// systems that can perform read-through lookups, such as FUSE.
+    #[serde(default = "Filesystem::default_secondary_repositories")]
+    pub secondary_repositories: Vec<String>,
+}
+
+impl Filesystem {
+    /// The default set of secondary repositories to be used by
+    /// the runtime filesystem
+    pub fn default_secondary_repositories() -> Vec<String> {
+        vec![String::from("origin")]
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
 pub struct Config {
     pub user: User,
     pub storage: Storage,
+    pub filesystem: Filesystem,
     pub remote: std::collections::HashMap<String, Remote>,
 }
 
@@ -295,6 +318,22 @@ impl Config {
                 source: Box::new(err),
             },
         })
+    }
+
+    pub fn get_secondary_runtime_repositories(&self) -> Vec<url::Url> {
+        let mut addrs = Vec::new();
+        for name in self.filesystem.secondary_repositories.iter() {
+            let Some(remote) = self.remote.get(name) else {
+                tracing::warn!("Unknown secondary runtime repository: {name}");
+                continue;
+            };
+            let Ok(addr) = remote.to_address() else {
+                tracing::warn!("Cannot construct a valid address for remote: {name}");
+                continue;
+            };
+            addrs.push(addr);
+        }
+        addrs
     }
 }
 

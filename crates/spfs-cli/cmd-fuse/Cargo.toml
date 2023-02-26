@@ -1,12 +1,12 @@
 [package]
 authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
 edition = { workspace = true }
-name = "spfs-cli-render"
+name = "spfs-cli-fuse"
 version = "0.34.6"
 
 [[bin]]
-name = "spfs-render"
-path = "src/cmd_render.rs"
+name = "spfs-fuse"
+path = "src/cmd_fuse.rs"
 
 [features]
 sentry = ["spfs-cli-common/sentry"]
@@ -14,9 +14,18 @@ sentry = ["spfs-cli-common/sentry"]
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }
-serde_json = { workspace = true }
-spfs = { path = "../../spfs" }
+dashmap = { workspace = true }
+fuser = { workspace = true, features = [
+    "abi-7-21",
+    "abi-7-25",
+    "abi-7-28",
+    "abi-7-31",
+] }
+spfs-vfs = { path = "../../spfs-vfs" }
+nix = { workspace = true, features = ["process"] }
+libc = "0.2"
+spfs = { path = "../../spfs", features = ["fuse-backend"] }
 spfs-cli-common = { path = "../common" }
-strum = { workspace = true, features = ["derive"] }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }
+url = "2.2"

@@ -11,6 +11,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use dashmap::DashSet;
+use futures::future::ready;
+use futures::TryFutureExt;
 use tokio_retry::strategy::{jitter, ExponentialBackoff};
 use tokio_retry::{Condition, RetryIf};
 use tokio_stream::wrappers::{IntervalStream, UnboundedReceiverStream};
@@ -581,7 +583,7 @@ async fn find_processes_in_mount_namespace(ns: &std::path::Path) -> Result<HashS
     Ok(found_processes)
 }
 
-pub fn privatize_existing_mounts() -> Result<()> {
+pub async fn privatize_existing_mounts() -> Result<()> {
     use nix::mount::{mount, MsFlags};
 
     tracing::debug!("privatizing existing mounts...");
@@ -594,7 +596,7 @@ pub fn privatize_existing_mounts() -> Result<()> {
         ));
     }
 
-    if is_mounted("/tmp")? {
+    if is_mounted("/tmp").await? {
         res = mount(NONE, "/tmp", NONE, MsFlags::MS_PRIVATE, NONE);
         if let Err(err) = res {
             return Err(Error::wrap_nix(
@@ -618,9 +620,9 @@ pub fn ensure_mount_targets_exist(config: &runtime::Config) -> Result<()> {
     Ok(())
 }
 
-pub fn ensure_mounts_already_exist() -> Result<()> {
+pub async fn ensure_mounts_already_exist() -> Result<()> {
     tracing::debug!("ensuring mounts already exist...");
-    let res = is_mounted(SPFS_DIR);
+    let res = is_mounted(SPFS_DIR).await;
     match res {
         Err(err) => Err(err.wrap("Failed to check for existing mount")),
         Ok(true) => Ok(()),
@@ -699,7 +701,7 @@ pub async fn setup_runtime(rt: &runtime::Runtime) -> Result<()> {
     rt.ensure_required_directories().await
 }
 
-pub fn mask_files(
+pub async fn mask_files(
     config: &runtime::Config,
     manifest: &super::tracking::Manifest,
     owner: nix::unistd::Uid,
@@ -726,31 +728,34 @@ pub fn mask_files(
         tracing::trace!(?node.path, "Creating file mask");
 
         let fullpath = node.path.to_path("/");
-        let existing = fullpath.symlink_metadata().ok();
+        let existing = tokio::fs::symlink_metadata(&fullpath).await.ok();
         if let Some(meta) = existing {
             if runtime::is_removed_entry(&meta) {
                 continue;
             }
             if meta.is_file() {
-                std::fs::remove_file(&fullpath)
+                tokio::fs::remove_file(&fullpath)
+                    .await
                     .map_err(|err| Error::RuntimeWriteError(fullpath.clone(), err))?;
             } else {
-                std::fs::remove_dir_all(&fullpath)
+                tokio::fs::remove_dir_all(&fullpath)
+                    .await
                     .map_err(|err| Error::RuntimeWriteError(fullpath.clone(), err))?;
             }
         }
 
-        if let Err(err) = nix::sys::stat::mknod(
-            &fullpath,
-            nix::sys::stat::SFlag::S_IFCHR,
-            nix::sys::stat::Mode::empty(),
-            0,
-        ) {
-            return Err(Error::wrap_nix(
-                err,
-                format!("Failed to create file mask: {fullpath:?}"),
-            ));
-        }
+        tokio::task::spawn_blocking(move || {
+            nix::sys::stat::mknod(
+                &fullpath,
+                nix::sys::stat::SFlag::S_IFCHR,
+                nix::sys::stat::Mode::empty(),
+                0,
+            )
+        })
+        .await?
+        .map_err(move |err| {
+            Error::wrap_nix(err, format!("Failed to create file mask: {}", node.path))
+        })?;
     }
 
     for node in nodes.iter().rev() {
@@ -761,14 +766,16 @@ pub fn mask_files(
         if !fullpath.is_dir() {
             continue;
         }
-        let existing = &fullpath
-            .symlink_metadata()
+        let existing = tokio::fs::symlink_metadata(&fullpath)
+            .await
             .map_err(|err| Error::RuntimeReadError(fullpath.clone(), err))?;
         if existing.permissions().mode() != node.entry.mode {
-            if let Err(err) = std::fs::set_permissions(
+            if let Err(err) = tokio::fs::set_permissions(
                 &fullpath,
                 std::fs::Permissions::from_mode(node.entry.mode),
-            ) {
+            )
+            .await
+            {
                 match err.kind() {
                     std::io::ErrorKind::NotFound => continue,
                     _ => {
@@ -778,15 +785,17 @@ pub fn mask_files(
             }
         }
         if existing.uid() != owner.as_raw() {
-            if let Err(err) = nix::unistd::chown(&fullpath, Some(owner), None) {
-                match err {
-                    nix::errno::Errno::ENOENT => continue,
-                    _ => {
-                        return Err(Error::wrap_nix(
-                            err,
-                            format!("Failed to set ownership on masked file [{}]", node.path),
-                        ));
-                    }
+            let res = tokio::task::spawn_blocking(move || {
+                nix::unistd::chown(&fullpath, Some(owner), None)
+            })
+            .await?;
+            match res {
+                Ok(_) | Err(nix::errno::Errno::ENOENT) => continue,
+                Err(err) => {
+                    return Err(Error::wrap_nix(
+                        err,
+                        format!("Failed to set ownership on masked file [{}]", node.path),
+                    ));
                 }
             }
         }
@@ -843,7 +852,7 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
 
 pub(crate) const OVERLAY_ARGS_RO_PREFIX: &str = "ro";
 
-pub(crate) fn mount_env<P: AsRef<Path>>(
+pub(crate) async fn mount_env_overlayfs<P: AsRef<Path>>(
     rt: &runtime::Runtime,
     lowerdirs: impl IntoIterator<Item = P>,
 ) -> Result<()> {
@@ -855,13 +864,13 @@ pub(crate) fn mount_env<P: AsRef<Path>>(
     // mount command is called directly from this process. It may be some default
     // option or minor detail in how the standard mount command works - possibly related
     // to this process eventually dropping privileges, but that is uncertain right now
-    let mut cmd = std::process::Command::new(mount);
+    let mut cmd = tokio::process::Command::new(mount);
     cmd.args(["-t", "overlay"]);
     cmd.arg("-o");
     cmd.arg(overlay_args);
     cmd.arg("none");
     cmd.arg(SPFS_DIR);
-    match cmd.status() {
+    match cmd.status().await {
         Err(err) => Err(Error::process_spawn_error("mount".to_owned(), err, None)),
         Ok(status) => match status.code() {
             Some(0) => Ok(()),
@@ -870,11 +879,153 @@ pub(crate) fn mount_env<P: AsRef<Path>>(
     }
 }
 
-pub fn unmount_env() -> Result<()> {
+#[cfg(feature = "fuse-backend")]
+pub(crate) async fn mount_fuse_lower_dir(rt: &runtime::Runtime, owner: &Uids) -> Result<()> {
+    mount_fuse_onto(rt, owner, &rt.config.lower_dir).await
+}
+
+#[cfg(feature = "fuse-backend")]
+pub(crate) async fn mount_env_fuse(rt: &runtime::Runtime, owner: &Uids) -> Result<()> {
+    mount_fuse_onto(rt, owner, SPFS_DIR).await
+}
+
+async fn mount_fuse_onto<P>(rt: &runtime::Runtime, owner: &Uids, path: P) -> Result<()>
+where
+    P: AsRef<std::ffi::OsStr>,
+{
+    use spfs_encoding::Encodable;
+
+    tracing::debug!("mounting the FUSE filesystem...");
+    let platform = rt.to_platform().digest()?.to_string();
+    let spfs_fuse = match super::resolve::which_spfs("fuse") {
+        None => return Err(Error::MissingBinary("spfs-fuse")),
+        Some(exe) => exe,
+    };
+    let opts = get_fuse_args(&rt.config, owner, true);
+    let mut cmd = tokio::process::Command::new(spfs_fuse);
+    cmd.arg("-o");
+    cmd.arg(opts);
+    // We are trusting that the runtime has been saved to the repository
+    // and so the platform that the runtime relies on has also been tagged
+    cmd.arg(platform);
+    cmd.arg(path.as_ref());
+    // The command logs all output to stderr, and should never hold onto
+    // a handle to this process' stdout as it can cause hanging
+    cmd.stdout(std::process::Stdio::null());
+    tracing::debug!("{cmd:?}");
+    match cmd.status().await {
+        Err(err) => return Err(Error::process_spawn_error("mount".to_owned(), err, None)),
+        Ok(status) if status.code() == Some(0) => {}
+        Ok(status) => {
+            return Err(Error::String(format!(
+                "Failed to mount fuse filesystem, mount command exited with non-zero status {:?}",
+                status.code()
+            )))
+        }
+    };
+
+    // the fuse filesystem may take some moments to be fully initialized, and we
+    // don't want to return until this is true. Otherwise, subsequent operations may
+    // see unexpected errors.
+    let mut sleep_time_ms = vec![2, 5, 10, 50, 100, 100, 100, 100];
+    while let Err(err) = tokio::fs::symlink_metadata(path.as_ref()).await {
+        if let Some(ms) = sleep_time_ms.pop() {
+            tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+        } else {
+            tracing::warn!("FUSE did not appear to start after delay: {err}");
+            break;
+        }
+    }
+    Ok(())
+}
+
+/// Unmount the fuse portion of the provided runtime, if applicable.
+///
+/// This is separate from [`unmount_env`] because it must be run as
+/// the unprivileged user that spawned the runtime.
+pub async fn unmount_env_fuse(rt: &runtime::Runtime, lazy: bool) -> Result<()> {
+    let mount_path = match rt.config.mount_backend {
+        runtime::MountBackend::OverlayFsWithFuse => rt.config.lower_dir.as_path(),
+        runtime::MountBackend::FuseOnly => std::path::Path::new(SPFS_DIR),
+        runtime::MountBackend::OverlayFsWithRenders => return Ok(()),
+    };
+    tracing::debug!(%lazy, "unmounting existing fuse env @ {mount_path:?}...");
+
+    // The FUSE filesystem can take some time to start up, and
+    // if the runtime tries to exit too quickly, the fusermount
+    // command can return with errors because the filesystem has
+    // not yet initialized and the connection is not ready.
+    //
+    // A few retries in these cases gives time for the filesystem
+    // to enter a ready and connected state.
+    let mut retry_after_ms = vec![10, 50, 100, 200, 500, 1000];
+    while is_mounted(mount_path).await.unwrap_or(true) {
+        let flags = if lazy { "-uz" } else { "-u" };
+        let child = tokio::process::Command::new("fusermount")
+            .arg(flags)
+            .arg(mount_path)
+            .stderr(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|err| Error::ProcessSpawnError("fusermount".into(), err))?;
+        match child.wait_with_output().await {
+            Err(err) => {
+                return Err(Error::String(format!(
+                    "Failed to unmount FUSE filesystem: {err:?}"
+                )))
+            }
+            Ok(out) if out.status.code() == Some(0) => continue,
+            Ok(out) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                match retry_after_ms.pop() {
+                    Some(wait_ms) => {
+                        tracing::trace!(
+                            "Retrying FUSE unmount which failed with, {:?}: {}",
+                            out.status.code(),
+                            stderr.trim()
+                        );
+                        tokio::time::sleep(std::time::Duration::from_millis(wait_ms)).await;
+                        continue;
+                    }
+                    None => {
+                        return Err(Error::String(format!(
+                            "FUSE unmount returned non-zero exit status, {:?}: {}",
+                            out.status.code(),
+                            stderr.trim()
+                        )))
+                    }
+                }
+            }
+        };
+    }
+    Ok(())
+}
+
+/// Unmount the non-fuse portion of the provided runtime, if applicable.
+///
+/// This function must be run as root in order to succeed in most cases
+/// and should not be called without also calling [`unmount_env_fuse`].
+pub async fn unmount_env(rt: &runtime::Runtime, lazy: bool) -> Result<()> {
     tracing::debug!("unmounting existing env...");
-    // Perform a lazy unmount in case there are still open handles to files.
-    // This way we can mount over the old one without worrying about business
-    let result = nix::mount::umount2(SPFS_DIR, nix::mount::MntFlags::MNT_DETACH);
+
+    match rt.config.mount_backend {
+        runtime::MountBackend::FuseOnly => {
+            // a fuse-only runtime cannot be unmounted this way
+            // and should already be handled by a previous call to
+            // unmount_env_fuse
+            return Ok(());
+        }
+        runtime::MountBackend::OverlayFsWithFuse | runtime::MountBackend::OverlayFsWithRenders => {}
+    }
+
+    let mut flags = nix::mount::MntFlags::empty();
+    if lazy {
+        // Perform a lazy unmount in case there are still open handles to files.
+        // This way we can mount over the old one without worrying about busyness
+        flags |= nix::mount::MntFlags::MNT_DETACH;
+    }
+    let result = tokio::task::spawn_blocking(move || nix::mount::umount2(SPFS_DIR, flags)).await?;
     if let Err(err) = result {
         return Err(Error::wrap_nix(
             err,
@@ -903,15 +1054,21 @@ pub fn become_original_user(uids: Uids) -> Result<()> {
     Ok(())
 }
 
-fn is_mounted<P: AsRef<Path>>(target: P) -> Result<bool> {
-    let target = target.as_ref();
+async fn is_mounted<P: Into<PathBuf>>(target: P) -> Result<bool> {
+    let target = target.into();
     let parent = match target.parent() {
         None => return Ok(false),
-        Some(p) => p,
+        Some(p) => p.to_owned(),
     };
 
-    let st_parent = nix::sys::stat::stat(parent)?;
-    let st_target = nix::sys::stat::stat(target)?;
+    async fn do_stat(path: PathBuf) -> Result<nix::sys::stat::FileStat> {
+        tokio::task::spawn_blocking(move || nix::sys::stat::stat(&path).map_err(Error::from))
+            .map_err(Error::from)
+            .and_then(ready)
+            .await
+    }
+
+    let (st_parent, st_target) = tokio::try_join!(do_stat(parent), do_stat(target))?;
 
     Ok(st_target.st_dev != st_parent.st_dev)
 }
@@ -932,5 +1089,61 @@ pub fn drop_all_capabilities() -> Result<()> {
         Err(nix::errno::Errno::last().into())
     } else {
         Ok(())
+    }
+}
+
+#[cfg(feature = "fuse-backend")]
+fn get_fuse_args(config: &runtime::Config, owner: &Uids, read_only: bool) -> String {
+    use fuser::MountOption::*;
+    use itertools::Itertools;
+
+    let mut opts = vec![
+        NoDev,
+        NoAtime,
+        NoSuid,
+        Exec,
+        AutoUnmount,
+        AllowOther,
+        CUSTOM(format!("uid={}", owner.uid)),
+        CUSTOM(format!("gid={}", nix::unistd::getgid())),
+    ];
+    opts.push(if read_only { RO } else { RW });
+    opts.extend(
+        config
+            .secondary_repositories
+            .iter()
+            .map(|r| CUSTOM(format!("remote={r}"))),
+    );
+    opts.iter().map(option_to_string).join(",")
+}
+
+// Format option to be passed to libfuse or kernel. A copy of
+// [`fuser::mnt::mount_option::option_to_string`], but it is private
+#[cfg(feature = "fuse-backend")]
+pub fn option_to_string(option: &fuser::MountOption) -> String {
+    use fuser::MountOption;
+    match option {
+        MountOption::FSName(name) => format!("fsname={}", name),
+        MountOption::Subtype(subtype) => format!("subtype={}", subtype),
+        MountOption::CUSTOM(value) => value.to_string(),
+        MountOption::AutoUnmount => "auto_unmount".to_string(),
+        MountOption::AllowOther => "allow_other".to_string(),
+        // AllowRoot is implemented by allowing everyone access and then restricting to
+        // root + owner within fuser
+        MountOption::AllowRoot => "allow_other".to_string(),
+        MountOption::DefaultPermissions => "default_permissions".to_string(),
+        MountOption::Dev => "dev".to_string(),
+        MountOption::NoDev => "nodev".to_string(),
+        MountOption::Suid => "suid".to_string(),
+        MountOption::NoSuid => "nosuid".to_string(),
+        MountOption::RO => "ro".to_string(),
+        MountOption::RW => "rw".to_string(),
+        MountOption::Exec => "exec".to_string(),
+        MountOption::NoExec => "noexec".to_string(),
+        MountOption::Atime => "atime".to_string(),
+        MountOption::NoAtime => "noatime".to_string(),
+        MountOption::DirSync => "dirsync".to_string(),
+        MountOption::Sync => "sync".to_string(),
+        MountOption::Async => "async".to_string(),
     }
 }

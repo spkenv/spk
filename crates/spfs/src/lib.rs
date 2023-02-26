@@ -51,6 +51,7 @@ pub use diff::{diff, diff_runtime_changes};
 pub use encoding::Digest;
 pub use error::{Error, Result};
 pub use resolve::{
+    compute_environment_manifest,
     compute_manifest,
     compute_object_manifest,
     resolve_stack_to_layers,

@@ -15,6 +15,7 @@ pub use storage::{
     Author,
     Config,
     Data,
+    MountBackend,
     OwnedRuntime,
     Runtime,
     Status,

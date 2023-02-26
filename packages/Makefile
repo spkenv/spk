@@ -44,7 +44,6 @@ gnu: bootstrap.full \
 	gnu/gmp.spk \
 	gnu/mpfr.spk \
 	gnu/mpc.spk \
-	gnu/gcc/gcc48.spk \
 	gnu/gcc/gcc63.spk
 gnu.full: gnu \
 	gnu/autoconf.spk \
