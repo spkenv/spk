@@ -7,6 +7,7 @@ use std::time::Instant;
 
 use anyhow::{Context, Result};
 use clap::Args;
+use spfs::storage::FromConfig;
 use spfs_cli_common as cli;
 
 /// Run a program in a configured spfs environment
@@ -55,9 +56,10 @@ impl CmdRun {
         tracing::debug!("created runtime: {}", runtime.name());
 
         let start_time = Instant::now();
+        runtime.config.mount_backend = config.filesystem.backend;
         if self.reference.is_empty() {
             self.edit = true;
-        } else {
+        } else if runtime.config.mount_backend.requires_localization() {
             let origin = config.get_remote("origin").await?;
             // Convert the tag items in the reference field to their
             // underlying digests so the tags are not synced to the
@@ -76,6 +78,24 @@ impl CmdRun {
                 .await?;
             for item in synced.env.iter() {
                 let digest = item.resolve_digest(&*repo).await?;
+                runtime.push_digest(digest);
+            }
+        } else {
+            runtime.config.secondary_repositories = config.get_secondary_runtime_repositories();
+            let proxy_config = spfs::storage::proxy::Config {
+                primary: repo.address().to_string(),
+                secondary: runtime
+                    .config
+                    .secondary_repositories
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+            };
+            let repo = spfs::storage::ProxyRepository::from_config(proxy_config)
+                .await
+                .context("Failed to build proxy repository for environment resolution")?;
+            for item in self.reference.iter() {
+                let digest = item.resolve_digest(&repo).await?;
                 runtime.push_digest(digest);
             }
         }

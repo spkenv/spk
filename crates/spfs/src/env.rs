@@ -843,7 +843,7 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
 
 pub(crate) const OVERLAY_ARGS_RO_PREFIX: &str = "ro";
 
-pub(crate) fn mount_env<P: AsRef<Path>>(
+pub(crate) fn mount_env_overlayfs<P: AsRef<Path>>(
     rt: &runtime::Runtime,
     lowerdirs: impl IntoIterator<Item = P>,
 ) -> Result<()> {
@@ -870,8 +870,141 @@ pub(crate) fn mount_env<P: AsRef<Path>>(
     }
 }
 
-pub fn unmount_env() -> Result<()> {
+#[cfg(feature = "fuse-backend")]
+pub(crate) fn mount_fuse_lower_dir(rt: &runtime::Runtime, owner: &Uids) -> Result<()> {
+    mount_fuse_onto(rt, owner, &rt.config.lower_dir)
+}
+
+#[cfg(feature = "fuse-backend")]
+pub(crate) fn mount_env_fuse(rt: &runtime::Runtime, owner: &Uids) -> Result<()> {
+    mount_fuse_onto(rt, owner, SPFS_DIR)
+}
+
+fn mount_fuse_onto<P>(rt: &runtime::Runtime, owner: &Uids, path: P) -> Result<()>
+where
+    P: AsRef<std::ffi::OsStr>,
+{
+    use spfs_encoding::Encodable;
+
+    tracing::debug!("mounting the FUSE filesystem...");
+    let platform = rt.to_platform().digest()?.to_string();
+    let spfs_fuse = match super::resolve::which_spfs("fuse") {
+        None => return Err(Error::MissingBinary("spfs-fuse")),
+        Some(exe) => exe,
+    };
+    let opts = get_fuse_args(&rt.config, owner, true);
+    let mut cmd = std::process::Command::new(spfs_fuse);
+    cmd.arg("-o");
+    cmd.arg(opts);
+    // We are trusting that the runtime has been saved to the repository
+    // and so the platform that the runtime relies on has also been tagged
+    cmd.arg(platform);
+    cmd.arg(path);
+    // The command logs all output to stderr, and should never hold onto
+    // a handle to this process' stdout as it can cause hanging
+    cmd.stdout(std::process::Stdio::null());
+    tracing::debug!("{cmd:?}");
+    match cmd.status() {
+        Err(err) => return Err(Error::process_spawn_error("mount".to_owned(), err, None)),
+        Ok(status) if status.code() == Some(0) => {}
+        Ok(status) => {
+            return Err(Error::String(format!(
+                "Failed to mount fuse filesystem, mount command exited with non-zero status {:?}",
+                status.code()
+            )))
+        }
+    };
+
+    // the fuse filesystem may take some moments to be fully initialized, and we
+    // don't want to return until this is true. Otherwise, subsequent operations may
+    // see unexpected errors.
+    while let Err(err) = std::fs::symlink_metadata(&rt.config.lower_dir) {
+        tracing::debug!("Waiting for FUSE to start up ({err})...");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    Ok(())
+}
+
+/// Unmount the fuse portion of the provided runtime, if applicable.
+///
+/// This is separate from [`unmount_env`] because it must be run as
+/// the unprivileged user that spawned the runtime.
+pub fn unmount_env_fuse(rt: &runtime::Runtime) -> Result<()> {
+    tracing::debug!("unmounting existing fuse env...");
+
+    let mount_path = match rt.config.mount_backend {
+        runtime::MountBackend::OverlayFsWithFuse => rt.config.lower_dir.as_path(),
+        runtime::MountBackend::FuseOnly => std::path::Path::new(SPFS_DIR),
+        runtime::MountBackend::OverlayFsWithRenders => return Ok(()),
+    };
+
+    if !is_mounted(mount_path).unwrap_or(true) {
+        tracing::debug!("FUSE portion of the env is no longer mounted, skipping unmount...");
+        return Ok(());
+    }
+
+    // The FUSE filesystem can take some time to start up, and
+    // if the runtime tries to exit too quickly, the fusermount
+    // command can return with errors because the filesystem has
+    // not yet initialized and the connection is not ready.
+    //
+    // A few retries in these cases gives time for the filesystem
+    // to enter a ready and connected state.
+    let mut retry_after_ms = vec![10, 50, 100, 200, 500, 1000];
+    loop {
+        let child = std::process::Command::new("fusermount")
+            .arg("-uz")
+            .arg(mount_path)
+            .stderr(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|err| Error::ProcessSpawnError("fusermount".into(), err))?;
+        break match child.wait_with_output() {
+            Err(err) => Err(Error::String(format!(
+                "Failed to unmount FUSE filesystem: {err:?}"
+            ))),
+            Ok(out) if out.status.code() == Some(0) => Ok(()),
+            Ok(out) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                match retry_after_ms.pop() {
+                    Some(wait_ms) => {
+                        tracing::trace!(
+                            "Retrying FUSE unmount which failed with, {:?}: {}",
+                            out.status.code(),
+                            stderr.trim()
+                        );
+                        std::thread::sleep(std::time::Duration::from_millis(wait_ms));
+                        continue;
+                    }
+                    None => Err(Error::String(format!(
+                        "FUSE unmount returned non-zero exit status, {:?}: {}",
+                        out.status.code(),
+                        stderr.trim()
+                    ))),
+                }
+            }
+        };
+    }
+}
+
+/// Unmount the non-fuse portion of the provided runtime, if applicable.
+///
+/// This function must be run as root in order to succeed in most cases
+/// and should not be called without also calling [`unmount_env_fuse`].
+pub fn unmount_env(rt: &runtime::Runtime) -> Result<()> {
     tracing::debug!("unmounting existing env...");
+
+    match rt.config.mount_backend {
+        runtime::MountBackend::FuseOnly => {
+            // a fuse-only runtime cannot be unmounted this way
+            // and should already be handled by a previous call to
+            // unmount_env_fuse
+            return Ok(());
+        }
+        runtime::MountBackend::OverlayFsWithFuse | runtime::MountBackend::OverlayFsWithRenders => {}
+    }
+
     // Perform a lazy unmount in case there are still open handles to files.
     // This way we can mount over the old one without worrying about business
     let result = nix::mount::umount2(SPFS_DIR, nix::mount::MntFlags::MNT_DETACH);
@@ -932,5 +1065,61 @@ pub fn drop_all_capabilities() -> Result<()> {
         Err(nix::errno::Errno::last().into())
     } else {
         Ok(())
+    }
+}
+
+#[cfg(feature = "fuse-backend")]
+fn get_fuse_args(config: &runtime::Config, owner: &Uids, read_only: bool) -> String {
+    use fuser::MountOption::*;
+    use itertools::Itertools;
+
+    let mut opts = vec![
+        NoDev,
+        NoAtime,
+        NoSuid,
+        Exec,
+        AutoUnmount,
+        AllowOther,
+        CUSTOM(format!("uid={}", owner.uid)),
+        CUSTOM(format!("gid={}", nix::unistd::getgid())),
+    ];
+    opts.push(if read_only { RO } else { RW });
+    opts.extend(
+        config
+            .secondary_repositories
+            .iter()
+            .map(|r| CUSTOM(format!("remote={r}"))),
+    );
+    opts.iter().map(option_to_string).join(",")
+}
+
+// Format option to be passed to libfuse or kernel. A copy of
+// [`fuser::mnt::mount_option::option_to_string`], but it is private
+#[cfg(feature = "fuse-backend")]
+pub fn option_to_string(option: &fuser::MountOption) -> String {
+    use fuser::MountOption;
+    match option {
+        MountOption::FSName(name) => format!("fsname={}", name),
+        MountOption::Subtype(subtype) => format!("subtype={}", subtype),
+        MountOption::CUSTOM(value) => value.to_string(),
+        MountOption::AutoUnmount => "auto_unmount".to_string(),
+        MountOption::AllowOther => "allow_other".to_string(),
+        // AllowRoot is implemented by allowing everyone access and then restricting to
+        // root + owner within fuser
+        MountOption::AllowRoot => "allow_other".to_string(),
+        MountOption::DefaultPermissions => "default_permissions".to_string(),
+        MountOption::Dev => "dev".to_string(),
+        MountOption::NoDev => "nodev".to_string(),
+        MountOption::Suid => "suid".to_string(),
+        MountOption::NoSuid => "nosuid".to_string(),
+        MountOption::RO => "ro".to_string(),
+        MountOption::RW => "rw".to_string(),
+        MountOption::Exec => "exec".to_string(),
+        MountOption::NoExec => "noexec".to_string(),
+        MountOption::Atime => "atime".to_string(),
+        MountOption::NoAtime => "noatime".to_string(),
+        MountOption::DirSync => "dirsync".to_string(),
+        MountOption::Sync => "sync".to_string(),
+        MountOption::Async => "async".to_string(),
     }
 }

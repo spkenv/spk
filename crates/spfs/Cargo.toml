@@ -5,7 +5,7 @@ name = "spfs"
 version = "0.34.6"
 
 [features]
-default = []
+default = ["fuse-backend"]
 
 # If enabled, will create the "local" repository in a subdirectory
 # of the standard storage root, named "ci/pipeline_${CI_PIPELINE_ID}".
@@ -13,6 +13,7 @@ gitlab-ci-local-repo-isolation = []
 sentry = ["dep:sentry"]
 server = ["hyper/server", "tokio-util/codec", "tokio-util/io-util"]
 "protobuf-src" = ["dep:protobuf-src"]
+fuse-backend = ["dep:fuser"]
 
 [dependencies]
 async-compression = { version = "0.3.15", features = ["tokio", "bzip2"] }
@@ -25,9 +26,10 @@ close-err = "1.0"
 cnproc = { git = "https://github.com/rydrman/cnproc-rs", branch = "act-like-iterator" }
 colored = "2.0"
 config = { workspace = true }
-dashmap = "5.4.0"
+dashmap = { workspace = true }
 data-encoding = "2.3"
 expanduser = { workspace = true }
+fuser = { workspace = true, optional = true }
 faccess = "0.2.3"
 futures = { workspace = true }
 gitignore = "1.0"
@@ -51,7 +53,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_qs = "0.10.1"
 spfs-encoding = { path = "../spfs-encoding" }
-strum = { version = "0.24", features = ["derive"] }
+strum = { workspace = true, features = ["derive"] }
 tar = "0.4.30"
 tempfile = { workspace = true }
 tokio = { version = "1.20", features = [

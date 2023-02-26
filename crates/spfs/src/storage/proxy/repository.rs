@@ -67,6 +67,14 @@ pub struct ProxyRepository {
     secondary: Vec<crate::storage::RepositoryHandle>,
 }
 
+impl ProxyRepository {
+    pub fn into_stack(self) -> Vec<crate::storage::RepositoryHandle> {
+        let mut stack = vec![self.primary];
+        stack.extend(self.secondary);
+        stack
+    }
+}
+
 #[async_trait::async_trait]
 impl storage::FromConfig for ProxyRepository {
     type Config = Config;

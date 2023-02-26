@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use encoding::Encodable;
+use futures::{FutureExt, TryFutureExt, TryStreamExt};
 use itertools::Itertools;
 use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
@@ -120,6 +121,33 @@ pub async fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::M
         }
     }
     Ok(full_manifest)
+}
+
+/// Calculate the file manifest for the layers in the given environment spec.
+pub async fn compute_environment_manifest(
+    env: &tracking::EnvSpec,
+    repo: &storage::RepositoryHandle,
+) -> Result<tracking::Manifest> {
+    let stack_futures: futures::stream::FuturesOrdered<_> = env
+        .iter()
+        .map(|i| match i {
+            tracking::EnvSpecItem::Digest(d) => std::future::ready(Ok(*d)).boxed(),
+            tracking::EnvSpecItem::PartialDigest(p) => repo.resolve_full_digest(p).boxed(),
+            tracking::EnvSpecItem::TagSpec(t) => repo.resolve_tag(t).map_ok(|t| t.target).boxed(),
+        })
+        .collect();
+    let stack: Vec<_> = stack_futures.try_collect().await?;
+    let layers = resolve_stack_to_layers(stack.iter(), Some(repo)).await?;
+    let mut manifest = tracking::Manifest::default();
+    for layer in layers.iter().rev() {
+        manifest.update(
+            &repo
+                .read_manifest(layer.manifest)
+                .await?
+                .to_tracking_manifest(),
+        )
+    }
+    Ok(manifest)
 }
 
 pub async fn compute_object_manifest(

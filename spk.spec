@@ -13,6 +13,8 @@ BuildRequires: libcap-devel
 BuildRequires: openssl-devel
 BuildRequires: python3-devel
 BuildRequires: python3-pip
+BuildRequires: fuse-devel
+BuildRequires: m4
 BuildRequires: cmake3
 BuildRequires: make
 Requires: bash

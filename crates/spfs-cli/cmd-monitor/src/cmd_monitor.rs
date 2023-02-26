@@ -98,9 +98,23 @@ impl CmdMonitor {
         // here is unfortunate but not fatal.
         owned.status.running = false;
         let _ = owned.save_state_to_storage().await;
+
+        match owned.config.mount_backend {
+            spfs::runtime::MountBackend::OverlayFsWithRenders => {}
+            spfs::runtime::MountBackend::OverlayFsWithFuse
+            | spfs::runtime::MountBackend::FuseOnly => {
+                // the mounted FUSE filesystem needs to be explicitly unmounted
+                // upon exit as the daemonized server will keep the mount namespace
+                // alive and never exit
+                if let Err(err) = spfs::env::unmount_env_fuse(&owned) {
+                    tracing::error!("{err}");
+                }
+            }
+        }
         if let Err(err) = owned.delete().await {
             tracing::error!("failed to clean up runtime data: {err:?}")
         }
+
         res?;
         Ok(0)
     }

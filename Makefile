@@ -58,7 +58,7 @@ debug:
 
 debug-spfs:
 	cd $(SOURCE_ROOT)
-	cargo build -p spfs -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render $(cargo_features_arg)
+	cargo build -p spfs -p spfs-cli-fuse -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render $(cargo_features_arg)
 
 release:
 	cd $(SOURCE_ROOT)
@@ -66,7 +66,7 @@ release:
 
 release-spfs:
 	cd $(SOURCE_ROOT)
-	cargo build --release -p spfs -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render $(cargo_features_arg)
+	cargo build --release -p spfs -p spfs-cli-fuse -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render $(cargo_features_arg)
 
 .PHONY: test
 test: FEATURES?=server,spfs/server
@@ -147,3 +147,4 @@ setcap:
 	sudo setcap 'cap_chown,cap_fowner+ep' /usr/local/bin/spfs-render
 	sudo setcap 'cap_sys_chroot,cap_sys_admin+ep' /usr/local/bin/spfs-join
 	sudo setcap 'cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep' /usr/local/bin/spfs-enter
+	sudo setcap 'cap_sys_admin+ep' /usr/local/bin/spfs-fuse
