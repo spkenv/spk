@@ -66,6 +66,15 @@ impl Tag {
             self.name.clone()
         }
     }
+
+    pub fn username_without_org(&self) -> String {
+        let username = if let Some((name, _)) = self.user.rsplit_once('@') {
+            name.to_string()
+        } else {
+            self.user.to_string()
+        };
+        username
+    }
 }
 
 impl std::cmp::Ord for Tag {

@@ -3043,6 +3043,7 @@ dependencies = [
  "futures",
  "hyper",
  "itertools",
+ "linked-hash-map",
  "nix 0.26.2",
  "number_prefix",
  "procfs",

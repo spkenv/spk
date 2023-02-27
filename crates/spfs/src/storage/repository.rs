@@ -79,13 +79,13 @@ pub trait Repository:
     }
 
     /// Returns a tag object from the reference.
-    async fn read_tag_metadata(&self, reference: &str) -> Result<Option<tracking::Tag>> {
+    async fn read_tag_metadata(&self, reference: &str) -> Option<tracking::Tag> {
         if let Ok(tag_spec) = tracking::TagSpec::parse(reference) {
             if let Ok(tag) = self.resolve_tag(&tag_spec).await {
-                return Ok(Some(tag));
+                return Some(tag);
             }
         }
-        return Ok(None);
+        return None;
     }
 
     /// Return the other identifiers that can be used for 'reference'.

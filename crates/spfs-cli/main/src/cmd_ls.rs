@@ -5,7 +5,6 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use clap::Args;
 use itertools::Itertools;
 
@@ -29,53 +28,119 @@ pub struct CmdLs {
     #[clap(short = 'l')]
     long: bool,
 
+    /// Lists file sizes in human readable format
+    #[clap(long, short = 'H')]
+    human_readable: bool,
+
     /// The subdirectory to list
     #[clap(default_value = "/spfs")]
     path: String,
+
+    /// Username of user who last modified the input reference
+    #[clap(skip)]
+    username: String,
+
+    /// last modified date of the input reference
+    #[clap(skip)]
+    last_modified: String,
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct EntriesPerDir {
+    pub dir_name: String,
+    pub longest_length_str: usize,
+    pub entries: HashMap<String, spfs::tracking::Entry>,
+}
+
+impl EntriesPerDir {
+    pub fn new(dir: String, entries: HashMap<String, spfs::tracking::Entry>) -> Self {
+        Self {
+            dir_name: dir,
+            longest_length_str: 0,
+            entries,
+        }
+    }
+
+    fn update_string_length(&mut self, count: usize) {
+        if count > self.longest_length_str {
+            self.longest_length_str = count;
+        }
+    }
+
+    fn generate_child_entries(&mut self) -> Vec<(String, EntriesPerDir)> {
+        let mut result: Vec<(String, EntriesPerDir)> = Vec::new();
+        for (entry_name, entry) in self.entries.iter() {
+            if entry.is_dir() {
+                let new_dir: String = format!("{}/{entry_name}", self.dir_name);
+                let new_dir_entry = EntriesPerDir::new(new_dir.clone(), entry.entries.clone());
+
+                result.push((new_dir, new_dir_entry));
+            }
+        }
+        result
+    }
 }
 
 impl CmdLs {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
+        let mut entries_to_print: Vec<(String, EntriesPerDir)> = Vec::new();
+
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
-        let item = repo.read_ref(&self.reference.to_string()).await?;
+        match repo.read_tag_metadata(self.reference.as_str()).await {
+            Some(tag) => {
+                self.username = tag.username_without_org();
+                self.last_modified = tag.time.format("%b %e %H:%M").to_string();
+            }
+            _ => tracing::warn!(
+                "Unable to find the username and last modified fields of: {}",
+                self.reference.as_str()
+            ),
+        }
+
+        let item = repo.read_ref(self.reference.as_str()).await?;
 
         let path = self
             .path
             .strip_prefix("/spfs")
             .unwrap_or(&self.path)
             .to_string();
+
         let manifest = spfs::compute_object_manifest(item, &repo).await?;
-        if let Some(entries) = manifest.list_dir_verbose(path.as_str()) {
+        if let Some(root_entries) = manifest.list_entries_in_dir(path.as_str()) {
+            let root_dir = ".";
             if self.recursive {
-                if let Some(entries) = manifest.list_dir_verbose(path.as_str()) {
-                    let mut entries_to_process: HashMap<
-                        String,
-                        &HashMap<String, spfs::tracking::Entry>,
-                    > = HashMap::new();
-                    entries_to_process.insert(".".to_string(), entries);
-                    while !entries_to_process.is_empty() {
-                        let mut trees: HashMap<String, &HashMap<String, spfs::tracking::Entry>> =
-                            HashMap::new();
-                        for dir in entries_to_process.keys().sorted() {
-                            println!("{dir}:");
-                            for entry_name in entries_to_process[dir].keys().sorted() {
-                                if let Some(entry) = entries_to_process[dir].get(entry_name) {
-                                    if entry.kind == spfs::tracking::EntryKind::Tree {
-                                        trees.insert(format!("{dir}/{entry_name}"), &entry.entries);
-                                    }
-                                    self.print_file(entry, entry_name, &username, last_modified)
-                                }
-                            }
-                            println!("\n");
-                        }
-                        entries_to_process = std::mem::take(&mut trees);
+                let mut entries_to_process: Vec<(String, EntriesPerDir)> = Vec::new();
+                let entries_in_root = EntriesPerDir::new(root_dir.to_string(), root_entries);
+                entries_to_print.push((root_dir.to_string(), entries_in_root.clone()));
+                entries_to_process.push((root_dir.to_string(), entries_in_root));
+
+                while !entries_to_process.is_empty() {
+                    let mut trees: Vec<(String, EntriesPerDir)> = Vec::new();
+                    for (_, entries) in entries_to_process.iter_mut() {
+                        trees.append(&mut entries.generate_child_entries());
                     }
+
+                    entries_to_print.append(&mut trees.clone());
+                    entries_to_process = std::mem::take(&mut trees);
+                }
+
+                // Update the longest length string for each EntriesPerDir
+                for (_, entry) in entries_to_print.iter_mut() {
+                    self.update_longest_length_string(entry);
                 }
             } else {
-                for name in entries.keys().sorted() {
-                    self.print_file(&entries[name], name, &username, last_modified);
+                let mut entry: EntriesPerDir =
+                    EntriesPerDir::new(root_dir.to_string(), root_entries);
+                self.update_longest_length_string(&mut entry);
+                entries_to_print.push((root_dir.to_string(), entry));
+            }
+
+            for (dir_name, entries) in entries_to_print.iter().sorted_by_key(|(k, _)| k) {
+                if self.recursive {
+                    println!("{}/:", dir_name);
                 }
+                self.print_entries_in_dir(entries);
             }
         } else {
             match manifest.get_path(path.as_str()) {
@@ -91,48 +156,67 @@ impl CmdLs {
         Ok(0)
     }
 
-    pub fn print_file(
-        &mut self,
-        entry: &spfs::tracking::Entry,
-        file_name: &String,
-        username: &String,
-        last_modified: DateTime<Utc>,
-    ) {
-        if self.long {
-            match entry.kind {
-                spfs::tracking::EntryKind::Tree => {
-                    println!(
-                        "{} {} {} {} {}/",
-                        unix_mode::to_string(entry.mode),
-                        username,
-                        entry.size,
-                        last_modified.format("%b %e %Y"),
-                        file_name
-                    )
-                }
-                _ => println!(
-                    "{} {} {} {} {}",
-                    unix_mode::to_string(entry.mode),
-                    username,
-                    entry.size,
-                    last_modified.format("%b %e %Y"),
-                    file_name
-                ),
+    fn update_longest_length_string(&self, entry: &mut EntriesPerDir) {
+        let mut longest_length_string = 0;
+        for (_, e) in entry.entries.iter() {
+            let size = self.human_readable(e.size);
+            if size.len() > longest_length_string {
+                longest_length_string = size.len();
             }
-        } else if self.recursive {
-            match entry.kind {
-                spfs::tracking::EntryKind::Tree => {
-                    print!("{}/  ", file_name)
-                }
-                _ => print!("{}  ", file_name),
+        }
+        entry.update_string_length(longest_length_string);
+    }
+
+    fn human_readable(&self, size: u64) -> String {
+        let mut result = size.to_string();
+        if self.human_readable {
+            result = spfs::io::format_size(size)
+        }
+
+        result
+    }
+
+    fn print_entries_in_dir(&mut self, entries: &EntriesPerDir) {
+        let longest_length_str = entries.longest_length_str;
+        for (name, entry) in entries.entries.iter().sorted_by_key(|(k, _)| *k) {
+            let size: String = self.human_readable(entry.size);
+            if self.long {
+                match entry.kind {
+                    spfs::tracking::EntryKind::Tree => {
+                        println!(
+                            "{} {username} {size:>longest_length_str$} {modified} {name}/",
+                            unix_mode::to_string(entry.mode),
+                            username = self.username,
+                            modified = self.last_modified,
+                        )
+                    }
+                    _ => {
+                        println!(
+                            "{} {username} {size:>longest_length_str$} {modified} {name}",
+                            unix_mode::to_string(entry.mode),
+                            username = self.username,
+                            modified = self.last_modified,
+                        )
+                    }
+                };
+            } else if self.recursive {
+                match entry.kind {
+                    spfs::tracking::EntryKind::Tree => print!("{name}/  "),
+                    _ => print!("{name}/  "),
+                };
+            } else {
+                match entry.kind {
+                    spfs::tracking::EntryKind::Tree => println!("{name}/"),
+                    _ => println!("{name}"),
+                };
             }
-        } else {
-            match entry.kind {
-                spfs::tracking::EntryKind::Tree => {
-                    println!("{}/", file_name)
-                }
-                _ => println!("{}", file_name),
-            }
+        }
+
+        // Additional new lines needed for output
+        if self.long && self.recursive {
+            println!();
+        } else if !self.long && self.recursive {
+            println!("\n");
         }
     }
 }
