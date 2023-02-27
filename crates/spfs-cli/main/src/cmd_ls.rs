@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use clap::Args;
 use itertools::Itertools;
 
@@ -23,6 +24,10 @@ pub struct CmdLs {
     /// Recursively list all files and directories
     #[clap(long, short = 'R')]
     recursive: bool,
+
+    /// Long listing format
+    #[clap(short = 'l')]
+    long: bool,
 
     /// The subdirectory to list
     #[clap(default_value = "/spfs")]
@@ -44,47 +49,32 @@ impl CmdLs {
         if let Some(entries) = manifest.list_dir_verbose(path.as_str()) {
             if self.recursive {
                 if let Some(entries) = manifest.list_dir_verbose(path.as_str()) {
-                    let mut new_entries: HashMap<String, HashMap<String, spfs::tracking::Entry>> =
-                        HashMap::new();
-                    let mut temp_new_entries: HashMap<
+                    let mut entries_to_process: HashMap<
                         String,
-                        HashMap<String, spfs::tracking::Entry>,
+                        &HashMap<String, spfs::tracking::Entry>,
                     > = HashMap::new();
-                    new_entries.insert(".".to_string(), entries);
-                    loop {
-                        if new_entries.is_empty() {
-                            break;
-                        }
-                        for dir in new_entries.keys().sorted() {
+                    entries_to_process.insert(".".to_string(), entries);
+                    while !entries_to_process.is_empty() {
+                        let mut trees: HashMap<String, &HashMap<String, spfs::tracking::Entry>> =
+                            HashMap::new();
+                        for dir in entries_to_process.keys().sorted() {
                             println!("{dir}:");
-                            for entry_name in new_entries[dir].keys().sorted() {
-                                if let Some(entry) = new_entries[dir].get(entry_name) {
-                                    match entry.kind {
-                                        spfs::tracking::EntryKind::Tree => {
-                                            print!("{entry_name}/  ");
-                                            temp_new_entries.insert(
-                                                format!("{dir}/{entry_name}"),
-                                                entry.entries.clone(),
-                                            );
-                                        }
-                                        _ => print!("{entry_name}  "),
+                            for entry_name in entries_to_process[dir].keys().sorted() {
+                                if let Some(entry) = entries_to_process[dir].get(entry_name) {
+                                    if entry.kind == spfs::tracking::EntryKind::Tree {
+                                        trees.insert(format!("{dir}/{entry_name}"), &entry.entries);
                                     }
+                                    self.print_file(entry, entry_name, &username, last_modified)
                                 }
                             }
                             println!("\n");
                         }
-                        new_entries = temp_new_entries.clone();
-                        temp_new_entries.clear()
+                        entries_to_process = std::mem::take(&mut trees);
                     }
                 }
             } else {
                 for name in entries.keys().sorted() {
-                    match entries[name].kind {
-                        spfs::tracking::EntryKind::Tree => {
-                            println!("{} {} {}/", entries[name].mode, entries[name].size, name)
-                        }
-                        _ => println!("{} {} {}", entries[name].mode, entries[name].size, name),
-                    }
+                    self.print_file(&entries[name], name, &username, last_modified);
                 }
             }
         } else {
@@ -99,5 +89,50 @@ impl CmdLs {
             return Ok(1);
         }
         Ok(0)
+    }
+
+    pub fn print_file(
+        &mut self,
+        entry: &spfs::tracking::Entry,
+        file_name: &String,
+        username: &String,
+        last_modified: DateTime<Utc>,
+    ) {
+        if self.long {
+            match entry.kind {
+                spfs::tracking::EntryKind::Tree => {
+                    println!(
+                        "{} {} {} {} {}/",
+                        unix_mode::to_string(entry.mode),
+                        username,
+                        entry.size,
+                        last_modified.format("%b %e %Y"),
+                        file_name
+                    )
+                }
+                _ => println!(
+                    "{} {} {} {} {}",
+                    unix_mode::to_string(entry.mode),
+                    username,
+                    entry.size,
+                    last_modified.format("%b %e %Y"),
+                    file_name
+                ),
+            }
+        } else if self.recursive {
+            match entry.kind {
+                spfs::tracking::EntryKind::Tree => {
+                    print!("{}/  ", file_name)
+                }
+                _ => print!("{}  ", file_name),
+            }
+        } else {
+            match entry.kind {
+                spfs::tracking::EntryKind::Tree => {
+                    println!("{}/", file_name)
+                }
+                _ => println!("{}", file_name),
+            }
+        }
     }
 }

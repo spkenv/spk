@@ -78,6 +78,16 @@ pub trait Repository:
         self.read_object(digest).await
     }
 
+    /// Returns a tag object from the reference.
+    async fn read_tag_metadata(&self, reference: &str) -> Result<Option<tracking::Tag>> {
+        if let Ok(tag_spec) = tracking::TagSpec::parse(reference) {
+            if let Ok(tag) = self.resolve_tag(&tag_spec).await {
+                return Ok(Some(tag));
+            }
+        }
+        return Ok(None);
+    }
+
     /// Return the other identifiers that can be used for 'reference'.
     async fn find_aliases(&self, reference: &str) -> Result<HashSet<Ref>> {
         let mut aliases = HashSet::new();
