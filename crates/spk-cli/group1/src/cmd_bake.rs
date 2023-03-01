@@ -261,7 +261,7 @@ impl Bake {
         }
 
         let formatter = self.formatter_settings.get_formatter(self.verbose);
-        let solution = formatter.run_and_print_resolve(&solver).await?;
+        let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
 
         // The solution order is the order things were found during
         // the solve. Need to reverse it to match up with the spfs

@@ -11,7 +11,6 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::{Recipe, SpecRecipe};
-use spk_solve::graph::Graph;
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_storage::{self as storage};
 
@@ -26,7 +25,6 @@ pub struct PackageInstallTester<'a> {
     additional_requirements: Vec<Request>,
     source: Option<PathBuf>,
     env_resolver: BoxedResolverCallback<'a>,
-    last_solve_graph: Arc<tokio::sync::RwLock<Graph>>,
 }
 
 impl<'a> PackageInstallTester<'a> {
@@ -40,7 +38,6 @@ impl<'a> PackageInstallTester<'a> {
             additional_requirements: Vec::new(),
             source: None,
             env_resolver: Box::new(DefaultResolver {}),
-            last_solve_graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
         }
     }
 
@@ -106,10 +103,7 @@ impl<'a> PackageInstallTester<'a> {
             solver.add_request(request)
         }
 
-        let mut runtime = solver.run();
-        let solution = self.env_resolver.solve(&mut runtime).await;
-        self.last_solve_graph = runtime.graph();
-        let solution = solution?;
+        let (solution, _) = self.env_resolver.solve(&solver).await?;
 
         for layer in resolve_runtime_layers(&solution).await? {
             rt.push_digest(layer);

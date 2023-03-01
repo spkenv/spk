@@ -3,13 +3,14 @@
 // https://github.com/imageworks/spk
 
 use std::collections::HashMap;
+use std::convert::From;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
-use clap::Args;
+use clap::{Args, ValueEnum};
 use colored::Colorize;
-use solve::{DecisionFormatter, DecisionFormatterBuilder};
+use solve::{DecisionFormatter, DecisionFormatterBuilder, MultiSolverKind};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
@@ -759,6 +760,23 @@ impl Repositories {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum SolverToShow {
+    /// Output from the solver specified by the command line parameters
+    Cli,
+    /// Output from the solver based on the cli solver and with all impossible request checks enabled
+    Checks,
+}
+
+impl From<SolverToShow> for MultiSolverKind {
+    fn from(item: SolverToShow) -> MultiSolverKind {
+        match item {
+            SolverToShow::Cli => MultiSolverKind::Unchanged,
+            SolverToShow::Checks => MultiSolverKind::AllImpossibleChecks,
+        }
+    }
+}
+
 #[derive(Args, Clone)]
 pub struct DecisionFormatterSettings {
     /// If true, display solver time and stats after each solve
@@ -809,6 +827,14 @@ pub struct DecisionFormatterSettings {
     /// than a few seconds.
     #[clap(long)]
     pub status_bar: bool,
+
+    /// Show output from the named solver. There are two solver
+    /// configurations run in parallel when finding a solution for a
+    /// requested solve: one configured from the command line, one
+    /// based on the command line with all impossible request checks
+    /// enabled.
+    #[clap(long, value_enum, default_value_t = SolverToShow::Cli)]
+    pub solver_output_from: SolverToShow,
 }
 
 impl DecisionFormatterSettings {
@@ -842,7 +868,8 @@ impl DecisionFormatterSettings {
             .with_solution(self.show_solution)
             .with_long_solves_threshold(self.long_solves)
             .with_max_frequent_errors(self.max_frequent_errors)
-            .with_status_bar(self.status_bar);
+            .with_status_bar(self.status_bar)
+            .with_solver_output_from(self.solver_output_from.into());
         builder
     }
 }

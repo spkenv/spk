@@ -47,7 +47,7 @@ impl Run for Render {
         }
 
         let formatter = self.formatter_settings.get_formatter(self.verbose);
-        let solution = formatter.run_and_print_resolve(&solver).await?;
+        let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
 
         let solution = build_required_packages(&solution).await?;
         let stack = resolve_runtime_layers(&solution).await?;
