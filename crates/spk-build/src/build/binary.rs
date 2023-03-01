@@ -11,7 +11,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::*;
-use spfs::tracking::EntryKind;
+use spfs::tracking::{DiffMode, EntryKind};
 use spk_exec::{
     pull_resolved_runtime_layers,
     resolve_runtime_layers,
@@ -451,6 +451,82 @@ where
         Ok(solution)
     }
 
+    /// Helper for constructing more useful error messages from schema validator errors
+    fn assemble_error_message(
+        &self,
+        error: spk_schema_validators::Error,
+        files_to_packages: &HashMap<RelativePathBuf, BuildIdent>,
+        conflicting_packages: &HashMap<(String, String), HashSet<RelativePathBuf>>,
+    ) -> String {
+        match error {
+            spk_schema_validators::Error::ExistingFileAltered(diffmode, filepath) => {
+                let operation = match *diffmode {
+                    DiffMode::Changed(a, b) => {
+                        let mut changes: Vec<String> = Vec::new();
+                        if a.mode != b.mode {
+                            changes.push(format!("permissions: {:06o} => {:06o}", a.mode, b.mode));
+                        }
+                        if a.kind != b.kind {
+                            changes.push(format!("kind: {} => {}", a.kind, b.kind));
+                        }
+                        if a.object != b.object {
+                            changes.push(format!("digest: {} => {}", a.object, b.object));
+                        }
+                        if a.size != b.size {
+                            changes.push(format!("size: {} => {} bytes", a.size, b.size));
+                        }
+
+                        format!("Changed [{}]", changes.join(", "))
+                    }
+                    DiffMode::Removed(_) => String::from("Removed"),
+                    _ => String::from("Added or Unchanged"),
+                };
+
+                let mut message = format!("\"{}\" was {}", filepath, operation);
+
+                // Work out if the files in conflict came from more
+                // than one package
+                let packages: Vec<(&(String, String), &HashSet<RelativePathBuf>)> =
+                    conflicting_packages
+                        .iter()
+                        .filter(|(_ps, fs)| fs.contains(&filepath))
+                        .collect();
+
+                if packages.is_empty() {
+                    // Then the file is only in a single package, not
+                    // in a pair of conflicting packages.
+                    let package = files_to_packages
+                        .get(&filepath)
+                        .map(|ident| ident.to_string())
+                        .unwrap_or_else(|| {
+                            "an unknown package, so something went wrong.".to_string()
+                        });
+                    message.push_str(&format!(". It is from {package}"));
+                } else {
+                    let num_others = packages.iter().map(|(_ps, fs)| fs.len()).sum::<usize>() - 1;
+                    if num_others > 0 {
+                        message.push_str(&format!(
+                            " (along with {num_others} more file{})",
+                            if num_others == 1 { "" } else { "s" }
+                        ));
+                    }
+                    let pkgs = packages
+                        .iter()
+                        .flat_map(|(ps, _fs)| Vec::from([ps.0.clone(), ps.1.clone()]))
+                        .collect::<Vec<String>>();
+                    message.push_str(&format!(
+                        " in {} packages: {}",
+                        pkgs.len(),
+                        pkgs.join(" AND ")
+                    ));
+                }
+
+                message
+            }
+            _ => error.to_string(),
+        }
+    }
+
     async fn build_and_commit_artifacts(
         &mut self,
         package: &Recipe::Output,
@@ -484,9 +560,26 @@ where
 
         let changed_files = package
             .validation()
-            .validate_build_changeset(package, &files_to_packages, &self.conflicting_packages)
+            .validate_build_changeset(package)
             .await
-            .map_err(|err| BuildError::new_error(format_args!("{err}")))?;
+            .map_err(|err| {
+                let err_message = match err {
+                    spk_schema::Error::InvalidBuildChangeSetError(validator_name, source_err) => {
+                        format!(
+                            "{}: {}",
+                            validator_name,
+                            self.assemble_error_message(
+                                source_err,
+                                &files_to_packages,
+                                &self.conflicting_packages,
+                            )
+                        )
+                    }
+                    _ => format!("{err}"),
+                };
+
+                BuildError::new_error(format_args!("Invalid Build: {err_message}"))
+            })?;
 
         tracing::info!("Committing package contents...");
         commit_component_layers(

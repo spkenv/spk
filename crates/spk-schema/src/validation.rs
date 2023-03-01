@@ -2,14 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::iter::FromIterator;
 use std::path::PathBuf;
 
-use relative_path::RelativePathBuf;
 use serde::{Deserialize, Serialize};
 use spfs::tracking::{Diff, DiffMode};
-use spk_schema_ident::BuildIdent;
 
 use crate::validators::{
     must_collect_all_files,
@@ -86,89 +84,8 @@ impl ValidationSpec {
         )
     }
 
-    /// Helper for constructing more useful error messages from schema validator errors
-    fn assemble_error_message(
-        &self,
-        error: spk_schema_validators::Error,
-        files_to_packages: &HashMap<RelativePathBuf, BuildIdent>,
-        conflicting_packages: &HashMap<(String, String), HashSet<RelativePathBuf>>,
-    ) -> String {
-        match error {
-            spk_schema_validators::Error::ExistingFileAltered(diffmode, filepath) => {
-                let operation = match *diffmode {
-                    DiffMode::Changed(a, b) => {
-                        let mut changes: Vec<String> = Vec::new();
-                        if a.mode != b.mode {
-                            changes.push(format!("permissions: {:06o} => {:06o}", a.mode, b.mode));
-                        }
-                        if a.kind != b.kind {
-                            changes.push(format!("kind: {} => {}", a.kind, b.kind));
-                        }
-                        if a.object != b.object {
-                            changes.push(format!("digest: {} => {}", a.object, b.object));
-                        }
-                        if a.size != b.size {
-                            changes.push(format!("size: {} => {} bytes", a.size, b.size));
-                        }
-
-                        format!("Changed [{}]", changes.join(", "))
-                    }
-                    DiffMode::Removed(_) => String::from("Removed"),
-                    _ => String::from("Added or Unchanged"),
-                };
-
-                let mut message = format!("\"{}\" was {}", filepath, operation);
-
-                // Work out if the files in conflict came from more
-                // than one package
-                let packages: Vec<(&(String, String), &HashSet<RelativePathBuf>)> =
-                    conflicting_packages
-                        .iter()
-                        .filter(|(_ps, fs)| fs.contains(&filepath))
-                        .collect();
-
-                if packages.is_empty() {
-                    // Then the file is only in a single package, not
-                    // in a pair of conflicting packages.
-                    let package = files_to_packages
-                        .get(&filepath)
-                        .map(|ident| ident.to_string())
-                        .unwrap_or_else(|| {
-                            "an unknown package, so something went wrong.".to_string()
-                        });
-                    message.push_str(&format!(". It is from {package}"));
-                } else {
-                    let num_others = packages.iter().map(|(_ps, fs)| fs.len()).sum::<usize>() - 1;
-                    if num_others > 0 {
-                        message.push_str(&format!(
-                            " (along with {num_others} more file{})",
-                            if num_others == 1 { "" } else { "s" }
-                        ));
-                    }
-                    let pkgs = packages
-                        .iter()
-                        .flat_map(|(ps, _fs)| Vec::from([ps.0.clone(), ps.1.clone()]))
-                        .collect::<Vec<String>>();
-                    message.push_str(&format!(
-                        " in {} packages: {}",
-                        pkgs.len(),
-                        pkgs.join(" AND ")
-                    ));
-                }
-
-                message
-            }
-            _ => error.to_string(),
-        }
-    }
-
     /// Validate the current set of spfs changes as a build of this package
-    pub async fn validate_build_changeset<Package>(
-        &self,
-        package: &Package,
-        files_to_packages: &HashMap<RelativePathBuf, BuildIdent>,
-        conflicting_packages: &HashMap<(String, String), HashSet<RelativePathBuf>>,
-    ) -> Result<Vec<Diff>>
+    pub async fn validate_build_changeset<Package>(&self, package: &Package) -> Result<Vec<Diff>>
     where
         Package: crate::Package,
     {
@@ -182,14 +99,10 @@ impl ValidationSpec {
 
         for validator in self.configured_validators().iter() {
             if let Err(err) = validator.validate(package, &diffs, SPFS) {
-                let err_message =
-                    self.assemble_error_message(err, files_to_packages, conflicting_packages);
-                return Err(
-                    crate::foundation::ident_build::InvalidBuildError::new_error(format!(
-                        "{validator:?}: {err_message}",
-                    ))
-                    .into(),
-                );
+                return Err(crate::Error::InvalidBuildChangeSetError(
+                    format!("{validator:?}"),
+                    err,
+                ));
             }
         }
 
