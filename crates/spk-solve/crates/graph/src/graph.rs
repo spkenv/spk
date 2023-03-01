@@ -1129,15 +1129,20 @@ impl State {
 
     pub fn as_solution(&self) -> Result<Solution> {
         let mut solution = Solution::new((&self.options).into());
-        for (spec, source) in self.packages.values() {
+
+        // Ensure the resolved packages are added to the solution in
+        // resolve order to preserve that order in the solution.
+        for package in self.packages_in_solve_order.iter() {
+            let (spec, source) = match self.packages.get(package.name()) {
+                Some((pkg_spec, pkg_source)) => (pkg_spec, pkg_source),
+                None => continue,
+            };
+
             let req = self
                 .get_merged_request(spec.name())
                 .map_err(GraphError::RequestError)?;
             solution.add(req, Arc::clone(spec), source.clone());
         }
-        // Also store the resolve order into the solution so it
-        // available for search space size calculations.
-        solution.set_solve_order(Arc::clone(&self.packages_in_solve_order));
         Ok(solution)
     }
 

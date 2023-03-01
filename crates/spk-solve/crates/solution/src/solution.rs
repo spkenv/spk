@@ -166,7 +166,6 @@ impl SolvedRequest {
 pub struct Solution {
     options: OptionMap,
     resolved: Vec<SolvedRequest>,
-    packages_in_solve_order: Arc<Vec<Arc<Spec>>>,
 }
 
 impl Solution {
@@ -174,18 +173,7 @@ impl Solution {
         Self {
             options,
             resolved: Default::default(),
-            packages_in_solve_order: Arc::new(Vec::new()),
         }
-    }
-
-    pub fn set_solve_order(&mut self, packages_in_solve_order: Arc<Vec<Arc<Spec>>>) {
-        self.packages_in_solve_order = packages_in_solve_order;
-    }
-
-    /// The packages in the solution in the order they were resolved
-    /// (found by the solver).
-    pub fn packages_in_solve_order(&self) -> &Arc<Vec<Arc<Spec>>> {
-        &self.packages_in_solve_order
     }
 
     /// The solved requests in the solution in alphabetical order by
@@ -355,7 +343,12 @@ impl Solution {
     fn format_solution_without_padding_or_highest(&self, verbosity: u32) -> String {
         let mut out = SOLUTION_FORMAT_HEADING.to_string();
 
-        let required_items = self.items();
+        // The resolved packages are typically stored in resolve
+        // order, but we want to display them here in alphabetical
+        // order by package name.
+        let mut required_items = self.resolved.clone();
+        required_items.sort_by(|a, b| a.spec.name().cmp(b.spec.name()));
+
         let number_of_packages = required_items.len();
         for req in required_items {
             // Show the installed request with components and repo name included

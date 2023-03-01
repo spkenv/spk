@@ -36,13 +36,12 @@ pub async fn show_search_space_stats(
 ) -> Result<()> {
     // The names of all packages in the solution are needed to gather
     // data on all their versions and builds. The order the packages
-    // where resolved must be kept the same as the order the solver
-    // found (resolved) them during its search for search space size
-    // calculations to be correct.
+    // were resolved must be kept the same as the order the solver
+    // found them (resolved them) during its search for the search
+    // space size calculations to be correct.
     let solution_packages = solution
-        .packages_in_solve_order()
-        .iter()
-        .map(|spec| spec.ident().clone())
+        .items()
+        .map(|solved_req| solved_req.spec.ident().clone())
         .collect::<Vec<BuildIdent>>();
     let names = solution_packages.iter().map(|p| p.name().into()).collect();
 

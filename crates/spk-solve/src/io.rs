@@ -593,6 +593,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) max_frequent_errors: usize,
     pub(crate) status_bar: bool,
     pub(crate) solver_output_from: MultiSolverKind,
+    pub(crate) show_search_space_size: bool,
 }
 
 enum LoopOutcome {
@@ -630,7 +631,6 @@ struct SolverTaskDone {
     pub(crate) verbosity: u32,
     pub(crate) solver_kind: MultiSolverKind,
     pub(crate) can_ignore_failure: bool,
-    pub(crate) show_search_space_size: bool,
 }
 
 #[derive(Debug, Clone)]
