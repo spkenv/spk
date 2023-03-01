@@ -8,6 +8,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("non-SPFS layer encountered in resolved layers")]
+    NonSPFSLayerInResolvedLayers,
     #[error(transparent)]
     SPFS(#[from] spfs::Error),
     #[error(transparent)]

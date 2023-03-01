@@ -2996,6 +2996,7 @@ dependencies = [
 name = "spk-build"
 version = "0.36.0"
 dependencies = [
+ "futures",
  "relative-path",
  "rstest",
  "serde",
@@ -3274,6 +3275,9 @@ dependencies = [
 name = "spk-exec"
 version = "0.36.0"
 dependencies = [
+ "async-stream",
+ "futures",
+ "relative-path",
  "spfs",
  "spk-schema",
  "spk-solve",

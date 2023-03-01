@@ -10,7 +10,13 @@ pub use entry::{Entry, EntryKind};
 mod env;
 pub use env::{EnvSpec, EnvSpecItem, ENV_SPEC_SEPARATOR};
 mod manifest;
-pub use manifest::{compute_manifest, Manifest, ManifestBuilder, ManifestBuilderHasher};
+pub use manifest::{
+    compute_manifest,
+    Manifest,
+    ManifestBuilder,
+    ManifestBuilderHasher,
+    ManifestNode,
+};
 mod object;
 pub use object::Object;
 mod tag;
