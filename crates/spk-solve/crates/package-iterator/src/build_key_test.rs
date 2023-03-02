@@ -34,6 +34,7 @@ fn make_tag_part(pieces: Vec<&str>) -> Option<Vec<BuildKeyVersionNumberPiece>> {
 
 // For making test case results
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::fn_params_excessive_bools)]
 fn make_expanded_version_range_part(
     version: &str,
     max_digits: Vec<u32>,

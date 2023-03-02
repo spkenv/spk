@@ -12,6 +12,7 @@
 
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
+#![warn(clippy::fn_params_excessive_bools)]
 
 mod binary;
 mod error;
