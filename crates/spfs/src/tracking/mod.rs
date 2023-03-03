@@ -17,10 +17,11 @@ pub use entry::{Entry, EntryKind};
 pub use env::{EnvSpec, EnvSpecItem, ENV_SPEC_SEPARATOR};
 pub use manifest::{
     compute_manifest,
+    BlobHasher,
     Manifest,
     ManifestBuilder,
-    ManifestBuilderHasher,
     ManifestNode,
+    PathFilter,
 };
 pub use object::Object;
 pub use tag::{build_tag_spec, split_tag_spec, Tag, TagSpec};

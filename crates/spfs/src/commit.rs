@@ -4,174 +4,158 @@
 
 use std::path::Path;
 use std::pin::Pin;
-use std::sync::Arc;
-
-use relative_path::RelativePath;
 
 use super::status::remount_runtime;
 use crate::prelude::*;
-use crate::tracking::{BlobRead, ManifestBuilderHasher};
-use crate::{encoding, graph, runtime, tracking, Error, Result};
+use crate::tracking::{BlobHasher, BlobRead, ManifestBuilder, PathFilter};
+use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./commit_test.rs"]
 mod commit_test;
 
-struct CommitBlobHasher {
-    repo: Arc<RepositoryHandle>,
+/// Hashes payload data as it's being written to a repository.
+///
+/// Used in conjunction with the [`Committer`], this can reduce
+/// io overhead by ensuring that each file only needs to be read
+/// through once. It can also greatly decrease the commit speed
+/// by requiring that each file is written to the repository even
+/// if the payload already exists.
+pub struct WriteToRepositoryBlobHasher<'repo> {
+    repo: &'repo RepositoryHandle,
 }
 
 #[tonic::async_trait]
-impl ManifestBuilderHasher for CommitBlobHasher {
-    async fn hasher(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
+impl<'repo> BlobHasher for WriteToRepositoryBlobHasher<'repo> {
+    async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
         self.repo.commit_blob(reader).await
     }
 }
 
-/// Commit a local file system directory to this storage.
-///
-/// This collects all files to store as blobs and maintains a
-/// render of the manifest for use immediately.
-pub async fn commit_dir<P>(repo: Arc<RepositoryHandle>, path: P) -> Result<tracking::Manifest>
+/// Manages the process of committing files to a repository
+pub struct Committer<'repo, H = WriteToRepositoryBlobHasher<'repo>, F = ()>
 where
-    P: AsRef<Path>,
+    H: BlobHasher + Send + Sync,
+    F: PathFilter + Send + Sync,
 {
-    commit_dir_with_manifest_builder(
-        {
-            tracking::ManifestBuilder::new(CommitBlobHasher {
-                repo: Arc::clone(&repo),
-            })
-        },
-        repo,
-        path,
-    )
-    .await
+    repo: &'repo storage::RepositoryHandle,
+    builder: ManifestBuilder<H, F>,
 }
 
-/// Commit a local file system directory to this storage.
-///
-/// This collects all files to store as blobs and maintains a
-/// render of the manifest for use immediately.
-///
-/// Only the changes also present in `filter` will be committed. It is
-/// expected to contain paths relative to `$PREFIX`.
-pub async fn commit_dir_with_filter<'a, P>(
-    repo: Arc<RepositoryHandle>,
-    path: P,
-    filter: impl IntoIterator<Item = &'a RelativePath>,
-) -> Result<tracking::Manifest>
-where
-    P: AsRef<Path>,
-{
-    commit_dir_with_manifest_builder(
-        {
-            tracking::ManifestBuilder::new(CommitBlobHasher {
-                repo: Arc::clone(&repo),
-            })
-            .with_filter(filter)
-        },
-        repo,
-        path,
-    )
-    .await
+impl<'repo> Committer<'repo, WriteToRepositoryBlobHasher<'repo>, ()> {
+    /// Create a new committer
+    pub fn new(repo: &'repo storage::RepositoryHandle) -> Self {
+        let builder = ManifestBuilder::new(WriteToRepositoryBlobHasher { repo });
+        Self { repo, builder }
+    }
 }
 
-/// Commit a local file system directory to this storage.
-///
-/// Uses the provided configured `ManifestBuilder`.
-async fn commit_dir_with_manifest_builder<P, H>(
-    builder: tracking::ManifestBuilder<H>,
-    repo: Arc<RepositoryHandle>,
-    path: P,
-) -> Result<tracking::Manifest>
+impl<'repo, H, F> Committer<'repo, H, F>
 where
-    P: AsRef<Path>,
-    H: ManifestBuilderHasher + Send + Sync + 'static,
+    H: BlobHasher + Send + Sync,
+    F: PathFilter + Send + Sync,
 {
-    let path = tokio::fs::canonicalize(&path)
-        .await
-        .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
-    let manifest = {
-        tracing::info!("committing files");
-        builder.compute_manifest(path).await?
-    };
-
-    tracing::info!("writing manifest");
-    let storable = graph::Manifest::from(&manifest);
-    repo.write_object(&graph::Object::Manifest(storable))
-        .await?;
-    for node in manifest.walk() {
-        if !node.entry.kind.is_blob() {
-            continue;
+    pub fn with_blob_hasher<H2>(self, hasher: H2) -> Committer<'repo, H2, F>
+    where
+        H2: BlobHasher + Send + Sync,
+    {
+        Committer {
+            repo: self.repo,
+            builder: self.builder.with_blob_hasher(hasher),
         }
-        let blob = graph::Blob::new(node.entry.object, node.entry.size);
-        repo.write_object(&graph::Object::Blob(blob)).await?;
     }
 
-    Ok(manifest)
-}
-
-/// Commit the working file changes of a runtime to a new layer.
-pub async fn commit_layer(
-    runtime: &mut runtime::Runtime,
-    repo: Arc<RepositoryHandle>,
-) -> Result<graph::Layer> {
-    commit_manifest(
-        commit_dir(Arc::clone(&repo), &runtime.config.upper_dir).await?,
-        runtime,
-        repo,
-    )
-    .await
-}
-
-/// Commit the working file changes of a runtime to a new layer.
-///
-/// Only the changes also present in `filter` will be committed. It is
-/// expected to contain paths relative to `$PREFIX`.
-pub async fn commit_layer_with_filter<'a>(
-    runtime: &mut runtime::Runtime,
-    repo: Arc<RepositoryHandle>,
-    filter: impl IntoIterator<Item = &'a RelativePath>,
-) -> Result<graph::Layer> {
-    commit_manifest(
-        commit_dir_with_filter(Arc::clone(&repo), &runtime.config.upper_dir, filter).await?,
-        runtime,
-        repo,
-    )
-    .await
-}
-
-/// Commit a manifest of the working file changes of a runtime to a new layer.
-async fn commit_manifest(
-    manifest: tracking::Manifest,
-    runtime: &mut runtime::Runtime,
-    repo: Arc<RepositoryHandle>,
-) -> Result<graph::Layer> {
-    if manifest.is_empty() {
-        return Err(Error::NothingToCommit);
-    }
-    let layer = repo.create_layer(&graph::Manifest::from(&manifest)).await?;
-    runtime.push_digest(layer.digest()?);
-    runtime.status.editable = false;
-    runtime.save_state_to_storage().await?;
-    remount_runtime(runtime).await?;
-    Ok(layer)
-}
-
-/// Commit the full layer stack and working files to a new platform.
-pub async fn commit_platform(
-    runtime: &mut runtime::Runtime,
-    repo: Arc<RepositoryHandle>,
-) -> Result<graph::Platform> {
-    match commit_layer(runtime, Arc::clone(&repo)).await {
-        Ok(_) | Err(Error::NothingToCommit) => (),
-        Err(err) => return Err(err),
+    /// Use this filter when committing files to storage.
+    ///
+    /// Only the changes/files matched by `filter` will be included.
+    ///
+    /// The filter is expected to match paths that are relative to the
+    /// `$PREFIX` root, eg: `directory/filename` rather than
+    /// `/spfs/directory/filename`.
+    pub fn with_path_filter<F2>(self, filter: F2) -> Committer<'repo, H, F2>
+    where
+        F2: PathFilter + Send + Sync,
+    {
+        Committer {
+            repo: self.repo,
+            builder: self.builder.with_path_filter(filter),
+        }
     }
 
-    runtime.reload_state_from_storage().await?;
-    if runtime.status.stack.is_empty() {
-        Err(Error::NothingToCommit)
-    } else {
-        repo.create_platform(runtime.status.stack.clone()).await
+    /// Commit the working file changes of a runtime to a new layer.
+    pub async fn commit_layer(&self, runtime: &mut runtime::Runtime) -> Result<graph::Layer> {
+        let manifest = self.commit_dir(&runtime.config.upper_dir).await?;
+        self.commit_manifest(manifest, runtime).await
+    }
+
+    /// Commit a manifest of the working file changes of a runtime to a new layer.
+    ///
+    /// This will add the layer to the current runtime and then remount it.
+    pub async fn commit_manifest(
+        &self,
+        manifest: tracking::Manifest,
+        runtime: &mut runtime::Runtime,
+    ) -> Result<graph::Layer> {
+        if manifest.is_empty() {
+            return Err(Error::NothingToCommit);
+        }
+        let layer = self
+            .repo
+            .create_layer(&graph::Manifest::from(&manifest))
+            .await?;
+        runtime.push_digest(layer.digest()?);
+        runtime.status.editable = false;
+        runtime.save_state_to_storage().await?;
+        remount_runtime(runtime).await?;
+        Ok(layer)
+    }
+
+    /// Commit the full layer stack and working files to a new platform.
+    pub async fn commit_platform(&self, runtime: &mut runtime::Runtime) -> Result<graph::Platform> {
+        match self.commit_layer(runtime).await {
+            Ok(_) | Err(Error::NothingToCommit) => (),
+            Err(err) => return Err(err),
+        }
+
+        runtime.reload_state_from_storage().await?;
+        if runtime.status.stack.is_empty() {
+            Err(Error::NothingToCommit)
+        } else {
+            self.repo
+                .create_platform(runtime.status.stack.clone())
+                .await
+        }
+    }
+
+    /// Commit a local file system directory to this storage.
+    ///
+    /// This collects all files to store as blobs and maintains a
+    /// render of the manifest for use immediately.
+    pub async fn commit_dir<P>(&self, path: P) -> Result<tracking::Manifest>
+    where
+        P: AsRef<Path>,
+    {
+        let path = tokio::fs::canonicalize(&path)
+            .await
+            .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
+        let manifest = {
+            tracing::info!("committing files");
+            self.builder.compute_manifest(path).await?
+        };
+
+        tracing::info!("writing manifest");
+        let storable = graph::Manifest::from(&manifest);
+        self.repo
+            .write_object(&graph::Object::Manifest(storable))
+            .await?;
+        for node in manifest.walk() {
+            if !node.entry.kind.is_blob() {
+                continue;
+            }
+            let blob = graph::Blob::new(node.entry.object, node.entry.size);
+            self.repo.write_object(&graph::Object::Blob(blob)).await?;
+        }
+
+        Ok(manifest)
     }
 }

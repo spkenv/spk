@@ -65,7 +65,8 @@ async fn test_render_manifest_with_repo(tmpdir: tempfile::TempDir) {
     ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
     ensure(src_dir.join("file.txt"), "rootdata");
 
-    let expected_manifest = crate::commit_dir(Arc::clone(&tmprepo), &src_dir)
+    let expected_manifest = crate::Committer::new(&tmprepo)
+        .commit_dir(&src_dir)
         .await
         .unwrap();
     let manifest = Manifest::from(&expected_manifest);

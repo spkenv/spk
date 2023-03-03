@@ -9,13 +9,13 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use futures::stream::FuturesUnordered;
-use futures::TryStreamExt;
+use futures::{TryFutureExt, TryStreamExt};
 use itertools::Itertools;
 use relative_path::{RelativePath, RelativePathBuf};
 use tokio::fs::DirEntry;
 
 use super::entry::{Entry, EntryKind};
-use super::{BlobRead, BlobReadExt};
+use super::{BlobRead, BlobReadExt, Diff};
 use crate::{encoding, runtime, Error, Result};
 
 #[cfg(test)]
@@ -261,8 +261,8 @@ impl<'m> Iterator for ManifestWalker<'m> {
 struct DigestFromAsyncReader {}
 
 #[tonic::async_trait]
-impl ManifestBuilderHasher for DigestFromAsyncReader {
-    async fn hasher(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
+impl BlobHasher for DigestFromAsyncReader {
+    async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
         Ok(encoding::Digest::from_async_reader(reader).await?)
     }
 }
@@ -273,76 +273,126 @@ pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(path: P) -> Resu
 }
 
 #[async_trait::async_trait]
-pub trait ManifestBuilderHasher {
-    async fn hasher(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest>;
+pub trait BlobHasher {
+    /// Read the contents of `reader` to completion, returning
+    /// the digest of the contents.
+    async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest>;
 }
 
-pub struct ManifestBuilder<H>
+/// Used to include/exclude paths from a manifest
+/// while it's being constructed
+pub trait PathFilter {
+    fn should_include_path(&self, path: &RelativePath) -> bool;
+}
+
+impl PathFilter for () {
+    fn should_include_path(&self, _path: &RelativePath) -> bool {
+        true
+    }
+}
+
+impl PathFilter for HashSet<&RelativePath> {
+    fn should_include_path(&self, path: &RelativePath) -> bool {
+        self.contains(path)
+    }
+}
+
+impl<F> PathFilter for F
 where
-    H: ManifestBuilderHasher + Send + Sync + 'static,
+    F: Fn(&RelativePath) -> bool,
+{
+    fn should_include_path(&self, path: &RelativePath) -> bool {
+        (self)(path)
+    }
+}
+
+impl PathFilter for &[Diff] {
+    fn should_include_path(&self, path: &RelativePath) -> bool {
+        for diff in self.iter() {
+            if diff.path == path || diff.path.starts_with(path) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+/// Computes manifests from directory structures on disk
+pub struct ManifestBuilder<H, F = ()>
+where
+    H: BlobHasher + Send + Sync,
+    F: PathFilter + Send + Sync,
 {
     hasher: H,
-    filter: Option<HashSet<RelativePathBuf>>,
+    filter: F,
 }
 
 impl<H> ManifestBuilder<H>
 where
-    H: ManifestBuilderHasher + Send + Sync + 'static,
+    H: BlobHasher + Send + Sync,
 {
     pub fn new(hasher: H) -> Self {
-        Self {
+        Self { hasher, filter: () }
+    }
+}
+
+impl<H, F> ManifestBuilder<H, F>
+where
+    H: BlobHasher + Send + Sync,
+    F: PathFilter + Send + Sync,
+{
+    /// Use the provided hasher when building the manifest.
+    ///
+    /// The hasher turns blob contents into a digest to be included
+    /// in the manifest. This is useful in commit-like operations where
+    /// it might be beneficial to write the data while hashing and
+    /// avoid needing to read the content again later.
+    pub fn with_blob_hasher<H2>(self, hasher: H2) -> ManifestBuilder<H2, F>
+    where
+        H2: BlobHasher + Send + Sync,
+    {
+        ManifestBuilder {
             hasher,
-            filter: None,
+            filter: self.filter,
         }
     }
 
-    /// Set a filter on the builder so that only files mentioned in the filter
+    /// Set a filter on the builder so that only files matched by the filter
     /// will be included in the manifest.
     ///
-    /// The filter is expected to contain paths that are relative to the
-    /// `$PREFIX` root.
-    pub fn with_filter<'a>(mut self, filter: impl IntoIterator<Item = &'a RelativePath>) -> Self {
-        let mut filter_set = HashSet::new();
-        for path_to_filter in filter {
-            // Ensure any parents of this path are also included.
-            //
-            // If `path_to_filter` is "foo/bar/baz",
-            // add "foo", "foo/bar", and "foo/bar/baz" to `filter_set`.
-            let mut path = RelativePathBuf::new();
-            for component in path_to_filter.components() {
-                use relative_path::Component;
-                if let Component::Normal(component) = component {
-                    path.push(component);
-                    filter_set.insert(path.clone());
-                }
-            }
+    /// The filter is expected to match paths that are relative to the
+    /// `$PREFIX` root, eg: `directory/filename` rather than
+    /// `/spfs/directory/filename`.
+    pub fn with_path_filter<F2>(self, filter: F2) -> ManifestBuilder<H, F2>
+    where
+        F2: PathFilter + Send + Sync,
+    {
+        ManifestBuilder {
+            hasher: self.hasher,
+            filter,
         }
-
-        self.filter = Some(filter_set);
-
-        self
     }
 
     /// Build a manifest that describes a directory's contents.
     pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(
-        self,
+        &self,
         path: P,
     ) -> Result<Manifest> {
         tracing::trace!("computing manifest for {:?}", path.as_ref());
         let mut manifest = Manifest::default();
-        manifest.root = Self::compute_tree_node(
-            Arc::new(self),
-            Arc::new(path.as_ref().to_owned()),
-            path.as_ref(),
-            manifest.root,
-        )
-        .await?;
+        manifest.root = self
+            .compute_tree_node(
+                Arc::new(path.as_ref().to_owned()),
+                path.as_ref(),
+                manifest.root,
+            )
+            .await?;
         Ok(manifest)
     }
 
     #[async_recursion::async_recursion]
     async fn compute_tree_node<P: AsRef<std::path::Path> + Send>(
-        mb: Arc<ManifestBuilder<H>>,
+        &self,
         root: Arc<std::path::PathBuf>,
         dirname: P,
         mut tree_node: Entry,
@@ -357,45 +407,36 @@ where
             Error::StorageReadError("next_entry of tree node dir", base.to_owned(), err)
         })? {
             let dir_entry = Arc::new(dir_entry);
-            let mb = Arc::clone(&mb);
             let path = base.join(dir_entry.file_name());
 
-            if let Some(filter) = &mb.filter {
-                // If filtering, skip this entry unless the path matches a
-                // member of the filter set.
-                if let Ok(rel_path) = path.strip_prefix(&*root) {
-                    if let Ok(rel_path) = RelativePathBuf::from_path(rel_path) {
-                        if !filter.contains(&rel_path) {
-                            // Move on the next directory entry.
-                            continue;
-                        }
-                    }
+            // Skip entries that are not matched by our filter
+            if let Ok(rel_path) = path.strip_prefix(&*root) {
+                let cow = rel_path.to_string_lossy();
+                let rel_path = RelativePath::new(&cow);
+                if !self.filter.should_include_path(rel_path) {
+                    // Move on the next directory entry.
+                    continue;
                 }
             }
 
-            let entry = {
+            let entry_fut = {
                 let root = Arc::clone(&root);
                 let dir_entry = Arc::clone(&dir_entry);
-                tokio::spawn(async move {
-                    (
-                        Arc::clone(&dir_entry),
-                        Self::compute_node(mb, root, path, dir_entry, Entry::default()).await,
-                    )
-                })
+                let file_name = dir_entry.file_name().to_string_lossy().to_string();
+                self.compute_node(root, path, dir_entry, Entry::default())
+                    .map_ok(|e| (file_name, e))
             };
-            futures.push(entry);
+            futures.push(entry_fut);
         }
-        while let Some((dir_entry, entry)) = futures.try_next().await? {
-            tree_node
-                .entries
-                .insert(dir_entry.file_name().to_string_lossy().to_string(), entry?);
+        while let Some((file_name, entry)) = futures.try_next().await? {
+            tree_node.entries.insert(file_name, entry);
         }
         tree_node.size = tree_node.entries.len() as u64;
         Ok(tree_node)
     }
 
     async fn compute_node<P: AsRef<std::path::Path> + Send>(
-        mb: Arc<ManifestBuilder<H>>,
+        &self,
         root: Arc<std::path::PathBuf>,
         path: P,
         dir_entry: Arc<DirEntry>,
@@ -455,12 +496,12 @@ where
                 })?
                 .into_bytes();
             entry.kind = EntryKind::Blob;
-            entry.object = mb
+            entry.object = self
                 .hasher
-                .hasher(Box::pin(std::io::Cursor::new(link_target)))
+                .hash_blob(Box::pin(std::io::Cursor::new(link_target)))
                 .await?;
         } else if file_type.is_dir() {
-            entry = Self::compute_tree_node(mb, root, path, entry).await?;
+            entry = self.compute_tree_node(root, path, entry).await?;
         } else if runtime::is_removed_entry(&stat_result) {
             entry.kind = EntryKind::Mask;
             entry.object = encoding::NULL_DIGEST.into();
@@ -474,7 +515,7 @@ where
                 })?)
                 .with_permissions(entry.mode);
 
-            entry.object = mb.hasher.hasher(Box::pin(reader)).await?;
+            entry.object = self.hasher.hash_blob(Box::pin(reader)).await?;
         }
         Ok(entry)
     }

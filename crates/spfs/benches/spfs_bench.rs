@@ -58,8 +58,11 @@ pub fn commit_benchmark(c: &mut Criterion) {
         .sample_size(20)
         .measurement_time(Duration::from_secs(10));
     group.bench_function("repo.commit_dir", |b| {
-        b.to_async(&tokio_runtime)
-            .iter(|| spfs::commit_dir(Arc::clone(&repo), tempdir.path()))
+        b.to_async(&tokio_runtime).iter(|| {
+            let repo = Arc::clone(&repo);
+            let path = tempdir.path().to_owned();
+            async move { spfs::Committer::new(&repo).commit_dir(path).await }
+        })
     });
     group.finish();
 }

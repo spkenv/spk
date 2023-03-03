@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use relative_path::{RelativePath, RelativePathBuf};
+use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 use spfs::tracking::EntryKind;
 use spk_exec::{
@@ -459,12 +459,7 @@ where
             .map_err(|err| BuildError::new_error(format_args!("{err}")))?;
 
         tracing::info!("Committing package contents...");
-        commit_component_layers(
-            package,
-            &mut runtime,
-            changed_files.iter().map(|diff| diff.path.as_ref()),
-        )
-        .await
+        commit_component_layers(package, &mut runtime, changed_files.as_slice()).await
     }
 
     async fn build_artifacts<O>(&mut self, package: &Recipe::Output, options: O) -> Result<()>
@@ -656,14 +651,17 @@ where
 pub async fn commit_component_layers<'a, P>(
     package: &P,
     runtime: &mut spfs::runtime::Runtime,
-    filter: impl IntoIterator<Item = &'a RelativePath>,
+    filter: impl spfs::tracking::PathFilter + Send + Sync,
 ) -> Result<HashMap<Component, spfs::encoding::Digest>>
 where
     P: Package,
 {
     let config = spfs::get_config()?;
     let repo = Arc::new(config.get_local_repository_handle().await?);
-    let layer = spfs::commit_layer_with_filter(runtime, Arc::clone(&repo), filter).await?;
+    let layer = spfs::Committer::new(&repo)
+        .with_path_filter(filter)
+        .commit_layer(runtime)
+        .await?;
     let manifest = repo
         .read_manifest(layer.manifest)
         .await?

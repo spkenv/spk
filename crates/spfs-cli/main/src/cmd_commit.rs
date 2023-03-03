@@ -47,7 +47,7 @@ impl CmdCommit {
         );
 
         let result: spfs::graph::Object = if let Some(path) = &self.path {
-            let manifest = spfs::commit_dir(Arc::clone(&repo), path).await?;
+            let manifest = spfs::Committer::new(&repo).commit_dir(path).await?;
             if manifest.is_empty() {
                 return Err(spfs::Error::NothingToCommit.into());
             }
@@ -64,13 +64,10 @@ impl CmdCommit {
                 return Ok(1);
             }
 
+            let committer = spfs::Committer::new(&repo);
             match self.kind.clone().unwrap_or_default().as_str() {
-                "layer" => spfs::commit_layer(&mut runtime, Arc::clone(&repo))
-                    .await?
-                    .into(),
-                "platform" => spfs::commit_platform(&mut runtime, Arc::clone(&repo))
-                    .await?
-                    .into(),
+                "layer" => committer.commit_layer(&mut runtime).await?.into(),
+                "platform" => committer.commit_platform(&mut runtime).await?.into(),
                 kind => {
                     tracing::error!("don't know how to commit a '{}'", kind);
                     return Ok(1);
