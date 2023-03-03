@@ -258,17 +258,15 @@ impl<'m> Iterator for ManifestWalker<'m> {
     }
 }
 
-struct DigestFromAsyncReader {}
-
 #[tonic::async_trait]
-impl BlobHasher for DigestFromAsyncReader {
+impl BlobHasher for () {
     async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
         Ok(encoding::Digest::from_async_reader(reader).await?)
     }
 }
 
 pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(path: P) -> Result<Manifest> {
-    let builder = ManifestBuilder::new(DigestFromAsyncReader {});
+    let builder = ManifestBuilder::new();
     builder.compute_manifest(path).await
 }
 
@@ -318,7 +316,7 @@ impl PathFilter for &[Diff] {
 }
 
 /// Computes manifests from directory structures on disk
-pub struct ManifestBuilder<H, F = ()>
+pub struct ManifestBuilder<H = (), F = ()>
 where
     H: BlobHasher + Send + Sync,
     F: PathFilter + Send + Sync,
@@ -327,12 +325,18 @@ where
     filter: F,
 }
 
-impl<H> ManifestBuilder<H>
-where
-    H: BlobHasher + Send + Sync,
-{
-    pub fn new(hasher: H) -> Self {
-        Self { hasher, filter: () }
+impl ManifestBuilder<(), ()> {
+    pub fn new() -> Self {
+        Self {
+            hasher: (),
+            filter: (),
+        }
+    }
+}
+
+impl Default for ManifestBuilder<(), ()> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

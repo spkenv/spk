@@ -15,7 +15,7 @@ pub struct CmdCommit {
     /// Commit files directly into a remote repository
     ///
     /// The default is to commit to the local repository. This flag
-    /// only with the --path argument
+    /// is only valid with the --path argument.
     #[clap(long, short)]
     remote: Option<String>,
 
@@ -28,6 +28,17 @@ pub struct CmdCommit {
     /// Commit this directory instead of the current spfs changes
     #[clap(long)]
     path: Option<PathBuf>,
+
+    /// Hash the files before committing, rather than while committing.
+    ///
+    /// This option can improve commit times when a large number of the
+    /// files are expected to already exist in the repository. It can
+    /// also improve commit times when committing directly to a slow or
+    /// remote repository. By default, all files are written to the
+    /// repository even if the payload exists, but this strategy will
+    /// hash the file first to determine if it needs to be transferred.
+    #[clap(long)]
+    hash_first: bool,
 
     /// The desired object type to create, skip this when giving --path
     #[clap(
@@ -46,33 +57,12 @@ impl CmdCommit {
                 .await?,
         );
 
-        let result: spfs::graph::Object = if let Some(path) = &self.path {
-            let manifest = spfs::Committer::new(&repo).commit_dir(path).await?;
-            if manifest.is_empty() {
-                return Err(spfs::Error::NothingToCommit.into());
-            }
-            repo.create_layer(&spfs::graph::Manifest::from(&manifest))
-                .await?
-                .into()
+        let committer = spfs::Committer::new(&repo);
+        let result = if self.hash_first {
+            let committer = committer.with_blob_hasher(spfs::commit::InMemoryBlobHasher);
+            self.do_commit(&repo, committer).await?
         } else {
-            // no path give, commit the current runtime
-
-            let mut runtime = spfs::active_runtime().await?;
-
-            if !runtime.status.editable {
-                tracing::error!("Active runtime is not editable, nothing to commit");
-                return Ok(1);
-            }
-
-            let committer = spfs::Committer::new(&repo);
-            match self.kind.clone().unwrap_or_default().as_str() {
-                "layer" => committer.commit_layer(&mut runtime).await?.into(),
-                "platform" => committer.commit_platform(&mut runtime).await?.into(),
-                kind => {
-                    tracing::error!("don't know how to commit a '{}'", kind);
-                    return Ok(1);
-                }
-            }
+            self.do_commit(&repo, committer).await?
         };
 
         tracing::info!(digest = ?result.digest()?, "created");
@@ -92,5 +82,45 @@ impl CmdCommit {
         }
 
         Ok(0)
+    }
+
+    async fn do_commit<'repo, H, F>(
+        &self,
+        repo: &'repo spfs::storage::RepositoryHandle,
+        committer: spfs::Committer<'repo, H, F>,
+    ) -> spfs::Result<spfs::graph::Object>
+    where
+        H: spfs::tracking::BlobHasher + Send + Sync,
+        F: spfs::tracking::PathFilter + Send + Sync,
+    {
+        if let Some(path) = &self.path {
+            let manifest = committer.commit_dir(path).await?;
+            if manifest.is_empty() {
+                return Err(spfs::Error::NothingToCommit);
+            }
+            return Ok(repo
+                .create_layer(&spfs::graph::Manifest::from(&manifest))
+                .await?
+                .into());
+        }
+        // no path given, commit the current runtime
+
+        let mut runtime = spfs::active_runtime().await?;
+
+        if !runtime.status.editable {
+            return Err(spfs::Error::String(
+                "Active runtime is not editable, nothing to commit".into(),
+            ));
+        }
+
+        match self.kind.clone().unwrap_or_default().as_str() {
+            "layer" => Ok(committer.commit_layer(&mut runtime).await?.into()),
+            "platform" => Ok(committer.commit_platform(&mut runtime).await?.into()),
+            kind => {
+                return Err(spfs::Error::String(format!(
+                    "don't know how to commit a '{kind}'"
+                )));
+            }
+        }
     }
 }
