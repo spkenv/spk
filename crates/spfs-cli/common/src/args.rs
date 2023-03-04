@@ -289,110 +289,111 @@ pub fn shutdown_sentry() {
     opt_guard.take();
 }
 
-pub fn configure_logging(verbosity: usize, syslog: bool) {
-    let mut config = match verbosity {
-        0 => {
-            if let Ok(existing) = std::env::var(SPFS_LOG) {
-                existing
-            } else {
-                "spfs=info,warn".to_string()
-            }
-        }
-        1 => "spfs=debug,info".to_string(),
-        2 => "spfs=trace,info".to_string(),
-        3 => "spfs=trace,debug".to_string(),
-        _ => "trace".to_string(),
-    };
-    std::env::set_var(SPFS_LOG, &config);
-    if let Ok(overrides) = std::env::var("RUST_LOG") {
-        config.push(',');
-        config.push_str(&overrides);
+/// Command line flags for configuring logging and output
+#[derive(Debug, Clone, clap::Args)]
+pub struct Logging {
+    /// Make output more verbose, can be specified more than once
+    #[clap(short, long, global = true, parse(from_occurrences))]
+    pub verbose: usize,
+
+    /// Additionally log output to the provided file
+    #[clap(long, global = true, env = "SPFS_LOG_FILE")]
+    pub log_file: Option<std::path::PathBuf>,
+
+    /// Enables logging to syslog (for background processes)
+    #[clap(skip)]
+    pub syslog: bool,
+}
+
+/// Applies a filter to remove sentry log targets if sentry is enabled
+macro_rules! without_sentry_target {
+    ($layer:ident) => {{
+        $layer.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+            // Don't log breadcrumbs to console, etc.
+            !metadata.target().starts_with("sentry")
+        }))
+    }};
+}
+
+impl Logging {
+    fn show_target(&self) -> bool {
+        self.verbose > 2
     }
-    let env_filter = tracing_subscriber::filter::EnvFilter::from(config);
-    let fmt_layer = tracing_subscriber::fmt::layer()
-        .without_time()
-        .with_target(verbosity > 2);
 
-    // TODO: Macro to DRY here?
+    pub fn configure(&self) {
+        let mut config = match self.verbose {
+            0 => {
+                if let Ok(existing) = std::env::var(SPFS_LOG) {
+                    existing
+                } else {
+                    "spfs=info,warn".to_string()
+                }
+            }
+            1 => "spfs=debug,info".to_string(),
+            2 => "spfs=trace,info".to_string(),
+            3 => "spfs=trace,debug".to_string(),
+            _ => "trace".to_string(),
+        };
+        std::env::set_var(SPFS_LOG, &config);
+        if let Ok(overrides) = std::env::var("RUST_LOG") {
+            config.push(',');
+            config.push_str(&overrides);
+        }
 
-    if syslog {
-        let identity =
-            std::ffi::CStr::from_bytes_with_nul(b"spfs\0").expect("identity value is valid CStr");
-        let (options, facility) = Default::default();
-        let syslog_log = fmt_layer.with_writer(
-            syslog_tracing::Syslog::new(identity, options, facility).expect("initialize Syslog"),
+        let env_filter = move || tracing_subscriber::filter::EnvFilter::from(config.clone());
+        let fmt_layer = || tracing_subscriber::fmt::layer().with_target(self.show_target());
+
+        let syslog_layer = self.syslog.then(|| {
+            let identity = std::ffi::CStr::from_bytes_with_nul(b"spfs\0")
+                .expect("identity value is valid CStr");
+            let (options, facility) = Default::default();
+            let layer = fmt_layer()
+                .without_time()
+                .with_writer(
+                    syslog_tracing::Syslog::new(identity, options, facility)
+                        .expect("initialize Syslog"),
+                )
+                .with_filter(env_filter());
+            without_sentry_target!(layer)
+        });
+
+        let stderr_layer = {
+            let layer = fmt_layer()
+                .without_time()
+                .with_writer(std::io::stderr)
+                .with_filter(env_filter());
+            without_sentry_target!(layer)
+        };
+
+        let file_layer = self
+            .log_file
+            .as_ref()
+            .and_then(|log_file_path| {
+                std::fs::OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(log_file_path)
+                    .ok()
+            })
+            .map(|log_file| {
+                let layer = fmt_layer().with_writer(log_file).with_filter(env_filter());
+                without_sentry_target!(layer)
+            });
+
+        #[cfg(feature = "sentry")]
+        let sentry_layer = Some(
+            sentry_tracing::layer().with_filter(tracing_subscriber::filter::LevelFilter::INFO),
         );
-
         #[cfg(not(feature = "sentry"))]
-        let sub =
-            tracing_subscriber::registry().with(syslog_log.with_filter(env_filter).with_filter(
-                tracing_subscriber::filter::filter_fn(|metadata| {
-                    // Don't log breadcrumbs to console, etc.
-                    !metadata.target().starts_with("sentry")
-                }),
-            ));
+        let sentry_layer = false.then(fmt_layer);
 
-        #[cfg(feature = "sentry")]
-        let sub = {
-            let sentry_layer =
-                sentry_tracing::layer().with_filter(tracing_subscriber::filter::LevelFilter::INFO);
-
-            tracing_subscriber::registry()
-                .with(
-                    syslog_log
-                        .and_then(sentry_tracing::layer())
-                        .with_filter(env_filter)
-                        .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-                            // Don't log breadcrumbs to console, etc.
-                            !metadata.target().starts_with("sentry")
-                        })),
-                )
-                .with(
-                    sentry_layer.with_filter(tracing_subscriber::filter::filter_fn(
-                        // Only log breadcrumbs here.
-                        |metadata| metadata.target().starts_with("sentry"),
-                    )),
-                )
-        };
-
-        tracing::subscriber::set_global_default(sub).unwrap();
-    } else {
-        let stderr_log = fmt_layer.with_writer(std::io::stderr);
-
-        #[cfg(not(feature = "sentry"))]
-        let sub =
-            tracing_subscriber::registry().with(stderr_log.with_filter(env_filter).with_filter(
-                tracing_subscriber::filter::filter_fn(|metadata| {
-                    // Don't log breadcrumbs to console, etc.
-                    !metadata.target().starts_with("sentry")
-                }),
-            ));
-
-        #[cfg(feature = "sentry")]
-        let sub = {
-            let sentry_layer =
-                sentry_tracing::layer().with_filter(tracing_subscriber::filter::LevelFilter::INFO);
-
-            tracing_subscriber::registry()
-                .with(
-                    stderr_log
-                        .and_then(sentry_tracing::layer())
-                        .with_filter(env_filter)
-                        .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-                            // Don't log breadcrumbs to console, etc.
-                            !metadata.target().starts_with("sentry")
-                        })),
-                )
-                .with(
-                    sentry_layer.with_filter(tracing_subscriber::filter::filter_fn(
-                        // Only log breadcrumbs here.
-                        |metadata| metadata.target().starts_with("sentry"),
-                    )),
-                )
-        };
-
-        tracing::subscriber::set_global_default(sub).unwrap();
-    };
+        tracing_subscriber::Layer::and_then(sentry_layer, file_layer)
+            .and_then(syslog_layer)
+            .and_then(stderr_layer)
+            .with_subscriber(tracing_subscriber::Registry::default())
+            .init();
+    }
 }
 
 /// Trait all spfs cli command parsers must implement to provide the
@@ -473,8 +474,9 @@ macro_rules! configure {
         // TODO: pass $opt into sentry and into the get cli?
         let sentry_guard = if $sentry { $crate::configure_sentry(String::from($opt.command_name())) } else { &None };
         #[cfg(not(feature = "sentry"))]
-        let sentry_guard = 0;
-        $crate::configure_logging($opt.verbose, $syslog);
+        let sentry_guard = ();
+        $opt.logging.syslog = $syslog;
+        $opt.logging.configure();
 
         match spfs::get_config() {
             Err(err) => {

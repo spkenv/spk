@@ -23,8 +23,8 @@ cli::main!(CmdJoin, sentry = false, sync = true);
     .required(true)
     .args(&["runtime", "pid"])))]
 pub struct CmdJoin {
-    #[clap(short, long, parse(from_occurrences))]
-    pub verbose: usize,
+    #[clap(flatten)]
+    pub logging: cli::Logging,
 
     /// The pid of a process in an active runtime, to join the same runtime
     #[clap(short, long)]
