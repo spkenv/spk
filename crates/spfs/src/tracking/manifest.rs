@@ -8,11 +8,12 @@ use std::os::unix::prelude::FileTypeExt;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::stream::FuturesUnordered;
-use futures::{TryFutureExt, TryStreamExt};
+use futures::future::ready;
+use futures::{FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 use itertools::Itertools;
 use relative_path::{RelativePath, RelativePathBuf};
 use tokio::fs::DirEntry;
+use tokio::sync::Semaphore;
 
 use super::entry::{Entry, EntryKind};
 use super::{BlobRead, BlobReadExt, Diff};
@@ -21,6 +22,14 @@ use crate::{encoding, runtime, Error, Result};
 #[cfg(test)]
 #[path = "./manifest_test.rs"]
 mod manifest_test;
+
+/// The default limit for concurrent blobs when computing manifests.
+/// See: [`ManifestBuilder::with_max_concurrent_blobs`]
+pub const DEFAULT_MAX_CONCURRENT_BLOBS: usize = 1000;
+
+/// The default limit for concurrent branches when computing manifests.
+/// See: [`ManifestBuilder::with_max_concurrent_branches`]
+pub const DEFAULT_MAX_CONCURRENT_BRANCHES: usize = 5;
 
 #[derive(Default, Debug, Eq, PartialEq, Clone)]
 pub struct Manifest {
@@ -323,20 +332,24 @@ where
 {
     hasher: H,
     filter: F,
+    blob_semaphore: Arc<Semaphore>,
+    max_concurrent_branches: usize,
 }
 
 impl ManifestBuilder<(), ()> {
     pub fn new() -> Self {
-        Self {
-            hasher: (),
-            filter: (),
-        }
+        Self::default()
     }
 }
 
 impl Default for ManifestBuilder<(), ()> {
     fn default() -> Self {
-        Self::new()
+        Self {
+            hasher: (),
+            filter: (),
+            blob_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_BLOBS)),
+            max_concurrent_branches: DEFAULT_MAX_CONCURRENT_BRANCHES,
+        }
     }
 }
 
@@ -345,6 +358,26 @@ where
     H: BlobHasher + Send + Sync,
     F: PathFilter + Send + Sync,
 {
+    /// Set how many blobs should be processed at once.
+    pub fn with_max_concurrent_blobs(mut self, max_concurrent_blobs: usize) -> Self {
+        self.blob_semaphore = Arc::new(Semaphore::new(max_concurrent_blobs));
+        self
+    }
+
+    /// Set how many branches should be processed at once.
+    ///
+    /// Each tree/folder that is processed can have any number of subtrees. This number
+    /// limits the number of subtrees that can be processed at once for any given tree. This
+    /// means that the number compounds exponentially based on the depth of the manifest
+    /// being computed. Eg: a limit of 2 allows two directories to be processed in the root
+    /// simultaneously and a further 2 within each of those two for a total of 4 branches, and so
+    /// on. When computing for extremely deep trees, a smaller, conservative number is better
+    /// to avoid open file limits.
+    pub fn with_max_concurrent_branches(mut self, max_concurrent_branches: usize) -> Self {
+        self.max_concurrent_branches = max_concurrent_branches;
+        self
+    }
+
     /// Use the provided hasher when building the manifest.
     ///
     /// The hasher turns blob contents into a digest to be included
@@ -358,6 +391,8 @@ where
         ManifestBuilder {
             hasher,
             filter: self.filter,
+            blob_semaphore: self.blob_semaphore,
+            max_concurrent_branches: self.max_concurrent_branches,
         }
     }
 
@@ -374,6 +409,8 @@ where
         ManifestBuilder {
             hasher: self.hasher,
             filter,
+            blob_semaphore: self.blob_semaphore,
+            max_concurrent_branches: self.max_concurrent_branches,
         }
     }
 
@@ -403,36 +440,39 @@ where
     ) -> Result<Entry> {
         tree_node.kind = EntryKind::Tree;
         let base = dirname.as_ref();
-        let mut read_dir = tokio::fs::read_dir(base).await.map_err(|err| {
+        let read_dir = tokio::fs::read_dir(base).await.map_err(|err| {
             Error::StorageReadError("read_dir of tree node", base.to_owned(), err)
         })?;
-        let mut futures = FuturesUnordered::new();
-        while let Some(dir_entry) = read_dir.next_entry().await.map_err(|err| {
-            Error::StorageReadError("next_entry of tree node dir", base.to_owned(), err)
-        })? {
-            let dir_entry = Arc::new(dir_entry);
-            let path = base.join(dir_entry.file_name());
+        let mut stream = tokio_stream::wrappers::ReadDirStream::new(read_dir)
+            .map_err(|err| {
+                Error::StorageReadError("next_entry of tree node dir", base.to_owned(), err)
+            })
+            .try_filter_map(|dir_entry| {
+                let dir_entry = Arc::new(dir_entry);
+                let path = base.join(dir_entry.file_name());
 
-            // Skip entries that are not matched by our filter
-            if let Ok(rel_path) = path.strip_prefix(&*root) {
-                let cow = rel_path.to_string_lossy();
-                let rel_path = RelativePath::new(&cow);
-                if !self.filter.should_include_path(rel_path) {
-                    // Move on the next directory entry.
-                    continue;
+                // Skip entries that are not matched by our filter
+                if let Ok(rel_path) = path.strip_prefix(&*root) {
+                    let cow = rel_path.to_string_lossy();
+                    let rel_path = RelativePath::new(&cow);
+                    if !self.filter.should_include_path(rel_path) {
+                        // Move on the next directory entry.
+                        return ready(Ok(None));
+                    }
                 }
-            }
 
-            let entry_fut = {
                 let root = Arc::clone(&root);
                 let dir_entry = Arc::clone(&dir_entry);
                 let file_name = dir_entry.file_name().to_string_lossy().to_string();
-                self.compute_node(root, path, dir_entry, Entry::default())
-                    .map_ok(|e| (file_name, e))
-            };
-            futures.push(entry_fut);
-        }
-        while let Some((file_name, entry)) = futures.try_next().await? {
+                ready(Ok(Some(
+                    self.compute_node(root, path, dir_entry, Entry::default())
+                        .map_ok(|e| (file_name, e))
+                        .boxed(),
+                )))
+            })
+            .try_buffer_unordered(self.max_concurrent_branches)
+            .boxed();
+        while let Some((file_name, entry)) = stream.try_next().await? {
             tree_node.entries.insert(file_name, entry);
         }
         tree_node.size = tree_node.entries.len() as u64;
@@ -488,6 +528,11 @@ where
 
         let file_type = stat_result.file_type();
         if file_type.is_symlink() {
+            let _permit = self.blob_semaphore.acquire().await;
+            debug_assert!(
+                matches!(_permit, Ok(_)),
+                "We never close the semaphore and so should never see errors"
+            );
             let link_target = tokio::fs::read_link(&path)
                 .await
                 .map_err(|err| {
@@ -512,6 +557,11 @@ where
         } else if !stat_result.is_file() {
             return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
         } else {
+            let _permit = self.blob_semaphore.acquire().await;
+            debug_assert!(
+                matches!(_permit, Ok(_)),
+                "We never close the semaphore and so should never see errors"
+            );
             entry.kind = EntryKind::Blob;
             let reader =
                 tokio::io::BufReader::new(tokio::fs::File::open(&path).await.map_err(|err| {

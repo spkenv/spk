@@ -22,6 +22,8 @@ pub use manifest::{
     ManifestBuilder,
     ManifestNode,
     PathFilter,
+    DEFAULT_MAX_CONCURRENT_BLOBS,
+    DEFAULT_MAX_CONCURRENT_BRANCHES,
 };
 pub use object::Object;
 pub use tag::{build_tag_spec, split_tag_spec, Tag, TagSpec};

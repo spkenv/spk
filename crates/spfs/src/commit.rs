@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::future::ready;
 use std::path::Path;
 use std::pin::Pin;
+
+use futures::{FutureExt, StreamExt, TryStreamExt};
 
 use super::status::remount_runtime;
 use crate::prelude::*;
@@ -58,13 +61,18 @@ where
 {
     repo: &'repo storage::RepositoryHandle,
     builder: ManifestBuilder<H, F>,
+    max_concurrent_blobs: usize,
 }
 
 impl<'repo> Committer<'repo, WriteToRepositoryBlobHasher<'repo>, ()> {
     /// Create a new committer, with the default [`WriteToRepositoryBlobHasher`].
     pub fn new(repo: &'repo storage::RepositoryHandle) -> Self {
         let builder = ManifestBuilder::new().with_blob_hasher(WriteToRepositoryBlobHasher { repo });
-        Self { repo, builder }
+        Self {
+            repo,
+            builder,
+            max_concurrent_blobs: tracking::DEFAULT_MAX_CONCURRENT_BLOBS,
+        }
     }
 }
 
@@ -73,6 +81,35 @@ where
     H: BlobHasher + Send + Sync,
     F: PathFilter + Send + Sync,
 {
+    /// Set how many blobs should be processed at once.
+    ///
+    /// Defaults to [`tracking::DEFAULT_MAX_CONCURRENT_BLOBS`].
+    pub fn with_max_concurrent_blobs(mut self, max_concurrent_blobs: usize) -> Self {
+        self.builder = self.builder.with_max_concurrent_blobs(max_concurrent_blobs);
+        self.max_concurrent_blobs = max_concurrent_blobs;
+        self
+    }
+
+    /// Set how many branches should be processed at once (during manifest building).
+    ///
+    /// Each tree/folder that is processed can have any number of subtrees. This number
+    /// limits the number of subtrees that can be processed at once for any given tree. This
+    /// means that the number compounds exponentially based on the depth of the manifest
+    /// being computed. Eg: a limit of 2 allows two directories to be processed in the root
+    /// simultaneously and a further 2 within each of those two for a total of 4 branches, and so
+    /// on. When computing for extremely deep trees, a smaller, conservative number is better
+    /// to avoid open file limits.
+    pub fn with_max_concurrent_branches(mut self, max_concurrent_branches: usize) -> Self {
+        self.builder = self
+            .builder
+            .with_max_concurrent_branches(max_concurrent_branches);
+        self
+    }
+
+    /// Use the given [`BlobHasher`] when building the manifest.
+    ///
+    /// See [`InMemoryBlobHasher`] and [`WriteToRepositoryBlobHasher`] for
+    /// details on different strategies that can be employed when committing.
     pub fn with_blob_hasher<H2>(self, hasher: H2) -> Committer<'repo, H2, F>
     where
         H2: BlobHasher + Send + Sync,
@@ -80,6 +117,7 @@ where
         Committer {
             repo: self.repo,
             builder: self.builder.with_blob_hasher(hasher),
+            max_concurrent_blobs: self.max_concurrent_blobs,
         }
     }
 
@@ -97,6 +135,7 @@ where
         Committer {
             repo: self.repo,
             builder: self.builder.with_path_filter(filter),
+            max_concurrent_blobs: self.max_concurrent_blobs,
         }
     }
 
@@ -162,45 +201,64 @@ where
         };
 
         tracing::info!("committing manifest");
-        for node in manifest.walk() {
-            if !node.entry.kind.is_blob() {
-                continue;
-            }
-            if !self.repo.has_blob(node.entry.object).await {
-                let local_path = path.join(node.path.as_str());
-                let created = if node.entry.is_symlink() {
-                    let content = tokio::fs::read_link(&local_path)
-                        .await
-                        .map_err(|err| {
-                            // TODO: add better message for file missing
-                            Error::StorageWriteError("read link for committing", local_path, err)
-                        })?
-                        .into_os_string()
-                        .into_string()
-                        .map_err(|_| {
-                            crate::Error::String(
-                                "Symlinks must point to a valid utf-8 path".to_string(),
-                            )
-                        })?
-                        .into_bytes();
-                    let reader = Box::pin(tokio::io::BufReader::new(std::io::Cursor::new(content)));
-                    self.repo.commit_blob(reader).await?
-                } else {
-                    let file = tokio::fs::File::open(&local_path).await.map_err(|err| {
-                        // TODO: add better message for file missing
-                        Error::StorageWriteError("open file for committing", local_path, err)
-                    })?;
-                    let reader = Box::pin(tokio::io::BufReader::new(file));
-                    self.repo.commit_blob(reader).await?
-                };
-                if created != node.entry.object {
-                    return Err(Error::String(format!(
-                        "File contents changed on disk during commit: {}",
-                        node.path
-                    )));
+        let mut stream = futures::stream::iter(manifest.walk())
+            .then(|node| {
+                if !node.entry.kind.is_blob() {
+                    return ready(ready(Ok(())).boxed());
                 }
-            }
-        }
+                let local_path = path.join(node.path.as_str());
+                let entry = node.entry.clone();
+                let fut = async move {
+                    if self.repo.has_blob(entry.object).await {
+                        return Ok(());
+                    }
+                    let created = if entry.is_symlink() {
+                        let content = tokio::fs::read_link(&local_path)
+                            .await
+                            .map_err(|err| {
+                                // TODO: add better message for file missing
+                                Error::StorageWriteError(
+                                    "read link for committing",
+                                    local_path.clone(),
+                                    err,
+                                )
+                            })?
+                            .into_os_string()
+                            .into_string()
+                            .map_err(|_| {
+                                crate::Error::String(
+                                    "Symlinks must point to a valid utf-8 path".to_string(),
+                                )
+                            })?
+                            .into_bytes();
+                        let reader =
+                            Box::pin(tokio::io::BufReader::new(std::io::Cursor::new(content)));
+                        self.repo.commit_blob(reader).await?
+                    } else {
+                        let file = tokio::fs::File::open(&local_path).await.map_err(|err| {
+                            // TODO: add better message for file missing
+                            Error::StorageWriteError(
+                                "open file for committing",
+                                local_path.clone(),
+                                err,
+                            )
+                        })?;
+                        let reader = Box::pin(tokio::io::BufReader::new(file));
+                        self.repo.commit_blob(reader).await?
+                    };
+                    if created != entry.object {
+                        return Err(Error::String(format!(
+                            "File contents changed on disk during commit: {local_path:?}",
+                        )));
+                    }
+                    Ok(())
+                };
+                ready(fut.boxed())
+            })
+            .buffer_unordered(self.max_concurrent_blobs)
+            .boxed();
+        while stream.try_next().await?.is_some() {}
+        drop(stream);
 
         let storable = graph::Manifest::from(&manifest);
         self.repo

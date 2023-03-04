@@ -66,7 +66,7 @@ impl Sync {
 /// Command line flags for configuring render operations
 #[derive(Debug, Clone, clap::Args)]
 pub struct Render {
-    /// The total number of blobs that can be rendererd concurrently
+    /// The total number of blobs that can be rendered concurrently
     #[clap(
         long,
         env = "SPFS_RENDER_MAX_CONCURRENT_BLOBS",

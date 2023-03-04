@@ -40,6 +40,27 @@ pub struct CmdCommit {
     #[clap(long)]
     hash_first: bool,
 
+    /// The total number of blobs that can be committed concurrently
+    #[clap(
+        long,
+        env = "SPFS_COMMIT_MAX_CONCURRENT_BLOBS",
+        default_value_t = spfs::tracking::DEFAULT_MAX_CONCURRENT_BLOBS
+    )]
+    pub max_concurrent_blobs: usize,
+
+    /// The total number of branches that can be processed concurrently
+    /// at each level of the rendered file tree.
+    ///
+    /// The number of active trees being processed can grow exponentially
+    /// by this exponent for each additional level of depth in the rendered
+    /// file tree. In general, this number should be kept low.
+    #[clap(
+        long,
+        env = "SPFS_COMMIT_MAX_CONCURRENT_BRANCHES",
+        default_value_t = spfs::tracking::DEFAULT_MAX_CONCURRENT_BRANCHES
+    )]
+    pub max_concurrent_branches: usize,
+
     /// The desired object type to create, skip this when giving --path
     #[clap(
         possible_values = &["layer", "platform"],
@@ -57,7 +78,9 @@ impl CmdCommit {
                 .await?,
         );
 
-        let committer = spfs::Committer::new(&repo);
+        let committer = spfs::Committer::new(&repo)
+            .with_max_concurrent_branches(self.max_concurrent_branches)
+            .with_max_concurrent_blobs(self.max_concurrent_blobs);
         let result = if self.hash_first {
             let committer = committer.with_blob_hasher(spfs::commit::InMemoryBlobHasher);
             self.do_commit(&repo, committer).await?
