@@ -21,7 +21,11 @@ fn main() {
 }
 fn main2() -> i32 {
     let mut opt = CmdFuse::parse();
-    spfs_cli_common::configure_logging(opt.verbose, true);
+    opt.logging
+        .log_file
+        .get_or_insert("/tmp/spfs-runtime/fuse.log".into());
+    opt.logging.syslog = true;
+    opt.logging.configure();
 
     let config = match spfs::get_config() {
         Err(err) => {
@@ -39,12 +43,19 @@ fn main2() -> i32 {
 #[derive(Debug, Parser)]
 #[clap(name = "spfs-fuse")]
 pub struct CmdFuse {
-    #[clap(short, long, parse(from_occurrences))]
-    verbose: usize,
+    #[clap(flatten)]
+    logging: cli::Logging,
 
     /// Do not daemonize the filesystem, run it in the foreground instead
     #[clap(long, short)]
     foreground: bool,
+
+    /// Do not disconnect the filesystem logs from stderr
+    ///
+    /// Although the filesystem will still daemonize, the logs will
+    /// still appear in the stderr of the calling process/shell
+    #[clap(long, short, env = "SPFS_FUSE_LOG_FOREGROUND")]
+    log_foreground: bool,
 
     /// Options for the mount in the form opt1,opt2=value
     ///
@@ -178,7 +189,7 @@ impl CmdFuse {
             // We cannot daemonize until the session is established above,
             // otherwise initial use of the filesystem may not show any mount
             // at all.
-            nix::unistd::daemon(false, false)?;
+            nix::unistd::daemon(false, self.log_foreground)?;
         }
 
         // We also cannot go multi-thread until the daemonization process above

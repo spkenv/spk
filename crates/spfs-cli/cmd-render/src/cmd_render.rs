@@ -17,12 +17,10 @@ cli::main!(CmdRender);
 pub struct CmdRender {
     #[clap(flatten)]
     sync: cli::Sync,
-
     #[clap(flatten)]
     render: cli::Render,
-
-    #[clap(short, long, parse(from_occurrences))]
-    verbose: usize,
+    #[clap(flatten)]
+    logging: cli::Logging,
 
     /// Allow re-rendering when the target directory is not empty
     #[clap(long = "allow-existing")]

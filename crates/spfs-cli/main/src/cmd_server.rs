@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use clap::Args;
+use spfs_cli_common as cli;
 
 /// Start an spfs server
 ///
@@ -11,8 +12,8 @@ use clap::Args;
 /// it's clients, communicating over gRPC and http
 #[derive(Debug, Args)]
 pub struct CmdServer {
-    #[clap(short, long, parse(from_occurrences))]
-    pub verbose: usize,
+    #[clap(flatten)]
+    pub logging: cli::Logging,
 
     /// Serve a configured remote repository instead of the local one
     #[clap(long, short)]
