@@ -24,8 +24,8 @@ cli::main!(CmdMonitor, syslog = true);
 /// will clean up the runtime when all processes exit.
 #[derive(Debug, Parser)]
 pub struct CmdMonitor {
-    #[clap(short, long, parse(from_occurrences))]
-    pub verbose: usize,
+    #[clap(flatten)]
+    pub logging: cli::Logging,
 
     /// The address of the storage being used for runtimes
     #[clap(long)]

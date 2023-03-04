@@ -26,8 +26,8 @@ cli::main!(CmdClean);
 #[derive(Debug, Parser)]
 #[clap(name = "spfs-clean")]
 pub struct CmdClean {
-    #[clap(short, long, parse(from_occurrences))]
-    pub verbose: usize,
+    #[clap(flatten)]
+    pub logging: cli::Logging,
 
     /// Trigger the clean operation on a remote repository
     #[clap(short, long)]

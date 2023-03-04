@@ -16,8 +16,8 @@ pub struct CmdRun {
     #[clap(flatten)]
     pub sync: cli::Sync,
 
-    #[clap(short, long, parse(from_occurrences))]
-    pub verbose: usize,
+    #[clap(flatten)]
+    pub logging: cli::Logging,
 
     /// Mount the spfs filesystem in edit mode (true if REF is empty or not given)
     #[clap(short, long)]

@@ -30,8 +30,8 @@ cli::main!(CmdEnter, sentry = false, sync = true);
 #[derive(Debug, Parser)]
 #[clap(name = "spfs-enter")]
 pub struct CmdEnter {
-    #[clap(short, long, parse(from_occurrences))]
-    pub verbose: usize,
+    #[clap(flatten)]
+    pub logging: cli::Logging,
 
     /// Remount the overlay filesystem, don't enter a new namespace
     #[clap(short, long)]

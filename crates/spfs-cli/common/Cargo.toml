@@ -5,7 +5,15 @@ name = "spfs-cli-common"
 version = "0.34.6"
 
 [features]
-sentry = ["dep:sentry", "dep:sentry-anyhow", "dep:whoami", "spfs/sentry", "dep:strip-ansi-escapes", "dep:serde_json", "dep:sentry-tracing"]
+sentry = [
+    "dep:sentry",
+    "dep:sentry-anyhow",
+    "dep:whoami",
+    "spfs/sentry",
+    "dep:strip-ansi-escapes",
+    "dep:serde_json",
+    "dep:sentry-tracing",
+]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -15,10 +23,13 @@ once_cell = { workspace = true }
 sentry = { workspace = true, optional = true }
 sentry-anyhow = { workspace = true, optional = true }
 sentry-tracing = { workspace = true, optional = true }
-serde_json = { version = "1.0.57", optional = true}
+serde_json = { version = "1.0.57", optional = true }
 spfs = { path = "../../spfs" }
 strip-ansi-escapes = { workspace = true, optional = true }
-syslog-tracing = "0.1.0"
+syslog-tracing = "0.2.0"
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing-subscriber = { workspace = true, features = [
+    "env-filter",
+    "tracing-log",
+] }
 whoami = { workspace = true, optional = true }
