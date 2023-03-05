@@ -267,6 +267,13 @@ impl<'m> Iterator for ManifestWalker<'m> {
     }
 }
 
+#[async_trait::async_trait]
+pub trait BlobHasher {
+    /// Read the contents of `reader` to completion, returning
+    /// the digest of the contents.
+    async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest>;
+}
+
 #[tonic::async_trait]
 impl BlobHasher for () {
     async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
@@ -277,13 +284,6 @@ impl BlobHasher for () {
 pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(path: P) -> Result<Manifest> {
     let builder = ManifestBuilder::new();
     builder.compute_manifest(path).await
-}
-
-#[async_trait::async_trait]
-pub trait BlobHasher {
-    /// Read the contents of `reader` to completion, returning
-    /// the digest of the contents.
-    async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest>;
 }
 
 /// Used to include/exclude paths from a manifest
@@ -533,6 +533,7 @@ where
                 matches!(_permit, Ok(_)),
                 "We never close the semaphore and so should never see errors"
             );
+            tracing::trace!(" > symlink: {:?}", path.as_ref());
             let link_target = tokio::fs::read_link(&path)
                 .await
                 .map_err(|err| {
@@ -562,6 +563,7 @@ where
                 matches!(_permit, Ok(_)),
                 "We never close the semaphore and so should never see errors"
             );
+            tracing::trace!(" >    file: {:?}", path.as_ref());
             entry.kind = EntryKind::Blob;
             let reader =
                 tokio::io::BufReader::new(tokio::fs::File::open(&path).await.map_err(|err| {

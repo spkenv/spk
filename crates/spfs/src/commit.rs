@@ -201,7 +201,7 @@ where
         };
 
         tracing::info!("committing manifest");
-        let mut stream = futures::stream::iter(manifest.walk())
+        let mut stream = futures::stream::iter(manifest.walk_abs("."))
             .then(|node| {
                 if !node.entry.kind.is_blob() {
                     return ready(ready(Ok(())).boxed());
@@ -248,7 +248,7 @@ where
                     };
                     if created != entry.object {
                         return Err(Error::String(format!(
-                            "File contents changed on disk during commit: {local_path:?}",
+                            "File contents changed on disk during commit: {local_path:?} [{created} != {}", entry.object
                         )));
                     }
                     Ok(())
