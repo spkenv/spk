@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Args;
@@ -71,12 +70,8 @@ pub struct CmdCommit {
 }
 
 impl CmdCommit {
-    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = Arc::new(
-            config
-                .get_remote_repository_or_local(self.remote.as_ref())
-                .await?,
-        );
+    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+        let repo = spfs::config::open_repository_from_string(config, self.remote.clone()).await?;
 
         let committer = spfs::Committer::new(&repo)
             .with_max_concurrent_branches(self.max_concurrent_branches)
