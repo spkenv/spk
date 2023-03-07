@@ -761,10 +761,7 @@ impl Solver {
             let dummy_spec = make_build!({"pkg": format!("initialrequest/{}", count + 1),
                                           "install": {
                                               "requirements": [
-                                                  {"pkg": format!("{}", req.pkg ),
-                                                   "prereleasePolicy": req.prerelease_policy.clone(),
-                                                   "inclusionPolicy": req.inclusion_policy.clone(),
-                                                  }
+                                                  req
                                               ]
                                           }
             });
@@ -789,8 +786,7 @@ impl Solver {
 
         // Only once all the tasks are finished, the user is warned
         // about the impossible initial request, if there are any.
-        let results: Vec<_> = tasks.collect().await;
-        for (checked_req, result) in results {
+        for (checked_req, result) in tasks.collect::<Vec<_>>().await {
             let compat = match result {
                 Ok(c) => c,
                 Err(err) => {
