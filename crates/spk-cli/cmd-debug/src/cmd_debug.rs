@@ -42,7 +42,7 @@ impl Run for Debug {
 
         let mut source_layers = HashMap::new();
 
-        for solved in env.items() {
+        'next_request: for solved in env.items() {
             if let Some(Build::Digest(_)) = solved.request.pkg.build.as_ref() {
                 let mut source_pkg = solved.request.pkg.clone();
                 source_pkg.build = Some(Build::Source);
@@ -59,8 +59,12 @@ impl Run for Debug {
                             for digest in comps.values() {
                                 source_layers.insert(*digest, repo);
                             }
-                            break;
+                            continue 'next_request;
                         }
+                    }
+
+                    if self.verbose > 0 {
+                        tracing::info!("No source package found for: {}", solved.request.pkg);
                     }
                 }
             };
