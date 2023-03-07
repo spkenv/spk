@@ -153,9 +153,16 @@ impl PayloadStorage for PayloadFallback {
                     );
                 match syncer.sync_digest(digest).await {
                     Ok(_) => {
-                        tracing::info!("Repaired a missing payload! {digest}",);
+                        // Warn for non-sentry users; info for sentry users.
+                        #[cfg(not(feature = "sentry"))]
+                        {
+                            tracing::warn!("Repaired a missing payload! {digest}",);
+                        }
                         #[cfg(feature = "sentry")]
-                        tracing::error!(target: "sentry", object = %digest, "Repaired a missing payload!");
+                        {
+                            tracing::info!("Repaired a missing payload! {digest}",);
+                            tracing::error!(target: "sentry", object = %digest, "Repaired a missing payload!");
+                        }
                         continue 'retry_open;
                     }
                     Err(err) => {
