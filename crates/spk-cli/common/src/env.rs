@@ -264,11 +264,14 @@ pub fn configure_logging(verbosity: u8) -> Result<()> {
     // takes over in it's current setup/state.
     std::env::set_var("RUST_LOG", &directives);
     let env_filter = tracing_subscriber::filter::EnvFilter::new(directives);
-    let fmt_layer = tracing_subscriber::fmt::layer()
-        .without_time()
-        .with_target(verbosity > 2);
-
-    let stderr_log = fmt_layer.with_writer(std::io::stderr);
+    let stderr_log = tracing_subscriber::fmt::layer()
+        .with_target(verbosity > 2)
+        .with_writer(std::io::stderr);
+    let stderr_log = if std::env::var("ENABLE_TIMESTAMP").is_ok() {
+        stderr_log.boxed()
+    } else {
+        stderr_log.without_time().boxed()
+    };
 
     #[cfg(not(feature = "sentry"))]
     let sub = tracing_subscriber::registry().with(stderr_log.with_filter(env_filter).with_filter(

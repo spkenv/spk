@@ -321,6 +321,53 @@ macro_rules! without_sentry_target {
     }};
 }
 
+macro_rules! configure_logging_layer {
+    ($tracing_layer:expr, $env_filter:expr) => {
+        #[cfg(not(feature = "sentry"))]
+        let tracing_layer = if std::env::var("ENABLE_TIMESTAMP").is_ok() {
+            $tracing_layer.boxed()
+        } else {
+            $tracing_layer.without_time().boxed()
+        };
+        let sub = tracing_subscriber::registry().with(
+            tracing_layer.with_filter($env_filter).with_filter(
+                tracing_subscriber::filter::filter_fn(|metadata| {
+                    // Don't log breadcrumbs to console, etc.
+                    !metadata.target().starts_with("sentry")
+                }),
+            ),
+        );
+        #[cfg(feature = "sentry")]
+        let sub = {
+            let sentry_layer =
+                sentry_tracing::layer().with_filter(tracing_subscriber::filter::LevelFilter::INFO);
+
+            tracing_subscriber::registry()
+                .with(
+                    tracing_layer
+                        .and_then(sentry_tracing::layer().with_filter(
+                            tracing_subscriber::filter::filter_fn(|metadata| {
+                                // Don't log to sentry when the target is "nosentry".
+                                !metadata.target().starts_with("nosentry")
+                            }),
+                        ))
+                        .with_filter($env_filter)
+                        .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                            // Don't log breadcrumbs to console, etc.
+                            !metadata.target().starts_with("sentry")
+                        })),
+                )
+                .with(
+                    sentry_layer.with_filter(tracing_subscriber::filter::filter_fn(
+                        // Only log breadcrumbs here.
+                        |metadata| metadata.target().starts_with("sentry"),
+                    )),
+                )
+        };
+        tracing::subscriber::set_global_default(sub).unwrap();
+    };
+}
+
 impl Logging {
     fn show_target(&self) -> bool {
         self.verbose > 2
