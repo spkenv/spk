@@ -56,7 +56,11 @@ where
         }
     }
 
-    /// Report progress to the given instance, replacing any existing one
+    /// Use the provided repository to repair any missing data.
+    ///
+    /// When missing objects or payloads are found, the checker
+    /// will attempt to sync the data seamlessly from this one,
+    /// if possible.
     pub fn with_repair_source<'sync2>(
         self,
         source: &'sync2 storage::RepositoryHandle,
@@ -151,7 +155,7 @@ where
         Ok(res)
     }
 
-    /// Check the identified tag and it's target.
+    /// Check the identified tag and its target.
     pub async fn check_tag_spec(&self, tag: tracking::TagSpec) -> Result<CheckTagResult> {
         tracing::debug!(?tag, "Checking tag spec");
         match self.repo.resolve_tag(&tag).await {
@@ -193,9 +197,19 @@ where
         match self.read_object_with_fallback(digest).await {
             Err(Error::UnknownObject(_)) => Ok(CheckObjectResult::Missing(digest)),
             Err(err) => Err(err),
-            Ok((obj, Fallback::None)) => self.check_object(obj).await,
+            Ok((obj, Fallback::None)) => unsafe {
+                // Safety: it's unsafe to call this unless the object
+                // is known to exist, but we just loaded it from the repo
+                // or had it synced via the callback
+                self.check_object(obj).await
+            },
             Ok((obj, Fallback::Repaired)) => {
-                let mut res = self.check_object(obj).await?;
+                let mut res = unsafe {
+                    // Safety: it's unsafe to call this unless the object
+                    // is known to exist, but we just loaded it from the repo
+                    // or had it synced via the callback
+                    self.check_object(obj).await?
+                };
                 res.set_repaired();
                 Ok(res)
             }
@@ -204,9 +218,13 @@ where
 
     /// Validate that the identified object's children all exist.
     ///
-    /// To also check if the object object exists, use [`Self::check_digest`]
+    /// To also check if the object exists, use [`Self::check_digest`]
+    ///
+    /// Safety: this function may sync payloads without checking blob data,
+    /// which is unsafe. This function is unsafe to call unless the object
+    /// is known to exist in the repository being checked
     #[async_recursion::async_recursion]
-    pub async fn check_object(&self, obj: graph::Object) -> Result<CheckObjectResult> {
+    async unsafe fn check_object(&self, obj: graph::Object) -> Result<CheckObjectResult> {
         use graph::Object;
         if !self.processed_digests.insert(obj.digest()?) {
             return Ok(CheckObjectResult::Duplicate);
@@ -215,7 +233,11 @@ where
         let res = match obj {
             Object::Layer(obj) => CheckObjectResult::Layer(self.check_layer(obj).await?.into()),
             Object::Platform(obj) => CheckObjectResult::Platform(self.check_platform(obj).await?),
-            Object::Blob(obj) => CheckObjectResult::Blob(self.must_check_blob(obj).await?),
+            Object::Blob(obj) => CheckObjectResult::Blob(unsafe {
+                // Safety: it is unsafe to call this function unless the blob
+                // is known to exist, which is the same rule we pass up to the caller
+                self.must_check_blob(obj).await?
+            }),
             Object::Manifest(obj) => CheckObjectResult::Manifest(self.check_manifest(obj).await?),
             Object::Tree(obj) => CheckObjectResult::Tree(obj),
             Object::Mask => CheckObjectResult::Mask,
@@ -276,22 +298,38 @@ where
         Ok(res)
     }
 
-    /// Validate that the identified blob has it's payload.
+    /// Validate that the identified blob has its payload.
     ///
     /// To also check if the blob object exists, use [`Self::check_digest`]
-    pub async fn check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
+    ///
+    /// Safety: this function may sync a payload without
+    /// syncing the blob, which is unsafe unless the blob
+    /// is known to exist in the repository being checked
+    pub async unsafe fn check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
         let digest = blob.digest();
         if !self.processed_digests.insert(digest) {
             return Ok(CheckBlobResult::Duplicate);
         }
-        self.must_check_blob(blob).await
+        // Safety: this function may sync a payload and so
+        // is unsafe to call unless we know the blob exists,
+        // which is why this is an unsafe function
+        unsafe { self.must_check_blob(blob).await }
     }
 
     /// Checks a blob, ignoring whether it has already been checked and
     /// without logging that it has been checked
-    async fn must_check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
+    ///
+    /// Safety: this function may sync a payload without
+    /// syncing the blob, which is unsafe unless the blob
+    /// is known to exist in the repository being checked
+    async unsafe fn must_check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
         self.reporter.visit_blob(&blob);
-        let result = self.check_payload(blob.payload).await?;
+        let result = unsafe {
+            // Safety: this function may sync a payload and so
+            // is unsafe to call unless we know the blob exists,
+            // which is why this is an unsafe function
+            self.check_payload(blob.payload).await?
+        };
         let res = CheckBlobResult::Checked {
             blob,
             result,
@@ -302,14 +340,18 @@ where
     }
 
     /// Check a payload with the provided digest
-    async fn check_payload(&self, digest: encoding::Digest) -> Result<CheckPayloadResult> {
+    ///
+    /// Safety: this function may repair a payload, which
+    /// is unsafe to do if the associated blob is not synced
+    /// with it or already present.
+    async unsafe fn check_payload(&self, digest: encoding::Digest) -> Result<CheckPayloadResult> {
         self.reporter.visit_payload(digest);
         let mut result = CheckPayloadResult::Missing(digest);
         if self.repo.has_payload(digest).await {
             result = CheckPayloadResult::Ok;
         } else if let Some(syncer) = &self.repair_with {
-            // Safety: blobs must be synced with payloads, but we've
-            // already determined that the blob exists
+            // Safety: this sync is unsafe unless the blob is also created
+            // or exists. We pass this rule up to the caller.
             if let Ok(r) = unsafe { syncer.sync_payload(digest).await } {
                 self.reporter.repaired_payload(&r);
                 result = CheckPayloadResult::Repaired;
