@@ -102,7 +102,7 @@ impl CmdInfo {
                     _ => usize::MAX,
                 };
                 let mut count = 0;
-                for node in obj.unlock().walk_abs("/spfs") {
+                for node in obj.to_tracking_manifest().walk_abs("/spfs") {
                     println!(
                         " {:06o} {} {} {}",
                         node.entry.mode,

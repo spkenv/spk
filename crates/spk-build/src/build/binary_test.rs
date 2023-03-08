@@ -405,7 +405,11 @@ async fn test_build_package_source_cleanup() {
     let config = spfs::get_config().unwrap();
     let repo = config.get_local_repository().await.unwrap();
     let layer = repo.read_layer(digest).await.unwrap();
-    let manifest = repo.read_manifest(layer.manifest).await.unwrap().unlock();
+    let manifest = repo
+        .read_manifest(layer.manifest)
+        .await
+        .unwrap()
+        .to_tracking_manifest();
     let entry = manifest.get_path(data_path(src_pkg.ident()));
     assert!(
         entry.is_none() || entry.unwrap().entries.is_empty(),
@@ -491,7 +495,11 @@ async fn test_build_filters_unmodified_files() {
         let config = spfs::get_config().unwrap();
         let repo = config.get_local_repository().await.unwrap();
         let layer = repo.read_layer(digest).await.unwrap();
-        let manifest = repo.read_manifest(layer.manifest).await.unwrap().unlock();
+        let manifest = repo
+            .read_manifest(layer.manifest)
+            .await
+            .unwrap()
+            .to_tracking_manifest();
         // my-pkg should not have the headers from pkg-dep inside it.
         let entry = manifest.get_path("include/dep/a.h");
         assert!(

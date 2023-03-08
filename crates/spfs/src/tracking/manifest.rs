@@ -39,8 +39,9 @@ impl Manifest {
         self.root
     }
 
-    /// Lock this manifest into it's immutable form for storage
-    pub fn lock(&self) -> crate::graph::Manifest {
+    /// Convert this manifest into its encodable,
+    /// hashable form for storage.
+    pub fn to_graph_manifest(&self) -> crate::graph::Manifest {
         self.into()
     }
 

@@ -18,7 +18,7 @@ async fn test_check_missing_payload(#[future] tmprepo: TempRepo) {
     init_logging();
     let tmprepo = tmprepo.await;
 
-    let manifest = generate_tree(&tmprepo).await.lock();
+    let manifest = generate_tree(&tmprepo).await.to_graph_manifest();
     let file = manifest
         .iter_entries()
         .find(|entry| entry.is_regular_file())
@@ -69,7 +69,7 @@ async fn test_check_missing_object(#[future] tmprepo: TempRepo) {
     init_logging();
     let tmprepo = tmprepo.await;
 
-    let manifest = generate_tree(&tmprepo).await.lock();
+    let manifest = generate_tree(&tmprepo).await.to_graph_manifest();
     let file = manifest
         .iter_entries()
         .find(|entry| entry.is_regular_file())
@@ -121,7 +121,7 @@ async fn test_check_missing_payload_recover(#[future] tmprepo: TempRepo) {
     let tmprepo = tmprepo.await;
     let repo2 = crate::fixtures::tmprepo("fs").await;
 
-    let manifest = generate_tree(&tmprepo).await.lock();
+    let manifest = generate_tree(&tmprepo).await.to_graph_manifest();
     let digest = manifest.digest().unwrap();
     crate::Syncer::new(&tmprepo.repo(), &repo2.repo())
         .sync_digest(digest)
@@ -182,7 +182,7 @@ async fn test_check_missing_object_recover(#[future] tmprepo: TempRepo) {
     let tmprepo = tmprepo.await;
     let repo2 = crate::fixtures::tmprepo("fs").await;
 
-    let manifest = generate_tree(&tmprepo).await.lock();
+    let manifest = generate_tree(&tmprepo).await.to_graph_manifest();
     let digest = manifest.digest().unwrap();
     crate::Syncer::new(&tmprepo.repo(), &repo2.repo())
         .sync_digest(digest)

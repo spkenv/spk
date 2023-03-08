@@ -668,7 +668,10 @@ where
     let config = spfs::get_config()?;
     let repo = Arc::new(config.get_local_repository_handle().await?);
     let layer = spfs::commit_layer_with_filter(runtime, Arc::clone(&repo), filter).await?;
-    let manifest = repo.read_manifest(layer.manifest).await?.unlock();
+    let manifest = repo
+        .read_manifest(layer.manifest)
+        .await?
+        .to_tracking_manifest();
     let manifests = split_manifest_by_component(package.ident(), &manifest, package.components())?;
     let mut committed = HashMap::with_capacity(manifests.len());
     for (component, manifest) in manifests {

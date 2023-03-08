@@ -58,7 +58,12 @@ pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking:
     )?;
     let mut manifest = tracking::Manifest::default();
     for layer in layers.iter().rev() {
-        manifest.update(&repo.read_manifest(layer.manifest).await?.unlock())
+        manifest.update(
+            &repo
+                .read_manifest(layer.manifest)
+                .await?
+                .to_tracking_manifest(),
+        )
     }
     Ok(manifest)
 }
