@@ -747,13 +747,9 @@ impl Solver {
         let mut impossible_request_count = 0;
 
         let tasks = FuturesUnordered::new();
-        let mut requests = Vec::new();
 
         let initial_requests = initial_state.get_unresolved_requests();
         for (count, req) in initial_requests.values().enumerate() {
-            // For the warning messages later, in the following loop
-            requests.push(req.pkg.clone());
-
             // Have to make a dummy spec for an "initialrequest"
             // package to interact with the request_validator's
             // interface. It expects a package with install
@@ -765,10 +761,7 @@ impl Solver {
             let dummy_spec = make_build!({"pkg": format!("initialrequest/{}", count + 1),
                                           "install": {
                                               "requirements": [
-                                                  {"pkg": format!("{}", req.pkg ),
-                                                   "prereleasePolicy": req.prerelease_policy.clone(),
-                                                   "inclusionPolicy": req.inclusion_policy.clone(),
-                                                  }
+                                                  req
                                               ]
                                           }
             });
@@ -778,10 +771,13 @@ impl Solver {
             // multiple times in the initial requests.
             let task_checker = self.request_validator.clone();
             let task_repos = self.repos.clone();
+            let task_req = req.pkg.clone();
             let task = async move {
-                task_checker
+                let result = task_checker
                     .validate_pkg_requests(&dummy_spec, initial_requests, &task_repos)
-                    .await
+                    .await;
+
+                (task_req, result)
             };
 
             // The tasks are run concurrenly via async, in the same thread.
@@ -790,8 +786,7 @@ impl Solver {
 
         // Only once all the tasks are finished, the user is warned
         // about the impossible initial request, if there are any.
-        let results: Vec<_> = tasks.collect().await;
-        for (index, result) in results.into_iter().enumerate() {
+        for (checked_req, result) in tasks.collect::<Vec<_>>().await {
             let compat = match result {
                 Ok(c) => c,
                 Err(err) => {
@@ -806,7 +801,7 @@ impl Solver {
                         .map(|r| format!("{}", r.name()))
                         .collect::<Vec<String>>()
                         .join(", "),
-                    requests[index]
+                    checked_req
                 );
                 impossible_request_count += 1;
             }
