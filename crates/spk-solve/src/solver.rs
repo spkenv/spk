@@ -1049,7 +1049,7 @@ impl SolverRuntime {
         if is_dead && !is_empty {
             Err(spk_solve_graph::Error::FailedToResolve((*self.graph).read().await.clone()).into())
         } else {
-            current_node_lock.state.as_solution().map_err(|e| e.into())
+            current_node_lock.state.as_solution().map_err(Into::into)
         }
     }
 
