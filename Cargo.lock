@@ -2977,6 +2977,7 @@ dependencies = [
  "spk-cli-group4",
  "spk-cmd-build",
  "spk-cmd-convert",
+ "spk-cmd-debug",
  "spk-cmd-env",
  "spk-cmd-explain",
  "spk-cmd-install",
@@ -3152,6 +3153,23 @@ dependencies = [
  "clap 3.2.11",
  "spk-cli-common",
  "spk-cmd-env",
+]
+
+[[package]]
+name = "spk-cmd-debug"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.11",
+ "futures",
+ "spfs",
+ "spk-cli-common",
+ "spk-exec",
+ "spk-schema",
+ "spk-storage",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

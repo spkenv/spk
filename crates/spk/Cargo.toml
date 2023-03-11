@@ -28,6 +28,7 @@ cli = [
     "dep:spk-cli-group4",
     "dep:spk-cmd-build",
     "dep:spk-cmd-convert",
+    "dep:spk-cmd-debug",
     "dep:spk-cmd-env",
     "dep:spk-cmd-explain",
     "dep:spk-cmd-install",
@@ -53,6 +54,7 @@ spk-cli-group3 = { path = '../spk-cli/group3', optional = true }
 spk-cli-group4 = { path = '../spk-cli/group4', optional = true }
 spk-cmd-build = { path = '../spk-cli/cmd-build', optional = true }
 spk-cmd-convert = { path = '../spk-cli/cmd-convert', optional = true }
+spk-cmd-debug = { path = '../spk-cli/cmd-debug', optional = true }
 spk-cmd-env = { path = '../spk-cli/cmd-env', optional = true }
 spk-cmd-explain = { path = '../spk-cli/cmd-explain', optional = true }
 spk-cmd-install = { path = '../spk-cli/cmd-install', optional = true }
