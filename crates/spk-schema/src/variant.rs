@@ -72,10 +72,8 @@ impl<V: Variant> ExtensionVariant<V> {
     /// Add the host options to the base of this variant.
     ///
     /// Variant options will still override and host options
-    pub fn with_host_options(mut self, enabled: bool) -> Result<Self> {
-        if enabled {
-            self.base_options.extend(host_options()?);
-        }
+    pub fn with_host_options(mut self) -> Result<Self> {
+        self.base_options.extend(host_options()?);
         Ok(self)
     }
 

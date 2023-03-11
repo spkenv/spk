@@ -21,6 +21,7 @@ use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
 use crate::test_spec::TestSpec;
 use crate::{
+    v0,
     BuildEnv,
     Deprecate,
     DeprecateMut,
@@ -317,7 +318,7 @@ impl FromYaml for SpecRecipe {
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum SpecVariant {
-    V0(OptionMap),
+    V0(v0::Variant),
 }
 
 impl super::Variant for SpecVariant {

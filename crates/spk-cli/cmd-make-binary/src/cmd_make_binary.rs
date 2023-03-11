@@ -152,9 +152,11 @@ impl Run for MakeBinary {
             };
 
             for variant in variants_to_build {
-                let variant = spk_schema::ExtensionVariant::from(variant)
-                    .with_host_options(!self.options.no_host)?
-                    .with_overrides(options.clone());
+                let mut variant = spk_schema::ExtensionVariant::from(variant);
+                if !self.options.no_host {
+                    variant = variant.with_host_options()?;
+                }
+                variant = variant.with_overrides(options.clone());
 
                 if !built.insert(variant.clone()) {
                     tracing::debug!("Skipping variant that was already built:\n{variant}");

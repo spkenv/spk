@@ -172,9 +172,13 @@ impl TryFrom<Request> for Opt {
                     required_compat: request.required_compat,
                 }))
             }
-            Request::Var(_) => Err(Error::String(format!(
-                "Cannot convert {request:?} to option"
-            ))),
+            Request::Var(VarRequest { var, pin: _, value }) => Ok(Opt::Var(VarOpt {
+                var,
+                default: String::new(),
+                choices: Default::default(),
+                inheritance: Default::default(),
+                value: Some(value),
+            })),
         }
     }
 }

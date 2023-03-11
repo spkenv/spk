@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 
 use super::foundation::option_map::OptionMap;
-use super::{Opt, ValidationSpec};
+use super::{v0, Opt, ValidationSpec};
+use crate::Variant;
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
@@ -21,7 +22,7 @@ pub struct BuildSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<Opt>,
     #[serde(default, skip_serializing_if = "BuildSpec::is_default_variants")]
-    pub variants: Vec<OptionMap>,
+    pub variants: Vec<v0::Variant>,
     #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
     pub validation: ValidationSpec,
 }
@@ -31,7 +32,7 @@ impl Default for BuildSpec {
         Self {
             script: Script(vec!["sh ./build.sh".into()]),
             options: Vec::new(),
-            variants: vec![OptionMap::default()],
+            variants: vec![v0::Variant::default()],
             validation: ValidationSpec::default(),
         }
     }
@@ -42,11 +43,11 @@ impl BuildSpec {
         self == &Self::default()
     }
 
-    fn is_default_variants(variants: &[OptionMap]) -> bool {
+    fn is_default_variants(variants: &[v0::Variant]) -> bool {
         if variants.len() != 1 {
             return false;
         }
-        variants.get(0) == Some(&OptionMap::default())
+        variants.get(0) == Some(&v0::Variant::default())
     }
 
     /// Add or update an option in this build spec.
@@ -77,8 +78,9 @@ impl TryFrom<UncheckedBuildSpec> for BuildSpec {
         let mut variant_builds = Vec::new();
         let mut unique_variants = HashSet::new();
         for variant in bs.variants.iter() {
-            let digest = variant.digest();
-            variant_builds.push((digest, variant.clone()));
+            let options = variant.options().into_owned();
+            let digest = options.digest();
+            variant_builds.push((digest, options));
             unique_variants.insert(digest);
         }
         if unique_variants.len() < variant_builds.len() {
@@ -147,6 +149,7 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
             where
                 A: serde::de::MapAccess<'de>,
             {
+                let mut variants = Vec::<OptionMap>::new();
                 let mut unchecked = BuildSpec::default();
                 while let Some(key) = map.next_key::<Stringified>()? {
                     match key.as_str() {
@@ -164,7 +167,9 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                                 unique_options.insert(full_name);
                             }
                         }
-                        "variants" => unchecked.variants = map.next_value::<Vec<OptionMap>>()?,
+                        "variants" => {
+                            variants = map.next_value()?;
+                        }
                         "validation" => {
                             unchecked.validation = map.next_value::<ValidationSpec>()?
                         }
@@ -176,6 +181,17 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                         }
                     }
                 }
+
+                if variants.is_empty() {
+                    variants.push(Default::default());
+                }
+
+                // we can only parse out the final variant forms after all the
+                // build options have been loaded
+                unchecked.variants = variants
+                    .into_iter()
+                    .map(|o| v0::Variant::from_options(o, &unchecked.options))
+                    .collect();
 
                 Ok(UncheckedBuildSpec(unchecked))
             }

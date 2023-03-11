@@ -35,6 +35,7 @@ build:
   options:
     - var: variable/default
   script:
+    - env | sort
     - if [ "$SPK_OPT_variable" = "override" ]; then exit 0; fi
     - echo 'Expected $SPK_OPT_variable value to be overridden!'
     - exit 1
@@ -56,9 +57,10 @@ build:
         filename_str,
     ])
     .unwrap();
+    let res = opt.mkb.run().await;
     assert!(
-        opt.mkb.run().await.is_err(),
-        "Without override, build script should fail."
+        res.is_err(),
+        "Without override, build script should fail, got {res:?}."
     );
 
     let mut opt = Opt::try_parse_from([

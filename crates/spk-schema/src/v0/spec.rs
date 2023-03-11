@@ -248,7 +248,7 @@ impl PackageMut for Spec<BuildIdent> {
 
 impl Recipe for Spec<VersionIdent> {
     type Output = Spec<BuildIdent>;
-    type Variant = OptionMap;
+    type Variant = super::Variant;
 
     fn ident(&self) -> &VersionIdent {
         &self.pkg
