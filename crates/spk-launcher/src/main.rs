@@ -12,6 +12,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use nix::unistd::execv;
 use spfs::encoding::Digest;
 use spfs::prelude::*;
+use spfs::storage::fs::FSRepository;
+use spfs::storage::payload_fallback::PayloadFallback;
 use spfs::storage::RepositoryHandle;
 use spfs::tracking::EnvSpec;
 
@@ -97,8 +99,8 @@ impl<'a> Dynamic<'a> {
         &self,
         tag: &str,
         platform_digest: &Digest,
-        local: &mut RepositoryHandle,
-        remote: &RepositoryHandle,
+        local: FSRepository,
+        remote: RepositoryHandle,
     ) -> Result<OsString> {
         let digest_string = platform_digest.to_string();
         let install_location = Path::new(self.install_path().as_os_str()).join(&digest_string);
@@ -117,13 +119,16 @@ impl<'a> Dynamic<'a> {
 
             // Ensure tag is sync'd local because `render_into_directory` operates
             // out of the local repo.
-            let syncer = spfs::Syncer::new(remote, local)
+            let handle = local.clone().into();
+            let syncer = spfs::Syncer::new(&remote, &handle)
                 .with_policy(spfs::sync::SyncPolicy::LatestTags)
                 .with_reporter(spfs::sync::ConsoleSyncReporter::default());
             let r = syncer.sync_env(env_spec).await.context("sync reference")?;
             let env_spec = r.env;
 
-            spfs::storage::fs::Renderer::new_from_handle(local)?
+            let payload_fallback = PayloadFallback::new(local, vec![remote]);
+
+            spfs::storage::fs::Renderer::new(&payload_fallback)
                 .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
                 .render_into_directory(
                     env_spec,
@@ -197,11 +202,10 @@ impl<'a> Dynamic<'a> {
         }
 
         let config = spfs::load_config().expect("loaded spfs config");
-        let mut local_repo: RepositoryHandle = config
+        let local_repo = config
             .get_local_repository()
             .await
-            .context("opened local spfs repo")?
-            .into();
+            .context("opened local spfs repo")?;
         let remote_repo = config
             .get_remote(ORIGIN)
             .await
@@ -231,8 +235,8 @@ impl<'a> Dynamic<'a> {
                     .check_or_install(
                         &spfs_tag,
                         &platform.digest().context("get platform context")?,
-                        &mut local_repo,
-                        &remote_repo,
+                        local_repo,
+                        remote_repo,
                     )
                     .await
                     .with_context(|| {

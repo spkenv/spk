@@ -66,6 +66,9 @@ impl CmdCheck {
             RepositoryHandle::Rpc(repo) => {
                 spfs::graph::check_database_integrity(repo, digests).await
             }
+            RepositoryHandle::PayloadFallback(repo) => {
+                spfs::graph::check_database_integrity(&**repo, digests).await
+            }
             RepositoryHandle::Proxy(repo) => {
                 spfs::graph::check_database_integrity(&**repo, digests).await
             }

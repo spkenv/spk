@@ -9,6 +9,7 @@ use encoding::Encodable;
 use graph::Blob;
 use tokio_stream::StreamExt;
 
+use super::fs::{FSHashStore, RenderStore};
 use crate::{encoding, graph, tracking, Error, Result};
 
 #[cfg(test)]
@@ -118,4 +119,17 @@ impl<T: Repository> Repository for &T {
     fn address(&self) -> url::Url {
         Repository::address(&**self)
     }
+}
+
+/// Accessor methods for types only applicable to repositories that have
+/// payloads and renders, e.g., local repositories.
+pub trait LocalRepository {
+    /// Return the payload storage type
+    fn payloads(&self) -> &FSHashStore;
+
+    /// If supported, returns the type responsible for locally rendered manifests
+    ///
+    /// # Errors:
+    /// - [`Error::NoRenderStorage`] - if this repository does not support manifest rendering
+    fn render_store(&self) -> Result<&RenderStore>;
 }

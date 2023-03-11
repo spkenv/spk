@@ -3235,6 +3235,7 @@ dependencies = [
  "spfs",
  "spk-cli-common",
  "spk-exec",
+ "spk-storage",
  "tokio",
  "tracing",
 ]

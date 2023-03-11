@@ -12,6 +12,7 @@ mod tag;
 
 mod config;
 pub mod fs;
+pub mod payload_fallback;
 pub mod prelude;
 pub mod proxy;
 pub mod rpc;
@@ -23,7 +24,7 @@ pub use manifest::ManifestStorage;
 pub use payload::PayloadStorage;
 pub use platform::PlatformStorage;
 pub use proxy::{Config, ProxyRepository};
-pub use repository::Repository;
+pub use repository::{LocalRepository, Repository};
 pub use tag::{EntryType, TagStorage};
 
 pub use self::config::{FromConfig, FromUrl};
@@ -34,6 +35,7 @@ pub enum RepositoryHandle {
     FS(fs::FSRepository),
     Tar(tar::TarRepository),
     Rpc(rpc::RpcRepository),
+    PayloadFallback(Box<payload_fallback::PayloadFallback>),
     Proxy(Box<proxy::ProxyRepository>),
 }
 
@@ -43,6 +45,7 @@ impl RepositoryHandle {
             Self::FS(repo) => Box::new(repo),
             Self::Tar(repo) => Box::new(repo),
             Self::Rpc(repo) => Box::new(repo),
+            Self::PayloadFallback(repo) => repo,
             Self::Proxy(repo) => repo,
         }
     }
@@ -56,6 +59,7 @@ impl std::ops::Deref for RepositoryHandle {
             RepositoryHandle::FS(repo) => repo,
             RepositoryHandle::Tar(repo) => repo,
             RepositoryHandle::Rpc(repo) => repo,
+            RepositoryHandle::PayloadFallback(repo) => &**repo,
             RepositoryHandle::Proxy(repo) => &**repo,
         }
     }
@@ -67,6 +71,7 @@ impl std::ops::DerefMut for RepositoryHandle {
             RepositoryHandle::FS(repo) => repo,
             RepositoryHandle::Tar(repo) => repo,
             RepositoryHandle::Rpc(repo) => repo,
+            RepositoryHandle::PayloadFallback(repo) => &mut **repo,
             RepositoryHandle::Proxy(repo) => &mut **repo,
         }
     }
@@ -85,6 +90,11 @@ impl From<tar::TarRepository> for RepositoryHandle {
 impl From<rpc::RpcRepository> for RepositoryHandle {
     fn from(repo: rpc::RpcRepository) -> Self {
         RepositoryHandle::Rpc(repo)
+    }
+}
+impl From<payload_fallback::PayloadFallback> for RepositoryHandle {
+    fn from(repo: payload_fallback::PayloadFallback) -> Self {
+        RepositoryHandle::PayloadFallback(Box::new(repo))
     }
 }
 impl From<proxy::ProxyRepository> for RepositoryHandle {

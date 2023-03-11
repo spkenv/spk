@@ -5,6 +5,7 @@
 #[cfg(feature = "sentry")]
 use std::panic::catch_unwind;
 
+use spfs::storage::LocalRepository;
 use tracing_subscriber::prelude::*;
 
 const SPFS_LOG: &str = "SPFS_LOG";
@@ -89,10 +90,13 @@ pub struct Render {
 impl Render {
     /// Construct a new renderer instance configured based on these flags
     #[allow(dead_code)] // not all commands use this function but some do
-    pub fn get_renderer<'repo>(
+    pub fn get_renderer<'repo, Repo>(
         &self,
-        repo: &'repo spfs::storage::fs::FSRepository,
-    ) -> spfs::storage::fs::Renderer<'repo, spfs::storage::fs::ConsoleRenderReporter> {
+        repo: &'repo Repo,
+    ) -> spfs::storage::fs::Renderer<'repo, Repo, spfs::storage::fs::ConsoleRenderReporter>
+    where
+        Repo: spfs::storage::Repository + LocalRepository,
+    {
         spfs::storage::fs::Renderer::new(repo)
             .with_max_concurrent_blobs(self.max_concurrent_blobs)
             .with_max_concurrent_branches(self.max_concurrent_branches)
