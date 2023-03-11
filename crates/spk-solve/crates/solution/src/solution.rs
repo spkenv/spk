@@ -176,8 +176,6 @@ impl Solution {
         }
     }
 
-    /// The solved requests in the solution in alphabetical order by
-    /// package name.
     pub fn items(&self) -> std::slice::Iter<'_, SolvedRequest> {
         self.resolved.iter()
     }

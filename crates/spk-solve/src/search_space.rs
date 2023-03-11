@@ -221,6 +221,11 @@ fn show_total_stats(
     let display_total: String = if num_digits > DIGITS_LIMIT {
         format!("{total:5.4e}").replace('e', " x 10^")
     } else {
+        // TODO: it would be nice to format these large numbers using
+        // something like the num-format crate, but the bignum's
+        // (rug::Integer) used to hold the large numbers in these
+        // calculations would need to support or be wrapped to
+        // implement num-format's required traits.
         total.to_string()
     };
     tracing::info!("Total number of nodes in unconstrained decision tree: {display_total}");

@@ -918,8 +918,11 @@ impl DecisionFormatter {
                     .output_message(self.format_solve_stats(&runtime.solver, solve_time));
 
                 if self.settings.show_search_space_size {
-                    // This solution will be empty, partial, or may
-                    // have more packages than a complete solution
+                    // This solution is likely to be partial, empty,
+                    // or may even have more packages than the
+                    // eventual complete solution, because in this
+                    // case the solver was interrupted before it found
+                    // a complete solution.
                     let solution = runtime.current_solution().await;
                     self.show_search_space_info(&solution, runtime).await?;
                 }
@@ -992,7 +995,7 @@ impl DecisionFormatter {
         runtime: &SolverRuntime,
     ) -> Result<()> {
         if let Ok(ref s) = *solution {
-            println!("Calculating search space stats. This may take some time...");
+            tracing::info!("Calculating search space stats. This may take some time...");
             let start = Instant::now();
 
             let initial_requests = runtime
@@ -1010,7 +1013,7 @@ impl DecisionFormatter {
                 self.settings.verbosity,
             )
             .await?;
-            println!("That took {} seconds", start.elapsed().as_secs_f64());
+            tracing::info!("That took {} seconds", start.elapsed().as_secs_f64());
         }
         Ok(())
     }
