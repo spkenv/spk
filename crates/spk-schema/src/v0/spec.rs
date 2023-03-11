@@ -52,6 +52,7 @@ use crate::{
     Result,
     SourceSpec,
     ValidationSpec,
+    Variant,
 };
 
 #[cfg(test)]
@@ -326,16 +327,23 @@ impl Recipe for Spec<VersionIdent> {
         Ok(source)
     }
 
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Spec<BuildIdent>>
+    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
+        V: Variant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
+        let options = variant.options();
         let mut updated = self.clone();
+
+        // inject additional package options for items in the variant that
+        // were not present in the original package
+        let reqs = variant.additional_requirements().into_owned();
+        for req in reqs.into_iter() {
+            let opt = Opt::try_from(req)?;
+            updated.build.upsert_opt(opt);
+        }
+
         let specs: HashMap<_, _> = build_env
             .build_env()
             .into_iter()
@@ -402,8 +410,8 @@ impl Recipe for Spec<VersionIdent> {
 
         updated
             .install
-            .render_all_pins(options, specs.values().map(|p| p.ident()))?;
-        let digest = updated.resolve_options(options)?.digest();
+            .render_all_pins(&options, specs.values().map(|p| p.ident()))?;
+        let digest = updated.resolve_options(&options)?.digest();
         Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
     }
 }

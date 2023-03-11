@@ -33,6 +33,7 @@ use crate::{
     Result,
     Template,
     TemplateExt,
+    Variant,
 };
 
 #[cfg(test)]
@@ -238,18 +239,15 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
+        V: Variant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
         match self {
             SpecRecipe::V0Package(r) => r
-                .generate_binary_build(options, build_env)
+                .generate_binary_build(variant, build_env)
                 .map(Spec::V0Package),
         }
     }
