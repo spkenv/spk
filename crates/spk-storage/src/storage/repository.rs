@@ -238,10 +238,13 @@ pub trait Repository: Storage + Sync {
     /// named package. Versions with all their builds deprecated are
     /// excluded.
     async fn highest_package_version(&self, name: &PkgName) -> Result<Option<Arc<Version>>> {
-        let versions = self.list_package_versions(name).await?;
+        let versions: Arc<Vec<Arc<Version>>> = self.list_package_versions(name).await?;
+        // Not all repo implementations will return a sorted list from
+        // list_package_versions, and this needs them reverse sorted.
+        let mut sorted_versions = (*versions).clone();
+        sorted_versions.sort_by(|a, b| b.cmp(a));
 
-        // The versions come back sorted lowest to highest.
-        for version in versions.iter().rev() {
+        for version in sorted_versions.iter() {
             // Check the version's builds. It must have one active,
             // non-deprecated build for the version to also be active.
             let ident = VersionIdent::new(name.to_owned(), (**version).clone());
