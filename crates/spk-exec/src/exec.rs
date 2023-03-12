@@ -57,7 +57,7 @@ impl ResolvedLayers {
                     }
                     _ => Err(Error::NonSPFSLayerInResolvedLayers)?,
                 };
-                let unlock = manifest.unlock();
+                let unlock = manifest.to_tracking_manifest();
                 let walker = unlock.walk();
                 for node in walker {
                     yield (node.path, node.entry.clone(), resolved_layer)

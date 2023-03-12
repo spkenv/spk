@@ -254,7 +254,7 @@ where
         }
         let mut manifest = tracking::Manifest::default();
         for next in manifests.into_iter() {
-            manifest.update(&next.unlock());
+            manifest.update(&next.to_tracking_manifest());
         }
         let manifest = graph::Manifest::from(&manifest);
         self.render_manifest_into_dir(&manifest, target_dir, render_type)

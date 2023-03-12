@@ -30,7 +30,7 @@ impl storage::FromUrl for Config {
     async fn from_url(url: &url::Url) -> Result<Self> {
         match url.query() {
             Some(qs) => serde_qs::from_str(qs).map_err(|err| {
-                crate::Error::String(format!("Invalid payload fallback repo url: {:?}", err))
+                crate::Error::String(format!("Invalid payload fallback repo url: {err:?}"))
             }),
             None => Err(crate::Error::String(
                 "Stacked repo url had empty query string, this would create an unusable repo"
@@ -253,7 +253,7 @@ impl Repository for PayloadFallback {
                 .collect(),
         };
         let query = serde_qs::to_string(&config).expect("We should not fail to create a url");
-        url::Url::parse(&format!("fallback:?{}", query)).unwrap()
+        url::Url::parse(&format!("fallback:?{query}")).unwrap()
     }
 }
 

@@ -338,7 +338,10 @@ async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding
 
     let layers = spfs::resolve_stack_to_layers(runtime.status.stack.iter(), Some(&repo)).await?;
     for layer in layers.iter().rev() {
-        let manifest = repo.read_manifest(layer.manifest).await?.unlock();
+        let manifest = repo
+            .read_manifest(layer.manifest)
+            .await?
+            .to_tracking_manifest();
         if manifest.get_path(&path).is_some() {
             return Ok(layer.digest()?);
         }

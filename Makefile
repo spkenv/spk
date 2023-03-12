@@ -1,6 +1,11 @@
 SPK_VERSION = $(shell grep Version spk.spec | cut -d ' ' -f 2)
 SPFS_VERSION = $(shell cat spfs.spec | grep Version | cut -d ' ' -f 2)
 SOURCE_ROOT := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+CARGO_TARGET_DIR := $(shell \
+	if [[ -f .cargo/config ]]; \
+	then (grep target-dir .cargo/config || echo target) | sed -sE 's|.*"(.*)".*|\1|'; \
+	else echo target; \
+	fi)
 
 comma := ,
 cargo_features_arg = $(if $(FEATURES),--features $(FEATURES))
@@ -120,21 +125,21 @@ install-spfs: copy-spfs setcap
 
 copy-debug-spfs: debug-spfs
 	cd $(SOURCE_ROOT)
-	sudo cp -f target/debug/spfs* /usr/local/bin/
+	sudo cp -f $(CARGO_TARGET_DIR)/debug/spfs* /usr/local/bin/
 
 copy-debug-spk: debug
 	cd $(SOURCE_ROOT)
-	sudo cp -f target/debug/spk /usr/local/bin/
+	sudo cp -f $(CARGO_TARGET_DIR)/debug/spk /usr/local/bin/
 
 copy-debug: copy-debug-spfs copy-debug-spk
 
 copy-release: release
 	cd $(SOURCE_ROOT)
-	sudo cp -f target/release/spk target/release/spfs* /usr/local/bin/
+	sudo cp -f $(CARGO_TARGET_DIR)/release/spk $(CARGO_TARGET_DIR)/release/spfs* /usr/local/bin/
 
 copy-spfs: release-spfs
 	cd $(SOURCE_ROOT)
-	sudo cp -f target/release/spfs* /usr/local/bin/
+	sudo cp -f $(CARGO_TARGET_DIR)/release/spfs* /usr/local/bin/
 
 setcap:
 	sudo setcap 'cap_dac_override,cap_fowner+ep' /usr/local/bin/spfs-clean

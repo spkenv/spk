@@ -70,7 +70,7 @@ async fn test_manifest_parity(
         .read_manifest(digest)
         .await
         .expect("stored manifest was not written");
-    let actual = out.unlock();
+    let actual = out.to_tracking_manifest();
     let mut diffs = tracking::compute_diff(&expected, &actual);
     diffs.retain(|d| !d.mode.is_unchanged());
 

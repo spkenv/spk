@@ -13,6 +13,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub mod fixtures;
 
 mod bootstrap;
+pub mod check;
 mod clean;
 mod commit;
 pub mod config;
@@ -40,6 +41,7 @@ pub use bootstrap::{
     build_interactive_shell_command,
     build_shell_initialized_command,
 };
+pub use check::Checker;
 pub use clean::{
     clean_untagged_objects,
     get_all_attached_and_unattached_objects,

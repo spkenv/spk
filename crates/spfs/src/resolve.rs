@@ -100,17 +100,20 @@ pub async fn compute_object_manifest(
     repo: &storage::RepositoryHandle,
 ) -> Result<tracking::Manifest> {
     match obj {
-        graph::Object::Layer(obj) => Ok(repo.read_manifest(obj.manifest).await?.unlock()),
+        graph::Object::Layer(obj) => Ok(repo
+            .read_manifest(obj.manifest)
+            .await?
+            .to_tracking_manifest()),
         graph::Object::Platform(obj) => {
             let layers = resolve_stack_to_layers(obj.stack.iter(), Some(repo)).await?;
             let mut manifest = tracking::Manifest::default();
             for layer in layers.iter().rev() {
                 let layer_manifest = repo.read_manifest(layer.manifest).await?;
-                manifest.update(&layer_manifest.unlock());
+                manifest.update(&layer_manifest.to_tracking_manifest());
             }
             Ok(manifest)
         }
-        graph::Object::Manifest(obj) => Ok(obj.unlock()),
+        graph::Object::Manifest(obj) => Ok(obj.to_tracking_manifest()),
         obj => Err(format!("Resolve: Unhandled object of type {:?}", obj.kind()).into()),
     }
 }
@@ -232,7 +235,7 @@ pub(crate) async fn resolve_overlay_dirs(
                 let mut manifest = tracking::Manifest::default();
                 for next in m.into_iter() {
                     for next in next.existing() {
-                        manifest.update(&next.unlock());
+                        manifest.update(&next.to_tracking_manifest());
                     }
                 }
                 let manifest = graph::Manifest::from(&manifest);

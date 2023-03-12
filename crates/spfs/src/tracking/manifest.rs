@@ -39,6 +39,12 @@ impl Manifest {
         self.root
     }
 
+    /// Convert this manifest into its encodable,
+    /// hashable form for storage.
+    pub fn to_graph_manifest(&self) -> crate::graph::Manifest {
+        self.into()
+    }
+
     /// Return true if this manifest has no contents.
     pub fn is_empty(&self) -> bool {
         self.root.entries.len() == 0
@@ -71,14 +77,26 @@ impl Manifest {
         Some(entry)
     }
 
+    /// List the names in a directory in this manifest.
+    ///
+    /// None is returned if the directory does not exist or the provided entry is
+    /// not a directory
+    pub fn list_dir(&self, path: &str) -> Option<impl Iterator<Item = &String>> {
+        let entry = self.get_path(path)?;
+        match entry.kind {
+            EntryKind::Tree => Some(entry.entries.keys()),
+            _ => None,
+        }
+    }
+
     /// List the contents of a directory in this manifest.
     ///
     /// None is returned if the directory does not exist or the provided entry is
     /// not a directory
-    pub fn list_dir(&self, path: &str) -> Option<Vec<String>> {
+    pub fn read_dir(&self, path: &str) -> Option<impl Iterator<Item = (&String, &Entry)>> {
         let entry = self.get_path(path)?;
         match entry.kind {
-            EntryKind::Tree => Some(entry.entries.keys().cloned().collect()),
+            EntryKind::Tree => Some(entry.entries.iter()),
             _ => None,
         }
     }
