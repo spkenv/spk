@@ -3320,6 +3320,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "spk-config"
+version = "0.36.0"
+dependencies = [
+ "config",
+ "expanduser",
+ "once_cell",
+ "rstest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "whoami",
+]
+
+[[package]]
 name = "spk-exec"
 version = "0.36.0"
 dependencies = [
