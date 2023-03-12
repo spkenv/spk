@@ -302,7 +302,8 @@ where
     ///
     /// To also check if the blob object exists, use [`Self::check_digest`]
     ///
-    /// Safety: this function may sync a payload without
+    /// # Safety
+    /// This function may sync a payload without
     /// syncing the blob, which is unsafe unless the blob
     /// is known to exist in the repository being checked
     pub async unsafe fn check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
