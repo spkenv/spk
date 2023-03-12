@@ -29,10 +29,10 @@ use spk_schema::{
     BuildIdent,
     ComponentFileMatchMode,
     ComponentSpecList,
-    ExtensionVariant,
     Package,
     PackageMut,
     Variant,
+    VariantExt,
 };
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
@@ -263,7 +263,7 @@ where
         self.environment
             .extend(solution.to_environment(Some(std::env::vars())));
 
-        let full_variant = ExtensionVariant::from(variant)
+        let full_variant = variant
             .with_overrides(solution.options().clone())
             // original options to be reapplied. It feels like this
             // shouldn't be necessary but I've not been able to isolate what

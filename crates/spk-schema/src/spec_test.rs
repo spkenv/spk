@@ -6,7 +6,8 @@ use rstest::rstest;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::OptionMap;
 
-use crate::{recipe, ExtensionVariant, Recipe};
+use crate::prelude::*;
+use crate::recipe;
 
 #[rstest]
 fn test_resolve_options_empty_options() {
@@ -56,7 +57,7 @@ fn test_resolve_options_variant_adds_new_var_option(
     // Now do the same thing but add-in an override for the option.
 
     let overrides = option_map! { opt_name => override_value };
-    let overriden = ExtensionVariant::from(&variants[0]).with_overrides(overrides.clone());
+    let overriden = (&variants[0]).with_overrides(overrides.clone());
 
     // The "default" variant still has empty options.
     let resolved_options = spec.resolve_options(&overrides).unwrap();
