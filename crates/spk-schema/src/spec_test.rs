@@ -6,7 +6,7 @@ use rstest::rstest;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::OptionMap;
 
-use crate::{recipe, Recipe};
+use crate::{recipe, ExtensionVariant, Recipe};
 
 #[rstest]
 fn test_resolve_options_empty_options() {
@@ -17,20 +17,6 @@ fn test_resolve_options_empty_options() {
     let resolved_options = spec.resolve_options(&OptionMap::default()).unwrap();
     // No options were specified and none has magically appeared.
     assert!(resolved_options.is_empty());
-}
-
-#[rstest]
-#[case::index_0(0)]
-#[case::index_1(1)]
-fn test_resolve_options_variant_out_of_range(#[case] _index: usize) {
-    let spec = recipe!({
-        "pkg": "test/1.0.0",
-    });
-
-    // Grabbing a non-existent variant should fail.
-    assert!(spec
-        .resolve_options(/* TODO: resolve for non-existent variant */ &OptionMap::default())
-        .is_err());
 }
 
 #[rstest]
@@ -52,34 +38,33 @@ fn test_resolve_options_variant_adds_new_var_option(
         },
     });
 
+    let variants = spec.default_variants();
+
     // The "default" variant still has empty options.
     let resolved_options = spec.resolve_options(&OptionMap::default()).unwrap();
     // No options were specified and none has magically appeared.
     assert!(resolved_options.is_empty());
 
     // The first variant is not empty.
-    let resolved_options = spec
-        .resolve_options(/* TODO: resolve for variant 0 */ &OptionMap::default())
-        .unwrap();
+    let resolved_options = spec.resolve_options(&variants[0]).unwrap();
     // One option expected.
     assert_eq!(resolved_options.len(), 1);
     let (k, v) = resolved_options.into_iter().next().unwrap();
     assert_eq!(k.as_str(), opt_name);
     assert_eq!(v, default_value);
 
-    // Now do the same thing but pass in an override for the option.
+    // Now do the same thing but add-in an override for the option.
 
-    let option_override = option_map! { opt_name => override_value };
+    let overrides = option_map! { opt_name => override_value };
+    let overriden = ExtensionVariant::from(&variants[0]).with_overrides(overrides.clone());
 
     // The "default" variant still has empty options.
-    let resolved_options = spec.resolve_options(&option_override).unwrap();
+    let resolved_options = spec.resolve_options(&overrides).unwrap();
     // No options were specified and none has magically appeared.
     assert!(resolved_options.is_empty());
 
     // The first variant is not empty.
-    let resolved_options = spec
-        .resolve_options(/* TODO: resolve for variant 0 */ &option_override)
-        .unwrap();
+    let resolved_options = spec.resolve_options(&overriden).unwrap();
     // One option expected.
     assert_eq!(resolved_options.len(), 1);
     // The override should have won.
@@ -127,16 +112,13 @@ fn test_resolve_options_variant_treated_as_new_pkg() {
         },
     });
 
+    let variants = spec.default_variants();
+    let (v_0, v_1, v_2) = (&variants[0], &variants[1], &variants[2]);
+
     let resolved_options_default = spec.resolve_options(&OptionMap::default()).unwrap();
-    let resolved_options_variant_0 = spec
-        .resolve_options(/* TODO: resolve for variant 0 */ &OptionMap::default())
-        .unwrap();
-    let resolved_options_variant_1 = spec
-        .resolve_options(/* TODO: resolve for variant 1 */ &OptionMap::default())
-        .unwrap();
-    let resolved_options_variant_2 = spec
-        .resolve_options(/* TODO: resolve for variant 2 */ &OptionMap::default())
-        .unwrap();
+    let resolved_options_variant_0 = spec.resolve_options(v_0).unwrap();
+    let resolved_options_variant_1 = spec.resolve_options(v_1).unwrap();
+    let resolved_options_variant_2 = spec.resolve_options(v_2).unwrap();
 
     // The default baseline...
     assert_option_map_contains!(resolved_options_default, "a-package", "1.2.3");
@@ -233,32 +215,13 @@ fn test_get_build_requirements_variant_treated_as_new_pkg() {
         },
     });
 
-    let resolved_options_default = spec.resolve_options(&OptionMap::default()).unwrap();
-    let resolved_options_variant_0 = spec
-        .resolve_options(/* TODO: resolve for variant 0 */ &OptionMap::default())
-        .unwrap();
-    let resolved_options_variant_1 = spec
-        .resolve_options(/* TODO: resolve for variant 1 */ &OptionMap::default())
-        .unwrap();
-    let resolved_options_variant_2 = spec
-        .resolve_options(/* TODO: resolve for variant 2 */ &OptionMap::default())
-        .unwrap();
+    let variants = spec.default_variants();
+    let (v_0, v_1, v_2) = (&variants[0], &variants[1], &variants[2]);
 
-    // XXX: Is it "cheating" to pass in the resolved options to
-    // `get_build_requirements`?
-
-    let build_requirements_default = spec
-        .get_build_requirements(&resolved_options_default)
-        .unwrap();
-    let build_requirements_variant_0 = spec
-        .get_build_requirements(/* TODO: build variant 0 */ &resolved_options_variant_0)
-        .unwrap();
-    let build_requirements_variant_1 = spec
-        .get_build_requirements(/* TODO: build variant 1 */ &resolved_options_variant_1)
-        .unwrap();
-    let build_requirements_variant_2 = spec
-        .get_build_requirements(/* TODO: build variant 2 */ &resolved_options_variant_2)
-        .unwrap();
+    let build_requirements_default = spec.get_build_requirements(&OptionMap::default()).unwrap();
+    let build_requirements_variant_0 = spec.get_build_requirements(v_0).unwrap();
+    let build_requirements_variant_1 = spec.get_build_requirements(v_1).unwrap();
+    let build_requirements_variant_2 = spec.get_build_requirements(v_2).unwrap();
 
     // The default baseline...
     assert_requests_contains!(build_requirements_default, pkg, "a-package", "1.2.3");
@@ -317,16 +280,10 @@ fn test_get_build_requirements_pkg_in_variant_preserves_order() {
         },
     });
 
-    let resolved_options_variant_0 = spec
-        .resolve_options(/* TODO: resolve variant 0 */ &OptionMap::default())
-        .unwrap();
+    let variants = spec.default_variants();
+    let variant_0 = &variants[0];
 
-    // XXX: Is it "cheating" to pass in the resolved options to
-    // `get_build_requirements`?
-
-    let build_requirements_variant_0 = spec
-        .get_build_requirements(/* TODO: build variant 0 */ &resolved_options_variant_0)
-        .unwrap();
+    let build_requirements_variant_0 = spec.get_build_requirements(&variant_0).unwrap();
 
     // Variant 0...
     // Expect the variant content to match the pkg in options and override its

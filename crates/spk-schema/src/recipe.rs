@@ -33,7 +33,7 @@ pub trait Recipe:
     /// The returned identifier will never have an associated build.
     fn ident(&self) -> &VersionIdent;
 
-    /// Return the default variants to be built for this recipe
+    /// Return the default variants defined in this recipe.
     fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>>;
 
     /// Produce the full set of build options given the inputs.
@@ -41,13 +41,22 @@ pub trait Recipe:
     /// The returned option map will include any values from the inputs
     /// that are relevant to this recipe with the addition of any missing
     /// default values. Any issues or invalid inputs results in an error.
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap>;
+    fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>
+    where
+        V: Variant;
 
     /// Identify the requirements for a build of this recipe.
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>>;
+    ///
+    /// This should also validate and include the items specified
+    /// by [`Variant::additional_requirements`].
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    where
+        V: Variant;
 
     /// Return the tests defined for this package.
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>>;
+    fn get_tests<V>(&self, variant: &V) -> Result<Vec<TestSpec>>
+    where
+        V: Variant;
 
     /// Create a new source package from this recipe and the given parameters.
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output>;
@@ -75,16 +84,25 @@ where
         (**self).default_variants()
     }
 
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap> {
-        (**self).resolve_options(inputs)
+    fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>
+    where
+        V: Variant,
+    {
+        (**self).resolve_options(variant)
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
-        (**self).get_build_requirements(options)
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    where
+        V: Variant,
+    {
+        (**self).get_build_requirements(variant)
     }
 
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
-        (**self).get_tests(options)
+    fn get_tests<V>(&self, variant: &V) -> Result<Vec<TestSpec>>
+    where
+        V: Variant,
+    {
+        (**self).get_tests(variant)
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
@@ -116,16 +134,25 @@ where
         (**self).default_variants()
     }
 
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap> {
-        (**self).resolve_options(inputs)
+    fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>
+    where
+        V: Variant,
+    {
+        (**self).resolve_options(variant)
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
-        (**self).get_build_requirements(options)
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    where
+        V: Variant,
+    {
+        (**self).get_build_requirements(variant)
     }
 
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
-        (**self).get_tests(options)
+    fn get_tests<V>(&self, variant: &V) -> Result<Vec<TestSpec>>
+    where
+        V: Variant,
+    {
+        (**self).get_tests(variant)
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {

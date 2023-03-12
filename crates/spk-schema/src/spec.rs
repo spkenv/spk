@@ -216,21 +216,30 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap> {
+    fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>
+    where
+        V: Variant,
+    {
         match self {
-            SpecRecipe::V0Package(r) => r.resolve_options(inputs),
+            SpecRecipe::V0Package(r) => r.resolve_options(variant),
         }
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    where
+        V: Variant,
+    {
         match self {
-            SpecRecipe::V0Package(r) => r.get_build_requirements(options),
+            SpecRecipe::V0Package(r) => r.get_build_requirements(variant),
         }
     }
 
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
+    fn get_tests<V>(&self, variant: &V) -> Result<Vec<TestSpec>>
+    where
+        V: Variant,
+    {
         match self {
-            SpecRecipe::V0Package(r) => r.get_tests(options),
+            SpecRecipe::V0Package(r) => r.get_tests(variant),
         }
     }
 

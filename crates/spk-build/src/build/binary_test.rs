@@ -67,7 +67,7 @@ async fn test_empty_var_option_is_not_a_request() {
         }"#,
     )
     .unwrap();
-    let requirements = recipe.get_build_requirements(&Default::default()).unwrap();
+    let requirements = recipe.get_build_requirements(&option_map! {}).unwrap();
     assert!(
         requirements.is_empty(),
         "a var option with empty value should not create a solver request"
@@ -610,7 +610,7 @@ async fn test_default_build_component() {
             },
         }
     );
-    let requirements = spec.get_build_requirements(&Default::default()).unwrap();
+    let requirements = spec.get_build_requirements(&option_map! {}).unwrap();
     assert_eq!(requirements.len(), 1, "should have one build requirement");
     let req = requirements.get(0).unwrap();
     match req {

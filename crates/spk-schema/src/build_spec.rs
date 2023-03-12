@@ -9,7 +9,7 @@ use spk_schema_foundation::option_map::Stringified;
 
 use super::foundation::option_map::OptionMap;
 use super::{v0, Opt, ValidationSpec};
-use crate::Variant;
+use crate::{Result, Variant};
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
@@ -50,6 +50,31 @@ impl BuildSpec {
         variants.get(0) == Some(&v0::Variant::default())
     }
 
+    /// Returns this build's options, plus any additional ones needed
+    /// for building the given variant
+    pub fn opts_for_variant<V>(&self, variant: &V) -> Result<Vec<Opt>>
+    where
+        V: Variant,
+    {
+        let mut opts = self.options.clone();
+        let mut known = opts
+            .iter()
+            .map(Opt::full_name)
+            .map(ToOwned::to_owned)
+            .collect::<HashSet<_>>();
+
+        // inject additional package options for items in the variant that
+        // were not present in the original package
+        let reqs = variant.additional_requirements().into_owned();
+        for req in reqs.into_iter() {
+            let opt = Opt::try_from(req)?;
+            if known.insert(opt.full_name().to_owned()) {
+                opts.push(opt);
+            }
+        }
+        Ok(opts)
+    }
+
     /// Add or update an option in this build spec.
     ///
     /// An option is replaced if it shares a name with the given option,
@@ -68,7 +93,7 @@ impl BuildSpec {
 impl TryFrom<UncheckedBuildSpec> for BuildSpec {
     type Error = crate::Error;
 
-    fn try_from(bs: UncheckedBuildSpec) -> Result<Self, Self::Error> {
+    fn try_from(bs: UncheckedBuildSpec) -> std::result::Result<Self, Self::Error> {
         let bs = unsafe {
             // Safety: this function bypasses checks, but we are
             // going to perform those checks before returning the value
@@ -145,7 +170,7 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                 f.write_str("a build specification")
             }
 
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
             where
                 A: serde::de::MapAccess<'de>,
             {
@@ -244,7 +269,7 @@ impl<'de> Deserialize<'de> for Script {
                 f.write_str("a string or list of strings")
             }
 
-            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
             where
                 A: serde::de::SeqAccess<'de>,
             {
@@ -255,7 +280,7 @@ impl<'de> Deserialize<'de> for Script {
                 Ok(script)
             }
 
-            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
@@ -267,7 +292,7 @@ impl<'de> Deserialize<'de> for Script {
 }
 
 impl serde::ser::Serialize for Script {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {

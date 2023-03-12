@@ -32,12 +32,11 @@ use spk_schema::{
     ExtensionVariant,
     Package,
     PackageMut,
-    RequirementsList,
     Variant,
 };
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
-use spk_solve::{BoxedResolverCallback, Request, ResolverCallback, Solver};
+use spk_solve::{BoxedResolverCallback, ResolverCallback, Solver};
 use spk_storage::{self as storage};
 use tokio::pin;
 
@@ -245,10 +244,7 @@ where
 
         let variant_options = variant.options();
         tracing::debug!("variant options: {variant_options}");
-        let recipe_options = self.recipe.resolve_options(&variant_options)?;
-        tracing::debug!(" recipe options: {recipe_options}");
-        let mut all_options = variant_options.into_owned();
-        all_options.extend(recipe_options.into_iter());
+        let all_options = self.recipe.resolve_options(&variant)?;
         tracing::debug!("  build options: {all_options}");
 
         if let BuildSource::SourcePackage(ident) = self.source.clone() {
@@ -262,7 +258,7 @@ where
 
         tracing::debug!("Resolving build environment");
         let solution = self
-            .resolve_build_environment(&all_options, &variant.additional_requirements())
+            .resolve_build_environment(&all_options, &variant)
             .await?;
         self.environment
             .extend(solution.to_environment(Some(std::env::vars())));
@@ -406,11 +402,14 @@ where
         Ok(solution)
     }
 
-    async fn resolve_build_environment(
+    async fn resolve_build_environment<V>(
         &mut self,
         options: &OptionMap,
-        additional_requirements: &RequirementsList,
-    ) -> Result<Solution> {
+        variant: &V,
+    ) -> Result<Solution>
+    where
+        V: Variant,
+    {
         self.solver.reset();
         self.solver.update_options(options.clone());
         self.solver.set_binary_only(true);
@@ -418,13 +417,7 @@ where
             self.solver.add_repository(repo);
         }
 
-        for request in self.recipe.get_build_requirements(options)? {
-            self.solver.add_request(request);
-        }
-        for mut request in additional_requirements.iter().cloned() {
-            if let Request::Pkg(p) = &mut request {
-                p.add_requester(RequestedBy::Variant)
-            }
+        for request in self.recipe.get_build_requirements(variant)? {
             self.solver.add_request(request);
         }
 

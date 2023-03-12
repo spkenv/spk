@@ -174,10 +174,10 @@ impl TryFrom<Request> for Opt {
             }
             Request::Var(VarRequest { var, pin: _, value }) => Ok(Opt::Var(VarOpt {
                 var,
-                default: String::new(),
+                default: value,
                 choices: Default::default(),
                 inheritance: Default::default(),
-                value: Some(value),
+                value: None,
             })),
         }
     }
