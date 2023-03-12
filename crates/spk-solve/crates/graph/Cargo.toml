@@ -21,7 +21,7 @@ spk-solve-package-iterator = { path = "../package-iterator" }
 spk-solve-solution = { path = "../solution" }
 spk-schema = { path = "../../../spk-schema" }
 spk-storage = { path = "../../../spk-storage" }
-thiserror = "1.0"
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 

@@ -16,7 +16,7 @@ spk-solve-graph = { path = "../graph" }
 spk-solve-solution = { path = "../solution" }
 spk-schema = { path = "../../../spk-schema" }
 spk-storage = { path = "../../../spk-storage" }
-thiserror = "1.0"
+thiserror = { workspace = true }
 tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"
 

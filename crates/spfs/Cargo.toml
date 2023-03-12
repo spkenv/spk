@@ -77,7 +77,7 @@ url = { version = "2.2", features = ["serde"] }
 uuid = { version = "1.1", features = ["v4"] }
 walkdir = "2.3"
 whoami = { workspace = true }
-thiserror = "1.0"
+thiserror = { workspace = true }
 
 [build-dependencies]
 protobuf-src = { version = "1.0.5", optional = true } # protoc @ 3.19.3

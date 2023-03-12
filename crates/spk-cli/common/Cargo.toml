@@ -28,7 +28,7 @@ spk-solve = { path = '../../spk-solve' }
 spk-schema = { path = '../../spk-schema' }
 spk-storage = { path = '../../spk-storage' }
 strip-ansi-escapes = { version = "0.1.1", optional = true }
-thiserror = "1.0"
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.14", features = ["env-filter"] }

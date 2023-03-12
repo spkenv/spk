@@ -12,7 +12,7 @@ tokio = { version = "1.20", features = [
     "io-util",
     "io-std",
 ] }
-thiserror = "1.0"
+thiserror = { workspace = true }
 
 [dev-dependencies]
 rstest = { version = "0.15.0", default_features = false }

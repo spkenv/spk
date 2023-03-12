@@ -30,7 +30,7 @@ serde_yaml = "0.8.17"
 spfs = { version = '0.34.6', path = "../../../spfs" }
 sys-info = "0.9.0"
 tempfile = "3.3"
-thiserror = "1.0"
+thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-capture = { workspace = true }
