@@ -3484,6 +3484,7 @@ dependencies = [
  "serde_json",
  "signal-hook",
  "spfs",
+ "spk-config",
  "spk-schema",
  "spk-solve-graph",
  "spk-solve-package-iterator",

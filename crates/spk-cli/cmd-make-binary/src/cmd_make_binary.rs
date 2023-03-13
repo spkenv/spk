@@ -164,7 +164,9 @@ impl Run for MakeBinary {
                 tracing::info!("building variant {}", opts.format_option_map());
 
                 // Always show the solution packages for the solves
-                let mut fmt_builder = self.formatter_settings.get_formatter_builder(self.verbose);
+                let mut fmt_builder = self
+                    .formatter_settings
+                    .get_formatter_builder(self.verbose)?;
                 let src_formatter = fmt_builder
                     .with_solution(true)
                     .with_header("Src Resolver ")

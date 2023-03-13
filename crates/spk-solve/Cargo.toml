@@ -32,6 +32,7 @@ spk-solve-solution = { path = "./crates/solution" }
 spk-solve-validation = { path = "./crates/validation" }
 spk-schema = { path = "../spk-schema" }
 spk-storage = { path = "../spk-storage" }
+spk-config = { path = "../spk-config" }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }

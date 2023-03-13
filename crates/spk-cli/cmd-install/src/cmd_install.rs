@@ -60,7 +60,7 @@ impl Run for Install {
             solver.add_request(request);
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose);
+        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
         let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
 
         println!("The following packages will be installed:\n");

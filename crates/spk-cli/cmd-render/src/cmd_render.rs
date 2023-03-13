@@ -51,7 +51,7 @@ impl Run for Render {
             solver.add_request(name);
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose);
+        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
         let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
 
         let solution = build_required_packages(&solution).await?;

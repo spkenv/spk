@@ -17,7 +17,45 @@ static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(default)]
-pub struct Solver {}
+pub struct Solver {
+    /// If true, the solver will run impossible request checks on the initial requests
+    pub check_impossible_initial: bool,
+
+    /// If true, the solver will run impossible request checks before
+    /// using a package build to resolve a request
+    pub check_impossible_validation: bool,
+
+    /// If true, the solver will run impossible request checks to
+    /// use in the build keys for ordering builds during the solve
+    pub check_impossible_builds: bool,
+
+    /// Increase the solver's verbosity every time this many seconds pass
+    ///
+    /// A solve has taken too long if it runs for more than this
+    /// number of seconds and hasn't found a solution. Setting this
+    /// above zero will increase the verbosity every that many seconds
+    /// the solve runs. If this is zero, the solver's verbosity will
+    /// not increase during a solve.
+    pub too_long_seconds: u64,
+
+    /// The maximum verbosity that automatic verbosity increases will
+    /// stop at and not go above.
+    pub verbosity_increase_limit: u32,
+
+    /// Maximum number of seconds to let the solver run before halting the solve
+    ///
+    /// Maximum number of seconds to allow a solver to run before
+    /// halting the solve. If this is zero, which is the default, the
+    /// timeout is disabled and the solver will run to completion.
+    pub solve_timeout: u64,
+
+    /// Set the threshold of a longer than acceptable solves, in seconds.
+    pub long_solve_threshold: u64,
+
+    /// Set the limit for how many of the most frequent errors are
+    /// displayed in solve stats reports
+    pub max_frequent_errors: usize,
+}
 
 /// Configuration values for spk.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
