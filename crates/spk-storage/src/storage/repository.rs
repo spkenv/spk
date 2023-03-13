@@ -215,6 +215,41 @@ pub trait Repository: Storage + Sync {
     /// Return the set of versions available for the named package.
     async fn list_package_versions(&self, name: &PkgName) -> Result<Arc<Vec<Arc<Version>>>>;
 
+    /// Return the active highest version number available for the
+    /// named package. Versions with all their builds deprecated are
+    /// excluded.
+    async fn highest_package_version(&self, name: &PkgName) -> Result<Option<Arc<Version>>> {
+        let versions: Arc<Vec<Arc<Version>>> = self.list_package_versions(name).await?;
+        // Not all repo implementations will return a sorted list from
+        // list_package_versions, and this needs them reverse sorted.
+        let mut sorted_versions = (*versions).clone();
+        sorted_versions.sort_by(|a, b| b.cmp(a));
+
+        for version in sorted_versions.iter() {
+            // Check the version's builds. It must have one active,
+            // non-deprecated build for the version to also be active.
+            let ident = VersionIdent::new(name.to_owned(), (**version).clone());
+            let builds = self.list_package_builds(&ident).await?;
+            if builds.is_empty() {
+                continue;
+            }
+            for build in builds {
+                match self.read_package(&build).await {
+                    Ok(spec) if !spec.is_deprecated() => {
+                        // Found an active build for this version, so
+                        // it's the highest version
+                        return Ok(Some(Arc::clone(version)));
+                    }
+                    Ok(_) => {}
+                    Err(err) => return Err(err),
+                }
+            }
+        }
+        // There is no active version of the package in this
+        // repository.
+        Ok(None)
+    }
+
     /// Return the set of builds for the given package name and version.
     async fn list_package_builds(&self, pkg: &VersionIdent) -> Result<Vec<BuildIdent>> {
         // Note: This isn't cached. Neither get_concrete_package_builds() nor

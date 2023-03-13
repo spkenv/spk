@@ -36,7 +36,8 @@ pub enum Error {
     StatusBarIOError(#[source] std::io::Error),
     #[error("Initial requests contain {0} impossible request{plural}.", plural = if *.0 == 1 { "" } else { "s" } )]
     InitialRequestsContainImpossibleError(usize),
-
+    #[error(transparent)]
+    SpkStorageError(#[from] spk_storage::Error),
     #[error("Error: {0}")]
     String(String),
 }

@@ -7,7 +7,6 @@ use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
 use spk_cli_common::{current_env, flags, CommandArgs, Run};
-use spk_schema::foundation::format::FormatSolution;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::Request;
@@ -121,7 +120,13 @@ impl CommandArgs for View {
 impl View {
     async fn print_current_env(&self) -> Result<i32> {
         let solution = current_env().await?;
-        println!("{}", solution.format_solution(self.verbose));
+        let solver = self.solver.get_solver(&self.options).await?;
+        println!(
+            "{}",
+            solution
+                .format_solution_with_highest_versions(self.verbose, solver.repositories())
+                .await?
+        );
         Ok(0)
     }
 

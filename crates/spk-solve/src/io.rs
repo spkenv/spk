@@ -22,7 +22,6 @@ use spk_schema::foundation::format::{
     FormatIdent,
     FormatOptionMap,
     FormatRequest,
-    FormatSolution,
 };
 use spk_schema::prelude::*;
 use spk_solve_graph::{
@@ -941,7 +940,11 @@ impl DecisionFormatter {
                 output_location.output_message(format!(
                     "{}{}",
                     self.settings.heading_prefix,
-                    s.format_solution(self.settings.verbosity)
+                    s.format_solution_with_highest_versions(
+                        self.settings.verbosity,
+                        runtime.solver.repositories()
+                    )
+                    .await?
                 ));
             }
         }

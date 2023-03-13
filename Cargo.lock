@@ -3505,6 +3505,8 @@ dependencies = [
 name = "spk-solve-solution"
 version = "0.36.0"
 dependencies = [
+ "colored",
+ "console",
  "spfs",
  "spk-schema",
  "spk-storage",
