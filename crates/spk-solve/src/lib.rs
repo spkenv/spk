@@ -8,6 +8,7 @@
 mod error;
 mod io;
 mod macros;
+mod search_space;
 mod solver;
 mod status_line;
 
@@ -16,6 +17,7 @@ use std::sync::Arc;
 pub use error::{Error, Result};
 use graph::Graph;
 pub use io::{DecisionFormatter, DecisionFormatterBuilder, MultiSolverKind};
+pub(crate) use search_space::show_search_space_stats;
 pub use solver::{Solver, SolverRuntime};
 pub use spk_schema::foundation::ident_build::Build;
 pub use spk_schema::foundation::ident_component::Component;

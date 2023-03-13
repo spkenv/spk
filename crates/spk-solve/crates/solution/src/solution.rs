@@ -341,7 +341,12 @@ impl Solution {
     fn format_solution_without_padding_or_highest(&self, verbosity: u32) -> String {
         let mut out = SOLUTION_FORMAT_HEADING.to_string();
 
-        let required_items = self.items();
+        // The resolved packages are typically stored in resolve
+        // order, but we want to display them here in alphabetical
+        // order by package name.
+        let mut required_items = self.resolved.clone();
+        required_items.sort_by(|a, b| a.spec.name().cmp(b.spec.name()));
+
         let number_of_packages = required_items.len();
         for req in required_items {
             // Show the installed request with components and repo name included

@@ -1070,8 +1070,11 @@ pub struct State {
     pkg_requests: Arc<Vec<Arc<CachedHash<PkgRequest>>>>,
     var_requests: Arc<BTreeSet<VarRequest>>,
     packages: StatePackages,
-    // This is a list of the packages in the order they were added to the
-    // state. It does not contribute to the state id.
+    // A list of the packages in the order they were resolved and
+    // added to the state. It differs from the "packages" field in
+    // that it does not alphabetically order the packages and is less
+    // efficient for processing. This field does not contribute to the
+    // state id. It is used to track the resolve order for a solution.
     packages_in_solve_order: Arc<Vec<Arc<Spec>>>,
     options: Arc<BTreeMap<OptNameBuf, String>>,
     state_id: StateId,
@@ -1126,7 +1129,15 @@ impl State {
 
     pub fn as_solution(&self) -> Result<Solution> {
         let mut solution = Solution::new((&self.options).into());
-        for (spec, source) in self.packages.values() {
+
+        // Ensure the resolved packages are added to the solution in
+        // resolve order to preserve that order in the solution.
+        for package in self.packages_in_solve_order.iter() {
+            let (spec, source) = match self.packages.get(package.name()) {
+                Some((pkg_spec, pkg_source)) => (pkg_spec, pkg_source),
+                None => continue,
+            };
+
             let req = self
                 .get_merged_request(spec.name())
                 .map_err(GraphError::RequestError)?;

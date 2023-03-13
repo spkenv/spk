@@ -835,6 +835,10 @@ pub struct DecisionFormatterSettings {
     /// enabled.
     #[clap(long, value_enum, default_value_t = SolverToShow::Cli)]
     pub solver_output_from: SolverToShow,
+
+    /// Display a report on of the search space size for the resolved solution.
+    #[clap(long)]
+    pub show_search_size: bool,
 }
 
 impl DecisionFormatterSettings {
@@ -869,7 +873,8 @@ impl DecisionFormatterSettings {
             .with_long_solves_threshold(self.long_solves)
             .with_max_frequent_errors(self.max_frequent_errors)
             .with_status_bar(self.status_bar)
-            .with_solver_output_from(self.solver_output_from.into());
+            .with_solver_output_from(self.solver_output_from.into())
+            .with_search_space_size(self.show_search_size);
         builder
     }
 }

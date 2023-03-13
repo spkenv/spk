@@ -15,15 +15,17 @@ The number of times `--verbose (-v)` is specified is the verbosity level. Verbos
 | Verbosity | Log levels and modules         | Shows ...                                                                     |
 | --------- | ------------------------------ | ----------------------------------------------------------------------------- |
 | 0         | `error,spk=info,spfs=warn`     |                                                                               |
-| 1         | `error,spk=debug,spfs=info`    | When the Solver resolves a Package, or takes a Step Back                      |
+| 1         | `error,spk=debug,spfs=info`    | When the Solver resolves a Package, or takes a Step Back (RESOLVE or BLOCKED) |
 |           |                                | The Packages in the Solution (Installed Packages list)                        |
 |           |                                | What requested each Package in the Solution (requested by)                    |
 |           |                                | Fields in a Request that have changed from the default values                 |
 | 2         | `error,spk=trace,spfs=debug`   | The Options of each Package in the Solution                                   |
 |           |                                | When the Solver adds a Request, and the reasons for its decisions (`TRY ...`) |
+|           |                                | Full search space size number with all digits (with --show-search-size)       |
 | 3         | `error,spk=trace,spfs=trace`   | Log target names in log messages                                              |
 |           |                                | When the Solver sets an Option                                                |
 |           |                                | Solver search tree levels as numbers for levels above 5                       |
+|           |                                | Full search space size equation with all levels (with --show-search-size)     |
 | 4         |                                |                                                                               |
 | 5         |                                | All fields in a request regardless of value                                   |
 | 6         |                                | Each State's resolved Packages and package Requests for each Solver step      |
