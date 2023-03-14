@@ -267,7 +267,7 @@ pub fn configure_logging(verbosity: u8) -> Result<()> {
     let stderr_log = tracing_subscriber::fmt::layer()
         .with_target(verbosity > 2)
         .with_writer(std::io::stderr);
-    let stderr_log = if std::env::var("ENABLE_TIMESTAMP").is_ok() {
+    let stderr_log = if std::env::var("SPK_LOG_ENABLE_TIMESTAMP").is_ok() {
         stderr_log.boxed()
     } else {
         stderr_log.without_time().boxed()

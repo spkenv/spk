@@ -321,31 +321,27 @@ macro_rules! without_sentry_target {
     }};
 }
 
+macro_rules! configure_timestamp {
+    ($tracing_layer:expr) => {
+        if std::env::var("SPFS_LOG_ENABLE_TIMESTAMP").is_ok() {
+            $tracing_layer.boxed()
+        } else {
+            $tracing_layer.without_time().boxed()
+        }
+    };
+}
+
 macro_rules! configure_logging_layer {
     ($tracing_layer:expr, $env_filter:expr) => {
         #[cfg(not(feature = "sentry"))]
-        let sub = if std::env::var("ENABLE_TIMESTAMP").is_ok() {
-            tracing_subscriber::registry().with(
-                $tracing_layer
-                    .with_filter($env_filter)
-                    .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-                        // Don't log breadcrumbs to console, etc.
-                        !metadata.target().starts_with("sentry")
-                    }))
-                    .boxed(),
-            )
-        } else {
-            tracing_subscriber::registry().with(
-                $tracing_layer
-                    .without_time()
-                    .with_filter($env_filter)
-                    .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-                        // Don't log breadcrumbs to console, etc.
-                        !metadata.target().starts_with("sentry")
-                    }))
-                    .boxed(),
-            )
-        };
+        let sub = tracing_subscriber::registry().with(
+            configure_timestamp!($tracing_layer)
+                .with_filter($env_filter)
+                .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                    // Don't log breadcrumbs to console, etc.
+                    !metadata.target().starts_with("sentry")
+                })),
+        );
         #[cfg(feature = "sentry")]
         let sub = {
             let sentry_layer =
@@ -353,7 +349,7 @@ macro_rules! configure_logging_layer {
 
             tracing_subscriber::registry()
                 .with(
-                    $tracing_layer
+                    configure_timestamp!($tracing_layer)
                         .and_then(sentry_tracing::layer().with_filter(
                             tracing_subscriber::filter::filter_fn(|metadata| {
                                 // Don't log to sentry when the target is "nosentry".
