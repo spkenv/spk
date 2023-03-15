@@ -400,9 +400,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.11"
+version = "3.2.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d646c7ade5eb07c4aa20e907a922750df0c448892513714fd3e4acbc7130829f"
+checksum = "71655c45cb9845d3270c9d6df84ebe72b4dad3c2ba3f7023ad47c144e4e473a5"
 dependencies = [
  "atty",
  "bitflags",
@@ -412,14 +412,14 @@ dependencies = [
  "once_cell",
  "strsim",
  "termcolor",
- "textwrap 0.15.0",
+ "textwrap 0.16.0",
 ]
 
 [[package]]
 name = "clap_derive"
-version = "3.2.7"
+version = "3.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "759bf187376e1afa7b85b959e6a664a3e7a95203415dba952ad19139e798f902"
+checksum = "ea0c8bce528c4be4da13ea6fead8965e95b6073585a2f05204bd8f4119f82a65"
 dependencies = [
  "heck",
  "proc-macro-error",
@@ -1991,9 +1991,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.40"
+version = "1.0.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd96a1e8ed2596c337f8eae5f24924ec83f5ad5ab21ea8e455d3566c69fbcaf7"
+checksum = "1d0e1ae9e836cc3beddd63db0df682593d7e2d3d891ae8c9083d2113e1744224"
 dependencies = [
  "unicode-ident",
 ]
@@ -2872,7 +2872,7 @@ name = "spfs-cli-clean"
 version = "0.34.6"
 dependencies = [
  "chrono",
- "clap 3.2.11",
+ "clap 3.2.23",
  "colored",
  "question",
  "spfs",
@@ -2885,7 +2885,7 @@ dependencies = [
 name = "spfs-cli-common"
 version = "0.34.6"
 dependencies = [
- "clap 3.2.11",
+ "clap 3.2.23",
  "libc",
  "sentry",
  "sentry-tracing",
@@ -2901,7 +2901,7 @@ dependencies = [
 name = "spfs-cli-enter"
 version = "0.34.6"
 dependencies = [
- "clap 3.2.11",
+ "clap 3.2.23",
  "spfs",
  "spfs-cli-common",
  "tokio",
@@ -2913,7 +2913,7 @@ dependencies = [
 name = "spfs-cli-join"
 version = "0.34.6"
 dependencies = [
- "clap 3.2.11",
+ "clap 3.2.23",
  "spfs",
  "spfs-cli-common",
  "tokio",
@@ -2925,7 +2925,7 @@ name = "spfs-cli-main"
 version = "0.34.6"
 dependencies = [
  "chrono",
- "clap 3.2.11",
+ "clap 3.2.23",
  "colored",
  "futures",
  "hyper",
@@ -2948,7 +2948,7 @@ dependencies = [
 name = "spfs-cli-monitor"
 version = "0.34.6"
 dependencies = [
- "clap 3.2.11",
+ "clap 3.2.23",
  "spfs",
  "spfs-cli-common",
  "tokio",
@@ -2960,7 +2960,7 @@ dependencies = [
 name = "spfs-cli-render"
 version = "0.34.6"
 dependencies = [
- "clap 3.2.11",
+ "clap 3.2.23",
  "spfs",
  "spfs-cli-common",
  "strum",
@@ -2993,7 +2993,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "colored",
  "sentry",
  "sentry-anyhow",
@@ -3050,7 +3050,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "colored",
  "futures",
  "glob",
@@ -3083,7 +3083,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "colored",
  "futures",
  "itertools",
@@ -3106,7 +3106,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "colored",
  "itertools",
  "nom",
@@ -3128,7 +3128,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "colored",
  "futures",
  "rstest",
@@ -3149,7 +3149,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "colored",
  "futures",
  "serde_yaml",
@@ -3166,7 +3166,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "spk-cli-common",
  "spk-cmd-make-binary",
  "spk-cmd-make-source",
@@ -3178,7 +3178,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "spk-cli-common",
  "spk-cmd-env",
 ]
@@ -3189,7 +3189,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "futures",
  "spfs",
  "spk-cli-common",
@@ -3206,7 +3206,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "nix 0.26.2",
  "spfs",
  "spk-cli-common",
@@ -3221,7 +3221,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "spk-cli-common",
  "tokio",
 ]
@@ -3232,7 +3232,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "colored",
  "futures",
  "spk-cli-common",
@@ -3247,7 +3247,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "futures",
  "spk-build",
  "spk-cli-common",
@@ -3263,7 +3263,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "spk-build",
  "spk-cli-common",
  "spk-schema",
@@ -3277,7 +3277,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "spfs",
  "spk-cli-common",
  "spk-exec",
@@ -3292,7 +3292,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "spk-cli-common",
  "spk-storage",
  "tracing",
@@ -3304,7 +3304,7 @@ version = "0.36.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "rstest",
  "spfs",
  "spk-build",
@@ -3750,9 +3750,9 @@ dependencies = [
 
 [[package]]
 name = "textwrap"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1141d4d61095b28419e22cb0bbf02755f5e54e0526f97f1e3d1d160e60885fb"
+checksum = "222a222a5bfe1bba4a77b45ec488a741b3cb8872e5e499451fd7d0129c9c7c3d"
 
 [[package]]
 name = "thiserror"
