@@ -28,7 +28,7 @@ pub struct CmdRender {
 
     /// The strategy to use when rendering. Defaults to `Copy` when
     /// using a local directory and `HardLink` for the repository.
-    #[clap(long, value_names = spfs::storage::fs::RenderType::VARIANTS)]
+    #[clap(long, possible_values = spfs::storage::fs::RenderType::VARIANTS)]
     strategy: Option<spfs::storage::fs::RenderType>,
 
     /// The tag or digest of what to render, use a '+' to join multiple layers
