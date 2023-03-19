@@ -5,7 +5,7 @@
 mod blob;
 mod layer;
 mod manifest;
-mod payload;
+pub mod payload;
 mod platform;
 mod repository;
 mod tag;

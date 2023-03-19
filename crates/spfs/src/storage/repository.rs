@@ -10,7 +10,8 @@ use graph::Blob;
 use tokio_stream::StreamExt;
 
 use super::fs::{FSHashStore, RenderStore};
-use crate::{encoding, graph, tracking, Error, Result};
+use crate::tracking::{self, BlobRead};
+use crate::{encoding, graph, Error, Result};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -102,14 +103,10 @@ pub trait Repository:
     }
 
     /// Commit the data from 'reader' as a blob in this repository
-    async fn commit_blob(
-        &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        object_permissions: Option<u32>,
-    ) -> Result<encoding::Digest> {
+    async fn commit_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
         // Safety: it is unsafe to write data without also creating a blob
         // to track that payload, which is exactly what this function is doing
-        let (digest, size) = unsafe { self.write_data(reader, object_permissions).await? };
+        let (digest, size) = unsafe { self.write_data(reader).await? };
         let blob = Blob::new(digest, size);
         self.write_object(&graph::Object::Blob(blob)).await?;
         Ok(digest)

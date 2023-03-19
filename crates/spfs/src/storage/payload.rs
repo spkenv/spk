@@ -6,6 +6,7 @@ use std::pin::Pin;
 
 use futures::Stream;
 
+use crate::tracking::BlobRead;
 use crate::{encoding, Result};
 
 #[cfg(test)]
@@ -25,10 +26,6 @@ pub trait PayloadStorage: Sync + Send {
 
     /// Store the contents of the given stream, returning its digest and size
     ///
-    /// If specified, the file written will have `object_permissions`. If the
-    /// file already existed, its permissions are untouched and may not have
-    /// the desired permissions!
-    ///
     /// # Safety
     ///
     /// It is unsafe to write payload data without also creating a blob
@@ -36,8 +33,7 @@ pub trait PayloadStorage: Sync + Send {
     /// call [`super::Repository::commit_blob`] instead.
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        object_permissions: Option<u32>,
+        reader: Pin<Box<dyn BlobRead>>,
     ) -> Result<(encoding::Digest, u64)>;
 
     /// Return a handle and filename to the full content of a payload.
@@ -47,10 +43,7 @@ pub trait PayloadStorage: Sync + Send {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        std::path::PathBuf,
-    )>;
+    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)>;
 
     /// Remove the payload identified by the given digest.
     ///
@@ -67,21 +60,17 @@ impl<T: PayloadStorage> PayloadStorage for &T {
 
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        object_permissions: Option<u32>,
+        reader: Pin<Box<dyn BlobRead>>,
     ) -> Result<(encoding::Digest, u64)> {
         // Safety: we are wrapping the same underlying unsafe function and
         // so the same safety holds for our callers
-        unsafe { PayloadStorage::write_data(&**self, reader, object_permissions).await }
+        unsafe { PayloadStorage::write_data(&**self, reader).await }
     }
 
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        std::path::PathBuf,
-    )> {
+    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         PayloadStorage::open_payload(&**self, digest).await
     }
 

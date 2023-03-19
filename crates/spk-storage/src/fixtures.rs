@@ -111,7 +111,7 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
                 .await
                 .expect("failed to establish temporary local repo for test");
             let written = spfs_repo
-                .commit_blob(Box::pin(std::io::Cursor::new(b"")), None)
+                .commit_blob(Box::pin(std::io::Cursor::new(b"")))
                 .await
                 .expect("failed to add an empty object to spfs");
             let empty_manifest = spfs::graph::Manifest::default();

@@ -14,6 +14,7 @@ use tokio::fs::DirEntry;
 use tokio::io::AsyncWriteExt;
 
 use crate::runtime::makedirs_with_perms;
+use crate::tracking::BlobRead;
 use crate::{encoding, Error, Result};
 
 #[cfg(test)]
@@ -205,11 +206,16 @@ impl FSHashStore {
     /// Write all data in the given reader to a file in this storage
     pub async fn write_data(
         &self,
-        mut reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        object_permissions: Option<u32>,
+        mut reader: Pin<Box<dyn BlobRead>>,
     ) -> Result<(encoding::Digest, u64)> {
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_file = self.workdir().join(uuid);
+
+        // Enforce that payload files are always written with all read bits
+        // enabled so if multiple users are sharing the same repo they don't
+        // run into permissions errors reading payloads written by other
+        // users.
+        let object_permissions = reader.permissions().map(|mode| mode | 0o444);
 
         self.ensure_base_dir(&working_file)?;
         let mut writer = tokio::io::BufWriter::new(

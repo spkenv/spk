@@ -15,6 +15,7 @@ use relative_path::{RelativePath, RelativePathBuf};
 use tokio::fs::DirEntry;
 
 use super::entry::{Entry, EntryKind};
+use super::{BlobRead, BlobReadExt};
 use crate::{encoding, runtime, Error, Result};
 
 #[cfg(test)]
@@ -261,11 +262,7 @@ struct DigestFromAsyncReader {}
 
 #[tonic::async_trait]
 impl ManifestBuilderHasher for DigestFromAsyncReader {
-    async fn hasher(
-        &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        _object_permissions: Option<u32>,
-    ) -> Result<encoding::Digest> {
+    async fn hasher(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
         Ok(encoding::Digest::from_async_reader(reader).await?)
     }
 }
@@ -277,13 +274,7 @@ pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(path: P) -> Resu
 
 #[async_trait::async_trait]
 pub trait ManifestBuilderHasher {
-    async fn hasher(
-        &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        // XXX: Some users of this trait also write a new file so they need
-        // to know what permissions to assign that new file.
-        object_permissions: Option<u32>,
-    ) -> Result<encoding::Digest>;
+    async fn hasher(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest>;
 }
 
 pub struct ManifestBuilder<H>
@@ -466,7 +457,7 @@ where
             entry.kind = EntryKind::Blob;
             entry.object = mb
                 .hasher
-                .hasher(Box::pin(std::io::Cursor::new(link_target)), None)
+                .hasher(Box::pin(std::io::Cursor::new(link_target)))
                 .await?;
         } else if file_type.is_dir() {
             entry = Self::compute_tree_node(mb, root, path, entry).await?;
@@ -480,8 +471,10 @@ where
             let reader =
                 tokio::io::BufReader::new(tokio::fs::File::open(&path).await.map_err(|err| {
                     Error::StorageReadError("open of blob", path.as_ref().to_owned(), err)
-                })?);
-            entry.object = mb.hasher.hasher(Box::pin(reader), Some(entry.mode)).await?;
+                })?)
+                .with_permissions(entry.mode);
+
+            entry.object = mb.hasher.hasher(Box::pin(reader)).await?;
         }
         Ok(entry)
     }

@@ -20,12 +20,12 @@ async fn test_proxy_payload_repair(tmpdir: tempfile::TempDir) {
         .unwrap();
 
     let digest = primary
-        .commit_blob(Box::pin(b"some data".as_slice()), None)
+        .commit_blob(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
 
     secondary
-        .commit_blob(Box::pin(b"some data".as_slice()), None)
+        .commit_blob(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
 

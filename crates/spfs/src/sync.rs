@@ -247,7 +247,7 @@ where
             res => res,
         };
         let obj = self.read_object_with_fallback(res?).await?;
-        self.sync_object(obj, None).await
+        self.sync_object(obj).await
     }
 
     pub async fn sync_digest(&self, digest: encoding::Digest) -> Result<SyncObjectResult> {
@@ -258,23 +258,17 @@ where
             return Ok(SyncObjectResult::Duplicate);
         }
         let obj = self.read_object_with_fallback(digest).await?;
-        self.sync_object(obj, None).await
+        self.sync_object(obj).await
     }
 
     #[async_recursion::async_recursion]
-    pub async fn sync_object(
-        &self,
-        obj: graph::Object,
-        object_permissions: Option<u32>,
-    ) -> Result<SyncObjectResult> {
+    pub async fn sync_object(&self, obj: graph::Object) -> Result<SyncObjectResult> {
         use graph::Object;
         self.reporter.visit_object(&obj);
         let res = match obj {
             Object::Layer(obj) => SyncObjectResult::Layer(self.sync_layer(obj).await?),
             Object::Platform(obj) => SyncObjectResult::Platform(self.sync_platform(obj).await?),
-            Object::Blob(obj) => {
-                SyncObjectResult::Blob(self.sync_blob(obj, object_permissions).await?)
-            }
+            Object::Blob(obj) => SyncObjectResult::Blob(self.sync_blob(obj).await?),
             Object::Manifest(obj) => SyncObjectResult::Manifest(self.sync_manifest(obj).await?),
             Object::Tree(obj) => SyncObjectResult::Tree(obj),
             Object::Mask => SyncObjectResult::Mask,
@@ -376,16 +370,23 @@ where
             payload: entry.object,
             size: entry.size,
         };
-        let result = self.sync_blob(blob, Some(entry.mode)).await?;
+        let result = self
+            .sync_blob_with_perms_opt(blob, Some(entry.mode))
+            .await?;
         let res = SyncEntryResult::Synced { entry, result };
         self.reporter.synced_entry(&res);
         Ok(res)
     }
 
-    pub async fn sync_blob(
+    /// Sync the identified blob to the destination repository.
+    pub async fn sync_blob(&self, blob: graph::Blob) -> Result<SyncBlobResult> {
+        self.sync_blob_with_perms_opt(blob, None).await
+    }
+
+    async fn sync_blob_with_perms_opt(
         &self,
         blob: graph::Blob,
-        object_permissions: Option<u32>,
+        perms: Option<u32>,
     ) -> Result<SyncBlobResult> {
         let digest = blob.digest();
         if self.processed_digests.contains(&digest) {
@@ -404,7 +405,10 @@ where
         self.reporter.visit_blob(&blob);
         // Safety: sync_payload is unsafe to call unless the blob
         // is synced with it, which is the purpose of this function.
-        let result = unsafe { self.sync_payload(blob.payload, object_permissions).await? };
+        let result = unsafe {
+            self.sync_payload_with_perms_opt(blob.payload, perms)
+                .await?
+        };
         self.dest.write_blob(blob.clone()).await?;
         self.processed_digests.insert(digest);
         let res = SyncBlobResult::Synced { blob, result };
@@ -419,10 +423,23 @@ where
     /// It is unsafe to call this sync function on its own,
     /// as any payload should be synced alongside its
     /// corresponding Blob instance - use [`Self::sync_blob`] instead
-    pub async unsafe fn sync_payload(
+    pub async unsafe fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
+        // Safety: these concerns are passed on to the caller
+        unsafe { self.sync_payload_with_perms_opt(digest, None).await }
+    }
+
+    /// Sync a payload with the provided digest and optional set
+    /// of desired permissions.
+    ///
+    /// # Safety
+    ///
+    /// It is unsafe to call this sync function on its own,
+    /// as any payload should be synced alongside its
+    /// corresponding Blob instance - use [`Self::sync_blob`] instead
+    pub(crate) async unsafe fn sync_payload_with_perms_opt(
         &self,
         digest: encoding::Digest,
-        object_permissions: Option<u32>,
+        perms: Option<u32>,
     ) -> Result<SyncPayloadResult> {
         if self.processed_digests.contains(&digest) {
             return Ok(SyncPayloadResult::Duplicate);
@@ -438,11 +455,14 @@ where
             matches!(_permit, Ok(_)),
             "We never close the semaphore and so should never see errors"
         );
-        let (payload, _) = self.src.open_payload(digest).await?;
+        let (mut payload, _) = self.src.open_payload(digest).await?;
+        if let Some(perms) = perms {
+            payload = Box::pin(payload.with_permissions(perms));
+        }
+
         // Safety: this is the unsafe part where we actually create
         // the payload without a corresponsing blob
-        let (created_digest, size) =
-            unsafe { self.dest.write_data(payload, object_permissions).await? };
+        let (created_digest, size) = unsafe { self.dest.write_data(payload).await? };
         if digest != created_digest {
             return Err(Error::String(format!(
                 "Source repository provided payload that did not match the requested digest: wanted {digest}, got {created_digest}. wrote {size} bytes",

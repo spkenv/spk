@@ -3,13 +3,18 @@
 // https://github.com/imageworks/spk
 
 ///! Object tracking and definitions
+pub mod blob_reader;
 mod diff;
-pub use diff::{compute_diff, Diff, DiffMode};
 mod entry;
-pub use entry::{Entry, EntryKind};
 mod env;
-pub use env::{EnvSpec, EnvSpecItem, ENV_SPEC_SEPARATOR};
 mod manifest;
+mod object;
+mod tag;
+
+pub use blob_reader::{BlobRead, BlobReadExt};
+pub use diff::{compute_diff, Diff, DiffMode};
+pub use entry::{Entry, EntryKind};
+pub use env::{EnvSpec, EnvSpecItem, ENV_SPEC_SEPARATOR};
 pub use manifest::{
     compute_manifest,
     Manifest,
@@ -17,7 +22,5 @@ pub use manifest::{
     ManifestBuilderHasher,
     ManifestNode,
 };
-mod object;
 pub use object::Object;
-mod tag;
 pub use tag::{build_tag_spec, split_tag_spec, Tag, TagSpec};

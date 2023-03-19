@@ -35,7 +35,7 @@ async fn test_render_manifest(tmpdir: tempfile::TempDir) {
                 .await
                 .unwrap();
             storage
-                .commit_blob(Box::pin(tokio::io::BufReader::new(data)), None)
+                .commit_blob(Box::pin(tokio::io::BufReader::new(data)))
                 .await
                 .unwrap();
         }

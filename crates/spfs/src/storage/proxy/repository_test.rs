@@ -20,7 +20,7 @@ async fn test_proxy_payload_read_through(tmpdir: tempfile::TempDir) {
         .unwrap();
 
     let digest = secondary
-        .commit_blob(Box::pin(b"some data".as_slice()), None)
+        .commit_blob(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
 
@@ -48,7 +48,7 @@ async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
         .unwrap();
 
     let payload = secondary
-        .commit_blob(Box::pin(b"some data".as_slice()), None)
+        .commit_blob(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
 
@@ -76,7 +76,7 @@ async fn test_proxy_tag_read_through(tmpdir: tempfile::TempDir) {
         .unwrap();
 
     let payload = secondary
-        .commit_blob(Box::pin(b"some data".as_slice()), None)
+        .commit_blob(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();

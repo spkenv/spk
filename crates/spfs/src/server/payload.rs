@@ -171,21 +171,13 @@ async fn handle_upload(
 
 async fn handle_uncompressed_upload(
     repo: Arc<storage::RepositoryHandle>,
-    reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+    reader: Pin<Box<dyn crate::tracking::BlobRead>>,
 ) -> crate::Result<hyper::http::Response<hyper::Body>> {
     // Safety: it is unsafe to create a payload without it's corresponding
     // blob, but this payload http server is part of a larger repository
     // and does not intend to be responsible for ensuring the integrity
     // of the object graph - only the up/down of payload data
-    let result = unsafe {
-        repo.write_data(
-            reader,
-            // XXX: This does not honor object_permissions but that may be
-            // desired in rpc server context anyway.
-            None,
-        )
-        .await
-    };
+    let result = unsafe { repo.write_data(reader).await };
     let (digest, size) = result.map_err(|err| {
         crate::Error::String(format!(
             "An error occurred while spawning a thread for this operation: {err:?}"
@@ -204,7 +196,7 @@ async fn handle_uncompressed_upload(
         .map_err(|e| crate::Error::String(e.to_string()))
 }
 
-fn body_to_reader(body: hyper::Body) -> impl tokio::io::AsyncBufRead + Send + Sync + 'static {
+fn body_to_reader(body: hyper::Body) -> Pin<Box<impl crate::tracking::BlobRead>> {
     // the stream must return io errors in order to be converted to a reader
     let mapped_stream =
         body.map(|chunk| chunk.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));

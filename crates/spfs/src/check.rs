@@ -90,7 +90,7 @@ where
     pub async fn check_all_objects(&self) -> Result<Vec<CheckObjectResult>> {
         self.repo
             .find_digests(graph::DigestSearchCriteria::All)
-            .and_then(|digest| self.check_digest(digest, None))
+            .and_then(|digest| self.check_digest(digest))
             .try_collect()
             .await
     }
@@ -121,11 +121,11 @@ where
     pub async fn check_env_item(&self, item: tracking::EnvSpecItem) -> Result<CheckEnvItemResult> {
         let res = match item {
             tracking::EnvSpecItem::Digest(digest) => self
-                .check_digest(digest, None)
+                .check_digest(digest)
                 .await
                 .map(CheckEnvItemResult::Object)?,
             tracking::EnvSpecItem::PartialDigest(digest) => self
-                .check_partial_digest(digest, None)
+                .check_partial_digest(digest)
                 .await
                 .map(CheckEnvItemResult::Object)?,
             tracking::EnvSpecItem::TagSpec(tag_spec) => self
@@ -169,7 +169,7 @@ where
     pub async fn check_tag(&self, tag: tracking::Tag) -> Result<CheckTagResult> {
         tracing::debug!(?tag, "Checking tag");
         self.reporter.visit_tag(&tag);
-        let result = self.check_digest(tag.target, None).await?;
+        let result = self.check_digest(tag.target).await?;
         let res = CheckTagResult::Checked { tag, result };
         self.reporter.checked_tag(&res);
         Ok(res)
@@ -179,17 +179,20 @@ where
     pub async fn check_partial_digest(
         &self,
         partial: encoding::PartialDigest,
-        object_permissions: Option<u32>,
     ) -> Result<CheckObjectResult> {
         let digest = self.repo.resolve_full_digest(&partial).await?;
-        self.check_digest(digest, object_permissions).await
+        self.check_digest(digest).await
     }
 
     /// Validate that the identified object exists and all of its children.
-    pub async fn check_digest(
+    pub async fn check_digest(&self, digest: encoding::Digest) -> Result<CheckObjectResult> {
+        self.check_digest_with_perms_opt(digest, None).await
+    }
+
+    async fn check_digest_with_perms_opt(
         &self,
         digest: encoding::Digest,
-        object_permissions: Option<u32>,
+        perms: Option<u32>,
     ) -> Result<CheckObjectResult> {
         // don't write the digest here, as that is the responsibility
         // of the function that actually handles the data copying.
@@ -202,20 +205,16 @@ where
         match self.read_object_with_fallback(digest).await {
             Err(Error::UnknownObject(_)) => Ok(CheckObjectResult::Missing(digest)),
             Err(err) => Err(err),
-            Ok((obj, Fallback::None)) => unsafe {
-                // Safety: it's unsafe to call this unless the object
-                // is known to exist, but we just loaded it from the repo
-                // or had it synced via the callback
-                self.check_object(obj, object_permissions).await
-            },
-            Ok((obj, Fallback::Repaired)) => {
+            Ok((obj, fallback)) => {
                 let mut res = unsafe {
                     // Safety: it's unsafe to call this unless the object
                     // is known to exist, but we just loaded it from the repo
                     // or had it synced via the callback
-                    self.check_object(obj, object_permissions).await?
+                    self.check_object_with_perms_opt(obj, perms).await?
                 };
-                res.set_repaired();
+                if matches!(fallback, Fallback::Repaired) {
+                    res.set_repaired();
+                }
                 Ok(res)
             }
         }
@@ -225,14 +224,31 @@ where
     ///
     /// To also check if the object exists, use [`Self::check_digest`]
     ///
-    /// Safety: this function may sync payloads without checking blob data,
+    /// # Safety
+    ///
+    /// This function may sync payloads without checking blob data,
+    /// which is unsafe. This function is unsafe to call unless the object
+    /// is known to exist in the repository being checked
+    pub async unsafe fn check_object(&self, obj: graph::Object) -> Result<CheckObjectResult> {
+        // Safety: unsafe unless the object exists, we pass this up to the caller
+        unsafe { self.check_object_with_perms_opt(obj, None).await }
+    }
+
+    /// Validate that all children of this object exist.
+    ///
+    /// Any provided permissions are associated with the blob when
+    /// syncing it. See [`tracking::BlobRead::permissions`].
+    ///
+    /// # Safety
+    ///
+    /// This function may sync payloads without checking blob data,
     /// which is unsafe. This function is unsafe to call unless the object
     /// is known to exist in the repository being checked
     #[async_recursion::async_recursion]
-    async unsafe fn check_object(
+    async unsafe fn check_object_with_perms_opt(
         &self,
         obj: graph::Object,
-        object_permissions: Option<u32>,
+        perms: Option<u32>,
     ) -> Result<CheckObjectResult> {
         use graph::Object;
         if !self.processed_digests.insert(obj.digest()?) {
@@ -245,7 +261,7 @@ where
             Object::Blob(obj) => CheckObjectResult::Blob(unsafe {
                 // Safety: it is unsafe to call this function unless the blob
                 // is known to exist, which is the same rule we pass up to the caller
-                self.must_check_blob(obj, object_permissions).await?
+                self.must_check_blob_with_perms_opt(obj, perms).await?
             }),
             Object::Manifest(obj) => CheckObjectResult::Manifest(self.check_manifest(obj).await?),
             Object::Tree(obj) => CheckObjectResult::Tree(obj),
@@ -262,7 +278,7 @@ where
         let futures: FuturesUnordered<_> = platform
             .stack
             .iter()
-            .map(|d| self.check_digest(*d, None))
+            .map(|d| self.check_digest(*d))
             .collect();
         let results = futures.try_collect().await?;
         let res = CheckPlatformResult {
@@ -277,7 +293,7 @@ where
     ///
     /// To also check if the layer object exists, use [`Self::check_digest`]
     pub async fn check_layer(&self, layer: graph::Layer) -> Result<CheckLayerResult> {
-        let result = self.check_digest(layer.manifest, None).await?;
+        let result = self.check_digest(layer.manifest).await?;
         let res = CheckLayerResult {
             layer,
             result,
@@ -296,7 +312,7 @@ where
             .filter(|e| e.kind.is_blob())
             // run through check_digest to ensure that blobs can be loaded
             // from the db and allow for possible repairs
-            .map(|e| self.check_digest(e.object, Some(e.mode)))
+            .map(|e| self.check_digest_with_perms_opt(e.object, Some(e.mode)))
             .collect();
         let results = futures.try_collect().await?;
         let res = CheckManifestResult {
@@ -315,11 +331,7 @@ where
     /// This function may sync a payload without
     /// syncing the blob, which is unsafe unless the blob
     /// is known to exist in the repository being checked
-    pub async unsafe fn check_blob(
-        &self,
-        blob: graph::Blob,
-        object_permissions: Option<u32>,
-    ) -> Result<CheckBlobResult> {
+    pub async unsafe fn check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
         let digest = blob.digest();
         if !self.processed_digests.insert(digest) {
             return Ok(CheckBlobResult::Duplicate);
@@ -327,26 +339,32 @@ where
         // Safety: this function may sync a payload and so
         // is unsafe to call unless we know the blob exists,
         // which is why this is an unsafe function
-        unsafe { self.must_check_blob(blob, object_permissions).await }
+        unsafe { self.must_check_blob_with_perms_opt(blob, None).await }
     }
 
     /// Checks a blob, ignoring whether it has already been checked and
-    /// without logging that it has been checked
+    /// without logging that it has been checked.
     ///
-    /// Safety: this function may sync a payload without
+    /// Any provided permissions are associated with the blob when
+    /// syncing it. See [`tracking::BlobRead::permissions`].
+    ///
+    /// # Safety
+    ///
+    /// This function may sync a payload without
     /// syncing the blob, which is unsafe unless the blob
     /// is known to exist in the repository being checked
-    async unsafe fn must_check_blob(
+    async unsafe fn must_check_blob_with_perms_opt(
         &self,
         blob: graph::Blob,
-        object_permissions: Option<u32>,
+        perms: Option<u32>,
     ) -> Result<CheckBlobResult> {
         self.reporter.visit_blob(&blob);
         let result = unsafe {
             // Safety: this function may sync a payload and so
             // is unsafe to call unless we know the blob exists,
             // which is why this is an unsafe function
-            self.check_payload(blob.payload, object_permissions).await?
+            self.check_payload_with_perms_opt(blob.payload, perms)
+                .await?
         };
         let res = CheckBlobResult::Checked {
             blob,
@@ -357,15 +375,33 @@ where
         Ok(res)
     }
 
-    /// Check a payload with the provided digest
+    /// Check a payload with the provided digest, repairing it if possible.
     ///
-    /// Safety: this function may repair a payload, which
+    /// # Safety
+    ///
+    /// This function may repair a payload, which
     /// is unsafe to do if the associated blob is not synced
     /// with it or already present.
-    async unsafe fn check_payload(
+    pub async unsafe fn check_payload(
         &self,
         digest: encoding::Digest,
-        object_permissions: Option<u32>,
+    ) -> Result<CheckPayloadResult> {
+        // Safety: unsafe unless the blob exists, we pass this up to the caller
+        unsafe { self.check_payload_with_perms_opt(digest, None).await }
+    }
+
+    /// Any provided permissions are associated with the blob when
+    /// syncing it. See [`tracking::BlobRead::permissions`].
+    ///
+    /// # Safety
+    ///
+    /// This function may repair a payload, which
+    /// is unsafe to do if the associated blob is not synced
+    /// with it or already present.
+    async unsafe fn check_payload_with_perms_opt(
+        &self,
+        digest: encoding::Digest,
+        perms: Option<u32>,
     ) -> Result<CheckPayloadResult> {
         self.reporter.visit_payload(digest);
         let mut result = CheckPayloadResult::Missing(digest);
@@ -374,7 +410,7 @@ where
         } else if let Some(syncer) = &self.repair_with {
             // Safety: this sync is unsafe unless the blob is also created
             // or exists. We pass this rule up to the caller.
-            if let Ok(r) = unsafe { syncer.sync_payload(digest, object_permissions).await } {
+            if let Ok(r) = unsafe { syncer.sync_payload_with_perms_opt(digest, perms).await } {
                 self.reporter.repaired_payload(&r);
                 result = CheckPayloadResult::Repaired;
             }
