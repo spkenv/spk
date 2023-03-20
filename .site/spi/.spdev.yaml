@@ -26,6 +26,15 @@ components:
       variables:
         FEATURES: migration-to-components,sentry,spfs/protobuf-src
 
+  - kind: RustCrate
+    name: spk-no-sentry
+    ci_config:
+      parallel: true
+      tags:
+        - proxy
+      variables:
+        FEATURES: migration-to-components,spfs/protobuf-src
+
   - kind: HugoDocs
     name: docs
     location: docs

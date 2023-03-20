@@ -46,10 +46,12 @@ def inject_credentials(super_script_list: spdev.shell.Script) -> spdev.shell.Scr
 
 
 class RustCrate(spdev.stdlib.components.RustCrate):
+    SPK_COMPONENT_NAMES = set(["spk", "spk-no-sentry"])
+
     schema = {}
 
     def compile_lint_script(self) -> spdev.shell.Script:
-        if self.name != "spk":
+        if self.name not in RustCrate.SPK_COMPONENT_NAMES:
             return inject_credentials(super().compile_lint_script())
 
         return inject_credentials(
@@ -60,7 +62,7 @@ class RustCrate(spdev.stdlib.components.RustCrate):
         )
 
     def compile_build_script(self) -> spdev.shell.Script:
-        if self.name != "spk":
+        if self.name not in RustCrate.SPK_COMPONENT_NAMES:
             return inject_credentials(super().compile_build_script())
 
         return inject_credentials(
@@ -83,7 +85,7 @@ class RustCrate(spdev.stdlib.components.RustCrate):
         return []
 
     def compile_test_script(self) -> spdev.shell.Script:
-        if self.name != "spk":
+        if self.name not in RustCrate.SPK_COMPONENT_NAMES:
             return inject_credentials(super().compile_test_script())
 
         return inject_credentials(
