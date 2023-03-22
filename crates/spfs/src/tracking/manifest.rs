@@ -15,6 +15,7 @@ use relative_path::{RelativePath, RelativePathBuf};
 use tokio::fs::DirEntry;
 
 use super::entry::{Entry, EntryKind};
+use super::{BlobRead, BlobReadExt};
 use crate::{encoding, runtime, Error, Result};
 
 #[cfg(test)]
@@ -261,10 +262,7 @@ struct DigestFromAsyncReader {}
 
 #[tonic::async_trait]
 impl ManifestBuilderHasher for DigestFromAsyncReader {
-    async fn hasher(
-        &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-    ) -> Result<encoding::Digest> {
+    async fn hasher(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
         Ok(encoding::Digest::from_async_reader(reader).await?)
     }
 }
@@ -276,10 +274,7 @@ pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(path: P) -> Resu
 
 #[async_trait::async_trait]
 pub trait ManifestBuilderHasher {
-    async fn hasher(
-        &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-    ) -> Result<encoding::Digest>;
+    async fn hasher(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest>;
 }
 
 pub struct ManifestBuilder<H>
@@ -476,7 +471,9 @@ where
             let reader =
                 tokio::io::BufReader::new(tokio::fs::File::open(&path).await.map_err(|err| {
                     Error::StorageReadError("open of blob", path.as_ref().to_owned(), err)
-                })?);
+                })?)
+                .with_permissions(entry.mode);
+
             entry.object = mb.hasher.hasher(Box::pin(reader)).await?;
         }
         Ok(entry)

@@ -14,6 +14,7 @@ use tokio::fs::DirEntry;
 use tokio::io::AsyncWriteExt;
 
 use crate::runtime::makedirs_with_perms;
+use crate::tracking::BlobRead;
 use crate::{encoding, Error, Result};
 
 #[cfg(test)]
@@ -29,6 +30,7 @@ pub(crate) enum PersistableObject {
     WorkingFile {
         working_file: PathBuf,
         copied: u64,
+        object_permissions: Option<u32>,
     },
 }
 
@@ -204,10 +206,16 @@ impl FSHashStore {
     /// Write all data in the given reader to a file in this storage
     pub async fn write_data(
         &self,
-        mut reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        mut reader: Pin<Box<dyn BlobRead>>,
     ) -> Result<(encoding::Digest, u64)> {
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_file = self.workdir().join(uuid);
+
+        // Enforce that payload files are always written with all read bits
+        // enabled so if multiple users are sharing the same repo they don't
+        // run into permissions errors reading payloads written by other
+        // users.
+        let object_permissions = reader.permissions().map(|mode| mode | 0o444);
 
         self.ensure_base_dir(&working_file)?;
         let mut writer = tokio::io::BufWriter::new(
@@ -258,6 +266,7 @@ impl FSHashStore {
             PersistableObject::WorkingFile {
                 working_file,
                 copied,
+                object_permissions,
             },
             digest,
         )
@@ -272,7 +281,7 @@ impl FSHashStore {
         let path = self.build_digest_path(&digest);
         self.ensure_base_dir(&path)?;
 
-        let copied = match persistable_object {
+        let (copied, created_new_file, object_permissions) = match persistable_object {
             #[cfg(test)]
             PersistableObject::EmptyFile => {
                 tokio::fs::OpenOptions::new()
@@ -288,12 +297,20 @@ impl FSHashStore {
                             err,
                         )
                     })?;
-                0
+                (0, true, None)
             }
             PersistableObject::WorkingFile {
                 working_file,
                 copied,
+                object_permissions,
             } => {
+                tracing::trace!(
+                    ?digest,
+                    ?working_file,
+                    ?copied,
+                    ?object_permissions,
+                    "writing object to hash store"
+                );
                 if let Err(err) = tokio::fs::rename(&working_file, &path).await {
                     let _ = tokio::fs::remove_file(&working_file).await;
                     return Err(Error::StorageWriteError(
@@ -301,24 +318,48 @@ impl FSHashStore {
                         path,
                         err,
                     ));
+                } else {
+                    (copied, true, object_permissions)
                 }
-                copied
             }
         };
 
-        if let Err(_err) = tokio::fs::set_permissions(
-            &path,
-            std::fs::Permissions::from_mode(self.file_permissions),
-        )
-        .await
-        {
-            // not a good enough reason to fail entirely
-            #[cfg(feature = "sentry")]
-            sentry::capture_event(sentry::protocol::Event {
-                message: Some(format!("{:?}", _err)),
-                level: sentry::protocol::Level::Warning,
-                ..Default::default()
-            });
+        // Only set the permissions on a newly created file (by us), and not
+        // an existing file. Once written, this file may get hard links of
+        // it and those hard links assume that the permissions on the file
+        // won't change. For example, writing a payload and then hard linking
+        // to that payload in a render that expects the file to have a certain
+        // permissions.
+        if created_new_file {
+            if let Err(err) = tokio::fs::set_permissions(
+                &path,
+                std::fs::Permissions::from_mode(
+                    object_permissions.unwrap_or(self.file_permissions),
+                ),
+            )
+            .await
+            {
+                if object_permissions.is_some() {
+                    // If the caller wanted specific permissions set, then
+                    // make it a hard error if set_permissions failed.
+                    // XXX: At this time, it doesn't lead to misbehavior if
+                    // the permissions aren't changed, but it could cause
+                    // extra disk consumption unnecessarily.
+                    return Err(Error::StorageWriteError(
+                        "set_permissions on object file",
+                        path,
+                        err,
+                    ));
+                }
+
+                // not a good enough reason to fail entirely
+                #[cfg(feature = "sentry")]
+                sentry::capture_event(sentry::protocol::Event {
+                    message: Some(format!("{:?}", err)),
+                    level: sentry::protocol::Level::Warning,
+                    ..Default::default()
+                });
+            }
         }
 
         Ok((digest, copied))

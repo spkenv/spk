@@ -15,6 +15,7 @@ use tar::{Archive, Builder};
 use crate::prelude::*;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::EntryType;
+use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
 /// Configuration for a tar repository
@@ -238,7 +239,7 @@ impl PayloadStorage for TarRepository {
 
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn BlobRead>>,
     ) -> Result<(encoding::Digest, u64)> {
         // Safety: we are wrapping the same underlying unsafe function and
         // so the same safety holds for our callers
@@ -251,10 +252,7 @@ impl PayloadStorage for TarRepository {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        std::path::PathBuf,
-    )> {
+    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         self.repo.open_payload(digest).await
     }
 

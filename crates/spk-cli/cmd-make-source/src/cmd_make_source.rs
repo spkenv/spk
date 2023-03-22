@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use clap::Args;
 use spk_build::SourcePackageBuilder;
 use spk_cli_common::{flags, CommandArgs, Run};
@@ -42,6 +42,15 @@ impl Run for MakeSource {
 
 impl MakeSource {
     pub async fn make_source(&mut self) -> Result<Vec<LocatedBuildIdent>> {
+        if spfs::get_config()?
+            .storage
+            .allow_payload_sharing_between_users
+        {
+            bail!(
+                "Building packages disabled when 'allow_payload_sharing_between_users' is enabled"
+            );
+        }
+
         let _runtime = self
             .runtime
             .ensure_active_runtime(&["make-source", "mksource", "mksrc", "mks"])

@@ -12,6 +12,7 @@ use crate::prelude::*;
 use crate::storage::fs::{FSHashStore, FSRepository, RenderStore};
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{EntryType, LocalRepository};
+use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
@@ -116,7 +117,7 @@ impl PayloadStorage for PayloadFallback {
 
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn BlobRead>>,
     ) -> Result<(encoding::Digest, u64)> {
         // Safety: we are wrapping the same underlying unsafe function and
         // so the same safety holds for our callers
@@ -127,10 +128,7 @@ impl PayloadStorage for PayloadFallback {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        std::path::PathBuf,
-    )> {
+    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         let mut fallbacks = self.secondary.iter();
 
         'retry_open: loop {

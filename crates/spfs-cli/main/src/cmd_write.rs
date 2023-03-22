@@ -1,9 +1,12 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
+use std::os::unix::prelude::PermissionsExt;
 use std::path::PathBuf;
 
 use clap::Args;
+use spfs::tracking::BlobReadExt;
 use spfs::Error;
 
 /// Store an arbitrary blob of data in spfs
@@ -29,13 +32,19 @@ impl CmdWrite {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
-        let reader: std::pin::Pin<Box<dyn tokio::io::AsyncBufRead + Sync + Send>> = match &self.file
-        {
-            Some(file) => Box::pin(tokio::io::BufReader::new(
-                tokio::fs::File::open(&file)
+        let reader: std::pin::Pin<Box<dyn spfs::tracking::BlobRead>> = match &self.file {
+            Some(file) => {
+                let handle = tokio::fs::File::open(&file)
                     .await
-                    .map_err(|err| Error::RuntimeWriteError(file.clone(), err))?,
-            )),
+                    .map_err(|err| Error::RuntimeWriteError(file.clone(), err))?;
+                let mode = handle
+                    .metadata()
+                    .await
+                    .map_err(|err| Error::RuntimeWriteError(file.clone(), err))?
+                    .permissions()
+                    .mode();
+                Box::pin(tokio::io::BufReader::new(handle).with_permissions(mode))
+            }
             None => Box::pin(tokio::io::BufReader::new(tokio::io::stdin())),
         };
 

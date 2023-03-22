@@ -576,7 +576,7 @@ impl Storage {
         let (_, config_digest) = tokio::try_join!(
             self.inner.write_object(&platform),
             self.inner
-                .commit_blob(Box::pin(std::io::Cursor::new(config_data.into_bytes())))
+                .commit_blob(Box::pin(std::io::Cursor::new(config_data.into_bytes())),)
         )?;
 
         tokio::try_join!(

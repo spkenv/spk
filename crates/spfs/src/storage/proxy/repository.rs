@@ -11,6 +11,7 @@ use relative_path::RelativePath;
 use crate::prelude::*;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::EntryType;
+use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Result};
 
 #[cfg(test)]
@@ -137,7 +138,7 @@ impl PayloadStorage for ProxyRepository {
 
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn BlobRead>>,
     ) -> Result<(encoding::Digest, u64)> {
         // Safety: we are wrapping the same underlying unsafe function and
         // so the same safety holds for our callers
@@ -148,10 +149,7 @@ impl PayloadStorage for ProxyRepository {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        std::path::PathBuf,
-    )> {
+    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         let mut res = self.primary.open_payload(digest).await;
         if res.is_ok() {
             return res;

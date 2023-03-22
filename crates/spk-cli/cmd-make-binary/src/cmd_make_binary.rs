@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use clap::Args;
 use futures::TryFutureExt;
 use spk_build::{BinaryPackageBuilder, BuildSource};
@@ -92,6 +92,15 @@ impl CommandArgs for MakeBinary {
 #[async_trait::async_trait]
 impl Run for MakeBinary {
     async fn run(&mut self) -> Result<i32> {
+        if spfs::get_config()?
+            .storage
+            .allow_payload_sharing_between_users
+        {
+            bail!(
+                "Building packages disabled when 'allow_payload_sharing_between_users' is enabled"
+            );
+        }
+
         let options = self.options.get_options()?;
         #[rustfmt::skip]
         let (_runtime, local, repos) = tokio::try_join!(

@@ -8,7 +8,8 @@ use std::pin::Pin;
 use futures::Stream;
 
 use super::FSRepository;
-use crate::storage::BlobStorage;
+use crate::storage::prelude::*;
+use crate::tracking::BlobRead;
 use crate::{encoding, Error, Result};
 
 #[async_trait::async_trait]
@@ -19,7 +20,7 @@ impl crate::storage::PayloadStorage for FSRepository {
 
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn BlobRead>>,
     ) -> Result<(encoding::Digest, u64)> {
         self.payloads.write_data(reader).await
     }
@@ -27,10 +28,7 @@ impl crate::storage::PayloadStorage for FSRepository {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        std::path::PathBuf,
-    )> {
+    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         let path = self.payloads.build_digest_path(&digest);
         match tokio::fs::File::open(&path).await {
             Ok(file) => Ok((Box::pin(tokio::io::BufReader::new(file)), path)),

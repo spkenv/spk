@@ -8,6 +8,7 @@ use futures::{Stream, StreamExt, TryStreamExt};
 use prost::Message;
 
 use crate::proto::{self, RpcResult};
+use crate::tracking::BlobRead;
 use crate::{encoding, storage, Error, Result};
 
 #[async_trait::async_trait]
@@ -26,7 +27,7 @@ impl storage::PayloadStorage for super::RpcRepository {
 
     async unsafe fn write_data(
         &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
+        reader: Pin<Box<dyn BlobRead>>,
     ) -> Result<(encoding::Digest, u64)> {
         let request = proto::WritePayloadRequest {};
         let option = self
@@ -73,10 +74,7 @@ impl storage::PayloadStorage for super::RpcRepository {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(
-        Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-        std::path::PathBuf,
-    )> {
+    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         let request = proto::OpenPayloadRequest {
             digest: Some(digest.into()),
         };
@@ -132,11 +130,11 @@ impl storage::PayloadStorage for super::RpcRepository {
 
 fn open_download_stream(
     mut resp: hyper::http::Response<hyper::Body>,
-) -> Result<Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>> {
+) -> Result<Pin<Box<dyn BlobRead>>> {
     let content_type = resp.headers_mut().remove(hyper::http::header::CONTENT_TYPE);
     let reader = body_to_reader(resp.into_body());
     match content_type.as_ref().map(|v| v.to_str()) {
-        None | Some(Ok("application/octet-stream")) => Ok(Box::pin(reader)),
+        None | Some(Ok("application/octet-stream")) => Ok(reader),
         Some(Ok("application/x-bzip2")) => {
             let reader = async_compression::tokio::bufread::BzDecoder::new(reader);
             Ok(Box::pin(tokio::io::BufReader::new(reader)))
@@ -147,7 +145,7 @@ fn open_download_stream(
     }
 }
 
-fn body_to_reader(body: hyper::Body) -> impl tokio::io::AsyncBufRead + Send + Sync + 'static {
+fn body_to_reader(body: hyper::Body) -> Pin<Box<impl BlobRead>> {
     // the stream must return io errors in order to be converted to a reader
     let mapped_stream =
         body.map(|chunk| chunk.map_err(|e| futures::io::Error::new(std::io::ErrorKind::Other, e)));

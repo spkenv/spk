@@ -10,7 +10,7 @@ use relative_path::RelativePath;
 
 use super::status::remount_runtime;
 use crate::prelude::*;
-use crate::tracking::ManifestBuilderHasher;
+use crate::tracking::{BlobRead, ManifestBuilderHasher};
 use crate::{encoding, graph, runtime, tracking, Error, Result};
 
 #[cfg(test)]
@@ -23,10 +23,7 @@ struct CommitBlobHasher {
 
 #[tonic::async_trait]
 impl ManifestBuilderHasher for CommitBlobHasher {
-    async fn hasher(
-        &self,
-        reader: Pin<Box<dyn tokio::io::AsyncBufRead + Send + Sync + 'static>>,
-    ) -> Result<encoding::Digest> {
+    async fn hasher(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
         self.repo.commit_blob(reader).await
     }
 }
