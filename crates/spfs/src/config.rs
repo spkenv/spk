@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
-use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
 use tokio_stream::StreamExt;
@@ -18,9 +18,7 @@ mod config_test;
 const DEFAULT_STORAGE_ROOT: &str = "~/.local/share/spfs";
 const FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
 
-lazy_static! {
-    static ref CONFIG: RwLock<Option<Arc<Config>>> = RwLock::new(None);
-}
+static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
@@ -159,12 +157,24 @@ impl Config {
 
     /// Make this config the current global one
     pub fn make_current(self) -> Result<Arc<Self>> {
-        let mut lock = CONFIG.write().map_err(|err| {
+        let config = match CONFIG.get() {
+            Some(config) => config,
+            None => {
+                // Note we don't know if we won the race to set the value here,
+                // so we still need to try to update it.
+                CONFIG.get_or_try_init(|| -> Result<RwLock<Arc<Config>>> {
+                    Ok(RwLock::new(Arc::new(self.clone())))
+                })?
+            }
+        };
+
+        let mut lock = config.write().map_err(|err| {
             crate::Error::String(format!(
-                "Cannot load config, lock has been poisoned: {err:?}"
+                "Cannot update config; lock has been poisoned: {err:?}"
             ))
         })?;
-        Ok(lock.insert(Arc::new(self)).clone())
+        *Arc::make_mut(&mut lock) = self;
+        Ok(Arc::clone(&lock))
     }
 
     /// Load the given string as a config
@@ -275,22 +285,15 @@ impl Config {
 
 /// Get the current spfs config, fetching it from disk if needed.
 pub fn get_config() -> Result<Arc<Config>> {
-    let lock = CONFIG.read().map_err(|err| {
+    let config = CONFIG.get_or_try_init(|| -> Result<RwLock<Arc<Config>>> {
+        Ok(RwLock::new(Arc::new(load_config()?)))
+    })?;
+    let lock = config.read().map_err(|err| {
         crate::Error::String(format!(
             "Cannot load config, lock has been poisoned: {err:?}"
         ))
     })?;
-    if let Some(config) = &*lock {
-        return Ok(config.clone());
-    }
-    drop(lock);
-
-    // there is still a possible race condition here
-    // where someone loads the config between the first check and
-    // acquiring this lock, but the redundant work is still
-    // less than not having a cache at all
-    let config = load_config()?;
-    config.make_current()
+    Ok(Arc::clone(&*lock))
 }
 
 /// Load the spfs configuration from disk, even if it's already been loaded.
