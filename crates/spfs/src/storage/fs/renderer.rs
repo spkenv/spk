@@ -20,6 +20,7 @@ use rand::seq::SliceRandom;
 use tokio::io::AsyncReadExt;
 use tokio::sync::Semaphore;
 
+use super::render_reporter::RenderBlobResult;
 use super::{FSRepository, RenderReporter, SilentRenderReporter};
 use crate::encoding::{self, Encodable};
 use crate::runtime::makedirs_with_perms;
@@ -449,13 +450,13 @@ where
                                 root_path.push(p.as_path());
                                 *p = root_path;
                             }
-                            res
+                            res.map(|_| None)
                         }
-                        tracking::EntryKind::Mask => Ok(()),
+                        tracking::EntryKind::Mask => Ok(None),
                         tracking::EntryKind::Blob => {
-                            self.render_blob(root_dir_fd, &entry, render_type).await
+                            self.render_blob(root_dir_fd, &entry, render_type).await.map(Some)
                         }
-                    }.map(|_| entry)
+                    }.map(|render_blob_result_opt| (entry, render_blob_result_opt))
                 };
                 ready(fut.boxed())
             })
@@ -465,7 +466,11 @@ where
         while let Some(res) = stream.next().await {
             match res {
                 Err(error) => return Err(error),
-                Ok(entry) => self.reporter.rendered_entry(&entry),
+                Ok((entry, Some(render_blob_result))) => {
+                    self.reporter.rendered_blob(&entry, &render_blob_result);
+                    self.reporter.rendered_entry(&entry);
+                }
+                Ok((entry, _)) => self.reporter.rendered_entry(&entry),
             }
         }
 
@@ -479,7 +484,7 @@ where
         dir_fd: Fd,
         entry: &graph::Entry,
         render_type: RenderType,
-    ) -> Result<()>
+    ) -> Result<RenderBlobResult>
     where
         Fd: std::os::fd::AsRawFd + Send,
     {
@@ -508,7 +513,7 @@ where
                 nix::unistd::symlinkat(target.as_str(), Some(target_dir_fd), entry.name.as_str())
             {
                 match err {
-                    nix::errno::Errno::EEXIST => Ok(()),
+                    nix::errno::Errno::EEXIST => Ok(RenderBlobResult::SymlinkAlreadyExists),
                     _ => Err(Error::StorageWriteError(
                         "symlink on rendered blob",
                         PathBuf::from(&entry.name),
@@ -516,14 +521,14 @@ where
                     )),
                 }
             } else {
-                Ok(())
+                Ok(RenderBlobResult::SymlinkWritten)
             };
         }
         // Free up file resources as early as possible.
         drop(reader);
 
         let mut committed_path = self.repo.payloads().build_digest_path(&entry.object);
-        match render_type {
+        Ok(match render_type {
             RenderType::HardLink | RenderType::HardLinkNoProxy => {
                 let mut retry_count = 0;
                 loop {
@@ -535,15 +540,16 @@ where
                     // combination of user and perms. Since each user has their own
                     // "proxy" directory, there needs only be a unique copy per
                     // perms.
-                    if matches!(render_type, RenderType::HardLinkNoProxy) {
+                    let render_blob_result = if matches!(render_type, RenderType::HardLinkNoProxy) {
                         // explicitly skip proxy generation
+                        RenderBlobResult::PayloadCopiedByRequest
                     } else if let Ok(render_store) = self.repo.render_store() {
                         let proxy_path = render_store
                             .proxy
                             .build_digest_path(&entry.object)
                             .join(entry.mode.to_string());
                         tracing::trace!(?proxy_path, "proxy");
-                        if !proxy_path.exists() {
+                        let render_blob_result = if !proxy_path.exists() {
                             let path_to_create = proxy_path.parent().unwrap();
                             tokio::fs::create_dir_all(&path_to_create)
                                 .await
@@ -611,7 +617,9 @@ where
                                             retry_count += 1;
                                             continue;
                                         }
-                                        std::io::ErrorKind::AlreadyExists => (),
+                                        std::io::ErrorKind::AlreadyExists => {
+                                            RenderBlobResult::PayloadAlreadyExists
+                                        }
                                         _ => {
                                             return Err(Error::StorageWriteError(
                                                 "hard_link of payload to proxy path",
@@ -625,6 +633,7 @@ where
                                     // so the next retryable section gets a
                                     // fair number of retries too.
                                     retry_count = 0;
+                                    RenderBlobResult::PayloadHardLinked
                                 }
                             } else {
                                 if !has_correct_mode {
@@ -687,7 +696,9 @@ where
                                 // Move temporary file into place.
                                 if let Err(err) = temp_proxy_file.persist_noclobber(&proxy_path) {
                                     match err.error.kind() {
-                                        std::io::ErrorKind::AlreadyExists => (),
+                                        std::io::ErrorKind::AlreadyExists => {
+                                            RenderBlobResult::PayloadAlreadyExists
+                                        }
                                         _ => {
                                             return Err(Error::StorageWriteError(
                                                 "persist of blob proxy file",
@@ -696,21 +707,29 @@ where
                                             ))
                                         }
                                     }
+                                } else if !has_correct_mode {
+                                    RenderBlobResult::PayloadCopiedWrongMode
+                                } else {
+                                    RenderBlobResult::PayloadCopiedWrongOwner
                                 }
                             }
-                        }
+                        } else {
+                            RenderBlobResult::PayloadAlreadyExists
+                        };
                         // Renders should hard link to this proxy file; it will
                         // be owned by the current user and (eventually) have the
                         // expected mode.
                         committed_path = proxy_path;
+
+                        render_blob_result
                     } else {
                         return Err(
                             "Cannot render blob as hard link to repository with no render store"
                                 .into(),
                         );
-                    }
+                    };
 
-                    if let Err(err) = nix::unistd::linkat(
+                    break if let Err(err) = nix::unistd::linkat(
                         None,
                         committed_path.as_path(),
                         Some(target_dir_fd),
@@ -742,14 +761,15 @@ where
                                     )
                                 });
                             }
-                            nix::errno::Errno::EEXIST => (),
+                            nix::errno::Errno::EEXIST => RenderBlobResult::PayloadAlreadyExists,
                             nix::errno::Errno::EMLINK => {
                                 // hard-linking can fail if we have reached the maximum number of links
                                 // for the underlying file system. Often this number is arbitrarily large,
                                 // but on some systems and filers, or at certain scales the possibility is
                                 // very real. In these cases, our only real course of action other than failing
                                 // is to fall back to a real copy of the file.
-                                return self.render_blob(dir_fd, entry, RenderType::Copy).await;
+                                let _ = self.render_blob(dir_fd, entry, RenderType::Copy).await?;
+                                RenderBlobResult::PayloadCopiedLinkLimit
                             }
                             _ if matches!(render_type, RenderType::HardLink) => {
                                 return Err(Error::StorageWriteError(
@@ -766,9 +786,9 @@ where
                                 ))
                             }
                         }
-                    }
-
-                    break;
+                    } else {
+                        render_blob_result
+                    };
                 }
             }
             RenderType::Copy => {
@@ -822,6 +842,7 @@ where
                 })
                 .await
                 .expect("syscall should not panic")
+                .map(|_| RenderBlobResult::PayloadCopiedByRequest)
                 .map_err(|err| {
                     Error::StorageWriteError(
                         "set permissions on copied payload",
@@ -830,8 +851,7 @@ where
                     )
                 });
             }
-        }
-        Ok(())
+        })
     }
 }
 

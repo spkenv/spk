@@ -6,6 +6,26 @@ use once_cell::sync::OnceCell;
 
 use crate::graph;
 
+/// When rendering a blob, describe if a render was a copy or a hard link.
+pub enum RenderBlobResult {
+    /// Unknown if existing payload was a link or copy.
+    PayloadAlreadyExists,
+    /// A copy was requested instead of a hard link.
+    PayloadCopiedByRequest,
+    /// A copy was made due to hard link limits.
+    PayloadCopiedLinkLimit,
+    /// Was not possible to hard link because of different file permissions.
+    PayloadCopiedWrongMode,
+    /// Was not possible to hard link because of different file ownership.
+    PayloadCopiedWrongOwner,
+    /// Payload was able to be hard linked.
+    PayloadHardLinked,
+    /// Payload was a symlink and already existed.
+    SymlinkAlreadyExists,
+    /// Payload was a symlink and was written.
+    SymlinkWritten,
+}
+
 /// Receives updates from a render process to be reported.
 ///
 /// Unless the render runs into errors, every call to visit_* is
@@ -20,7 +40,15 @@ pub trait RenderReporter: Send + Sync {
     /// Called when an entry has been identified to render
     fn visit_entry(&self, _entry: &graph::Entry) {}
 
-    /// Called when an entry has finished rendering
+    /// Called when a blob has finished rendering.
+    ///
+    /// [`Self::rendered_entry`] will also be called for the same entry.
+    fn rendered_blob(&self, _entry: &graph::Entry, _render_blob_result: &RenderBlobResult) {}
+
+    /// Called when an entry has finished rendering.
+    ///
+    /// [`Self::rendered_blob`] will also be called for the same entry when the entry
+    /// is a blob.
     fn rendered_entry(&self, _entry: &graph::Entry) {}
 }
 
