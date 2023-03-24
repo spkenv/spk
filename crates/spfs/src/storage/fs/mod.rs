@@ -15,7 +15,12 @@ pub mod migrations;
 mod render_reporter;
 
 pub use hash_store::FSHashStore;
-pub use render_reporter::{ConsoleRenderReporter, RenderReporter, SilentRenderReporter};
+pub use render_reporter::{
+    ConsoleRenderReporter,
+    MultiReporter,
+    RenderReporter,
+    SilentRenderReporter,
+};
 pub use renderer::{
     RenderType,
     Renderer,
