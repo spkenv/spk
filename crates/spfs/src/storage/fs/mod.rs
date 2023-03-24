@@ -7,6 +7,7 @@
 mod database;
 mod hash_store;
 mod payloads;
+mod render_summary;
 mod renderer;
 mod repository;
 mod tag;
@@ -21,6 +22,7 @@ pub use render_reporter::{
     RenderReporter,
     SilentRenderReporter,
 };
+pub use render_summary::{RenderSummary, RenderSummaryReporter};
 pub use renderer::{
     RenderType,
     Renderer,

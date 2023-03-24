@@ -164,21 +164,24 @@ impl Drop for ConsoleRenderReporterBars {
 
 /// An object that can delegate to multiple implementations of
 /// `RenderReporter`.
-pub struct MultiReporter {
-    reporters: Vec<Box<dyn RenderReporter>>,
+pub struct MultiReporter<'a> {
+    reporters: Vec<&'a dyn RenderReporter>,
 }
 
-impl MultiReporter {
+impl<'a> MultiReporter<'a> {
     /// Create a render reporter that delegates to multiple underlying
     /// reporters.
-    pub fn new<I: IntoIterator<Item = Box<dyn RenderReporter>>>(reporters: I) -> Self {
+    pub fn new<I>(reporters: I) -> Self
+    where
+        I: IntoIterator<Item = &'a dyn RenderReporter>,
+    {
         Self {
             reporters: reporters.into_iter().collect(),
         }
     }
 }
 
-impl RenderReporter for MultiReporter {
+impl<'a> RenderReporter for MultiReporter<'a> {
     fn visit_layer(&self, manifest: &graph::Manifest) {
         for reporter in self.reporters.iter() {
             reporter.visit_layer(manifest)
