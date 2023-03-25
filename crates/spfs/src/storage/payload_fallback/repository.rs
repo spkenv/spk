@@ -164,8 +164,6 @@ impl PayloadStorage for PayloadFallback {
                         continue 'retry_open;
                     }
                     Err(err) => {
-                        repair_failure = Some(err);
-
                         #[cfg(feature = "sentry")]
                         tracing::error!(
                             target: "sentry",
@@ -173,6 +171,8 @@ impl PayloadStorage for PayloadFallback {
                             ?err,
                             "Could not repair a missing payload"
                         );
+
+                        repair_failure = Some(err);
                     }
                 }
             }
