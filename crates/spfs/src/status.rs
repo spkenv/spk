@@ -5,6 +5,7 @@
 use super::config::get_config;
 use super::resolve::{resolve_and_render_overlay_dirs, resolve_stack_to_layers};
 use crate::prelude::*;
+use crate::storage::fs::RenderSummary;
 use crate::{bootstrap, env, runtime, tracking, Error, Result};
 
 static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
@@ -83,8 +84,8 @@ pub async fn active_runtime() -> Result<runtime::Runtime> {
 }
 
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).
-pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<()> {
-    let dirs = resolve_and_render_overlay_dirs(rt, false).await?;
+pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
+    let (dirs, render_summary) = resolve_and_render_overlay_dirs(rt, false).await?;
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(rt).await?;
 
@@ -95,12 +96,12 @@ pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<()> {
     env::mask_files(&rt.config, &manifest, original.uid)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;
-    Ok(())
+    Ok(render_summary)
 }
 
 /// Initialize the current runtime as rt.
-pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<()> {
-    let dirs = resolve_and_render_overlay_dirs(
+pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
+    let (dirs, render_summary) = resolve_and_render_overlay_dirs(
         rt,
         // skip saving the runtime in this step because we will save it after
         // learning the mount namespace below
@@ -122,5 +123,5 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<()> {
     env::mask_files(&rt.config, &manifest, original.uid)?;
     env::become_original_user(original)?;
     env::drop_all_capabilities()?;
-    Ok(())
+    Ok(render_summary)
 }

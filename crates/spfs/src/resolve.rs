@@ -52,6 +52,8 @@ async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<RenderSummary>
             {
                 Ok(render_result.render_summary)
             } else {
+                // Don't hard error if the output of spfs-render can't be
+                // parsed.
                 tracing::warn!("Failed to parse output from spfs-render");
                 Ok(RenderSummary::default())
             }
@@ -293,18 +295,18 @@ pub(crate) async fn resolve_overlay_dirs(
 pub(crate) async fn resolve_and_render_overlay_dirs(
     runtime: &mut runtime::Runtime,
     skip_runtime_save: bool,
-) -> Result<Vec<std::path::PathBuf>> {
+) -> Result<(Vec<std::path::PathBuf>, RenderSummary)> {
     let config = get_config()?;
     let repo = config.get_local_repository().await?;
 
     let manifests = resolve_overlay_dirs(runtime, &repo, skip_runtime_save).await?;
     let to_render = manifests.iter().map(|m| m.digest()).try_collect()?;
-    render_via_subcommand(to_render).await?;
+    let render_summary = render_via_subcommand(to_render).await?;
     let overlay_dirs = manifests
         .iter()
         .map(|m| repo.manifest_render_path(m))
         .try_collect()?;
-    Ok(overlay_dirs)
+    Ok((overlay_dirs, render_summary))
 }
 
 /// Given a sequence of tags and digests, resolve to the set of underlying layers.
