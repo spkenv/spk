@@ -157,16 +157,11 @@ impl Config {
 
     /// Make this config the current global one
     pub fn make_current(self) -> Result<Arc<Self>> {
-        let config = match CONFIG.get() {
-            Some(config) => config,
-            None => {
-                // Note we don't know if we won the race to set the value here,
-                // so we still need to try to update it.
-                CONFIG.get_or_try_init(|| -> Result<RwLock<Arc<Config>>> {
-                    Ok(RwLock::new(Arc::new(self.clone())))
-                })?
-            }
-        };
+        // Note we don't know if we won the race to set the value here,
+        // so we still need to try to update it.
+        let config = CONFIG.get_or_try_init(|| -> Result<RwLock<Arc<Config>>> {
+            Ok(RwLock::new(Arc::new(self.clone())))
+        })?;
 
         let mut lock = config.write().map_err(|err| {
             crate::Error::String(format!(
