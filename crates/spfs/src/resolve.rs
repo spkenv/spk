@@ -3,13 +3,15 @@
 // https://github.com/imageworks/spk
 
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use encoding::Encodable;
 use itertools::Itertools;
 use nonempty::NonEmpty;
+use serde::{Deserialize, Serialize};
 
 use super::config::get_config;
+use crate::storage::fs::RenderSummary;
 use crate::storage::prelude::*;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 
@@ -17,12 +19,19 @@ use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 #[path = "./resolve_test.rs"]
 mod resolve_test;
 
+/// Information returned from spfs-render.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RenderResult {
+    pub paths_rendered: Vec<PathBuf>,
+    pub render_summary: storage::fs::RenderSummary,
+}
+
 /// Render the given environment in the local repository by
 /// calling the `spfs-render` binary (ensuring the necessary
 /// privileges are available)
-async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<()> {
+async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<RenderSummary> {
     if spec.is_empty() {
-        return Ok(());
+        return Ok(RenderSummary::default());
     }
 
     let render_cmd = match super::which_spfs("render") {
@@ -30,24 +39,32 @@ async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<()> {
         None => return Err(Error::MissingBinary("spfs-render")),
     };
     let mut cmd = tokio::process::Command::new(render_cmd);
-    cmd.stdout(std::process::Stdio::null());
     cmd.arg(spec.to_string());
     tracing::debug!("{:?}", cmd);
-    let status = cmd
-        .status()
+    let output = cmd
+        .output()
         .await
         .map_err(|err| Error::process_spawn_error("spfs-render".to_owned(), err, None))?;
-    if !status.success() {
-        return Err(Error::process_spawn_error(
+    match output.status.code() {
+        Some(0) => {
+            if let Ok(render_result) =
+                serde_json::from_slice::<RenderResult>(output.stdout.as_slice())
+            {
+                Ok(render_result.render_summary)
+            } else {
+                tracing::warn!("Failed to parse output from spfs-render");
+                Ok(RenderSummary::default())
+            }
+        }
+        _ => Err(Error::process_spawn_error(
             "spfs-render".to_owned(),
             std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "process exited with non-zero status",
             ),
             None,
-        ))?;
+        )),
     }
-    Ok(())
 }
 
 /// Compute or load the spfs manifest representation for a saved reference.

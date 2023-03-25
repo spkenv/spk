@@ -15,7 +15,7 @@ futures = "0.3.9"
 itertools = "0.10"
 once_cell = { workspace = true }
 priority-queue = "1.2"
-serde_json = "1.0"
+serde_json = { workspace = true }
 spfs = { version = '0.34.6', path = "../../../spfs" }
 spk-solve-package-iterator = { path = "../package-iterator" }
 spk-solve-solution = { path = "../solution" }

@@ -126,6 +126,13 @@ pub struct RenderSummaryReporter {
     render_summary: RenderSummary,
 }
 
+impl RenderSummaryReporter {
+    /// Consume the reporter, returning the render summary.
+    pub fn into_summary(self) -> RenderSummary {
+        self.render_summary
+    }
+}
+
 impl RenderReporter for RenderSummaryReporter {
     fn rendered_blob(&self, entry: &crate::graph::Entry, render_blob_result: &RenderBlobResult) {
         self.render_summary.add(RenderBlobResultWithEntrySize(

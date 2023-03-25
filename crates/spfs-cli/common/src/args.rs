@@ -91,17 +91,19 @@ pub struct Render {
 impl Render {
     /// Construct a new renderer instance configured based on these flags
     #[allow(dead_code)] // not all commands use this function but some do
-    pub fn get_renderer<'repo, Repo>(
+    pub fn get_renderer<'repo, Repo, Reporter>(
         &self,
         repo: &'repo Repo,
-    ) -> spfs::storage::fs::Renderer<'repo, Repo, spfs::storage::fs::ConsoleRenderReporter>
+        reporter: Reporter,
+    ) -> spfs::storage::fs::Renderer<'repo, Repo, Reporter>
     where
         Repo: spfs::storage::Repository + LocalRepository,
+        Reporter: spfs::storage::fs::RenderReporter,
     {
         spfs::storage::fs::Renderer::new(repo)
             .with_max_concurrent_blobs(self.max_concurrent_blobs)
             .with_max_concurrent_branches(self.max_concurrent_branches)
-            .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
+            .with_reporter(reporter)
     }
 }
 

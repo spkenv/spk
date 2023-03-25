@@ -19,7 +19,7 @@ lazy_static = { workspace = true }
 nom = { workspace = true }
 nom-supreme = { workspace = true }
 once_cell = { workspace = true }
-serde_json = "1.0.57"
+serde_json = { workspace = true }
 serde_yaml = "0.8.17"
 sentry = { workspace = true, optional = true }
 sentry-anyhow = { workspace = true, optional = true }
