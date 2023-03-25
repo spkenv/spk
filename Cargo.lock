@@ -2993,6 +2993,7 @@ dependencies = [
  "anyhow",
  "clap 3.2.23",
  "libc",
+ "once_cell",
  "sentry",
  "sentry-anyhow",
  "sentry-tracing",
