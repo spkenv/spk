@@ -16,7 +16,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Version;
 use spk_schema::ident::VersionIdent;
 use spk_schema::version::Compatibility;
-use spk_schema::{AnyIdent, BuildIdent, Package, Spec, SpecRecipe};
+use spk_schema::{AnyIdent, BuildIdent, Package, Spec};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 
@@ -56,7 +56,6 @@ pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
         false
     }
     async fn next(&mut self) -> crate::Result<Option<BuildWithRepos>>;
-    fn recipe(&self) -> Option<Arc<SpecRecipe>>;
     fn len(&self) -> usize;
 }
 
@@ -278,7 +277,6 @@ pub struct RepositoryBuildIterator {
         BuildIdent,
         HashMap<RepositoryNameBuf, Arc<RepositoryHandle>>,
     )>,
-    recipe: Option<Arc<SpecRecipe>>,
 }
 
 #[async_trait::async_trait]
@@ -332,10 +330,6 @@ impl BuildIterator for RepositoryBuildIterator {
         Ok(Some(result))
     }
 
-    fn recipe(&self) -> Option<Arc<SpecRecipe>> {
-        self.recipe.clone()
-    }
-
     fn len(&self) -> usize {
         self.builds.len()
     }
@@ -386,7 +380,6 @@ impl RepositoryBuildIterator {
 
         Ok(RepositoryBuildIterator {
             builds: builds.into(),
-            recipe,
         })
     }
 }
@@ -404,10 +397,6 @@ impl BuildIterator for EmptyBuildIterator {
         Ok(None)
     }
 
-    fn recipe(&self) -> Option<Arc<SpecRecipe>> {
-        None
-    }
-
     fn len(&self) -> usize {
         0
     }
@@ -421,7 +410,6 @@ impl EmptyBuildIterator {
 
 #[derive(Clone, Debug)]
 pub struct SortedBuildIterator {
-    recipe: Option<Arc<SpecRecipe>>,
     builds: VecDeque<BuildWithRepos>,
 }
 
@@ -437,10 +425,6 @@ impl BuildIterator for SortedBuildIterator {
 
     async fn next(&mut self) -> crate::Result<Option<BuildWithRepos>> {
         Ok(self.builds.pop_front())
-    }
-
-    fn recipe(&self) -> Option<Arc<SpecRecipe>> {
-        self.recipe.clone()
     }
 
     fn len(&self) -> usize {
@@ -468,15 +452,14 @@ impl SortedBuildIterator {
         // Note: _options is unused in this implementation, it was used
         // in the by_distance sorting implementation
         let mut builds = VecDeque::<BuildWithRepos>::new();
-        let recipe = {
+        {
             let mut source_lock = source.lock().await;
             while let Some(item) = source_lock.next().await? {
                 builds.push_back(item);
             }
-            source_lock.recipe()
-        };
+        }
 
-        let mut sbi = SortedBuildIterator { recipe, builds };
+        let mut sbi = SortedBuildIterator { builds };
 
         sbi.sort_by_build_option_values(builds_with_impossible_requests)
             .await;
