@@ -56,7 +56,7 @@ pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
         false
     }
     async fn next(&mut self) -> crate::Result<Option<BuildWithRepos>>;
-    async fn recipe(&self) -> Option<Arc<SpecRecipe>>;
+    fn recipe(&self) -> Option<Arc<SpecRecipe>>;
     fn len(&self) -> usize;
 }
 
@@ -332,7 +332,7 @@ impl BuildIterator for RepositoryBuildIterator {
         Ok(Some(result))
     }
 
-    async fn recipe(&self) -> Option<Arc<SpecRecipe>> {
+    fn recipe(&self) -> Option<Arc<SpecRecipe>> {
         self.recipe.clone()
     }
 
@@ -404,7 +404,7 @@ impl BuildIterator for EmptyBuildIterator {
         Ok(None)
     }
 
-    async fn recipe(&self) -> Option<Arc<SpecRecipe>> {
+    fn recipe(&self) -> Option<Arc<SpecRecipe>> {
         None
     }
 
@@ -421,7 +421,7 @@ impl EmptyBuildIterator {
 
 #[derive(Clone, Debug)]
 pub struct SortedBuildIterator {
-    source: Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>,
+    recipe: Option<Arc<SpecRecipe>>,
     builds: VecDeque<BuildWithRepos>,
 }
 
@@ -439,8 +439,8 @@ impl BuildIterator for SortedBuildIterator {
         Ok(self.builds.pop_front())
     }
 
-    async fn recipe(&self) -> Option<Arc<SpecRecipe>> {
-        self.source.lock().await.recipe().await
+    fn recipe(&self) -> Option<Arc<SpecRecipe>> {
+        self.recipe.clone()
     }
 
     fn len(&self) -> usize {
@@ -468,14 +468,15 @@ impl SortedBuildIterator {
         // Note: _options is unused in this implementation, it was used
         // in the by_distance sorting implementation
         let mut builds = VecDeque::<BuildWithRepos>::new();
-        {
+        let recipe = {
             let mut source_lock = source.lock().await;
             while let Some(item) = source_lock.next().await? {
                 builds.push_back(item);
             }
-        }
+            source_lock.recipe()
+        };
 
-        let mut sbi = SortedBuildIterator { source, builds };
+        let mut sbi = SortedBuildIterator { recipe, builds };
 
         sbi.sort_by_build_option_values(builds_with_impossible_requests)
             .await;
