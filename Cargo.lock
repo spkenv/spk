@@ -2829,7 +2829,6 @@ dependencies = [
  "hyper",
  "indicatif",
  "itertools",
- "lazy_static",
  "libc",
  "nix 0.26.2",
  "nonempty",

@@ -39,7 +39,6 @@ glob = "0.3.0"
 hyper = { version = "0.14.16", features = ["client"] }
 indicatif = "0.16.2"
 itertools = "0.10.3"
-lazy_static = { workspace = true }
 libc = { workspace = true }
 nix = { workspace = true }
 nonempty = "0.8.1"

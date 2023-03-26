@@ -5,6 +5,7 @@
 use rstest::rstest;
 
 use super::Config;
+use crate::get_config;
 
 #[rstest]
 fn test_config_list_remote_names_empty() {
@@ -68,4 +69,19 @@ async fn test_config_get_remote() {
 )]
 fn test_remote_config_or_address(#[case] source: &str) {
     let _config: Config = serde_json::from_str(source).expect("config should have loaded properly");
+}
+
+#[rstest]
+fn test_make_current_updates_config() {
+    let config1 = Config::default();
+    config1.make_current().unwrap();
+
+    let changed_name = "changed";
+
+    let mut config2 = Config::default();
+    config2.user.name = changed_name.to_owned();
+    config2.make_current().unwrap();
+
+    let current_config = get_config().unwrap();
+    assert_eq!(current_config.user.name, changed_name);
 }
