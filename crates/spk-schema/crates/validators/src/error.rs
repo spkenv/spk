@@ -39,8 +39,8 @@ pub enum Error {
     NoEnvironment,
 
     // Validation Errors
-    #[error("All generated files must be collected by a component. These ones were not: \n - {0}")]
-    SomeFilesNotCollected(String),
+    #[error("All generated files must be collected by a component. These ones were not: \n - {}", .0.join("\n - "))]
+    SomeFilesNotCollected(Vec<String>),
     #[error("Build process created no files under {0:?}")]
     BuildMadeNoFilesToInstall(String),
     // Failing to Box this causes a clippy 'large_enum_variant' error in the solution::Error enum

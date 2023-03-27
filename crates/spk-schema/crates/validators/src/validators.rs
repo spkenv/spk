@@ -4,7 +4,6 @@
 
 use std::path::Path;
 
-use itertools::Itertools;
 use spfs::tracking::{Diff, DiffMode};
 use spk_schema_foundation::env::data_path;
 use spk_schema_foundation::spec_ops::FileMatcher;
@@ -47,7 +46,7 @@ where
         }
     }
     Err(Error::SomeFilesNotCollected(
-        diffs.into_iter().map(|d| d.path.to_string()).join("\n - "),
+        diffs.into_iter().map(|d| d.path.to_string()).collect(),
     ))
 }
 
