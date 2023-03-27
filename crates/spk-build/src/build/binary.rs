@@ -69,6 +69,11 @@ pub enum BuildSource {
     LocalPath(PathBuf),
 }
 
+/// A pair of packages that are in conlict for some reason,
+/// e.g. because they both provide one or more of the same files.
+#[derive(Eq, Hash, PartialEq)]
+struct ConflictingPackagePair(BuildIdent, BuildIdent);
+
 /// Builds a binary package.
 ///
 /// ```no_run
@@ -97,7 +102,7 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
     repos: Vec<Arc<storage::RepositoryHandle>>,
     interactive: bool,
     files_to_layers: HashMap<RelativePathBuf, ResolvedLayer>,
-    conflicting_packages: HashMap<(String, String), HashSet<RelativePathBuf>>,
+    conflicting_packages: HashMap<ConflictingPackagePair, HashSet<RelativePathBuf>>,
 }
 
 impl<'a, Recipe> BinaryPackageBuilder<'a, Recipe>
@@ -333,12 +338,12 @@ where
                     );
 
                     // Track the packages involved for later use
-                    let pkg_a = format!("{}", entry.get().spec.ident());
-                    let pkg_b = format!("{}", resolved_layer.spec.ident());
+                    let pkg_a = entry.get().spec.ident().clone();
+                    let pkg_b = resolved_layer.spec.ident().clone();
                     let packages_key = if pkg_a < pkg_b {
-                        (pkg_a, pkg_b)
+                        ConflictingPackagePair(pkg_a, pkg_b)
                     } else {
-                        (pkg_b, pkg_a)
+                        ConflictingPackagePair(pkg_b, pkg_a)
                     };
                     let counter = self
                         .conflicting_packages
@@ -456,7 +461,7 @@ where
         &self,
         error: spk_schema_validators::Error,
         files_to_packages: &HashMap<RelativePathBuf, BuildIdent>,
-        conflicting_packages: &HashMap<(String, String), HashSet<RelativePathBuf>>,
+        conflicting_packages: &HashMap<ConflictingPackagePair, HashSet<RelativePathBuf>>,
     ) -> String {
         match error {
             spk_schema_validators::Error::ExistingFileAltered(diffmode, filepath) => {
@@ -486,7 +491,7 @@ where
 
                 // Work out if the files in conflict came from more
                 // than one package
-                let packages: Vec<(&(String, String), &HashSet<RelativePathBuf>)> =
+                let packages: Vec<(&ConflictingPackagePair, &HashSet<RelativePathBuf>)> =
                     conflicting_packages
                         .iter()
                         .filter(|(_ps, fs)| fs.contains(&filepath))
@@ -512,7 +517,7 @@ where
                     }
                     let pkgs = packages
                         .iter()
-                        .flat_map(|(ps, _fs)| Vec::from([ps.0.clone(), ps.1.clone()]))
+                        .flat_map(|(ps, _fs)| Vec::from([ps.0.to_string(), ps.1.to_string()]))
                         .collect::<Vec<String>>();
                     message.push_str(&format!(
                         " in {} packages: {}",
