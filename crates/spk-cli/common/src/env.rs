@@ -29,36 +29,50 @@ pub async fn current_env() -> crate::Result<Solution> {
     }
 
     let repo = Arc::new(storage::RepositoryHandle::Runtime(Default::default()));
-    let mut solution = Solution::default();
+    let mut futures = Vec::new();
     for name in repo.list_packages().await? {
-        for version in repo.list_package_versions(&name).await?.iter() {
-            let pkg = VersionIdent::new(name.clone(), (**version).clone());
-            for pkg in repo.list_package_builds(&pkg).await? {
-                let spec = repo.read_package(&pkg).await?;
-                let components = match repo.read_components(spec.ident()).await {
-                    Ok(c) => c,
-                    Err(spk_storage::Error::SpkValidatorsError(
-                        spk_schema::validators::Error::PackageNotFoundError(_),
-                    )) => {
-                        tracing::info!("Skipping missing build {pkg}; currently being built?");
-                        continue;
-                    }
-                    Err(err) => return Err(err.into()),
-                };
-                let range_ident =
-                    RangeIdent::equals(&spec.ident().to_any(), components.keys().cloned());
-                let mut request = PkgRequest::new(range_ident, RequestedBy::CurrentEnvironment);
-                request.prerelease_policy = PreReleasePolicy::IncludeAll;
-                let repo = repo.clone();
-                solution.add(
-                    request,
-                    spec,
-                    PackageSource::Repository { repo, components },
-                );
+        let repo = Arc::clone(&repo);
+        futures.push(tokio::spawn(async move {
+            let mut solution_additions = Vec::new();
+            for version in repo.list_package_versions(&name).await?.iter() {
+                let pkg = VersionIdent::new(name.clone(), (**version).clone());
+                for pkg in repo.list_package_builds(&pkg).await? {
+                    let spec = repo.read_package(&pkg).await?;
+                    let components = match repo.read_components(spec.ident()).await {
+                        Ok(c) => c,
+                        Err(spk_storage::Error::SpkValidatorsError(
+                            spk_schema::validators::Error::PackageNotFoundError(_),
+                        )) => {
+                            tracing::info!("Skipping missing build {pkg}; currently being built?");
+                            continue;
+                        }
+                        Err(err) => return Err(Error::from(err)),
+                    };
+                    let range_ident =
+                        RangeIdent::equals(&spec.ident().to_any(), components.keys().cloned());
+                    let mut request = PkgRequest::new(range_ident, RequestedBy::CurrentEnvironment);
+                    request.prerelease_policy = PreReleasePolicy::IncludeAll;
+                    let repo = repo.clone();
+                    solution_additions.push((
+                        request,
+                        spec,
+                        PackageSource::Repository { repo, components },
+                    ));
+                }
             }
-        }
+            Ok(solution_additions)
+        }));
     }
 
+    let mut solution = Solution::default();
+    for future in futures {
+        let solution_additions = future
+            .await
+            .map_err(|err| Error::String(format!("Tokio join error: {err}")))??;
+        for (request, spec, source) in solution_additions.into_iter() {
+            solution.add(request, spec, source);
+        }
+    }
     Ok(solution)
 }
 
