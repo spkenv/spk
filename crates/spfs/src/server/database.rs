@@ -27,6 +27,18 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
     type WalkObjectsStream =
         tokio_stream::Iter<std::vec::IntoIter<Result<proto::WalkObjectsResponse, Status>>>;
 
+    async fn has_object(
+        &self,
+        request: Request<proto::HasObjectRequest>,
+    ) -> Result<Response<proto::HasObjectResponse>, Status> {
+        let request = request.into_inner();
+        let digest = convert_digest(request.digest)
+            .map_err(|err| Status::invalid_argument(err.to_string()))?;
+        Ok(Response::new(proto::HasObjectResponse {
+            exists: self.repo.has_object(digest).await,
+        }))
+    }
+
     async fn read_object(
         &self,
         request: Request<proto::ReadObjectRequest>,

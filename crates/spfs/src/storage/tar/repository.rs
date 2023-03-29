@@ -174,6 +174,10 @@ impl Drop for TarRepository {
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for TarRepository {
+    async fn has_object(&self, digest: encoding::Digest) -> bool {
+        self.repo.has_object(digest).await
+    }
+
     async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
         self.repo.read_object(digest).await
     }

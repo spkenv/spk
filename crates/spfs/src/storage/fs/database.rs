@@ -17,6 +17,11 @@ use crate::{encoding, graph, Error, Result};
 
 #[async_trait::async_trait]
 impl DatabaseView for super::FSRepository {
+    async fn has_object(&self, digest: encoding::Digest) -> bool {
+        let filepath = self.objects.build_digest_path(&digest);
+        tokio::fs::symlink_metadata(filepath).await.is_ok()
+    }
+
     async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
         let filepath = self.objects.build_digest_path(&digest);
         let mut file =

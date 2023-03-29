@@ -12,6 +12,19 @@ use crate::{encoding, graph, proto, storage, Result};
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for super::RpcRepository {
+    async fn has_object(&self, digest: encoding::Digest) -> bool {
+        let request = proto::HasObjectRequest {
+            digest: Some(digest.into()),
+        };
+        self.db_client
+            .clone()
+            .has_object(request)
+            .await
+            .ok()
+            .map(|resp| resp.into_inner().exists)
+            .unwrap_or(false)
+    }
+
     async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
         let request = proto::ReadObjectRequest {
             digest: Some(digest.into()),

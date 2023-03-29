@@ -74,6 +74,19 @@ impl storage::FromConfig for ProxyRepository {
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for ProxyRepository {
+    async fn has_object(&self, digest: encoding::Digest) -> bool {
+        if self.primary.has_object(digest).await {
+            return true;
+        }
+
+        for repo in self.secondary.iter() {
+            if repo.has_object(digest).await {
+                return true;
+            }
+        }
+        false
+    }
+
     async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
         let mut res = self.primary.read_object(digest).await;
         if res.is_ok() {

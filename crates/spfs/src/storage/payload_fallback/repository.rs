@@ -65,6 +65,10 @@ impl PayloadFallback {
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for PayloadFallback {
+    async fn has_object(&self, digest: encoding::Digest) -> bool {
+        self.primary.has_object(digest).await
+    }
+
     async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
         self.primary.read_object(digest).await
     }
