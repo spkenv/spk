@@ -13,6 +13,19 @@ use crate::{encoding, storage, Error, Result};
 
 #[async_trait::async_trait]
 impl storage::PayloadStorage for super::RpcRepository {
+    async fn has_payload(&self, digest: encoding::Digest) -> bool {
+        let request = proto::HasPayloadRequest {
+            digest: Some(digest.into()),
+        };
+        self.payload_client
+            .clone()
+            .has_payload(request)
+            .await
+            .ok()
+            .map(|resp| resp.into_inner().exists)
+            .unwrap_or(false)
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         let request = proto::IterDigestsRequest {};
         let mut client = self.payload_client.clone();

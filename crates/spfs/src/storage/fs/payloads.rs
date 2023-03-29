@@ -14,6 +14,11 @@ use crate::{encoding, Error, Result};
 
 #[async_trait::async_trait]
 impl crate::storage::PayloadStorage for FSRepository {
+    async fn has_payload(&self, digest: encoding::Digest) -> bool {
+        let path = self.payloads.build_digest_path(&digest);
+        tokio::fs::symlink_metadata(path).await.is_ok()
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         Box::pin(self.payloads.iter())
     }

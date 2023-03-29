@@ -129,11 +129,6 @@ rpc_result!(
 );
 
 rpc_result!(
-    gen::HasPayloadResponse,
-    gen::has_payload_response::Result,
-    bool
-);
-rpc_result!(
     gen::WritePayloadResponse,
     gen::write_payload_response::Result,
     gen::write_payload_response::UploadOption

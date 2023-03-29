@@ -237,6 +237,10 @@ impl graph::Database for TarRepository {
 
 #[async_trait::async_trait]
 impl PayloadStorage for TarRepository {
+    async fn has_payload(&self, digest: encoding::Digest) -> bool {
+        self.repo.has_payload(digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.repo.iter_payload_digests()
     }

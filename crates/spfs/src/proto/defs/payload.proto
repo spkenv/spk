@@ -13,10 +13,14 @@ message HasPayloadRequest{
     Digest digest = 1;
 }
 message HasPayloadResponse{
-    oneof result {
-        Error error = 1;
-        bool ok = 2;
-    }
+    // we no longer return error messages for these
+    // requests as the client api simply flattens them
+    // into a boolean anyway
+    // oneof result {
+    //     Error error = 1;
+    //     bool ok = 2;
+    // }
+    bool exists =3;
 }
 
 message WritePayloadRequest{}

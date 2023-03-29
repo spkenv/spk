@@ -62,9 +62,10 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         request: Request<proto::HasPayloadRequest>,
     ) -> Result<Response<proto::HasPayloadResponse>, Status> {
         let request = request.into_inner();
-        let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
+        let digest = convert_digest(request.digest)
+            .map_err(|err| Status::invalid_argument(err.to_string()))?;
         let exists = self.repo.has_payload(digest).await;
-        let result = proto::HasPayloadResponse::ok(exists);
+        let result = proto::HasPayloadResponse { exists };
         Ok(Response::new(result))
     }
 
