@@ -86,7 +86,8 @@ impl Storage for RuntimeRepository {
     async fn get_concrete_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>> {
         let mut base = self.root.join(pkg.name());
         base.push(pkg.version().to_string());
-        Ok(get_all_filenames(&base)?
+        Ok(get_all_filenames(&base)
+            .await?
             .into_iter()
             .filter_map(|entry| {
                 if entry.ends_with('/') {
@@ -149,7 +150,7 @@ impl Storage for RuntimeRepository {
         &self,
         pkg: &BuildIdent,
     ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
-        let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
+        let entries = get_all_filenames(self.root.join(pkg.to_string())).await?;
         let components: Vec<Component> = entries
             .into_iter()
             .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
@@ -240,7 +241,8 @@ impl Repository for RuntimeRepository {
     }
 
     async fn list_packages(&self) -> Result<Vec<PkgNameBuf>> {
-        Ok(get_all_filenames(&self.root)?
+        Ok(get_all_filenames(&self.root)
+            .await?
             .into_iter()
             .filter_map(|entry| {
                 if entry.ends_with('/') {
@@ -255,7 +257,8 @@ impl Repository for RuntimeRepository {
 
     async fn list_package_versions(&self, name: &PkgName) -> Result<Arc<Vec<Arc<Version>>>> {
         Ok(Arc::new(
-            get_all_filenames(self.root.join(name))?
+            get_all_filenames(self.root.join(name))
+                .await?
                 .into_iter()
                 .filter_map(|entry| {
                     if entry.ends_with('/') {
@@ -280,7 +283,7 @@ impl Repository for RuntimeRepository {
     }
 
     async fn list_build_components(&self, pkg: &BuildIdent) -> Result<Vec<Component>> {
-        let entries = get_all_filenames(self.root.join(pkg.to_string()))?;
+        let entries = get_all_filenames(self.root.join(pkg.to_string())).await?;
         entries
             .into_iter()
             .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
@@ -307,28 +310,30 @@ impl Repository for RuntimeRepository {
 
 /// Works like ls_tags, returning strings that end with '/' for directories
 /// and not for regular files
-fn get_all_filenames<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<String>> {
-    let entries = match std::fs::read_dir(&path) {
+async fn get_all_filenames<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<String>> {
+    let mut entries = match tokio::fs::read_dir(&path).await {
         Err(err) => {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Ok(Default::default()),
                 _ => Err(Error::FileOpenError(path.as_ref().to_owned(), err)),
             }
         }
-        Ok(e) => e.collect::<std::io::Result<Vec<_>>>(),
+        Ok(e) => e,
     };
-    Ok(entries
+    let mut results = Vec::new();
+    while let Some(entry) = entries
+        .next_entry()
+        .await
         .map_err(|err| Error::FileOpenError(path.as_ref().to_owned(), err))?
-        .into_iter()
-        .map(|entry| {
-            let mut name = entry.file_name().to_string_lossy().to_string();
-            match entry.file_type() {
-                Ok(t) if t.is_dir() => name.push('/'),
-                _ => (),
-            }
-            name
-        })
-        .collect())
+    {
+        let mut name = entry.file_name().to_string_lossy().to_string();
+        match entry.file_type().await {
+            Ok(t) if t.is_dir() => name.push('/'),
+            _ => (),
+        }
+        results.push(name)
+    }
+    Ok(results)
 }
 
 async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding::Digest> {
