@@ -29,10 +29,10 @@ pub async fn current_env() -> crate::Result<Solution> {
     }
 
     let repo = Arc::new(storage::RepositoryHandle::Runtime(Default::default()));
-    let mut futures = Vec::new();
+    let mut packages_in_runtime_f = Vec::new();
     for name in repo.list_packages().await? {
         let repo = Arc::clone(&repo);
-        futures.push(tokio::spawn(async move {
+        packages_in_runtime_f.push(tokio::spawn(async move {
             let mut specs = Vec::new();
             for version in repo.list_package_versions(&name).await?.iter() {
                 let pkg = VersionIdent::new(name.clone(), (**version).clone());
@@ -47,28 +47,34 @@ pub async fn current_env() -> crate::Result<Solution> {
 
     let mut solution = Solution::default();
 
-    let mut all_specs = Vec::new();
-    for future in futures {
-        let specs = future
+    let mut package_in_runtime = Vec::new();
+    for package_f in packages_in_runtime_f {
+        let specs = package_f
             .await
             .map_err(|err| Error::String(format!("Tokio join error: {err}")))??;
-        all_specs.extend(specs.into_iter());
+        package_in_runtime.extend(specs.into_iter());
     }
 
-    let all_idents = all_specs
+    let package_idents_in_runtime = package_in_runtime
         .iter()
         .map(|spec| spec.ident())
         .collect::<Vec<_>>();
 
-    let components = match &*repo {
+    let components_in_runtime = match &*repo {
         spk_solve::RepositoryHandle::Runtime(runtime) => {
-            runtime.read_components_bulk(&all_idents).await?
+            runtime
+                .read_components_bulk(&package_idents_in_runtime)
+                .await?
         }
         _ => unreachable!(),
     };
 
-    let mut components_iter = components.into_iter();
-    for spec in all_specs {
+    // The results that come out of `read_components_bulk` are in the order of
+    // the argument elements, so here we iterate over them and walk the
+    // packages again in that same order to process the results.
+
+    let mut components_iter = components_in_runtime.into_iter();
+    for spec in package_in_runtime {
         let components = components_iter
             .next()
             .ok_or_else(|| Error::String("internal error: components iter overrun".to_owned()))?;

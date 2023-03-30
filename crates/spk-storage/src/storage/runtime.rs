@@ -7,6 +7,7 @@ use std::io::Read;
 use std::sync::Arc;
 
 use itertools::Itertools;
+use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 use spk_schema::foundation::ident_build::parse_build;
 use spk_schema::foundation::ident_component::Component;
@@ -83,6 +84,8 @@ impl RuntimeRepository {
     ///
     /// Like calling `Repository::read_components` for each package, but more
     /// efficient.
+    ///
+    /// The components are returned in the same order as the items in `pkgs`.
     pub async fn read_components_bulk(
         &self,
         pkgs: &[&BuildIdent],
@@ -90,7 +93,17 @@ impl RuntimeRepository {
         let mut results = Vec::new();
         results.resize_with(pkgs.len(), Default::default);
 
-        let mut futures = Vec::new();
+        enum ComponentMode {
+            BackwardsCompatibility,
+            RealComponent(spk_schema::ident_component::Component),
+        }
+
+        struct ComponentFilenames {
+            index: usize,
+            filenames: Vec<(ComponentMode, RelativePathBuf)>,
+        }
+
+        let mut component_filenames_for_package_f = Vec::new();
 
         for (index, pkg) in pkgs.iter().enumerate() {
             if let Build::Embedded(EmbeddedSource::Package(_package)) = pkg.build() {
@@ -109,8 +122,7 @@ impl RuntimeRepository {
 
             let path = self.root.join(pkg.to_string());
             let pkg_string = pkg.to_string();
-            futures.push((
-                pkg,
+            component_filenames_for_package_f.push((
                 index,
                 tokio::spawn(async move {
                     let entries = get_all_filenames(path).await?;
@@ -126,14 +138,16 @@ impl RuntimeRepository {
                     let mut filenames_to_resolve_for_index = Vec::new();
                     for name in components.into_iter() {
                         let path = path.join(format!("{}.cmpt", &name));
-                        filenames_to_resolve_for_index.push((Some(name), path));
+                        filenames_to_resolve_for_index
+                            .push((ComponentMode::RealComponent(name), path));
                     }
                     if filenames_to_resolve_for_index.is_empty() {
                         // This is package was published before component support
                         // was added. It does not have distinct components. So add
                         // default Build and Run components that point at the full
                         // package digest.
-                        filenames_to_resolve_for_index.push((None, path));
+                        filenames_to_resolve_for_index
+                            .push((ComponentMode::BackwardsCompatibility, path));
                     }
                     Ok::<_, Error>(filenames_to_resolve_for_index)
                 }),
@@ -142,11 +156,11 @@ impl RuntimeRepository {
 
         let mut filenames_to_resolve = Vec::new();
 
-        for (pkg, index, future) in futures.into_iter() {
-            let paths = future
+        for (index, component_filenames_f) in component_filenames_for_package_f.into_iter() {
+            let filenames = component_filenames_f
                 .await
                 .map_err(|err| Error::String(format!("Tokio join error: {err}")))??;
-            filenames_to_resolve.push((index, pkg, paths));
+            filenames_to_resolve.push(ComponentFilenames { index, filenames });
         }
 
         // Flatten all the paths that need to be looked up in a deterministic
@@ -154,7 +168,9 @@ impl RuntimeRepository {
 
         let filenames_to_resolve_flattened = filenames_to_resolve
             .iter()
-            .flat_map(|(_, _, v)| v.iter().map(|(_, path)| path))
+            .flat_map(|component_filenames| {
+                component_filenames.filenames.iter().map(|(_, path)| path)
+            })
             .collect_vec();
 
         let digests = find_layers_by_filenames(&filenames_to_resolve_flattened)
@@ -166,11 +182,16 @@ impl RuntimeRepository {
                     // error.
                     filenames_to_resolve
                         .iter()
-                        .find(|(_, _, filenames)| filenames.iter().any(|(_, p)| *p == *path))
-                        .map(|(_, pkg, _)| {
+                        .find(|component_filenames| {
+                            component_filenames
+                                .filenames
+                                .iter()
+                                .any(|(_, p)| *p == *path)
+                        })
+                        .map(|component_filenames| {
                             Error::SpkValidatorsError(
                                 spk_schema::validators::Error::PackageNotFoundError(
-                                    (**pkg).to_any(),
+                                    (pkgs[component_filenames.index]).to_any(),
                                 ),
                             )
                         })
@@ -183,18 +204,21 @@ impl RuntimeRepository {
         // Now all the results can be collected via that same order.
 
         let mut digests_iter = digests.into_iter();
-        for (index, _, comps) in filenames_to_resolve {
-            for (comp_name_opt, _) in comps {
+        for component_filenames in filenames_to_resolve {
+            for (comp_name_opt, _) in component_filenames.filenames {
                 let digest = digests_iter.next().ok_or_else(|| {
                     Error::String("internal error: digest results overrun".to_owned())
                 })?;
                 match comp_name_opt {
-                    Some(comp) => {
-                        results[index].insert(comp, digest);
+                    ComponentMode::RealComponent(comp) => {
+                        results[component_filenames.index].insert(comp, digest);
                     }
-                    None => {
-                        results[index].insert(Component::Run, digest);
-                        results[index].insert(Component::Build, digest);
+                    ComponentMode::BackwardsCompatibility => {
+                        // Simulate component support for old packages by
+                        // faking a Run and Build component with the same
+                        // contents.
+                        results[component_filenames.index].insert(Component::Run, digest);
+                        results[component_filenames.index].insert(Component::Build, digest);
                     }
                 }
             }
@@ -485,6 +509,8 @@ async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding
 ///
 /// It is more efficient to perform this lookup on multiple paths
 /// simultaneously than to do one path at a time.
+///
+/// The digests are returned in the same order as the elements in `paths`.
 async fn find_layers_by_filenames<S: AsRef<str>>(
     paths: &[S],
 ) -> Result<Vec<spfs::encoding::Digest>> {
