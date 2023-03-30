@@ -6,12 +6,14 @@ use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 use std::sync::Arc;
 
+use itertools::Itertools;
 use spfs::prelude::*;
 use spk_schema::foundation::ident_build::parse_build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::{parse_version, Version};
-use spk_schema::{BuildIdent, FromYaml, Spec, SpecRecipe, VersionIdent};
+use spk_schema::ident_build::{Build, EmbeddedSource};
+use spk_schema::{BuildIdent, FromYaml, Package, Spec, SpecRecipe, VersionIdent};
 
 use super::repository::{PublishPolicy, Storage};
 use super::Repository;
@@ -75,6 +77,113 @@ impl RuntimeRepository {
             name: "runtime".try_into().expect("valid repository name"),
             root,
         }
+    }
+
+    /// Identify the payloads for the identified packages' components.
+    ///
+    /// Like calling `Repository::read_components` for each package, but more
+    /// efficient.
+    pub async fn read_components_bulk(
+        &self,
+        pkgs: &[&BuildIdent],
+    ) -> Result<Vec<HashMap<Component, spfs::encoding::Digest>>> {
+        let mut results = Vec::new();
+        results.resize_with(pkgs.len(), Default::default);
+
+        let mut filenames_to_resolve = Vec::new();
+
+        for (index, pkg) in pkgs.iter().enumerate() {
+            if let Build::Embedded(EmbeddedSource::Package(_package)) = pkg.build() {
+                // An embedded package's components are only accessible
+                // via its package spec
+                let embedded_spec = self.read_package(pkg).await?;
+                let components = embedded_spec
+                    .components()
+                    .iter()
+                    .map(|c| (c.name.clone(), spfs::encoding::EMPTY_DIGEST.into()))
+                    .collect::<HashMap<Component, spfs::encoding::Digest>>();
+
+                results[index] = components;
+                continue;
+            }
+
+            let entries = get_all_filenames(self.root.join(pkg.to_string())).await?;
+            let components: Vec<Component> = entries
+                .into_iter()
+                .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
+                .map(Component::parse)
+                .collect::<spk_schema::foundation::ident_component::Result<_>>()?;
+
+            let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
+            path.push(pkg.to_string());
+
+            let mut filenames_to_resolve_for_index = Vec::new();
+            for name in components.into_iter() {
+                let path = path.join(format!("{}.cmpt", &name));
+                filenames_to_resolve_for_index.push((Some(name), path));
+            }
+            if filenames_to_resolve_for_index.is_empty() {
+                // This is package was published before component support
+                // was added. It does not have distinct components. So add
+                // default Build and Run components that point at the full
+                // package digest.
+                filenames_to_resolve_for_index.push((None, path));
+            }
+            filenames_to_resolve.push((index, pkg, filenames_to_resolve_for_index));
+        }
+
+        // Flatten all the paths that need to be looked up in a deterministic
+        // order...
+
+        let filenames_to_resolve_flattened = filenames_to_resolve
+            .iter()
+            .flat_map(|(_, _, v)| v.iter().map(|(_, path)| path))
+            .collect_vec();
+
+        let digests = find_layers_by_filenames(&filenames_to_resolve_flattened)
+            .await
+            .map_err(|err| {
+                if let Error::SPFS(spfs::Error::UnknownReference(path)) = &err {
+                    // In order to return a `PackageNotFoundError` we need to look
+                    // for what package owned the path in this `UnknownReference`
+                    // error.
+                    filenames_to_resolve
+                        .iter()
+                        .find(|(_, _, filenames)| filenames.iter().any(|(_, p)| *p == *path))
+                        .map(|(_, pkg, _)| {
+                            Error::SpkValidatorsError(
+                                spk_schema::validators::Error::PackageNotFoundError(
+                                    (***pkg).to_any(),
+                                ),
+                            )
+                        })
+                        .unwrap_or(err)
+                } else {
+                    err
+                }
+            })?;
+
+        // Now all the results can be collected via that same order.
+
+        let mut digests_iter = digests.into_iter();
+        for (index, _, comps) in filenames_to_resolve {
+            for (comp_name_opt, _) in comps {
+                let digest = digests_iter.next().ok_or_else(|| {
+                    Error::String("internal error: digest results overrun".to_owned())
+                })?;
+                match comp_name_opt {
+                    Some(comp) => {
+                        results[index].insert(comp, digest);
+                    }
+                    None => {
+                        results[index].insert(Component::Run, digest);
+                        results[index].insert(Component::Build, digest);
+                    }
+                }
+            }
+        }
+
+        Ok(results)
     }
 }
 
@@ -352,4 +461,60 @@ async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding
         }
     }
     Err(spfs::Error::UnknownReference(path.as_ref().into()).into())
+}
+
+/// Perform a reverse lookup in the current runtime to find which layer, if
+/// any, a path belongs to.
+///
+/// It is more efficient to perform this lookup on multiple paths
+/// simultaneously than to do one path at a time.
+async fn find_layers_by_filenames<S: AsRef<str>>(
+    paths: &[S],
+) -> Result<Vec<spfs::encoding::Digest>> {
+    let config = spfs::get_config()?;
+    let (runtime, repo) =
+        tokio::try_join!(spfs::active_runtime(), config.get_local_repository_handle())?;
+
+    let mut paths = paths.iter().map(Some).enumerate().collect::<Vec<_>>();
+
+    let mut results = Vec::new();
+    results.resize_with(paths.len(), Default::default);
+
+    let layers = spfs::resolve_stack_to_layers(runtime.status.stack.iter(), Some(&repo)).await?;
+    for layer in layers.iter().rev() {
+        let manifest = repo
+            .read_manifest(layer.manifest)
+            .await?
+            .to_tracking_manifest();
+
+        let mut paths_remaining = false;
+        for (index, path_opt) in paths.iter_mut() {
+            match path_opt {
+                Some(path) => {
+                    if manifest.get_path(path).is_some() {
+                        results[*index] = layer.digest()?;
+                        *path_opt = None;
+                    } else {
+                        paths_remaining = true;
+                    }
+                }
+                None => {}
+            }
+        }
+
+        if !paths_remaining {
+            return Ok(results);
+        }
+    }
+
+    // Some path(s) were not resolved.
+    for (_, path_opt) in paths {
+        if let Some(path) = path_opt {
+            return Err(spfs::Error::UnknownReference(path.as_ref().into()).into());
+        }
+    }
+
+    Err(Error::String(
+        "Internal bug; not all paths resolved but unknown which".to_owned(),
+    ))
 }

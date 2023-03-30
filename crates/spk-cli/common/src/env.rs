@@ -33,46 +33,57 @@ pub async fn current_env() -> crate::Result<Solution> {
     for name in repo.list_packages().await? {
         let repo = Arc::clone(&repo);
         futures.push(tokio::spawn(async move {
-            let mut solution_additions = Vec::new();
+            let mut specs = Vec::new();
             for version in repo.list_package_versions(&name).await?.iter() {
                 let pkg = VersionIdent::new(name.clone(), (**version).clone());
                 for pkg in repo.list_package_builds(&pkg).await? {
                     let spec = repo.read_package(&pkg).await?;
-                    let components = match repo.read_components(spec.ident()).await {
-                        Ok(c) => c,
-                        Err(spk_storage::Error::SpkValidatorsError(
-                            spk_schema::validators::Error::PackageNotFoundError(_),
-                        )) => {
-                            tracing::info!("Skipping missing build {pkg}; currently being built?");
-                            continue;
-                        }
-                        Err(err) => return Err(Error::from(err)),
-                    };
-                    let range_ident =
-                        RangeIdent::equals(&spec.ident().to_any(), components.keys().cloned());
-                    let mut request = PkgRequest::new(range_ident, RequestedBy::CurrentEnvironment);
-                    request.prerelease_policy = PreReleasePolicy::IncludeAll;
-                    let repo = repo.clone();
-                    solution_additions.push((
-                        request,
-                        spec,
-                        PackageSource::Repository { repo, components },
-                    ));
+                    specs.push(spec);
                 }
             }
-            Ok(solution_additions)
+            Ok::<_, Error>(specs)
         }));
     }
 
     let mut solution = Solution::default();
+
+    let mut all_specs = Vec::new();
     for future in futures {
-        let solution_additions = future
+        let specs = future
             .await
             .map_err(|err| Error::String(format!("Tokio join error: {err}")))??;
-        for (request, spec, source) in solution_additions.into_iter() {
-            solution.add(request, spec, source);
-        }
+        all_specs.extend(specs.into_iter());
     }
+
+    let all_idents = all_specs
+        .iter()
+        .map(|spec| spec.ident())
+        .collect::<Vec<_>>();
+
+    let components = match &*repo {
+        spk_solve::RepositoryHandle::Runtime(runtime) => {
+            runtime.read_components_bulk(&all_idents).await?
+        }
+        _ => unreachable!(),
+    };
+
+    let mut components_iter = components.into_iter();
+    for spec in all_specs {
+        let components = components_iter
+            .next()
+            .ok_or_else(|| Error::String("internal error: components iter overrun".to_owned()))?;
+
+        let range_ident = RangeIdent::equals(&spec.ident().to_any(), components.keys().cloned());
+        let mut request = PkgRequest::new(range_ident, RequestedBy::CurrentEnvironment);
+        request.prerelease_policy = PreReleasePolicy::IncludeAll;
+        let repo = repo.clone();
+        solution.add(
+            request,
+            spec,
+            PackageSource::Repository { repo, components },
+        );
+    }
+
     Ok(solution)
 }
 
