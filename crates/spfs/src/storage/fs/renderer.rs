@@ -65,7 +65,7 @@ impl FSRepository {
 
     pub fn iter_rendered_manifests<'db>(
         &'db self,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + 'db>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send + Sync + 'db>> {
         Box::pin(try_stream! {
             let renders = self.get_render_storage()?;
             for await digest in renders.iter() {

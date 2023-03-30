@@ -284,7 +284,7 @@ where
     /// Visit all tags, pruning as configured and then cleaning detached objects
     pub async fn prune_all_tags_and_clean(&self) -> Result<CleanResult> {
         let mut result = CleanResult::default();
-        let mut stream = self.repo.iter_tag_streams();
+        let mut stream = self.repo.iter_tag_streams().boxed();
         let mut futures = futures::stream::FuturesUnordered::new();
         while let Some((tag_spec, _stream)) = stream.try_next().await? {
             if futures.len() > self.tag_stream_concurrency {
@@ -299,6 +299,7 @@ where
             }
             futures.push(self.prune_tag_stream_and_walk(tag_spec));
         }
+        drop(stream);
         while let Some(r) = futures.try_next().await? {
             result += r;
         }
@@ -461,12 +462,14 @@ where
                     .map_ok(|_| blob);
                 ready(Ok(future.boxed()))
             })
-            .try_buffer_unordered(self.removal_concurrency);
+            .try_buffer_unordered(self.removal_concurrency)
+            .boxed();
         let mut result = CleanResult::default();
         while let Some(blob) = stream.try_next().await? {
             result.removed_payloads.insert(blob.payload);
             self.reporter.payload_removed(&blob)
         }
+        drop(stream);
 
         let mut stream = self
             .repo
@@ -499,7 +502,8 @@ where
                     .map_ok(|_| blob);
                 ready(Ok(future.boxed()))
             })
-            .try_buffer_unordered(self.removal_concurrency);
+            .try_buffer_unordered(self.removal_concurrency)
+            .boxed();
         while let Some(blob) = stream.try_next().await? {
             result.removed_payloads.insert(blob.payload);
             self.reporter.payload_removed(&blob)
@@ -561,7 +565,8 @@ where
                 ready(Ok(future.boxed()))
             })
             .try_buffer_unordered(self.removal_concurrency)
-            .try_filter_map(|(digest, removed)| ready(Ok(removed.then_some(digest))));
+            .try_filter_map(|(digest, removed)| ready(Ok(removed.then_some(digest))))
+            .boxed();
         let removed_for_user = result.removed_renders.entry(username.clone()).or_default();
         while let Some(digest) = stream.try_next().await? {
             removed_for_user.insert(digest);
@@ -722,7 +727,7 @@ impl std::ops::AddAssign for CleanResult {
     }
 }
 
-pub trait CleanReporter {
+pub trait CleanReporter: Send + Sync {
     /// Called when the cleaner visits a tag
     fn visit_tag(&self, _tag: &tracking::Tag) {}
 

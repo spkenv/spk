@@ -78,7 +78,7 @@ impl FSHashStore {
     async fn find_in_entry(
         search_criteria: crate::graph::DigestSearchCriteria,
         entry: DirEntry,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send + 'static>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send + Sync + 'static>> {
         let entry_filename = entry.file_name();
         let entry_filename = entry_filename.to_string_lossy().into_owned();
         if entry_filename == WORK_DIRNAME || entry_filename == PROXY_DIRNAME {
@@ -175,6 +175,7 @@ impl FSHashStore {
                 while let Some(digest) = entry_stream.try_next().await? {
                     yield digest
                 }
+                drop(entry_stream);
 
                 if let crate::graph::DigestSearchCriteria::StartsWith(partial) = &search_criteria {
                     let encoded = partial.to_string();
