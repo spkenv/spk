@@ -90,7 +90,7 @@ impl RuntimeRepository {
         let mut results = Vec::new();
         results.resize_with(pkgs.len(), Default::default);
 
-        let mut filenames_to_resolve = Vec::new();
+        let mut futures = Vec::new();
 
         for (index, pkg) in pkgs.iter().enumerate() {
             if let Build::Embedded(EmbeddedSource::Package(_package)) = pkg.build() {
@@ -107,29 +107,46 @@ impl RuntimeRepository {
                 continue;
             }
 
-            let entries = get_all_filenames(self.root.join(pkg.to_string())).await?;
-            let components: Vec<Component> = entries
-                .into_iter()
-                .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
-                .map(Component::parse)
-                .collect::<spk_schema::foundation::ident_component::Result<_>>()?;
+            let path = self.root.join(pkg.to_string());
+            let pkg_string = pkg.to_string();
+            futures.push((
+                pkg,
+                index,
+                tokio::spawn(async move {
+                    let entries = get_all_filenames(path).await?;
+                    let components: Vec<Component> = entries
+                        .into_iter()
+                        .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
+                        .map(Component::parse)
+                        .collect::<spk_schema::foundation::ident_component::Result<_>>()?;
 
-            let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
-            path.push(pkg.to_string());
+                    let mut path = relative_path::RelativePathBuf::from("/spk/pkg");
+                    path.push(pkg_string);
 
-            let mut filenames_to_resolve_for_index = Vec::new();
-            for name in components.into_iter() {
-                let path = path.join(format!("{}.cmpt", &name));
-                filenames_to_resolve_for_index.push((Some(name), path));
-            }
-            if filenames_to_resolve_for_index.is_empty() {
-                // This is package was published before component support
-                // was added. It does not have distinct components. So add
-                // default Build and Run components that point at the full
-                // package digest.
-                filenames_to_resolve_for_index.push((None, path));
-            }
-            filenames_to_resolve.push((index, pkg, filenames_to_resolve_for_index));
+                    let mut filenames_to_resolve_for_index = Vec::new();
+                    for name in components.into_iter() {
+                        let path = path.join(format!("{}.cmpt", &name));
+                        filenames_to_resolve_for_index.push((Some(name), path));
+                    }
+                    if filenames_to_resolve_for_index.is_empty() {
+                        // This is package was published before component support
+                        // was added. It does not have distinct components. So add
+                        // default Build and Run components that point at the full
+                        // package digest.
+                        filenames_to_resolve_for_index.push((None, path));
+                    }
+                    Ok::<_, Error>(filenames_to_resolve_for_index)
+                }),
+            ));
+        }
+
+        let mut filenames_to_resolve = Vec::new();
+
+        for (pkg, index, future) in futures.into_iter() {
+            let paths = future
+                .await
+                .map_err(|err| Error::String(format!("Tokio join error: {err}")))??;
+            filenames_to_resolve.push((index, pkg, paths));
         }
 
         // Flatten all the paths that need to be looked up in a deterministic
@@ -153,7 +170,7 @@ impl RuntimeRepository {
                         .map(|(_, pkg, _)| {
                             Error::SpkValidatorsError(
                                 spk_schema::validators::Error::PackageNotFoundError(
-                                    (***pkg).to_any(),
+                                    (**pkg).to_any(),
                                 ),
                             )
                         })
