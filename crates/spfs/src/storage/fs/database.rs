@@ -13,7 +13,7 @@ use futures::{Stream, StreamExt, TryFutureExt};
 use graph::DatabaseView;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::graph::Object;
+use crate::graph::{Kind, Object};
 use crate::{encoding, graph, Error, Result};
 
 #[async_trait::async_trait]

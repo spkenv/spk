@@ -5,7 +5,8 @@
 use std::collections::BTreeSet;
 use std::io::BufRead;
 
-use super::Entry;
+use super::object::Kind;
+use super::{Entry, ObjectKind};
 use crate::encoding::Encodable;
 use crate::{encoding, Error, Result};
 
@@ -113,5 +114,12 @@ impl encoding::Decodable for Tree {
             tree.entries.insert(Entry::decode(reader)?);
         }
         Ok(tree)
+    }
+}
+
+impl Kind for Tree {
+    #[inline]
+    fn kind(&self) -> ObjectKind {
+        ObjectKind::Tree
     }
 }

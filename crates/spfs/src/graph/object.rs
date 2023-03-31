@@ -32,18 +32,6 @@ impl Object {
         }
     }
 
-    /// Identifies the kind of object this is for the purposes of encoding
-    pub fn kind(&self) -> ObjectKind {
-        match self {
-            Self::Blob(_) => ObjectKind::Blob,
-            Self::Manifest(_) => ObjectKind::Manifest,
-            Self::Layer(_) => ObjectKind::Layer,
-            Self::Platform(_) => ObjectKind::Platform,
-            Self::Tree(_) => ObjectKind::Tree,
-            Self::Mask => ObjectKind::Mask,
-        }
-    }
-
     /// Return true if this Object kind also has a payload
     pub fn has_payload(&self) -> bool {
         matches!(self, Self::Blob(_))
@@ -139,6 +127,27 @@ impl ObjectKind {
     }
 }
 
+/// A trait for spfs objects to implement so they can specify their
+/// [`ObjectKind`].
+pub trait Kind {
+    /// Identifies the kind of object this is for the purposes of encoding
+    fn kind(&self) -> ObjectKind;
+}
+
+impl Kind for Object {
+    #[inline]
+    fn kind(&self) -> ObjectKind {
+        match self {
+            Object::Platform(o) => o.kind(),
+            Object::Layer(o) => o.kind(),
+            Object::Manifest(o) => o.kind(),
+            Object::Tree(o) => o.kind(),
+            Object::Blob(o) => o.kind(),
+            Object::Mask => ObjectKind::Mask,
+        }
+    }
+}
+
 const OBJECT_HEADER: &[u8] = "--SPFS--".as_bytes();
 
 impl encoding::Encodable for Object {
@@ -155,7 +164,10 @@ impl encoding::Encodable for Object {
         }
     }
 
-    fn encode(&self, mut writer: &mut impl std::io::Write) -> crate::Result<()> {
+    fn encode(&self, mut writer: &mut impl std::io::Write) -> crate::Result<()>
+    where
+        Self: Kind,
+    {
         encoding::write_header(&mut writer, OBJECT_HEADER)?;
         encoding::write_uint(&mut writer, self.kind() as u64)?;
         match self {

@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use super::Stack;
+use super::object::Kind;
+use super::{ObjectKind, Stack};
 use crate::encoding::Encodable;
 use crate::{encoding, Error, Result};
 
@@ -87,5 +88,12 @@ where
         Self {
             stack: Stack::from_iter(iter),
         }
+    }
+}
+
+impl Kind for Platform {
+    #[inline]
+    fn kind(&self) -> ObjectKind {
+        ObjectKind::Platform
     }
 }
