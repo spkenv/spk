@@ -25,7 +25,7 @@ pub use database::{
 pub use entry::Entry;
 pub use layer::Layer;
 pub use manifest::Manifest;
-pub use object::{Object, ObjectKind};
+pub use object::{Kind, Object, ObjectKind};
 pub use platform::Platform;
 pub use stack::Stack;
 pub use tree::Tree;
