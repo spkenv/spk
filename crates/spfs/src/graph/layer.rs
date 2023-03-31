@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use super::{Kind, ObjectKind};
 use crate::{encoding, Error, Result};
 
 #[cfg(test)]
@@ -42,5 +43,12 @@ impl encoding::Decodable for Layer {
         Ok(Layer {
             manifest: encoding::read_digest(reader)?,
         })
+    }
+}
+
+impl Kind for Layer {
+    #[inline]
+    fn kind(&self) -> ObjectKind {
+        ObjectKind::Layer
     }
 }
