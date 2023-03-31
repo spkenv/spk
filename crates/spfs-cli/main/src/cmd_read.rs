@@ -4,6 +4,7 @@
 
 use clap::Args;
 use miette::Result;
+use spfs::graph::Kind;
 use spfs::prelude::*;
 use spfs::Error;
 

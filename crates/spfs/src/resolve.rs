@@ -12,6 +12,7 @@ use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 
 use super::config::get_config;
+use crate::graph::Kind;
 use crate::prelude::*;
 use crate::storage::fallback::FallbackProxy;
 use crate::storage::fs::{ManifestRenderPath, RenderSummary};

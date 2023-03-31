@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use super::object::Kind;
+use super::ObjectKind;
 use crate::{encoding, Error, Result};
 
 /// Blobs represent an arbitrary chunk of binary data, usually a file.
@@ -44,5 +46,12 @@ impl encoding::Decodable for Blob {
             payload: encoding::read_digest(&mut reader)?,
             size: encoding::read_uint64(reader)?,
         })
+    }
+}
+
+impl Kind for Blob {
+    #[inline]
+    fn kind(&self) -> ObjectKind {
+        ObjectKind::Blob
     }
 }

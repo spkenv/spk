@@ -7,7 +7,7 @@ use std::io::BufRead;
 
 use encoding::Decodable;
 
-use super::{Entry, Tree};
+use super::{Entry, Kind, ObjectKind, Tree};
 use crate::encoding::Encodable;
 use crate::{encoding, tracking, Error, Result};
 
@@ -205,5 +205,12 @@ impl Decodable for Manifest {
             manifest.insert_tree(tree)?;
         }
         Ok(manifest)
+    }
+}
+
+impl Kind for Manifest {
+    #[inline]
+    fn kind(&self) -> ObjectKind {
+        ObjectKind::Manifest
     }
 }
