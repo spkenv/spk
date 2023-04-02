@@ -306,6 +306,10 @@ where
     }
 
     /// Visit all tags, pruning as configured and then cleaning detached objects
+    ///
+    /// Note that the returned [`CleanResult`] can still include errors even when this
+    /// function returns as a success. In these cases, the clean should be considered
+    /// partially complete depending on the nature of the errors.
     pub async fn prune_all_tags_and_clean(&self) -> Result<CleanResult> {
         let mut result = CleanResult::default();
         let mut stream = self.repo.iter_tag_streams().boxed();
@@ -327,10 +331,26 @@ where
         while let Some(r) = futures.try_next().await? {
             result += r;
         }
-        // because we don't yet know if some detached objects will be
-        // kept due to age, we cannot process these two steps in parallel
-        result += self.remove_unvisited_objects_and_payloads().await?;
-        result += self.remove_unvisited_renders_and_proxies().await?;
+
+        if !result.errors.is_empty() {
+            // although we've already begun pruning some references,
+            // and error that was encountered while walking the repository
+            // tree and building the data set creates an unsafe scenario
+            // and so we will not continue. This is still returned as
+            // a valid result so that the information about what was processed
+            // is not lost.
+            return Ok(result);
+        }
+
+        // Safety: both of these functions require that the repository is fully
+        // walked and all attached objects discovered. See the above block which
+        // checks for this before proceeding
+        unsafe {
+            // because we don't yet know if some detached objects will be
+            // kept due to age, we cannot process these two steps in parallel
+            result += self.remove_unvisited_objects_and_payloads().await?;
+            result += self.remove_unvisited_renders_and_proxies().await?;
+        }
         Ok(result)
     }
 
@@ -419,7 +439,11 @@ where
         Ok(result)
     }
 
-    async fn remove_unvisited_objects_and_payloads(&self) -> Result<CleanResult> {
+    /// # Safety
+    /// This function should only be called once the discovery of all attached
+    /// objects has completed successfully and with no errors. Otherwise, it may
+    /// remove data that is still being used
+    async unsafe fn remove_unvisited_objects_and_payloads(&self) -> Result<CleanResult> {
         let mut result = CleanResult::default();
         let mut stream = self
             .repo
@@ -537,7 +561,11 @@ where
         Ok(result)
     }
 
-    async fn remove_unvisited_renders_and_proxies(&self) -> Result<CleanResult> {
+    /// # Safety
+    /// This function should only be called once the discovery of all attached
+    /// objects has completed successfully and with no errors. Otherwise, it may
+    /// remove data that is still being used
+    async unsafe fn remove_unvisited_renders_and_proxies(&self) -> Result<CleanResult> {
         let mut result = CleanResult::default();
         let storage::RepositoryHandle::FS(repo) = self.repo else {
             return Ok(result);
