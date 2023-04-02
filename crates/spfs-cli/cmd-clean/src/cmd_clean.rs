@@ -66,7 +66,7 @@ pub struct CmdClean {
     #[clap(
         long,
         env = "SPFS_CLEAN_MAX_TAG_STREAM_CONCURRENCY",
-        default_value = "500"
+        default_value_t = spfs::Cleaner::DEFAULT_TAG_STREAM_CONCURRENCY
     )]
     max_tag_stream_concurrency: usize,
 
@@ -75,7 +75,7 @@ pub struct CmdClean {
     #[clap(
         long,
         env = "SPFS_CLEAN_MAX_REMOVAL_CONCURRENCY",
-        default_value = "500"
+        default_value_t = spfs::Cleaner::DEFAULT_REMOVAL_CONCURRENCY
     )]
     max_removal_concurrency: usize,
 
@@ -87,7 +87,7 @@ pub struct CmdClean {
     #[clap(
         long,
         env = "SPFS_CLEAN_MAX_DISCOVER_CONCURRENCY",
-        default_value = "50"
+        default_value_t = spfs::Cleaner::DEFAULT_DISCOVER_CONCURRENCY
     )]
     max_discover_concurrency: usize,
 }
@@ -110,7 +110,10 @@ impl CmdClean {
             .with_prune_tags_older_than(self.prune_if_older_than)
             .with_keep_tags_newer_than(self.keep_if_newer_than)
             .with_prune_tags_if_version_more_than(self.prune_if_more_than)
-            .with_keep_tags_if_version_less_than(self.keep_if_less_than);
+            .with_keep_tags_if_version_less_than(self.keep_if_less_than)
+            .with_removal_concurrency(self.max_removal_concurrency)
+            .with_discover_concurrency(self.max_discover_concurrency)
+            .with_tag_stream_concurrency(self.max_tag_stream_concurrency);
 
         println!("{}", cleaner.format_plan());
         if !self.dry_run && !self.yes {

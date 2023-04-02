@@ -44,13 +44,20 @@ where
 }
 
 impl<'repo> Cleaner<'repo, SilentCleanReporter> {
+    /// See [`Cleaner::with_removal_concurrency`]
+    pub const DEFAULT_REMOVAL_CONCURRENCY: usize = 500;
+    /// See [`Cleaner::with_discover_concurrency`]
+    pub const DEFAULT_DISCOVER_CONCURRENCY: usize = 50;
+    /// See [`Cleaner::with_tag_stream_concurrency`]
+    pub const DEFAULT_TAG_STREAM_CONCURRENCY: usize = 500;
+
     pub fn new(repo: &'repo storage::RepositoryHandle) -> Self {
         Self {
             repo,
             reporter: SilentCleanReporter,
-            removal_concurrency: 500,
-            discover_concurrency: 50,
-            tag_stream_concurrency: 500,
+            removal_concurrency: Self::DEFAULT_REMOVAL_CONCURRENCY,
+            discover_concurrency: Self::DEFAULT_DISCOVER_CONCURRENCY,
+            tag_stream_concurrency: Self::DEFAULT_TAG_STREAM_CONCURRENCY,
             attached: Default::default(),
             dry_run: false,
             must_be_older_than: Utc::now(),
