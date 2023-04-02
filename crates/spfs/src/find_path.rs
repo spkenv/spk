@@ -28,7 +28,8 @@ impl ObjectPathEntry {
     pub fn digest(&self) -> Result<Digest> {
         match self {
             ObjectPathEntry::Parent(obj) => match obj {
-                Object::Platform(obj) => obj.digest(),
+                Object::PlatformV1(obj) => obj.digest(),
+                Object::PlatformV2(obj) => obj.digest(),
                 Object::Layer(obj) => obj.digest(),
                 Object::Manifest(obj) => obj.digest(),
                 Object::Blob(obj) => obj.digest(),
@@ -81,13 +82,26 @@ async fn find_path_in_spfs_item(
     let mut paths: Vec<ObjectPath> = Vec::new();
 
     match obj {
-        Object::Platform(obj) => {
+        Object::PlatformV1(obj) => {
             for reference in obj.stack.iter_bottom_up() {
                 let item = repo.read_object(reference).await?;
                 let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
                 for path in paths_to_file {
                     let mut new_path: ObjectPath = Vec::new();
-                    new_path.push(ObjectPathEntry::Parent(Object::Platform(obj.clone())));
+                    new_path.push(ObjectPathEntry::Parent(Object::PlatformV1(obj.clone())));
+                    new_path.extend(path);
+                    paths.push(new_path);
+                }
+            }
+        }
+
+        Object::PlatformV2(obj) => {
+            for reference in obj.stack.iter_bottom_up() {
+                let item = repo.read_object(reference).await?;
+                let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
+                for path in paths_to_file {
+                    let mut new_path: ObjectPath = Vec::new();
+                    new_path.push(ObjectPathEntry::Parent(Object::PlatformV2(obj.clone())));
                     new_path.extend(path);
                     paths.push(new_path);
                 }

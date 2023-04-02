@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use super::{DigestFromEncode, EncodeDigest, Kind, ObjectKind};
+use super::{DigestFromEncode, Kind, KindAndEncodeDigest, ObjectKind};
 use crate::{encoding, Error, Result};
 
 #[cfg(test)]
@@ -60,7 +60,8 @@ impl Kind for Layer {
 
 impl<D> encoding::Digestible for Layer<D>
 where
-    D: EncodeDigest<Error = crate::Error>,
+    Self: Kind,
+    D: KindAndEncodeDigest<Error = crate::Error>,
 {
     type Error = crate::Error;
 

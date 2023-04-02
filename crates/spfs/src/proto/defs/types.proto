@@ -21,10 +21,15 @@ message Object {
         Tree tree = 4;
         Blob blob = 5;
         bool mask = 6;
+        PlatformV2 platform_v2 = 7;
     }
 }
 
 message Platform {
+    repeated Digest stack = 1;
+}
+
+message PlatformV2 {
     repeated Digest stack = 1;
 }
 

@@ -7,7 +7,7 @@ use std::io::BufRead;
 
 use encoding::{Decodable, Digestible};
 
-use super::{DigestFromEncode, EncodeDigest, Entry, Kind, ObjectKind, Tree};
+use super::{DigestFromEncode, Entry, Kind, KindAndEncodeDigest, ObjectKind, Tree};
 use crate::encoding::Encodable;
 use crate::{encoding, tracking, Error, Result};
 
@@ -227,7 +227,8 @@ impl Kind for Manifest {
 
 impl<D> encoding::Digestible for Manifest<D>
 where
-    D: EncodeDigest<Error = crate::Error> + Default,
+    Self: Kind,
+    D: KindAndEncodeDigest<Error = crate::Error> + Default,
 {
     type Error = crate::Error;
 

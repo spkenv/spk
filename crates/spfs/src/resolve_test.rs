@@ -22,7 +22,7 @@ async fn test_stack_to_layers_dedupe(#[future] tmprepo: TempRepo) {
     repo.write_object(&graph::Object::Layer(layer))
         .await
         .unwrap();
-    repo.write_object(&graph::Object::Platform(platform))
+    repo.write_object(&graph::Object::PlatformV2(platform))
         .await
         .unwrap();
     let resolved = resolve_stack_to_layers(&stack, Some(&repo)).await.unwrap();

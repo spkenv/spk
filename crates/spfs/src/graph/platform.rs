@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use super::object::Kind;
-use super::{DigestFromEncode, EncodeDigest, ObjectKind, Stack};
+use super::{DigestFromEncode, DigestFromKindAndEncode, KindAndEncodeDigest, ObjectKind, Stack};
 use crate::encoding::Encodable;
 use crate::{encoding, Error, Result};
 
@@ -17,19 +17,24 @@ mod platform_test;
 /// as a single, identifiable object which can be applied/installed to
 /// future runtimes.
 #[derive(Debug, Eq, PartialEq, Default, Clone)]
-pub struct Platform<DigestImpl = DigestFromEncode> {
+pub struct Platform<DigestImpl = DigestFromKindAndEncode> {
     /// Items in the platform, where the first element is the bottom of the
     /// stack, and may be overridden by later elements higher in the stack
     pub stack: Stack,
     phantom: std::marker::PhantomData<DigestImpl>,
 }
 
-impl Platform {
+impl<D> Platform<D> {
     pub fn new(stack: Stack) -> Self {
         Self {
             stack,
             phantom: std::marker::PhantomData,
         }
+    }
+
+    /// Return the digests of objects that this manifest refers to.
+    pub fn child_objects(&self) -> Vec<encoding::Digest> {
+        self.stack.iter_bottom_up().collect()
     }
 
     pub fn from_digestible<E, I>(layers: I) -> Result<Self>
@@ -42,13 +47,6 @@ impl Platform {
             stack,
             phantom: std::marker::PhantomData,
         })
-    }
-}
-
-impl<D> Platform<D> {
-    /// Return the digests of objects that this manifest refers to.
-    pub fn child_objects(&self) -> Vec<encoding::Digest> {
-        self.stack.iter_bottom_up().collect()
     }
 }
 
@@ -69,7 +67,7 @@ impl<D> Encodable for Platform<D> {
     }
 }
 
-impl encoding::Decodable for Platform {
+impl<D> encoding::Decodable for Platform<D> {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
         let num_layers = encoding::read_uint(&mut reader)?;
         let mut layers = Vec::with_capacity(num_layers as usize);
@@ -94,7 +92,7 @@ where
     }
 }
 
-impl<T> FromIterator<T> for Platform
+impl<T, D> FromIterator<T> for Platform<D>
 where
     Stack: FromIterator<T>,
 {
@@ -106,16 +104,24 @@ where
     }
 }
 
-impl Kind for Platform {
+impl Kind for Platform<DigestFromEncode> {
     #[inline]
     fn kind(&self) -> ObjectKind {
-        ObjectKind::Platform
+        ObjectKind::PlatformV1
+    }
+}
+
+impl Kind for Platform<DigestFromKindAndEncode> {
+    #[inline]
+    fn kind(&self) -> ObjectKind {
+        ObjectKind::PlatformV2
     }
 }
 
 impl<D> encoding::Digestible for Platform<D>
 where
-    D: EncodeDigest<Error = crate::Error>,
+    Self: Kind,
+    D: KindAndEncodeDigest<Error = crate::Error>,
 {
     type Error = crate::Error;
 

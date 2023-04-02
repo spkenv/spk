@@ -23,7 +23,7 @@ pub use database::{
     DatabaseWalker,
     DigestSearchCriteria,
 };
-pub use digest::{DigestFromEncode, EncodeDigest};
+pub use digest::{DigestFromEncode, DigestFromKindAndEncode, EncodeDigest, KindAndEncodeDigest};
 pub use entry::Entry;
 pub use layer::Layer;
 pub use manifest::Manifest;

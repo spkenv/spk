@@ -273,7 +273,14 @@ where
         self.reporter.visit_object(&obj);
         let res = match obj {
             Object::Layer(obj) => SyncObjectResult::Layer(self.sync_layer(obj).await?),
-            Object::Platform(obj) => SyncObjectResult::Platform(self.sync_platform(obj).await?),
+            Object::PlatformV1(obj) => SyncObjectResult::Platform(
+                self.sync_platform(storage::PlatformVersion::V1(obj))
+                    .await?,
+            ),
+            Object::PlatformV2(obj) => SyncObjectResult::Platform(
+                self.sync_platform(storage::PlatformVersion::V2(obj))
+                    .await?,
+            ),
             Object::Blob(obj) => SyncObjectResult::Blob(self.sync_blob(obj).await?),
             Object::Manifest(obj) => SyncObjectResult::Manifest(self.sync_manifest(obj).await?),
             Object::Tree(obj) => SyncObjectResult::Tree(obj),
@@ -283,7 +290,10 @@ where
         Ok(res)
     }
 
-    pub async fn sync_platform(&self, platform: graph::Platform) -> Result<SyncPlatformResult> {
+    pub async fn sync_platform(
+        &self,
+        platform: storage::PlatformVersion,
+    ) -> Result<SyncPlatformResult> {
         let digest = platform.digest()?;
         if !self.processed_digests.insert(digest) {
             return Ok(SyncPlatformResult::Duplicate);
@@ -294,7 +304,7 @@ where
         self.reporter.visit_platform(&platform);
 
         let mut futures = FuturesUnordered::new();
-        for digest in platform.stack.iter_bottom_up() {
+        for digest in platform.stack().iter_bottom_up() {
             futures.push(self.sync_digest(digest));
         }
         let mut results = Vec::with_capacity(futures.len());
@@ -302,7 +312,10 @@ where
             results.push(result);
         }
 
-        let platform = self.dest.create_platform(platform.stack).await?;
+        let platform = match platform {
+            storage::PlatformVersion::V1(o) => self.dest.create_platform_v1(o.stack).await?.into(),
+            storage::PlatformVersion::V2(o) => self.dest.create_platform(o.stack).await?.into(),
+        };
 
         let res = SyncPlatformResult::Synced { platform, results };
         self.reporter.synced_platform(&res);
@@ -521,7 +534,7 @@ pub trait SyncReporter: Send + Sync {
     fn synced_object(&self, _result: &SyncObjectResult) {}
 
     /// Called when a platform has been identified to sync
-    fn visit_platform(&self, _platform: &graph::Platform) {}
+    fn visit_platform(&self, _platform: &storage::PlatformVersion) {}
 
     /// Called when a platform has finished syncing
     fn synced_platform(&self, _result: &SyncPlatformResult) {}
@@ -777,7 +790,7 @@ pub enum SyncPlatformResult {
     Duplicate,
     /// The platform was at least partially synced
     Synced {
-        platform: graph::Platform,
+        platform: storage::PlatformVersion,
         results: Vec<SyncObjectResult>,
     },
 }

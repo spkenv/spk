@@ -344,7 +344,13 @@ impl<T: Output> Du<T> {
                                     let mut next_iter_objects: Vec<spfs::graph::Object> = Vec::new();
                                     for object in items_to_process.iter() {
                                         match object {
-                                            Object::Platform(object) => {
+                                            Object::PlatformV1(object) => {
+                                                for digest in object.stack.iter_bottom_up() {
+                                                    item = repo.read_object(digest).await?;
+                                                    next_iter_objects.push(item);
+                                                }
+                                            }
+                                            Object::PlatformV2(object) => {
                                                 for digest in object.stack.iter_bottom_up() {
                                                     item = repo.read_object(digest).await?;
                                                     next_iter_objects.push(item);

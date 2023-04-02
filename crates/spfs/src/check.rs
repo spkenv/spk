@@ -12,6 +12,7 @@ use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
 use tokio::sync::Semaphore;
 
+use crate::graph::{DigestFromEncode, DigestFromKindAndEncode};
 use crate::prelude::*;
 use crate::sync::{SyncObjectResult, SyncPayloadResult, SyncPolicy};
 use crate::{encoding, graph, storage, tracking, Error, Result};
@@ -293,7 +294,12 @@ where
         self.reporter.visit_object(&obj);
         let res = match obj {
             Object::Layer(obj) => CheckObjectResult::Layer(self.check_layer(obj).await?.into()),
-            Object::Platform(obj) => CheckObjectResult::Platform(self.check_platform(obj).await?),
+            Object::PlatformV1(obj) => {
+                CheckObjectResult::PlatformV1(self.check_platform(obj).await?)
+            }
+            Object::PlatformV2(obj) => {
+                CheckObjectResult::PlatformV2(self.check_platform(obj).await?)
+            }
             Object::Blob(obj) => CheckObjectResult::Blob(unsafe {
                 // Safety: it is unsafe to call this function unless the blob
                 // is known to exist, which is the same rule we pass up to the caller
@@ -310,7 +316,10 @@ where
     /// Validate that the identified platform's children all exist.
     ///
     /// To also check if the platform object exists, use [`Self::check_digest`]
-    pub async fn check_platform(&self, platform: graph::Platform) -> Result<CheckPlatformResult> {
+    pub async fn check_platform<D>(
+        &self,
+        platform: graph::Platform<D>,
+    ) -> Result<CheckPlatformResult<D>> {
         let futures: FuturesUnordered<_> = platform
             .stack
             .iter_bottom_up()
@@ -778,7 +787,8 @@ pub enum CheckObjectResult {
     Ignorable,
     /// The object was found to be missing from the database
     Missing(encoding::Digest),
-    Platform(CheckPlatformResult),
+    PlatformV1(CheckPlatformResult<DigestFromEncode>),
+    PlatformV2(CheckPlatformResult<DigestFromKindAndEncode>),
     Layer(Box<CheckLayerResult>),
     Blob(CheckBlobResult),
     Manifest(CheckManifestResult),
@@ -794,7 +804,8 @@ impl CheckObjectResult {
             CheckObjectResult::Duplicate => (),
             CheckObjectResult::Ignorable => (),
             CheckObjectResult::Missing(_) => (),
-            CheckObjectResult::Platform(r) => r.set_repaired(),
+            CheckObjectResult::PlatformV1(r) => r.set_repaired(),
+            CheckObjectResult::PlatformV2(r) => r.set_repaired(),
             CheckObjectResult::Layer(r) => r.set_repaired(),
             CheckObjectResult::Blob(r) => r.set_repaired(),
             CheckObjectResult::Manifest(r) => r.set_repaired(),
@@ -812,7 +823,8 @@ impl CheckObjectResult {
                 missing_objects: Some(*digest).into_iter().collect(),
                 ..Default::default()
             },
-            Platform(res) => res.summary(),
+            PlatformV1(res) => res.summary(),
+            PlatformV2(res) => res.summary(),
             Layer(res) => res.summary(),
             Blob(res) => res.summary(),
             Manifest(res) => res.summary(),
@@ -822,13 +834,13 @@ impl CheckObjectResult {
 }
 
 #[derive(Debug)]
-pub struct CheckPlatformResult {
+pub struct CheckPlatformResult<D> {
     pub repaired: bool,
-    pub platform: graph::Platform,
+    pub platform: graph::Platform<D>,
     pub results: Vec<CheckObjectResult>,
 }
 
-impl CheckPlatformResult {
+impl<D> CheckPlatformResult<D> {
     /// Marks this result as being repaired.
     fn set_repaired(&mut self) {
         self.repaired = true;

@@ -8,7 +8,7 @@ use std::io::BufRead;
 use encoding::Digestible;
 
 use super::object::Kind;
-use super::{DigestFromEncode, EncodeDigest, Entry, ObjectKind};
+use super::{DigestFromEncode, Entry, KindAndEncodeDigest, ObjectKind};
 use crate::{encoding, Error, Result};
 
 #[cfg(test)]
@@ -130,7 +130,8 @@ impl Kind for Tree {
 
 impl<D> encoding::Digestible for Tree<D>
 where
-    D: EncodeDigest<Error = crate::Error>,
+    Self: Kind,
+    D: KindAndEncodeDigest<Error = crate::Error>,
 {
     type Error = crate::Error;
 
