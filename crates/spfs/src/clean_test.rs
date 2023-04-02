@@ -7,11 +7,11 @@ use std::time::Duration;
 
 use chrono::Utc;
 use rstest::rstest;
+use spfs_encoding::Digestible;
 use storage::prelude::*;
 use tokio::time::sleep;
 
 use super::{Cleaner, TracingCleanReporter};
-use crate::encoding::Encodable;
 use crate::fixtures::*;
 use crate::{graph, storage, tracking, Error};
 

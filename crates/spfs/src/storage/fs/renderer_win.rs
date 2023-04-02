@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use futures::{Stream, TryFutureExt, TryStreamExt};
 use tokio::sync::Semaphore;
 
-use crate::encoding::{self, Encodable};
+use crate::encoding::{self, Digestible};
 use crate::runtime::makedirs_with_perms;
 use crate::storage::fs::{OpenFsRepository, RenderReporter, SilentRenderReporter};
 use crate::storage::prelude::*;

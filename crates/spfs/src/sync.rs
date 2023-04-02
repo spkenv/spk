@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use encoding::Digestible;
 use futures::stream::{FuturesUnordered, TryStreamExt};
 use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
@@ -371,10 +372,7 @@ where
             return Ok(SyncEntryResult::Skipped);
         }
         self.reporter.visit_entry(&entry);
-        let blob = graph::Blob {
-            payload: entry.object,
-            size: entry.size,
-        };
+        let blob = graph::Blob::new(entry.object, entry.size);
         let result = self
             .sync_blob_with_perms_opt(blob, Some(entry.mode))
             .await?;
@@ -393,7 +391,7 @@ where
         blob: graph::Blob,
         perms: Option<u32>,
     ) -> Result<SyncBlobResult> {
-        let digest = blob.digest();
+        let digest = blob.digest()?;
         if self.processed_digests.contains(&digest) {
             // do not insert here because blobs share a digest with payloads
             // which should also must be visited at least once if needed

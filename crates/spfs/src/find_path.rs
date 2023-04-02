@@ -4,7 +4,7 @@
 
 use async_recursion::async_recursion;
 use relative_path::RelativePath;
-use spfs_encoding::{Digest, Encodable};
+use spfs_encoding::{Digest, Digestible};
 
 use crate::graph::{self, Object};
 use crate::{env, status, storage, tracking, Error, Result};
@@ -31,7 +31,7 @@ impl ObjectPathEntry {
                 Object::Platform(obj) => obj.digest(),
                 Object::Layer(obj) => obj.digest(),
                 Object::Manifest(obj) => obj.digest(),
-                Object::Blob(obj) => Ok(obj.digest()),
+                Object::Blob(obj) => obj.digest(),
                 Object::Tree(obj) => obj.digest(),
                 Object::Mask => Err(Error::String("spfs Mask object has no digest".to_string())),
             },

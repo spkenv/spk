@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use rstest::rstest;
+use spfs_encoding::Digestible;
 
 use super::was_render_completed;
-use crate::encoding::Encodable;
 use crate::fixtures::*;
 use crate::graph::Manifest;
 use crate::storage::fs::{FsRepository, OpenFsRepository};

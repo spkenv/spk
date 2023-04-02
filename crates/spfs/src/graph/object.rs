@@ -153,17 +153,6 @@ const OBJECT_HEADER: &[u8] = "--SPFS--".as_bytes();
 impl encoding::Encodable for Object {
     type Error = Error;
 
-    fn digest(&self) -> crate::Result<encoding::Digest> {
-        match self {
-            Self::Platform(obj) => obj.digest(),
-            Self::Layer(obj) => obj.digest(),
-            Self::Manifest(obj) => obj.digest(),
-            Self::Tree(obj) => obj.digest(),
-            Self::Blob(obj) => Ok(obj.digest()),
-            Self::Mask => Ok(encoding::EMPTY_DIGEST.into()),
-        }
-    }
-
     fn encode(&self, mut writer: &mut impl std::io::Write) -> crate::Result<()>
     where
         Self: Kind,
@@ -193,6 +182,21 @@ impl encoding::Decodable for Object {
             Some(ObjectKind::Tree) => Ok(Self::Tree(Tree::decode(&mut reader)?)),
             Some(ObjectKind::Mask) => Ok(Self::Mask),
             None => Err(format!("Cannot read object: unknown object kind {type_id}").into()),
+        }
+    }
+}
+
+impl encoding::Digestible for Object {
+    type Error = crate::Error;
+
+    fn digest(&self) -> std::result::Result<encoding::Digest, Self::Error> {
+        match self {
+            Object::Platform(o) => o.digest(),
+            Object::Layer(o) => o.digest(),
+            Object::Manifest(o) => o.digest(),
+            Object::Tree(o) => o.digest(),
+            Object::Blob(o) => o.digest(),
+            Object::Mask => Ok(encoding::EMPTY_DIGEST.into()),
         }
     }
 }

@@ -4,7 +4,7 @@
 
 use std::pin::Pin;
 
-use encoding::Encodable;
+use encoding::Digestible;
 use futures::Stream;
 use tokio_stream::StreamExt;
 

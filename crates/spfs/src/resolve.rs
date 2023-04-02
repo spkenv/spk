@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use encoding::Encodable;
+use encoding::Digestible;
 use futures::{FutureExt, TryFutureExt, TryStreamExt};
 use itertools::Itertools;
 use nonempty::NonEmpty;

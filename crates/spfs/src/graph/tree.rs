@@ -5,9 +5,10 @@
 use std::collections::BTreeSet;
 use std::io::BufRead;
 
+use encoding::Digestible;
+
 use super::object::Kind;
-use super::{Entry, ObjectKind};
-use crate::encoding::Encodable;
+use super::{DigestFromEncode, EncodeDigest, Entry, ObjectKind};
 use crate::{encoding, Error, Result};
 
 #[cfg(test)]
@@ -18,14 +19,16 @@ mod tree_test;
 ///
 /// Only one entry of a given name is allowed at a time.
 #[derive(Default, Clone)]
-pub struct Tree {
+pub struct Tree<DigestImpl = DigestFromEncode> {
     pub entries: BTreeSet<Entry>,
+    phantom: std::marker::PhantomData<DigestImpl>,
 }
 
-impl Tree {
+impl<D> Tree<D> {
     pub fn new(entries: impl Iterator<Item = Entry>) -> Self {
         Self {
             entries: entries.collect(),
+            phantom: std::marker::PhantomData,
         }
     }
 
@@ -88,7 +91,7 @@ impl PartialEq for Tree {
 }
 impl Eq for Tree {}
 
-impl encoding::Encodable for Tree {
+impl<D> encoding::Encodable for Tree<D> {
     type Error = Error;
 
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
@@ -108,6 +111,7 @@ impl encoding::Decodable for Tree {
     fn decode(mut reader: &mut impl BufRead) -> Result<Self> {
         let mut tree = Tree {
             entries: Default::default(),
+            phantom: std::marker::PhantomData,
         };
         let entry_count = encoding::read_uint(&mut reader)?;
         for _ in 0..entry_count {
@@ -121,5 +125,16 @@ impl Kind for Tree {
     #[inline]
     fn kind(&self) -> ObjectKind {
         ObjectKind::Tree
+    }
+}
+
+impl<D> encoding::Digestible for Tree<D>
+where
+    D: EncodeDigest<Error = crate::Error>,
+{
+    type Error = crate::Error;
+
+    fn digest(&self) -> std::result::Result<encoding::Digest, Self::Error> {
+        D::digest(self)
     }
 }

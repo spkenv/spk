@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use clap::Args;
 use miette::Result;
-use spfs::encoding::Encodable;
+use spfs::encoding::Digestible;
 use spfs::prelude::*;
 
 /// Commit the current runtime state or a directory to storage

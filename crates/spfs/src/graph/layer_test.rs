@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use encoding::Digestible;
 use rstest::rstest;
 
 use super::Layer;

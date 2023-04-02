@@ -532,7 +532,7 @@ where
                 // TODO: this should be able to get the size of the payload, but
                 // currently there is no way to do this unless you start with
                 // the blob
-                let blob = graph::Blob { payload, size: 0 };
+                let blob = graph::Blob::new(payload, 0);
                 ready(Ok(Some(blob)))
             })
             .and_then(|blob| {

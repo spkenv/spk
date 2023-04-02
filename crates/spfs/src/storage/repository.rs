@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::pin::Pin;
 
 use async_trait::async_trait;
-use encoding::Encodable;
+use encoding::Digestible;
 use graph::Blob;
 use tokio_stream::StreamExt;
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use super::{Kind, ObjectKind};
+use super::{DigestFromEncode, EncodeDigest, Kind, ObjectKind};
 use crate::{encoding, Error, Result};
 
 #[cfg(test)]
@@ -15,13 +15,17 @@ mod layer_test;
 /// uniquely identifiable by the computed hash of all
 /// relevant file and metadata.
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
-pub struct Layer {
+pub struct Layer<DigestImpl = DigestFromEncode> {
     pub manifest: encoding::Digest,
+    phantom: std::marker::PhantomData<DigestImpl>,
 }
 
 impl Layer {
     pub fn new(manifest: encoding::Digest) -> Self {
-        Layer { manifest }
+        Layer {
+            manifest,
+            phantom: std::marker::PhantomData,
+        }
     }
 
     /// Return the child object of this one in the object DG.
@@ -30,7 +34,7 @@ impl Layer {
     }
 }
 
-impl encoding::Encodable for Layer {
+impl<D> encoding::Encodable for Layer<D> {
     type Error = Error;
 
     fn encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
@@ -42,6 +46,7 @@ impl encoding::Decodable for Layer {
     fn decode(reader: &mut impl std::io::Read) -> Result<Self> {
         Ok(Layer {
             manifest: encoding::read_digest(reader)?,
+            phantom: std::marker::PhantomData,
         })
     }
 }
@@ -50,5 +55,16 @@ impl Kind for Layer {
     #[inline]
     fn kind(&self) -> ObjectKind {
         ObjectKind::Layer
+    }
+}
+
+impl<D> encoding::Digestible for Layer<D>
+where
+    D: EncodeDigest<Error = crate::Error>,
+{
+    type Error = crate::Error;
+
+    fn digest(&self) -> std::result::Result<encoding::Digest, Self::Error> {
+        D::digest(self)
     }
 }

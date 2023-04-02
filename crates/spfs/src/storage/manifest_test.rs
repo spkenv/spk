@@ -5,7 +5,7 @@
 use rstest::rstest;
 use tokio_stream::StreamExt;
 
-use crate::encoding::Encodable;
+use crate::encoding::Digestible;
 use crate::fixtures::*;
 use crate::graph::Manifest;
 use crate::prelude::*;

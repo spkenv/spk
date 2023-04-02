@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use colored::*;
-use spfs_encoding::Encodable;
 
 use crate::find_path::{ObjectPath, ObjectPathEntry};
 use crate::graph::Object;

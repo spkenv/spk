@@ -190,13 +190,13 @@ impl TryFrom<super::Platform> for graph::Platform {
     type Error = Error;
 
     fn try_from(source: super::Platform) -> Result<Self> {
-        Ok(Self {
-            stack: source
+        Self::from_digestible(
+            source
                 .stack
                 .into_iter()
                 .map(TryInto::try_into)
-                .collect::<Result<_>>()?,
-        })
+                .collect::<Result<Vec<encoding::Digest>>>()?,
+        )
     }
 }
 
@@ -211,9 +211,7 @@ impl From<&graph::Layer> for super::Layer {
 impl TryFrom<super::Layer> for graph::Layer {
     type Error = Error;
     fn try_from(source: super::Layer) -> Result<Self> {
-        Ok(Self {
-            manifest: convert_digest(source.manifest)?,
-        })
+        Ok(Self::new(convert_digest(source.manifest)?))
     }
 }
 
@@ -259,13 +257,14 @@ impl TryFrom<Option<super::Tree>> for graph::Tree {
 impl TryFrom<super::Tree> for graph::Tree {
     type Error = Error;
     fn try_from(source: super::Tree) -> Result<Self> {
-        Ok(Self {
-            entries: source
+        Ok(Self::new(
+            source
                 .entries
                 .into_iter()
                 .map(TryInto::try_into)
-                .collect::<Result<_>>()?,
-        })
+                .collect::<Result<Vec<graph::Entry>>>()?
+                .into_iter(),
+        ))
     }
 }
 
@@ -295,13 +294,13 @@ impl TryFrom<super::Entry> for graph::Entry {
             Ok(super::EntryKind::Mask) => tracking::EntryKind::Mask,
             Err(_) => return Err("Received unknown entry kind in rpm data".into()),
         };
-        Ok(Self {
-            object: convert_digest(source.object)?,
+        Ok(Self::new(
+            convert_digest(source.object)?,
             kind,
-            mode: source.mode,
-            size: source.size,
-            name: source.name,
-        })
+            source.mode,
+            source.size,
+            source.name,
+        ))
     }
 }
 
@@ -317,10 +316,7 @@ impl From<&graph::Blob> for super::Blob {
 impl TryFrom<super::Blob> for graph::Blob {
     type Error = Error;
     fn try_from(source: super::Blob) -> Result<Self> {
-        Ok(Self {
-            payload: convert_digest(source.payload)?,
-            size: source.size,
-        })
+        Ok(Self::new(convert_digest(source.payload)?, source.size))
     }
 }
 

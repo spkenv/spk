@@ -8,7 +8,7 @@ use std::pin::Pin;
 
 use chrono::{DateTime, Utc};
 use close_err::Closable;
-use encoding::{Decodable, Encodable};
+use encoding::{Decodable, Digestible, Encodable};
 use futures::{Stream, StreamExt, TryFutureExt};
 use graph::DatabaseView;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

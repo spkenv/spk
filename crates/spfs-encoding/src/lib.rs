@@ -33,6 +33,7 @@ pub use hash::{
     parse_digest,
     Decodable,
     Digest,
+    Digestible,
     Encodable,
     Hasher,
     PartialDigest,
@@ -45,5 +46,5 @@ pub use hash::{
 ///
 /// A collection of traits commonly used from this crate.
 pub mod prelude {
-    pub use super::{Decodable, Encodable};
+    pub use super::{Decodable, Digestible, Encodable};
 }

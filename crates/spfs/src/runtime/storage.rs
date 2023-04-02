@@ -18,6 +18,7 @@ use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use encoding::Digestible;
 use futures::{Stream, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
@@ -27,7 +28,7 @@ use tokio::io::AsyncReadExt;
 use super::startup_ps;
 #[cfg(unix)]
 use super::{startup_csh, startup_sh};
-use crate::encoding::{self, Encodable};
+use crate::encoding::{self};
 use crate::env::SPFS_DIR_PREFIX;
 use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
@@ -882,9 +883,7 @@ impl Runtime {
     /// Generate a platform with all the layers from this runtime
     /// properly stacked.
     pub fn to_platform(&self) -> graph::Platform {
-        let mut platform = graph::Platform {
-            stack: self.status.stack.clone(),
-        };
+        let mut platform = graph::Platform::new(self.status.stack.clone());
         platform.stack.extend(self.status.flattened_layers.iter());
         platform
     }

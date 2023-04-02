@@ -368,7 +368,7 @@ where
     /// syncing the blob, which is unsafe unless the blob
     /// is known to exist in the repository being checked
     pub async unsafe fn check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
-        let digest = blob.digest();
+        let digest = blob.digest()?;
         if !self.processed_digests.insert(digest) {
             return Ok(CheckBlobResult::Duplicate);
         }

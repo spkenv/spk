@@ -5,6 +5,7 @@
 use std::io::BufRead;
 
 use chrono::prelude::*;
+use encoding::Digestible;
 
 use crate::encoding::Encodable;
 use crate::{encoding, Error, Result};
@@ -160,6 +161,14 @@ impl encoding::Decodable for Tag {
             time: DateTime::parse_from_rfc3339(&encoding::read_string(&mut reader)?)?.into(),
             parent: encoding::read_digest(reader)?,
         })
+    }
+}
+
+impl encoding::Digestible for Tag {
+    type Error = crate::Error;
+
+    fn digest(&self) -> std::result::Result<encoding::Digest, Self::Error> {
+        Ok(self.target)
     }
 }
 

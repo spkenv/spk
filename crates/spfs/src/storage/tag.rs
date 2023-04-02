@@ -5,7 +5,7 @@
 use std::fmt::Display;
 use std::pin::Pin;
 
-use encoding::Encodable;
+use encoding::Digestible;
 use futures::Stream;
 use relative_path::RelativePath;
 use tokio_stream::StreamExt;

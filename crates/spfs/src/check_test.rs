@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spfs_encoding::Encodable;
+use spfs_encoding::Digestible;
 
 use super::{CheckSummary, Checker};
 use crate::fixtures::*;

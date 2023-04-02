@@ -7,10 +7,10 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
+use encoding::Digestible;
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
-use spfs_encoding::Encodable;
 
 use super::status::remount_runtime;
 use crate::prelude::*;

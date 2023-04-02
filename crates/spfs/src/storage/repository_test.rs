@@ -10,7 +10,7 @@ use std::sync::Arc;
 use rstest::rstest;
 
 use super::Ref;
-use crate::encoding::Encodable;
+use crate::encoding::Digestible;
 use crate::fixtures::*;
 use crate::graph::Manifest;
 use crate::storage::fs;

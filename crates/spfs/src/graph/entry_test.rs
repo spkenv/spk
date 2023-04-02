@@ -5,26 +5,26 @@
 use rstest::rstest;
 
 use super::Entry;
-use crate::encoding::{self, Encodable};
+use crate::encoding::{self, Digestible};
 use crate::fixtures::*;
 use crate::tracking::EntryKind;
 
 #[rstest(entry, digest,
-    case(Entry{
-        name: "testcase".into(),
-        mode: 0o40755,
-        size: 36,
-        kind: EntryKind::Tree,
-        object: "K53HFSBQEYR4SVFIDUGT63IE233MAMVKBQFXLA7M6HCR2AEMKIJQ====".parse().unwrap(),
-    },
+    case(Entry::new(
+        "K53HFSBQEYR4SVFIDUGT63IE233MAMVKBQFXLA7M6HCR2AEMKIJQ====".parse().unwrap(),
+        EntryKind::Tree,
+        0o40755,
+        36,
+        "testcase".into(),
+    ),
     "VTTVI5AZULVVVIWRQMWKJ67TUAGWIECAS2GVTA7Q2QINS4XK4HQQ====".parse().unwrap()),
-    case(Entry{
-        name: "swig_full_names.xsl".into(),
-        mode: 0o100644,
-        size: 3293,
-        kind: EntryKind::Blob,
-        object: "ZD25L3AN5E3LTZ6MDQOIZUV6KRV5Y4SSXRE4YMYZJJ3PXCQ3FMQA====".parse().unwrap(),
-    },
+    case(Entry::new(
+        "ZD25L3AN5E3LTZ6MDQOIZUV6KRV5Y4SSXRE4YMYZJJ3PXCQ3FMQA====".parse().unwrap(),
+        EntryKind::Blob,
+        0o100644,
+        3293,
+        "swig_full_names.xsl".into(),
+    ),
     "GP7DYE22DYLH3I5MB33PW5Z3AZXZIBGOND7MX65KECBMHVMXBUHQ====".parse().unwrap()),
 )]
 fn test_entry_encoding_compat(entry: Entry, digest: encoding::Digest) {

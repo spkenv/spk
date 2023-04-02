@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
+use encoding::Digestible;
 use futures::future::ready;
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use nix::fcntl::OFlag;
@@ -20,7 +21,7 @@ use rand::seq::SliceRandom;
 use tokio::io::AsyncReadExt;
 use tokio::sync::Semaphore;
 
-use crate::encoding::{self, Encodable};
+use crate::encoding::{self};
 use crate::runtime::makedirs_with_perms;
 use crate::storage::fs::render_reporter::RenderBlobResult;
 use crate::storage::fs::{

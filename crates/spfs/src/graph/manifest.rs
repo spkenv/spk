@@ -5,9 +5,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::BufRead;
 
-use encoding::Decodable;
+use encoding::{Decodable, Digestible};
 
-use super::{Entry, Kind, ObjectKind, Tree};
+use super::{DigestFromEncode, EncodeDigest, Entry, Kind, ObjectKind, Tree};
 use crate::encoding::Encodable;
 use crate::{encoding, tracking, Error, Result};
 
@@ -16,12 +16,13 @@ use crate::{encoding, tracking, Error, Result};
 mod manifest_test;
 
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
-pub struct Manifest {
+pub struct Manifest<DigestImpl = DigestFromEncode> {
     root: Tree,
     // because manifests are encoded - the ordering of trees are important
     // to maintain in order to create consistent hashing
     tree_order: Vec<encoding::Digest>,
     trees: BTreeMap<encoding::Digest, Tree>,
+    phantom: std::marker::PhantomData<DigestImpl>,
 }
 
 impl<T> From<&tracking::Manifest<T>> for Manifest
@@ -52,13 +53,13 @@ where
                             .insert_tree(tree.clone())
                             .expect("should not fail to insert tree entry");
                     }
-                    Entry {
-                        object: sub.root.digest().unwrap(),
-                        kind: node.entry.kind,
-                        mode: node.entry.mode,
-                        size: node.entry.size,
-                        name: node.path.to_string(),
-                    }
+                    Entry::new(
+                        sub.root.digest().unwrap(),
+                        node.entry.kind,
+                        node.entry.mode,
+                        node.entry.size,
+                        node.path.to_string(),
+                    )
                 }
                 _ => Entry::from(node.path.to_string(), node.entry),
             };
@@ -69,7 +70,10 @@ where
     }
 }
 
-impl Manifest {
+impl<D> Manifest<D>
+where
+    D: Default,
+{
     /// Create a new manifest with the given tree as the root.
     ///
     /// It's very possible to create an internally inconsistent manifest
@@ -146,7 +150,10 @@ impl Manifest {
     pub fn to_tracking_manifest(&self) -> tracking::Manifest {
         let mut root = tracking::Entry::empty_dir_with_open_perms();
 
-        fn iter_tree(source: &Manifest, tree: &Tree, parent: &mut tracking::Entry) {
+        fn iter_tree<D>(source: &Manifest<D>, tree: &Tree, parent: &mut tracking::Entry)
+        where
+            D: Default,
+        {
             for entry in tree.entries.iter() {
                 let mut new_entry = tracking::Entry {
                     kind: entry.kind,
@@ -175,7 +182,10 @@ impl Manifest {
     }
 }
 
-impl Encodable for Manifest {
+impl<D> Encodable for Manifest<D>
+where
+    D: Default,
+{
     type Error = Error;
 
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
@@ -212,5 +222,16 @@ impl Kind for Manifest {
     #[inline]
     fn kind(&self) -> ObjectKind {
         ObjectKind::Manifest
+    }
+}
+
+impl<D> encoding::Digestible for Manifest<D>
+where
+    D: EncodeDigest<Error = crate::Error> + Default,
+{
+    type Error = crate::Error;
+
+    fn digest(&self) -> std::result::Result<encoding::Digest, Self::Error> {
+        D::digest(self)
     }
 }

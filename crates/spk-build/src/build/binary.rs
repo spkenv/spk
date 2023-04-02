@@ -917,9 +917,7 @@ where
     let mut committed = HashMap::with_capacity(manifests.len());
     for (component, manifest) in manifests {
         let manifest = spfs::graph::Manifest::from(&manifest);
-        let layer = spfs::graph::Layer {
-            manifest: manifest.digest().unwrap(),
-        };
+        let layer = spfs::graph::Layer::new(manifest.digest().unwrap());
         let layer_digest = layer.digest().unwrap();
         #[rustfmt::skip]
         tokio::try_join!(

@@ -4,6 +4,7 @@
 
 use std::io::BufRead;
 
+use super::{DigestFromEncode, EncodeDigest};
 use crate::{encoding, tracking, Error, Result};
 
 #[cfg(test)]
@@ -11,15 +12,33 @@ use crate::{encoding, tracking, Error, Result};
 mod entry_test;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Entry {
+pub struct Entry<DigestImpl = DigestFromEncode> {
     pub object: encoding::Digest,
     pub kind: tracking::EntryKind,
     pub mode: u32,
     pub size: u64,
     pub name: String,
+    phantom: std::marker::PhantomData<DigestImpl>,
 }
 
 impl Entry {
+    pub fn new(
+        object: encoding::Digest,
+        kind: tracking::EntryKind,
+        mode: u32,
+        size: u64,
+        name: String,
+    ) -> Self {
+        Self {
+            object,
+            kind,
+            mode,
+            size,
+            name,
+            phantom: std::marker::PhantomData,
+        }
+    }
+
     pub fn from<T>(name: String, entry: &tracking::Entry<T>) -> Self {
         Self {
             object: entry.object,
@@ -27,6 +46,7 @@ impl Entry {
             mode: entry.mode,
             size: entry.size,
             name,
+            phantom: std::marker::PhantomData,
         }
     }
 
@@ -67,7 +87,7 @@ impl Ord for Entry {
     }
 }
 
-impl encoding::Encodable for Entry {
+impl<D> encoding::Encodable for Entry<D> {
     type Error = Error;
 
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
@@ -87,6 +107,18 @@ impl encoding::Decodable for Entry {
             mode: encoding::read_uint(&mut reader)? as u32,
             size: encoding::read_uint(&mut reader)?,
             name: encoding::read_string(reader)?,
+            phantom: std::marker::PhantomData,
         })
+    }
+}
+
+impl<D> encoding::Digestible for Entry<D>
+where
+    D: EncodeDigest<Error = crate::Error>,
+{
+    type Error = crate::Error;
+
+    fn digest(&self) -> std::result::Result<encoding::Digest, Self::Error> {
+        D::digest(self)
     }
 }

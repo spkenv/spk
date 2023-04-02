@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use super::object::Kind;
-use super::{ObjectKind, Stack};
+use super::{DigestFromEncode, EncodeDigest, ObjectKind, Stack};
 use crate::encoding::Encodable;
 use crate::{encoding, Error, Result};
 
@@ -17,29 +17,42 @@ mod platform_test;
 /// as a single, identifiable object which can be applied/installed to
 /// future runtimes.
 #[derive(Debug, Eq, PartialEq, Default, Clone)]
-pub struct Platform {
+pub struct Platform<DigestImpl = DigestFromEncode> {
     /// Items in the platform, where the first element is the bottom of the
     /// stack, and may be overridden by later elements higher in the stack
     pub stack: Stack,
+    phantom: std::marker::PhantomData<DigestImpl>,
 }
 
 impl Platform {
-    pub fn from_encodable<E, I>(layers: I) -> Result<Self>
-    where
-        E: encoding::Encodable,
-        Error: std::convert::From<E::Error>,
-        I: IntoIterator<Item = E>,
-    {
-        Stack::from_encodable(layers).map(|stack| Self { stack })
+    pub fn new(stack: Stack) -> Self {
+        Self {
+            stack,
+            phantom: std::marker::PhantomData,
+        }
     }
 
+    pub fn from_digestible<E, I>(layers: I) -> Result<Self>
+    where
+        E: encoding::Digestible,
+        Error: std::convert::From<<E as encoding::Digestible>::Error>,
+        I: IntoIterator<Item = E>,
+    {
+        Stack::from_digestible(layers).map(|stack| Self {
+            stack,
+            phantom: std::marker::PhantomData,
+        })
+    }
+}
+
+impl<D> Platform<D> {
     /// Return the digests of objects that this manifest refers to.
     pub fn child_objects(&self) -> Vec<encoding::Digest> {
         self.stack.iter_bottom_up().collect()
     }
 }
 
-impl Encodable for Platform {
+impl<D> Encodable for Platform<D> {
     type Error = Error;
 
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
@@ -76,6 +89,7 @@ where
     fn from(value: T) -> Self {
         Self {
             stack: value.into(),
+            phantom: std::marker::PhantomData,
         }
     }
 }
@@ -87,6 +101,7 @@ where
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         Self {
             stack: Stack::from_iter(iter),
+            phantom: std::marker::PhantomData,
         }
     }
 }
@@ -95,5 +110,16 @@ impl Kind for Platform {
     #[inline]
     fn kind(&self) -> ObjectKind {
         ObjectKind::Platform
+    }
+}
+
+impl<D> encoding::Digestible for Platform<D>
+where
+    D: EncodeDigest<Error = crate::Error>,
+{
+    type Error = crate::Error;
+
+    fn digest(&self) -> std::result::Result<encoding::Digest, Self::Error> {
+        D::digest(self)
     }
 }
