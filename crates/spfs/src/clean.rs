@@ -5,6 +5,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 use std::future::ready;
+use std::os::linux::fs::MetadataExt;
 
 use chrono::{DateTime, Duration, Local, Utc};
 use colored::Colorize;
@@ -41,6 +42,7 @@ where
     must_be_older_than: DateTime<Utc>,
     prune_repeated_tags: bool,
     prune_params: PruneParameters,
+    remove_proxies_with_no_links: bool,
 }
 
 impl<'repo> Cleaner<'repo, SilentCleanReporter> {
@@ -63,6 +65,7 @@ impl<'repo> Cleaner<'repo, SilentCleanReporter> {
             must_be_older_than: Utc::now(),
             prune_repeated_tags: false,
             prune_params: Default::default(),
+            remove_proxies_with_no_links: true,
         }
     }
 }
@@ -85,6 +88,7 @@ where
             removal_concurrency: self.removal_concurrency,
             discover_concurrency: self.discover_concurrency,
             tag_stream_concurrency: self.tag_stream_concurrency,
+            remove_proxies_with_no_links: self.remove_proxies_with_no_links,
         }
     }
 
@@ -186,6 +190,19 @@ where
         keep_if_version_less_than: Option<u64>,
     ) -> Self {
         self.prune_params.keep_if_version_less_than = keep_if_version_less_than;
+        self
+    }
+
+    /// When set, also remove any proxies that do not have any hard links
+    /// regardless of if they are still attached in the repository.
+    ///
+    /// The lack of hard links shows that the proxy is not a part of any
+    /// render for that particular user, and so is safe to remove. This removal
+    /// still requires that the proxy is older than the configured limit to
+    /// help reduce the chance of removing a proxy that was just created for
+    /// a new render.
+    pub fn with_remove_proxies_with_no_links(mut self, remove_proxies_with_no_links: bool) -> Self {
+        self.remove_proxies_with_no_links = remove_proxies_with_no_links;
         self
     }
 
@@ -594,8 +611,6 @@ where
         username: Option<String>,
         proxy_path: std::path::PathBuf,
     ) -> Result<CleanResult> {
-        // Any files in the proxy area that have a st_nlink count of 1 are unused
-        // and can be removed.
         let mut result = CleanResult::default();
         let removed = result.removed_proxies.entry(username).or_default();
 
@@ -606,10 +621,32 @@ where
             .try_filter_map(|digest| {
                 self.reporter.visit_proxy(&digest);
                 result.visited_proxies += 1;
-                if self.attached.contains(&digest) {
-                    return ready(Ok(None));
+                let path = proxy_storage.build_digest_path(&digest);
+                async move {
+                    if !self.attached.contains(&digest) {
+                        // a detached object is always cleaned
+                        return Ok(Some(digest));
+                    }
+
+                    if !self.remove_proxies_with_no_links {
+                        // nothing else to check when this is disabled
+                        return Ok(None);
+                    }
+
+                    let meta = tokio::fs::symlink_metadata(&path).await.map_err(|err| {
+                        Error::StorageReadError("metadata on proxy file", path.clone(), err)
+                    })?;
+                    let mtime = meta.modified().map_err(|err| {
+                        Error::StorageReadError("modified time on proxy file", path.clone(), err)
+                    })?;
+                    let has_hardlinks = meta.st_nlink() > 1;
+                    let is_old_enough = DateTime::<Utc>::from(mtime) < self.must_be_older_than;
+                    if has_hardlinks || !is_old_enough {
+                        Ok(None)
+                    } else {
+                        Ok(Some(digest))
+                    }
                 }
-                ready(Ok(Some(digest)))
             })
             .and_then(|digest| {
                 let path = proxy_storage.build_digest_path(&digest);

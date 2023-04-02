@@ -61,6 +61,15 @@ pub struct CmdClean {
     #[clap(long = "keep-if-less-than")]
     keep_if_less_than: Option<u64>,
 
+    /// Do not remove proxies for users that have no additional
+    /// hard links.
+    ///
+    /// Proxies will still be removed if the object is unattached.
+    /// This is enabled by default because it is generally considered
+    /// safe and can be effective at reducing disk usage.
+    #[clap(long = "keep-proxies-with-no-links")]
+    keep_proxies_with_no_links: bool,
+
     // The number of concurrent tag stream scanning operations
     // that are buffered and allowed to run concurrently
     #[clap(
@@ -111,6 +120,7 @@ impl CmdClean {
             .with_keep_tags_newer_than(self.keep_if_newer_than)
             .with_prune_tags_if_version_more_than(self.prune_if_more_than)
             .with_keep_tags_if_version_less_than(self.keep_if_less_than)
+            .with_remove_proxies_with_no_links(!self.keep_proxies_with_no_links)
             .with_removal_concurrency(self.max_removal_concurrency)
             .with_discover_concurrency(self.max_discover_concurrency)
             .with_tag_stream_concurrency(self.max_tag_stream_concurrency);
