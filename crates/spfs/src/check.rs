@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::collections::HashSet;
+use std::future::ready;
 use std::sync::Arc;
 
 use colored::Colorize;
@@ -81,7 +82,8 @@ where
     pub async fn check_all_tags(&self) -> Result<Vec<CheckTagStreamResult>> {
         self.repo
             .iter_tags()
-            .and_then(|(tag, _)| async move { self.check_tag_stream(tag).await })
+            .and_then(|(tag, _)| ready(Ok(self.check_tag_stream(tag))))
+            .try_buffer_unordered(50)
             .try_collect()
             .await
     }
@@ -90,7 +92,8 @@ where
     pub async fn check_all_objects(&self) -> Result<Vec<CheckObjectResult>> {
         self.repo
             .find_digests(graph::DigestSearchCriteria::All)
-            .and_then(|digest| self.check_digest(digest))
+            .and_then(|digest| ready(Ok(self.check_digest(digest))))
+            .try_buffer_unordered(50)
             .try_collect()
             .await
     }
@@ -105,14 +108,11 @@ where
 
     /// Check all of the objects identified by the given env.
     pub async fn check_env(&self, env: tracking::EnvSpec) -> Result<CheckEnvResult> {
-        let mut futures = FuturesUnordered::new();
-        for item in env.iter().cloned() {
-            futures.push(self.check_env_item(item));
-        }
-        let mut results = Vec::with_capacity(env.len());
-        while let Some(result) = futures.try_next().await? {
-            results.push(result);
-        }
+        let results = futures::stream::iter(env.iter().cloned().map(Ok))
+            .and_then(|item| ready(Ok(self.check_env_item(item))))
+            .try_buffer_unordered(10)
+            .try_collect()
+            .await?;
         let res = CheckEnvResult { env, results };
         Ok(res)
     }
