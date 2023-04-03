@@ -9,6 +9,7 @@ use std::sync::Arc;
 use colored::Colorize;
 use futures::stream::{FuturesUnordered, TryStreamExt};
 use once_cell::sync::OnceCell;
+use tokio::sync::Semaphore;
 
 use crate::prelude::*;
 use crate::sync::{SyncObjectResult, SyncPayloadResult, SyncPolicy};
@@ -26,15 +27,24 @@ pub struct Checker<'repo, 'sync, Reporter: CheckReporter = SilentCheckReporter> 
     repair_with: Option<super::Syncer<'sync, 'repo>>,
     reporter: Arc<Reporter>,
     processed_digests: Arc<dashmap::DashSet<encoding::Digest>>,
+    tag_stream_semaphore: Semaphore,
+    object_semaphore: Semaphore,
 }
 
 impl<'repo> Checker<'repo, 'static> {
+    /// See [`Checker::with_max_tag_stream_concurrency`]
+    pub const DEFAULT_MAX_TAG_STREAM_CONCURRENCY: usize = 1000;
+    /// See [`Checker::with_max_object_concurrency`]
+    pub const DEFAULT_MAX_OBJECT_CONCURRENCY: usize = 5000;
+
     pub fn new(repo: &'repo storage::RepositoryHandle) -> Self {
         Self {
             repo,
             reporter: Arc::new(SilentCheckReporter::default()),
             repair_with: None,
             processed_digests: Arc::new(Default::default()),
+            tag_stream_semaphore: Semaphore::new(Self::DEFAULT_MAX_TAG_STREAM_CONCURRENCY),
+            object_semaphore: Semaphore::new(Self::DEFAULT_MAX_OBJECT_CONCURRENCY),
         }
     }
 }
@@ -54,6 +64,8 @@ where
             reporter: reporter.into(),
             repair_with: self.repair_with,
             processed_digests: self.processed_digests,
+            tag_stream_semaphore: self.tag_stream_semaphore,
+            object_semaphore: self.object_semaphore,
         }
     }
 
@@ -74,7 +86,21 @@ where
                     .with_policy(SyncPolicy::LatestTagsAndResyncObjects),
             ),
             processed_digests: self.processed_digests,
+            tag_stream_semaphore: self.tag_stream_semaphore,
+            object_semaphore: self.object_semaphore,
         }
+    }
+
+    /// The maximum number of tag streams that can be read and processed at once
+    pub fn with_max_tag_stream_concurrency(mut self, max_tag_stream_concurrency: usize) -> Self {
+        self.tag_stream_semaphore = Semaphore::new(max_tag_stream_concurrency);
+        self
+    }
+
+    /// The maximum number of objects that can be validated at once
+    pub fn with_max_object_concurrency(mut self, max_object_concurrency: usize) -> Self {
+        self.object_semaphore = Semaphore::new(max_object_concurrency);
+        self
     }
 
     /// Validate that all of the targets and their children exist for all
@@ -140,6 +166,8 @@ where
     pub async fn check_tag_stream(&self, tag: tracking::TagSpec) -> Result<CheckTagStreamResult> {
         tracing::debug!(?tag, "Checking tag stream");
         self.reporter.visit_tag_stream(&tag);
+
+        let _permit = self.tag_stream_semaphore.acquire().await;
         let stream = match self.repo.read_tag(&tag).await {
             Err(Error::UnknownReference(_)) => return Ok(CheckTagStreamResult::Missing),
             Err(err) => return Err(err),
@@ -200,6 +228,8 @@ where
         if self.processed_digests.contains(&digest) {
             return Ok(CheckObjectResult::Duplicate);
         }
+
+        let _permit = self.object_semaphore.acquire().await;
         tracing::trace!(?digest, "Checking digest");
         self.reporter.visit_digest(&digest);
         match self.read_object_with_fallback(digest).await {
