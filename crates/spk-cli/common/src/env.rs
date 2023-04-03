@@ -139,17 +139,13 @@ fn get_username_for_sentry() -> String {
     // job. Otherwise get the username of the person who ran this spk
     // instance.
     let username_override_var = option_env!("SENTRY_USERNAME_OVERRIDE_VAR");
-    match username_override_var {
-        Some(override_var) => {
-            if let Ok(value) = std::env::var(override_var) {
-                value
-            } else {
-                // Call this before `sentry::init` to avoid potential `SIGSEGV`.
-                whoami::username()
-            }
-        }
-        None => whoami::username(),
-    }
+    username_override_var
+        .map(std::env::var)
+        .and_then(Result::ok)
+        .unwrap_or_else(|| {
+            // Call this before `sentry::init` to avoid potential `SIGSEGV`.
+            whoami::username()
+        })
 }
 
 #[cfg(feature = "sentry")]

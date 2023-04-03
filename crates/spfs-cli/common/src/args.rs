@@ -153,20 +153,16 @@ pub fn configure_sentry(command: String) -> Option<sentry::ClientInitGuard> {
     // that run as a non-human user and store the original human's
     // username in an environment variable, e.g. GITLAB_USER_LOGIN.
     let username_override_var = option_env!("SENTRY_USERNAME_OVERRIDE_VAR");
-    let username = match username_override_var {
-        Some(override_var) => {
-            if let Ok(value) = std::env::var(override_var) {
-                value
-            } else {
-                // Call this before `sentry::init` to avoid possible data
-                // race, SIGSEGV in `getpwuid_r ()` -> `getenv ()`. CentOS
-                // 7.6.1810.  Thread 2 is always in `SSL_library_init ()` ->
-                // `EVP_rc2_cbc ()`.
-                whoami::username()
-            }
-        }
-        None => whoami::username(),
-    };
+    let username = username_override_var
+        .map(std::env::var)
+        .and_then(Result::ok)
+        .unwrap_or_else(|| {
+            // Call this before `sentry::init` to avoid possible data
+            // race, SIGSEGV in `getpwuid_r ()` -> `getenv ()`. CentOS
+            // 7.6.1810.  Thread 2 is always in `SSL_library_init ()` ->
+            // `EVP_rc2_cbc ()`.
+            whoami::username()
+        });
 
     let guard = match catch_unwind(|| {
         let mut opts = sentry::ClientOptions {
