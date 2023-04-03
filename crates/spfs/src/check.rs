@@ -613,7 +613,7 @@ impl Default for ConsoleCheckReporterBars {
             .progress_chars(PROGRESS_CHARS);
         let payloads_style = indicatif::ProgressStyle::default_bar()
             .template(
-                "      {spinner} {msg:<18.green} {len:>9} errors, {len} repaired ({percent}%)",
+                "      {spinner} {msg:<18.green} {len:>9} errors, {pos} repaired ({percent}%)",
             )
             .tick_strings(TICK_STRINGS)
             .progress_chars(PROGRESS_CHARS);
