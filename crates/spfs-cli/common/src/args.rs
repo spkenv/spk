@@ -288,7 +288,7 @@ pub fn configure_logging(verbosity: usize) {
 /// name of the spfs command that has been parsed. This method will be
 /// called when configuring sentry.
 pub trait CommandName {
-    fn name(&self) -> String;
+    fn command_name(&self) -> &str;
 }
 
 #[macro_export]
@@ -353,7 +353,7 @@ macro_rules! configure {
         // for commands that use system calls which are bothered by this
         #[cfg(feature = "sentry")]
         // TODO: pass $opt into sentry and into the get cli?
-        let sentry_guard = if $sentry { $crate::configure_sentry($opt.name()) } else { None };
+        let sentry_guard = if $sentry { $crate::configure_sentry(String::from($opt.command_name())) } else { None };
         #[cfg(not(feature = "sentry"))]
         let sentry_guard = 0;
         $crate::configure_logging($opt.verbose);

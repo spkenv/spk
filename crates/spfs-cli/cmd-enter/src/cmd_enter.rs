@@ -60,8 +60,8 @@ pub struct CmdEnter {
 }
 
 impl CommandName for CmdEnter {
-    fn name(&self) -> String {
-        "enter".to_string()
+    fn command_name(&self) -> &'static str {
+        "enter"
     }
 }
 

@@ -38,8 +38,8 @@ pub struct CmdJoin {
 }
 
 impl CommandName for CmdJoin {
-    fn name(&self) -> String {
-        "join".to_string()
+    fn command_name(&self) -> &'static str {
+        "join"
     }
 }
 

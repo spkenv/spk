@@ -58,8 +58,8 @@ pub struct CmdClean {
 }
 
 impl CommandName for CmdClean {
-    fn name(&self) -> String {
-        "clean".to_string()
+    fn command_name(&self) -> &'static str {
+        "clean"
     }
 }
 

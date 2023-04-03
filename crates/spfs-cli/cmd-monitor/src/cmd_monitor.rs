@@ -37,8 +37,8 @@ pub struct CmdMonitor {
 }
 
 impl CommandName for CmdMonitor {
-    fn name(&self) -> String {
-        "monitor".to_string()
+    fn command_name(&self) -> &'static str {
+        "monitor"
     }
 }
 

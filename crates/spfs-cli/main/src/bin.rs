@@ -4,8 +4,6 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::fn_params_excessive_bools)]
-use std::fmt::Display;
-
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use spfs::Error;
@@ -63,7 +61,8 @@ pub struct Opt {
     pub cmd: Command,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(strum::AsRefStr, Debug, Subcommand)]
+#[strum(serialize_all = "lowercase")]
 #[clap(trailing_var_arg = true, dont_delimit_trailing_values = true)]
 pub enum Command {
     Version(cmd_version::CmdVersion),
@@ -100,8 +99,8 @@ pub enum Command {
 }
 
 impl CommandName for Opt {
-    fn name(&self) -> String {
-        self.cmd.to_string()
+    fn command_name(&self) -> &str {
+        self.cmd.as_ref()
     }
 }
 
@@ -137,45 +136,6 @@ impl Opt {
             Command::Server(cmd) => cmd.run(config).await,
             Command::External(args) => run_external_subcommand(args.clone()).await,
         }
-    }
-}
-
-impl Display for Command {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self {
-            Command::Version(_) => "version",
-            Command::Edit(_) => "edit",
-            Command::Commit(_) => "commit",
-            Command::Config(_) => "config",
-            Command::Reset(_) => "reset",
-            Command::Tag(_) => "tag",
-            Command::Untag(_) => "untag",
-            Command::Runtime(_) => "runtime",
-            Command::Layers(_) => "layers",
-            Command::Platforms(_) => "platforms",
-            Command::Tags(_) => "tags",
-            Command::Info(_) => "info",
-            Command::Log(_) => "log",
-            Command::Search(_) => "search",
-            Command::Diff(_) => "diff",
-            Command::LsTags(_) => "ls-tags",
-            Command::Ls(_) => "ls",
-            Command::Migrate(_) => "migrate",
-            Command::Check(_) => "check",
-            Command::Read(_) => "read",
-            Command::Write(_) => "write",
-            Command::Run(_) => "run",
-            Command::Shell(_) => "shell",
-            Command::Pull(_) => "pull",
-            Command::Push(_) => "push",
-            #[cfg(feature = "server")]
-            Command::Server(_) => "server",
-            Command::External(args) => match args.get(0) {
-                None => "external",
-                Some(c) => c,
-            },
-        };
-        write!(f, "{name}")
     }
 }
 

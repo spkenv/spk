@@ -41,8 +41,8 @@ pub struct CmdRender {
 }
 
 impl CommandName for CmdRender {
-    fn name(&self) -> String {
-        "render".to_string()
+    fn command_name(&self) -> &'static str {
+        "render"
     }
 }
 

@@ -2942,6 +2942,7 @@ dependencies = [
  "serde_json",
  "spfs",
  "spfs-cli-common",
+ "strum",
  "tokio",
  "tokio-stream",
  "tonic",
