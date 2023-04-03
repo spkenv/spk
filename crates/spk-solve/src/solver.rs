@@ -63,11 +63,29 @@ mod solver_test;
 
 /// Structure to hold whether the three kinds of impossible checks are
 /// enabled or disabled in a solver.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct ImpossibleChecksSettings {
     pub check_initial_requests: bool,
     pub check_before_resolving: bool,
     pub use_in_build_keys: bool,
+}
+
+impl Default for ImpossibleChecksSettings {
+    fn default() -> Self {
+        if let Ok(config) = spk_config::get_config() {
+            Self {
+                check_before_resolving: config.solver.check_impossible_validation,
+                check_initial_requests: config.solver.check_impossible_initial,
+                use_in_build_keys: config.solver.check_impossible_builds,
+            }
+        } else {
+            Self {
+                check_before_resolving: false,
+                check_initial_requests: false,
+                use_in_build_keys: false,
+            }
+        }
+    }
 }
 
 #[derive(Clone)]

@@ -260,7 +260,7 @@ impl Bake {
             solver.add_request(request)
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose);
+        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
         let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
 
         // The solution order is the order things were found during

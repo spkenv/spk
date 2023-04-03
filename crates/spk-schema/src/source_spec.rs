@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use relative_path::RelativePathBuf;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result, Script};
 

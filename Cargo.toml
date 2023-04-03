@@ -10,6 +10,7 @@ members = [
     "crates/spk-cli/*",
     "crates/spfs-cli/*",
     "crates/spk-exec",
+    "crates/spk-config",
     "crates/spk-launcher",
     "crates/spk-schema",
     "crates/spk-solve",
@@ -28,17 +29,24 @@ async-trait = "0.1"
 chrono = { version = "0.4.19", features = ["serde"] }
 clap = { version = "3.2", features = ["derive", "env"] }
 colored = "2.0.0"
+config = "0.13.1"
 console = "0.15"
 dyn-clone = "1.0"
+expanduser = "1.2"
 lazy_static = "1.4"
 libc = "0.2.80"
 nix = "0.26.2"
+once_cell = "1.8"
 procfs = "0.13.2"
 sentry = { version = "0.27.0" }
 sentry-anyhow = { version = "0.27.0" }
+serde = "1.0"
+serde_json = "1.0"
 strip-ansi-escapes = "0.1.1"
+thiserror = "1.0"
 tokio = { version = "1.20", features = ["rt"] }
 tokio-retry = "0.3.0"
 tracing = "0.1.35"
 tracing-capture = "0.1"
 tracing-subscriber = "0.3.14"
+whoami = "1.2"
