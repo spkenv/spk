@@ -4,6 +4,7 @@
 
 use clap::builder::TypedValueParser;
 use clap::Parser;
+use futures::future::FutureExt;
 use miette::{Context, Result};
 use spfs::prelude::*;
 use spfs::storage::fallback::FallbackProxy;
@@ -55,7 +56,7 @@ impl CmdRender {
         let (repo, origin, remotes) = tokio::try_join!(
             config.get_opened_local_repository(),
             config.get_remote("origin"),
-            config.list_remotes()
+            config.list_remotes().map(Ok)
         )?;
 
         let handle = repo.clone().into();

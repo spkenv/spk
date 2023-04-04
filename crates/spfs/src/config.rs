@@ -369,10 +369,21 @@ impl Config {
     }
 
     /// Open a connection to all remote repositories
-    pub async fn list_remotes(&self) -> Result<Vec<storage::RepositoryHandle>> {
+    ///
+    /// Any remote that fails to connect will be ignored.
+    pub async fn list_remotes(&self) -> Vec<storage::RepositoryHandle> {
         let futures: futures::stream::FuturesUnordered<_> =
             self.remote.keys().map(|s| self.get_remote(s)).collect();
-        futures.collect().await
+        futures
+            .filter_map(|item| match item {
+                Ok(item) => Some(item),
+                Err(err) => {
+                    tracing::warn!("could not to get remote, {err}");
+                    None
+                }
+            })
+            .collect()
+            .await
     }
 
     /// Get the local repository instance as configured, creating it if needed.
