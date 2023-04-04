@@ -180,6 +180,26 @@ impl<T> Manifest<T>
 where
     T: Default,
 {
+    pub fn list_entries_in_dir(&self, path: &str) -> Vec<&String> {
+        let target_entry = self.find_entry_by_string(path);
+        let entries_in_dir = target_entry.entries.keys().collect_vec();
+
+        entries_in_dir
+    }
+
+    pub fn find_entry_by_string(&self, entry: &str) -> &Entry {
+        let paths: Vec<String> = entry.split('/').map(str::to_string).collect();
+        let mut matched_entry = &self.root;
+        for path in paths.iter() {
+            matched_entry = match matched_entry.entries.get(path) {
+                Some(entry) => entry,
+                _ => continue,
+            };
+        }
+
+        matched_entry
+    }
+
     /// Add a new directory entry to this manifest
     pub fn mkdir<P: AsRef<str>>(&mut self, path: P) -> Result<&mut Entry<T>> {
         let entry = Entry::default();

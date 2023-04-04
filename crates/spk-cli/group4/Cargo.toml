@@ -13,6 +13,7 @@ futures = { workspace = true }
 serde_yaml = "0.8.17"
 spfs = { version = '0.34.6', path = "../../spfs" }
 spk-cli-common = { path = '../common' }
+spk-storage = { path = '../../spk-storage' }
 spk-schema = { path = '../../spk-schema' }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }

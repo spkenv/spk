@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashMap;
 use std::io::BufRead;
 use std::str::FromStr;
 use std::string::ToString;
@@ -211,6 +212,26 @@ impl<T> Entry<T>
 where
     T: Clone,
 {
+    pub fn calculate_size_of_child_entries(&self) -> u64 {
+        let mut total_size = 0;
+        let mut to_iter = vec![self.entries.clone()];
+        while !to_iter.is_empty() {
+            let mut next_iter: Vec<HashMap<String, Entry>> = Vec::new();
+            for entries in to_iter.iter() {
+                for (_, entry) in entries.iter() {
+                    if entry.is_symlink() {
+                        continue;
+                    }
+                    total_size += entry.size;
+                    next_iter.push(entry.entries.clone());
+                }
+            }
+            to_iter = std::mem::take(&mut next_iter);
+        }
+
+        total_size
+    }
+
     pub fn update(&mut self, other: &Self) {
         self.kind = other.kind;
         self.object = other.object;
