@@ -67,21 +67,15 @@ impl CmdRender {
         let payload_fallback = PayloadFallback::new(repo, remotes);
 
         let rendered = match &self.target {
-            Some(target) => self
-                .render_to_dir(payload_fallback, synced.env, target)
-                .await
-                .map(|(path, summary)| (vec![path], summary))?,
+            Some(target) => {
+                self.render_to_dir(payload_fallback, synced.env, target)
+                    .await?
+            }
             None => self.render_to_repo(payload_fallback, synced.env).await?,
         };
 
         tracing::debug!("render(s) completed successfully");
-        println!(
-            "{}",
-            serde_json::json!(RenderResult {
-                paths_rendered: rendered.0,
-                render_summary: rendered.1,
-            })
-        );
+        println!("{}", serde_json::json!(rendered));
 
         Ok(0)
     }
@@ -91,7 +85,7 @@ impl CmdRender {
         repo: PayloadFallback,
         env_spec: spfs::tracking::EnvSpec,
         target: &std::path::Path,
-    ) -> Result<(std::path::PathBuf, spfs::storage::fs::RenderSummary)> {
+    ) -> Result<RenderResult> {
         tokio::fs::create_dir_all(&target)
             .await
             .map_err(|err| Error::RuntimeWriteError(target.to_owned(), err))?;
@@ -128,14 +122,17 @@ impl CmdRender {
                 self.strategy.unwrap_or(spfs::storage::fs::RenderType::Copy),
             )
             .await?;
-        Ok((target_dir, render_summary_reporter.into_summary()))
+        Ok(RenderResult {
+            paths_rendered: vec![target_dir],
+            render_summary: render_summary_reporter.into_summary(),
+        })
     }
 
     async fn render_to_repo(
         &self,
         repo: PayloadFallback,
         env_spec: spfs::tracking::EnvSpec,
-    ) -> spfs::Result<(Vec<std::path::PathBuf>, spfs::storage::fs::RenderSummary)> {
+    ) -> spfs::Result<RenderResult> {
         let mut digests = Vec::with_capacity(env_spec.len());
         for env_item in env_spec.iter() {
             let env_item = env_item.to_string();
@@ -158,6 +155,9 @@ impl CmdRender {
         renderer
             .render(layers.into_iter().map(|l| l.manifest), self.strategy)
             .await
-            .map(|paths| (paths, render_summary_reporter.into_summary()))
+            .map(|paths_rendered| RenderResult {
+                paths_rendered,
+                render_summary: render_summary_reporter.into_summary(),
+            })
     }
 }
