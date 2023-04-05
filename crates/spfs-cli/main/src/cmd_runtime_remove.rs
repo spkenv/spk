@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 
 /// List runtime information from the repository
@@ -38,7 +39,7 @@ pub struct CmdRuntimeRemove {
 }
 
 impl CmdRuntimeRemove {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let runtime_storage = match &self.remote {
             Some(remote) => {
                 let repo = config.get_remote(remote).await?;

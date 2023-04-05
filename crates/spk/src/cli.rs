@@ -29,6 +29,13 @@ use spk_cmd_render::cmd_render;
 use spk_cmd_repo::cmd_repo;
 use spk_cmd_test::cmd_test;
 use spk_schema::foundation::format::FormatError;
+#[cfg(feature = "statsd")]
+use spk_solve::{
+    get_metrics_client,
+    SPK_ERROR_COUNT_METRIC,
+    SPK_RUN_COUNT_METRIC,
+    SPK_RUN_TIME_METRIC,
+};
 
 /// A Package Manager for SPFS
 #[derive(Parser)]
@@ -45,16 +52,28 @@ impl Opt {
         #[cfg(feature = "sentry")]
         let _sentry_guard = configure_sentry();
 
+        #[cfg(feature = "statsd")]
+        let statsd_client = {
+            let client = get_metrics_client();
+            client.incr(&SPK_RUN_COUNT_METRIC);
+            client
+        };
+
         let res = configure_logging(self.verbose).context("Failed to initialize output log");
         if let Err(err) = res {
             eprintln!("{}", err.to_string().red());
+            #[cfg(feature = "statsd")]
+            statsd_client.incr(&SPK_ERROR_COUNT_METRIC);
             return Ok(1);
         }
 
         // Disable this clippy warning because the result value is
-        // used but only with the "sentry" feature enabled.
+        // used but only with the "sentry" or "statsd" features enabled.
         #[allow(clippy::let_and_return)]
         let result = self.cmd.run().await;
+
+        #[cfg(feature = "statsd")]
+        statsd_client.record_duration_from_start(&SPK_RUN_TIME_METRIC);
 
         #[cfg(feature = "sentry")]
         if let Err(ref err) = result {
@@ -110,6 +129,11 @@ impl Opt {
                     );
                 }
             }
+        }
+
+        #[cfg(feature = "statsd")]
+        if result.is_err() {
+            statsd_client.incr(&SPK_ERROR_COUNT_METRIC);
         }
 
         result

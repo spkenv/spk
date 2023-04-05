@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 use spfs::io::{self, DigestFormat};
 use tokio_stream::StreamExt;
@@ -23,7 +24,7 @@ pub struct CmdPlatforms {
 }
 
 impl CmdPlatforms {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         let mut platforms = repo.iter_platforms();
@@ -38,7 +39,7 @@ impl CmdPlatforms {
         &self,
         digest: spfs::encoding::Digest,
         repo: &'repo spfs::storage::RepositoryHandle,
-    ) -> spfs::Result<String> {
+    ) -> Result<String> {
         if self.tags {
             io::format_digest(digest, DigestFormat::ShortenedWithTags(repo)).await
         } else if self.short {
@@ -46,5 +47,6 @@ impl CmdPlatforms {
         } else {
             io::format_digest(digest, DigestFormat::Full).await
         }
+        .map_err(|err| err.into())
     }
 }

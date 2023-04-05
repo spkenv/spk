@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Parser;
 use spfs::prelude::*;
 use spfs::storage::payload_fallback::PayloadFallback;
 use spfs::Error;
 use spfs_cli_common as cli;
+use spfs_cli_common::CommandName;
 use strum::VariantNames;
 
 cli::main!(CmdRender);
@@ -38,8 +40,14 @@ pub struct CmdRender {
     target: Option<std::path::PathBuf>,
 }
 
+impl CommandName for CmdRender {
+    fn command_name(&self) -> &'static str {
+        "render"
+    }
+}
+
 impl CmdRender {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let env_spec = spfs::tracking::EnvSpec::parse(&self.reference)?;
         let (repo, origin, remotes) = tokio::try_join!(
             config.get_local_repository(),
@@ -78,7 +86,7 @@ impl CmdRender {
         repo: PayloadFallback,
         env_spec: spfs::tracking::EnvSpec,
         target: &std::path::Path,
-    ) -> spfs::Result<std::path::PathBuf> {
+    ) -> Result<std::path::PathBuf> {
         tokio::fs::create_dir_all(&target)
             .await
             .map_err(|err| Error::RuntimeWriteError(target.to_owned(), err))?;
@@ -94,7 +102,7 @@ impl CmdRender {
             .is_some()
             && !self.allow_existing
         {
-            return Err(format!("Directory is not empty {}", target_dir.display()).into());
+            anyhow::bail!("Directory is not empty {}", target_dir.display());
         }
         tracing::info!("rendering into {}", target_dir.display());
         let renderer = self.render.get_renderer(&repo);

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 use tokio_stream::StreamExt;
 
@@ -14,7 +15,7 @@ pub struct CmdSearch {
 }
 
 impl CmdSearch {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let mut repos = Vec::with_capacity(config.remote.len());
         for name in config.list_remote_names() {
             let remote = match config.get_remote(&name).await {

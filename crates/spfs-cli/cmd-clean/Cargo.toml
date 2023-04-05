@@ -12,6 +12,7 @@ path = "src/cmd_clean.rs"
 sentry = ["spfs-cli-common/sentry"]
 
 [dependencies]
+anyhow = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
 colored = "2.0"

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 use spfs::Error;
 
@@ -23,7 +24,7 @@ pub struct CmdRead {
 }
 
 impl CmdRead {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         let item = repo.read_ref(self.reference.as_str()).await?;
@@ -33,9 +34,7 @@ impl CmdRead {
             _ => {
                 let path = match &self.path {
                     None => {
-                        return Err(
-                            format!("PATH must be given to read from {:?}", item.kind()).into()
-                        )
+                        anyhow::bail!("PATH must be given to read from {:?}", item.kind());
                     }
                     Some(p) => p.strip_prefix("/spfs").unwrap_or(p).to_string(),
                 };

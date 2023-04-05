@@ -38,6 +38,7 @@ cli = [
     "dep:spk-cmd-repo",
     "dep:spk-cmd-test",
 ]
+statsd = ["dep:statsd", "spk-solve/statsd"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -67,5 +68,6 @@ spk-exec = { path = '../spk-exec' }
 spk-schema = { path = '../spk-schema' }
 spk-solve = { path = '../spk-solve' }
 spk-storage = { path = '../spk-storage' }
+statsd = { version = "0.15.0", optional = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }

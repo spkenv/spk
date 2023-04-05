@@ -7,9 +7,11 @@
 
 use std::ffi::OsString;
 
+use anyhow::Result;
 use clap::Parser;
-use spfs::{Error, Result};
+use spfs::Error;
 use spfs_cli_common as cli;
+use spfs_cli_common::CommandName;
 
 cli::main!(CmdJoin, sentry = false, sync = true);
 
@@ -35,8 +37,14 @@ pub struct CmdJoin {
     args: Vec<OsString>,
 }
 
+impl CommandName for CmdJoin {
+    fn command_name(&self) -> &'static str {
+        "join"
+    }
+}
+
 impl CmdJoin {
-    pub fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         // because we are dealing with moving to a new linux namespace, we must
         // ensure that all code still operates in a single os thread
         let rt = tokio::runtime::Builder::new_current_thread()

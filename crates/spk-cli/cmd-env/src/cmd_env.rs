@@ -7,6 +7,8 @@ use anyhow::{Context, Result};
 use clap::Args;
 use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
 use spk_exec::setup_runtime;
+#[cfg(feature = "statsd")]
+use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
 
 /// Resolve and run an environment on-the-fly
 ///
@@ -107,6 +109,18 @@ impl Env {
         args.insert(0, exe.clone());
 
         tracing::trace!("{:?}", args);
+
+        // Record the run duration up to this point because this spk
+        // command is about to replace itself with the underlying env
+        // command and we want to capture data on this spk processes
+        // part of the run, but not the time spent in the underlying,
+        // possibly long running, command/env (e.g. shell or application).
+        #[cfg(feature = "statsd")]
+        {
+            let statsd_client = get_metrics_client();
+            statsd_client.record_duration_from_start(&SPK_RUN_TIME_METRIC);
+        }
+
         nix::unistd::execvp(&exe, args.as_slice()).context("Command failed to launch")?;
         unreachable!()
     }

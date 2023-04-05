@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 use spfs::Error;
 
@@ -17,7 +18,7 @@ pub struct CmdMigrate {
 }
 
 impl CmdMigrate {
-    pub async fn run(&mut self, _config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
         let repo_root = std::path::PathBuf::from(&self.path)
             .canonicalize()
             .map_err(|err| Error::InvalidPath((&self.path).into(), err))?;

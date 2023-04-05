@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 use spfs_cli_common as cli;
 
@@ -30,7 +31,7 @@ pub struct CmdReset {
 }
 
 impl CmdReset {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         #[rustfmt::skip]
         let (mut runtime, repo) = tokio::try_join!(
             spfs::active_runtime(),

@@ -5,11 +5,13 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::fn_params_excessive_bools)]
 
+use anyhow::Result;
 use chrono::prelude::*;
 use clap::Parser;
 use colored::*;
 use spfs::prelude::*;
 use spfs_cli_common as cli;
+use spfs_cli_common::CommandName;
 
 cli::main!(CmdClean);
 
@@ -55,8 +57,14 @@ pub struct CmdClean {
     keep_if_less_than: Option<u64>,
 }
 
+impl CommandName for CmdClean {
+    fn command_name(&self) -> &'static str {
+        "clean"
+    }
+}
+
 impl CmdClean {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         if self.prune_if_older_than.is_some()
@@ -107,7 +115,7 @@ impl CmdClean {
         )
         .await
         {
-            Err(err) => Err(err),
+            Err(err) => Err(err.into()),
             Ok(_) => {
                 tracing::info!("clean successful");
                 Ok(0)
@@ -115,7 +123,7 @@ impl CmdClean {
         }
     }
 
-    async fn prune(&mut self, repo: &RepositoryHandle) -> spfs::Result<()> {
+    async fn prune(&mut self, repo: &RepositoryHandle) -> Result<()> {
         let prune_if_older_than = age_to_date(
             self.prune_if_older_than
                 .clone()
@@ -172,7 +180,7 @@ impl CmdClean {
             .confirm();
             match answer {
                 question::Answer::YES => {}
-                _ => return Err("Operation cancelled by user".into()),
+                _ => anyhow::bail!("Operation cancelled by user"),
             }
         }
 
@@ -183,13 +191,13 @@ impl CmdClean {
     }
 }
 
-fn age_to_date(age: String) -> spfs::Result<DateTime<Utc>> {
+fn age_to_date(age: String) -> Result<DateTime<Utc>> {
     let (num, postfix) = age.split_at(age.len() - 1);
     let num: i64 = num
         .parse()
         .map_err(|err| spfs::Error::from(format!("{err:?}")))?;
     if num < 0 {
-        return Err(format!("provided age must be greater than zero: '{age}'").into());
+        anyhow::bail!("provided age must be greater than zero: '{age}'");
     }
 
     match postfix {
@@ -199,8 +207,6 @@ fn age_to_date(age: String) -> spfs::Result<DateTime<Utc>> {
         "h" => Ok(Utc::now() - chrono::Duration::hours(num)),
         "m" => Ok(Utc::now() - chrono::Duration::minutes(num)),
         "s" => Ok(Utc::now() - chrono::Duration::seconds(num)),
-        _ => {
-            Err(format!("Unknown age postfix: '{postfix}', must be one of y, w, d, h, m, s").into())
-        }
+        _ => anyhow::bail!("Unknown age postfix: '{postfix}', must be one of y, w, d, h, m, s"),
     }
 }
