@@ -20,7 +20,7 @@ use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 mod resolve_test;
 
 /// Information returned from spfs-render.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct RenderResult {
     pub paths_rendered: Vec<PathBuf>,
     pub render_summary: storage::fs::RenderSummary,
@@ -29,9 +29,12 @@ pub struct RenderResult {
 /// Render the given environment in the local repository by
 /// calling the `spfs-render` binary (ensuring the necessary
 /// privileges are available)
-async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<RenderSummary> {
+///
+/// The return value is defined only if the spfs-render output could be parsed
+/// successfully into a [`RenderResult`].
+async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<Option<RenderResult>> {
     if spec.is_empty() {
-        return Ok(RenderSummary::default());
+        return Ok(Some(RenderResult::default()));
     }
 
     let render_cmd = match super::which_spfs("render") {
@@ -50,12 +53,12 @@ async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<RenderSummary>
             if let Ok(render_result) =
                 serde_json::from_slice::<RenderResult>(output.stdout.as_slice())
             {
-                Ok(render_result.render_summary)
+                Ok(Some(render_result))
             } else {
                 // Don't hard error if the output of spfs-render can't be
                 // parsed.
                 tracing::warn!("Failed to parse output from spfs-render");
-                Ok(RenderSummary::default())
+                Ok(None)
             }
         }
         _ => Err(Error::process_spawn_error(
@@ -295,18 +298,27 @@ pub(crate) async fn resolve_overlay_dirs(
 pub(crate) async fn resolve_and_render_overlay_dirs(
     runtime: &mut runtime::Runtime,
     skip_runtime_save: bool,
-) -> Result<(Vec<std::path::PathBuf>, RenderSummary)> {
+) -> Result<RenderResult> {
     let config = get_config()?;
     let repo = config.get_local_repository().await?;
 
     let manifests = resolve_overlay_dirs(runtime, &repo, skip_runtime_save).await?;
     let to_render = manifests.iter().map(|m| m.digest()).try_collect()?;
-    let render_summary = render_via_subcommand(to_render).await?;
-    let overlay_dirs = manifests
-        .iter()
-        .map(|m| repo.manifest_render_path(m))
-        .try_collect()?;
-    Ok((overlay_dirs, render_summary))
+    match render_via_subcommand(to_render).await? {
+        Some(render_result) => Ok(render_result),
+        None => {
+            // If we couldn't parse the value printed by spfs-render, calculate
+            // the paths rendered here.
+            let paths_rendered = manifests
+                .iter()
+                .map(|m| repo.manifest_render_path(m))
+                .try_collect()?;
+            Ok(RenderResult {
+                paths_rendered,
+                render_summary: RenderSummary::default(),
+            })
+        }
+    }
 }
 
 /// Given a sequence of tags and digests, resolve to the set of underlying layers.
