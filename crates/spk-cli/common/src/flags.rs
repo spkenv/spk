@@ -151,22 +151,22 @@ pub struct Solver {
     pub allow_builds: bool,
 
     /// If true, the solver will run impossible request checks on the initial requests
-    #[clap(long, env = "SPK_CHECK_IMPOSSIBLE_INITIAL")]
+    #[clap(long, env = "SPK_SOLVER_CHECK_IMPOSSIBLE_INITIAL")]
     pub check_impossible_initial: bool,
 
     /// If true, the solver will run impossible request checks before
     /// using a package build to resolve a request
-    #[clap(long, env = "SPK_CHECK_IMPOSSIBLE_VALIDATION")]
+    #[clap(long, env = "SPK_SOLVER_CHECK_IMPOSSIBLE_VALIDATION")]
     pub check_impossible_validation: bool,
 
     /// If true, the solver will run impossible request checks to
     /// use in the build keys for ordering builds during the solve
-    #[clap(long, env = "SPK_CHECK_IMPOSSIBLE_BUILDS")]
+    #[clap(long, env = "SPK_SOLVER_CHECK_IMPOSSIBLE_BUILDS")]
     pub check_impossible_builds: bool,
 
     /// If true, the solver will run all three impossible request checks: initial
     /// requests, build validation before a resolve, and for build keys
-    #[clap(long, env = "SPK_CHECK_IMPOSSIBLE_ALL")]
+    #[clap(long, env = "SPK_SOLVER_CHECK_IMPOSSIBLE_ALL")]
     pub check_impossible_all: bool,
 }
 
@@ -803,21 +803,21 @@ pub struct DecisionFormatterSettings {
     /// above zero will increase the verbosity every that many seconds
     /// the solve runs. If this is zero, the solver's verbosity will
     /// not increase during a solve.
-    #[clap(long, env = "SPK_SOLVE_TOO_LONG_SECONDS", default_value_t = 30)]
+    #[clap(long, env = "SPK_SOLVER_TOO_LONG_SECONDS", default_value_t = 30)]
     pub increase_verbosity: u64,
 
     /// The maximum verbosity that automatic verbosity increases will
     /// stop at and not go above.
     ///
-    #[clap(long, env = "SPK_VERBOSITY_INCREASE_LIMIT", default_value_t = 2)]
+    #[clap(long, env = "SPK_SOLVER_VERBOSITY_INCREASE_LIMIT", default_value_t = 2)]
     pub max_verbosity_increase_level: u32,
 
     /// Maximum number of seconds to let the solver run before halting the solve
     ///
-    /// Maximum number of seconds to alow a solver to run before
+    /// Maximum number of seconds to allow a solver to run before
     /// halting the solve. If this is zero, which is the default, the
     /// timeout is disabled and the solver will run to completion.
-    #[clap(long, env = "SPK_SOLVE_TIMEOUT", default_value_t = 0)]
+    #[clap(long, env = "SPK_SOLVER_SOLVE_TIMEOUT", default_value_t = 0)]
     pub timeout: u64,
 
     /// Show the package builds in the solution for any solver
@@ -828,12 +828,12 @@ pub struct DecisionFormatterSettings {
 
     /// Set the threshold of a longer than acceptable solves, in seconds.
     ///
-    #[clap(long, env = "SPK_LONG_SOLVE_THRESHOLD", default_value_t = 15)]
+    #[clap(long, env = "SPK_SOLVER_LONG_SOLVE_THRESHOLD", default_value_t = 15)]
     pub long_solves: u64,
 
     /// Set the limit for how many of the most frequent errors are
     /// displayed in solve stats reports
-    #[clap(long, env = "SPK_MAX_FREQUENT_ERRORS", default_value_t = 15)]
+    #[clap(long, env = "SPK_SOLVER_MAX_FREQUENT_ERRORS", default_value_t = 15)]
     pub max_frequent_errors: usize,
 
     /// Display a visualization of the solver progress if the solve takes longer
@@ -857,16 +857,17 @@ pub struct DecisionFormatterSettings {
 impl DecisionFormatterSettings {
     /// Get a decision formatter configured from the command line
     /// options and their defaults.
-    pub fn get_formatter(&self, verbosity: u32) -> DecisionFormatter {
-        self.get_formatter_builder(verbosity).build()
+    pub fn get_formatter(&self, verbosity: u32) -> Result<DecisionFormatter> {
+        Ok(self.get_formatter_builder(verbosity)?.build())
     }
 
     /// Get a decision formatter builder configured from the command
     /// line options and defaults and ready to call build() on, in
     /// case some extra configuration might be needed before calling
     /// build.
-    pub fn get_formatter_builder(&self, verbosity: u32) -> DecisionFormatterBuilder {
-        let mut builder = DecisionFormatterBuilder::new();
+    pub fn get_formatter_builder(&self, verbosity: u32) -> Result<DecisionFormatterBuilder> {
+        let mut builder =
+            DecisionFormatterBuilder::try_from_config().context("Failed to load config")?;
         builder
             .with_verbosity(verbosity)
             .with_time_and_stats(self.time)
@@ -888,7 +889,7 @@ impl DecisionFormatterSettings {
             .with_status_bar(self.status_bar)
             .with_solver_output_from(self.solver_output_from.into())
             .with_search_space_size(self.show_search_size);
-        builder
+        Ok(builder)
     }
 }
 

@@ -114,7 +114,9 @@ macro_rules! assert_not_resolved {
 /// Runs the given solver, printing the output with reasonable output settings
 /// for unit test debugging and inspection.
 async fn run_and_print_resolve_for_tests(solver: &Solver) -> Result<super::Solution> {
-    let formatter = DecisionFormatterBuilder::new().with_verbosity(100).build();
+    let formatter = DecisionFormatterBuilder::default()
+        .with_verbosity(100)
+        .build();
 
     let (solution, _) = formatter.run_and_print_resolve(solver).await?;
     Ok(solution)
@@ -123,7 +125,9 @@ async fn run_and_print_resolve_for_tests(solver: &Solver) -> Result<super::Solut
 /// Runs the given solver, logging the output with reasonable output settings
 /// for unit test debugging and inspection.
 async fn run_and_log_resolve_for_tests(solver: &Solver) -> Result<super::Solution> {
-    let formatter = DecisionFormatterBuilder::new().with_verbosity(100).build();
+    let formatter = DecisionFormatterBuilder::default()
+        .with_verbosity(100)
+        .build();
 
     let (solution, _) = formatter.run_and_log_resolve(solver).await?;
     Ok(solution)

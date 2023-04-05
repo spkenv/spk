@@ -12,5 +12,5 @@ spfs = { version = '0.34.6', path = "../spfs" }
 spk-schema = { path = '../spk-schema' }
 spk-storage = { path = "../spk-storage" }
 spk-solve = { path = "../spk-solve" }
-thiserror = "1.0"
+thiserror = { workspace = true }
 tracing = { workspace = true }

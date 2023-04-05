@@ -2843,7 +2843,6 @@ dependencies = [
  "semver",
  "sentry",
  "serde",
- "serde_derive",
  "serde_json",
  "serde_qs",
  "serial_test",
@@ -3334,6 +3333,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "spk-config"
+version = "0.36.0"
+dependencies = [
+ "config",
+ "expanduser",
+ "once_cell",
+ "rstest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "whoami",
+]
+
+[[package]]
 name = "spk-exec"
 version = "0.36.0"
 dependencies = [
@@ -3375,7 +3389,6 @@ dependencies = [
  "relative-path",
  "rstest",
  "serde",
- "serde_derive",
  "serde_json",
  "serde_yaml",
  "spfs",
@@ -3450,7 +3463,6 @@ dependencies = [
  "relative-path",
  "ring",
  "serde",
- "serde_derive",
  "serde_json",
  "serde_yaml",
  "spfs",
@@ -3485,6 +3497,7 @@ dependencies = [
  "serde_json",
  "signal-hook",
  "spfs",
+ "spk-config",
  "spk-schema",
  "spk-solve-graph",
  "spk-solve-package-iterator",
@@ -3603,7 +3616,6 @@ dependencies = [
  "rstest",
  "sentry",
  "serde",
- "serde_derive",
  "serde_json",
  "serde_yaml",
  "spfs",

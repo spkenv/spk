@@ -1,0 +1,18 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+name = "spk-config"
+edition = { workspace = true }
+version = { workspace = true }
+
+[dependencies]
+config = { workspace = true }
+expanduser = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+once_cell = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+whoami = { workspace = true }
+
+[dev-dependencies]
+rstest = "0.15.0"

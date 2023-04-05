@@ -127,8 +127,9 @@ impl Run for Test {
                             continue;
                         }
 
-                        let mut builder =
-                            self.formatter_settings.get_formatter_builder(self.verbose);
+                        let mut builder = self
+                            .formatter_settings
+                            .get_formatter_builder(self.verbose)?;
                         let src_formatter = builder.with_header("Source Resolver ").build();
                         let build_src_formatter =
                             builder.with_header("Build Source Resolver ").build();

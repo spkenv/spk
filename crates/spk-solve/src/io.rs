@@ -424,12 +424,6 @@ pub struct DecisionFormatterBuilder {
 
 impl Default for DecisionFormatterBuilder {
     fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl DecisionFormatterBuilder {
-    pub fn new() -> Self {
         Self {
             verbosity: 0,
             time: false,
@@ -443,6 +437,26 @@ impl DecisionFormatterBuilder {
             status_bar: false,
             solver_output_from: MultiSolverKind::Unchanged,
             show_search_space_size: false,
+        }
+    }
+}
+
+impl DecisionFormatterBuilder {
+    /// Try to load the spk config and populate an instance of [`Self`]
+    pub fn try_from_config() -> spk_config::Result<Self> {
+        let config = spk_config::get_config()?;
+        Ok(Self::from_config(&config.solver))
+    }
+
+    /// Populate an instance with the provided config settings
+    pub fn from_config(cfg: &spk_config::Solver) -> Self {
+        Self {
+            verbosity_increase_seconds: cfg.too_long_seconds,
+            max_verbosity_increase_level: cfg.verbosity_increase_limit,
+            timeout: cfg.solve_timeout,
+            long_solves_threshold: cfg.long_solve_threshold,
+            max_frequent_errors: cfg.max_frequent_errors,
+            ..Default::default()
         }
     }
 

@@ -64,7 +64,7 @@ impl Run for View {
 
         let mut runtime = solver.run();
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose);
+        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
 
         let result = formatter.run_and_print_decisions(&mut runtime).await;
         let solution = match result {
