@@ -143,6 +143,7 @@ impl graph::Database for super::FSRepository {
                 )),
             };
         }
+        tracing::trace!(?digest, "removed object from db");
         Ok(())
     }
 

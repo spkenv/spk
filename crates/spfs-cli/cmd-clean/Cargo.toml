@@ -15,7 +15,7 @@ sentry = ["spfs-cli-common/sentry"]
 anyhow = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
-colored = "2.0"
+colored = { workspace = true }
 question = "0.2.2"
 spfs = { path = "../../spfs" }
 spfs-cli-common = { path = "../common" }

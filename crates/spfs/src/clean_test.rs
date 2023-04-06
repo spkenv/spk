@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -11,61 +10,31 @@ use rstest::rstest;
 use storage::prelude::*;
 use tokio::time::sleep;
 
-use super::{
-    clean_untagged_objects,
-    get_all_attached_objects,
-    get_all_unattached_objects,
-    get_all_unattached_payloads,
-};
+use super::{Cleaner, TracingCleanReporter};
 use crate::encoding::Encodable;
 use crate::fixtures::*;
 use crate::{graph, storage, tracking, Error};
 
 #[rstest]
 #[tokio::test]
-async fn test_get_attached_objects(#[future] tmprepo: TempRepo) {
+async fn test_attached_objects(#[future] tmprepo: TempRepo) {
     let tmprepo = tmprepo.await;
-    let reader = Box::pin("hello, world".as_bytes());
-    let payload_digest = tmprepo.commit_blob(reader).await.unwrap();
 
-    assert_eq!(
-        get_all_attached_objects(&tmprepo).await.unwrap(),
-        Default::default(),
-        "single blob should not be attached"
-    );
-    let mut expected = HashSet::new();
-    expected.insert(payload_digest);
-    assert_eq!(
-        get_all_unattached_objects(&tmprepo).await.unwrap(),
-        expected,
-        "single blob should be unattached"
-    );
-}
+    let manifest = generate_tree(&tmprepo).await.to_graph_manifest();
 
-#[rstest]
-#[tokio::test]
-async fn test_get_attached_payloads(#[future] tmprepo: TempRepo) {
-    let tmprepo = tmprepo.await;
-    let reader = Box::pin("hello, world".as_bytes());
-    // Safety: we explicitly do not want this
-    // payload to appear attached to the graph
-    let (payload_digest, _) = unsafe { tmprepo.write_data(reader).await.unwrap() };
-    let mut expected = HashSet::new();
-    expected.insert(payload_digest);
-    assert_eq!(
-        get_all_unattached_payloads(&tmprepo).await.unwrap(),
-        expected,
-        "single payload should be attached when no blob"
-    );
+    let cleaner = Cleaner::new(&tmprepo).with_reporter(TracingCleanReporter);
+    cleaner
+        .discover_attached_objects(manifest.digest().unwrap())
+        .await
+        .unwrap();
 
-    let blob = graph::Blob::new(payload_digest, 0);
-    tmprepo.write_blob(blob).await.unwrap();
+    let total_blobs = manifest
+        .iter_entries()
+        .filter(|e| e.is_regular_file())
+        .count();
+    let total_objects = total_blobs + 1; //the manifest
 
-    assert_eq!(
-        get_all_unattached_payloads(&tmprepo).await.unwrap(),
-        Default::default(),
-        "single payload should be attached to blob"
-    );
+    assert_eq!(cleaner.attached.len(), total_objects);
 }
 
 #[rstest]
@@ -99,19 +68,15 @@ async fn test_get_attached_unattached_objects_blob(
         .expect("file should exist in committed manifest")
         .object;
 
+    let cleaner = Cleaner::new(&tmprepo)
+        .with_reporter(TracingCleanReporter)
+        .with_dry_run(true);
+    let result = cleaner.prune_all_tags_and_clean().await.unwrap();
+    println!("{result:#?}");
+
     assert!(
-        get_all_attached_objects(&tmprepo)
-            .await
-            .unwrap()
-            .contains(&blob_digest),
+        cleaner.attached.contains(&blob_digest),
         "blob in manifest in tag should be attached"
-    );
-    assert!(
-        !get_all_unattached_objects(&tmprepo)
-            .await
-            .unwrap()
-            .contains(&blob_digest),
-        "blob in manifest in tag should not be unattached"
     );
 }
 
@@ -167,9 +132,14 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
         .unwrap();
 
     // Clean objects older than group 3.
-    clean_untagged_objects(time_before_group_three, &tmprepo, false)
+    let cleaner = Cleaner::new(&tmprepo)
+        .with_reporter(TracingCleanReporter)
+        .with_required_age_cutoff(time_before_group_three);
+    let result = cleaner
+        .prune_all_tags_and_clean()
         .await
         .expect("failed to clean objects");
+    println!("{result:#?}");
 
     for node in manifest1.walk() {
         if !node.entry.kind.is_blob() {
@@ -214,6 +184,7 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
 #[rstest]
 #[tokio::test]
 async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRepo) {
+    init_logging();
     let tmprepo = tmprepo.await;
     let manifest = tracking::Manifest::default();
     let layer = tmprepo
@@ -225,9 +196,12 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
         .await
         .unwrap();
 
-    clean_untagged_objects(Utc::now(), &tmprepo, false)
+    let cleaner = Cleaner::new(&tmprepo).with_reporter(TracingCleanReporter);
+    let result = cleaner
+        .prune_all_tags_and_clean()
         .await
         .expect("failed to clean objects");
+    println!("{result:#?}");
 
     if let Err(Error::UnknownObject(_)) = tmprepo.read_layer(layer.digest().unwrap()).await {
         // ok
@@ -245,6 +219,7 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
 #[rstest]
 #[tokio::test]
 async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
+    init_logging();
     let tmprepo = Arc::new(
         storage::fs::FSRepository::create(tmpdir.path())
             .await
@@ -268,26 +243,32 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         .await
         .unwrap();
 
-    // Safety: tmprepo was created as an FSRepository
-    let tmprepo = match unsafe { &*Arc::into_raw(tmprepo) } {
+    let fs_repo = match &*tmprepo {
         RepositoryHandle::FS(fs) => fs,
         _ => panic!("Unexpected tmprepo type!"),
     };
 
-    storage::fs::Renderer::new(tmprepo)
+    storage::fs::Renderer::new(fs_repo)
         .render_manifest(&graph::Manifest::from(&manifest), None)
         .await
         .unwrap();
 
-    let files = list_files(tmprepo.objects.root());
+    let files = list_files(fs_repo.objects.root());
     assert!(!files.is_empty(), "should have stored data");
 
-    clean_untagged_objects(Utc::now(), &tmprepo.clone().into(), false)
+    let cleaner = Cleaner::new(&tmprepo).with_reporter(TracingCleanReporter);
+    let result = cleaner
+        .prune_all_tags_and_clean()
         .await
         .expect("failed to clean repo");
+    println!("{result:#?}");
 
-    let files = list_files(tmprepo.renders.as_ref().unwrap().renders.root());
-    assert!(files.is_empty(), "should remove all created data files");
+    let files = list_files(fs_repo.renders.as_ref().unwrap().renders.root());
+    assert_eq!(
+        files,
+        Vec::<String>::new(),
+        "should remove all created data files"
+    );
 }
 
 fn list_files<P: AsRef<std::path::Path>>(dirname: P) -> Vec<String> {
