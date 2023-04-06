@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     container:
-      image: rust:1.66.1
+      image: rust:1.68.2
       options: --security-opt seccomp=unconfined --privileged
     env:
       # Disable cnproc because we're in a container

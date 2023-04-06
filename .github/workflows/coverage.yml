@@ -17,7 +17,7 @@ jobs:
   codecov:
     runs-on: ubuntu-latest
     container:
-      image: xd009642/tarpaulin:0.24.0
+      image: xd009642/tarpaulin:0.25.2
       options: --security-opt seccomp=unconfined --privileged
     steps:
       - name: Setup spfs repos
