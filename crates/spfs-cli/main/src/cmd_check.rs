@@ -15,6 +15,14 @@ pub struct CmdCheck {
     #[clap(short, long)]
     remote: Option<String>,
 
+    /// The maximum number of tag streams that can be read and processed at once
+    #[clap(long, default_value_t = spfs::Checker::DEFAULT_MAX_TAG_STREAM_CONCURRENCY)]
+    max_tag_stream_concurrency: usize,
+
+    /// The maximum number of objects that can be validated at once
+    #[clap(long, default_value_t = spfs::Checker::DEFAULT_MAX_OBJECT_CONCURRENCY)]
+    max_object_concurrency: usize,
+
     /// Attempt to fix problems by pulling from another repository. Defaults to "origin".
     #[clap(long)]
     pull: Option<Option<String>>,
