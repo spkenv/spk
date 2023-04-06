@@ -8,11 +8,13 @@
 use std::ffi::OsString;
 #[cfg(feature = "sentry")]
 use std::sync::atomic::Ordering;
+use std::time::Instant;
 
 use anyhow::{Context, Result};
 use clap::Parser;
 #[cfg(feature = "sentry")]
 use cli::configure_sentry;
+use serde_json::json;
 use spfs::env::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
 use spfs::storage::fs::RenderSummary;
 use spfs_cli_common as cli;
@@ -44,6 +46,17 @@ pub struct CmdEnter {
     /// The value to set $TMPDIR to in new environment
     #[clap(long)]
     tmpdir: Option<String>,
+
+    /// Time it took to sync the layers, objects, etc for the runtime.
+    /// If given, the value is included in the render reports sent to
+    /// sentry. Used by 'spfs run ...' commands that then call
+    /// 'spfs-enter'.
+    #[clap(long)]
+    synctime: Option<f64>,
+
+    /// Put the rendering and syncing times into environment variables
+    #[clap(long)]
+    metrics_in_env: bool,
 
     /// The name of the runtime being entered
     #[clap(long)]
@@ -93,9 +106,17 @@ impl CmdEnter {
         config: &spfs::Config,
     ) -> Result<Option<spfs::runtime::OwnedRuntime>> {
         let mut runtime = self.load_runtime(config).await?;
+
+        let sync_time: f64 = self.synctime.unwrap_or(0.0);
+
         if self.remount {
+            let start_time = Instant::now();
             let render_summary = spfs::reinitialize_runtime(&mut runtime).await?;
-            self.report_render_summary(render_summary);
+            self.report_render_summary(
+                render_summary,
+                sync_time,
+                start_time.elapsed().as_secs_f64(),
+            );
             Ok(None)
         } else {
             let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
@@ -121,8 +142,13 @@ impl CmdEnter {
             };
 
             tracing::debug!("initializing runtime");
+            let start_time = Instant::now();
             let render_summary = spfs::initialize_runtime(&mut owned).await?;
-            self.report_render_summary(render_summary);
+            self.report_render_summary(
+                render_summary,
+                sync_time,
+                start_time.elapsed().as_secs_f64(),
+            );
 
             // We promise to not mutate the runtime after this point.
             // spfs-monitor will read and modify it after we tell it to
@@ -194,7 +220,28 @@ impl CmdEnter {
             .context("Failed to execute runtime command")
     }
 
-    fn report_render_summary(&self, _render_summary: RenderSummary) {
+    fn report_render_summary(
+        &self,
+        _render_summary: RenderSummary,
+        sync_time: f64,
+        render_time: f64,
+    ) {
+        if self.metrics_in_env {
+            // All the render summary data is put into a json blob in
+            // a env var for other, non-spfs, program to access.
+            std::env::set_var(
+                "SPFS_METRICS_RENDER_REPORT",
+                format!(
+                    "{}",
+                    json!({
+                        "sync_time": sync_time,
+                        "render_time": render_time,
+                        "render_summary": _render_summary,
+                    })
+                ),
+            );
+        }
+
         #[cfg(feature = "sentry")]
         {
             // Don't log if nothing was rendered.
@@ -221,6 +268,8 @@ impl CmdEnter {
                         total_bytes_copied_wrong_mode = %_render_summary.total_bytes_copied_wrong_mode.load(Ordering::Relaxed),
                         total_bytes_copied_wrong_owner = %_render_summary.total_bytes_copied_wrong_owner.load(Ordering::Relaxed),
                         total_bytes_linked = %_render_summary.total_bytes_linked.load(Ordering::Relaxed),
+                        sync_time = %sync_time,
+                        render_time = %render_time,
                         "Render summary");
             }
         }
