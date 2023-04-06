@@ -25,6 +25,7 @@ pub mod io;
 pub mod prelude;
 pub mod proto;
 mod prune;
+mod repeating_timeout;
 mod resolve;
 pub mod runtime;
 #[cfg(feature = "server")]

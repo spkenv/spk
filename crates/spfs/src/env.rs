@@ -10,12 +10,14 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use futures::StreamExt;
+use dashmap::DashSet;
 use tokio_retry::strategy::{jitter, ExponentialBackoff};
 use tokio_retry::{Condition, RetryIf};
-use tokio_stream::wrappers::IntervalStream;
+use tokio_stream::wrappers::{IntervalStream, UnboundedReceiverStream};
+use tokio_stream::StreamExt;
 
 use super::runtime;
+use crate::repeating_timeout::RepeatingTimeout;
 use crate::{Error, Result};
 
 const PROC_DIR: &str = "/proc";
@@ -242,7 +244,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     };
 
     let mut tracked_processes = HashSet::new();
-    let (events_send, mut events_recv) = tokio::sync::mpsc::unbounded_channel();
+    let (events_send, events_recv) = tokio::sync::mpsc::unbounded_channel();
 
     // NOTE(rbottriell):
     // scan for any processes that were already spawned before
@@ -274,7 +276,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         return Ok(());
     }
 
-    match (monitor, mount_ns) {
+    match (monitor, mount_ns.clone()) {
         (Ok(mut monitor), _) => {
             tokio::task::spawn_blocking(move || {
                 // Normal behavior when the monitor was successfully created.
@@ -352,28 +354,123 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         }
     }
 
-    while let Some(event) = events_recv.recv().await {
-        match event {
+    let tracked_processes = Arc::new(
+        DashSet::<_, std::collections::hash_map::RandomState>::from_iter(
+            tracked_processes.into_iter(),
+        ),
+    );
+
+    let events_stream = UnboundedReceiverStream::new(events_recv);
+
+    // Filter the stream to keep only the events that pertain to us
+    let events_stream = {
+        let tracked_processes = Arc::clone(&tracked_processes);
+
+        events_stream.filter(move |event| match event {
             cnproc::PidEvent::Exec(_pid) => {
                 // exec is just one process turning into a new one with
                 // the pid remaining the same, so we are not interested...
                 // remember that launching a new process is a fork and then exec
+                false
             }
-            cnproc::PidEvent::Fork { parent, pid } => {
-                if tracked_processes.contains(&(parent as u32)) {
-                    tracked_processes.insert(pid as u32);
-                    tracing::trace!(?tracked_processes, "runtime monitor");
-                }
+            cnproc::PidEvent::Fork { parent, pid }
+                if tracked_processes.contains(&(*parent as u32)) =>
+            {
+                tracked_processes.insert(*pid as u32);
+                true
             }
-            cnproc::PidEvent::Exit(pid) => {
-                if tracked_processes.remove(&(pid as u32)) {
-                    tracing::trace!(?tracked_processes, "runtime monitor");
-                }
+            cnproc::PidEvent::Fork { .. } => false,
+            cnproc::PidEvent::Exit(pid) if tracked_processes.remove(&(*pid as u32)).is_some() => {
+                true
+            }
+            cnproc::PidEvent::Exit(..) => false,
+            cnproc::PidEvent::Coredump(pid) => {
+                tracing::trace!(?tracked_processes, ?pid, "notified of core dump");
+                false
+            }
+        })
+    };
+
+    // Add a timeout to be able to detect when no relevant pid events are
+    // arriving for a period of time.
+    let events_stream = RepeatingTimeout::new(events_stream, tokio::time::Duration::from_secs(60));
+    tokio::pin!(events_stream);
+
+    async fn repair_tracked_processes<S>(tracked_processes: &Arc<DashSet<u32, S>>, ns: &Path)
+    where
+        S: std::hash::BuildHasher + Clone,
+    {
+        let current_pids = match find_processes_in_mount_namespace(ns).await {
+            Err(err) => {
+                tracing::error!(?err, "error while scanning active process tree");
+                return;
+            }
+            Ok(pids) => pids,
+        };
+
+        // `tracked_processes` is a concurrent set; take care to not leave it
+        // falsely empty at any point.
+
+        // If `current_pids` is empty, then we can efficiently clear our set.
+        if current_pids.is_empty() {
+            tracked_processes.clear();
+            return;
+        }
+
+        for pid in &current_pids {
+            tracked_processes.insert(*pid);
+        }
+
+        tracked_processes.retain(|key| current_pids.contains(key));
+    }
+
+    const LOG_UPDATE_INTERVAL: tokio::time::Duration = tokio::time::Duration::from_secs(5);
+    let mut log_update_deadline = tokio::time::Instant::now() + LOG_UPDATE_INTERVAL;
+
+    while let Some(event) = events_stream.next().await {
+        let no_more_processes = tracked_processes.is_empty();
+
+        // Limit how often the process set is logged, but we want to always
+        // log when `tracked_processes` becomes empty, no matter when that
+        // happens.
+        let now = tokio::time::Instant::now();
+        if now >= log_update_deadline || no_more_processes {
+            tracing::trace!(?tracked_processes, "runtime monitor");
+            log_update_deadline = now + LOG_UPDATE_INTERVAL;
+        }
+
+        if no_more_processes {
+            // If the mount namespace is known, verify there really aren't any
+            // more processes in the namespace. Since cnproc might not deliver
+            // every event, we may not know about processes that still exist.
+            if let Some(ns) = mount_ns.as_ref() {
+                repair_tracked_processes(&tracked_processes, ns).await;
+
                 if tracked_processes.is_empty() {
+                    // Confirmed there is none left.
                     break;
                 }
+
+                // Log if this happens, out of curiosity to see if this ever
+                // actually happens in practice.
+                tracing::info!(?tracked_processes, "Discovered new pids after repairing");
+            } else {
+                // Have to trust cnproc...
+                break;
             }
-            cnproc::PidEvent::Coredump(_) => {}
+        }
+
+        // Check for any timeouts...
+        if event.is_err() {
+            tracing::trace!(?tracked_processes, "no pid events for a while");
+
+            // If the mount namespace is known, repair `tracked_processes` by
+            // walking the process tree. This will remove any pids that we
+            // didn't get notified about exiting.
+            if let Some(ns) = mount_ns.as_ref() {
+                repair_tracked_processes(&tracked_processes, ns).await;
+                tracing::trace!(?tracked_processes, "repaired");
+            }
         }
     }
     Ok(())
