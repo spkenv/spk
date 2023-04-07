@@ -138,7 +138,7 @@ impl View {
 
         let default_variants = recipe.default_variants();
         for (index, variant) in default_variants.iter().enumerate() {
-            println!("{index}: {variant}");
+            println!("{index}: {variant:#}");
         }
 
         Ok(0)

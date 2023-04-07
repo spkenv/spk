@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::cmp::min;
 use std::collections::BTreeMap;
-use std::fmt::Write;
+use std::fmt::{Pointer, Write};
 use std::marker::PhantomData;
 use std::str::FromStr;
 
@@ -126,6 +126,15 @@ impl Request {
         match self {
             Self::Var(v) => Some(v),
             _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for Request {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pkg(p) => p.fmt(f),
+            Self::Var(v) => v.fmt(f),
         }
     }
 }

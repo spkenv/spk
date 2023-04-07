@@ -92,14 +92,16 @@ impl crate::Variant for Variant {
 
 impl std::fmt::Display for Variant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let br = if f.alternate() { ' ' } else { '\n' };
+        let pad = if f.alternate() { "" } else { "  " };
         f.write_str("options: ")?;
         self.options.fmt(f)?;
         if self.requirements.len() > 0 {
-            f.write_str("\nadditional requirements:\n")?;
+            f.write_fmt(format_args!("{br}additional requirements:{br}"))?;
             for r in self.requirements.iter() {
-                f.write_str(" - ")?;
-                std::fmt::Debug::fmt(r, f)?;
-                f.write_char('\n')?;
+                f.write_str(pad)?;
+                f.write_fmt(format_args!("{r:#}"))?;
+                f.write_char(br)?;
             }
         }
         Ok(())

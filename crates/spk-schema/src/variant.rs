@@ -144,23 +144,25 @@ impl<V> std::cmp::Eq for Override<V> where V: Variant + std::cmp::Eq {}
 
 impl<V: Variant> std::fmt::Display for Override<V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let br = if f.alternate() { ' ' } else { '\n' };
+        let pad = if f.alternate() { "" } else { "  " };
         if let Some(name) = self.name() {
             f.write_str("Name: ")?;
             name.fmt(f)?;
-            f.write_char('\n')?;
+            f.write_char(br)?;
         }
-        f.write_str(" Options: ")?;
+        f.write_str("Options: ")?;
         f.write_str(&self.options().format_option_map())?;
         let requirements = self.additional_requirements();
-        f.write_str("\n Additional Requirements:")?;
+        f.write_fmt(format_args!("{br}Additional Requirements:"))?;
         if requirements.len() > 0 {
             for request in requirements.iter() {
-                f.write_char('\n')?;
-                f.write_str(" - ")?;
-                f.write_fmt(format_args!("{request:?}"))?;
+                f.write_char(br)?;
+                f.write_str(pad)?;
+                f.write_fmt(format_args!("{request:#}"))?;
             }
         } else {
-            f.write_str(" None")?;
+            f.write_fmt(format_args!("{pad}None"))?;
         }
         Ok(())
     }
