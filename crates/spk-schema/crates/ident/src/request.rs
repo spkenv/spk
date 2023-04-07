@@ -460,7 +460,6 @@ impl std::fmt::Display for PkgRequest {
     }
 }
 
-#[allow(clippy::derive_hash_xor_eq)]
 impl std::hash::Hash for PkgRequest {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.pkg.hash(state);
