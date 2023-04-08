@@ -95,11 +95,13 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
         "cheese" => "4.0",
         "zlib" => "1.0",
         "same" => "value",
+        "gcc" => "6.3.1",
     };
     let options_b = option_map! {
         "cheese" => "4.0",
         "zlib" => "3.0",
         "same" => "value",
+        "gcc" => "9.3.1",
     };
 
     // A package with the first spec

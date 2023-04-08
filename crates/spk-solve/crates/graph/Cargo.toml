@@ -26,5 +26,5 @@ tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-rstest = "0.15.0"
+rstest = { workspace = true }
 serde_yaml = "0.8.17"

@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 
 use super::foundation::option_map::OptionMap;
-use super::{Opt, ValidationSpec};
+use super::{v0, Opt, ValidationSpec};
+use crate::{Result, Variant};
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
@@ -21,7 +22,7 @@ pub struct BuildSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<Opt>,
     #[serde(default, skip_serializing_if = "BuildSpec::is_default_variants")]
-    pub variants: Vec<OptionMap>,
+    pub variants: Vec<v0::Variant>,
     #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
     pub validation: ValidationSpec,
 }
@@ -31,7 +32,7 @@ impl Default for BuildSpec {
         Self {
             script: Script(vec!["sh ./build.sh".into()]),
             options: Vec::new(),
-            variants: vec![OptionMap::default()],
+            variants: vec![v0::Variant::default()],
             validation: ValidationSpec::default(),
         }
     }
@@ -42,11 +43,36 @@ impl BuildSpec {
         self == &Self::default()
     }
 
-    fn is_default_variants(variants: &[OptionMap]) -> bool {
+    fn is_default_variants(variants: &[v0::Variant]) -> bool {
         if variants.len() != 1 {
             return false;
         }
-        variants.get(0) == Some(&OptionMap::default())
+        variants.get(0) == Some(&v0::Variant::default())
+    }
+
+    /// Returns this build's options, plus any additional ones needed
+    /// for building the given variant
+    pub fn opts_for_variant<V>(&self, variant: &V) -> Result<Vec<Opt>>
+    where
+        V: Variant,
+    {
+        let mut opts = self.options.clone();
+        let mut known = opts
+            .iter()
+            .map(Opt::full_name)
+            .map(ToOwned::to_owned)
+            .collect::<HashSet<_>>();
+
+        // inject additional package options for items in the variant that
+        // were not present in the original package
+        let reqs = variant.additional_requirements().into_owned();
+        for req in reqs.into_iter() {
+            let opt = Opt::try_from(req)?;
+            if known.insert(opt.full_name().to_owned()) {
+                opts.push(opt);
+            }
+        }
+        Ok(opts)
     }
 
     /// Add or update an option in this build spec.
@@ -67,7 +93,7 @@ impl BuildSpec {
 impl TryFrom<UncheckedBuildSpec> for BuildSpec {
     type Error = crate::Error;
 
-    fn try_from(bs: UncheckedBuildSpec) -> Result<Self, Self::Error> {
+    fn try_from(bs: UncheckedBuildSpec) -> std::result::Result<Self, Self::Error> {
         let bs = unsafe {
             // Safety: this function bypasses checks, but we are
             // going to perform those checks before returning the value
@@ -77,8 +103,9 @@ impl TryFrom<UncheckedBuildSpec> for BuildSpec {
         let mut variant_builds = Vec::new();
         let mut unique_variants = HashSet::new();
         for variant in bs.variants.iter() {
-            let digest = variant.digest();
-            variant_builds.push((digest, variant.clone()));
+            let options = variant.options().into_owned();
+            let digest = options.digest();
+            variant_builds.push((digest, options));
             unique_variants.insert(digest);
         }
         if unique_variants.len() < variant_builds.len() {
@@ -143,10 +170,11 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                 f.write_str("a build specification")
             }
 
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
             where
                 A: serde::de::MapAccess<'de>,
             {
+                let mut variants = Vec::<OptionMap>::new();
                 let mut unchecked = BuildSpec::default();
                 while let Some(key) = map.next_key::<Stringified>()? {
                     match key.as_str() {
@@ -164,7 +192,9 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                                 unique_options.insert(full_name);
                             }
                         }
-                        "variants" => unchecked.variants = map.next_value::<Vec<OptionMap>>()?,
+                        "variants" => {
+                            variants = map.next_value()?;
+                        }
                         "validation" => {
                             unchecked.validation = map.next_value::<ValidationSpec>()?
                         }
@@ -176,6 +206,17 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                         }
                     }
                 }
+
+                if variants.is_empty() {
+                    variants.push(Default::default());
+                }
+
+                // we can only parse out the final variant forms after all the
+                // build options have been loaded
+                unchecked.variants = variants
+                    .into_iter()
+                    .map(|o| v0::Variant::from_options(o, &unchecked.options))
+                    .collect();
 
                 Ok(UncheckedBuildSpec(unchecked))
             }
@@ -228,7 +269,7 @@ impl<'de> Deserialize<'de> for Script {
                 f.write_str("a string or list of strings")
             }
 
-            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
             where
                 A: serde::de::SeqAccess<'de>,
             {
@@ -239,7 +280,7 @@ impl<'de> Deserialize<'de> for Script {
                 Ok(script)
             }
 
-            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
@@ -251,7 +292,7 @@ impl<'de> Deserialize<'de> for Script {
 }
 
 impl serde::ser::Serialize for Script {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {

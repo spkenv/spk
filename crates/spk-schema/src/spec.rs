@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
@@ -20,6 +21,7 @@ use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
 use crate::test_spec::TestSpec;
 use crate::{
+    v0,
     BuildEnv,
     Deprecate,
     DeprecateMut,
@@ -28,10 +30,16 @@ use crate::{
     Package,
     PackageMut,
     Recipe,
+    RequirementsList,
     Result,
     Template,
     TemplateExt,
+    Variant,
 };
+
+#[cfg(test)]
+#[path = "./spec_test.rs"]
+mod spec_test;
 
 /// Create a spec recipe from a json structure.
 ///
@@ -175,7 +183,7 @@ impl TemplateExt for SpecTemplate {
 /// All build-able types have a recipe representation
 /// that can be serialized and deserialized from a human-written
 /// file or machine-managed persistent storage.
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize)]
 #[serde(tag = "api")]
 #[enum_dispatch(Deprecate, DeprecateMut)]
 pub enum SpecRecipe {
@@ -185,6 +193,7 @@ pub enum SpecRecipe {
 
 impl Recipe for SpecRecipe {
     type Output = Spec;
+    type Variant = SpecVariant;
 
     fn ident(&self) -> &VersionIdent {
         match self {
@@ -192,27 +201,45 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
+    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
         match self {
-            SpecRecipe::V0Package(r) => r.default_variants(),
+            SpecRecipe::V0Package(r) => Cow::Owned(
+                // use into_owned instead of iter().cloned() in case it's
+                // already an owned instance
+                #[allow(clippy::unnecessary_to_owned)]
+                r.default_variants()
+                    .into_owned()
+                    .into_iter()
+                    .map(SpecVariant::V0)
+                    .collect(),
+            ),
         }
     }
 
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap> {
+    fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>
+    where
+        V: Variant,
+    {
         match self {
-            SpecRecipe::V0Package(r) => r.resolve_options(inputs),
+            SpecRecipe::V0Package(r) => r.resolve_options(variant),
         }
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    where
+        V: Variant,
+    {
         match self {
-            SpecRecipe::V0Package(r) => r.get_build_requirements(options),
+            SpecRecipe::V0Package(r) => r.get_build_requirements(variant),
         }
     }
 
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
+    fn get_tests<V>(&self, variant: &V) -> Result<Vec<TestSpec>>
+    where
+        V: Variant,
+    {
         match self {
-            SpecRecipe::V0Package(r) => r.get_tests(options),
+            SpecRecipe::V0Package(r) => r.get_tests(variant),
         }
     }
 
@@ -222,18 +249,15 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
+        V: Variant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
         match self {
             SpecRecipe::V0Package(r) => r
-                .generate_binary_build(options, build_env)
+                .generate_binary_build(variant, build_env)
                 .map(Spec::V0Package),
         }
     }
@@ -297,6 +321,39 @@ impl FromYaml for SpecRecipe {
                     serde_yaml::from_str(&yaml).map_err(|err| SerdeError::new(yaml, err))?;
                 Ok(Self::V0Package(inner))
             }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum SpecVariant {
+    V0(v0::Variant),
+}
+
+impl super::Variant for SpecVariant {
+    fn name(&self) -> Option<&str> {
+        match self {
+            Self::V0(v) => v.name(),
+        }
+    }
+
+    fn options(&self) -> Cow<'_, OptionMap> {
+        match self {
+            Self::V0(v) => v.options(),
+        }
+    }
+
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList> {
+        match self {
+            Self::V0(v) => v.additional_requirements(),
+        }
+    }
+}
+
+impl std::fmt::Display for SpecVariant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::V0(v) => v.fmt(f),
         }
     }
 }

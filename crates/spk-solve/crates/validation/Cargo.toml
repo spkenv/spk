@@ -21,6 +21,6 @@ tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"
 
 [dev-dependencies]
-rstest = "0.15.0"
+rstest = { workspace = true }
 serde_yaml = "0.8.17"
 spk-solve = { path = "../.." }

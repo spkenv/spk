@@ -11,7 +11,7 @@ use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::option_map::{host_options, OptionMap};
-use spk_schema::{Recipe, TestStage};
+use spk_schema::{Recipe, TestStage, Variant};
 
 use crate::test::{PackageBuildTester, PackageInstallTester, PackageSourceTester, Tester};
 
@@ -95,18 +95,19 @@ impl Run for Test {
 
                 let mut tested = std::collections::HashSet::new();
 
+                let default_variants = recipe.default_variants();
                 let variants_to_test = match self.variant {
-                    Some(index) if index < recipe.default_variants().len() => {
-                        recipe.default_variants().iter().skip(index).take(1)
+                    Some(index) if index < default_variants.len() => {
+                        default_variants.iter().skip(index).take(1)
                     }
                     Some(index) => {
                         anyhow::bail!(
                             "--variant {index} is out of range; {} variant(s) found in {}",
-                            recipe.default_variants().len(),
+                            default_variants.len(),
                             recipe.ident().format_ident(),
                         );
                     }
-                    None => recipe.default_variants().iter().skip(0).take(usize::MAX),
+                    None => default_variants.iter().skip(0).take(usize::MAX),
                 };
 
                 for variant in variants_to_test {
@@ -115,7 +116,7 @@ impl Run for Test {
                         false => host_options()?,
                     };
 
-                    opts.extend(variant.clone());
+                    opts.extend(variant.options().into_owned());
                     opts.extend(options.clone());
                     let digest = opts.digest();
                     if !tested.insert(digest) {

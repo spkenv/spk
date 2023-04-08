@@ -103,6 +103,15 @@ impl RequirementsList {
     }
 }
 
+impl std::iter::IntoIterator for RequirementsList {
+    type IntoIter = std::vec::IntoIter<Request>;
+    type Item = Request;
+
+    fn into_iter(self) -> std::vec::IntoIter<Request> {
+        self.0.into_iter()
+    }
+}
+
 impl<'de> Deserialize<'de> for RequirementsList {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where

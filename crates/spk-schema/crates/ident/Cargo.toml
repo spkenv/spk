@@ -22,4 +22,4 @@ thiserror = { workspace = true }
 [dev-dependencies]
 data-encoding = "2.3"
 proptest = "1.0.0"
-rstest = "0.15.0"
+rstest = { workspace = true }

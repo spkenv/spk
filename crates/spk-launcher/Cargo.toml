@@ -10,5 +10,5 @@ edition = { workspace = true }
 anyhow = { workspace = true }
 nix = { workspace = true }
 spfs = { version = '0.34.6', path = "../spfs" }
-tempfile = "3.3"
+tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }

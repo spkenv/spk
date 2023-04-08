@@ -13,7 +13,8 @@ use spfs::graph::Object;
 use spfs::tracking::Entry;
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::{Package, Recipe, Spec};
+use spk_schema::prelude::*;
+use spk_schema::Spec;
 use spk_solve::solution::{PackageSource, Solution};
 use spk_solve::RepositoryHandle;
 use spk_storage::{self as storage};
@@ -76,17 +77,15 @@ pub fn solution_to_resolved_runtime_layers(solution: &Solution) -> Result<Resolv
         let (repo, components) = match &resolved.source {
             PackageSource::Repository { repo, components } => (repo, components),
             PackageSource::Embedded { .. } => continue,
-            PackageSource::BuildFromSource { recipe } => {
+            PackageSource::BuildFromSource { .. } => {
                 // The resolved solution includes a package that needs
                 // to be built with specific options because such a
                 // build doesn't exist in a repo.
-                let spec_options = recipe
-                    .resolve_options(solution.options())
-                    .unwrap_or_default();
+                let build_options = resolved.spec.option_values();
                 return Err(Error::String(format!(
                     "Solution includes package that needs building from source: {} with these options: {}",
-                    resolved.spec.ident(),
-                    spec_options.format_option_map(),
+                    resolved.spec.ident().format_ident(),
+                    build_options.format_option_map(),
                 )));
             }
             PackageSource::SpkInternalTest => continue,

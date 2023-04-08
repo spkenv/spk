@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::path::Path;
 
 use spk_schema_ident::VersionIdent;
@@ -10,7 +11,7 @@ use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
 use crate::ident::Request;
 use crate::test_spec::TestSpec;
-use crate::{Package, Result};
+use crate::{Package, Result, Variant};
 
 /// Return the resolved packages from a solution.
 pub trait BuildEnv {
@@ -25,38 +26,45 @@ pub trait Recipe:
     Named + Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
 {
     type Output: super::Package;
+    type Variant: super::Variant + Clone;
 
     /// Build an identifier to represent this recipe.
     ///
     /// The returned identifier will never have an associated build.
     fn ident(&self) -> &VersionIdent;
 
-    /// Return the default variants to be built for this recipe
-    fn default_variants(&self) -> &[OptionMap];
+    /// Return the default variants defined in this recipe.
+    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>>;
 
     /// Produce the full set of build options given the inputs.
     ///
     /// The returned option map will include any values from the inputs
     /// that are relevant to this recipe with the addition of any missing
     /// default values. Any issues or invalid inputs results in an error.
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap>;
+    fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>
+    where
+        V: Variant;
 
     /// Identify the requirements for a build of this recipe.
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>>;
+    ///
+    /// This should also validate and include the items specified
+    /// by [`Variant::additional_requirements`].
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    where
+        V: Variant;
 
     /// Return the tests defined for this package.
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>>;
+    fn get_tests<V>(&self, variant: &V) -> Result<Vec<TestSpec>>
+    where
+        V: Variant;
 
     /// Create a new source package from this recipe and the given parameters.
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output>;
 
     /// Create a new binary package from this recipe and the given parameters.
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
+        V: Variant,
         E: BuildEnv<Package = P>,
         P: Package;
 }
@@ -66,41 +74,48 @@ where
     T: Recipe,
 {
     type Output = T::Output;
+    type Variant = T::Variant;
 
     fn ident(&self) -> &VersionIdent {
         (**self).ident()
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
+    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
         (**self).default_variants()
     }
 
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap> {
-        (**self).resolve_options(inputs)
+    fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>
+    where
+        V: Variant,
+    {
+        (**self).resolve_options(variant)
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
-        (**self).get_build_requirements(options)
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    where
+        V: Variant,
+    {
+        (**self).get_build_requirements(variant)
     }
 
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
-        (**self).get_tests(options)
+    fn get_tests<V>(&self, variant: &V) -> Result<Vec<TestSpec>>
+    where
+        V: Variant,
+    {
+        (**self).get_tests(variant)
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
+        V: Variant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        (**self).generate_binary_build(options, build_env)
+        (**self).generate_binary_build(variant, build_env)
     }
 }
 
@@ -109,40 +124,47 @@ where
     T: Recipe,
 {
     type Output = T::Output;
+    type Variant = T::Variant;
 
     fn ident(&self) -> &VersionIdent {
         (**self).ident()
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
+    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
         (**self).default_variants()
     }
 
-    fn resolve_options(&self, inputs: &OptionMap) -> Result<OptionMap> {
-        (**self).resolve_options(inputs)
+    fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>
+    where
+        V: Variant,
+    {
+        (**self).resolve_options(variant)
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
-        (**self).get_build_requirements(options)
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    where
+        V: Variant,
+    {
+        (**self).get_build_requirements(variant)
     }
 
-    fn get_tests(&self, options: &OptionMap) -> Result<Vec<TestSpec>> {
-        (**self).get_tests(options)
+    fn get_tests<V>(&self, variant: &V) -> Result<Vec<TestSpec>>
+    where
+        V: Variant,
+    {
+        (**self).get_tests(variant)
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
+        V: Variant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        (**self).generate_binary_build(options, build_env)
+        (**self).generate_binary_build(variant, build_env)
     }
 }
