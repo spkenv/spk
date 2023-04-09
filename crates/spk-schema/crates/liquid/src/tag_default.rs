@@ -2,9 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use liquid::model::map::Entry;
+use liquid::{Object, ValueView};
 use liquid_core::error::ResultLiquidExt;
 use liquid_core::parser::FilterChain;
-use liquid_core::{Language, ParseTag, Renderable, Result, Runtime, TagReflection, TagTokenIter};
+use liquid_core::runtime::Variable;
+use liquid_core::{
+    Language,
+    ParseTag,
+    Renderable,
+    Result,
+    Runtime,
+    TagReflection,
+    TagTokenIter,
+    Value,
+};
 
 #[cfg(test)]
 #[path = "./tag_default_test.rs"]
@@ -36,11 +48,9 @@ impl ParseTag for DefaultTag {
         options: &Language,
     ) -> Result<Box<dyn Renderable>> {
         let dst = arguments
-            .expect_next("Identifier expected.")?
-            .expect_identifier()
-            .into_result()?
-            .to_string()
-            .into();
+            .expect_next("Variable expected.")?
+            .expect_variable()
+            .into_result()?;
 
         arguments
             .expect_next("Assignment operator \"=\" expected.")?
@@ -65,7 +75,7 @@ impl ParseTag for DefaultTag {
 
 #[derive(Debug)]
 struct Default {
-    dst: liquid_core::model::KString,
+    dst: Variable,
     src: FilterChain,
 }
 
@@ -83,10 +93,49 @@ impl Renderable for Default {
             .trace_with(|| self.trace().into())?
             .into_owned();
 
-        let name = self.dst.as_str().into();
-        if runtime.try_get(&[name]).is_none() {
-            runtime.set_global(self.dst.clone(), value);
+        let variable = self.dst.evaluate(runtime)?;
+        let mut path = variable.iter().collect::<Vec<_>>().into_iter();
+        let root = path.next().expect("at least one entry in path");
+
+        let mut current_pos = liquid::model::Path::with_index(root.clone());
+        let type_err = |pos: &liquid::model::Path| {
+            liquid::Error::with_msg("Cannot set default")
+                .trace("Stepping into non-object")
+                .context("position", pos.to_string())
+                .context("target", self.dst.to_string())
+        };
+
+        let Some(last) = path.next_back() else {
+            if runtime.get(&[root.clone()]).is_err() {
+                runtime.set_global(root.to_kstr().into(), value);
+            }
+            return Ok(());
+        };
+        let mut data = runtime
+            .get(&[root.to_owned()])
+            .map(|v| v.into_owned())
+            .unwrap_or_else(|_| Value::Object(Object::new()));
+        let mut data_ref = &mut data;
+        for step in path {
+            data_ref = data_ref
+                .as_object_mut()
+                .ok_or_else(|| type_err(&current_pos))?
+                .entry(step.to_kstr())
+                .or_insert_with(|| Value::Object(Object::new()));
+            current_pos.push(step.to_owned());
         }
+        match data_ref
+            .as_object_mut()
+            .ok_or_else(|| type_err(&current_pos))?
+            .entry(last.to_kstr())
+        {
+            Entry::Occupied(_) => {}
+            Entry::Vacant(v) => {
+                v.insert(value);
+                runtime.set_global(root.to_kstr().into(), data);
+            }
+        }
+
         Ok(())
     }
 }

@@ -456,8 +456,14 @@ In addition to the default tags and filters within the liquid language, spk prov
 The `default` tag can be used to more easily declare the default value for a variable. The following two statements are equivalent:
 
 ```liquid
-{% assign version = version | default: "2.3.4" %}
-{% default version = "2.3.4" %}
+{% assign var = var | default: "2.3.4" %}
+{% default var = "2.3.4" %}
+```
+
+Additionally, this tag can be used to set defaults in nested structures. Often, for options that may be provided at the command line.
+
+```liquid
+{% default opt.version = "2.3.4" %}
 ```
 
 ##### Filters
@@ -494,7 +500,7 @@ The `parse_version` filter breaks down an spk version into its components, eithe
 The `replace_re` filter works like the built-in `replace` filter, except that it matches using a perl-style regular expression and allows group replacement in the output. These regular expressions do not support look-arounds or back-references. For example:
 
 ```liquid
-{% default version = "2.3.4" %}
+{% assign version = opt.version | default: "2.3.4" %}
 {% assign major_minor = version | replace_re: "(\d+)\.(\d+).*", "$1.$2" %}
 {{ major_minor }} # 2.3
 ```

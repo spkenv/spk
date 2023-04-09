@@ -55,3 +55,57 @@ sources:
         crate::render_template(TPL, &options).expect("template should not fail to render");
     assert_eq!(rendered, EXPECTED);
 }
+
+#[rstest]
+fn test_template_rendering_default_nested() {
+    // ensure that setting a nested default value
+    // works as expected
+
+    let options = json!({
+      "nested": {
+        "existing": "existing"
+      }
+    });
+    static TPL: &str = r#"
+{% default nested.existing = "ignored" %}
+{% default nested.other = "something" %}
+pkg: {{ nested.other }}-{{ nested.existing }}
+"#;
+    static EXPECTED: &str = r#"
+
+
+pkg: something-existing
+"#;
+    let rendered = match crate::render_template(TPL, &options) {
+        Ok(r) => r,
+        Err(err) => {
+            println!("{err}");
+            panic!("template should not fail to render");
+        }
+    };
+    assert_eq!(rendered, EXPECTED);
+}
+
+#[rstest]
+fn test_template_rendering_default_nested_not_object() {
+    // ensure that setting a nested default value
+    // works as expected
+
+    let options = json!({
+      "integer": 64,
+    });
+    static TPL: &str = r#"
+{% default integer.nested = "invalid" %}
+"#;
+    let err = crate::render_template(TPL, &options)
+        .expect_err("Should fail when setting default under non-object");
+    let expected = r#"liquid: Cannot set default
+from: Stepping into non-object
+  with:
+    position=integer
+    target=integer["nested"]
+
+"#;
+    let message = err.to_string();
+    assert_eq!(message, expected);
+}

@@ -12,7 +12,7 @@ fn test_error_position_extraction() {
         crate::render_template(TPL, &json!({})).expect_err("expected template render to fail");
     let expected = r#"
  1 | {% default = data | replace ''%}
-   |            ^ unexpected "="; expected Identifier
+   |            ^ unexpected "="; expected Variable
 "#;
     let message = err.to_string();
     assert_eq!(message, expected);

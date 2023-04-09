@@ -1,4 +1,4 @@
-# {{ assign version = opt.version | default: "4.8.5" }}
+# {% assign version = opt.version | default: "4.8.5" %}
 pkg: gcc/{{ version }}
 api: v0/package
 

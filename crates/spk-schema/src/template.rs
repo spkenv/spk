@@ -62,7 +62,7 @@ impl TemplateData {
         TemplateData {
             spk: SpkInfo::default(),
             opt: options.to_yaml_value_expanded(),
-            env: std::env::vars().into_iter().collect(),
+            env: std::env::vars().collect(),
         }
     }
 }
