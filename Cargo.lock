@@ -1436,9 +1436,8 @@ checksum = "d4d2456c373231a208ad294c33dc5bff30051eafd954cd4caae83a712b12854d"
 
 [[package]]
 name = "liquid"
-version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00f55b9db2305857de3b3ceaa0e75cb51a76aaec793875fe152e139cb8fed05c"
+version = "0.26.1"
+source = "git+https://github.com/rydrman/liquid-rust?branch=allow-nil-filter-entry#d258842cbe2f9a463e566be24a0eb9a21fb7c739"
 dependencies = [
  "doc-comment",
  "liquid-core",
@@ -1449,9 +1448,8 @@ dependencies = [
 
 [[package]]
 name = "liquid-core"
-version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a93764837aeac37f14b74708cd88a44d82edfa9ad2b1bcd9a3b4d8802fdd9f98"
+version = "0.26.1"
+source = "git+https://github.com/rydrman/liquid-rust?branch=allow-nil-filter-entry#d258842cbe2f9a463e566be24a0eb9a21fb7c739"
 dependencies = [
  "anymap2",
  "itertools",
@@ -1467,9 +1465,8 @@ dependencies = [
 
 [[package]]
 name = "liquid-derive"
-version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "926454345f103e8433833077acdbfaa7c3e4b90788d585a8358f02f0b8f5a469"
+version = "0.26.1"
+source = "git+https://github.com/rydrman/liquid-rust?branch=allow-nil-filter-entry#d258842cbe2f9a463e566be24a0eb9a21fb7c739"
 dependencies = [
  "proc-macro2",
  "proc-quote",
@@ -1478,9 +1475,8 @@ dependencies = [
 
 [[package]]
 name = "liquid-lib"
-version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd06ca30ae026d26ee7fa8596f9590959e2d3726bc5a0f16a21ac4f050ec83c0"
+version = "0.26.1"
+source = "git+https://github.com/rydrman/liquid-rust?branch=allow-nil-filter-entry#d258842cbe2f9a463e566be24a0eb9a21fb7c739"
 dependencies = [
  "itertools",
  "liquid-core",

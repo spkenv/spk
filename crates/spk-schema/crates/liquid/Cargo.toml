@@ -9,14 +9,22 @@ migration-to-components = ["spk-schema-foundation/migration-to-components"]
 
 [dependencies]
 lazy_static = "1.4"
-liquid = "0.26.0"
-liquid-core = "0.26.0"
 format_serde_error = {version = "0.3", default_features = false, features = ["colored"]}
 regex = "1.6.0"
 serde = "1.0"
 serde_json = "1.0"
 spk-schema-foundation = { path = "../foundation" }
 tracing = "0.1.35"
+
+# this branch is needed until it or a similar solution
+# is accepted to solve the broken use of the default filter
+# eg: {{ does.not.exit | default: value }}
+[dependencies.liquid]
+git = "https://github.com/rydrman/liquid-rust"
+branch = "allow-nil-filter-entry"
+[dependencies.liquid-core]
+git = "https://github.com/rydrman/liquid-rust"
+branch = "allow-nil-filter-entry"
 
 [dev-dependencies]
 rstest = "0.15.0"
