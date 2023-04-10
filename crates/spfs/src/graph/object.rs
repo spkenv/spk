@@ -9,7 +9,7 @@ use strum::Display;
 use super::{Blob, Layer, Manifest, Platform, Tree};
 use crate::{encoding, Error};
 
-#[derive(Debug, Display, Eq, PartialEq)]
+#[derive(Debug, Display, Eq, PartialEq, Clone)]
 pub enum Object {
     Platform(Platform),
     Layer(Layer),
