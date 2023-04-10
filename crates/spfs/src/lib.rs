@@ -21,6 +21,7 @@ mod diff;
 #[cfg_attr(windows, path = "./env_win.rs")]
 pub mod env;
 mod error;
+pub mod find_path;
 pub mod graph;
 pub mod io;
 #[cfg_attr(windows, path = "./monitor_win.rs")]
