@@ -10,6 +10,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     #[error(transparent)]
     SpkStorageError(#[from] spk_storage::Error),
+    #[error("Embedded has no component layers")]
+    EmbeddedHasNoComponentLayers,
+    #[error("Spk internal test has no component layers")]
+    SpkInternalTestHasNoComponentLayers,
     #[error("Error: {0}")]
     String(String),
 }
