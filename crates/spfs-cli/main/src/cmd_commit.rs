@@ -28,15 +28,19 @@ pub struct CmdCommit {
     #[clap(long)]
     path: Option<PathBuf>,
 
-    /// Hash the files before committing, rather than while committing.
+    /// Hash the files while committing, rather than before.
     ///
     /// This option can improve commit times when a large number of the
-    /// files are expected to already exist in the repository. It can
-    /// also improve commit times when committing directly to a slow or
-    /// remote repository. By default, all files are written to the
-    /// repository even if the payload exists, but this strategy will
-    /// hash the file first to determine if it needs to be transferred.
+    /// files are both large, and don't already exist in the repository.
+    /// It may degrade commit times when committing directly to a slow or
+    /// remote repository. When given, all files are written to the
+    /// repository even if the payload exists, rather than hashing
+    /// the file first to determine if it needs to be transferred.
     #[clap(long)]
+    hash_while_committing: bool,
+
+    /// Deprecated, has no effect
+    #[clap(long, hidden = true)]
     hash_first: bool,
 
     /// The total number of blobs that can be committed concurrently
@@ -78,8 +82,9 @@ impl CmdCommit {
                 .with_reporter(spfs::commit::ConsoleCommitReporter::default())
                 .with_max_concurrent_branches(self.max_concurrent_branches)
                 .with_max_concurrent_blobs(self.max_concurrent_blobs);
-            if self.hash_first {
-                let committer = committer.with_blob_hasher(spfs::commit::InMemoryBlobHasher);
+            if self.hash_while_committing {
+                let committer = committer
+                    .with_blob_hasher(spfs::commit::WriteToRepositoryBlobHasher { repo: &repo });
                 self.do_commit(&repo, committer).await?
             } else {
                 self.do_commit(&repo, committer).await?
@@ -139,7 +144,7 @@ impl CmdCommit {
             "platform" => Ok(committer.commit_platform(&mut runtime).await?.into()),
             kind => {
                 return Err(spfs::Error::String(format!(
-                    "don't know how to commit a '{kind}'"
+                    "don't know how to commit a '{kind}', valid options are 'layer' and 'platform'"
                 )));
             }
         }

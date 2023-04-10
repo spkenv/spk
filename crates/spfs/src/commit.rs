@@ -45,7 +45,7 @@ impl BlobHasher for InMemoryBlobHasher {
 /// by requiring that each file is written to the repository even
 /// if the payload already exists.
 pub struct WriteToRepositoryBlobHasher<'repo> {
-    repo: &'repo RepositoryHandle,
+    pub repo: &'repo RepositoryHandle,
 }
 
 #[tonic::async_trait]
@@ -72,12 +72,12 @@ pub struct Committer<
     max_concurrent_blobs: usize,
 }
 
-impl<'repo> Committer<'repo, WriteToRepositoryBlobHasher<'repo>, (), SilentCommitReporter> {
-    /// Create a new committer, with the default [`WriteToRepositoryBlobHasher`].
+impl<'repo> Committer<'repo, InMemoryBlobHasher, (), SilentCommitReporter> {
+    /// Create a new committer, with the default [`InMemoryBlobHasher`].
     pub fn new(repo: &'repo storage::RepositoryHandle) -> Self {
         let reporter = Arc::new(SilentCommitReporter);
         let builder = ManifestBuilder::new()
-            .with_blob_hasher(WriteToRepositoryBlobHasher { repo })
+            .with_blob_hasher(InMemoryBlobHasher)
             .with_reporter(Arc::clone(&reporter));
         Self {
             repo,
@@ -386,16 +386,16 @@ impl Default for ConsoleCommitReporterBars {
         static TICK_STRINGS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
         static PROGRESS_CHARS: &str = "=>-";
         let entries_style = indicatif::ProgressStyle::default_bar()
-            .template("      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")
+            .template("      {spinner} {msg:<18.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")
             .tick_strings(TICK_STRINGS)
             .progress_chars(PROGRESS_CHARS);
         let blobs_style = indicatif::ProgressStyle::default_bar()
-            .template("      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")
+            .template("      {spinner} {msg:<18.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")
             .tick_strings(TICK_STRINGS)
             .progress_chars(PROGRESS_CHARS);
         let bytes_style = indicatif::ProgressStyle::default_bar()
             .template(
-                "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {bytes:>8}/{total_bytes:7}",
+                "      {spinner} {msg:<18.green} [{bar:40.cyan/dim}] {bytes:>8}/{total_bytes:7}",
             )
             .tick_strings(TICK_STRINGS)
             .progress_chars(PROGRESS_CHARS);
