@@ -85,10 +85,7 @@ macro_rules! try_recipe {
 #[macro_export]
 macro_rules! recipe {
     ($($spec:tt)+) => {{
-        use $crate::FromYaml;
-        let value = $crate::serde_json::json!($($spec)+);
-        let spec = $crate::SpecRecipe::from_yaml(value.to_string()).expect("invalid recipe data");
-        spec
+        $crate::try_recipe!($($spec)+).expect("invalid recipe data")
     }};
 }
 
