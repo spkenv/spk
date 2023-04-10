@@ -20,6 +20,7 @@ pub mod config;
 mod diff;
 pub mod env;
 mod error;
+pub mod find_path;
 pub mod graph;
 pub mod io;
 pub mod prelude;

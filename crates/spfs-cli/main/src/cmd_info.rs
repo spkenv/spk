@@ -5,6 +5,9 @@
 use anyhow::Result;
 use clap::Args;
 use colored::*;
+use spfs::env::SPFS_DIR;
+use spfs::find_path::ObjectPathEntry;
+use spfs::graph::Object;
 use spfs::io::{self, DigestFormat};
 use spfs::prelude::*;
 use spfs::{self};
@@ -18,7 +21,7 @@ pub struct CmdInfo {
     #[clap(long, short)]
     remote: Option<String>,
 
-    /// Tag or id to show information about
+    /// Tag or id, or /spfs/file/path to show information about
     #[clap(value_name = "REF")]
     refs: Vec<String>,
 
@@ -38,14 +41,27 @@ impl CmdInfo {
         if self.refs.is_empty() {
             self.print_global_info(&repo).await?;
         } else {
-            for reference in self.refs.iter() {
-                let item = repo.read_ref(reference.as_str()).await?;
-                self.pretty_print_ref(item, &repo, verbosity).await?;
+            let number_refs = self.refs.len();
+            for (index, reference) in self.refs.iter().enumerate() {
+                if reference.starts_with(spfs::env::SPFS_DIR) {
+                    self.pretty_print_file(reference, &repo, verbosity, number_refs)
+                        .await?;
+                } else {
+                    let item = repo.read_ref(reference.as_str()).await?;
+                    self.pretty_print_ref(item, &repo, verbosity, number_refs)
+                        .await?;
+                }
+                if index + 1 < number_refs {
+                    println!();
+                }
             }
         }
         Ok(0)
     }
 
+    // TODO: there are 2 other versions of this in cmd_layers and
+    // cmd_platforms, might be possible to combine them
+    /// Return a String based on the given digest and the --tags argument
     async fn format_digest<'repo>(
         &self,
         digest: spfs::encoding::Digest,
@@ -61,16 +77,27 @@ impl CmdInfo {
         .map_err(|err| err.into())
     }
 
+    /// Display the spfs object locations that provide the given file
     async fn pretty_print_ref(
         &self,
         obj: spfs::graph::Object,
         repo: &spfs::storage::RepositoryHandle,
         verbosity: usize,
+        number_refs: usize,
     ) -> Result<()> {
-        use spfs::graph::Object;
+        // The header lines only include the digests when more than
+        // one ref was given on the command line.
         match obj {
             Object::Platform(obj) => {
-                println!("{}", "platform:".green());
+                if number_refs > 1 {
+                    println!(
+                        "{}:\n{}",
+                        self.format_digest(obj.digest()?, repo).await?,
+                        "platform:".green()
+                    );
+                } else {
+                    println!("{}", "platform:".green());
+                }
                 println!(
                     " {} {}",
                     "refs:".bright_blue(),
@@ -83,7 +110,15 @@ impl CmdInfo {
             }
 
             Object::Layer(obj) => {
-                println!("{}", "layer:".green());
+                if number_refs > 1 {
+                    println!(
+                        "{}:\n{}",
+                        self.format_digest(obj.digest()?, repo).await?,
+                        "layer:".green()
+                    );
+                } else {
+                    println!("{}", "layer:".green());
+                }
                 println!(
                     " {} {}",
                     "refs:".bright_blue(),
@@ -97,14 +132,22 @@ impl CmdInfo {
             }
 
             Object::Manifest(obj) => {
-                println!("{}", "manifest:".green());
+                if number_refs > 1 {
+                    println!(
+                        "{}:\n{}",
+                        self.format_digest(obj.digest()?, repo).await?,
+                        "manifest:".green()
+                    );
+                } else {
+                    println!("{}", "manifest:".green());
+                }
                 let max_entries = match verbosity {
                     0 => 10,
                     1 => 50,
                     _ => usize::MAX,
                 };
                 let mut count = 0;
-                for node in obj.to_tracking_manifest().walk_abs("/spfs") {
+                for node in obj.to_tracking_manifest().walk_abs(SPFS_DIR) {
                     println!(
                         " {:06o} {} {} {}",
                         node.entry.mode,
@@ -121,7 +164,15 @@ impl CmdInfo {
             }
 
             Object::Blob(obj) => {
-                println!("{}", "blob:".green());
+                if number_refs > 1 {
+                    println!(
+                        "{}:\n {}:",
+                        self.format_digest(obj.payload, repo).await?,
+                        "blob".green()
+                    );
+                } else {
+                    println!("{}", "blob:".green());
+                }
                 println!(
                     " {} {}",
                     "digest:".bright_blue(),
@@ -160,6 +211,66 @@ impl CmdInfo {
         } else {
             println!("{}", "Run 'spfs diff' for active changes".bright_blue());
         }
+        Ok(())
+    }
+
+    /// Display the spfs object locations that provide the given file
+    async fn pretty_print_file(
+        &self,
+        filepath: &str,
+        repo: &spfs::storage::RepositoryHandle,
+        verbosity: usize,
+        number_refs: usize,
+    ) -> Result<()> {
+        let (in_a_runtime, found) =
+            spfs::find_path::find_path_providers_in_spfs_runtime(filepath, repo).await?;
+
+        if found.is_empty() {
+            println!("{filepath}: {}", "not found".yellow());
+            println!(
+                " - {}",
+                if in_a_runtime {
+                    "not found in current /spfs runtime".yellow()
+                } else {
+                    "No active runtime".red()
+                }
+            );
+        } else {
+            if let Some(first_path) = found.first() {
+                if let Some(ObjectPathEntry::FilePath(file_entry)) = first_path.last() {
+                    let number = found.len();
+                    let query = if number_refs > 1 {
+                        format!("{filepath}: ")
+                    } else {
+                        "".to_string()
+                    };
+                    println!(
+                        "{}{} (in {} {}{})",
+                        query,
+                        file_entry.kind.to_string().green(),
+                        number,
+                        if number > 1 { "layers" } else { "layer" },
+                        if verbosity < 1 && number > 1 {
+                            ", topmost 1 shown, use -v to see all"
+                        } else {
+                            ""
+                        }
+                    );
+                }
+            }
+
+            // TODO: this logic is the same as self.format_digest() has and
+            // the copies in cmd_layer and cmd_platform
+            let digest_format = if self.tags {
+                DigestFormat::ShortenedWithTags(repo)
+            } else if self.short {
+                DigestFormat::Shortened(repo)
+            } else {
+                DigestFormat::Full
+            };
+            io::pretty_print_filepaths(filepath, found, verbosity, digest_format).await?;
+        }
+
         Ok(())
     }
 }

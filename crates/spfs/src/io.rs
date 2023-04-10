@@ -3,7 +3,10 @@
 // https://github.com/imageworks/spk
 
 use colored::*;
+use spfs_encoding::Encodable;
 
+use crate::find_path::ObjectPathEntry;
+use crate::graph::Object;
 use crate::{encoding, storage, tracking, Result};
 
 /// Specifies how a digest should be formatted
@@ -11,6 +14,7 @@ use crate::{encoding, storage, tracking, Result};
 /// Some choices require access to the repository that
 /// the digest was loaded from in order to resolve further
 /// information
+#[derive(Clone)]
 pub enum DigestFormat<'repo> {
     Full,
     Shortened(&'repo storage::RepositoryHandle),
@@ -139,4 +143,88 @@ pub fn format_size(size: u64) -> String {
         size /= 1024.0;
     }
     format!("{size:3.1} Pi")
+}
+
+// TODO: maybe more this to find_path.rs?
+/// Display a pretty printed and indented list of ObjectPathEntry items
+pub async fn pretty_print_filepath(
+    file: &str,
+    object_path: &Vec<ObjectPathEntry>,
+    digest_format: DigestFormat<'_>,
+) -> Result<()> {
+    let mut indent: usize = 0;
+
+    for item in object_path {
+        indent += 1;
+
+        match item {
+            ObjectPathEntry::Parent(obj) => {
+                match obj {
+                    Object::Platform(obj) => {
+                        println!(
+                            "{}{} {}",
+                            " ".repeat(indent),
+                            "platform:".bright_blue(),
+                            format_digest(obj.digest()?, digest_format.clone()).await?
+                        );
+                    }
+
+                    Object::Layer(obj) => {
+                        println!(
+                            "{}{} {}",
+                            " ".repeat(indent),
+                            "layer:".bright_blue(),
+                            format_digest(obj.digest()?, digest_format.clone()).await?
+                        );
+                    }
+
+                    Object::Manifest(obj) => {
+                        println!(
+                            "{}{} {}",
+                            " ".repeat(indent),
+                            "manifest:".bright_blue(),
+                            format_digest(obj.digest()?, digest_format.clone()).await?
+                        );
+                    }
+
+                    Object::Blob(_) | Object::Tree(_) | Object::Mask => {
+                        // Ignores these
+                    }
+                }
+            }
+
+            ObjectPathEntry::FilePath(entry) => {
+                println!(
+                    "{}{} {} {} {} {file}",
+                    " ".repeat(indent + 1),
+                    unix_mode::to_string(entry.mode),
+                    entry.kind.to_string().green(),
+                    format_digest(entry.object, digest_format.clone()).await?,
+                    format_size(entry.size),
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// TODO: maybe move to find_path.rs?
+/// Display all the given lists of ObjectPathEntrys
+pub async fn pretty_print_filepaths(
+    file: &str,
+    info_paths: Vec<Vec<ObjectPathEntry>>,
+    verbosity: usize,
+    digest_format: DigestFormat<'_>,
+) -> Result<()> {
+    for info_path in info_paths {
+        pretty_print_filepath(file, &info_path, digest_format.clone()).await?;
+
+        if verbosity < 1 {
+            // Only higher verbosity levels are all the found
+            // locations shown.
+            break;
+        }
+    }
+    Ok(())
 }

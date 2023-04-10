@@ -21,7 +21,7 @@ use crate::repeating_timeout::RepeatingTimeout;
 use crate::{Error, Result};
 
 const PROC_DIR: &str = "/proc";
-const SPFS_DIR: &str = "/spfs";
+pub const SPFS_DIR: &str = "/spfs";
 
 const NONE: Option<&str> = None;
 pub const SPFS_MONITOR_FOREGROUND_LOGGING_VAR: &str = "SPFS_MONITOR_FOREGROUND_LOGGING";
