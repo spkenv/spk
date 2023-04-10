@@ -14,5 +14,7 @@ serde_yaml = "0.8.17"
 spfs = { version = '0.34.6', path = "../../spfs" }
 spk-cli-common = { path = '../common' }
 spk-schema = { path = '../../spk-schema' }
+spk-solve = { path = '../../spk-solve' }
+spk-storage = { path = '../../spk-storage' }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }

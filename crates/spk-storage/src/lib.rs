@@ -12,7 +12,9 @@ mod storage;
 pub use error::{Error, Result};
 pub use storage::{
     export_package,
+    find_path_providers,
     local_repository,
+    pretty_print_filepath,
     remote_repository,
     CachePolicy,
     Repository,

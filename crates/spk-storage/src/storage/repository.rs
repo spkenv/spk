@@ -4,6 +4,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use spfs::find_path::ObjectPathEntry;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
 use spk_schema::foundation::version::Version;
@@ -525,6 +526,17 @@ pub trait Repository: Storage + Sync {
     /// caching, and calling this may be ignored.
     fn set_cache_policy(&self, _cache_policy: CachePolicy) -> CachePolicy {
         CachePolicy::BypassCache
+    }
+
+    /// Return a list of spfs object lists that lead to the given
+    /// filepath in the repo
+    async fn find_path_providers(
+        &self,
+        filepath: &str,
+    ) -> Result<(bool, Vec<Vec<ObjectPathEntry>>)> {
+        Err(Error::String(format!(
+            "Cannot find filepath providers for {filepath} outside a runtime repository"
+        )))
     }
 }
 
