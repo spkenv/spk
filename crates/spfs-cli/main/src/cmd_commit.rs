@@ -74,7 +74,7 @@ pub struct CmdCommit {
 }
 
 impl CmdCommit {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.clone()).await?;
 
         let result = {
@@ -142,11 +142,9 @@ impl CmdCommit {
         match self.kind.clone().unwrap_or_default().as_str() {
             "layer" => Ok(committer.commit_layer(&mut runtime).await?.into()),
             "platform" => Ok(committer.commit_platform(&mut runtime).await?.into()),
-            kind => {
-                return Err(spfs::Error::String(format!(
-                    "don't know how to commit a '{kind}', valid options are 'layer' and 'platform'"
-                )));
-            }
+            kind => Err(spfs::Error::String(format!(
+                "don't know how to commit a '{kind}', valid options are 'layer' and 'platform'"
+            ))),
         }
     }
 }
