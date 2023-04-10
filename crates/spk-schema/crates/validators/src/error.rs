@@ -30,10 +30,6 @@ pub enum Error {
     #[error("Version exists: {0}")]
     VersionExistsError(VersionIdent),
 
-    // Bake Errors
-    #[error("Skip embedded")]
-    SkipEmbedded,
-
     /// Not running under an active spk environment
     #[error("No current spfs runtime environment")]
     NoEnvironment,
