@@ -325,38 +325,42 @@ impl PathFilter for &[Diff] {
 }
 
 /// Computes manifests from directory structures on disk
-pub struct ManifestBuilder<H = (), F = ()>
+pub struct ManifestBuilder<H = (), F = (), R = ()>
 where
     H: BlobHasher + Send + Sync,
     F: PathFilter + Send + Sync,
+    R: ComputeManifestReporter,
 {
     hasher: H,
     filter: F,
+    reporter: R,
     blob_semaphore: Arc<Semaphore>,
     max_concurrent_branches: usize,
 }
 
-impl ManifestBuilder<(), ()> {
+impl ManifestBuilder<(), (), ()> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl Default for ManifestBuilder<(), ()> {
+impl Default for ManifestBuilder<(), (), ()> {
     fn default() -> Self {
         Self {
             hasher: (),
             filter: (),
+            reporter: (),
             blob_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_BLOBS)),
             max_concurrent_branches: DEFAULT_MAX_CONCURRENT_BRANCHES,
         }
     }
 }
 
-impl<H, F> ManifestBuilder<H, F>
+impl<H, F, R> ManifestBuilder<H, F, R>
 where
     H: BlobHasher + Send + Sync,
     F: PathFilter + Send + Sync,
+    R: ComputeManifestReporter,
 {
     /// Set how many blobs should be processed at once.
     pub fn with_max_concurrent_blobs(mut self, max_concurrent_blobs: usize) -> Self {
@@ -384,13 +388,14 @@ where
     /// in the manifest. This is useful in commit-like operations where
     /// it might be beneficial to write the data while hashing and
     /// avoid needing to read the content again later.
-    pub fn with_blob_hasher<H2>(self, hasher: H2) -> ManifestBuilder<H2, F>
+    pub fn with_blob_hasher<H2>(self, hasher: H2) -> ManifestBuilder<H2, F, R>
     where
         H2: BlobHasher + Send + Sync,
     {
         ManifestBuilder {
             hasher,
             filter: self.filter,
+            reporter: self.reporter,
             blob_semaphore: self.blob_semaphore,
             max_concurrent_branches: self.max_concurrent_branches,
         }
@@ -402,13 +407,28 @@ where
     /// The filter is expected to match paths that are relative to the
     /// `$PREFIX` root, eg: `directory/filename` rather than
     /// `/spfs/directory/filename`.
-    pub fn with_path_filter<F2>(self, filter: F2) -> ManifestBuilder<H, F2>
+    pub fn with_path_filter<F2>(self, filter: F2) -> ManifestBuilder<H, F2, R>
     where
         F2: PathFilter + Send + Sync,
     {
         ManifestBuilder {
             hasher: self.hasher,
             filter,
+            reporter: self.reporter,
+            blob_semaphore: self.blob_semaphore,
+            max_concurrent_branches: self.max_concurrent_branches,
+        }
+    }
+
+    /// Use the given [`ComputeManifestReporter`] when running, replacing any existing one.
+    pub fn with_reporter<R2>(self, reporter: R2) -> ManifestBuilder<H, F, R2>
+    where
+        R2: ComputeManifestReporter,
+    {
+        ManifestBuilder {
+            hasher: self.hasher,
+            filter: self.filter,
+            reporter,
             blob_semaphore: self.blob_semaphore,
             max_concurrent_branches: self.max_concurrent_branches,
         }
@@ -486,6 +506,7 @@ where
         dir_entry: Arc<DirEntry>,
         mut entry: Entry,
     ) -> Result<Entry> {
+        self.reporter.visit_entry(path.as_ref());
         let stat_result = match tokio::fs::symlink_metadata(&path).await {
             Ok(r) => r,
             Err(lstat_err) if lstat_err.kind() == std::io::ErrorKind::NotFound => {
@@ -497,6 +518,7 @@ where
                         // XXX: mode and size?
                         entry.kind = EntryKind::Mask;
                         entry.object = encoding::NULL_DIGEST.into();
+                        self.reporter.computed_entry(&entry);
                         return Ok(entry);
                     }
                     Ok(_) => {
@@ -573,6 +595,7 @@ where
 
             entry.object = self.hasher.hash_blob(Box::pin(reader)).await?;
         }
+        self.reporter.computed_entry(&entry);
         Ok(entry)
     }
 }
@@ -581,6 +604,16 @@ where
 pub struct ManifestNode<'a> {
     pub path: RelativePathBuf,
     pub entry: &'a Entry,
+}
+
+impl<'a> ManifestNode<'a> {
+    /// Create an owned node by cloning the underlying entry data.
+    pub fn into_owned(self) -> OwnedManifestNode {
+        OwnedManifestNode {
+            path: self.path,
+            entry: self.entry.clone(),
+        }
+    }
 }
 
 impl<'a> Ord for ManifestNode<'a> {
@@ -641,5 +674,39 @@ impl<'a> Ord for ManifestNode<'a> {
 impl<'a> PartialOrd for ManifestNode<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+/// The owned version of [`ManifestNode`]
+pub struct OwnedManifestNode {
+    pub path: RelativePathBuf,
+    pub entry: Entry,
+}
+
+/// Receives updates from a manifest build process.
+pub trait ComputeManifestReporter: Send + Sync {
+    /// Called when a path has been identified to be committed
+    ///
+    /// This is a relative path of the file or directory
+    /// within the manifest that it is being computed.
+    fn visit_entry(&self, _path: &std::path::Path) {}
+
+    /// Called after and entry has been computed and added
+    /// to the manifest.
+    fn computed_entry(&self, _entry: &Entry) {}
+}
+
+impl ComputeManifestReporter for () {}
+
+impl<T> ComputeManifestReporter for Arc<T>
+where
+    T: ComputeManifestReporter,
+{
+    fn visit_entry(&self, path: &std::path::Path) {
+        (**self).visit_entry(path)
+    }
+
+    fn computed_entry(&self, entry: &Entry) {
+        (**self).computed_entry(entry)
     }
 }

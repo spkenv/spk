@@ -18,9 +18,11 @@ pub use env::{EnvSpec, EnvSpecItem, ENV_SPEC_SEPARATOR};
 pub use manifest::{
     compute_manifest,
     BlobHasher,
+    ComputeManifestReporter,
     Manifest,
     ManifestBuilder,
     ManifestNode,
+    OwnedManifestNode,
     PathFilter,
     DEFAULT_MAX_CONCURRENT_BLOBS,
     DEFAULT_MAX_CONCURRENT_BRANCHES,

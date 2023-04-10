@@ -5,8 +5,10 @@
 use std::future::ready;
 use std::path::Path;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use futures::{FutureExt, StreamExt, TryStreamExt};
+use once_cell::sync::OnceCell;
 
 use super::status::remount_runtime;
 use crate::prelude::*;
@@ -54,32 +56,43 @@ impl<'repo> BlobHasher for WriteToRepositoryBlobHasher<'repo> {
 }
 
 /// Manages the process of committing files to a repository
-pub struct Committer<'repo, H = WriteToRepositoryBlobHasher<'repo>, F = ()>
-where
+pub struct Committer<
+    'repo,
+    H = WriteToRepositoryBlobHasher<'repo>,
+    F = (),
+    Reporter = SilentCommitReporter,
+> where
     H: BlobHasher + Send + Sync,
     F: PathFilter + Send + Sync,
+    Reporter: CommitReporter,
 {
     repo: &'repo storage::RepositoryHandle,
-    builder: ManifestBuilder<H, F>,
+    reporter: Arc<Reporter>,
+    builder: ManifestBuilder<H, F, Arc<Reporter>>,
     max_concurrent_blobs: usize,
 }
 
-impl<'repo> Committer<'repo, WriteToRepositoryBlobHasher<'repo>, ()> {
+impl<'repo> Committer<'repo, WriteToRepositoryBlobHasher<'repo>, (), SilentCommitReporter> {
     /// Create a new committer, with the default [`WriteToRepositoryBlobHasher`].
     pub fn new(repo: &'repo storage::RepositoryHandle) -> Self {
-        let builder = ManifestBuilder::new().with_blob_hasher(WriteToRepositoryBlobHasher { repo });
+        let reporter = Arc::new(SilentCommitReporter);
+        let builder = ManifestBuilder::new()
+            .with_blob_hasher(WriteToRepositoryBlobHasher { repo })
+            .with_reporter(Arc::clone(&reporter));
         Self {
             repo,
+            reporter,
             builder,
             max_concurrent_blobs: tracking::DEFAULT_MAX_CONCURRENT_BLOBS,
         }
     }
 }
 
-impl<'repo, H, F> Committer<'repo, H, F>
+impl<'repo, H, F, R> Committer<'repo, H, F, R>
 where
     H: BlobHasher + Send + Sync,
     F: PathFilter + Send + Sync,
+    R: CommitReporter,
 {
     /// Set how many blobs should be processed at once.
     ///
@@ -110,13 +123,28 @@ where
     ///
     /// See [`InMemoryBlobHasher`] and [`WriteToRepositoryBlobHasher`] for
     /// details on different strategies that can be employed when committing.
-    pub fn with_blob_hasher<H2>(self, hasher: H2) -> Committer<'repo, H2, F>
+    pub fn with_blob_hasher<H2>(self, hasher: H2) -> Committer<'repo, H2, F, R>
     where
         H2: BlobHasher + Send + Sync,
     {
         Committer {
             repo: self.repo,
             builder: self.builder.with_blob_hasher(hasher),
+            reporter: self.reporter,
+            max_concurrent_blobs: self.max_concurrent_blobs,
+        }
+    }
+
+    /// Use the given [`CommitReporter`] when running, replacing any existing one.
+    pub fn with_reporter<R2>(self, reporter: impl Into<Arc<R2>>) -> Committer<'repo, H, F, R2>
+    where
+        R2: CommitReporter,
+    {
+        let reporter = reporter.into();
+        Committer {
+            repo: self.repo,
+            builder: self.builder.with_reporter(Arc::clone(&reporter)),
+            reporter,
             max_concurrent_blobs: self.max_concurrent_blobs,
         }
     }
@@ -128,13 +156,14 @@ where
     /// The filter is expected to match paths that are relative to the
     /// `$PREFIX` root, eg: `directory/filename` rather than
     /// `/spfs/directory/filename`.
-    pub fn with_path_filter<F2>(self, filter: F2) -> Committer<'repo, H, F2>
+    pub fn with_path_filter<F2>(self, filter: F2) -> Committer<'repo, H, F2, R>
     where
         F2: PathFilter + Send + Sync,
     {
         Committer {
             repo: self.repo,
             builder: self.builder.with_path_filter(filter),
+            reporter: self.reporter,
             max_concurrent_blobs: self.max_concurrent_blobs,
         }
     }
@@ -195,22 +224,21 @@ where
         let path = tokio::fs::canonicalize(&path)
             .await
             .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
-        let manifest = {
-            tracing::info!("building manifest");
-            self.builder.compute_manifest(&path).await?
-        };
+        let manifest = { self.builder.compute_manifest(&path).await? };
 
-        tracing::info!("committing manifest");
         let mut stream = futures::stream::iter(manifest.walk_abs("."))
-            .then(|node| {
+            .filter_map(|node| {
                 if !node.entry.kind.is_blob() {
-                    return ready(ready(Ok(())).boxed());
+                    return ready(None);
                 }
-                let local_path = path.join(node.path.as_str());
-                let entry = node.entry.clone();
+                let relative_path = std::path::Path::new(node.path.as_str());
+                self.reporter.visit_blob(&node);
+                let local_path = path.join(relative_path);
+                let node = node.into_owned();
                 let fut = async move {
+                    let entry = &node.entry;
                     if self.repo.has_blob(entry.object).await {
-                        return Ok(());
+                        return Ok(CommitBlobResult::AlreadyExists(node));
                     }
                     let created = if entry.is_symlink() {
                         let content = tokio::fs::read_link(&local_path)
@@ -251,13 +279,15 @@ where
                             "File contents changed on disk during commit: {local_path:?} [{created} != {}", entry.object
                         )));
                     }
-                    Ok(())
+                    Ok(CommitBlobResult::Committed(node))
                 };
-                ready(fut.boxed())
+                ready(Some(fut.boxed()))
             })
             .buffer_unordered(self.max_concurrent_blobs)
             .boxed();
-        while stream.try_next().await?.is_some() {}
+        while let Some(result) = stream.try_next().await? {
+            self.reporter.committed_blob(&result);
+        }
         drop(stream);
 
         let storable = graph::Manifest::from(&manifest);
@@ -266,5 +296,151 @@ where
             .await?;
 
         Ok(manifest)
+    }
+}
+
+/// The result of committing a single file from a manifest
+pub enum CommitBlobResult {
+    /// The blob was written to the repository
+    Committed(tracking::OwnedManifestNode),
+    /// The associated blob already exists in the repository so
+    /// nothing needed to be done
+    AlreadyExists(tracking::OwnedManifestNode),
+}
+
+impl CommitBlobResult {
+    pub fn node(&self) -> &tracking::OwnedManifestNode {
+        match self {
+            CommitBlobResult::Committed(n) => n,
+            CommitBlobResult::AlreadyExists(n) => n,
+        }
+    }
+}
+
+/// Receives updates from a sync process to be reported.
+///
+/// Unless the sync runs into errors, every call to visit_* is
+/// followed up by a call to the corresponding synced_*.
+pub trait CommitReporter: tracking::ComputeManifestReporter + Send + Sync {
+    /// Called when a manifest node is being committed to the repository
+    ///
+    /// This node is guaranteed to be a blob, and may turn out to be a no-op
+    /// if the blob and payload already exist in the target repository
+    fn visit_blob(&self, _node: &tracking::ManifestNode) {}
+
+    /// Called after a blob has been committed to the repository
+    fn committed_blob(&self, _result: &CommitBlobResult) {}
+}
+
+/// A reporter for use in the commit process that drops all events
+#[derive(Default)]
+pub struct SilentCommitReporter;
+impl tracking::ComputeManifestReporter for SilentCommitReporter {}
+impl CommitReporter for SilentCommitReporter {}
+
+/// Reports commit progress to an interactive console via progress bars
+#[derive(Default)]
+pub struct ConsoleCommitReporter {
+    bars: OnceCell<ConsoleCommitReporterBars>,
+}
+
+impl ConsoleCommitReporter {
+    fn get_bars(&self) -> &ConsoleCommitReporterBars {
+        self.bars.get_or_init(Default::default)
+    }
+}
+
+impl tracking::ComputeManifestReporter for ConsoleCommitReporter {
+    fn visit_entry(&self, _path: &std::path::Path) {
+        let bars = self.get_bars();
+        bars.entries.inc_length(1);
+    }
+
+    fn computed_entry(&self, entry: &tracking::Entry) {
+        let bars = self.get_bars();
+        bars.entries.inc(1);
+        if entry.kind.is_blob() {
+            bars.blobs.inc_length(1);
+            bars.bytes.inc_length(entry.size);
+        }
+    }
+}
+
+impl CommitReporter for ConsoleCommitReporter {
+    fn committed_blob(&self, result: &CommitBlobResult) {
+        let bars = self.get_bars();
+        bars.bytes.inc(result.node().entry.size);
+        bars.blobs.inc(1);
+    }
+}
+
+struct ConsoleCommitReporterBars {
+    renderer: Option<std::thread::JoinHandle<()>>,
+    entries: indicatif::ProgressBar,
+    blobs: indicatif::ProgressBar,
+    bytes: indicatif::ProgressBar,
+}
+
+impl Default for ConsoleCommitReporterBars {
+    fn default() -> Self {
+        static TICK_STRINGS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        static PROGRESS_CHARS: &str = "=>-";
+        let entries_style = indicatif::ProgressStyle::default_bar()
+            .template("      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
+        let blobs_style = indicatif::ProgressStyle::default_bar()
+            .template("      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
+        let bytes_style = indicatif::ProgressStyle::default_bar()
+            .template(
+                "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {bytes:>8}/{total_bytes:7}",
+            )
+            .tick_strings(TICK_STRINGS)
+            .progress_chars(PROGRESS_CHARS);
+        let bars = indicatif::MultiProgress::new();
+        let entries = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(entries_style)
+                .with_message("computing manifest"),
+        );
+        let blobs = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(blobs_style)
+                .with_message("committing blobs"),
+        );
+        let bytes = bars.add(
+            indicatif::ProgressBar::new(0)
+                .with_style(bytes_style)
+                .with_message("committing data"),
+        );
+        entries.enable_steady_tick(100);
+        blobs.enable_steady_tick(100);
+        bytes.enable_steady_tick(100);
+        // the progress bar must be awaited from some thread
+        // or nothing will be shown in the terminal
+        let renderer = Some(std::thread::spawn(move || {
+            if let Err(err) = bars.join() {
+                tracing::error!("Failed to render commit progress: {err}");
+            }
+        }));
+        Self {
+            renderer,
+            entries,
+            blobs,
+            bytes,
+        }
+    }
+}
+
+impl Drop for ConsoleCommitReporterBars {
+    fn drop(&mut self) {
+        self.bytes.finish_at_current_pos();
+        self.blobs.finish_at_current_pos();
+        self.entries.finish_at_current_pos();
+        if let Some(r) = self.renderer.take() {
+            let _ = r.join();
+        }
     }
 }

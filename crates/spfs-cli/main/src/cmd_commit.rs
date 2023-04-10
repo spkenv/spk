@@ -73,14 +73,17 @@ impl CmdCommit {
     pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.clone()).await?;
 
-        let committer = spfs::Committer::new(&repo)
-            .with_max_concurrent_branches(self.max_concurrent_branches)
-            .with_max_concurrent_blobs(self.max_concurrent_blobs);
-        let result = if self.hash_first {
-            let committer = committer.with_blob_hasher(spfs::commit::InMemoryBlobHasher);
-            self.do_commit(&repo, committer).await?
-        } else {
-            self.do_commit(&repo, committer).await?
+        let result = {
+            let committer = spfs::Committer::new(&repo)
+                .with_reporter(spfs::commit::ConsoleCommitReporter::default())
+                .with_max_concurrent_branches(self.max_concurrent_branches)
+                .with_max_concurrent_blobs(self.max_concurrent_blobs);
+            if self.hash_first {
+                let committer = committer.with_blob_hasher(spfs::commit::InMemoryBlobHasher);
+                self.do_commit(&repo, committer).await?
+            } else {
+                self.do_commit(&repo, committer).await?
+            }
         };
 
         tracing::info!(digest = ?result.digest()?, "created");
@@ -105,7 +108,7 @@ impl CmdCommit {
     async fn do_commit<'repo, H, F>(
         &self,
         repo: &'repo spfs::storage::RepositoryHandle,
-        committer: spfs::Committer<'repo, H, F>,
+        committer: spfs::Committer<'repo, H, F, spfs::commit::ConsoleCommitReporter>,
     ) -> spfs::Result<spfs::graph::Object>
     where
         H: spfs::tracking::BlobHasher + Send + Sync,
