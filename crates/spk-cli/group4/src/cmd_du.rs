@@ -332,7 +332,7 @@ impl<T: Output> Run for Du<T> {
 
         let longest_char_count = self.output.get_current_char_count();
         for output in to_print.iter() {
-            if let Some((size, entry)) = output.split_once("-") {
+            if let Some((size, entry)) = output.split_once('-') {
                 println!("{size:>longest_char_count$} {entry}");
             }
         }
@@ -430,7 +430,7 @@ impl<T: Output> Du<T> {
             _ => "",
         };
 
-        println!("{name} {root_dir}");
+        let path = [name, &root_dir].join("/");
         let mut to_print: Vec<String> = Vec::new();
         while !items_to_process.is_empty() {
             let mut next_iter_objects: Vec<spfs::graph::Object> = Vec::new();
@@ -471,6 +471,7 @@ impl<T: Output> Du<T> {
                                             self.short,
                                             root_dir.as_str(),
                                             self.human_readable,
+                                            path.as_str(),
                                         );
                                     self.output.update_char_count(temp_longest_char);
                                     total_size += size;
@@ -502,6 +503,7 @@ impl<T: Output> Du<T> {
                                         self.short,
                                         root_dir.as_str(),
                                         self.human_readable,
+                                        path.as_str(),
                                     );
                                 total_size += size;
                                 let size_to_print = self.human_readable(size);

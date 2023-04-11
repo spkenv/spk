@@ -220,6 +220,7 @@ where
         short_print: bool,
         root_dir: &str,
         human_readable: bool,
+        path: &str,
     ) -> (u64, Vec<String>, usize) {
         let mut total_size = 0;
         let mut to_iter: HashMap<String, HashMap<String, Entry>> = HashMap::new();
@@ -237,18 +238,19 @@ where
                         continue;
                     }
 
+                    let abs_path = [path, dir, name].join("/");
                     if !short_print && entry.is_regular_file() {
                         if human_readable {
                             let size_to_print = format_size(entry.size);
                             if size_to_print.len() > longest_char {
                                 longest_char = size_to_print.len();
                             }
-                            to_print.push(format!("{size_to_print}-{dir}{name}"));
+                            to_print.push(format!("{size_to_print}-{abs_path}"));
                         } else {
                             if entry.size.to_string().len() > longest_char {
                                 longest_char = entry.size.to_string().len();
                             }
-                            to_print.push(format!("{}-{dir}/{name}", entry.size));
+                            to_print.push(format!("{}-{abs_path}", entry.size));
                         }
                     }
 
