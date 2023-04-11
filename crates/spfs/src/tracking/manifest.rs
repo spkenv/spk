@@ -8,19 +8,28 @@ use std::os::unix::prelude::FileTypeExt;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::stream::FuturesUnordered;
-use futures::TryStreamExt;
+use futures::future::ready;
+use futures::{FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 use itertools::Itertools;
 use relative_path::{RelativePath, RelativePathBuf};
 use tokio::fs::DirEntry;
+use tokio::sync::Semaphore;
 
 use super::entry::{Entry, EntryKind};
-use super::{BlobRead, BlobReadExt};
+use super::{BlobRead, BlobReadExt, Diff};
 use crate::{encoding, runtime, Error, Result};
 
 #[cfg(test)]
 #[path = "./manifest_test.rs"]
 mod manifest_test;
+
+/// The default limit for concurrent blobs when computing manifests.
+/// See: [`ManifestBuilder::with_max_concurrent_blobs`]
+pub const DEFAULT_MAX_CONCURRENT_BLOBS: usize = 1000;
+
+/// The default limit for concurrent branches when computing manifests.
+/// See: [`ManifestBuilder::with_max_concurrent_branches`]
+pub const DEFAULT_MAX_CONCURRENT_BRANCHES: usize = 5;
 
 #[derive(Default, Debug, Eq, PartialEq, Clone)]
 pub struct Manifest {
@@ -258,149 +267,246 @@ impl<'m> Iterator for ManifestWalker<'m> {
     }
 }
 
-struct DigestFromAsyncReader {}
+#[async_trait::async_trait]
+pub trait BlobHasher {
+    /// Read the contents of `reader` to completion, returning
+    /// the digest of the contents.
+    async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest>;
+}
 
 #[tonic::async_trait]
-impl ManifestBuilderHasher for DigestFromAsyncReader {
-    async fn hasher(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
+impl BlobHasher for () {
+    async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
         Ok(encoding::Digest::from_async_reader(reader).await?)
     }
 }
 
 pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(path: P) -> Result<Manifest> {
-    let builder = ManifestBuilder::new(DigestFromAsyncReader {});
+    let builder = ManifestBuilder::new();
     builder.compute_manifest(path).await
 }
 
-#[async_trait::async_trait]
-pub trait ManifestBuilderHasher {
-    async fn hasher(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest>;
+/// Used to include/exclude paths from a manifest
+/// while it's being constructed
+pub trait PathFilter {
+    fn should_include_path(&self, path: &RelativePath) -> bool;
 }
 
-pub struct ManifestBuilder<H>
+impl PathFilter for () {
+    fn should_include_path(&self, _path: &RelativePath) -> bool {
+        true
+    }
+}
+
+impl PathFilter for HashSet<&RelativePath> {
+    fn should_include_path(&self, path: &RelativePath) -> bool {
+        self.contains(path)
+    }
+}
+
+impl<F> PathFilter for F
 where
-    H: ManifestBuilderHasher + Send + Sync + 'static,
+    F: Fn(&RelativePath) -> bool,
+{
+    fn should_include_path(&self, path: &RelativePath) -> bool {
+        (self)(path)
+    }
+}
+
+impl PathFilter for &[Diff] {
+    fn should_include_path(&self, path: &RelativePath) -> bool {
+        for diff in self.iter() {
+            if diff.path == path || diff.path.starts_with(path) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+/// Computes manifests from directory structures on disk
+pub struct ManifestBuilder<H = (), F = (), R = ()>
+where
+    H: BlobHasher + Send + Sync,
+    F: PathFilter + Send + Sync,
+    R: ComputeManifestReporter,
 {
     hasher: H,
-    filter: Option<HashSet<RelativePathBuf>>,
+    filter: F,
+    reporter: R,
+    blob_semaphore: Arc<Semaphore>,
+    max_concurrent_branches: usize,
 }
 
-impl<H> ManifestBuilder<H>
-where
-    H: ManifestBuilderHasher + Send + Sync + 'static,
-{
-    pub fn new(hasher: H) -> Self {
+impl ManifestBuilder<(), (), ()> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for ManifestBuilder<(), (), ()> {
+    fn default() -> Self {
         Self {
+            hasher: (),
+            filter: (),
+            reporter: (),
+            blob_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_BLOBS)),
+            max_concurrent_branches: DEFAULT_MAX_CONCURRENT_BRANCHES,
+        }
+    }
+}
+
+impl<H, F, R> ManifestBuilder<H, F, R>
+where
+    H: BlobHasher + Send + Sync,
+    F: PathFilter + Send + Sync,
+    R: ComputeManifestReporter,
+{
+    /// Set how many blobs should be processed at once.
+    pub fn with_max_concurrent_blobs(mut self, max_concurrent_blobs: usize) -> Self {
+        self.blob_semaphore = Arc::new(Semaphore::new(max_concurrent_blobs));
+        self
+    }
+
+    /// Set how many branches should be processed at once.
+    ///
+    /// Each tree/folder that is processed can have any number of subtrees. This number
+    /// limits the number of subtrees that can be processed at once for any given tree. This
+    /// means that the number compounds exponentially based on the depth of the manifest
+    /// being computed. Eg: a limit of 2 allows two directories to be processed in the root
+    /// simultaneously and a further 2 within each of those two for a total of 4 branches, and so
+    /// on. When computing for extremely deep trees, a smaller, conservative number is better
+    /// to avoid open file limits.
+    pub fn with_max_concurrent_branches(mut self, max_concurrent_branches: usize) -> Self {
+        self.max_concurrent_branches = max_concurrent_branches;
+        self
+    }
+
+    /// Use the provided hasher when building the manifest.
+    ///
+    /// The hasher turns blob contents into a digest to be included
+    /// in the manifest. This is useful in commit-like operations where
+    /// it might be beneficial to write the data while hashing and
+    /// avoid needing to read the content again later.
+    pub fn with_blob_hasher<H2>(self, hasher: H2) -> ManifestBuilder<H2, F, R>
+    where
+        H2: BlobHasher + Send + Sync,
+    {
+        ManifestBuilder {
             hasher,
-            filter: None,
+            filter: self.filter,
+            reporter: self.reporter,
+            blob_semaphore: self.blob_semaphore,
+            max_concurrent_branches: self.max_concurrent_branches,
         }
     }
 
-    /// Set a filter on the builder so that only files mentioned in the filter
+    /// Set a filter on the builder so that only files matched by the filter
     /// will be included in the manifest.
     ///
-    /// The filter is expected to contain paths that are relative to the
-    /// `$PREFIX` root.
-    pub fn with_filter<'a>(mut self, filter: impl IntoIterator<Item = &'a RelativePath>) -> Self {
-        let mut filter_set = HashSet::new();
-        for path_to_filter in filter {
-            // Ensure any parents of this path are also included.
-            //
-            // If `path_to_filter` is "foo/bar/baz",
-            // add "foo", "foo/bar", and "foo/bar/baz" to `filter_set`.
-            let mut path = RelativePathBuf::new();
-            for component in path_to_filter.components() {
-                use relative_path::Component;
-                if let Component::Normal(component) = component {
-                    path.push(component);
-                    filter_set.insert(path.clone());
-                }
-            }
+    /// The filter is expected to match paths that are relative to the
+    /// `$PREFIX` root, eg: `directory/filename` rather than
+    /// `/spfs/directory/filename`.
+    pub fn with_path_filter<F2>(self, filter: F2) -> ManifestBuilder<H, F2, R>
+    where
+        F2: PathFilter + Send + Sync,
+    {
+        ManifestBuilder {
+            hasher: self.hasher,
+            filter,
+            reporter: self.reporter,
+            blob_semaphore: self.blob_semaphore,
+            max_concurrent_branches: self.max_concurrent_branches,
         }
+    }
 
-        self.filter = Some(filter_set);
-
-        self
+    /// Use the given [`ComputeManifestReporter`] when running, replacing any existing one.
+    pub fn with_reporter<R2>(self, reporter: R2) -> ManifestBuilder<H, F, R2>
+    where
+        R2: ComputeManifestReporter,
+    {
+        ManifestBuilder {
+            hasher: self.hasher,
+            filter: self.filter,
+            reporter,
+            blob_semaphore: self.blob_semaphore,
+            max_concurrent_branches: self.max_concurrent_branches,
+        }
     }
 
     /// Build a manifest that describes a directory's contents.
     pub async fn compute_manifest<P: AsRef<std::path::Path> + Send>(
-        self,
+        &self,
         path: P,
     ) -> Result<Manifest> {
         tracing::trace!("computing manifest for {:?}", path.as_ref());
         let mut manifest = Manifest::default();
-        manifest.root = Self::compute_tree_node(
-            Arc::new(self),
-            Arc::new(path.as_ref().to_owned()),
-            path.as_ref(),
-            manifest.root,
-        )
-        .await?;
+        manifest.root = self
+            .compute_tree_node(
+                Arc::new(path.as_ref().to_owned()),
+                path.as_ref(),
+                manifest.root,
+            )
+            .await?;
         Ok(manifest)
     }
 
     #[async_recursion::async_recursion]
     async fn compute_tree_node<P: AsRef<std::path::Path> + Send>(
-        mb: Arc<ManifestBuilder<H>>,
+        &self,
         root: Arc<std::path::PathBuf>,
         dirname: P,
         mut tree_node: Entry,
     ) -> Result<Entry> {
         tree_node.kind = EntryKind::Tree;
         let base = dirname.as_ref();
-        let mut read_dir = tokio::fs::read_dir(base).await.map_err(|err| {
+        let read_dir = tokio::fs::read_dir(base).await.map_err(|err| {
             Error::StorageReadError("read_dir of tree node", base.to_owned(), err)
         })?;
-        let mut futures = FuturesUnordered::new();
-        while let Some(dir_entry) = read_dir.next_entry().await.map_err(|err| {
-            Error::StorageReadError("next_entry of tree node dir", base.to_owned(), err)
-        })? {
-            let dir_entry = Arc::new(dir_entry);
-            let mb = Arc::clone(&mb);
-            let path = base.join(dir_entry.file_name());
+        let mut stream = tokio_stream::wrappers::ReadDirStream::new(read_dir)
+            .map_err(|err| {
+                Error::StorageReadError("next_entry of tree node dir", base.to_owned(), err)
+            })
+            .try_filter_map(|dir_entry| {
+                let dir_entry = Arc::new(dir_entry);
+                let path = base.join(dir_entry.file_name());
 
-            if let Some(filter) = &mb.filter {
-                // If filtering, skip this entry unless the path matches a
-                // member of the filter set.
+                // Skip entries that are not matched by our filter
                 if let Ok(rel_path) = path.strip_prefix(&*root) {
-                    if let Ok(rel_path) = RelativePathBuf::from_path(rel_path) {
-                        if !filter.contains(&rel_path) {
-                            // Move on the next directory entry.
-                            continue;
-                        }
+                    let cow = rel_path.to_string_lossy();
+                    let rel_path = RelativePath::new(&cow);
+                    if !self.filter.should_include_path(rel_path) {
+                        // Move on the next directory entry.
+                        return ready(Ok(None));
                     }
                 }
-            }
 
-            let entry = {
                 let root = Arc::clone(&root);
                 let dir_entry = Arc::clone(&dir_entry);
-                tokio::spawn(async move {
-                    (
-                        Arc::clone(&dir_entry),
-                        Self::compute_node(mb, root, path, dir_entry, Entry::default()).await,
-                    )
-                })
-            };
-            futures.push(entry);
-        }
-        while let Some((dir_entry, entry)) = futures.try_next().await? {
-            tree_node
-                .entries
-                .insert(dir_entry.file_name().to_string_lossy().to_string(), entry?);
+                let file_name = dir_entry.file_name().to_string_lossy().to_string();
+                ready(Ok(Some(
+                    self.compute_node(root, path, dir_entry, Entry::default())
+                        .map_ok(|e| (file_name, e))
+                        .boxed(),
+                )))
+            })
+            .try_buffer_unordered(self.max_concurrent_branches)
+            .boxed();
+        while let Some((file_name, entry)) = stream.try_next().await? {
+            tree_node.entries.insert(file_name, entry);
         }
         tree_node.size = tree_node.entries.len() as u64;
         Ok(tree_node)
     }
 
     async fn compute_node<P: AsRef<std::path::Path> + Send>(
-        mb: Arc<ManifestBuilder<H>>,
+        &self,
         root: Arc<std::path::PathBuf>,
         path: P,
         dir_entry: Arc<DirEntry>,
         mut entry: Entry,
     ) -> Result<Entry> {
+        self.reporter.visit_entry(path.as_ref());
         let stat_result = match tokio::fs::symlink_metadata(&path).await {
             Ok(r) => r,
             Err(lstat_err) if lstat_err.kind() == std::io::ErrorKind::NotFound => {
@@ -412,6 +518,7 @@ where
                         // XXX: mode and size?
                         entry.kind = EntryKind::Mask;
                         entry.object = encoding::NULL_DIGEST.into();
+                        self.reporter.computed_entry(&entry);
                         return Ok(entry);
                     }
                     Ok(_) => {
@@ -443,6 +550,12 @@ where
 
         let file_type = stat_result.file_type();
         if file_type.is_symlink() {
+            let _permit = self.blob_semaphore.acquire().await;
+            debug_assert!(
+                matches!(_permit, Ok(_)),
+                "We never close the semaphore and so should never see errors"
+            );
+            tracing::trace!(" > symlink: {:?}", path.as_ref());
             let link_target = tokio::fs::read_link(&path)
                 .await
                 .map_err(|err| {
@@ -455,18 +568,24 @@ where
                 })?
                 .into_bytes();
             entry.kind = EntryKind::Blob;
-            entry.object = mb
+            entry.object = self
                 .hasher
-                .hasher(Box::pin(std::io::Cursor::new(link_target)))
+                .hash_blob(Box::pin(std::io::Cursor::new(link_target)))
                 .await?;
         } else if file_type.is_dir() {
-            entry = Self::compute_tree_node(mb, root, path, entry).await?;
+            entry = self.compute_tree_node(root, path, entry).await?;
         } else if runtime::is_removed_entry(&stat_result) {
             entry.kind = EntryKind::Mask;
             entry.object = encoding::NULL_DIGEST.into();
         } else if !stat_result.is_file() {
             return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
         } else {
+            let _permit = self.blob_semaphore.acquire().await;
+            debug_assert!(
+                matches!(_permit, Ok(_)),
+                "We never close the semaphore and so should never see errors"
+            );
+            tracing::trace!(" >    file: {:?}", path.as_ref());
             entry.kind = EntryKind::Blob;
             let reader =
                 tokio::io::BufReader::new(tokio::fs::File::open(&path).await.map_err(|err| {
@@ -474,8 +593,9 @@ where
                 })?)
                 .with_permissions(entry.mode);
 
-            entry.object = mb.hasher.hasher(Box::pin(reader)).await?;
+            entry.object = self.hasher.hash_blob(Box::pin(reader)).await?;
         }
+        self.reporter.computed_entry(&entry);
         Ok(entry)
     }
 }
@@ -484,6 +604,16 @@ where
 pub struct ManifestNode<'a> {
     pub path: RelativePathBuf,
     pub entry: &'a Entry,
+}
+
+impl<'a> ManifestNode<'a> {
+    /// Create an owned node by cloning the underlying entry data.
+    pub fn into_owned(self) -> OwnedManifestNode {
+        OwnedManifestNode {
+            path: self.path,
+            entry: self.entry.clone(),
+        }
+    }
 }
 
 impl<'a> Ord for ManifestNode<'a> {
@@ -544,5 +674,39 @@ impl<'a> Ord for ManifestNode<'a> {
 impl<'a> PartialOrd for ManifestNode<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+/// The owned version of [`ManifestNode`]
+pub struct OwnedManifestNode {
+    pub path: RelativePathBuf,
+    pub entry: Entry,
+}
+
+/// Receives updates from a manifest build process.
+pub trait ComputeManifestReporter: Send + Sync {
+    /// Called when a path has been identified to be committed
+    ///
+    /// This is a relative path of the file or directory
+    /// within the manifest that it is being computed.
+    fn visit_entry(&self, _path: &std::path::Path) {}
+
+    /// Called after and entry has been computed and added
+    /// to the manifest.
+    fn computed_entry(&self, _entry: &Entry) {}
+}
+
+impl ComputeManifestReporter for () {}
+
+impl<T> ComputeManifestReporter for Arc<T>
+where
+    T: ComputeManifestReporter,
+{
+    fn visit_entry(&self, path: &std::path::Path) {
+        (**self).visit_entry(path)
+    }
+
+    fn computed_entry(&self, entry: &Entry) {
+        (**self).computed_entry(entry)
     }
 }

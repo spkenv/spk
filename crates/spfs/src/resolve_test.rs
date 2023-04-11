@@ -48,7 +48,8 @@ async fn test_auto_merge_layers(tmpdir: tempfile::TempDir) {
     for num in 0..NUM_LAYERS {
         let data_dir = tmpdir.path().join("work").join(format!("dir_{num}"));
         ensure(data_dir.join("file.txt"), &format!("hello world {num}"));
-        let manifest = crate::commit_dir(Arc::clone(&repo), data_dir.as_path())
+        let manifest = crate::Committer::new(&repo)
+            .commit_dir(data_dir.as_path())
             .await
             .unwrap();
         let layer = repo

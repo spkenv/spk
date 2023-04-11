@@ -11,15 +11,11 @@ default = []
 # of the standard storage root, named "ci/pipeline_${CI_PIPELINE_ID}".
 gitlab-ci-local-repo-isolation = []
 sentry = ["dep:sentry"]
-server = [
-    "hyper/server",
-    "tokio-util/codec",
-    "tokio-util/io-util",
-]
+server = ["hyper/server", "tokio-util/codec", "tokio-util/io-util"]
 "protobuf-src" = ["dep:protobuf-src"]
 
 [dependencies]
-async-compression = { version = "0.3.15", features = [ "tokio", "bzip2" ] }
+async-compression = { version = "0.3.15", features = ["tokio", "bzip2"] }
 async-trait = "0.1.52"
 async-recursion = "1.0"
 async-stream = "0.3"
@@ -67,10 +63,10 @@ tokio = { version = "1.20", features = [
     "macros",
     "sync",
     "process",
-    "signal"
+    "signal",
 ] }
 tokio-retry = { workspace = true }
-tokio-stream = { version = "0.1", features = ["net"] }
+tokio-stream = { version = "0.1", features = ["net", "fs"] }
 tokio-util = { version = "0.7.3", features = ["compat", "io"] }
 tonic = "0.8"
 tracing = { workspace = true }

@@ -34,7 +34,8 @@ async fn test_find_aliases(
         .await
         .expect_err("should error when ref is not found");
 
-    let manifest = crate::commit_dir(tmprepo.repo(), "src/storage")
+    let manifest = crate::Committer::new(&tmprepo)
+        .commit_dir("src/storage")
         .await
         .unwrap();
     let layer = tmprepo
@@ -79,7 +80,8 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
     std::os::unix::fs::symlink(&link_dest, src_dir.join(symlink_path)).unwrap();
     std::fs::set_permissions(&link_dest, std::fs::Permissions::from_mode(0o444)).unwrap();
 
-    let manifest = crate::commit_dir(Arc::clone(&tmprepo), &src_dir)
+    let manifest = crate::Committer::new(&tmprepo)
+        .commit_dir(&src_dir)
         .await
         .expect("failed to commit dir");
 
@@ -131,7 +133,10 @@ async fn test_commit_broken_link(
     )
     .unwrap();
 
-    let manifest = crate::commit_dir(tmprepo.repo(), &src_dir).await.unwrap();
+    let manifest = crate::Committer::new(&tmprepo)
+        .commit_dir(&src_dir)
+        .await
+        .unwrap();
     assert!(manifest.get_path("broken-link").is_some());
 }
 
@@ -153,7 +158,17 @@ async fn test_commit_dir(
     ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
     ensure(src_dir.join("file.txt"), "rootdata");
 
-    let manifest = Manifest::from(&crate::commit_dir(tmprepo.repo(), &src_dir).await.unwrap());
-    let manifest2 = Manifest::from(&crate::commit_dir(tmprepo.repo(), &src_dir).await.unwrap());
+    let manifest = Manifest::from(
+        &crate::Committer::new(&tmprepo)
+            .commit_dir(&src_dir)
+            .await
+            .unwrap(),
+    );
+    let manifest2 = Manifest::from(
+        &crate::Committer::new(&tmprepo)
+            .commit_dir(&src_dir)
+            .await
+            .unwrap(),
+    );
     assert_eq!(manifest, manifest2);
 }

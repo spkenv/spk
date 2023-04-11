@@ -49,7 +49,8 @@ async fn test_get_attached_unattached_objects_blob(
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("file.txt"), "hello, world");
 
-    let manifest = crate::commit_dir(tmprepo.repo(), data_dir.as_path())
+    let manifest = crate::Committer::new(&tmprepo)
+        .commit_dir(data_dir.as_path())
         .await
         .unwrap();
     let layer = tmprepo
@@ -92,7 +93,8 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
     ensure(data_dir_1.join("dir/dir/test.file2"), "1 hello, world");
     ensure(data_dir_1.join("dir/dir/test.file4"), "1 hello, world");
 
-    let manifest1 = crate::commit_dir(tmprepo.repo(), data_dir_1.as_path())
+    let manifest1 = crate::Committer::new(&tmprepo)
+        .commit_dir(data_dir_1.as_path())
         .await
         .unwrap();
 
@@ -101,7 +103,8 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
     ensure(data_dir_2.join("dir/dir/test.file"), "2 hello");
     ensure(data_dir_2.join("dir/dir/test.file2"), "2 hello, world");
 
-    let manifest2 = crate::commit_dir(tmprepo.repo(), data_dir_2.as_path())
+    let manifest2 = crate::Committer::new(&tmprepo)
+        .commit_dir(data_dir_2.as_path())
         .await
         .unwrap();
     let layer = tmprepo
@@ -127,7 +130,8 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
     ensure(data_dir_3.join("dir/dir/test.file2"), "3 hello, world");
     ensure(data_dir_3.join("dir/dir/test.file4"), "3 hello, world");
 
-    let manifest3 = crate::commit_dir(tmprepo.repo(), data_dir_3.as_path())
+    let manifest3 = crate::Committer::new(&tmprepo)
+        .commit_dir(data_dir_3.as_path())
         .await
         .unwrap();
 
@@ -231,7 +235,8 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
     ensure(data_dir.join("dir/dir/file.txt"), "hello");
     ensure(data_dir.join("dir/name.txt"), "john doe");
 
-    let manifest = crate::commit_dir(Arc::clone(&tmprepo), data_dir.as_path())
+    let manifest = crate::Committer::new(&tmprepo)
+        .commit_dir(data_dir.as_path())
         .await
         .unwrap();
     let layer = tmprepo

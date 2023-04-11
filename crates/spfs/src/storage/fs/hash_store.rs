@@ -247,14 +247,14 @@ impl FSHashStore {
             Ok(s) => s,
         };
 
-        let digest = hasher.digest();
-        if let Err(err) = writer.flush().await {
+        if let Err(err) = hasher.flush().await {
             return Err(Error::StorageWriteError(
                 "flush on hash store object file",
                 working_file,
                 err,
             ));
         }
+        let digest = hasher.digest();
         if let Err(err) = writer.into_inner().into_std().await.close() {
             return Err(Error::StorageWriteError(
                 "close on hash store object file",

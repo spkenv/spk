@@ -15,7 +15,7 @@ pub mod fixtures;
 mod bootstrap;
 pub mod check;
 pub mod clean;
-mod commit;
+pub mod commit;
 pub mod config;
 mod diff;
 pub mod env;
@@ -44,7 +44,7 @@ pub use bootstrap::{
 };
 pub use check::Checker;
 pub use clean::Cleaner;
-pub use commit::{commit_dir, commit_layer, commit_layer_with_filter, commit_platform};
+pub use commit::Committer;
 pub use diff::diff;
 pub use encoding::Digest;
 pub use error::{Error, Result};

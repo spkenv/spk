@@ -27,8 +27,8 @@ async fn test_tag_stream(
     init_logging();
     let tmprepo = tmprepo.await;
 
-    let digest1 = encoding::Hasher::default().digest();
-    let mut h = encoding::Hasher::default();
+    let digest1 = encoding::Hasher::new_sync().digest();
+    let mut h = encoding::Hasher::new_sync();
     h.update(b"hello");
     let digest2 = h.digest();
 

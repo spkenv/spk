@@ -121,7 +121,9 @@ where
         )?;
 
         tracing::info!("Committing source package contents...");
-        Ok(spfs::commit_layer(&mut runtime, repo.into()).await?)
+        Ok(spfs::Committer::new(&repo)
+            .commit_layer(&mut runtime)
+            .await?)
     }
 }
 

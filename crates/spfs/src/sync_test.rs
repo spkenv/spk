@@ -49,7 +49,8 @@ async fn test_push_ref(#[future] config: (tempfile::TempDir, Config)) {
 
     let local = Arc::new(config.get_local_repository().await.unwrap().into());
     let remote = config.get_remote("origin").await.unwrap();
-    let manifest = crate::commit_dir(Arc::clone(&local), src_dir.as_path())
+    let manifest = crate::Committer::new(&local)
+        .commit_dir(src_dir.as_path())
         .await
         .unwrap();
     let layer = local
@@ -94,7 +95,8 @@ async fn test_sync_ref(
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let manifest = crate::commit_dir(repo_a.repo(), src_dir.as_path())
+    let manifest = crate::Committer::new(&repo_a)
+        .commit_dir(src_dir.as_path())
         .await
         .unwrap();
     let layer = repo_a
@@ -160,7 +162,8 @@ async fn test_sync_missing_from_source(
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let manifest = crate::commit_dir(repo_b.repo(), src_dir.as_path())
+    let manifest = crate::Committer::new(&repo_b)
+        .commit_dir(src_dir.as_path())
         .await
         .unwrap();
     let layer = repo_b
@@ -228,7 +231,8 @@ async fn test_sync_through_tar(
         .unwrap()
         .into();
 
-    let manifest = crate::commit_dir(repo_a.repo(), src_dir.as_path())
+    let manifest = crate::Committer::new(&repo_a)
+        .commit_dir(src_dir.as_path())
         .await
         .unwrap();
     let layer = repo_a
