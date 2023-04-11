@@ -786,6 +786,9 @@ impl DecisionFormatter {
             let mut task_solver_runtime = solver_settings.solver.run();
 
             let task = async move {
+                #[cfg(feature = "statsd")]
+                task_formatter.send_solver_start_metrics(&task_solver_runtime);
+
                 let start = Instant::now();
                 let loop_outcome = task_formatter
                     .run_solver_loop(&mut task_solver_runtime, output_location)
