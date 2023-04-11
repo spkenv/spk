@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Args;
+use itertools::Itertools;
 use spfs::graph::Object;
 use spfs::io::DigestFormat;
 use spfs::storage::RepositoryHandle;
@@ -16,9 +17,47 @@ use spk_schema::ident_component::Component;
 use spk_schema::name::PkgName;
 use spk_schema::{Deprecate, Ident, Package, Spec};
 
+pub trait Output: Default + Send + Sync {
+    /// A line of output to display.
+    fn println(&mut self, line: String);
+
+    /// A line of output to display as a warning.
+    fn warn(&mut self, line: String);
+
+    /// Updates the char count for printing
+    fn update_char_count(&mut self, count: usize);
+
+    /// Returns current char count for printing
+    fn get_current_char_count(&mut self) -> usize;
+}
+
+#[derive(Default)]
+pub struct Console {
+    char_count: usize,
+}
+
+impl Output for Console {
+    fn println(&mut self, line: String) {
+        println!("{line}");
+    }
+
+    fn warn(&mut self, line: String) {
+        tracing::warn!("{line}");
+    }
+
+    fn update_char_count(&mut self, count: usize) {
+        if count > self.char_count {
+            self.char_count = count;
+        }
+    }
+
+    fn get_current_char_count(&mut self) -> usize {
+        self.char_count
+    }
+}
 /// Return the disk utility of a package version
 #[derive(Args)]
-pub struct Du {
+pub struct Du<Output: Default = Console> {
     #[clap(flatten)]
     pub repos: flags::Repositories,
 
@@ -29,20 +68,34 @@ pub struct Du {
     /// Lists file sizes in human readable format
     #[clap(long, short = 'H')]
     pub human_readable: bool,
+
+    /// Shows each directory size from input package passed
+    #[clap(long, short = 's')]
+    pub short: bool,
+
+    // Output the grand total
+    #[clap(long, short = 'c')]
+    pub total: bool,
+
+    #[clap(skip)]
+    pub(crate) output: Output,
 }
 
 #[async_trait::async_trait]
-impl Run for Du {
+impl<T: Output> Run for Du<T> {
     async fn run(&mut self) -> Result<i32> {
         let repos = self.repos.get_repos_for_non_destructive_operation().await?;
 
         let mut package_path: Vec<String> = self.package.split('/').map(str::to_string).collect();
 
+        let mut package = self.package.clone();
         // Remove any empty strings
         package_path.retain(|c| !c.is_empty());
 
+        let mut longest_char = 0;
+        let mut to_print: Vec<String> = Vec::new();
         if package_path.len() == 1 && !self.package.ends_with('/') {
-            let pkgname = PkgName::new(&self.package)?;
+            let pkgname = PkgName::new(&package)?;
 
             for (_repo_name, repo) in repos.iter() {
                 let version = match repo.highest_package_version(pkgname).await? {
@@ -73,18 +126,32 @@ impl Run for Du {
                             if prev_digests.contains(&digest.to_string()) {
                                 continue;
                             }
-                            total_size += self
+                            let (size, mut temp_to_print) = self
                                 .process_component_size(digest, repo, None, None)
                                 .await?;
+                            if !self.short {
+                                to_print.append(&mut temp_to_print);
+                            }
+                            total_size += size;
                             prev_digests.push(digest.to_string());
                         }
                     }
-                    println!("{}   {}", self.human_readable(total_size), name);
+
+                    let size_to_print = self.human_readable(total_size);
+                    if size_to_print.len() > longest_char {
+                        longest_char = size_to_print.len();
+                    }
+
+                    if self.short {
+                        to_print.push(format!("{size_to_print}-{name}"));
+                    }
+
+                    if self.total {
+                        to_print.push(format!("{size_to_print}-total"));
+                    }
                 }
             }
         } else if package_path.len() == 1 && self.package.ends_with('/') {
-            let mut package = self.package.clone();
-
             package.pop();
 
             let pkgname = PkgName::new(&package)?;
@@ -102,6 +169,7 @@ impl Run for Du {
             versions.sort_by_key(|v| v.0.clone());
             versions.reverse();
 
+            let mut total_size = 0;
             for (version, repo_index) in versions {
                 let (_repo_name, repo) = repos.get(repo_index).unwrap();
 
@@ -121,31 +189,52 @@ impl Run for Du {
 
                     let spk_storage::RepositoryHandle::SPFS(repo) = repo else { continue; };
 
-                    let mut total_size = 0;
+                    let mut per_version_size = 0;
                     for components in components_to_process.iter() {
                         let mut prev_digests: Vec<String> = Vec::new();
                         for (_, digest) in components.iter() {
                             if prev_digests.contains(&digest.to_string()) {
                                 continue;
                             }
-                            total_size += self
+                            let (size, mut temp_to_print) = self
                                 .process_component_size(digest, repo, None, None)
                                 .await?;
+                            if !self.short {
+                                to_print.append(&mut temp_to_print);
+                            }
+                            per_version_size += size;
                             prev_digests.push(digest.to_string());
                         }
                     }
-                    println!("{}   {}", self.human_readable(total_size), name);
+
+                    total_size += per_version_size;
+                    let size_to_print = self.human_readable(per_version_size);
+                    self.output.update_char_count(size_to_print.len());
+
+                    if self.short {
+                        to_print.push(format!("{size_to_print}-{name}/"));
+                    }
                 }
             }
+
+            let size_to_print = self.human_readable(total_size);
+            self.output.update_char_count(size_to_print.len());
+
+            if self.total {
+                to_print.push(format!("{size_to_print}-total"));
+            }
         } else {
-            let mut package = self.package.clone();
             let mut dir_to_check = None;
             let mut input_digest = None;
             if package_path.len() >= 3 {
                 let (temp_package, temp_dir_to_check) = package_path.split_at(3);
                 input_digest = temp_package.last();
                 package = temp_package.join("/");
-                dir_to_check = Some(temp_dir_to_check.join("/"));
+                if temp_dir_to_check.is_empty() {
+                    dir_to_check = None;
+                } else {
+                    dir_to_check = Some(temp_dir_to_check.join("/"));
+                }
             }
 
             if package.ends_with('/') {
@@ -168,7 +257,7 @@ impl Run for Du {
                     let mut total_size = 0;
                     for components in components_to_process.iter() {
                         let mut prev_digests: Vec<String> = Vec::new();
-                        for (_, digest) in components.iter() {
+                        for (_, digest) in components.iter().sorted_by_key(|(k, _)| *k) {
                             if prev_digests.contains(&digest.to_string()) {
                                 continue;
                             }
@@ -186,7 +275,7 @@ impl Run for Du {
 
                                     let pkgname = format!("{package}/{shortened_digest}");
 
-                                    total_size += self
+                                    let (size, _) = self
                                         .process_component_size(
                                             digest,
                                             repo,
@@ -195,9 +284,16 @@ impl Run for Du {
                                         )
                                         .await?;
 
-                                    println!("{}   {}", self.human_readable(total_size), pkgname);
+                                    if self.short {
+                                        to_print.push(format!(
+                                            "{}-{}/",
+                                            self.human_readable(size),
+                                            pkgname,
+                                        ));
+                                    }
+                                    total_size += size;
                                 } else {
-                                    total_size += self
+                                    let (size, _) = self
                                         .process_component_size(
                                             digest,
                                             repo,
@@ -205,37 +301,52 @@ impl Run for Du {
                                             dir_to_check.as_ref(),
                                         )
                                         .await?;
+                                    total_size += size;
                                 }
                             } else {
-                                self.process_component_size(
-                                    digest,
-                                    repo,
-                                    Some(&package),
-                                    dir_to_check.as_ref(),
-                                )
-                                .await?;
+                                let (size, mut temp_to_print) = self
+                                    .process_component_size(
+                                        digest,
+                                        repo,
+                                        Some(&package),
+                                        dir_to_check.as_ref(),
+                                    )
+                                    .await?;
+                                total_size += size;
+                                to_print.append(&mut temp_to_print);
                             }
                             prev_digests.push(digest.to_string());
                         }
                     }
 
-                    if !self.package.ends_with('/') && package_path.len() < 3 {
-                        println!("{}   {}", self.human_readable(total_size), package);
+                    if (!self.package.ends_with('/') && package_path.len() < 3) && self.short {
+                        to_print.push(format!("{}-{}/", self.human_readable(total_size), package));
+                    }
+
+                    if self.total {
+                        to_print.push(format!("{}-total", self.human_readable(total_size)));
                     }
                 }
+            }
+        }
+
+        let longest_char_count = self.output.get_current_char_count();
+        for output in to_print.iter() {
+            if let Some((size, entry)) = output.split_once("-") {
+                println!("{size:>longest_char_count$} {entry}");
             }
         }
         Ok(0)
     }
 }
 
-impl CommandArgs for Du {
+impl<T: Output> CommandArgs for Du<T> {
     fn get_positional_args(&self) -> Vec<String> {
         Vec::new()
     }
 }
 
-impl Du {
+impl<T: Output> Du<T> {
     fn human_readable(&self, size: u64) -> String {
         let mut result = size.to_string();
         if self.human_readable {
@@ -251,6 +362,7 @@ impl Du {
         repo: &spk_storage::RepositoryHandle,
     ) -> Result<Vec<Arc<Spec>>> {
         let mut result: Vec<Arc<Spec>> = Vec::new();
+        builds.sort();
         while let Some(build) = builds.pop() {
             match repo.read_package(&build).await {
                 Ok(spec) if !spec.is_deprecated() => result.push(spec),
@@ -298,19 +410,19 @@ impl Du {
     }
 
     async fn process_component_size(
-        &self,
+        &mut self,
         digest: &Digest,
         repo: &RepositoryHandle,
         pkgname: Option<&String>,
         dir_to_check: Option<&String>,
-    ) -> Result<u64> {
+    ) -> Result<(u64, Vec<String>)> {
         let mut total_size = 0;
         let mut item = repo.read_ref(digest.to_string().as_str()).await?;
         let mut items_to_process: Vec<spfs::graph::Object> = vec![item];
 
         let root_dir = match dir_to_check {
-            Some(dir) => dir.as_str(),
-            _ => "",
+            Some(dir) => format!("{dir}/"),
+            _ => "".to_string(),
         };
 
         let name = match pkgname {
@@ -318,6 +430,8 @@ impl Du {
             _ => "",
         };
 
+        println!("{name} {root_dir}");
+        let mut to_print: Vec<String> = Vec::new();
         while !items_to_process.is_empty() {
             let mut next_iter_objects: Vec<spfs::graph::Object> = Vec::new();
             for object in items_to_process.iter() {
@@ -336,44 +450,69 @@ impl Du {
                         let tracking_manifest = object.unlock();
 
                         if self.package.ends_with('/') {
-                            let entries = tracking_manifest.list_entries_in_dir(root_dir);
+                            let mut entries =
+                                tracking_manifest.list_entries_in_dir(root_dir.as_str());
+                            entries.sort();
                             for entry_name in entries {
                                 let entry = tracking_manifest
-                                    .find_entry_by_string(&format!("{root_dir}/{entry_name}"));
+                                    .find_entry_by_string(&format!("{root_dir}{entry_name}"));
                                 if entry.is_regular_file() {
                                     total_size += entry.size;
                                     if !name.is_empty() {
-                                        println!(
-                                            "{}    {name}{root_dir}/{entry_name}",
-                                            self.human_readable(entry.size)
-                                        );
+                                        let size_to_print = self.human_readable(entry.size);
+                                        self.output.update_char_count(size_to_print.len());
+                                        to_print.push(format!(
+                                            "{size_to_print}-{name}/{root_dir}{entry_name}"
+                                        ));
                                     }
                                 } else {
-                                    let size = entry.calculate_size_of_child_entries();
+                                    let (size, mut temp_to_print, temp_longest_char) = entry
+                                        .calculate_size_of_child_entries(
+                                            self.short,
+                                            root_dir.as_str(),
+                                            self.human_readable,
+                                        );
+                                    self.output.update_char_count(temp_longest_char);
                                     total_size += size;
                                     if !name.is_empty() {
-                                        println!(
-                                            "{}    {name}{root_dir}/{entry_name}/",
-                                            self.human_readable(size)
-                                        );
+                                        let size_to_print = self.human_readable(size);
+                                        self.output.update_char_count(size_to_print.len());
+                                        to_print.push(format!(
+                                            "{size_to_print}-{name}/{root_dir}{entry_name}/"
+                                        ));
+                                    }
+                                    if !self.short {
+                                        to_print.append(&mut temp_to_print);
                                     }
                                 }
                             }
                         } else {
-                            let root_entry = tracking_manifest.find_entry_by_string(root_dir);
+                            let root_entry =
+                                tracking_manifest.find_entry_by_string(root_dir.as_str());
                             if root_entry.is_regular_file() {
                                 total_size += root_entry.size;
                                 if !name.is_empty() {
-                                    println!(
-                                        "{}    {name}{root_dir}",
-                                        self.human_readable(root_entry.size)
-                                    );
+                                    let size_to_print = self.human_readable(root_entry.size);
+                                    self.output.update_char_count(size_to_print.len());
+                                    to_print.push(format!("{size_to_print}-{name}/{root_dir}"));
                                 }
                             } else {
-                                let size = root_entry.calculate_size_of_child_entries();
+                                let (size, mut temp_to_print, temp_longest_char) = root_entry
+                                    .calculate_size_of_child_entries(
+                                        self.short,
+                                        root_dir.as_str(),
+                                        self.human_readable,
+                                    );
                                 total_size += size;
-                                if !name.is_empty() {
-                                    println!("{}    {name}{root_dir}/", self.human_readable(size));
+                                let size_to_print = self.human_readable(size);
+                                self.output.update_char_count(temp_longest_char);
+
+                                if !self.short {
+                                    to_print.append(&mut temp_to_print);
+                                }
+
+                                if (!name.is_empty() || !root_dir.is_empty()) && self.short {
+                                    to_print.push(format!("{size_to_print}-{name}/{root_dir}"));
                                 }
                             }
                         }
@@ -391,6 +530,6 @@ impl Du {
             }
             items_to_process = std::mem::take(&mut next_iter_objects);
         }
-        Ok(total_size)
+        Ok((total_size, to_print))
     }
 }

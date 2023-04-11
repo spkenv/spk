@@ -7,6 +7,9 @@ use std::io::BufRead;
 use std::str::FromStr;
 use std::string::ToString;
 
+use itertools::Itertools;
+
+use crate::io::format_size;
 use crate::{encoding, Error, Result};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -212,24 +215,54 @@ impl<T> Entry<T>
 where
     T: Clone,
 {
-    pub fn calculate_size_of_child_entries(&self) -> u64 {
+    pub fn calculate_size_of_child_entries(
+        &self,
+        short_print: bool,
+        root_dir: &str,
+        human_readable: bool,
+    ) -> (u64, Vec<String>, usize) {
         let mut total_size = 0;
-        let mut to_iter = vec![self.entries.clone()];
+        let mut to_iter: HashMap<String, HashMap<String, Entry>> = HashMap::new();
+        let mut longest_char = 0;
+        let mut to_print: Vec<String> = Vec::new();
+        let initial_entries = self.entries.clone();
+        let root = root_dir.to_string();
+        to_iter.insert(root, initial_entries);
+
         while !to_iter.is_empty() {
-            let mut next_iter: Vec<HashMap<String, Entry>> = Vec::new();
-            for entries in to_iter.iter() {
-                for (_, entry) in entries.iter() {
+            let mut next_iter: HashMap<String, HashMap<String, Entry>> = HashMap::new();
+            for (dir, entries) in to_iter.iter().sorted_by_key(|(k, _)| *k) {
+                for (name, entry) in entries.iter().sorted_by_key(|(k, _)| *k) {
                     if entry.is_symlink() {
                         continue;
                     }
+
+                    if !short_print && entry.is_regular_file() {
+                        if human_readable {
+                            let size_to_print = format_size(entry.size);
+                            if size_to_print.len() > longest_char {
+                                longest_char = size_to_print.len();
+                            }
+                            to_print.push(format!("{size_to_print}-{dir}{name}"));
+                        } else {
+                            if entry.size.to_string().len() > longest_char {
+                                longest_char = entry.size.to_string().len();
+                            }
+                            to_print.push(format!("{}-{dir}/{name}", entry.size));
+                        }
+                    }
+
+                    if entry.is_dir() {
+                        let new_dir = format!("{dir}/{name}");
+                        next_iter.insert((*new_dir).to_string(), entry.entries.clone());
+                    }
+
                     total_size += entry.size;
-                    next_iter.push(entry.entries.clone());
                 }
             }
             to_iter = std::mem::take(&mut next_iter);
         }
-
-        total_size
+        (total_size, to_print, longest_char)
     }
 
     pub fn update(&mut self, other: &Self) {
