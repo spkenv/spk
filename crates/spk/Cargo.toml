@@ -34,6 +34,7 @@ cli = [
     "dep:spk-cmd-install",
     "dep:spk-cmd-make-binary",
     "dep:spk-cmd-make-source",
+    "dep:spk-cmd-make-recipe",
     "dep:spk-cmd-render",
     "dep:spk-cmd-repo",
     "dep:spk-cmd-test",
@@ -61,6 +62,7 @@ spk-cmd-explain = { path = '../spk-cli/cmd-explain', optional = true }
 spk-cmd-install = { path = '../spk-cli/cmd-install', optional = true }
 spk-cmd-make-binary = { path = '../spk-cli/cmd-make-binary', optional = true }
 spk-cmd-make-source = { path = '../spk-cli/cmd-make-source', optional = true }
+spk-cmd-make-recipe = { path = '../spk-cli/cmd-make-recipe', optional = true }
 spk-cmd-render = { path = '../spk-cli/cmd-render', optional = true }
 spk-cmd-repo = { path = '../spk-cli/cmd-repo', optional = true }
 spk-cmd-test = { path = '../spk-cli/cmd-test', optional = true }

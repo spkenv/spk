@@ -24,6 +24,7 @@ use spk_cmd_env::cmd_env;
 use spk_cmd_explain::cmd_explain;
 use spk_cmd_install::cmd_install;
 use spk_cmd_make_binary::cmd_make_binary;
+use spk_cmd_make_recipe::cmd_make_recipe;
 use spk_cmd_make_source::cmd_make_source;
 use spk_cmd_render::cmd_render;
 use spk_cmd_repo::cmd_repo;
@@ -156,6 +157,7 @@ pub enum Command {
     Ls(cmd_ls::Ls),
     MakeBinary(cmd_make_binary::MakeBinary),
     MakeSource(cmd_make_source::MakeSource),
+    MakeRecipe(cmd_make_recipe::MakeRecipe),
     New(cmd_new::New),
     #[clap(alias = "variant-count", hide = true)]
     NumVariants(cmd_num_variants::NumVariants),
@@ -191,6 +193,7 @@ impl Run for Command {
             Command::Ls(cmd) => cmd.run().await,
             Command::MakeBinary(cmd) => cmd.run().await,
             Command::MakeSource(cmd) => cmd.run().await,
+            Command::MakeRecipe(cmd) => cmd.run().await,
             Command::New(cmd) => cmd.run().await,
             Command::NumVariants(cmd) => cmd.run().await,
             Command::Publish(cmd) => cmd.run().await,
@@ -223,6 +226,7 @@ impl CommandArgs for Command {
             Command::Ls(cmd) => cmd.get_positional_args(),
             Command::MakeBinary(cmd) => cmd.get_positional_args(),
             Command::MakeSource(cmd) => cmd.get_positional_args(),
+            Command::MakeRecipe(cmd) => cmd.get_positional_args(),
             Command::New(cmd) => cmd.get_positional_args(),
             Command::NumVariants(cmd) => cmd.get_positional_args(),
             Command::Publish(cmd) => cmd.get_positional_args(),

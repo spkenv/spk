@@ -107,6 +107,13 @@ pub struct SpecTemplate {
     template: String,
 }
 
+impl SpecTemplate {
+    /// The complete source string for this template
+    pub fn source(&self) -> &str {
+        &self.template
+    }
+}
+
 impl Named for SpecTemplate {
     fn name(&self) -> &PkgName {
         &self.name
@@ -120,8 +127,11 @@ impl Template for SpecTemplate {
         &self.file_path
     }
 
-    fn render(&self, _options: &OptionMap) -> Result<Self::Output> {
-        Ok(SpecRecipe::from_yaml(&self.template)?)
+    fn render(&self, options: &OptionMap) -> Result<Self::Output> {
+        let data = super::TemplateData::new(options);
+        let rendered = spk_schema_liquid::render_template(&self.template, &data)
+            .map_err(Error::InvalidTemplate)?;
+        Ok(SpecRecipe::from_yaml(rendered)?)
     }
 }
 

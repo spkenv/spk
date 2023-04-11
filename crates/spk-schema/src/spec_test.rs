@@ -3,11 +3,14 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
+use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::OptionMap;
+use spk_schema_foundation::spec_ops::HasVersion;
 
+use super::SpecTemplate;
 use crate::prelude::*;
-use crate::recipe;
+use crate::{recipe, Template};
 
 #[rstest]
 fn test_resolve_options_empty_options() {
@@ -303,4 +306,53 @@ fn test_get_build_requirements_pkg_in_variant_preserves_order() {
         "1.2.3",
         index = Some(3)
     );
+}
+
+#[rstest]
+fn test_template_error_message() {
+    format_serde_error::never_color();
+    static SPEC: &str = r#"pkg: my-package/{{ opt.version }}
+sources:
+  - git: https://downloads.testing/my-package/v{{ opt.typo }}
+"#;
+    let tpl = SpecTemplate {
+        name: PkgName::new("my-package").unwrap().to_owned(),
+        file_path: "my-package.spk.yaml".into(),
+        template: SPEC.to_string(),
+    };
+    let options = option_map! {"version" => "1.0.0"};
+    let err = tpl
+        .render(&options)
+        .expect_err("expect template rendering to fail");
+    let expected = r#"
+liquid: Unknown index
+  with:
+    variable=opt
+    requested index=typo
+    available indexes=version
+"#;
+    let message = err.to_string();
+    assert_eq!(message.trim(), expected.trim());
+}
+
+#[rstest]
+fn test_template_namespace_options() {
+    // options can have namespace values separated by a `.`
+    // which can be annoying to access when the actual key
+    // still has a `.` in it, so validate that these values
+    // can instead be accessed as a sub-object using the
+    // dot-notation built into templating
+
+    format_serde_error::never_color();
+    static SPEC: &str = r#"pkg: mypackage/{{ opt.namespace.version }}"#;
+    let tpl = SpecTemplate {
+        name: PkgName::new("my-package").unwrap().to_owned(),
+        file_path: "my-package.spk.yaml".into(),
+        template: SPEC.to_string(),
+    };
+    let options = option_map! {"namespace.version" => "1.0.0"};
+    let recipe = tpl
+        .render(&options)
+        .expect("template should render with sub-object access");
+    assert_eq!(recipe.version().to_string(), "1.0.0");
 }

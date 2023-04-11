@@ -13,6 +13,7 @@ members = [
     "crates/spk-config",
     "crates/spk-launcher",
     "crates/spk-schema",
+    "crates/spk-schema/crates/*",
     "crates/spk-solve",
     "crates/spk-solve/crates/*",
     "crates/spk-storage",

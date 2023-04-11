@@ -415,3 +415,92 @@ tests:
     script:
       - pytest
 ```
+
+### Spec File Templating
+
+SPK package spec files also support the [liquid](https://shopify.github.io/liquid/) templating language, so long as the spec file remains valid yaml.
+
+The templating is rendered when the yaml file is read from disk, and before it's processed any further (to start a build, run tests, etc.). This means that it cannot, for example, be involved in rendering different specs for different variants of the package (unless you define and orchestrate those variants through a separate build system).
+
+The data that's made available to the template takes the form:
+
+```yaml
+spk:
+  version: "0.23.0" # the version of spk being used
+opt: {} # a map of all build options specified (either host options or at the command line)
+env: {} # a map of the current environment variables from the caller
+```
+
+One common templating use case is to allow your package spec to be reused to build many different versions, for example:
+
+```yaml
+# {% default opt.version = "2.3.4" %}
+pkg: my-package/{{ version }}
+```
+
+Which could then be invoked for different versions at the command line:
+
+```sh
+spk build my-package.spk.yaml                  # builds the default 2.3.4
+spk build my-package.spk.yaml -o version=2.4.0 # builds 2.4.0
+```
+
+#### Template Extensions
+
+In addition to the default tags and filters within the liquid language, spk provides a few additional ones to help package maintainers:
+
+##### Tags
+
+**default**
+
+The `default` tag can be used to more easily declare the default value for a variable. The following two statements are equivalent:
+
+```liquid
+{% assign var = var | default: "2.3.4" %}
+{% default var = "2.3.4" %}
+```
+
+Additionally, this tag can be used to set defaults in nested structures. Often, for options that may be provided at the command line.
+
+```liquid
+{% default opt.version = "2.3.4" %}
+```
+
+##### Filters
+
+**compare_version**
+
+The `compare_version` allows for comparing spk versions using any of the [version comparison operators](/use/versioning). It takes one or two arguments, depending on the data that you have to give. In all cases, the arguments are concatenated together and parsed as a version range. For example, the following assignments to py_3 all end up checking the same statement.
+
+```liquid
+{% assign is_py3 = python.version | compare_version: ">=3" %}
+{% assign is_py3 = python.version | compare_version: ">=", 3 %}
+{% assign three = 3 %}
+{% assign is_py3 = python.version | compare_version: ">=", three %}
+```
+
+**parse_version**
+
+The `parse_version` filter breaks down an spk version into its components, either returning an object or a single field from it, for example:
+
+```liquid
+{% assign v = "1.2.3.4-alpha.0+r.4" | parse_version %}
+{{ v.base }}      # 1.2.3.4
+{{ v.major }}     # 1
+{{ v.minor }}     # 2
+{{ v.patch }}     # 3
+{{ v.parts[3] }}  # 4
+{{ v.post.r }}    # 4
+{{ v.pre.alpha }} # 0
+{{ "1.2.3.4-alpha.0+r.4" | parse_version: minor }} # 2
+```
+
+**replace_re**
+
+The `replace_re` filter works like the built-in `replace` filter, except that it matches using a perl-style regular expression and allows group replacement in the output. These regular expressions do not support look-arounds or back-references. For example:
+
+```liquid
+{% assign version = opt.version | default: "2.3.4" %}
+{% assign major_minor = version | replace_re: "(\d+)\.(\d+).*", "$1.$2" %}
+{{ major_minor }} # 2.3
+```

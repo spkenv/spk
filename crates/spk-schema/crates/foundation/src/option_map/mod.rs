@@ -224,6 +224,38 @@ impl OptionMap {
             env.remove(&name);
         }
     }
+
+    /// Create a yaml mapping from this map, un-flattening all package options.
+    ///
+    /// OptionMaps hold package-specific options under dot-notated keys, eg `python.abi`.
+    /// This function will split those options into sub-objects, creating a two-level
+    /// mapping instead. In the case where there is a value for both `python` and `python.abi`
+    /// the former will be dropped.
+    pub fn to_yaml_value_expanded(&self) -> serde_yaml::Mapping {
+        use serde_yaml::{Mapping, Value};
+        let mut yaml = Mapping::default();
+        for (key, value) in self.iter() {
+            let target = match key.namespace() {
+                Some(ns) => {
+                    let ns = Value::String(ns.to_string());
+                    let ns_value = yaml
+                        .entry(ns)
+                        .or_insert_with(|| serde_yaml::Value::Mapping(Default::default()));
+                    if ns_value.as_mapping().is_none() {
+                        *ns_value = serde_yaml::Value::Mapping(Default::default());
+                    }
+                    ns_value
+                        .as_mapping_mut()
+                        .expect("already validated that this is a mapping")
+                }
+                None => &mut yaml,
+            };
+            let key = serde_yaml::Value::String(key.base_name().to_string());
+            let value = serde_yaml::Value::String(value.to_string());
+            target.insert(key, value);
+        }
+        yaml
+    }
 }
 
 impl<'de> Deserialize<'de> for OptionMap {

@@ -56,6 +56,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anymap2"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d301b3b94cb4b2f23d7917810addbbaff90738e0ca2be692bd027e70d7e0330c"
+
+[[package]]
 name = "arrayref"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -728,6 +734,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0688c2a7f92e427f44895cd63841bff7b29f8d7a1648b9e7e07a4a365b2e1257"
 
 [[package]]
+name = "doc-comment"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1389,6 +1401,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kstring"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec3066350882a1cd6d950d055997f379ac37fd39f81cd4d8ed186032eb3c5747"
+dependencies = [
+ "serde",
+ "static_assertions",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1411,6 +1433,59 @@ name = "linux-raw-sys"
 version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4d2456c373231a208ad294c33dc5bff30051eafd954cd4caae83a712b12854d"
+
+[[package]]
+name = "liquid"
+version = "0.26.1"
+source = "git+https://github.com/rydrman/liquid-rust?branch=allow-nil-filter-entry#d258842cbe2f9a463e566be24a0eb9a21fb7c739"
+dependencies = [
+ "doc-comment",
+ "liquid-core",
+ "liquid-derive",
+ "liquid-lib",
+ "serde",
+]
+
+[[package]]
+name = "liquid-core"
+version = "0.26.1"
+source = "git+https://github.com/rydrman/liquid-rust?branch=allow-nil-filter-entry#d258842cbe2f9a463e566be24a0eb9a21fb7c739"
+dependencies = [
+ "anymap2",
+ "itertools",
+ "kstring",
+ "liquid-derive",
+ "num-traits",
+ "pest",
+ "pest_derive",
+ "regex",
+ "serde",
+ "time 0.3.11",
+]
+
+[[package]]
+name = "liquid-derive"
+version = "0.26.1"
+source = "git+https://github.com/rydrman/liquid-rust?branch=allow-nil-filter-entry#d258842cbe2f9a463e566be24a0eb9a21fb7c739"
+dependencies = [
+ "proc-macro2",
+ "proc-quote",
+ "syn",
+]
+
+[[package]]
+name = "liquid-lib"
+version = "0.26.1"
+source = "git+https://github.com/rydrman/liquid-rust?branch=allow-nil-filter-entry#d258842cbe2f9a463e566be24a0eb9a21fb7c739"
+dependencies = [
+ "itertools",
+ "liquid-core",
+ "once_cell",
+ "percent-encoding",
+ "regex",
+ "time 0.3.11",
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "lock_api"
@@ -1990,12 +2065,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "proc-macro-hack"
+version = "0.5.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbf0c48bc1d91375ae5c3cd81e3722dff1abcf81a30960240640d223f59fe0e5"
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d0e1ae9e836cc3beddd63db0df682593d7e2d3d891ae8c9083d2113e1744224"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "proc-quote"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e84ab161de78c915302ca325a19bee6df272800e2ae1a43fe3ef430bab2a100"
+dependencies = [
+ "proc-macro-hack",
+ "proc-macro2",
+ "proc-quote-impl",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "proc-quote-impl"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fb3ec628b063cdbcf316e06a8b8c1a541d28fa6c0a8eacd2bfb2b7f49e88aa0"
+dependencies = [
+ "proc-macro-hack",
+ "proc-macro2",
+ "quote",
 ]
 
 [[package]]
@@ -3018,6 +3123,7 @@ dependencies = [
  "spk-cmd-explain",
  "spk-cmd-install",
  "spk-cmd-make-binary",
+ "spk-cmd-make-recipe",
  "spk-cmd-make-source",
  "spk-cmd-render",
  "spk-cmd-repo",
@@ -3278,6 +3384,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "spk-cmd-make-recipe"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.23",
+ "spk-cli-common",
+ "spk-schema",
+ "spk-schema-liquid",
+ "tracing",
+]
+
+[[package]]
 name = "spk-cmd-make-source"
 version = "0.36.0"
 dependencies = [
@@ -3402,6 +3521,7 @@ dependencies = [
  "spfs",
  "spk-schema-foundation",
  "spk-schema-ident",
+ "spk-schema-liquid",
  "spk-schema-validators",
  "sys-info",
  "tempfile",
@@ -3456,6 +3576,22 @@ dependencies = [
  "serde_yaml",
  "spk-schema-foundation",
  "thiserror",
+]
+
+[[package]]
+name = "spk-schema-liquid"
+version = "0.36.0"
+dependencies = [
+ "format_serde_error",
+ "lazy_static",
+ "liquid",
+ "liquid-core",
+ "regex",
+ "rstest",
+ "serde",
+ "serde_json",
+ "spk-schema-foundation",
+ "tracing",
 ]
 
 [[package]]
@@ -3847,7 +3983,14 @@ dependencies = [
  "itoa 1.0.6",
  "libc",
  "num_threads",
+ "time-macros",
 ]
+
+[[package]]
+name = "time-macros"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42657b1a6f4d817cda8e7a0ace261fe0cc946cf3a80314390b22cc61ae080792"
 
 [[package]]
 name = "tinytemplate"
@@ -4242,6 +4385,12 @@ checksum = "854cbdc4f7bc6ae19c820d44abdc3277ac3e1b2b93db20a636825d9322fb60e6"
 dependencies = [
  "tinyvec",
 ]
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fdbf052a0783de01e944a6ce7a8cb939e295b1e7be835a1112c3b9a7f047a5a"
 
 [[package]]
 name = "unicode-width"

@@ -1,0 +1,14 @@
+[package]
+authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+edition = "2021"
+name = "spk-cmd-make-recipe"
+version = "0.36.0"
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+clap = { version = "3.2", features = ["derive", "env"] }
+spk-cli-common = { path = '../common' }
+spk-schema = { path = '../../spk-schema' }
+spk-schema-liquid = { path = '../../spk-schema/crates/liquid' }
+tracing = "0.1.35"
