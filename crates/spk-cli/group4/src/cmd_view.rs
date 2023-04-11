@@ -23,6 +23,15 @@ use spk_schema::version::Version;
 use spk_schema::{AnyIdent, BuildIdent, Recipe, Template, VersionIdent};
 use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
 use spk_storage;
+use strum::{Display, EnumString, EnumVariantNames};
+
+/// Constants for the valid output formats
+#[derive(Display, EnumString, EnumVariantNames, Clone)]
+#[strum(serialize_all = "lowercase")]
+pub enum OutputFormat {
+    Json,
+    Yaml,
+}
 
 /// Show the spfs filepaths entry details at v > 0
 const SHOW_SPFS_ENTRY_ONLY_LEVEL: u8 = 0;
@@ -53,6 +62,10 @@ pub struct View {
 
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
+
+    /// Format to output package data in
+    #[clap(short = 'f', long, default_value_t = OutputFormat::Yaml)]
+    pub format: OutputFormat,
 
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,
@@ -357,8 +370,16 @@ impl View {
             let ident: BuildIdent = request.pkg.clone().try_into()?;
             for repo in repos {
                 if let Ok(package_spec) = repo.read_package(&ident).await {
-                    serde_yaml::to_writer(std::io::stdout(), &*package_spec)
-                        .context("Failed to serialize loaded spec")?;
+                    match &self.format {
+                        OutputFormat::Yaml => {
+                            serde_yaml::to_writer(std::io::stdout(), &*package_spec)
+                                .context("Failed to serialize loaded spec")?
+                        }
+                        OutputFormat::Json => {
+                            serde_json::to_writer(std::io::stdout(), &*package_spec)
+                                .context("Failed to serialize loaded spec")?
+                        }
+                    }
                     return Ok(0);
                 };
             }
@@ -380,8 +401,16 @@ impl View {
             let ident: VersionIdent = temp_ident.to_version();
             for repo in repos {
                 if let Ok(version_recipe) = repo.read_recipe(&ident).await {
-                    serde_yaml::to_writer(std::io::stdout(), &*version_recipe)
-                        .context("Failed to serialize loaded spec")?;
+                    match &self.format {
+                        OutputFormat::Yaml => {
+                            serde_yaml::to_writer(std::io::stdout(), &*version_recipe)
+                                .context("Failed to serialize loaded spec")?
+                        }
+                        OutputFormat::Json => {
+                            serde_json::to_writer(std::io::stdout(), &*version_recipe)
+                                .context("Failed to serialize loaded spec")?
+                        }
+                    }
                     return Ok(0);
                 };
             }
@@ -430,11 +459,10 @@ impl View {
         Ok(versions)
     }
 
-    /// Original info gathering process using a solver to resolve a
+    /// Original info gathering process using a solver to resolve the
     /// request for package and select the package build in the
     /// solution as the one to display information about.
     async fn print_package_info_from_solve(&self, package: &String) -> Result<i32> {
-        // Original solving version
         let mut solver = self.solver.get_solver(&self.options).await?;
 
         let request = match self
@@ -490,8 +518,12 @@ impl View {
 
         for item in solution.items() {
             if item.spec.name() == request.pkg.name {
-                serde_yaml::to_writer(std::io::stdout(), &*item.spec)
-                    .context("Failed to serialize loaded spec")?;
+                match &self.format {
+                    OutputFormat::Yaml => serde_yaml::to_writer(std::io::stdout(), &*item.spec)
+                        .context("Failed to serialize loaded spec")?,
+                    OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &*item.spec)
+                        .context("Failed to serialize loaded spec")?,
+                }
                 return Ok(0);
             }
         }
