@@ -3150,6 +3150,7 @@ dependencies = [
  "spfs",
  "spk-exec",
  "spk-schema",
+ "spk-schema-validators",
  "spk-solve",
  "spk-storage",
  "tar",

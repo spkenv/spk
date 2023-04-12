@@ -7,7 +7,7 @@ use std::iter::FromIterator;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use spfs::tracking::Diff;
+use spfs::tracking::{Diff, DiffMode};
 
 use crate::validators::{
     must_collect_all_files,
@@ -35,7 +35,7 @@ impl Validator {
         pkg: &Package,
         diffs: &[spfs::tracking::Diff],
         prefix: P,
-    ) -> Option<String>
+    ) -> spk_schema_validators::Result<()>
     where
         Package: crate::Package,
         P: AsRef<std::path::Path>,
@@ -84,9 +84,7 @@ impl ValidationSpec {
         )
     }
 
-    /// Validate the current set of spfs changes as a build of this package.
-    ///
-    /// Return the list of diffs that were detected.
+    /// Validate the current set of spfs changes as a build of this package
     pub async fn validate_build_changeset<Package>(&self, package: &Package) -> Result<Vec<Diff>>
     where
         Package: crate::Package,
@@ -100,13 +98,11 @@ impl ValidationSpec {
         reset_permissions(&mut diffs, SPFS)?;
 
         for validator in self.configured_validators().iter() {
-            if let Some(err) = validator.validate(package, &diffs, SPFS) {
-                return Err(
-                    crate::foundation::ident_build::InvalidBuildError::new_error(format!(
-                        "{validator:?}: {err}"
-                    ))
-                    .into(),
-                );
+            if let Err(err) = validator.validate(package, &diffs, SPFS) {
+                return Err(crate::Error::InvalidBuildChangeSetError(
+                    format!("{validator:?}"),
+                    err,
+                ));
             }
         }
 
@@ -129,8 +125,6 @@ pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
     prefix: P,
 ) -> Result<()> {
     use std::os::unix::prelude::PermissionsExt;
-
-    use spfs::tracking::DiffMode;
 
     for diff in diffs.iter_mut() {
         match &diff.mode {

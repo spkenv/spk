@@ -17,6 +17,7 @@ spfs = { version = '0.34.6', path = "../spfs" }
 spk-exec = { path = "../spk-exec" }
 spk-solve = { path = "../spk-solve" }
 spk-schema = { path = "../spk-schema" }
+spk-schema-validators = { path = "../spk-schema/crates/validators" }
 spk-storage = { path = "../spk-storage" }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }

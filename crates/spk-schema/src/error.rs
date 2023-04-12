@@ -52,6 +52,9 @@ pub enum Error {
     InvalidYaml(#[from] format_serde_error::SerdeError),
     #[error(transparent)]
     InvalidTemplate(format_serde_error::SerdeError),
+
+    #[error("{0}: {1}")]
+    InvalidBuildChangeSetError(String, #[source] spk_schema_validators::Error),
 }
 
 impl Error {

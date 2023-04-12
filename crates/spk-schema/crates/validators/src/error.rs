@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use relative_path::RelativePathBuf;
+use spfs::tracking::DiffMode;
 use spk_schema_ident::{AnyIdent, VersionIdent};
 use thiserror::Error;
 
@@ -35,4 +37,13 @@ pub enum Error {
     /// Not running under an active spk environment
     #[error("No current spfs runtime environment")]
     NoEnvironment,
+
+    // Validation Errors
+    #[error("All generated files must be collected by a component. These ones were not: \n - {}", .0.join("\n - "))]
+    SomeFilesNotCollected(Vec<String>),
+    #[error("Build process created no files under {0:?}")]
+    BuildMadeNoFilesToInstall(String),
+    // Failing to Box this causes a clippy 'large_enum_variant' error in the solution::Error enum
+    #[error("Existing file was {0:?}: {1:?}")]
+    ExistingFileAltered(Box<DiffMode>, RelativePathBuf),
 }

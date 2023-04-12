@@ -11,7 +11,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use relative_path::RelativePathBuf;
 use spfs::prelude::*;
-use spfs::tracking::EntryKind;
+use spfs::tracking::{DiffMode, EntryKind};
 use spk_exec::{
     pull_resolved_runtime_layers,
     resolve_runtime_layers,
@@ -76,6 +76,11 @@ pub enum BuildSource {
     LocalPath(PathBuf),
 }
 
+/// A pair of packages that are in conlict for some reason,
+/// e.g. because they both provide one or more of the same files.
+#[derive(Eq, Hash, PartialEq)]
+struct ConflictingPackagePair(BuildIdent, BuildIdent);
+
 /// Builds a binary package.
 ///
 /// ```no_run
@@ -101,6 +106,8 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
     last_solve_graph: Arc<tokio::sync::RwLock<Graph>>,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     interactive: bool,
+    files_to_layers: HashMap<RelativePathBuf, ResolvedLayer>,
+    conflicting_packages: HashMap<ConflictingPackagePair, HashSet<RelativePathBuf>>,
 }
 
 impl<'a, Recipe> BinaryPackageBuilder<'a, Recipe>
@@ -128,6 +135,8 @@ where
             last_solve_graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
             repos: Default::default(),
             interactive: false,
+            files_to_layers: Default::default(),
+            conflicting_packages: Default::default(),
         }
     }
 
@@ -280,17 +289,18 @@ where
         let mut warning_found = false;
         let entries = resolved_layers.iter_entries();
         pin!(entries);
-        let mut seen = HashMap::<_, &ResolvedLayer>::new();
+
         while let Some(entry) = entries.next().await {
             let (path, entry, resolved_layer) = match entry {
                 Err(spk_exec::Error::NonSPFSLayerInResolvedLayers) => continue,
                 Err(err) => return Err(err.into()),
                 Ok(entry) => entry,
             };
+
             if !matches!(entry.kind, EntryKind::Blob) {
                 continue;
             }
-            match seen.entry(path.clone()) {
+            match self.files_to_layers.entry(path.clone()) {
                 hash_map::Entry::Occupied(entry) => {
                     // This file has already been seen by a lower layer.
                     //
@@ -311,10 +321,24 @@ where
                         resolved_layer.spec.ident(),
                         resolved_layer.component,
                     );
+
+                    // Track the packages involved for later use
+                    let pkg_a = entry.get().spec.ident().clone();
+                    let pkg_b = resolved_layer.spec.ident().clone();
+                    let packages_key = if pkg_a < pkg_b {
+                        ConflictingPackagePair(pkg_a, pkg_b)
+                    } else {
+                        ConflictingPackagePair(pkg_b, pkg_a)
+                    };
+                    let counter = self
+                        .conflicting_packages
+                        .entry(packages_key)
+                        .or_insert_with(HashSet::new);
+                    counter.insert(path.clone());
                 }
                 hash_map::Entry::Vacant(entry) => {
                     // This is the first layer that has this file.
-                    entry.insert(resolved_layer);
+                    entry.insert(resolved_layer.clone());
                 }
             };
         }
@@ -426,6 +450,82 @@ where
         Ok(solution)
     }
 
+    /// Helper for constructing more useful error messages from schema validator errors
+    fn assemble_error_message(
+        &self,
+        error: spk_schema_validators::Error,
+        files_to_packages: &HashMap<RelativePathBuf, BuildIdent>,
+        conflicting_packages: &HashMap<ConflictingPackagePair, HashSet<RelativePathBuf>>,
+    ) -> String {
+        match error {
+            spk_schema_validators::Error::ExistingFileAltered(diffmode, filepath) => {
+                let operation = match *diffmode {
+                    DiffMode::Changed(a, b) => {
+                        let mut changes: Vec<String> = Vec::new();
+                        if a.mode != b.mode {
+                            changes.push(format!("permissions: {:06o} => {:06o}", a.mode, b.mode));
+                        }
+                        if a.kind != b.kind {
+                            changes.push(format!("kind: {} => {}", a.kind, b.kind));
+                        }
+                        if a.object != b.object {
+                            changes.push(format!("digest: {} => {}", a.object, b.object));
+                        }
+                        if a.size != b.size {
+                            changes.push(format!("size: {} => {} bytes", a.size, b.size));
+                        }
+
+                        format!("Changed [{}]", changes.join(", "))
+                    }
+                    DiffMode::Removed(_) => String::from("Removed"),
+                    _ => String::from("Added or Unchanged"),
+                };
+
+                let mut message = format!("\"{}\" was {}", filepath, operation);
+
+                // Work out if the files in conflict came from more
+                // than one package
+                let packages: Vec<(&ConflictingPackagePair, &HashSet<RelativePathBuf>)> =
+                    conflicting_packages
+                        .iter()
+                        .filter(|(_ps, fs)| fs.contains(&filepath))
+                        .collect();
+
+                if packages.is_empty() {
+                    // Then the file is only in a single package, not
+                    // in a pair of conflicting packages.
+                    let package = files_to_packages
+                        .get(&filepath)
+                        .map(|ident| ident.to_string())
+                        .unwrap_or_else(|| {
+                            "an unknown package, so something went wrong.".to_string()
+                        });
+                    message.push_str(&format!(". It is from {package}"));
+                } else {
+                    let num_others = packages.iter().map(|(_ps, fs)| fs.len()).sum::<usize>() - 1;
+                    if num_others > 0 {
+                        message.push_str(&format!(
+                            " (along with {num_others} more file{})",
+                            if num_others == 1 { "" } else { "s" }
+                        ));
+                    }
+                    let pkgs = packages
+                        .iter()
+                        .flat_map(|(ps, _fs)| Vec::from([ps.0.to_string(), ps.1.to_string()]))
+                        .collect::<Vec<String>>();
+                    message.push_str(&format!(
+                        " in {} packages: {}",
+                        pkgs.len(),
+                        pkgs.join(" AND ")
+                    ));
+                }
+
+                message
+            }
+            _ => error.to_string(),
+        }
+    }
+
     async fn build_and_commit_artifacts<O>(
         &mut self,
         package: &Recipe::Output,
@@ -452,11 +552,36 @@ where
         spfs::remount_runtime(&runtime).await?;
 
         tracing::info!("Validating package contents...");
+        // Simplify this for use during the validation errors and to
+        // avoid having to pass ResolvedLayers down into the validation.
+        let files_to_packages: HashMap<RelativePathBuf, BuildIdent> = self
+            .files_to_layers
+            .iter()
+            .map(|(f, l)| (f.clone(), l.spec.ident().clone()))
+            .collect();
+
         let changed_files = package
             .validation()
             .validate_build_changeset(package)
             .await
-            .map_err(|err| BuildError::new_error(format_args!("{err}")))?;
+            .map_err(|err| {
+                let err_message = match err {
+                    spk_schema::Error::InvalidBuildChangeSetError(validator_name, source_err) => {
+                        format!(
+                            "{}: {}",
+                            validator_name,
+                            self.assemble_error_message(
+                                source_err,
+                                &files_to_packages,
+                                &self.conflicting_packages,
+                            )
+                        )
+                    }
+                    _ => format!("{err}"),
+                };
+
+                BuildError::new_error(format_args!("Invalid Build: {err_message}"))
+            })?;
 
         tracing::info!("Committing package contents...");
         commit_component_layers(package, &mut runtime, changed_files.as_slice()).await
