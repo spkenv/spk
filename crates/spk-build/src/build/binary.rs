@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use relative_path::{RelativePath, RelativePathBuf};
+use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 use spfs::tracking::{DiffMode, EntryKind};
 use spk_exec::{
@@ -22,11 +22,18 @@ use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::name::OptNameBuf;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy, VersionIdent};
-use spk_schema::{BuildIdent, ComponentFileMatchMode, ComponentSpecList, Package, PackageMut};
+use spk_schema::{
+    BuildIdent,
+    ComponentFileMatchMode,
+    ComponentSpecList,
+    Package,
+    PackageMut,
+    Variant,
+    VariantExt,
+};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, ResolverCallback, Solver};
@@ -77,14 +84,13 @@ struct ConflictingPackagePair(BuildIdent, BuildIdent);
 /// Builds a binary package.
 ///
 /// ```no_run
-/// # use spk_schema::{recipe, foundation::opt_name};
+/// # use spk_schema::{recipe, foundation::option_map};
 /// # async fn demo() {
 /// spk_build::BinaryPackageBuilder::from_recipe(recipe!({
 ///         "pkg": "my-pkg",
 ///         "build": {"script": "echo hello, world"},
 ///      }))
-///     .with_option(opt_name!("debug"), "true")
-///     .build()
+///     .build(&option_map!{"debug" => "true"})
 ///     .await
 ///     .unwrap();
 /// # }
@@ -92,7 +98,6 @@ struct ConflictingPackagePair(BuildIdent, BuildIdent);
 pub struct BinaryPackageBuilder<'a, Recipe> {
     prefix: PathBuf,
     recipe: Recipe,
-    inputs: OptionMap,
     source: BuildSource,
     solver: Solver,
     environment: HashMap<String, String>,
@@ -117,7 +122,6 @@ where
             recipe,
             source,
             prefix: PathBuf::from("/spfs"),
-            inputs: OptionMap::default(),
             solver: Solver::default(),
             environment: Default::default(),
             #[cfg(test)]
@@ -143,30 +147,6 @@ where
     /// in abnormal circumstances.
     pub fn with_prefix(&mut self, prefix: PathBuf) -> &mut Self {
         self.prefix = prefix;
-        self
-    }
-
-    /// Update a single build option value
-    ///
-    /// These options are used when computing the final options
-    /// for the binary package, and may affect many aspect of the build
-    /// environment and generated package.
-    pub fn with_option<N, V>(&mut self, name: N, value: V) -> &mut Self
-    where
-        N: Into<OptNameBuf>,
-        V: Into<String>,
-    {
-        self.inputs.insert(name.into(), value.into());
-        self
-    }
-
-    /// Update the build options with all of the provided ones
-    ///
-    /// These options are used when computing the final options
-    /// for the binary package, and may affect many aspect of the build
-    /// environment and generated package.
-    pub fn with_options(&mut self, options: OptionMap) -> &mut Self {
-        self.inputs.extend(options.into_iter());
         self
     }
 
@@ -237,16 +217,18 @@ where
         self.last_solve_graph.clone()
     }
 
-    pub async fn build_and_publish<R, T>(
+    pub async fn build_and_publish<V, R, T>(
         &mut self,
+        variant: V,
         repo: &R,
     ) -> Result<(Recipe::Output, HashMap<Component, spfs::encoding::Digest>)>
     where
+        V: Variant,
         R: std::ops::Deref<Target = T>,
         T: storage::Repository<Recipe = Recipe> + ?Sized,
         <T as storage::Storage>::Package: PackageMut,
     {
-        let (package, components) = self.build().await?;
+        let (package, components) = self.build(variant).await?;
         tracing::debug!("publishing build {}", package.ident().format_ident());
         repo.publish_package(&package, &components).await?;
         Ok((package, components))
@@ -256,20 +238,23 @@ where
     ///
     /// Returns the unpublished package definition and set of components
     /// layers collected in the local spfs repository.
-    pub async fn build(
+    pub async fn build<V>(
         &mut self,
-    ) -> Result<(Recipe::Output, HashMap<Component, spfs::encoding::Digest>)> {
+        variant: V,
+    ) -> Result<(Recipe::Output, HashMap<Component, spfs::encoding::Digest>)>
+    where
+        V: Variant,
+    {
         self.environment.clear();
         let mut runtime = spfs::active_runtime().await?;
         runtime.reset_all()?;
         runtime.status.editable = true;
         runtime.status.stack.clear();
 
-        tracing::debug!("input options: {}", self.inputs);
-        let build_options = self.recipe.resolve_options(&self.inputs)?;
-        tracing::debug!("build options: {build_options}");
-        let mut all_options = self.inputs.clone();
-        all_options.extend(build_options.into_iter());
+        let variant_options = variant.options();
+        tracing::debug!("variant options: {variant_options}");
+        let all_options = self.recipe.resolve_options(&variant)?;
+        tracing::debug!("  build options: {all_options}");
 
         if let BuildSource::SourcePackage(ident) = self.source.clone() {
             tracing::debug!("Resolving source package for build");
@@ -281,18 +266,18 @@ where
         };
 
         tracing::debug!("Resolving build environment");
-        let solution = self.resolve_build_environment(&all_options).await?;
+        let solution = self
+            .resolve_build_environment(&all_options, &variant)
+            .await?;
         self.environment
             .extend(solution.to_environment(Some(std::env::vars())));
 
-        {
+        let full_variant = variant
+            .with_overrides(solution.options().clone())
             // original options to be reapplied. It feels like this
             // shouldn't be necessary but I've not been able to isolate what
             // goes wrong when this is removed.
-            let mut opts = solution.options().clone();
-            std::mem::swap(&mut opts, &mut all_options);
-            all_options.extend(opts);
-        }
+            .with_overrides(all_options);
 
         let resolved_layers = solution_to_resolved_runtime_layers(&solution)?;
 
@@ -374,9 +359,11 @@ where
         runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
 
-        let package = self.recipe.generate_binary_build(&all_options, &solution)?;
+        let package = self
+            .recipe
+            .generate_binary_build(&full_variant, &solution)?;
         let components = self
-            .build_and_commit_artifacts(&package, &all_options)
+            .build_and_commit_artifacts(&package, full_variant.options())
             .await?;
         Ok((package, components))
     }
@@ -427,7 +414,7 @@ where
 
         let source_build = RequestedBy::SourceBuild(package.clone().try_into()?);
         let ident_range = package.with_components([Component::Source]);
-        let request: PkgRequest = PkgRequest::new(ident_range, source_build)
+        let request = PkgRequest::new(ident_range, source_build)
             .with_prerelease(PreReleasePolicy::IncludeAll)
             .with_pin(None)
             .with_compat(None);
@@ -439,7 +426,14 @@ where
         Ok(solution)
     }
 
-    async fn resolve_build_environment(&mut self, options: &OptionMap) -> Result<Solution> {
+    async fn resolve_build_environment<V>(
+        &mut self,
+        options: &OptionMap,
+        variant: &V,
+    ) -> Result<Solution>
+    where
+        V: Variant,
+    {
         self.solver.reset();
         self.solver.update_options(options.clone());
         self.solver.set_binary_only(true);
@@ -447,7 +441,7 @@ where
             self.solver.add_repository(repo);
         }
 
-        for request in self.recipe.get_build_requirements(options)? {
+        for request in self.recipe.get_build_requirements(variant)? {
             self.solver.add_request(request);
         }
 
@@ -532,11 +526,14 @@ where
         }
     }
 
-    async fn build_and_commit_artifacts(
+    async fn build_and_commit_artifacts<O>(
         &mut self,
         package: &Recipe::Output,
-        options: &OptionMap,
-    ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
+        options: O,
+    ) -> Result<HashMap<Component, spfs::encoding::Digest>>
+    where
+        O: AsRef<OptionMap>,
+    {
         self.build_artifacts(package, options).await?;
 
         let source_ident =
@@ -587,19 +584,13 @@ where
             })?;
 
         tracing::info!("Committing package contents...");
-        commit_component_layers(
-            package,
-            &mut runtime,
-            changed_files.iter().map(|diff| diff.path.as_ref()),
-        )
-        .await
+        commit_component_layers(package, &mut runtime, changed_files.as_slice()).await
     }
 
-    async fn build_artifacts(
-        &mut self,
-        package: &Recipe::Output,
-        options: &OptionMap,
-    ) -> Result<()> {
+    async fn build_artifacts<O>(&mut self, package: &Recipe::Output, options: O) -> Result<()>
+    where
+        O: AsRef<OptionMap>,
+    {
         let pkg = package.ident();
         let metadata_dir = data_path(pkg).to_path(&self.prefix);
         let build_spec = build_spec_path(pkg).to_path(&self.prefix);
@@ -630,7 +621,7 @@ where
         {
             let mut writer = std::fs::File::create(&build_options)
                 .map_err(|err| Error::FileOpenError(build_options.to_owned(), err))?;
-            serde_json::to_writer_pretty(&mut writer, &options)
+            serde_json::to_writer_pretty(&mut writer, options.as_ref())
                 .map_err(|err| Error::String(format!("Failed to save build options: {err}")))?;
             writer
                 .sync_data()
@@ -673,7 +664,7 @@ where
 
         let mut cmd = cmd.into_std();
         cmd.envs(self.environment.drain());
-        cmd.envs(options.to_environment());
+        cmd.envs(options.as_ref().to_environment());
         cmd.envs(get_package_build_env(package));
         cmd.env("PREFIX", &self.prefix);
         // force the base environment to be setup using bash, so that the
@@ -785,14 +776,17 @@ where
 pub async fn commit_component_layers<'a, P>(
     package: &P,
     runtime: &mut spfs::runtime::Runtime,
-    filter: impl IntoIterator<Item = &'a RelativePath>,
+    filter: impl spfs::tracking::PathFilter + Send + Sync,
 ) -> Result<HashMap<Component, spfs::encoding::Digest>>
 where
     P: Package,
 {
     let config = spfs::get_config()?;
     let repo = Arc::new(config.get_local_repository_handle().await?);
-    let layer = spfs::commit_layer_with_filter(runtime, Arc::clone(&repo), filter).await?;
+    let layer = spfs::Committer::new(&repo)
+        .with_path_filter(filter)
+        .commit_layer(runtime)
+        .await?;
     let manifest = repo
         .read_manifest(layer.manifest)
         .await?

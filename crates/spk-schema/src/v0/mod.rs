@@ -3,5 +3,7 @@
 // https://github.com/imageworks/spk
 
 mod spec;
+mod variant;
 
 pub use spec::Spec;
+pub use variant::Variant;

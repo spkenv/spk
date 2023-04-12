@@ -14,8 +14,8 @@ pub mod fixtures;
 
 mod bootstrap;
 pub mod check;
-mod clean;
-mod commit;
+pub mod clean;
+pub mod commit;
 pub mod config;
 mod diff;
 pub mod env;
@@ -25,6 +25,7 @@ pub mod io;
 pub mod prelude;
 pub mod proto;
 mod prune;
+mod repeating_timeout;
 mod resolve;
 pub mod runtime;
 #[cfg(feature = "server")]
@@ -42,19 +43,11 @@ pub use bootstrap::{
     build_shell_initialized_command,
 };
 pub use check::Checker;
-pub use clean::{
-    clean_untagged_objects,
-    get_all_attached_and_unattached_objects,
-    get_all_attached_objects,
-    get_all_unattached_objects,
-    get_all_unattached_payloads,
-    purge_objects,
-};
-pub use commit::{commit_dir, commit_layer, commit_layer_with_filter, commit_platform};
+pub use clean::Cleaner;
+pub use commit::Committer;
 pub use diff::diff;
 pub use encoding::Digest;
 pub use error::{Error, Result};
-pub use prune::{get_prunable_tags, prune_tags, PruneParameters};
 pub use resolve::{
     compute_manifest,
     compute_object_manifest,

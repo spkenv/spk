@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::cmp::min;
 use std::collections::BTreeMap;
-use std::fmt::Write;
+use std::fmt::{Pointer, Write};
 use std::marker::PhantomData;
 use std::str::FromStr;
 
@@ -126,6 +126,15 @@ impl Request {
         match self {
             Self::Var(v) => Some(v),
             _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for Request {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pkg(p) => p.fmt(f),
+            Self::Var(v) => v.fmt(f),
         }
     }
 }
@@ -377,6 +386,8 @@ pub enum RequestedBy {
     /// A package version/recipe that made the request as part of
     /// building from source during a solve
     PackageVersion(VersionIdent),
+    /// The request was added by the target variant during a binary build
+    Variant,
 }
 
 impl std::fmt::Display for RequestedBy {
@@ -396,6 +407,7 @@ impl std::fmt::Display for RequestedBy {
             RequestedBy::SpkInternalTest => write!(f, "spk's test suite"),
             RequestedBy::PackageBuild(ident) => write!(f, "{ident}"),
             RequestedBy::PackageVersion(ident) => write!(f, "{ident} recipe"),
+            RequestedBy::Variant => write!(f, "target variant"),
         }
     }
 }
@@ -460,7 +472,6 @@ impl std::fmt::Display for PkgRequest {
     }
 }
 
-#[allow(clippy::derive_hash_xor_eq)]
 impl std::hash::Hash for PkgRequest {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.pkg.hash(state);

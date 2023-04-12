@@ -3,11 +3,13 @@
 // https://github.com/imageworks/spk
 
 use std::collections::HashSet;
+use std::future::ready;
 use std::sync::Arc;
 
 use colored::Colorize;
 use futures::stream::{FuturesUnordered, TryStreamExt};
 use once_cell::sync::OnceCell;
+use tokio::sync::Semaphore;
 
 use crate::prelude::*;
 use crate::sync::{SyncObjectResult, SyncPayloadResult, SyncPolicy};
@@ -25,15 +27,24 @@ pub struct Checker<'repo, 'sync, Reporter: CheckReporter = SilentCheckReporter> 
     repair_with: Option<super::Syncer<'sync, 'repo>>,
     reporter: Arc<Reporter>,
     processed_digests: Arc<dashmap::DashSet<encoding::Digest>>,
+    tag_stream_semaphore: Semaphore,
+    object_semaphore: Semaphore,
 }
 
 impl<'repo> Checker<'repo, 'static> {
+    /// See [`Checker::with_max_tag_stream_concurrency`]
+    pub const DEFAULT_MAX_TAG_STREAM_CONCURRENCY: usize = 1000;
+    /// See [`Checker::with_max_object_concurrency`]
+    pub const DEFAULT_MAX_OBJECT_CONCURRENCY: usize = 5000;
+
     pub fn new(repo: &'repo storage::RepositoryHandle) -> Self {
         Self {
             repo,
             reporter: Arc::new(SilentCheckReporter::default()),
             repair_with: None,
             processed_digests: Arc::new(Default::default()),
+            tag_stream_semaphore: Semaphore::new(Self::DEFAULT_MAX_TAG_STREAM_CONCURRENCY),
+            object_semaphore: Semaphore::new(Self::DEFAULT_MAX_OBJECT_CONCURRENCY),
         }
     }
 }
@@ -53,6 +64,8 @@ where
             reporter: reporter.into(),
             repair_with: self.repair_with,
             processed_digests: self.processed_digests,
+            tag_stream_semaphore: self.tag_stream_semaphore,
+            object_semaphore: self.object_semaphore,
         }
     }
 
@@ -73,7 +86,21 @@ where
                     .with_policy(SyncPolicy::LatestTagsAndResyncObjects),
             ),
             processed_digests: self.processed_digests,
+            tag_stream_semaphore: self.tag_stream_semaphore,
+            object_semaphore: self.object_semaphore,
         }
+    }
+
+    /// The maximum number of tag streams that can be read and processed at once
+    pub fn with_max_tag_stream_concurrency(mut self, max_tag_stream_concurrency: usize) -> Self {
+        self.tag_stream_semaphore = Semaphore::new(max_tag_stream_concurrency);
+        self
+    }
+
+    /// The maximum number of objects that can be validated at once
+    pub fn with_max_object_concurrency(mut self, max_object_concurrency: usize) -> Self {
+        self.object_semaphore = Semaphore::new(max_object_concurrency);
+        self
     }
 
     /// Validate that all of the targets and their children exist for all
@@ -81,7 +108,8 @@ where
     pub async fn check_all_tags(&self) -> Result<Vec<CheckTagStreamResult>> {
         self.repo
             .iter_tags()
-            .and_then(|(tag, _)| async move { self.check_tag_stream(tag).await })
+            .and_then(|(tag, _)| ready(Ok(self.check_tag_stream(tag))))
+            .try_buffer_unordered(50)
             .try_collect()
             .await
     }
@@ -90,7 +118,8 @@ where
     pub async fn check_all_objects(&self) -> Result<Vec<CheckObjectResult>> {
         self.repo
             .find_digests(graph::DigestSearchCriteria::All)
-            .and_then(|digest| self.check_digest(digest))
+            .and_then(|digest| ready(Ok(self.check_digest(digest))))
+            .try_buffer_unordered(50)
             .try_collect()
             .await
     }
@@ -105,14 +134,11 @@ where
 
     /// Check all of the objects identified by the given env.
     pub async fn check_env(&self, env: tracking::EnvSpec) -> Result<CheckEnvResult> {
-        let mut futures = FuturesUnordered::new();
-        for item in env.iter().cloned() {
-            futures.push(self.check_env_item(item));
-        }
-        let mut results = Vec::with_capacity(env.len());
-        while let Some(result) = futures.try_next().await? {
-            results.push(result);
-        }
+        let results = futures::stream::iter(env.iter().cloned().map(Ok))
+            .and_then(|item| ready(Ok(self.check_env_item(item))))
+            .try_buffer_unordered(10)
+            .try_collect()
+            .await?;
         let res = CheckEnvResult { env, results };
         Ok(res)
     }
@@ -140,6 +166,8 @@ where
     pub async fn check_tag_stream(&self, tag: tracking::TagSpec) -> Result<CheckTagStreamResult> {
         tracing::debug!(?tag, "Checking tag stream");
         self.reporter.visit_tag_stream(&tag);
+
+        let _permit = self.tag_stream_semaphore.acquire().await;
         let stream = match self.repo.read_tag(&tag).await {
             Err(Error::UnknownReference(_)) => return Ok(CheckTagStreamResult::Missing),
             Err(err) => return Err(err),
@@ -200,6 +228,8 @@ where
         if self.processed_digests.contains(&digest) {
             return Ok(CheckObjectResult::Duplicate);
         }
+
+        let _permit = self.object_semaphore.acquire().await;
         tracing::trace!(?digest, "Checking digest");
         self.reporter.visit_digest(&digest);
         match self.read_object_with_fallback(digest).await {
@@ -583,7 +613,7 @@ impl Default for ConsoleCheckReporterBars {
             .progress_chars(PROGRESS_CHARS);
         let payloads_style = indicatif::ProgressStyle::default_bar()
             .template(
-                "      {spinner} {msg:<18.green} {len:>9} errors, {len} repaired ({percent}%)",
+                "      {spinner} {msg:<18.green} {len:>9} errors, {pos} repaired ({percent}%)",
             )
             .tick_strings(TICK_STRINGS)
             .progress_chars(PROGRESS_CHARS);

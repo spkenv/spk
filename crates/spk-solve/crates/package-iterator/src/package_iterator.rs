@@ -16,7 +16,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Version;
 use spk_schema::ident::VersionIdent;
 use spk_schema::version::Compatibility;
-use spk_schema::{AnyIdent, BuildIdent, Package, Spec, SpecRecipe};
+use spk_schema::{AnyIdent, BuildIdent, Package, Spec};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 
@@ -56,7 +56,6 @@ pub trait BuildIterator: DynClone + Send + Sync + std::fmt::Debug {
         false
     }
     async fn next(&mut self) -> crate::Result<Option<BuildWithRepos>>;
-    async fn recipe(&self) -> Option<Arc<SpecRecipe>>;
     fn len(&self) -> usize;
 }
 
@@ -278,7 +277,6 @@ pub struct RepositoryBuildIterator {
         BuildIdent,
         HashMap<RepositoryNameBuf, Arc<RepositoryHandle>>,
     )>,
-    recipe: Option<Arc<SpecRecipe>>,
 }
 
 #[async_trait::async_trait]
@@ -332,10 +330,6 @@ impl BuildIterator for RepositoryBuildIterator {
         Ok(Some(result))
     }
 
-    async fn recipe(&self) -> Option<Arc<SpecRecipe>> {
-        self.recipe.clone()
-    }
-
     fn len(&self) -> usize {
         self.builds.len()
     }
@@ -386,7 +380,6 @@ impl RepositoryBuildIterator {
 
         Ok(RepositoryBuildIterator {
             builds: builds.into(),
-            recipe,
         })
     }
 }
@@ -404,10 +397,6 @@ impl BuildIterator for EmptyBuildIterator {
         Ok(None)
     }
 
-    async fn recipe(&self) -> Option<Arc<SpecRecipe>> {
-        None
-    }
-
     fn len(&self) -> usize {
         0
     }
@@ -421,7 +410,6 @@ impl EmptyBuildIterator {
 
 #[derive(Clone, Debug)]
 pub struct SortedBuildIterator {
-    source: Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>,
     builds: VecDeque<BuildWithRepos>,
 }
 
@@ -437,10 +425,6 @@ impl BuildIterator for SortedBuildIterator {
 
     async fn next(&mut self) -> crate::Result<Option<BuildWithRepos>> {
         Ok(self.builds.pop_front())
-    }
-
-    async fn recipe(&self) -> Option<Arc<SpecRecipe>> {
-        self.source.lock().await.recipe().await
     }
 
     fn len(&self) -> usize {
@@ -475,7 +459,7 @@ impl SortedBuildIterator {
             }
         }
 
-        let mut sbi = SortedBuildIterator { source, builds };
+        let mut sbi = SortedBuildIterator { builds };
 
         sbi.sort_by_build_option_values(builds_with_impossible_requests)
             .await;

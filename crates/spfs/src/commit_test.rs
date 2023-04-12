@@ -6,9 +6,10 @@ use std::sync::Arc;
 
 use rstest::rstest;
 
-use super::{commit_layer, commit_platform};
+use super::Committer;
 use crate::fixtures::*;
 use crate::Error;
+
 #[rstest]
 #[tokio::test]
 async fn test_commit_empty(tmpdir: tempfile::TempDir) {
@@ -21,12 +22,13 @@ async fn test_commit_empty(tmpdir: tempfile::TempDir) {
     let storage = crate::runtime::Storage::new(repo.clone());
     let mut rt = storage.create_runtime().await.unwrap();
     rt.ensure_required_directories().await.unwrap();
-    match commit_layer(&mut rt, Arc::clone(&repo)).await {
+    let committer = Committer::new(&repo);
+    match committer.commit_layer(&mut rt).await {
         Err(Error::NothingToCommit) => {}
         res => panic!("expected nothing to commit, got {res:?}"),
     }
 
-    match commit_platform(&mut rt, Arc::clone(&repo)).await {
+    match committer.commit_platform(&mut rt).await {
         Err(Error::NothingToCommit) => {}
         res => panic!("expected nothing to commit, got {res:?}"),
     }

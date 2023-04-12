@@ -1,6 +1,7 @@
 use rstest::rstest;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::Run;
+use spk_schema::foundation::option_map;
 use spk_schema::{recipe, Package};
 use spk_storage::fixtures::*;
 
@@ -17,7 +18,7 @@ async fn test_archive_io() {
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
     let (spec, _) = BinaryPackageBuilder::from_recipe(spec)
         .with_source(BuildSource::LocalPath(".".into()))
-        .build_and_publish(&*rt.tmprepo)
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
     let filename = rt.tmpdir.path().join("archive.spk");

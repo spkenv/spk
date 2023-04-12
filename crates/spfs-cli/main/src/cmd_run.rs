@@ -5,6 +5,7 @@
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt;
 
+use anyhow::Result;
 use clap::Args;
 use spfs_cli_common as cli;
 
@@ -42,7 +43,7 @@ pub struct CmdRun {
 }
 
 impl CmdRun {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let (repo, runtimes) = tokio::try_join!(
             config.get_local_repository_handle(),
             config.get_runtime_storage()

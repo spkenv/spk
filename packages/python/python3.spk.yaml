@@ -1,8 +1,10 @@
-pkg: python/3.7.3
+# {% assign version =  opt.version | default: "3.7.3" %}
+# {% assign cpXX = version | replace_re: "(\d+)\.(\d+).*", "cp$1$2" %}
+pkg: python/{{ version }}
 api: v0/package
 sources:
   - git: https://github.com/python/cpython
-    ref: v3.7.3
+    ref: v{{ version }}
 build:
   options:
     - var: os
@@ -17,26 +19,26 @@ build:
     - pkg: openssl
     - pkg: zlib/1.2
     - var: abi
-      default: cp37m
-      choices: [cp37m, cp37dm]
+      default: "{{cpXX}}m"
+      choices: ["{{cpXX}}m", "{{cpXX}}dm"]
       inheritance: Strong
     - var: debug
       default: off
       choices: [on, off]
   variants:
-    - { gcc: 6.3, abi: cp37m, debug: off }
+    - { gcc: 6.3, abi: "{{cpXX}}m", debug: off }
   script:
     - |
       case "$SPK_OPT_debug" in
         on)
-          if ! [[ "$SPK_OPT_abi" =~ ^cp37.*d ]]; then
+          if ! [[ "$SPK_OPT_abi" =~ ^{{cpXX}}.*d ]]; then
             echo "Must use an abi with debug when building with debug enabled!"
             exit 1
           fi
           DEBUG="--with-pydebug"
           ;;
         off)
-          if [[ "$SPK_OPT_abi" =~ ^cp37.*d ]]; then
+          if [[ "$SPK_OPT_abi" =~ ^{{cpXX}}.*d ]]; then
             echo "Must not use an abi with debug when building with debug disabled!"
             exit 1
           fi

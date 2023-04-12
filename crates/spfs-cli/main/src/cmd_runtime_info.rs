@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 
 /// Show the complete state of a runtime
@@ -17,7 +18,7 @@ pub struct CmdRuntimeInfo {
 }
 
 impl CmdRuntimeInfo {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let runtime_storage = match &self.remote {
             Some(remote) => {
                 let repo = config.get_remote(remote).await?;

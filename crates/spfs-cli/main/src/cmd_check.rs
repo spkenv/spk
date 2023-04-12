@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 use futures::TryStreamExt;
@@ -14,6 +15,14 @@ pub struct CmdCheck {
     #[clap(short, long)]
     remote: Option<String>,
 
+    /// The maximum number of tag streams that can be read and processed at once
+    #[clap(long, default_value_t = spfs::Checker::DEFAULT_MAX_TAG_STREAM_CONCURRENCY)]
+    max_tag_stream_concurrency: usize,
+
+    /// The maximum number of objects that can be validated at once
+    #[clap(long, default_value_t = spfs::Checker::DEFAULT_MAX_OBJECT_CONCURRENCY)]
+    max_object_concurrency: usize,
+
     /// Attempt to fix problems by pulling from another repository. Defaults to "origin".
     #[clap(long)]
     pull: Option<Option<String>>,
@@ -24,12 +33,12 @@ pub struct CmdCheck {
 }
 
 impl CmdCheck {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         let pull_from = match self.pull.take() {
             Some(name @ Some(_)) if name == self.remote => {
-                return Err("Cannot --pull from same repo as --remote".into());
+                anyhow::bail!("Cannot --pull from same repo as --remote".to_string());
             }
             Some(None)
                 if self
@@ -38,7 +47,7 @@ impl CmdCheck {
                     .map(|r| r == "origin")
                     .unwrap_or_default() =>
             {
-                return Err("Cannot --pull from same repo as --remote".into());
+                anyhow::bail!("Cannot --pull from same repo as --remote".to_string());
             }
             Some(mut repo) => Some(
                 spfs::config::open_repository_from_string(

@@ -24,6 +24,7 @@ use spk_schema::foundation::option_map::OptionMap;
 fn test_option_flags_parsing(#[case] args: &[&str], #[case] expected: &[(&str, &str)]) {
     let options = super::Options {
         no_host: true,
+        options_file: Default::default(),
         options: args.iter().map(ToString::to_string).collect(),
     };
     let actual = options.get_options().unwrap();

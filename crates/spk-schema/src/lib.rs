@@ -25,6 +25,7 @@ mod template;
 mod test_spec;
 pub mod v0;
 mod validation;
+pub mod variant;
 
 pub use build_spec::{BuildSpec, Script};
 pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
@@ -48,15 +49,17 @@ pub use spk_schema_foundation::{
     ident_component,
     ident_ops,
     name,
+    opt_name,
     spec_ops,
     version,
     version_range,
     FromYaml,
 };
-pub use spk_schema_ident::{self as ident, AnyIdent, BuildIdent, VersionIdent};
-pub use template::{Template, TemplateExt};
+pub use spk_schema_ident::{self as ident, AnyIdent, BuildIdent, Request, VersionIdent};
+pub use template::{Template, TemplateData, TemplateExt};
 pub use test_spec::TestStage;
 pub use validation::{default_validators, ValidationSpec, Validator};
+pub use variant::{Variant, VariantExt};
 pub use {serde_json, spk_schema_validators as validators};
 
 #[cfg(test)]

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::{Args, Subcommand};
 
 /// View and manage spfs runtime information
@@ -13,7 +14,7 @@ pub struct CmdRuntime {
 }
 
 impl CmdRuntime {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         self.command.run(config).await
     }
 }
@@ -27,7 +28,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         match self {
             Self::Info(cmd) => cmd.run(config).await,
             Self::List(cmd) => cmd.run(config).await,

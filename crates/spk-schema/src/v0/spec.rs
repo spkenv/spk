@@ -1,6 +1,8 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
+use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};
 use std::convert::TryInto;
 use std::path::Path;
@@ -51,6 +53,7 @@ use crate::{
     Result,
     SourceSpec,
     ValidationSpec,
+    Variant,
 };
 
 #[cfg(test)]
@@ -246,18 +249,25 @@ impl PackageMut for Spec<BuildIdent> {
 
 impl Recipe for Spec<VersionIdent> {
     type Output = Spec<BuildIdent>;
+    type Variant = super::Variant;
 
     fn ident(&self) -> &VersionIdent {
         &self.pkg
     }
 
-    fn default_variants(&self) -> &[OptionMap] {
-        self.build.variants.as_slice()
+    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
+        Cow::Borrowed(&self.build.variants)
     }
 
-    fn resolve_options(&self, given: &OptionMap) -> Result<OptionMap> {
+    fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>
+    where
+        V: Variant,
+    {
+        let given = variant.options();
+        let opts = self.build.opts_for_variant(variant)?;
         let mut resolved = OptionMap::default();
-        for opt in self.build.options.iter() {
+
+        for opt in opts {
             let given_value = match opt.full_name().namespace() {
                 Some(_) => given
                     .get(opt.full_name())
@@ -277,16 +287,21 @@ impl Recipe for Spec<VersionIdent> {
         Ok(resolved)
     }
 
-    fn get_build_requirements(&self, options: &OptionMap) -> Result<Vec<Request>> {
-        let build = Build::Digest(options.digest());
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    where
+        V: Variant,
+    {
+        let opts = self.build.opts_for_variant(variant)?;
+        let options = self.resolve_options(variant)?;
+        let build_digest = Build::Digest(options.digest());
         let mut requests = Vec::new();
-        for opt in self.build.options.iter() {
+        for opt in opts {
             match opt {
                 Opt::Pkg(opt) => {
                     let given_value = options.get(opt.pkg.as_opt_name()).map(String::to_owned);
                     let mut req = opt.to_request(
                         given_value,
-                        RequestedBy::BinaryBuild(self.ident().to_build(build.clone())),
+                        RequestedBy::BinaryBuild(self.ident().to_build(build_digest.clone())),
                     )?;
                     if req.pkg.components.is_empty() {
                         // inject the default component for this context if needed
@@ -309,7 +324,10 @@ impl Recipe for Spec<VersionIdent> {
         Ok(requests)
     }
 
-    fn get_tests(&self, _options: &OptionMap) -> Result<Vec<TestSpec>> {
+    fn get_tests<V>(&self, _variant: &V) -> Result<Vec<TestSpec>>
+    where
+        V: Variant,
+    {
         Ok(self.tests.clone())
     }
 
@@ -324,16 +342,16 @@ impl Recipe for Spec<VersionIdent> {
         Ok(source)
     }
 
-    fn generate_binary_build<E, P>(
-        &self,
-        options: &OptionMap,
-        build_env: &E,
-    ) -> Result<Spec<BuildIdent>>
+    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
+        V: Variant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
+        let build_options = variant.options();
         let mut updated = self.clone();
+        updated.build.options = self.build.opts_for_variant(variant)?;
+
         let specs: HashMap<_, _> = build_env
             .build_env()
             .into_iter()
@@ -371,9 +389,9 @@ impl Recipe for Spec<VersionIdent> {
             match opt {
                 Opt::Var(opt) => {
                     opt.set_value(
-                        options
+                        build_options
                             .get(&opt.var)
-                            .or_else(|| options.get(opt.var.without_namespace()))
+                            .or_else(|| build_options.get(opt.var.without_namespace()))
                             .map(String::to_owned)
                             .or_else(|| opt.get_value(None))
                             .unwrap_or_default(),
@@ -400,8 +418,8 @@ impl Recipe for Spec<VersionIdent> {
 
         updated
             .install
-            .render_all_pins(options, specs.values().map(|p| p.ident()))?;
-        let digest = updated.resolve_options(options)?.digest();
+            .render_all_pins(&build_options, specs.values().map(|p| p.ident()))?;
+        let digest = updated.resolve_options(&OptionMap::default())?.digest();
         Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
     }
 }

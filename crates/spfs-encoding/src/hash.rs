@@ -65,6 +65,29 @@ impl Default for Hasher<std::io::Sink> {
     }
 }
 
+impl Hasher<std::io::Sink> {
+    /// Create an instance that implements Write
+    pub fn new_sync() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for Hasher<tokio::io::Sink> {
+    fn default() -> Self {
+        Self {
+            ctx: Context::new(&SHA256),
+            target: tokio::io::sink(),
+        }
+    }
+}
+
+impl Hasher<tokio::io::Sink> {
+    /// Create an instance that implements AsyncWrite
+    pub fn new_async() -> Self {
+        Self::default()
+    }
+}
+
 impl<T> std::ops::Deref for Hasher<T> {
     type Target = Context;
 
@@ -83,8 +106,8 @@ where
     T: Write,
 {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.ctx.update(buf);
-        self.target.write_all(buf)?;
+        let count = self.target.write(buf)?;
+        self.ctx.update(&buf[..count]);
         Ok(buf.len())
     }
 
@@ -137,7 +160,7 @@ where
     /// Compute the digest for this instance, by
     /// encoding it into binary form and hashing the result
     fn digest(&self) -> std::result::Result<Digest, Self::Error> {
-        let mut hasher = Hasher::default();
+        let mut hasher = Hasher::new_sync();
         self.encode(&mut hasher)?;
         Ok(hasher.digest())
     }
@@ -384,49 +407,19 @@ impl<'a> Digest {
     /// Reads the given async reader to completion, returning
     /// the digest of it's contents.
     pub async fn from_async_reader(mut reader: impl AsyncRead + Unpin) -> Result<Self> {
-        use tokio::io::AsyncReadExt;
-        let mut ctx = Context::new(&SHA256);
-        let mut buf = Vec::with_capacity(4096);
-        let mut count;
-        buf.resize(4096, 0);
-        loop {
-            count = reader
-                .read(buf.as_mut_slice())
-                .await
-                .map_err(Error::FailedRead)?;
-            if count == 0 {
-                break;
-            }
-            ctx.update(&buf.as_slice()[..count]);
-        }
-        let ring_digest = ctx.finish();
-        let bytes = ring_digest
-            .as_ref()
-            .try_into()
-            .expect("sha256 digest should be the exact desired length");
-        Ok(Digest(bytes))
+        let mut hasher = Hasher::new_async();
+        tokio::io::copy(&mut reader, &mut hasher)
+            .await
+            .map_err(Error::FailedRead)?;
+        Ok(hasher.digest())
     }
 
     /// Reads the given reader to completion, returning
     /// the digest of it's contents.
     pub fn from_reader(mut reader: impl Read) -> Result<Self> {
-        let mut ctx = Context::new(&SHA256);
-        let mut buf = Vec::with_capacity(4096);
-        let mut count;
-        buf.resize(4096, 0);
-        loop {
-            count = reader.read(buf.as_mut_slice()).map_err(Error::FailedRead)?;
-            if count == 0 {
-                break;
-            }
-            ctx.update(&buf.as_slice()[..count]);
-        }
-        let ring_digest = ctx.finish();
-        let bytes = ring_digest
-            .as_ref()
-            .try_into()
-            .expect("sha256 digest should be the exact desired length");
-        Ok(Digest(bytes))
+        let mut hasher = Hasher::new_sync();
+        std::io::copy(&mut reader, &mut hasher).map_err(Error::FailedRead)?;
+        Ok(hasher.digest())
     }
 }
 

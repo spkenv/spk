@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use anyhow::Result;
 use clap::Args;
 
 /// Print the version of spfs
@@ -9,7 +10,7 @@ use clap::Args;
 pub struct CmdVersion {}
 
 impl CmdVersion {
-    pub async fn run(&self) -> spfs::Result<i32> {
+    pub async fn run(&self) -> Result<i32> {
         println!("{}", spfs::VERSION);
         Ok(0)
     }

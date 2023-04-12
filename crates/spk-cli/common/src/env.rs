@@ -133,15 +133,19 @@ pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
 
 #[cfg(feature = "sentry")]
 fn get_username_for_sentry() -> String {
-    // If this is being run from a gitlab CI job, then return the
-    // username of the person that triggered the job. Otherwise get
-    // the username of the person who ran this spk instance.
-    if let Ok(value) = std::env::var("GITLAB_USER_LOGIN") {
-        value
-    } else {
-        // Call this before `sentry::init` to avoid potential `SIGSEGV`.
-        whoami::username()
-    }
+    // If this is being run from an automated process run by a
+    // non-human user, e.g. gitlab CI job, then use the configured env
+    // var name to get the username of the person that triggered the
+    // job. Otherwise get the username of the person who ran this spk
+    // instance.
+    let username_override_var = option_env!("SENTRY_USERNAME_OVERRIDE_VAR");
+    username_override_var
+        .map(std::env::var)
+        .and_then(Result::ok)
+        .unwrap_or_else(|| {
+            // Call this before `sentry::init` to avoid potential `SIGSEGV`.
+            whoami::username()
+        })
 }
 
 #[cfg(feature = "sentry")]

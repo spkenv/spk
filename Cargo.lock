@@ -56,6 +56,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anymap2"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d301b3b94cb4b2f23d7917810addbbaff90738e0ca2be692bd027e70d7e0330c"
+
+[[package]]
 name = "arrayref"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -728,6 +734,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0688c2a7f92e427f44895cd63841bff7b29f8d7a1648b9e7e07a4a365b2e1257"
 
 [[package]]
+name = "doc-comment"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1389,6 +1401,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kstring"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec3066350882a1cd6d950d055997f379ac37fd39f81cd4d8ed186032eb3c5747"
+dependencies = [
+ "serde",
+ "static_assertions",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1411,6 +1433,59 @@ name = "linux-raw-sys"
 version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4d2456c373231a208ad294c33dc5bff30051eafd954cd4caae83a712b12854d"
+
+[[package]]
+name = "liquid"
+version = "0.26.1"
+source = "git+https://github.com/rydrman/liquid-rust?branch=allow-nil-filter-entry#d258842cbe2f9a463e566be24a0eb9a21fb7c739"
+dependencies = [
+ "doc-comment",
+ "liquid-core",
+ "liquid-derive",
+ "liquid-lib",
+ "serde",
+]
+
+[[package]]
+name = "liquid-core"
+version = "0.26.1"
+source = "git+https://github.com/rydrman/liquid-rust?branch=allow-nil-filter-entry#d258842cbe2f9a463e566be24a0eb9a21fb7c739"
+dependencies = [
+ "anymap2",
+ "itertools",
+ "kstring",
+ "liquid-derive",
+ "num-traits",
+ "pest",
+ "pest_derive",
+ "regex",
+ "serde",
+ "time 0.3.11",
+]
+
+[[package]]
+name = "liquid-derive"
+version = "0.26.1"
+source = "git+https://github.com/rydrman/liquid-rust?branch=allow-nil-filter-entry#d258842cbe2f9a463e566be24a0eb9a21fb7c739"
+dependencies = [
+ "proc-macro2",
+ "proc-quote",
+ "syn",
+]
+
+[[package]]
+name = "liquid-lib"
+version = "0.26.1"
+source = "git+https://github.com/rydrman/liquid-rust?branch=allow-nil-filter-entry#d258842cbe2f9a463e566be24a0eb9a21fb7c739"
+dependencies = [
+ "itertools",
+ "liquid-core",
+ "once_cell",
+ "percent-encoding",
+ "regex",
+ "time 0.3.11",
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "lock_api"
@@ -1990,12 +2065,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "proc-macro-hack"
+version = "0.5.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbf0c48bc1d91375ae5c3cd81e3722dff1abcf81a30960240640d223f59fe0e5"
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d0e1ae9e836cc3beddd63db0df682593d7e2d3d891ae8c9083d2113e1744224"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "proc-quote"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e84ab161de78c915302ca325a19bee6df272800e2ae1a43fe3ef430bab2a100"
+dependencies = [
+ "proc-macro-hack",
+ "proc-macro2",
+ "proc-quote-impl",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "proc-quote-impl"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fb3ec628b063cdbcf316e06a8b8c1a541d28fa6c0a8eacd2bfb2b7f49e88aa0"
+dependencies = [
+ "proc-macro-hack",
+ "proc-macro2",
+ "quote",
 ]
 
 [[package]]
@@ -2833,6 +2938,7 @@ dependencies = [
  "nix 0.26.2",
  "nonempty",
  "once_cell",
+ "pin-project-lite",
  "procfs",
  "prost",
  "protobuf-src",
@@ -2843,7 +2949,6 @@ dependencies = [
  "semver",
  "sentry",
  "serde",
- "serde_derive",
  "serde_json",
  "serde_qs",
  "serial_test",
@@ -2870,6 +2975,7 @@ dependencies = [
 name = "spfs-cli-clean"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "chrono",
  "clap 3.2.23",
  "colored",
@@ -2884,9 +2990,11 @@ dependencies = [
 name = "spfs-cli-common"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "clap 3.2.23",
  "libc",
  "sentry",
+ "sentry-anyhow",
  "sentry-tracing",
  "serde_json",
  "spfs",
@@ -2900,6 +3008,7 @@ dependencies = [
 name = "spfs-cli-enter"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "clap 3.2.23",
  "spfs",
  "spfs-cli-common",
@@ -2912,6 +3021,7 @@ dependencies = [
 name = "spfs-cli-join"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "clap 3.2.23",
  "spfs",
  "spfs-cli-common",
@@ -2923,6 +3033,7 @@ dependencies = [
 name = "spfs-cli-main"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "chrono",
  "clap 3.2.23",
  "colored",
@@ -2936,6 +3047,7 @@ dependencies = [
  "serde_json",
  "spfs",
  "spfs-cli-common",
+ "strum",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -2947,6 +3059,7 @@ dependencies = [
 name = "spfs-cli-monitor"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "clap 3.2.23",
  "spfs",
  "spfs-cli-common",
@@ -2959,6 +3072,7 @@ dependencies = [
 name = "spfs-cli-render"
 version = "0.34.6"
 dependencies = [
+ "anyhow",
  "clap 3.2.23",
  "spfs",
  "spfs-cli-common",
@@ -3009,6 +3123,7 @@ dependencies = [
  "spk-cmd-explain",
  "spk-cmd-install",
  "spk-cmd-make-binary",
+ "spk-cmd-make-recipe",
  "spk-cmd-make-source",
  "spk-cmd-render",
  "spk-cmd-repo",
@@ -3017,6 +3132,7 @@ dependencies = [
  "spk-schema",
  "spk-solve",
  "spk-storage",
+ "statsd",
  "tokio",
  "tracing",
 ]
@@ -3069,6 +3185,7 @@ dependencies = [
  "spk-schema",
  "spk-solve",
  "spk-storage",
+ "statsd",
  "strip-ansi-escapes",
  "thiserror",
  "tokio",
@@ -3167,9 +3284,14 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap 3.2.23",
+ "rstest",
  "spk-cli-common",
  "spk-cmd-make-binary",
  "spk-cmd-make-source",
+ "spk-schema",
+ "spk-storage",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -3211,6 +3333,8 @@ dependencies = [
  "spfs",
  "spk-cli-common",
  "spk-exec",
+ "spk-solve",
+ "statsd",
  "tokio",
  "tracing",
 ]
@@ -3249,12 +3373,27 @@ dependencies = [
  "async-trait",
  "clap 3.2.23",
  "futures",
+ "rstest",
  "spfs",
  "spk-build",
  "spk-cli-common",
  "spk-schema",
  "spk-storage",
+ "tempfile",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-cmd-make-recipe"
+version = "0.36.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 3.2.23",
+ "spk-cli-common",
+ "spk-schema",
+ "spk-schema-liquid",
  "tracing",
 ]
 
@@ -3322,6 +3461,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "spk-config"
+version = "0.36.0"
+dependencies = [
+ "config",
+ "expanduser",
+ "once_cell",
+ "rstest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "whoami",
+]
+
+[[package]]
 name = "spk-exec"
 version = "0.36.0"
 dependencies = [
@@ -3363,12 +3517,12 @@ dependencies = [
  "relative-path",
  "rstest",
  "serde",
- "serde_derive",
  "serde_json",
  "serde_yaml",
  "spfs",
  "spk-schema-foundation",
  "spk-schema-ident",
+ "spk-schema-liquid",
  "spk-schema-validators",
  "sys-info",
  "tempfile",
@@ -3426,6 +3580,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "spk-schema-liquid"
+version = "0.36.0"
+dependencies = [
+ "format_serde_error",
+ "lazy_static",
+ "liquid",
+ "liquid-core",
+ "regex",
+ "rstest",
+ "serde",
+ "serde_json",
+ "spk-schema-foundation",
+ "tracing",
+]
+
+[[package]]
 name = "spk-schema-validators"
 version = "0.36.0"
 dependencies = [
@@ -3438,7 +3608,6 @@ dependencies = [
  "relative-path",
  "ring",
  "serde",
- "serde_derive",
  "serde_json",
  "serde_yaml",
  "spfs",
@@ -3473,12 +3642,14 @@ dependencies = [
  "serde_json",
  "signal-hook",
  "spfs",
+ "spk-config",
  "spk-schema",
  "spk-solve-graph",
  "spk-solve-package-iterator",
  "spk-solve-solution",
  "spk-solve-validation",
  "spk-storage",
+ "statsd",
  "strip-ansi-escapes",
  "thiserror",
  "tokio",
@@ -3590,7 +3761,6 @@ dependencies = [
  "rstest",
  "sentry",
  "serde",
- "serde_derive",
  "serde_json",
  "serde_yaml",
  "spfs",
@@ -3610,6 +3780,15 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "statsd"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df1efceb4bf2c0b5ebec94354285a43bbbed1375605bdf2ebe4132299434a330"
+dependencies = [
+ "rand 0.8.5",
+]
 
 [[package]]
 name = "strip-ansi-escapes"
@@ -3805,7 +3984,14 @@ dependencies = [
  "itoa 1.0.6",
  "libc",
  "num_threads",
+ "time-macros",
 ]
+
+[[package]]
+name = "time-macros"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42657b1a6f4d817cda8e7a0ace261fe0cc946cf3a80314390b22cc61ae080792"
 
 [[package]]
 name = "tinytemplate"
@@ -3896,9 +4082,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.9"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df54d54117d6fdc4e4fea40fe1e4e566b3505700e148a6827e59b34b0d2600d9"
+checksum = "d660770404473ccd7bc9f8b28494a811bc18542b915c0855c51e8f419d5223ce"
 dependencies = [
  "futures-core",
  "pin-project-lite",
@@ -4200,6 +4386,12 @@ checksum = "854cbdc4f7bc6ae19c820d44abdc3277ac3e1b2b93db20a636825d9322fb60e6"
 dependencies = [
  "tinyvec",
 ]
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fdbf052a0783de01e944a6ce7a8cb939e295b1e7be835a1112c3b9a7f047a5a"
 
 [[package]]
 name = "unicode-width"

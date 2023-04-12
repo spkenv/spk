@@ -6,13 +6,14 @@ release_notes: |
 
 toolchain:
   - kind: Rust
-    toolchain: 1.66.1
+    toolchain: 1.68.2
     additional_toolchains:
       - nightly
   - kind: Shell
     variables:
       SENTRY_ENVIRONMENT: development
       SENTRY_DSN: http://4506b47108ac4b648fdf18a8d803f403@sentry.spimageworks.com/25
+      SENTRY_USERNAME_OVERRIDE_VAR: GITLAB_USER_LOGIN
       PATH: $SPDEV_ENV/bin:$PATH
 
 components:

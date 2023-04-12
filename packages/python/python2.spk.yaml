@@ -1,8 +1,11 @@
-pkg: python/2.7.5
+# {% assign version = env.VV | default: "2.7.5" %}
+# {% assign version = opt.version | default: "2.7.5" %}
+# {% assign cpXX = opt.version | replace_re: "(\d+)\.(\d+).*", "cp$1$2" %}
+pkg: python/{{ version }}
 api: v0/package
 sources:
   - git: https://github.com/python/cpython
-    ref: v2.7.5
+    ref: v{{ version }}
 build:
   options:
     - var: os
@@ -12,29 +15,29 @@ build:
     - pkg: stdfs
     - pkg: bzip2
     - var: abi
-      default: cp27mu
-      choices: [cp27dm, cp27dmu, cp27m, cp27mu]
+      default: "{{cpXX}}mu"
+      choices: ["{{cpXX}}dm", "{{cpXX}}dmu", "{{cpXX}}m", "{{cpXX}}mu"]
       inheritance: Strong
     - var: debug
       default: off
       choices: [on, off]
   variants:
-    - { gcc: 4.8, abi: cp27m, debug: off }
-    - { gcc: 4.8, abi: cp27mu, debug: off }
-    - { gcc: 6.3, abi: cp27m, debug: off }
-    - { gcc: 6.3, abi: cp27mu, debug: off }
+    - { gcc: 4.8, abi: "{{cpXX}}m", debug: off }
+    - { gcc: 4.8, abi: "{{cpXX}}mu", debug: off }
+    - { gcc: 6.3, abi: "{{cpXX}}m", debug: off }
+    - { gcc: 6.3, abi: "{{cpXX}}mu", debug: off }
   script:
     - |
       case "$SPK_OPT_debug" in
         on)
-          if ! [[ "$SPK_OPT_abi" =~ ^cp27.*d ]]; then
+          if ! [[ "$SPK_OPT_abi" =~ ^{{cpXX}}.*d ]]; then
             echo "Must use an abi with debug when building with debug enabled!"
             exit 1
           fi
           DEBUG="--with-pydebug"
           ;;
         off)
-          if [[ "$SPK_OPT_abi" =~ ^cp27.*d ]]; then
+          if [[ "$SPK_OPT_abi" =~ ^{{cpXX}}.*d ]]; then
             echo "Must not use an abi with debug when building with debug disabled!"
             exit 1
           fi
@@ -46,10 +49,10 @@ build:
       esac
     - |
       case "$SPK_OPT_abi" in
-        cp27m)
+        {{cpXX}}m)
           UNICODE="--enable-unicode=ucs2"
           ;;
-        cp27mu)
+        {{cpXX}}mu)
           UNICODE="--enable-unicode=ucs4"
           ;;
         *)

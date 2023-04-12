@@ -12,7 +12,7 @@ use futures::StreamExt;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use relative_path::RelativePathBuf;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use spfs::storage::EntryType;
 use spfs::tracking;
 use spk_schema::foundation::ident_build::{parse_build, Build};

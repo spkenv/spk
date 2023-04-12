@@ -114,7 +114,9 @@ macro_rules! assert_not_resolved {
 /// Runs the given solver, printing the output with reasonable output settings
 /// for unit test debugging and inspection.
 async fn run_and_print_resolve_for_tests(solver: &Solver) -> Result<super::Solution> {
-    let formatter = DecisionFormatterBuilder::new().with_verbosity(100).build();
+    let formatter = DecisionFormatterBuilder::default()
+        .with_verbosity(100)
+        .build();
 
     let (solution, _) = formatter.run_and_print_resolve(solver).await?;
     Ok(solution)
@@ -123,7 +125,9 @@ async fn run_and_print_resolve_for_tests(solver: &Solver) -> Result<super::Solut
 /// Runs the given solver, logging the output with reasonable output settings
 /// for unit test debugging and inspection.
 async fn run_and_log_resolve_for_tests(solver: &Solver) -> Result<super::Solution> {
-    let formatter = DecisionFormatterBuilder::new().with_verbosity(100).build();
+    let formatter = DecisionFormatterBuilder::default()
+        .with_verbosity(100)
+        .build();
 
     let (solution, _) = formatter.run_and_log_resolve(solver).await?;
     Ok(solution)
@@ -680,10 +684,12 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
     let py371 = make_build!({"pkg": "python/3.7.1"});
     let py37 = make_build!({"pkg": "python/3.7.3"});
 
-    let for_py27 = make_build!(spec, [py27]);
-    let for_py26 = make_build!(spec, [py26]);
-    let for_py371 = make_build!(spec, [py371]);
-    let for_py37 = make_build!(spec, [py37]);
+    // Is it cheating to also specify the python version as an option? This
+    // is needed so these four builds receive unique build digests.
+    let for_py27 = make_build!(spec, [py27], { "python" => "2.7.5" });
+    let for_py26 = make_build!(spec, [py26], { "python" => "2.6" });
+    let for_py371 = make_build!(spec, [py371], { "python" => "3.7.1" });
+    let for_py37 = make_build!(spec, [py37], { "python" => "3.7.3" });
     let repo = make_repo!([for_py27, for_py26, for_py37, for_py371]);
     repo.publish_recipe(&spec).await.unwrap();
     let repo = Arc::new(repo);

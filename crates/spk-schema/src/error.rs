@@ -41,6 +41,8 @@ pub enum Error {
     SpkIdentError(#[from] crate::ident::Error),
     #[error(transparent)]
     SpkNameError(#[from] crate::foundation::name::Error),
+    #[error(transparent)]
+    SpkOptionMapError(#[from] crate::foundation::option_map::Error),
     #[error("Error: {0}")]
     String(String),
     #[error("Failed to create temp dir: {0}")]
@@ -48,6 +50,8 @@ pub enum Error {
 
     #[error(transparent)]
     InvalidYaml(#[from] format_serde_error::SerdeError),
+    #[error(transparent)]
+    InvalidTemplate(format_serde_error::SerdeError),
 
     #[error("{0}: {1}")]
     InvalidBuildChangeSetError(String, #[source] spk_schema_validators::Error),

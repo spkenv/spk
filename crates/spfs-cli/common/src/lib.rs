@@ -12,4 +12,4 @@ pub mod __private {
 
 #[cfg(feature = "sentry")]
 pub use args::configure_sentry;
-pub use args::{capture_if_relevant, configure_logging, configure_spops, Render, Sync};
+pub use args::{capture_if_relevant, configure_logging, CommandName, Render, Sync};

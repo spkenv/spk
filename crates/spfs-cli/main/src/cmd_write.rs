@@ -5,6 +5,7 @@
 use std::os::unix::prelude::PermissionsExt;
 use std::path::PathBuf;
 
+use anyhow::Result;
 use clap::Args;
 use spfs::tracking::BlobReadExt;
 use spfs::Error;
@@ -29,7 +30,7 @@ pub struct CmdWrite {
 }
 
 impl CmdWrite {
-    pub async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         let reader: std::pin::Pin<Box<dyn spfs::tracking::BlobRead>> = match &self.file {

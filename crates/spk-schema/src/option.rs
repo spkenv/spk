@@ -172,9 +172,13 @@ impl TryFrom<Request> for Opt {
                     required_compat: request.required_compat,
                 }))
             }
-            Request::Var(_) => Err(Error::String(format!(
-                "Cannot convert {request:?} to option"
-            ))),
+            Request::Var(VarRequest { var, pin: _, value }) => Ok(Opt::Var(VarOpt {
+                var,
+                default: value,
+                choices: Default::default(),
+                inheritance: Default::default(),
+                value: None,
+            })),
         }
     }
 }
@@ -314,9 +318,8 @@ pub struct VarOpt {
     value: Option<String>,
 }
 
-// This is safe to allow because choices is IndexSet and has
-// deterministic iteration order.
-#[allow(clippy::derive_hash_xor_eq)]
+// This manual hash implementation aligns with the derived `Eq` implementation;
+// `choices` has a deterministic iteration order.
 impl std::hash::Hash for VarOpt {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.var.hash(state);

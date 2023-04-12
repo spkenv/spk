@@ -78,7 +78,7 @@ impl FSHashStore {
     async fn find_in_entry(
         search_criteria: crate::graph::DigestSearchCriteria,
         entry: DirEntry,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send + 'static>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send + Sync + 'static>> {
         let entry_filename = entry.file_name();
         let entry_filename = entry_filename.to_string_lossy().into_owned();
         if entry_filename == WORK_DIRNAME || entry_filename == PROXY_DIRNAME {
@@ -175,6 +175,7 @@ impl FSHashStore {
                 while let Some(digest) = entry_stream.try_next().await? {
                     yield digest
                 }
+                drop(entry_stream);
 
                 if let crate::graph::DigestSearchCriteria::StartsWith(partial) = &search_criteria {
                     let encoded = partial.to_string();
@@ -246,14 +247,14 @@ impl FSHashStore {
             Ok(s) => s,
         };
 
-        let digest = hasher.digest();
-        if let Err(err) = writer.flush().await {
+        if let Err(err) = hasher.flush().await {
             return Err(Error::StorageWriteError(
                 "flush on hash store object file",
                 working_file,
                 err,
             ));
         }
+        let digest = hasher.digest();
         if let Err(err) = writer.into_inner().into_std().await.close() {
             return Err(Error::StorageWriteError(
                 "close on hash store object file",

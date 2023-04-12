@@ -15,10 +15,10 @@ spk-exec = { path = '../../spk-exec' }
 spk-solve = { path = '../../spk-solve' }
 spk-schema = { path = '../../spk-schema' }
 spk-storage = { path = '../../spk-storage' }
-tempfile = "3.3"
+tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-rstest = "0.15.0"
+rstest = { workspace = true }
 spk-cmd-build = { path = "../cmd-build" }

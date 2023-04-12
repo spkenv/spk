@@ -7,6 +7,7 @@ version = { workspace = true }
 [features]
 sentry = ["dep:sentry", "spfs/sentry"]
 migration-to-components = []
+statsd = ["dep:statsd"]
 
 [dependencies]
 async-recursion = "1.0"
@@ -19,23 +20,25 @@ ctrlc = "3.2"
 dyn-clone = { workspace = true }
 futures = "0.3.9"
 itertools = "0.10"
-once_cell = "1.8"
+once_cell = { workspace = true }
 priority-queue = "1.2"
 rug = "1.17.0"
 serde_json = "1.0"
 sentry = { workspace = true, optional = true }
 signal-hook = "0.3"
 spfs = { version = '0.34.6', path = "../spfs" }
+spk-config = { path = "../spk-config" }
 spk-solve-graph = { path = "./crates/graph" }
 spk-solve-package-iterator = { path = "./crates/package-iterator" }
 spk-solve-solution = { path = "./crates/solution" }
 spk-solve-validation = { path = "./crates/validation" }
 spk-schema = { path = "../spk-schema" }
 spk-storage = { path = "../spk-storage" }
-thiserror = "1.0"
+statsd = { version = "0.15.0", optional = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-rstest = "0.15.0"
+rstest = { workspace = true }
 strip-ansi-escapes = { workspace = true }

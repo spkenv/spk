@@ -64,7 +64,7 @@ impl Run for View {
 
         let mut runtime = solver.run();
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose);
+        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
 
         let result = formatter.run_and_print_decisions(&mut runtime).await;
         let solution = match result {
@@ -136,8 +136,9 @@ impl View {
             .must_be_found();
         let recipe = template.render(options)?;
 
-        for (index, variant) in recipe.default_variants().iter().enumerate() {
-            println!("{index}: {variant}");
+        let default_variants = recipe.default_variants();
+        for (index, variant) in default_variants.iter().enumerate() {
+            println!("{index}: {variant:#}");
         }
 
         Ok(0)

@@ -4,7 +4,7 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::fn_params_excessive_bools)]
-
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use spfs::Error;
 
@@ -41,6 +41,7 @@ mod cmd_version;
 mod cmd_write;
 
 use spfs_cli_common as cli;
+use spfs_cli_common::CommandName;
 
 cli::main!(Opt);
 
@@ -60,7 +61,8 @@ pub struct Opt {
     pub cmd: Command,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(strum::AsRefStr, Debug, Subcommand)]
+#[strum(serialize_all = "lowercase")]
 #[clap(trailing_var_arg = true, dont_delimit_trailing_values = true)]
 pub enum Command {
     Version(cmd_version::CmdVersion),
@@ -96,8 +98,14 @@ pub enum Command {
     External(Vec<String>),
 }
 
+impl CommandName for Opt {
+    fn command_name(&self) -> &str {
+        self.cmd.as_ref()
+    }
+}
+
 impl Opt {
-    async fn run(&mut self, config: &spfs::Config) -> spfs::Result<i32> {
+    async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         match &mut self.cmd {
             Command::Version(cmd) => cmd.run().await,
             Command::Edit(cmd) => cmd.run(config).await,
@@ -131,7 +139,7 @@ impl Opt {
     }
 }
 
-async fn run_external_subcommand(args: Vec<String>) -> spfs::Result<i32> {
+async fn run_external_subcommand(args: Vec<String>) -> Result<i32> {
     {
         let command = match args.get(0) {
             None => {
