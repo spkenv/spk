@@ -371,7 +371,7 @@ pub async fn pretty_print_filepath(
     let repo = config.get_local_repository_handle().await?;
 
     let digest_format = DigestFormat::Shortened(&repo);
-    match spfs::io::pretty_print_filepath(filepath, &objectpath, digest_format).await {
+    match spfs::io::pretty_print_filepath(filepath, objectpath, digest_format).await {
         Ok(r) => Ok(r),
         Err(err) => Err(err.into()),
     }
