@@ -33,7 +33,7 @@ pub trait Output: Default + Send + Sync {
 
 #[derive(Default)]
 pub struct Console {
-    char_count: usize,
+    longest_char_count: usize,
 }
 
 impl Output for Console {
@@ -46,13 +46,13 @@ impl Output for Console {
     }
 
     fn update_char_count(&mut self, count: usize) {
-        if count > self.char_count {
-            self.char_count = count;
+        if count > self.longest_char_count {
+            self.longest_char_count = count;
         }
     }
 
     fn get_current_char_count(&mut self) -> usize {
-        self.char_count
+        self.longest_char_count
     }
 }
 /// Return the disk utility of a package version
@@ -92,8 +92,7 @@ impl<T: Output> Run for Du<T> {
         // Remove any empty strings
         package_path.retain(|c| !c.is_empty());
 
-        let mut longest_char = 0;
-        let mut to_print: Vec<String> = Vec::new();
+        let mut to_print: Vec<(String, String)> = Vec::new();
         if package_path.len() == 1 && !self.package.ends_with('/') {
             let pkgname = PkgName::new(&package)?;
 
@@ -138,16 +137,14 @@ impl<T: Output> Run for Du<T> {
                     }
 
                     let size_to_print = self.human_readable(total_size);
-                    if size_to_print.len() > longest_char {
-                        longest_char = size_to_print.len();
-                    }
+                    self.output.update_char_count(size_to_print.len());
 
                     if self.short {
-                        to_print.push(format!("{size_to_print}-{name}"));
+                        to_print.push((size_to_print.clone(), name));
                     }
 
                     if self.total {
-                        to_print.push(format!("{size_to_print}-total"));
+                        to_print.push((size_to_print.clone(), "total".to_string()));
                     }
                 }
             }
@@ -212,7 +209,7 @@ impl<T: Output> Run for Du<T> {
                     self.output.update_char_count(size_to_print.len());
 
                     if self.short {
-                        to_print.push(format!("{size_to_print}-{name}/"));
+                        to_print.push((size_to_print, name));
                     }
                 }
             }
@@ -221,7 +218,7 @@ impl<T: Output> Run for Du<T> {
             self.output.update_char_count(size_to_print.len());
 
             if self.total {
-                to_print.push(format!("{size_to_print}-total"));
+                to_print.push((size_to_print, "total".to_string()));
             }
         } else {
             let mut dir_to_check = None;
@@ -285,11 +282,10 @@ impl<T: Output> Run for Du<T> {
                                         .await?;
 
                                     if self.short {
-                                        to_print.push(format!(
-                                            "{}-{}/",
+                                        to_print.push((
                                             self.human_readable(size),
-                                            pkgname,
-                                        ));
+                                            format!("{pkgname}/"),
+                                        ))
                                     }
                                     total_size += size;
                                 } else {
@@ -320,11 +316,11 @@ impl<T: Output> Run for Du<T> {
                     }
 
                     if (!self.package.ends_with('/') && package_path.len() < 3) && self.short {
-                        to_print.push(format!("{}-{}/", self.human_readable(total_size), package));
+                        to_print.push((self.human_readable(total_size), format!("{package}/")))
                     }
 
                     if self.total {
-                        to_print.push(format!("{}-total", self.human_readable(total_size)));
+                        to_print.push((self.human_readable(total_size), "total".to_string()));
                     }
                 }
             }
@@ -332,9 +328,11 @@ impl<T: Output> Run for Du<T> {
 
         let longest_char_count = self.output.get_current_char_count();
         for output in to_print.iter() {
-            if let Some((size, entry)) = output.split_once('-') {
-                println!("{size:>longest_char_count$} {entry}");
-            }
+            println!(
+                "{size:>longest_char_count$} {entry}",
+                size = output.0,
+                entry = output.1,
+            );
         }
         Ok(0)
     }
@@ -415,7 +413,7 @@ impl<T: Output> Du<T> {
         repo: &RepositoryHandle,
         pkgname: Option<&String>,
         dir_to_check: Option<&String>,
-    ) -> Result<(u64, Vec<String>)> {
+    ) -> Result<(u64, Vec<(String, String)>)> {
         let mut total_size = 0;
         let mut item = repo.read_ref(digest.to_string().as_str()).await?;
         let mut items_to_process: Vec<spfs::graph::Object> = vec![item];
@@ -431,7 +429,7 @@ impl<T: Output> Du<T> {
         };
 
         let path = [name, &root_dir].join("/");
-        let mut to_print: Vec<String> = Vec::new();
+        let mut to_print: Vec<(String, String)> = Vec::new();
         while !items_to_process.is_empty() {
             let mut next_iter_objects: Vec<spfs::graph::Object> = Vec::new();
             for object in items_to_process.iter() {
@@ -461,8 +459,9 @@ impl<T: Output> Du<T> {
                                     if !name.is_empty() {
                                         let size_to_print = self.human_readable(entry.size);
                                         self.output.update_char_count(size_to_print.len());
-                                        to_print.push(format!(
-                                            "{size_to_print}-{name}/{root_dir}{entry_name}"
+                                        to_print.push((
+                                            size_to_print,
+                                            format!("{name}/{root_dir}{entry_name}"),
                                         ));
                                     }
                                 } else {
@@ -478,8 +477,9 @@ impl<T: Output> Du<T> {
                                     if !name.is_empty() {
                                         let size_to_print = self.human_readable(size);
                                         self.output.update_char_count(size_to_print.len());
-                                        to_print.push(format!(
-                                            "{size_to_print}-{name}/{root_dir}{entry_name}/"
+                                        to_print.push((
+                                            size_to_print,
+                                            format!("{name}/{root_dir}{entry_name}/"),
                                         ));
                                     }
                                     if !self.short {
@@ -495,7 +495,7 @@ impl<T: Output> Du<T> {
                                 if !name.is_empty() {
                                     let size_to_print = self.human_readable(root_entry.size);
                                     self.output.update_char_count(size_to_print.len());
-                                    to_print.push(format!("{size_to_print}-{name}/{root_dir}"));
+                                    to_print.push((size_to_print, format!("{name}/{root_dir}")))
                                 }
                             } else {
                                 let (size, mut temp_to_print, temp_longest_char) = root_entry
@@ -514,7 +514,7 @@ impl<T: Output> Du<T> {
                                 }
 
                                 if (!name.is_empty() || !root_dir.is_empty()) && self.short {
-                                    to_print.push(format!("{size_to_print}-{name}/{root_dir}"));
+                                    to_print.push((size_to_print, format!("{name}/{root_dir}")))
                                 }
                             }
                         }

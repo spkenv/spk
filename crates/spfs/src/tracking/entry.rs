@@ -221,11 +221,11 @@ where
         root_dir: &str,
         human_readable: bool,
         path: &str,
-    ) -> (u64, Vec<String>, usize) {
+    ) -> (u64, Vec<(String, String)>, usize) {
         let mut total_size = 0;
         let mut to_iter: HashMap<String, HashMap<String, Entry>> = HashMap::new();
         let mut longest_char = 0;
-        let mut to_print: Vec<String> = Vec::new();
+        let mut to_print: Vec<(String, String)> = Vec::new();
         let initial_entries = self.entries.clone();
         let root = root_dir.to_string();
         to_iter.insert(root, initial_entries);
@@ -245,12 +245,12 @@ where
                             if size_to_print.len() > longest_char {
                                 longest_char = size_to_print.len();
                             }
-                            to_print.push(format!("{size_to_print}-{abs_path}"));
+                            to_print.push((size_to_print, abs_path));
                         } else {
                             if entry.size.to_string().len() > longest_char {
                                 longest_char = entry.size.to_string().len();
                             }
-                            to_print.push(format!("{}-{abs_path}", entry.size));
+                            to_print.push((entry.size.to_string(), abs_path));
                         }
                     }
 
