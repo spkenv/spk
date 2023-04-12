@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 use super::hash_store::PROXY_DIRNAME;
 use super::FSHashStore;
+use crate::config::ToAddress;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
 use crate::storage::LocalRepository;
@@ -22,6 +23,21 @@ pub struct Config {
     pub params: Params,
 }
 
+impl ToAddress for Config {
+    fn to_address(&self) -> Result<url::Url> {
+        let mut addr = url::Url::from_directory_path(&self.path).map_err(|err| {
+            crate::Error::String(format!("Repository path is not a valid address: {err:?}"))
+        })?;
+        let query = serde_qs::to_string(&self.params).map_err(|err| {
+            crate::Error::String(format!(
+                "FS repo parameters do not create a valid url: {err:?}"
+            ))
+        })?;
+        addr.set_query(Some(&query));
+        Ok(addr)
+    }
+}
+
 #[derive(Clone, Default, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Params {
     #[serde(default)]
@@ -33,7 +49,7 @@ impl FromUrl for Config {
     async fn from_url(url: &url::Url) -> Result<Self> {
         let params = if let Some(qs) = url.query() {
             serde_qs::from_str(qs).map_err(|err| {
-                crate::Error::String(format!("Invalid grpc repo parameters: {err:?}"))
+                crate::Error::String(format!("Invalid fs repo parameters: {err:?}"))
             })?
         } else {
             Params::default()
