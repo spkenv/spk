@@ -78,7 +78,7 @@ struct BakeLayer {
     #[serde(default)]
     spk_package: String,
     #[serde(default)]
-    spk_component: String,
+    spk_component: Vec<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     spk_requester: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -196,7 +196,7 @@ impl Bake {
         let items = solution.items();
 
         // Get the layer(s) for the packages from their source repos
-        let mut layers_to_packages: HashMap<Digest, (String, String)> = HashMap::new();
+        let mut layers_to_packages: HashMap<Digest, (String, Vec<String>)> = HashMap::new();
         for resolved in items {
             let spfs_layers = match self.get_spfs_component_layers(resolved) {
                 Ok(layers) => layers,
@@ -209,27 +209,15 @@ impl Bake {
             // in the next loop. The component and package ident need
             // to be kept together as well.
             for (component, layer) in spfs_layers.iter() {
-                let mut component_label = format!("{}", component.clone());
-                if layers_to_packages.contains_key(layer) {
-                    // Add the component name to the existing entry
-                    // because this layer provides more than one
-                    // component of the package.
-                    if let Some((_p, c)) = layers_to_packages.get(layer) {
-                        component_label = format!("{c},{component_label}");
-                    }
-                }
-
-                layers_to_packages.insert(
-                    *layer,
-                    (
-                        if self.verbose > NO_VERBOSITY {
-                            remove_ansi_escapes(resolved.format_as_installed_package())
-                        } else {
-                            resolved.spec.ident().to_string()
-                        },
-                        component_label,
-                    ),
-                );
+                let entry = layers_to_packages.entry(*layer).or_insert((
+                    if self.verbose > NO_VERBOSITY {
+                        remove_ansi_escapes(resolved.format_as_installed_package())
+                    } else {
+                        resolved.spec.ident().to_string()
+                    },
+                    Vec::new(),
+                ));
+                entry.1.push(component.to_string());
             }
         }
 
@@ -244,10 +232,14 @@ impl Bake {
         // merging for overlay fs mount commands.
         let mut layers: Vec<BakeLayer> = Vec::with_capacity(runtime.status.stack.len());
         for layer in runtime.status.stack.iter() {
-            let (spk_package, component) = match layers_to_packages.get(layer) {
+            let (spk_package, mut components) = match layers_to_packages.get(layer) {
                 Some((p, c)) => (p.to_string(), c.clone()),
-                None => (UNKNOWN_PACKAGE.to_string(), UNKNOWN_COMPONENT.to_string()),
+                None => (
+                    UNKNOWN_PACKAGE.to_string(),
+                    vec![UNKNOWN_COMPONENT.to_string()],
+                ),
             };
+            components.sort();
 
             // There's no "requested by" or "spfs tag" information in
             // an active runtime, yet.
@@ -262,7 +254,7 @@ impl Bake {
             layers.push(BakeLayer {
                 spfs_layer: layer.to_string(),
                 spk_package,
-                spk_component: component,
+                spk_component: components,
                 spk_requester: requested_by,
                 spfs_tag,
                 spfs_repo_name: runtime.name().to_string(),
@@ -337,7 +329,7 @@ impl Bake {
                     } else {
                         resolved.spec.ident().to_string()
                     },
-                    spk_component: component.to_string(),
+                    spk_component: vec![component.to_string()],
                     spk_requester: requested_by.join(", "),
                     spfs_tag: spfs_tag.clone(),
                     spfs_repo_name: repo_name.clone(),
