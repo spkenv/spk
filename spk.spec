@@ -18,6 +18,7 @@ BuildRequires: m4
 BuildRequires: cmake3
 BuildRequires: make
 Requires: bash
+Requires: fuse
 Obsoletes: spfs
 Provides: spfs = 0.34.6
 
@@ -30,7 +31,7 @@ Package manager and a software runtime for studio environments
 %setup -q -n %{name}-%{version}
 
 %build
-cargo build --release --all --features=server,spfs/protobuf-src
+cargo build --release --all --features=server,spfs/protobuf-src,fuse-backend
 
 %install
 mkdir -p %{buildroot}/usr/local/bin
@@ -50,6 +51,7 @@ mv %{buildroot}/usr/local/bin/spk %{buildroot}/usr/local/bin/spk-%{version}
 %caps(cap_chown,cap_fowner+ep) /usr/local/bin/spfs-render
 %caps(cap_sys_chroot,cap_sys_admin+ep) /usr/local/bin/spfs-join
 %caps(cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep) /usr/local/bin/spfs-enter
+%caps(cap_sys_admin+ep) /usr/local/bin/spfs-fuse
 
 %post
 mkdir -p /spfs
