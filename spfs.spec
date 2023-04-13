@@ -14,6 +14,7 @@ BuildRequires: cmake3
 BuildRequires: openssl-devel
 BuildRequires: fuse-devel
 BuildRequires: m4
+Requires: fuse
 
 %define debug_package %{nil}
 
@@ -24,7 +25,7 @@ Filesystem isolation, capture, and distribution.
 %setup -q
 
 %build
-cargo build --release -p spfs -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render --verbose --all --features=server,spfs/protobuf-src
+cargo build --release -p spfs -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render --verbose --all --features=server,spfs/protobuf-src,fuse-backend
 
 %install
 mkdir -p %{buildroot}/usr/local/bin
@@ -42,6 +43,7 @@ done
 %caps(cap_chown,cap_fowner+ep) /usr/local/bin/spfs-render
 %caps(cap_sys_chroot,cap_sys_admin+ep) /usr/local/bin/spfs-join
 %caps(cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep) /usr/local/bin/spfs-enter
+%caps(cap_sys_admin+ep) /usr/local/bin/spfs-fuse
 
 %post
 mkdir -p /spfs
