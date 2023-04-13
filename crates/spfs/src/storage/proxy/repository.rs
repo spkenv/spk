@@ -75,11 +75,11 @@ impl storage::FromConfig for ProxyRepository {
         let spfs_config = crate::Config::current()?;
         #[rustfmt::skip]
         let (primary, secondary) = tokio::try_join!(
-            spfs_config.get_remote(&config.primary),
+            crate::config::open_repository_from_string(&spfs_config, Some(&config.primary)),
             async {
                 let mut secondary = Vec::with_capacity(config.secondary.len());
                 for name in config.secondary.iter() {
-                    secondary.push(spfs_config.get_remote(&name).await?)
+                    secondary.push(crate::config::open_repository_from_string(&spfs_config, Some(&name)).await?)
                 }
                 Ok(secondary)
             }
