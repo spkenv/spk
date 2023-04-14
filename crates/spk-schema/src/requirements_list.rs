@@ -68,7 +68,7 @@ impl RequirementsList {
                     match by_name.get(request.pkg.name()) {
                         None => {
                             return Err(Error::String(
-                                format!("Cannot resolve fromBuildEnv, package not present: {}\nIs it missing from your package build options?", request.pkg.name)
+                                format!("Cannot resolve package using 'fromBuildEnv', package not present: {}\nIs it missing from your package build options?", request.pkg.name)
                             ));
                         }
                         Some(resolved) => {
@@ -88,7 +88,7 @@ impl RequirementsList {
                     match opts.get(request.var.without_namespace()) {
                         None => {
                             return Err(Error::String(
-                                format!("Cannot resolve fromBuildEnv, variable not set: {}\nIs it missing from the package build options?", request.var)
+                                format!("Cannot resolve variable using 'fromBuildEnv', variable not set: {}\nIs it missing from the package build options?", request.var)
                             ));
                         }
                         Some(opt) => {

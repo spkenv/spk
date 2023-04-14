@@ -43,6 +43,36 @@ mod spec_test;
 
 /// Create a spec recipe from a json structure.
 ///
+/// This will return a Result with SerdeError if the given struct
+/// cannot be deserialized into a recipe.
+///
+/// ```
+/// # #[macro_use] extern crate spk_schema;
+/// # #[macro_use] extern crate format_serde_error;
+/// # fn main()  -> Result<(), format_serde_error::SerdeError> {
+/// let recipe = try_recipe!({
+///   "api": "v0/package",
+///   "pkg": "my-pkg/1.0.0",
+///   "build": {
+///     "options": [
+///       {"pkg": "dependency"}
+///     ]
+///   }
+/// })?;
+/// # Ok(())
+/// # }
+/// ```
+#[macro_export]
+macro_rules! try_recipe {
+    ($($spec:tt)+) => {{
+        use $crate::FromYaml;
+        let value = $crate::serde_json::json!($($spec)+);
+        $crate::SpecRecipe::from_yaml(value.to_string())
+    }};
+}
+
+/// Create a spec recipe from a json structure.
+///
 /// This will panic if the given struct
 /// cannot be deserialized into a recipe.
 ///
@@ -63,10 +93,7 @@ mod spec_test;
 #[macro_export]
 macro_rules! recipe {
     ($($spec:tt)+) => {{
-        use $crate::FromYaml;
-        let value = $crate::serde_json::json!($($spec)+);
-        let spec = $crate::SpecRecipe::from_yaml(value.to_string()).expect("invalid recipe data");
-        spec
+        $crate::try_recipe!($($spec)+).expect("invalid recipe data")
     }};
 }
 

@@ -18,7 +18,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
-use spk_schema::{BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
+use spk_schema::{try_recipe, BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
     Change,
     Decision,
@@ -54,7 +54,7 @@ use spk_storage::RepositoryHandle;
 use super::error;
 use crate::error::OutOfOptions;
 use crate::option_map::OptionMap;
-use crate::{make_build, Error, Result};
+use crate::{Error, Result};
 
 // Public to allow other tests to use its macros
 #[cfg(test)]
@@ -776,13 +776,24 @@ impl Solver {
             // The count is used as a fake version number to
             // distinquish which initial request is being checked in
             // each dummy package.
-            let dummy_spec = make_build!({"pkg": format!("initialrequest/{}", count + 1),
-                                          "install": {
-                                              "requirements": [
-                                                  req
-                                              ]
-                                          }
-            });
+            let recipe = try_recipe!({"pkg": format!("initialrequest/{}", count + 1),
+                                      "install": {
+                                          "requirements": [
+                                              req,
+                                          ]
+                                      }
+            })
+            .map_err(|err| {
+                Error::String(format!(
+                    "Unable to generate dummy spec for initial checks: {err}"
+                ))
+            })?;
+
+            let solution = Solution::new(OptionMap::default());
+            let mut build_opts = OptionMap::default();
+            let mut resolved_opts = recipe.resolve_options(&build_opts).unwrap().into_iter();
+            build_opts.extend(&mut resolved_opts);
+            let dummy_spec = recipe.generate_binary_build(&build_opts, &solution)?;
 
             // All the initial_requests are passed in as well to
             // handle situations when same package is requested
