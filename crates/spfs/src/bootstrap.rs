@@ -221,7 +221,7 @@ where
         rt.storage().address().to_string().into(),
         "--runtime".into(),
         rt.name().into(),
-        "--synctime".into(),
+        "--sync-time-seconds".into(),
         sync_time.as_secs_f64().to_string().into(),
         "--metrics-in-env".into(),
         "--".into(),
