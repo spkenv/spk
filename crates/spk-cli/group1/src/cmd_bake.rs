@@ -78,7 +78,7 @@ struct BakeLayer {
     #[serde(default)]
     spk_package: String,
     #[serde(default)]
-    spk_component: Vec<String>,
+    spk_components: Vec<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     spk_requester: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -254,7 +254,7 @@ impl Bake {
             layers.push(BakeLayer {
                 spfs_layer: layer.to_string(),
                 spk_package,
-                spk_component: components,
+                spk_components: components,
                 spk_requester: requested_by,
                 spfs_tag,
                 spfs_repo_name: runtime.name().to_string(),
@@ -329,7 +329,7 @@ impl Bake {
                     } else {
                         resolved.spec.ident().to_string()
                     },
-                    spk_component: vec![component.to_string()],
+                    spk_components: vec![component.to_string()],
                     spk_requester: requested_by.join(", "),
                     spfs_tag: spfs_tag.clone(),
                     spfs_repo_name: repo_name.clone(),
