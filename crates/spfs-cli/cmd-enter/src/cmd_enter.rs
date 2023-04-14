@@ -50,9 +50,9 @@ pub struct CmdEnter {
     /// Time it took to sync the layers, objects, etc for the runtime.
     /// If given, the value is included in the render reports sent to
     /// sentry. Used by 'spfs run ...' commands that then call
-    /// 'spfs-enter'.
+    /// 'spfs-enter'. Users are not expected to fill this in themselves.
     #[clap(long)]
-    synctime: Option<f64>,
+    sync_time_seconds: Option<f64>,
 
     /// Put the rendering and syncing times into environment variables
     #[clap(long)]
@@ -107,7 +107,7 @@ impl CmdEnter {
     ) -> Result<Option<spfs::runtime::OwnedRuntime>> {
         let mut runtime = self.load_runtime(config).await?;
 
-        let sync_time: f64 = self.synctime.unwrap_or(0.0);
+        let sync_time: f64 = self.sync_time_seconds.unwrap_or(0.0);
 
         if self.remount {
             let start_time = Instant::now();
