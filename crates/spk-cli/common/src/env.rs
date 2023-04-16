@@ -8,6 +8,8 @@ use std::panic::catch_unwind;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use futures::stream::FuturesUnordered;
+use futures::TryStreamExt;
 use once_cell::sync::Lazy;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
 use spk_schema::{Package, VersionIdent};
@@ -29,7 +31,7 @@ pub async fn current_env() -> crate::Result<Solution> {
     }
 
     let repo = Arc::new(storage::RepositoryHandle::Runtime(Default::default()));
-    let mut packages_in_runtime_f = Vec::new();
+    let packages_in_runtime_f = FuturesUnordered::new();
     for name in repo.list_packages().await? {
         let repo = Arc::clone(&repo);
         packages_in_runtime_f.push(tokio::spawn(async move {
@@ -47,15 +49,19 @@ pub async fn current_env() -> crate::Result<Solution> {
 
     let mut solution = Solution::default();
 
-    let mut package_in_runtime = Vec::new();
-    for package_f in packages_in_runtime_f {
-        let specs = package_f
-            .await
-            .map_err(|err| Error::String(format!("Tokio join error: {err}")))??;
-        package_in_runtime.extend(specs.into_iter());
-    }
+    // Transform `FuturesUnordered<JoinHandle<impl Future<Output = Result<Vec<Arc<Spec>>>>>>`
+    // into flattened `Vec<Arc<Spec>>`.
+    let packages_in_runtime: Vec<_> = packages_in_runtime_f
+        .try_collect::<Vec<_>>()
+        .await
+        .map_err(|err| Error::String(format!("Tokio join error: {err}")))?
+        .into_iter()
+        .collect::<std::result::Result<Vec<_>, Error>>()?
+        .into_iter()
+        .flatten()
+        .collect();
 
-    let package_idents_in_runtime = package_in_runtime
+    let package_idents_in_runtime = packages_in_runtime
         .iter()
         .map(|spec| spec.ident())
         .collect::<Vec<_>>();
@@ -74,7 +80,7 @@ pub async fn current_env() -> crate::Result<Solution> {
     // packages again in that same order to process the results.
 
     let mut components_iter = components_in_runtime.into_iter();
-    for spec in package_in_runtime {
+    for spec in packages_in_runtime {
         let components = components_iter
             .next()
             .ok_or_else(|| Error::String("internal error: components iter overrun".to_owned()))?;
