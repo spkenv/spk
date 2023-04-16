@@ -203,23 +203,32 @@ impl RuntimeRepository {
 
         // Now all the results can be collected via that same order.
 
-        let mut digests_iter = digests.into_iter();
-        for component_filenames in filenames_to_resolve {
-            for (comp_name_opt, _) in component_filenames.filenames {
-                let digest = digests_iter.next().ok_or_else(|| {
-                    Error::String("internal error: digest results overrun".to_owned())
-                })?;
-                match comp_name_opt {
-                    ComponentMode::RealComponent(comp) => {
-                        results[component_filenames.index].insert(comp, digest);
-                    }
-                    ComponentMode::BackwardsCompatibility => {
-                        // Simulate component support for old packages by
-                        // faking a Run and Build component with the same
-                        // contents.
-                        results[component_filenames.index].insert(Component::Run, digest);
-                        results[component_filenames.index].insert(Component::Build, digest);
-                    }
+        debug_assert_eq!(
+            digests.len(),
+            filenames_to_resolve_flattened.len(),
+            "return value from find_layers_by_filenames expected to match input length"
+        );
+
+        for ((component_mode, component_filenames_index), digest) in filenames_to_resolve
+            .into_iter()
+            .flat_map(|component_filenames| {
+                component_filenames
+                    .filenames
+                    .into_iter()
+                    .map(move |(comp_name_opt, _)| (comp_name_opt, component_filenames.index))
+            })
+            .zip(digests.into_iter())
+        {
+            match component_mode {
+                ComponentMode::RealComponent(comp) => {
+                    results[component_filenames_index].insert(comp, digest);
+                }
+                ComponentMode::BackwardsCompatibility => {
+                    // Simulate component support for old packages by
+                    // faking a Run and Build component with the same
+                    // contents.
+                    results[component_filenames_index].insert(Component::Run, digest);
+                    results[component_filenames_index].insert(Component::Build, digest);
                 }
             }
         }

@@ -79,12 +79,16 @@ pub async fn current_env() -> crate::Result<Solution> {
     // the argument elements, so here we iterate over them and walk the
     // packages again in that same order to process the results.
 
-    let mut components_iter = components_in_runtime.into_iter();
-    for spec in packages_in_runtime {
-        let components = components_iter
-            .next()
-            .ok_or_else(|| Error::String("internal error: components iter overrun".to_owned()))?;
+    debug_assert_eq!(
+        components_in_runtime.len(),
+        packages_in_runtime.len(),
+        "return value from read_components_bulk expected to match input length"
+    );
 
+    for (spec, components) in packages_in_runtime
+        .into_iter()
+        .zip(components_in_runtime.into_iter())
+    {
         let range_ident = RangeIdent::equals(&spec.ident().to_any(), components.keys().cloned());
         let mut request = PkgRequest::new(range_ident, RequestedBy::CurrentEnvironment);
         request.prerelease_policy = PreReleasePolicy::IncludeAll;
