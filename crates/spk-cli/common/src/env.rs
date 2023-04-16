@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
-use spk_schema::ident::{parse_ident, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
-use spk_schema::Package;
+use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
+use spk_schema::{Package, VersionIdent};
 use spk_solve::package_iterator::BUILD_SORT_TARGET;
 use spk_solve::solution::{PackageSource, Solution};
 use spk_solve::validation::IMPOSSIBLE_CHECKS_TARGET;
@@ -32,8 +32,8 @@ pub async fn current_env() -> crate::Result<Solution> {
     let mut solution = Solution::default();
     for name in repo.list_packages().await? {
         for version in repo.list_package_versions(&name).await?.iter() {
-            let pkg = parse_ident(format!("{name}/{version}"))?;
-            for pkg in repo.list_package_builds(pkg.as_version()).await? {
+            let pkg = VersionIdent::new(name.clone(), (**version).clone());
+            for pkg in repo.list_package_builds(&pkg).await? {
                 let spec = repo.read_package(&pkg).await?;
                 let components = match repo.read_components(spec.ident()).await {
                     Ok(c) => c,
