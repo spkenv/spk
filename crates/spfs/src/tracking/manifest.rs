@@ -187,6 +187,7 @@ where
         entries_in_dir
     }
 
+    /// Finds entry given entry name. If nothing is found will return the root entry.
     pub fn find_entry_by_string(&self, entry: &str) -> &Entry {
         let paths: Vec<String> = entry.split('/').map(str::to_string).collect();
         let mut matched_entry = &self.root;

@@ -20,6 +20,7 @@ use spk_cli_group4::{cmd_lint, cmd_search, cmd_version, cmd_view};
 use spk_cmd_build::cmd_build;
 use spk_cmd_convert::cmd_convert;
 use spk_cmd_debug::cmd_debug;
+use spk_cmd_du::cmd_du;
 use spk_cmd_env::cmd_env;
 use spk_cmd_explain::cmd_explain;
 use spk_cmd_install::cmd_install;

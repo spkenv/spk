@@ -1,0 +1,20 @@
+[package]
+authors = ["Nichol Yip <nyip@imageworks.com>"]
+edition = "2021"
+name = "spk-cmd-du"
+version = "0.37.20"
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+clap = { version = "3.2", features = ["derive", "env"] }
+colored = "2.0.0"
+futures = "0.3.9"
+itertools = "0.10"
+serde_yaml = "0.8.17"
+spfs = { version = '0.37.20', path = "../../spfs" }
+spk-cli-common = { path = '../common' }
+spk-storage = { path = '../../spk-storage' }
+spk-schema = { path = '../../spk-schema' }
+tokio = { version = "1.20", features = ["rt"] }
+tracing = "0.1.35"

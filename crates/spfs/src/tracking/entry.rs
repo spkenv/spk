@@ -215,20 +215,19 @@ impl<T> Entry<T>
 where
     T: Clone,
 {
+    /// Calculates and returns the sum of the total size of the entry.
     pub fn calculate_size_of_child_entries(
         &self,
         short_print: bool,
         root_dir: &str,
         human_readable: bool,
-        path: &str,
     ) -> (u64, Vec<(String, String)>, usize) {
         let mut total_size = 0;
         let mut to_iter: HashMap<String, HashMap<String, Entry>> = HashMap::new();
         let mut longest_char = 0;
         let mut to_print: Vec<(String, String)> = Vec::new();
         let initial_entries = self.entries.clone();
-        let root = root_dir.to_string();
-        to_iter.insert(root, initial_entries);
+        to_iter.insert(root_dir.to_string(), initial_entries);
 
         while !to_iter.is_empty() {
             let mut next_iter: HashMap<String, HashMap<String, Entry>> = HashMap::new();
@@ -238,7 +237,7 @@ where
                         continue;
                     }
 
-                    let abs_path = [path, dir, name].join("/");
+                    let abs_path = [dir.clone(), name.clone()].join("/");
                     if !short_print && entry.is_regular_file() {
                         if human_readable {
                             let size_to_print = format_size(entry.size);
@@ -255,8 +254,8 @@ where
                     }
 
                     if entry.is_dir() {
-                        let new_dir = format!("{dir}/{name}");
-                        next_iter.insert((*new_dir).to_string(), entry.entries.clone());
+                        let new_dir = [dir.clone(), name.clone()].join("/");
+                        next_iter.insert(new_dir, entry.entries.clone());
                     }
 
                     total_size += entry.size;
