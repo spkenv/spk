@@ -244,8 +244,14 @@ class PipImporter:
                     continue
 
             _LOGGER.debug(f"converting dependency requirement {version_str}")
-            match = re.match(r"([^ ]+)( \((.*)\))?", version_str.strip())
+
+            # Sometimes dependency requirement strings look like:
+            #     "shiboken2 (==5.15.2.1)"
+            # Other times they look like:
+            #     "typing-extensions>=4.5"
+            match = re.match(r"([^ !<>=~]+)\s*(?:\(?([^)]*)\)?)?", version_str.strip())
             assert match, f"Failed to parse requirement string: {version_str}"
+
             pypi_name = match.group(1)
             if pypi_name in BAKED_PYTHON_PACKAGES:
                 _LOGGER.warning(
@@ -254,13 +260,13 @@ class PipImporter:
                 )
                 continue
             spk_name = _to_spk_name(pypi_name)
-            spk_version_range = _to_spk_version_range(match.group(3) or "*")
+            spk_version_range = _to_spk_version_range(match.group(2) or "*")
             request = {"pkg": f"{spk_name}/{spk_version_range}"}
             spec["install"]["requirements"].append(request)
 
             if self._follow_deps:
                 _LOGGER.debug("following dependencies...")
-                builds.extend(self.import_package(match.group(1), match.group(3) or ""))
+                builds.extend(self.import_package(match.group(1), match.group(2) or ""))
 
         with tempfile.NamedTemporaryFile("w") as spec_file:
             json.dump(spec, spec_file)
