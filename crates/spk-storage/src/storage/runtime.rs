@@ -523,6 +523,10 @@ async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding
 async fn find_layers_by_filenames<S: AsRef<str>>(
     paths: &[S],
 ) -> Result<Vec<spfs::encoding::Digest>> {
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+
     let config = spfs::get_config()?;
     let (runtime, repo) =
         tokio::try_join!(spfs::active_runtime(), config.get_local_repository_handle())?;
