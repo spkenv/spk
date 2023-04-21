@@ -187,17 +187,22 @@ where
         entries_in_dir
     }
 
-    /// Finds entry given entry name. If nothing is found will return the root entry.
-    pub fn find_entry_by_string(&self, entry: &str) -> &Entry {
-        let paths: Vec<String> = entry.split('/').map(str::to_string).collect();
+    /// Finds the entry of a given path.
+    pub fn find_entry_by_string(&self, entry_path: &str) -> &Entry {
+        let paths: Vec<String> = entry_path.split('/').map(str::to_string).collect();
         let mut matched_entry = &self.root;
-        for path in paths.iter() {
-            matched_entry = match matched_entry.entries.get(path) {
-                Some(entry) => entry,
-                _ => continue,
-            };
-        }
 
+        // Loops through each path and obtain the entry for the corresponding path until it reaches the end
+        // Example: /bin/python
+        //     We always start the scan from the /spfs directory.
+        //     Loops through /spfs -> bin -> python then returns
+        //     the include entry as the target entry we are trying to find.
+        for path in paths.iter() {
+            matched_entry = matched_entry
+                .entries
+                .get(path)
+                .unwrap_or_else(|| panic!("Unable to find entry: {path}"))
+        }
         matched_entry
     }
 

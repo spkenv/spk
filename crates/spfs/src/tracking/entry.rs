@@ -224,7 +224,7 @@ where
     ) -> (u64, Vec<(String, String)>, usize) {
         let mut total_size = 0;
         let mut to_iter: HashMap<String, HashMap<String, Entry>> = HashMap::new();
-        let mut longest_char = 0;
+        let mut longest_length_string = 0;
         let mut to_print: Vec<(String, String)> = Vec::new();
         let initial_entries = self.entries.clone();
         to_iter.insert(root_dir.to_string(), initial_entries);
@@ -241,13 +241,13 @@ where
                     if !short_print && entry.is_regular_file() {
                         if human_readable {
                             let size_to_print = format_size(entry.size);
-                            if size_to_print.len() > longest_char {
-                                longest_char = size_to_print.len();
+                            if size_to_print.len() > longest_length_string {
+                                longest_length_string = size_to_print.len();
                             }
                             to_print.push((size_to_print, abs_path));
                         } else {
-                            if entry.size.to_string().len() > longest_char {
-                                longest_char = entry.size.to_string().len();
+                            if entry.size.to_string().len() > longest_length_string {
+                                longest_length_string = entry.size.to_string().len();
                             }
                             to_print.push((entry.size.to_string(), abs_path));
                         }
@@ -263,7 +263,7 @@ where
             }
             to_iter = std::mem::take(&mut next_iter);
         }
-        (total_size, to_print, longest_char)
+        (total_size, to_print, longest_length_string)
     }
 
     pub fn update(&mut self, other: &Self) {

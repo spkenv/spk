@@ -458,10 +458,11 @@ impl<T: Output> Du<T> {
             _ => "".to_string(),
         };
 
-        let mut path = [pkg_path.to_owned(), root_dir.clone()].join("/");
-        if root_dir.is_empty() {
-            path = pkg_path.to_owned();
-        }
+        let path = if root_dir.is_empty() {
+            pkg_path.to_owned()
+        } else {
+            [pkg_path.to_owned(), root_dir.clone()].join("/")
+        };
 
         let mut to_print: Vec<(String, String)> = Vec::new();
         while !items_to_process.is_empty() {
