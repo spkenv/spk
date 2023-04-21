@@ -52,11 +52,11 @@ pub async fn current_env() -> crate::Result<Solution> {
     // Transform `FuturesUnordered<JoinHandle<impl Future<Output = Result<Vec<Arc<Spec>>>>>>`
     // into flattened `Vec<Arc<Spec>>`.
     let packages_in_runtime: Vec<_> = packages_in_runtime_f
+        .map_err(|err| Error::String(format!("Tokio join error: {err}")))
+        // flatten `Result<Result<T>, E>` into simply `Result<T, E>`
+        .and_then(std::future::ready)
         .try_collect::<Vec<_>>()
-        .await
-        .map_err(|err| Error::String(format!("Tokio join error: {err}")))?
-        .into_iter()
-        .collect::<std::result::Result<Vec<_>, Error>>()?
+        .await?
         .into_iter()
         .flatten()
         .collect();
