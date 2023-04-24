@@ -10,6 +10,7 @@ use spk_schema::ident::PkgRequest;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::{BuildIdent, Deprecate, Package, Spec, VersionIdent};
 use spk_solve_solution::Solution;
+use spk_storage::Error::InvalidPackageSpec;
 use spk_storage::RepositoryHandle;
 
 use crate::{Error, Result};
@@ -90,6 +91,16 @@ async fn get_package_version_build_states(
                 for build in builds {
                     let spec = match repo.read_package(&build).await {
                         Ok(s) => s,
+                        Err(InvalidPackageSpec(ident, message)) => {
+                            // Ignore invalid package spec errors for
+                            // the purposes of getting all the valid
+                            // package version builds. These are
+                            // likely to be older packages with
+                            // references to Uppercase package names
+                            // in their dependencies.
+                            tracing::warn!("{}", InvalidPackageSpec(ident, message).to_string());
+                            continue;
+                        }
                         Err(err) => return Err(Error::String(err.to_string())),
                     };
                     data.push(spec);
