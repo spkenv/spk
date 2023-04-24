@@ -5,16 +5,15 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::fn_params_excessive_bools)]
 
-use std::ffi::OsString;
+use std::ffi::{CString, OsString};
+use std::os::unix::prelude::OsStringExt;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use spfs::env::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
-use spfs::Error;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
 use tokio::io::AsyncWriteExt;
-use tokio::signal::unix::{signal, SignalKind};
 
 // The runtime setup process manages the current namespace
 // which operates only on the current thread. For this reason
@@ -75,24 +74,25 @@ impl CmdEnter {
             .map_err(|err| {
                 spfs::Error::String(format!("Failed to establish async runtime: {err:?}"))
             })?;
-        let res = rt.block_on(self.run_async(config));
+        let owned_runtime = rt.block_on(self.setup_runtime(config))?;
         // do not block forever on drop because of any stuck blocking tasks
         rt.shutdown_timeout(std::time::Duration::from_millis(250));
-        res
+        if let Some(rt) = owned_runtime {
+            self.exec_runtime_command(rt)
+        } else {
+            Ok(0)
+        }
     }
 
-    pub async fn run_async(&mut self, config: &spfs::Config) -> Result<i32> {
+    pub async fn setup_runtime(
+        &mut self,
+        config: &spfs::Config,
+    ) -> Result<Option<spfs::runtime::OwnedRuntime>> {
         let mut runtime = self.load_runtime(config).await?;
         if self.remount {
             spfs::reinitialize_runtime(&mut runtime).await?;
-            Ok(0)
+            Ok(None)
         } else {
-            let mut terminate = signal(SignalKind::terminate())
-                .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
-            let mut interrupt = signal(SignalKind::interrupt())
-                .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
-            let mut quit = signal(SignalKind::quit())
-                .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
             let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
 
             // At this point, our pid is owned by root and has not moved into
@@ -155,26 +155,7 @@ impl CmdEnter {
             owned.ensure_startup_scripts(&self.tmpdir)?;
             std::env::set_var("SPFS_RUNTIME", owned.name());
 
-            let mut child = self.exec_runtime_command(&owned).await?;
-            let res = loop {
-                tokio::select! {
-                    res = child.wait() => break res,
-                    // we explicitly catch and ignore signals related to interruption
-                    // assuming that the child process will receive them and act
-                    // accordingly. This is also to ensure that we never exit before
-                    // the child and forget to clean up the runtime data
-                    _ = terminate.recv() => {},
-                    _ = interrupt.recv() => {},
-                    _ = quit.recv() => {},
-                }
-            };
-
-            Ok(res
-                .map_err(|err| {
-                    Error::process_spawn_error("exec_runtime_command".into(), err, None)
-                })?
-                .code()
-                .unwrap_or(1))
+            Ok(Some(owned))
         }
     }
 
@@ -190,24 +171,31 @@ impl CmdEnter {
             .map_err(|err| err.into())
     }
 
-    async fn exec_runtime_command(
-        &mut self,
-        rt: &spfs::runtime::OwnedRuntime,
-    ) -> Result<tokio::process::Child> {
+    fn exec_runtime_command(&mut self, rt: spfs::runtime::OwnedRuntime) -> Result<i32> {
         let cmd = match self.command.take() {
             Some(exe) if !exe.is_empty() => {
                 tracing::debug!("executing runtime command");
-                spfs::build_shell_initialized_command(rt, None, exe, self.args.drain(..))?
+                spfs::build_shell_initialized_command(&rt, None, exe, self.args.drain(..))?
             }
             _ => {
                 tracing::debug!("starting interactive shell environment");
-                spfs::build_interactive_shell_command(rt, None)?
+                spfs::build_interactive_shell_command(&rt, None)?
             }
         };
-        let mut proc = cmd.into_tokio();
-        tracing::debug!("{:?}", proc);
-        proc.spawn().map_err(|err| {
-            Error::process_spawn_error("exec_runtime_command".into(), err, None).into()
-        })
+
+        tracing::debug!("{cmd:?}");
+        let exe = CString::new(cmd.executable.into_vec())
+            .context("Executable name cannot contain a nul character")?;
+        let mut argv = vec![exe];
+        argv.extend(
+            cmd.args
+                .into_iter()
+                .map(OsStringExt::into_vec)
+                .map(CString::new)
+                .map(|res| res.context("Command arguments cannot contain a nul character"))
+                .collect::<Result<Vec<_>>>()?,
+        );
+        nix::unistd::execvp(&argv[0], &argv).context("Failed to launch subcommand")?;
+        unreachable!("execvp does not return")
     }
 }
