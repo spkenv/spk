@@ -3173,6 +3173,8 @@ dependencies = [
  "glob",
  "lazy_static",
  "nix 0.26.2",
+ "nom",
+ "nom-supreme",
  "once_cell",
  "rstest",
  "sentry",

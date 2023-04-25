@@ -10,6 +10,7 @@ mod env;
 mod error;
 pub mod exec;
 pub mod flags;
+pub mod parsing;
 mod publish;
 
 pub use cli::{CommandArgs, Run};

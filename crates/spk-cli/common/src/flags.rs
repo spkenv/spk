@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::convert::From;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -18,11 +17,14 @@ use spk_schema::foundation::option_map::{host_options, OptionMap};
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{parse_ident, AnyIdent, PkgRequest, Request, RequestedBy, VarRequest};
-use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage};
+use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage, VariantExt};
 use spk_solve::{self as solve};
 #[cfg(feature = "statsd")]
 use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
 use spk_storage::{self as storage};
+
+use crate::parsing::{stage_specifier, VariantIndex};
+use crate::Error;
 
 #[cfg(test)]
 #[path = "./flags_test.rs"]
@@ -290,7 +292,7 @@ impl Requests {
         let mut idents = Vec::new();
         for package in packages {
             if package.contains('@') {
-                let (recipe, _, stage) = parse_stage_specifier(package, options, repos).await?;
+                let (recipe, _, stage, _) = parse_stage_specifier(package, options, repos).await?;
 
                 match stage {
                     TestStage::Sources => {
@@ -349,10 +351,15 @@ impl Requests {
         for r in requests.into_iter() {
             let r = r.as_ref();
             if r.contains('@') {
-                let (recipe, _, stage) = parse_stage_specifier(r, &options, repos).await?;
+                let (recipe, _, stage, build_variant) =
+                    parse_stage_specifier(r, &options, repos).await?;
 
                 match stage {
                     TestStage::Sources => {
+                        if build_variant.is_some() {
+                            bail!("Source stage does not accept a build variant specifier")
+                        }
+
                         let ident = recipe.ident().to_any(Some(Build::Source));
                         out.push(
                             PkgRequest::from_ident_exact(ident, RequestedBy::CommandLine).into(),
@@ -360,16 +367,41 @@ impl Requests {
                     }
 
                     TestStage::Build => {
-                        let requirements = recipe.get_build_requirements(&options)?;
+                        let requirements = match build_variant {
+                            Some(VariantIndex(index)) => {
+                                let default_variants = recipe.default_variants();
+                                let variant =
+                                    default_variants
+                                        .iter()
+                                        .skip(index)
+                                        .take(1)
+                                        .next()
+                                        .ok_or_else(|| anyhow!(
+                                            "Variant {index} is out of range; {} variants(s) found in {}",
+                                            default_variants.len(),
+                                            recipe.ident().format_ident()
+                                        ))?
+                                        .with_overrides(options.clone());
+                                recipe.get_build_requirements(&variant)?
+                            }
+                            None => recipe.get_build_requirements(&options)?,
+                        };
                         out.extend(requirements);
                     }
-                    TestStage::Install => out.push(
-                        PkgRequest::from_ident_exact(
-                            recipe.ident().to_any(None),
-                            RequestedBy::CommandLine,
+
+                    TestStage::Install => {
+                        if build_variant.is_some() {
+                            bail!("Install stage does not accept a build variant specifier")
+                        }
+
+                        out.push(
+                            PkgRequest::from_ident_exact(
+                                recipe.ident().to_any(None),
+                                RequestedBy::CommandLine,
+                            )
+                            .into(),
                         )
-                        .into(),
-                    ),
+                    }
                 }
                 continue;
             }
@@ -423,19 +455,26 @@ pub async fn parse_stage_specifier(
     specifier: &str,
     options: &OptionMap,
     repos: &[Arc<storage::RepositoryHandle>],
-) -> Result<(Arc<SpecRecipe>, std::path::PathBuf, TestStage)> {
-    let (package, stage) = specifier.split_once('@').ok_or_else(|| {
-        anyhow!(
-            "Package stage '{specifier}' must contain an '@' character (eg: @build, my-pkg@install)"
-        )
-    })?;
+) -> Result<(
+    Arc<SpecRecipe>,
+    std::path::PathBuf,
+    TestStage,
+    Option<crate::parsing::VariantIndex>,
+)> {
+    use nom::combinator::all_consuming;
 
-    let stage = TestStage::from_str(stage)?;
+    let (package, stage, build_variant) =
+        all_consuming::<_, _, nom_supreme::error::ErrorTree<_>, _>(stage_specifier)(specifier)
+            .map(|(_, (package, stage, build_variant))| (package, stage, build_variant))
+            .map_err(|err| match err {
+                nom::Err::Error(e) | nom::Err::Failure(e) => Error::String(e.to_string()),
+                nom::Err::Incomplete(_) => unreachable!(),
+            })?;
 
     let (spec, filename) =
         find_package_recipe_from_template_or_repo(&Some(package), options, repos).await?;
 
-    Ok((spec, filename, stage))
+    Ok((spec, filename, stage, build_variant))
 }
 
 /// The result of the [`find_package_template`] function.

@@ -10,8 +10,8 @@ async-trait = { workspace = true }
 clap = { workspace = true }
 colored = { workspace = true }
 itertools = "0.10"
-nom = "7.1"
-nom-supreme = "0.8"
+nom = { workspace = true }
+nom-supreme = { workspace = true }
 spfs = { version = '0.34.6', path = "../../spfs" }
 spk-cli-common = { path = '../common' }
 spk-solve = { path = '../../spk-solve' }
