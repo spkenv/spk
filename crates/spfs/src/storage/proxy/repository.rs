@@ -74,6 +74,19 @@ impl storage::FromConfig for ProxyRepository {
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for ProxyRepository {
+    async fn has_object(&self, digest: encoding::Digest) -> bool {
+        if self.primary.has_object(digest).await {
+            return true;
+        }
+
+        for repo in self.secondary.iter() {
+            if repo.has_object(digest).await {
+                return true;
+            }
+        }
+        false
+    }
+
     async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
         let mut res = self.primary.read_object(digest).await;
         if res.is_ok() {
@@ -132,6 +145,18 @@ impl graph::Database for ProxyRepository {
 
 #[async_trait::async_trait]
 impl PayloadStorage for ProxyRepository {
+    async fn has_payload(&self, digest: encoding::Digest) -> bool {
+        if self.primary.has_payload(digest).await {
+            return true;
+        }
+        for secondary in self.secondary.iter() {
+            if secondary.has_payload(digest).await {
+                return true;
+            }
+        }
+        false
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.primary.iter_payload_digests()
     }

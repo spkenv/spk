@@ -30,11 +30,6 @@ pub trait ManifestStorage: graph::Database + Sync + Send {
         Box::pin(stream)
     }
 
-    /// Return true if the identified manifest exists in this storage.
-    async fn has_manifest(&self, digest: encoding::Digest) -> bool {
-        self.read_manifest(digest).await.is_ok()
-    }
-
     /// Return the manifest identified by the given digest.
     async fn read_manifest(&self, digest: encoding::Digest) -> Result<graph::Manifest> {
         use graph::Object;

@@ -65,6 +65,10 @@ impl PayloadFallback {
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for PayloadFallback {
+    async fn has_object(&self, digest: encoding::Digest) -> bool {
+        self.primary.has_object(digest).await
+    }
+
     async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
         self.primary.read_object(digest).await
     }
@@ -111,6 +115,18 @@ impl graph::Database for PayloadFallback {
 
 #[async_trait::async_trait]
 impl PayloadStorage for PayloadFallback {
+    async fn has_payload(&self, digest: encoding::Digest) -> bool {
+        if self.primary.has_payload(digest).await {
+            return true;
+        }
+        for secondary in self.secondary.iter() {
+            if secondary.has_payload(digest).await {
+                return true;
+            }
+        }
+        false
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.primary.iter_payload_digests()
     }

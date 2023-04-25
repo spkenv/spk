@@ -20,9 +20,7 @@ pub trait PayloadStorage: Sync + Send {
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
 
     /// Return true if the identified payload exists.
-    async fn has_payload(&self, digest: encoding::Digest) -> bool {
-        self.open_payload(digest).await.is_ok()
-    }
+    async fn has_payload(&self, digest: encoding::Digest) -> bool;
 
     /// Store the contents of the given stream, returning its digest and size
     ///
@@ -54,6 +52,10 @@ pub trait PayloadStorage: Sync + Send {
 
 #[async_trait::async_trait]
 impl<T: PayloadStorage> PayloadStorage for &T {
+    async fn has_payload(&self, digest: encoding::Digest) -> bool {
+        PayloadStorage::has_payload(&**self, digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         PayloadStorage::iter_payload_digests(&**self)
     }

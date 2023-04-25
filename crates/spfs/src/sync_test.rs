@@ -67,7 +67,7 @@ async fn test_push_ref(#[future] config: (tempfile::TempDir, Config)) {
     syncer.sync_ref(tag.to_string()).await.unwrap();
 
     assert!(remote.read_ref("testing").await.is_ok());
-    assert!(remote.has_layer(layer.digest().unwrap()).await);
+    assert!(remote.has_object(layer.digest().unwrap()).await);
 
     assert!(syncer.sync_ref(tag.to_string()).await.is_ok());
 }
@@ -119,8 +119,8 @@ async fn test_sync_ref(
         .expect("failed to sync ref");
 
     assert!(repo_b.read_ref("testing").await.is_ok());
-    assert!(repo_b.has_platform(platform.digest().unwrap()).await);
-    assert!(repo_b.has_layer(layer.digest().unwrap()).await);
+    assert!(repo_b.has_object(platform.digest().unwrap()).await);
+    assert!(repo_b.has_object(layer.digest().unwrap()).await);
 
     Syncer::new(&repo_b, &repo_a)
         .sync_ref("testing")
@@ -128,7 +128,7 @@ async fn test_sync_ref(
         .expect("failed to sync back");
 
     assert!(repo_a.read_ref("testing").await.is_ok());
-    assert!(repo_a.has_layer(layer.digest().unwrap()).await);
+    assert!(repo_a.has_object(layer.digest().unwrap()).await);
 }
 
 #[rstest]
@@ -264,7 +264,7 @@ async fn test_sync_through_tar(
         .unwrap();
 
     assert!(repo_b.read_ref("testing").await.is_ok());
-    assert!(repo_b.has_layer(layer.digest().unwrap()).await);
+    assert!(repo_b.has_object(layer.digest().unwrap()).await);
 }
 
 #[fixture]

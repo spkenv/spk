@@ -26,11 +26,6 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
         Box::pin(stream)
     }
 
-    /// Return true if the identified platform exists in this storage.
-    async fn has_platform(&self, digest: encoding::Digest) -> bool {
-        self.read_platform(digest).await.is_ok()
-    }
-
     /// Return the platform identified by the given digest.
     async fn read_platform(&self, digest: encoding::Digest) -> Result<graph::Platform> {
         use graph::Object;

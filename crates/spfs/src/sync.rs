@@ -282,7 +282,7 @@ where
         if !self.processed_digests.insert(digest) {
             return Ok(SyncPlatformResult::Duplicate);
         }
-        if self.policy.check_existing_objects() && self.dest.has_platform(digest).await {
+        if self.policy.check_existing_objects() && self.dest.has_object(digest).await {
             return Ok(SyncPlatformResult::Skipped);
         }
         self.reporter.visit_platform(&platform);
@@ -308,7 +308,7 @@ where
         if !self.processed_digests.insert(layer_digest) {
             return Ok(SyncLayerResult::Duplicate);
         }
-        if self.policy.check_existing_objects() && self.dest.has_layer(layer_digest).await {
+        if self.policy.check_existing_objects() && self.dest.has_object(layer_digest).await {
             return Ok(SyncLayerResult::Skipped);
         }
 
@@ -328,7 +328,7 @@ where
         if !self.processed_digests.insert(manifest_digest) {
             return Ok(SyncManifestResult::Duplicate);
         }
-        if self.policy.check_existing_objects() && self.dest.has_manifest(manifest_digest).await {
+        if self.policy.check_existing_objects() && self.dest.has_object(manifest_digest).await {
             return Ok(SyncManifestResult::Skipped);
         }
         self.reporter.visit_manifest(&manifest);
@@ -396,7 +396,7 @@ where
         }
 
         if self.policy.check_existing_objects()
-            && self.dest.has_blob(digest).await
+            && self.dest.has_object(digest).await
             && self.dest.has_payload(blob.payload).await
         {
             self.processed_digests.insert(digest);

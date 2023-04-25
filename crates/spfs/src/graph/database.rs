@@ -153,9 +153,7 @@ pub trait DatabaseView: Sync + Send {
     ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
 
     /// Return true if this database contains the identified object
-    async fn has_object(&self, digest: encoding::Digest) -> bool {
-        self.read_object(digest).await.is_ok()
-    }
+    async fn has_object(&self, digest: encoding::Digest) -> bool;
 
     /// Iterate all the object in this database.
     fn iter_objects(&self) -> DatabaseIterator<'_>;
@@ -226,6 +224,10 @@ pub trait DatabaseView: Sync + Send {
 
 #[async_trait::async_trait]
 impl<T: DatabaseView> DatabaseView for &T {
+    async fn has_object(&self, digest: encoding::Digest) -> bool {
+        DatabaseView::has_object(&**self, digest).await
+    }
+
     async fn read_object(&self, digest: encoding::Digest) -> Result<Object> {
         DatabaseView::read_object(&**self, digest).await
     }
