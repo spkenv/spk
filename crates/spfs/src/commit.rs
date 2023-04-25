@@ -237,7 +237,7 @@ where
                 let node = node.into_owned();
                 let fut = async move {
                     let entry = &node.entry;
-                    if self.repo.has_blob(entry.object).await {
+                    if self.repo.has_object(entry.object).await {
                         return Ok(CommitBlobResult::AlreadyExists(node));
                     }
                     let created = if entry.is_symlink() {
