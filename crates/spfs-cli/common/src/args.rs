@@ -245,7 +245,7 @@ pub fn configure_sentry(command: String) -> Option<sentry::ClientInitGuard> {
     guard
 }
 
-pub fn configure_logging(verbosity: usize) {
+pub fn configure_logging(verbosity: usize, syslog: bool) {
     let mut config = match verbosity {
         0 => {
             if let Ok(existing) = std::env::var(SPFS_LOG) {
@@ -265,19 +265,89 @@ pub fn configure_logging(verbosity: usize) {
         config.push_str(&overrides);
     }
     let env_filter = tracing_subscriber::filter::EnvFilter::from(config);
-    let registry = tracing_subscriber::Registry::default().with(env_filter);
     let fmt_layer = tracing_subscriber::fmt::layer()
-        .with_writer(std::io::stderr)
         .without_time()
         .with_target(verbosity > 2);
 
-    #[cfg(not(feature = "sentry"))]
-    let sub = registry.with(fmt_layer);
+    // TODO: Macro to DRY here?
 
-    #[cfg(feature = "sentry")]
-    let sub = registry.with(fmt_layer).with(sentry_tracing::layer());
+    if syslog {
+        let identity =
+            std::ffi::CStr::from_bytes_with_nul(b"spfs\0").expect("identity value is valid CStr");
+        let (options, facility) = Default::default();
+        let syslog_log = fmt_layer.with_writer(
+            syslog_tracing::Syslog::new(identity, options, facility).expect("initialize Syslog"),
+        );
 
-    tracing::subscriber::set_global_default(sub).unwrap();
+        #[cfg(not(feature = "sentry"))]
+        let sub =
+            tracing_subscriber::registry().with(syslog_log.with_filter(env_filter).with_filter(
+                tracing_subscriber::filter::filter_fn(|metadata| {
+                    // Don't log breadcrumbs to console, etc.
+                    !metadata.target().starts_with("sentry")
+                }),
+            ));
+
+        #[cfg(feature = "sentry")]
+        let sub = {
+            let sentry_layer =
+                sentry_tracing::layer().with_filter(tracing_subscriber::filter::LevelFilter::INFO);
+
+            tracing_subscriber::registry()
+                .with(
+                    syslog_log
+                        .and_then(sentry_tracing::layer())
+                        .with_filter(env_filter)
+                        .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                            // Don't log breadcrumbs to console, etc.
+                            !metadata.target().starts_with("sentry")
+                        })),
+                )
+                .with(
+                    sentry_layer.with_filter(tracing_subscriber::filter::filter_fn(
+                        // Only log breadcrumbs here.
+                        |metadata| metadata.target().starts_with("sentry"),
+                    )),
+                )
+        };
+
+        tracing::subscriber::set_global_default(sub).unwrap();
+    } else {
+        let stderr_log = fmt_layer.with_writer(std::io::stderr);
+
+        #[cfg(not(feature = "sentry"))]
+        let sub = tracing_subscriber::registry().with(stderr_log.with_filter(
+            tracing_subscriber::filter::filter_fn(|metadata| {
+                // Don't log breadcrumbs to console, etc.
+                !metadata.target().starts_with("sentry")
+            }),
+        ));
+
+        #[cfg(feature = "sentry")]
+        let sub = {
+            let sentry_layer =
+                sentry_tracing::layer().with_filter(tracing_subscriber::filter::LevelFilter::INFO);
+
+            tracing_subscriber::registry()
+                .with(
+                    stderr_log
+                        .and_then(sentry_tracing::layer())
+                        .with_filter(env_filter)
+                        .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                            // Don't log breadcrumbs to console, etc.
+                            !metadata.target().starts_with("sentry")
+                        })),
+                )
+                .with(
+                    sentry_layer.with_filter(tracing_subscriber::filter::filter_fn(
+                        // Only log breadcrumbs here.
+                        |metadata| metadata.target().starts_with("sentry"),
+                    )),
+                )
+        };
+
+        tracing::subscriber::set_global_default(sub).unwrap();
+    };
 }
 
 /// Trait all spfs cli command parsers must implement to provide the
@@ -290,9 +360,15 @@ pub trait CommandName {
 #[macro_export]
 macro_rules! main {
     ($cmd:ident) => {
-        $crate::main!($cmd, sentry = true, sync = false);
+        $crate::main!($cmd, sentry = true, sync = false, syslog = false);
+    };
+    ($cmd:ident, syslog = $syslog:literal) => {
+        $crate::main!($cmd, sentry = true, sync = false, syslog = $syslog);
     };
     ($cmd:ident, sentry = $sentry:literal, sync = true) => {
+        $crate::main!($cmd, sentry = $sentry, sync = true, syslog = false);
+    };
+    ($cmd:ident, sentry = $sentry:literal, sync = true, syslog = $syslog:literal) => {
         fn main() {
             // because this function exits right away it does not
             // properly handle destruction of data, so we put the actual
@@ -301,14 +377,14 @@ macro_rules! main {
         }
         fn main2() -> i32 {
             let mut opt = $cmd::parse();
-            let (config, sentry_guard) = $crate::configure!(opt, $sentry);
+            let (config, sentry_guard) = $crate::configure!(opt, $sentry, $syslog);
 
             let result = opt.run(&config);
 
             $crate::handle_result!(result)
         }
     };
-    ($cmd:ident, sentry = $sentry:literal, sync = false) => {
+    ($cmd:ident, sentry = $sentry:literal, sync = false, syslog = $syslog:literal) => {
         fn main() {
             // because this function exits right away it does not
             // properly handle destruction of data, so we put the actual
@@ -317,7 +393,7 @@ macro_rules! main {
         }
         fn main2() -> i32 {
             let mut opt = $cmd::parse();
-            let (config, sentry_guard) = $crate::configure!(opt, $sentry);
+            let (config, sentry_guard) = $crate::configure!(opt, $sentry, $syslog);
 
             let rt = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -344,7 +420,7 @@ macro_rules! main {
 
 #[macro_export(local_inner_macros)]
 macro_rules! configure {
-    ($opt:ident, $sentry:literal) => {{
+    ($opt:ident, $sentry:literal, $syslog:literal) => {{
         // sentry makes this process multithreaded, and must be disabled
         // for commands that use system calls which are bothered by this
         #[cfg(feature = "sentry")]
@@ -352,7 +428,7 @@ macro_rules! configure {
         let sentry_guard = if $sentry { $crate::configure_sentry(String::from($opt.command_name())) } else { None };
         #[cfg(not(feature = "sentry"))]
         let sentry_guard = 0;
-        $crate::configure_logging($opt.verbose);
+        $crate::configure_logging($opt.verbose, $syslog);
 
         match spfs::get_config() {
             Err(err) => {
