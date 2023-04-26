@@ -342,12 +342,13 @@ pub fn configure_logging(verbosity: usize, syslog: bool) {
         let stderr_log = fmt_layer.with_writer(std::io::stderr);
 
         #[cfg(not(feature = "sentry"))]
-        let sub = tracing_subscriber::registry().with(stderr_log.with_filter(
-            tracing_subscriber::filter::filter_fn(|metadata| {
-                // Don't log breadcrumbs to console, etc.
-                !metadata.target().starts_with("sentry")
-            }),
-        ));
+        let sub =
+            tracing_subscriber::registry().with(stderr_log.with_filter(env_filter).with_filter(
+                tracing_subscriber::filter::filter_fn(|metadata| {
+                    // Don't log breadcrumbs to console, etc.
+                    !metadata.target().starts_with("sentry")
+                }),
+            ));
 
         #[cfg(feature = "sentry")]
         let sub = {
