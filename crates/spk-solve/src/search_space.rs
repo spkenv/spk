@@ -94,10 +94,7 @@ async fn get_package_version_build_states(
                         Err(InvalidPackageSpec(ident, message)) => {
                             // Ignore invalid package spec errors for
                             // the purposes of getting all the valid
-                            // package version builds. These are
-                            // likely to be older packages with
-                            // references to Uppercase package names
-                            // in their dependencies.
+                            // package version builds.
                             tracing::warn!("{}", InvalidPackageSpec(ident, message).to_string());
                             continue;
                         }
