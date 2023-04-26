@@ -48,8 +48,7 @@ impl CmdInfo {
                         .await?;
                 } else {
                     let item = repo.read_ref(reference.as_str()).await?;
-                    self.pretty_print_ref(item, &repo, verbosity, number_refs)
-                        .await?;
+                    self.pretty_print_ref(item, &repo, verbosity).await?;
                 }
                 if index + 1 < number_refs {
                     println!();
@@ -83,21 +82,16 @@ impl CmdInfo {
         obj: spfs::graph::Object,
         repo: &spfs::storage::RepositoryHandle,
         verbosity: usize,
-        number_refs: usize,
     ) -> Result<()> {
         // The header lines only include the digests when more than
         // one ref was given on the command line.
         match obj {
             Object::Platform(obj) => {
-                if number_refs > 1 {
-                    println!(
-                        "{}:\n{}",
-                        self.format_digest(obj.digest()?, repo).await?,
-                        "platform:".green()
-                    );
-                } else {
-                    println!("{}", "platform:".green());
-                }
+                println!(
+                    "{}:\n{}",
+                    self.format_digest(obj.digest()?, repo).await?,
+                    "platform:".green()
+                );
                 println!(
                     " {} {}",
                     "refs:".bright_blue(),
@@ -110,15 +104,11 @@ impl CmdInfo {
             }
 
             Object::Layer(obj) => {
-                if number_refs > 1 {
-                    println!(
-                        "{}:\n{}",
-                        self.format_digest(obj.digest()?, repo).await?,
-                        "layer:".green()
-                    );
-                } else {
-                    println!("{}", "layer:".green());
-                }
+                println!(
+                    "{}:\n{}",
+                    self.format_digest(obj.digest()?, repo).await?,
+                    "layer:".green()
+                );
                 println!(
                     " {} {}",
                     "refs:".bright_blue(),
@@ -132,15 +122,11 @@ impl CmdInfo {
             }
 
             Object::Manifest(obj) => {
-                if number_refs > 1 {
-                    println!(
-                        "{}:\n{}",
-                        self.format_digest(obj.digest()?, repo).await?,
-                        "manifest:".green()
-                    );
-                } else {
-                    println!("{}", "manifest:".green());
-                }
+                println!(
+                    "{}:\n{}",
+                    self.format_digest(obj.digest()?, repo).await?,
+                    "manifest:".green()
+                );
                 let max_entries = match verbosity {
                     0 => 10,
                     1 => 50,
@@ -164,15 +150,11 @@ impl CmdInfo {
             }
 
             Object::Blob(obj) => {
-                if number_refs > 1 {
-                    println!(
-                        "{}:\n {}:",
-                        self.format_digest(obj.payload, repo).await?,
-                        "blob".green()
-                    );
-                } else {
-                    println!("{}", "blob:".green());
-                }
+                println!(
+                    "{}:\n {}:",
+                    self.format_digest(obj.payload, repo).await?,
+                    "blob".green()
+                );
                 println!(
                     " {} {}",
                     "digest:".bright_blue(),
