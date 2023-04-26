@@ -427,7 +427,7 @@ impl Recipe for Spec<VersionIdent> {
 impl Satisfy<PkgRequest> for Spec<BuildIdent> {
     fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
         if pkg_request.pkg.name != *self.pkg.name() {
-            return Compatibility::Incompatible(format!(
+            return Compatibility::incompatible(format!(
                 "different package name: {} != {}",
                 pkg_request.pkg.name,
                 self.pkg.name()
@@ -438,7 +438,7 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
             // deprecated builds are only okay if their build
             // was specifically requested
             if pkg_request.pkg.build.as_ref() != Some(self.pkg.build()) {
-                return Compatibility::Incompatible(
+                return Compatibility::incompatible(
                     "Build is deprecated and was not specifically requested".to_string(),
                 );
             }
@@ -447,7 +447,7 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
         if pkg_request.prerelease_policy == PreReleasePolicy::ExcludeAll
             && !self.version().pre.is_empty()
         {
-            return Compatibility::Incompatible("prereleases not allowed".to_string());
+            return Compatibility::incompatible("prereleases not allowed".to_string());
         }
 
         let source_package_requested = pkg_request.pkg.build == Some(Build::Source);
@@ -467,7 +467,7 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
                 .sorted()
                 .collect_vec();
             if !missing_components.is_empty() {
-                return Compatibility::Incompatible(format!(
+                return Compatibility::incompatible(format!(
                     "does not define requested components: [{}], found [{}]",
                     missing_components
                         .into_iter()
@@ -496,7 +496,7 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
             return Compatibility::Compatible;
         }
 
-        Compatibility::Incompatible(format!(
+        Compatibility::incompatible(format!(
             "Package and request differ in builds: requested {:?}, got {:?}",
             pkg_request.pkg.build,
             self.pkg.build()
@@ -526,7 +526,7 @@ where
         match opt {
             None => {
                 if opt_required {
-                    return Compatibility::Incompatible(format!(
+                    return Compatibility::incompatible(format!(
                         "Package does not define requested option: {}",
                         var_request.var
                     ));
@@ -537,7 +537,7 @@ where
             Some(Opt::Var(opt)) => {
                 let exact = opt.get_value(Some(&var_request.value));
                 if exact.as_deref() != Some(&var_request.value) {
-                    Compatibility::Incompatible(format!(
+                    Compatibility::incompatible(format!(
                         "Incompatible build option '{}': '{}' != '{}'",
                         var_request.var,
                         exact.unwrap_or_else(|| "None".to_string()),

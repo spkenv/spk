@@ -410,14 +410,14 @@ impl VarOpt {
                 if value == assigned {
                     Compatibility::Compatible
                 } else {
-                    Compatibility::Incompatible(format!(
+                    Compatibility::incompatible(format!(
                         "incompatible option, wanted '{assigned}', got '{value}'"
                     ))
                 }
             }
             (Some(value), _) => {
                 if !self.choices.is_empty() && !self.choices.contains(value) {
-                    Compatibility::Incompatible(format!(
+                    Compatibility::incompatible(format!(
                         "invalid value '{}', must be one of {:?}",
                         value, self.choices
                     ))
@@ -537,7 +537,7 @@ impl PkgOpt {
         };
         let base_range = match VersionRange::from_str(base) {
             Err(err) => {
-                return Compatibility::Incompatible(format!(
+                return Compatibility::incompatible(format!(
                     "Invalid value '{}' for option '{}', not a valid package request: {}",
                     base, self.pkg, err
                 ))
@@ -545,7 +545,7 @@ impl PkgOpt {
             Ok(r) => r,
         };
         match VersionRange::from_str(value) {
-            Err(err) => Compatibility::Incompatible(format!(
+            Err(err) => Compatibility::incompatible(format!(
                 "Invalid value '{}' for option '{}', not a valid package request: {}",
                 value, self.pkg, err
             )),

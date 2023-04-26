@@ -321,7 +321,7 @@ impl ImpossibleRequestsChecker {
                         // not cached for next time.
                         self.num_impossible_requests_found
                             .fetch_add(1, Ordering::Relaxed);
-                        return Ok(Compatibility::Incompatible(format!(
+                        return Ok(Compatibility::incompatible(format!(
                             "depends on {} which generates an impossible request {},{unresolved_request} - {err}",
                             request.pkg,request.pkg,
                         )));
@@ -359,7 +359,7 @@ impl ImpossibleRequestsChecker {
                     combined_request.pkg
                 );
                 self.cache_and_count_impossible_request(combined_request.pkg.clone());
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "depends on {} which generates an impossible request {}",
                     request.pkg, combined_request.pkg
                 )));
@@ -401,7 +401,7 @@ impl ImpossibleRequestsChecker {
                     combined_request.pkg
                 );
                 self.cache_and_count_impossible_request(combined_request.pkg.clone());
-                return Ok(Compatibility::Incompatible(format!(
+                return Ok(Compatibility::incompatible(format!(
                     "depends on {} which generates an impossible request {}",
                     request.pkg, combined_request.pkg
                 )));
@@ -775,7 +775,7 @@ async fn any_valid_build_in_version(
     }
 
     // This is only reached if none of the builds were compatible
-    let nothing_valid = Compatibility::Incompatible(format!(
+    let nothing_valid = Compatibility::incompatible(format!(
         "None of {pkg_version}'s builds were compatible with {request}"
     ));
     send_version_task_done_message(

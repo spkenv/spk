@@ -10,6 +10,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::{Error, Result, Version, VERSION_SEP};
+use crate::name::PkgNameBuf;
 use crate::version;
 
 #[cfg(test)]
@@ -87,16 +88,38 @@ impl Ord for CompatRule {
 
 /// Denotes whether or not something is compatible.
 #[derive(Clone, Debug)]
+pub enum IncompatibleReason {
+    ConflictingEmbeddedPackage(PkgNameBuf),
+    Other(String),
+}
+
+impl std::fmt::Display for IncompatibleReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            IncompatibleReason::ConflictingEmbeddedPackage(pkg) => {
+                write!(
+                    f,
+                    "embedded package conflicts with existing package in solve: {pkg}"
+                )
+            }
+            IncompatibleReason::Other(msg) => f.write_str(msg),
+        }
+    }
+}
+
+/// Denotes whether or not something is compatible.
+#[must_use = "this `Compatibility` may be an `Incompatible` variant, which should be handled"]
+#[derive(Clone, Debug)]
 pub enum Compatibility {
     Compatible,
-    Incompatible(String),
+    Incompatible(IncompatibleReason),
 }
 
 impl std::fmt::Display for Compatibility {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Compatibility::Compatible => f.write_str(""),
-            Compatibility::Incompatible(msg) => f.write_str(msg),
+            Compatibility::Incompatible(reason) => reason.fmt(f),
         }
     }
 }
@@ -113,15 +136,18 @@ impl std::ops::Not for &'_ Compatibility {
 }
 
 impl Compatibility {
-    pub fn is_ok(&self) -> bool {
-        matches!(self, &Compatibility::Compatible)
+    pub fn embedded_conflict(conflicting_package_name: PkgNameBuf) -> Self {
+        Compatibility::Incompatible(IncompatibleReason::ConflictingEmbeddedPackage(
+            conflicting_package_name,
+        ))
     }
 
-    pub fn message(&self) -> &str {
-        match self {
-            Compatibility::Compatible => "",
-            Compatibility::Incompatible(msg) => msg.as_ref(),
-        }
+    pub fn incompatible(message: impl ToString) -> Self {
+        Compatibility::Incompatible(IncompatibleReason::Other(message.to_string()))
+    }
+
+    pub fn is_ok(&self) -> bool {
+        matches!(self, &Compatibility::Compatible)
     }
 }
 
@@ -346,7 +372,7 @@ impl Compat {
 
                 if let Some(ruleset) = optruleset {
                     if ruleset.0.contains(&CompatRule::None) {
-                        return Compatibility::Incompatible(format!(
+                        return Compatibility::incompatible(format!(
                             "Not compatible with {base} [{self} at {desc}: has {}, requires {}]",
                             b.to_string(),
                             a.to_string()
@@ -354,7 +380,7 @@ impl Compat {
                     }
 
                     if !ruleset.0.contains(&required) {
-                        return Compatibility::Incompatible(format!(
+                        return Compatibility::incompatible(format!(
                             "Not {:?} compatible with {base} [{self} at {desc}: has {}, requires {}]",
                             required,
                             b.to_string(),
@@ -374,7 +400,7 @@ impl Compat {
             if rule.0.contains(&CompatRule::None) {
                 match (a, b) {
                     (Some(a), Some(b)) if a != b => {
-                        return Compatibility::Incompatible(format!(
+                        return Compatibility::incompatible(format!(
                             "Not compatible with {base} [{self} at pos {} ({}): has {b}, requires {a}]",
                             i + 1,
                             version::get_version_position_label(i),
@@ -390,7 +416,7 @@ impl Compat {
                         continue;
                     }
                     (Some(a), Some(b)) => {
-                        return Compatibility::Incompatible(format!(
+                        return Compatibility::incompatible(format!(
                             "Not {:?} compatible with {base} [{self} at pos {} ({}): has {b}, requires {a}]",
                             required,
                             i + 1,
@@ -403,7 +429,7 @@ impl Compat {
 
             match (a, b) {
                 (Some(a), Some(b)) if b < a => {
-                    return Compatibility::Incompatible(format!(
+                    return Compatibility::incompatible(format!(
                         "Not {:?} compatible with {base} [{self} at pos {} ({}): (version) {b} < {a} (compat)]",
                         required,
                         i + 1,
@@ -416,7 +442,7 @@ impl Compat {
             }
         }
 
-        Compatibility::Incompatible(format!(
+        Compatibility::incompatible(format!(
             "Not compatible: {base} ({self}) [{required:?} compatibility not specified]",
         ))
     }
