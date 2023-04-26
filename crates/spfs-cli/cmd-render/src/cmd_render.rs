@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::Parser;
 use spfs::prelude::*;
 use spfs::storage::payload_fallback::PayloadFallback;
-use spfs::Error;
+use spfs::{Error, RenderResult};
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
 use strum::VariantNames;
@@ -67,17 +67,16 @@ impl CmdRender {
         let payload_fallback = PayloadFallback::new(repo, remotes);
 
         let rendered = match &self.target {
-            Some(target) => vec![
+            Some(target) => {
                 self.render_to_dir(payload_fallback, synced.env, target)
-                    .await?,
-            ],
+                    .await?
+            }
             None => self.render_to_repo(payload_fallback, synced.env).await?,
         };
 
         tracing::debug!("render(s) completed successfully");
-        for path in rendered {
-            println!("{}", path.display());
-        }
+        println!("{}", serde_json::json!(rendered));
+
         Ok(0)
     }
 
@@ -86,7 +85,7 @@ impl CmdRender {
         repo: PayloadFallback,
         env_spec: spfs::tracking::EnvSpec,
         target: &std::path::Path,
-    ) -> Result<std::path::PathBuf> {
+    ) -> Result<RenderResult> {
         tokio::fs::create_dir_all(&target)
             .await
             .map_err(|err| Error::RuntimeWriteError(target.to_owned(), err))?;
@@ -105,7 +104,17 @@ impl CmdRender {
             anyhow::bail!("Directory is not empty {}", target_dir.display());
         }
         tracing::info!("rendering into {}", target_dir.display());
-        let renderer = self.render.get_renderer(&repo);
+
+        let console_render_reporter = spfs::storage::fs::ConsoleRenderReporter::default();
+        let render_summary_reporter = spfs::storage::fs::RenderSummaryReporter::default();
+
+        let renderer = self.render.get_renderer(
+            &repo,
+            spfs::storage::fs::MultiReporter::new([
+                &console_render_reporter as &dyn spfs::storage::fs::RenderReporter,
+                &render_summary_reporter as &dyn spfs::storage::fs::RenderReporter,
+            ]),
+        );
         renderer
             .render_into_directory(
                 env_spec,
@@ -113,14 +122,17 @@ impl CmdRender {
                 self.strategy.unwrap_or(spfs::storage::fs::RenderType::Copy),
             )
             .await?;
-        Ok(target_dir)
+        Ok(RenderResult {
+            paths_rendered: vec![target_dir],
+            render_summary: render_summary_reporter.into_summary(),
+        })
     }
 
     async fn render_to_repo(
         &self,
         repo: PayloadFallback,
         env_spec: spfs::tracking::EnvSpec,
-    ) -> spfs::Result<Vec<std::path::PathBuf>> {
+    ) -> spfs::Result<RenderResult> {
         let mut digests = Vec::with_capacity(env_spec.len());
         for env_item in env_spec.iter() {
             let env_item = env_item.to_string();
@@ -129,9 +141,23 @@ impl CmdRender {
         }
 
         let layers = spfs::resolve_stack_to_layers_with_repo(digests.iter(), &repo).await?;
-        let renderer = self.render.get_renderer(&repo);
+
+        let console_render_reporter = spfs::storage::fs::ConsoleRenderReporter::default();
+        let render_summary_reporter = spfs::storage::fs::RenderSummaryReporter::default();
+
+        let renderer = self.render.get_renderer(
+            &repo,
+            spfs::storage::fs::MultiReporter::new([
+                &console_render_reporter as &dyn spfs::storage::fs::RenderReporter,
+                &render_summary_reporter as &dyn spfs::storage::fs::RenderReporter,
+            ]),
+        );
         renderer
             .render(layers.into_iter().map(|l| l.manifest), self.strategy)
             .await
+            .map(|paths_rendered| RenderResult {
+                paths_rendered,
+                render_summary: render_summary_reporter.into_summary(),
+            })
     }
 }

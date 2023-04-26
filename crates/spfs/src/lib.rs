@@ -55,6 +55,7 @@ pub use resolve::{
     resolve_stack_to_layers_with_repo,
     which,
     which_spfs,
+    RenderResult,
 };
 pub use spfs_encoding as encoding;
 pub use status::{

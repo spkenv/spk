@@ -15,7 +15,7 @@ colored = { workspace = true }
 futures = "0.3.9"
 itertools = "0.10"
 serde = { workspace = true, features = ["derive"] }
-serde_json = "1.0.57"
+serde_json = { workspace = true }
 serde_yaml = "0.8.17"
 spfs = { version = '0.34.6', path = "../../spfs" }
 spk-cli-common = { path = '../common' }

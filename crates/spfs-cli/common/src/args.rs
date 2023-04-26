@@ -4,8 +4,12 @@
 
 #[cfg(feature = "sentry")]
 use std::panic::catch_unwind;
+#[cfg(feature = "sentry")]
+use std::sync::Mutex;
 
 use anyhow::Error;
+#[cfg(feature = "sentry")]
+use once_cell::sync::OnceCell;
 use spfs::storage::LocalRepository;
 use tracing_subscriber::prelude::*;
 
@@ -91,17 +95,19 @@ pub struct Render {
 impl Render {
     /// Construct a new renderer instance configured based on these flags
     #[allow(dead_code)] // not all commands use this function but some do
-    pub fn get_renderer<'repo, Repo>(
+    pub fn get_renderer<'repo, Repo, Reporter>(
         &self,
         repo: &'repo Repo,
-    ) -> spfs::storage::fs::Renderer<'repo, Repo, spfs::storage::fs::ConsoleRenderReporter>
+        reporter: Reporter,
+    ) -> spfs::storage::fs::Renderer<'repo, Repo, Reporter>
     where
         Repo: spfs::storage::Repository + LocalRepository,
+        Reporter: spfs::storage::fs::RenderReporter,
     {
         spfs::storage::fs::Renderer::new(repo)
             .with_max_concurrent_blobs(self.max_concurrent_blobs)
             .with_max_concurrent_branches(self.max_concurrent_branches)
-            .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
+            .with_reporter(reporter)
     }
 }
 
@@ -139,110 +145,130 @@ fn remove_ansi_escapes(message: String) -> String {
     message
 }
 
+// This is wrapped in `Mutex` to be able to explicitly drop the guard before
+// exiting.
 #[cfg(feature = "sentry")]
-pub fn configure_sentry(command: String) -> Option<sentry::ClientInitGuard> {
-    use std::borrow::Cow;
+pub static SENTRY_GUARD: OnceCell<Option<Mutex<Option<sentry::ClientInitGuard>>>> = OnceCell::new();
 
-    use sentry::IntoDsn;
+#[cfg(feature = "sentry")]
+pub fn configure_sentry(
+    command: String,
+) -> &'static Option<Mutex<Option<sentry::ClientInitGuard>>> {
+    SENTRY_GUARD.get_or_init(|| {
+        use std::borrow::Cow;
 
-    // SENTRY_USERNAME_OVERRIDE_VAR should hold the name of another
-    // environment variable that can hold a username. If it does and
-    // the other environment variable exists, its value will be used
-    // to override the username given to sentry events. This for sites
-    // with automated processes triggered by humans, e.g. gitlab CI,
-    // that run as a non-human user and store the original human's
-    // username in an environment variable, e.g. GITLAB_USER_LOGIN.
-    let username_override_var = option_env!("SENTRY_USERNAME_OVERRIDE_VAR");
-    let username = username_override_var
-        .map(std::env::var)
-        .and_then(Result::ok)
-        .unwrap_or_else(|| {
-            // Call this before `sentry::init` to avoid possible data
-            // race, SIGSEGV in `getpwuid_r ()` -> `getenv ()`. CentOS
-            // 7.6.1810.  Thread 2 is always in `SSL_library_init ()` ->
-            // `EVP_rc2_cbc ()`.
-            whoami::username()
-        });
+        use sentry::IntoDsn;
 
-    let guard = match catch_unwind(|| {
-        let mut opts = sentry::ClientOptions {
-            dsn: "http://3dd72e3b4b9a4032947304fabf29966e@sentry.spimageworks.com/4"
-                .into_dsn()
-                .unwrap_or(None),
-            environment: Some(
-                std::env::var("SENTRY_ENVIRONMENT")
-                    .unwrap_or_else(|_| "production".to_string())
-                    .into(),
-            ),
-            // spdev follows sentry recommendation of using the release
-            // tag as the name of the release in sentry
-            release: Some(format!("v{}", spfs::VERSION).into()),
-            before_send: Some(std::sync::Arc::new(|mut event| {
-                // Remove ansi color codes from the event message
-                if let Some(message) = event.message {
-                    event.message = Some(remove_ansi_escapes(message));
+        // SENTRY_USERNAME_OVERRIDE_VAR should hold the name of another
+        // environment variable that can hold a username. If it does and
+        // the other environment variable exists, its value will be used
+        // to override the username given to sentry events. This for sites
+        // with automated processes triggered by humans, e.g. gitlab CI,
+        // that run as a non-human user and store the original human's
+        // username in an environment variable, e.g. GITLAB_USER_LOGIN.
+        let username_override_var = option_env!("SENTRY_USERNAME_OVERRIDE_VAR");
+        let username = username_override_var
+            .map(std::env::var)
+            .and_then(Result::ok)
+            .unwrap_or_else(|| {
+                // Call this before `sentry::init` to avoid possible data
+                // race, SIGSEGV in `getpwuid_r ()` -> `getenv ()`. CentOS
+                // 7.6.1810.  Thread 2 is always in `SSL_library_init ()` ->
+                // `EVP_rc2_cbc ()`.
+                whoami::username()
+            });
+
+        let guard = match catch_unwind(|| {
+            let mut opts = sentry::ClientOptions {
+                dsn: "http://3dd72e3b4b9a4032947304fabf29966e@sentry.spimageworks.com/4"
+                    .into_dsn()
+                    .unwrap_or(None),
+                environment: Some(
+                    std::env::var("SENTRY_ENVIRONMENT")
+                        .unwrap_or_else(|_| "production".to_string())
+                        .into(),
+                ),
+                // spdev follows sentry recommendation of using the release
+                // tag as the name of the release in sentry
+                release: Some(format!("v{}", spfs::VERSION).into()),
+                before_send: Some(std::sync::Arc::new(|mut event| {
+                    // Remove ansi color codes from the event message
+                    if let Some(message) = event.message {
+                        event.message = Some(remove_ansi_escapes(message));
+                    }
+                    Some(event)
+                })),
+                before_breadcrumb: Some(std::sync::Arc::new(|mut breadcrumb| {
+                    // Remove ansi color codes from the breadcrumb message
+                    if let Some(message) = breadcrumb.message {
+                        breadcrumb.message = Some(remove_ansi_escapes(message));
+                    }
+                    Some(breadcrumb)
+                })),
+                ..Default::default()
+            };
+            opts = sentry::apply_defaults(opts);
+
+            // Proxy values may have been read from env.
+            // If they do not contain a scheme prefix, sentry-transport
+            // produces a panic log output
+            if let Some(url) = opts.http_proxy.as_ref().map(ToString::to_string) {
+                if !url.contains("://") {
+                    opts.http_proxy = Some(format!("http://{url}")).map(Cow::Owned);
                 }
-                Some(event)
-            })),
-            before_breadcrumb: Some(std::sync::Arc::new(|mut breadcrumb| {
-                // Remove ansi color codes from the breadcrumb message
-                if let Some(message) = breadcrumb.message {
-                    breadcrumb.message = Some(remove_ansi_escapes(message));
+            }
+            if let Some(url) = opts.https_proxy.as_ref().map(ToString::to_string) {
+                if !url.contains("://") {
+                    opts.https_proxy = Some(format!("https://{url}")).map(Cow::Owned);
                 }
-                Some(breadcrumb)
-            })),
-            ..Default::default()
+            }
+
+            sentry::init(opts)
+        }) {
+            Ok(g) => {
+                let data = get_cli_context(command.clone());
+
+                sentry::configure_scope(|scope| {
+                    scope.set_user(Some(sentry::protocol::User {
+                        // TODO: make this configurable in future
+                        email: Some(format!("{}@imageworks.com", &username)),
+                        username: Some(username),
+                        ..Default::default()
+                    }));
+
+                    // Tags are searchable
+                    scope.set_tag("command", command);
+                    // Contexts are not searchable
+                    scope.set_context("SPFS", sentry::protocol::Context::Other(data));
+                });
+
+                Some(Mutex::new(Some(g)))
+            }
+            Err(cause) => {
+                // Added to try to get more info on this kind of panic:
+                //
+                // thread 'main' panicked at 'called `Result::unwrap()` on
+                // an `Err` value: Os { code: 11, kind: WouldBlock,
+                // message: "Resource temporarily unavailable" }',
+                // /.../sentry-core-0.27.0/src/session.rs:228:14
+                //
+                // See also, maybe?: https://github.com/rust-lang/rust/issues/46345
+                eprintln!("WARNING: configuring Sentry for spfs failed: {:?}", cause);
+                None
+            }
         };
-        opts = sentry::apply_defaults(opts);
 
-        // Proxy values may have been read from env.
-        // If they do not contain a scheme prefix, sentry-transport
-        // produces a panic log output
-        if let Some(url) = opts.http_proxy.as_ref().map(ToString::to_string) {
-            if !url.contains("://") {
-                opts.http_proxy = Some(format!("http://{url}")).map(Cow::Owned);
-            }
-        }
-        if let Some(url) = opts.https_proxy.as_ref().map(ToString::to_string) {
-            if !url.contains("://") {
-                opts.https_proxy = Some(format!("https://{url}")).map(Cow::Owned);
-            }
-        }
+        guard
+    })
+}
 
-        sentry::init(opts)
-    }) {
-        Ok(g) => Some(g),
-        Err(cause) => {
-            // Added to try to get more info on this kind of panic:
-            //
-            // thread 'main' panicked at 'called `Result::unwrap()` on
-            // an `Err` value: Os { code: 11, kind: WouldBlock,
-            // message: "Resource temporarily unavailable" }',
-            // /.../sentry-core-0.27.0/src/session.rs:228:14
-            //
-            // See also, maybe?: https://github.com/rust-lang/rust/issues/46345
-            eprintln!("WARNING: configuring Sentry for spfs failed: {:?}", cause);
-            None
-        }
-    };
-
-    let data = get_cli_context(command.clone());
-
-    sentry::configure_scope(|scope| {
-        scope.set_user(Some(sentry::protocol::User {
-            // TODO: make this configurable in future
-            email: Some(format!("{}@imageworks.com", &username)),
-            username: Some(username),
-            ..Default::default()
-        }));
-
-        // Tags are searchable
-        scope.set_tag("command", command);
-        // Contexts are not searchable
-        scope.set_context("SPFS", sentry::protocol::Context::Other(data));
-    });
-
-    guard
+/// Drop the sentry guard if sentry has been initialized.
+#[cfg(feature = "sentry")]
+pub fn shutdown_sentry() {
+    let Some(Some(mutex)) = SENTRY_GUARD.get() else { return };
+    let Ok(mut opt_guard) = mutex.lock() else { return };
+    // Steal the guard, if there was one, dropping it.
+    opt_guard.take();
 }
 
 pub fn configure_logging(verbosity: usize, syslog: bool) {
@@ -425,7 +451,7 @@ macro_rules! configure {
         // for commands that use system calls which are bothered by this
         #[cfg(feature = "sentry")]
         // TODO: pass $opt into sentry and into the get cli?
-        let sentry_guard = if $sentry { $crate::configure_sentry(String::from($opt.command_name())) } else { None };
+        let sentry_guard = if $sentry { $crate::configure_sentry(String::from($opt.command_name())) } else { &None };
         #[cfg(not(feature = "sentry"))]
         let sentry_guard = 0;
         $crate::configure_logging($opt.verbose, $syslog);
@@ -442,8 +468,8 @@ macro_rules! configure {
 
 #[macro_export(local_inner_macros)]
 macro_rules! handle_result {
-    ($result:ident) => {
-        match $result {
+    ($result:ident) => {{
+        let code = match $result {
             //  Err(err) => match err {
             Err(err) => match err.root_cause().downcast_ref::<spfs::Error>() {
                 Some(spfs::Error::Errno(msg, errno))
@@ -469,8 +495,16 @@ macro_rules! handle_result {
                 }
             },
             Ok(code) => code,
-        }
-    };
+        };
+
+        // Explicitly consume the sentry guard here so it has a chance to
+        // finish sending any pending events. The guard would not otherwise
+        // get this chance because it is stored in a static.
+        #[cfg(feature = "sentry")]
+        $crate::shutdown_sentry();
+
+        code
+    }};
 }
 
 pub fn capture_if_relevant(err: &Error) {

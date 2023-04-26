@@ -7,10 +7,15 @@
 
 use std::ffi::{CString, OsString};
 use std::os::unix::prelude::OsStringExt;
+#[cfg(feature = "sentry")]
+use std::sync::atomic::Ordering;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+#[cfg(feature = "sentry")]
+use cli::configure_sentry;
 use spfs::env::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
+use spfs::storage::fs::RenderSummary;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
 use tokio::io::AsyncWriteExt;
@@ -90,7 +95,8 @@ impl CmdEnter {
     ) -> Result<Option<spfs::runtime::OwnedRuntime>> {
         let mut runtime = self.load_runtime(config).await?;
         if self.remount {
-            spfs::reinitialize_runtime(&mut runtime).await?;
+            let render_summary = spfs::reinitialize_runtime(&mut runtime).await?;
+            self.report_render_summary(render_summary);
             Ok(None)
         } else {
             let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
@@ -116,7 +122,8 @@ impl CmdEnter {
             };
 
             tracing::debug!("initializing runtime");
-            spfs::initialize_runtime(&mut owned).await?;
+            let render_summary = spfs::initialize_runtime(&mut owned).await?;
+            self.report_render_summary(render_summary);
 
             // We promise to not mutate the runtime after this point.
             // spfs-monitor will read and modify it after we tell it to
@@ -197,5 +204,37 @@ impl CmdEnter {
         );
         nix::unistd::execvp(&argv[0], &argv).context("Failed to launch subcommand")?;
         unreachable!("execvp does not return")
+    }
+
+    fn report_render_summary(&self, _render_summary: RenderSummary) {
+        #[cfg(feature = "sentry")]
+        {
+            // Don't log if nothing was rendered.
+            if _render_summary.is_zero() {
+                return;
+            }
+            // This is called after `[re]initialize_runtime` and now it is
+            // "safe" to initialize sentry and send a sentry event.
+            if let Some(_guard) = configure_sentry() {
+                tracing::error!(
+                        target: "sentry",
+                        entry_count = %_render_summary.entry_count.load(Ordering::Relaxed),
+                        already_existed_count = %_render_summary.already_existed_count.load(Ordering::Relaxed),
+                        copy_count = %_render_summary.copy_count.load(Ordering::Relaxed),
+                        copy_link_limit_count = %_render_summary.copy_link_limit_count.load(Ordering::Relaxed),
+                        copy_wrong_mode_count = %_render_summary.copy_wrong_mode_count.load(Ordering::Relaxed),
+                        copy_wrong_owner_count = %_render_summary.copy_wrong_owner_count.load(Ordering::Relaxed),
+                        link_count = %_render_summary.link_count.load(Ordering::Relaxed),
+                        symlink_count = %_render_summary.symlink_count.load(Ordering::Relaxed),
+                        total_bytes_rendered = %_render_summary.total_bytes_rendered.load(Ordering::Relaxed),
+                        total_bytes_already_existed = %_render_summary.total_bytes_already_existed.load(Ordering::Relaxed),
+                        total_bytes_copied = %_render_summary.total_bytes_copied.load(Ordering::Relaxed),
+                        total_bytes_copied_link_limit = %_render_summary.total_bytes_copied_link_limit.load(Ordering::Relaxed),
+                        total_bytes_copied_wrong_mode = %_render_summary.total_bytes_copied_wrong_mode.load(Ordering::Relaxed),
+                        total_bytes_copied_wrong_owner = %_render_summary.total_bytes_copied_wrong_owner.load(Ordering::Relaxed),
+                        total_bytes_linked = %_render_summary.total_bytes_linked.load(Ordering::Relaxed),
+                        "Render summary");
+            }
+        }
     }
 }

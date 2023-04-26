@@ -3,13 +3,15 @@
 // https://github.com/imageworks/spk
 
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use encoding::Encodable;
 use itertools::Itertools;
 use nonempty::NonEmpty;
+use serde::{Deserialize, Serialize};
 
 use super::config::get_config;
+use crate::storage::fs::RenderSummary;
 use crate::storage::prelude::*;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 
@@ -17,12 +19,22 @@ use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 #[path = "./resolve_test.rs"]
 mod resolve_test;
 
+/// Information returned from spfs-render.
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct RenderResult {
+    pub paths_rendered: Vec<PathBuf>,
+    pub render_summary: storage::fs::RenderSummary,
+}
+
 /// Render the given environment in the local repository by
 /// calling the `spfs-render` binary (ensuring the necessary
 /// privileges are available)
-async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<()> {
+///
+/// The return value is defined only if the spfs-render output could be parsed
+/// successfully into a [`RenderResult`].
+async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<Option<RenderResult>> {
     if spec.is_empty() {
-        return Ok(());
+        return Ok(Some(RenderResult::default()));
     }
 
     let render_cmd = match super::which_spfs("render") {
@@ -30,24 +42,34 @@ async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<()> {
         None => return Err(Error::MissingBinary("spfs-render")),
     };
     let mut cmd = tokio::process::Command::new(render_cmd);
-    cmd.stdout(std::process::Stdio::null());
     cmd.arg(spec.to_string());
     tracing::debug!("{:?}", cmd);
-    let status = cmd
-        .status()
+    let output = cmd
+        .output()
         .await
         .map_err(|err| Error::process_spawn_error("spfs-render".to_owned(), err, None))?;
-    if !status.success() {
-        return Err(Error::process_spawn_error(
+    match output.status.code() {
+        Some(0) => {
+            if let Ok(render_result) =
+                serde_json::from_slice::<RenderResult>(output.stdout.as_slice())
+            {
+                Ok(Some(render_result))
+            } else {
+                // Don't hard error if the output of spfs-render can't be
+                // parsed.
+                tracing::warn!("Failed to parse output from spfs-render");
+                Ok(None)
+            }
+        }
+        _ => Err(Error::process_spawn_error(
             "spfs-render".to_owned(),
             std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "process exited with non-zero status",
             ),
             None,
-        ))?;
+        )),
     }
-    Ok(())
 }
 
 /// Compute or load the spfs manifest representation for a saved reference.
@@ -276,18 +298,27 @@ pub(crate) async fn resolve_overlay_dirs(
 pub(crate) async fn resolve_and_render_overlay_dirs(
     runtime: &mut runtime::Runtime,
     skip_runtime_save: bool,
-) -> Result<Vec<std::path::PathBuf>> {
+) -> Result<RenderResult> {
     let config = get_config()?;
     let repo = config.get_local_repository().await?;
 
     let manifests = resolve_overlay_dirs(runtime, &repo, skip_runtime_save).await?;
     let to_render = manifests.iter().map(|m| m.digest()).try_collect()?;
-    render_via_subcommand(to_render).await?;
-    let overlay_dirs = manifests
-        .iter()
-        .map(|m| repo.manifest_render_path(m))
-        .try_collect()?;
-    Ok(overlay_dirs)
+    match render_via_subcommand(to_render).await? {
+        Some(render_result) => Ok(render_result),
+        None => {
+            // If we couldn't parse the value printed by spfs-render, calculate
+            // the paths rendered here.
+            let paths_rendered = manifests
+                .iter()
+                .map(|m| repo.manifest_render_path(m))
+                .try_collect()?;
+            Ok(RenderResult {
+                paths_rendered,
+                render_summary: RenderSummary::default(),
+            })
+        }
+    }
 }
 
 /// Given a sequence of tags and digests, resolve to the set of underlying layers.

@@ -2993,6 +2993,7 @@ dependencies = [
  "anyhow",
  "clap 3.2.23",
  "libc",
+ "once_cell",
  "sentry",
  "sentry-anyhow",
  "sentry-tracing",
@@ -3076,6 +3077,7 @@ version = "0.34.6"
 dependencies = [
  "anyhow",
  "clap 3.2.23",
+ "serde_json",
  "spfs",
  "spfs-cli-common",
  "strum",
