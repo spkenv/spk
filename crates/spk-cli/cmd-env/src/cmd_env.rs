@@ -1,7 +1,6 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::ffi::OsString;
 
 use anyhow::{Context, Result};
 use clap::Args;
@@ -84,31 +83,6 @@ impl Run for Env {
             let args = &self.command[1..];
             spfs::build_shell_initialized_command(&rt, None, cmd, args)?
         };
-        self.run_command(command.executable, command.args)
-    }
-}
-
-impl CommandArgs for Env {
-    fn get_positional_args(&self) -> Vec<String> {
-        self.requested.clone()
-    }
-}
-
-impl Env {
-    #[cfg(target_os = "linux")]
-    pub fn run_command(&self, exe: OsString, args: Vec<OsString>) -> Result<i32> {
-        use std::os::unix::ffi::OsStrExt;
-
-        let exe = std::ffi::CString::new(exe.as_bytes())
-            .context("Provided command was not a valid string")?;
-        let mut args = args
-            .iter()
-            .map(|arg| std::ffi::CString::new(arg.as_bytes()))
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .context("One or more arguments was not a valid c-string")?;
-        args.insert(0, exe.clone());
-
-        tracing::trace!("{:?}", args);
 
         // Record the run duration up to this point because this spk
         // command is about to replace itself with the underlying env
@@ -121,7 +95,15 @@ impl Env {
             statsd_client.record_duration_from_start(&SPK_RUN_TIME_METRIC);
         }
 
-        nix::unistd::execvp(&exe, args.as_slice()).context("Command failed to launch")?;
-        unreachable!()
+        command
+            .exec()
+            .map(|_| 0)
+            .context("Failed to execute runtime command")
+    }
+}
+
+impl CommandArgs for Env {
+    fn get_positional_args(&self) -> Vec<String> {
+        self.requested.clone()
     }
 }

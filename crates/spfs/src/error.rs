@@ -105,6 +105,8 @@ pub enum Error {
     MissingBinary(&'static str),
     #[error("No supported shell found, or no support for current shell")]
     NoSupportedShell,
+    #[error("Command, arguments or environment contained a nul byte, this is not supported")]
+    CommandHasNul(#[source] std::ffi::NulError),
 
     #[error("{}, and {} more errors during clean", errors.get(0).unwrap(), errors.len() - 1)]
     IncompleteClean { errors: Vec<Self> },

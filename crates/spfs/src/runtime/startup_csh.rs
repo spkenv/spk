@@ -22,6 +22,10 @@ setenv TMPDIR "{}"
 
     format!(
         r#"#!/usr/bin/env csh
+if ($?SPFS_ORIGINAL_HOME) then
+    setenv HOME "$SPFS_ORIGINAL_HOME"
+    unsetenv SPFS_ORIGINAL_HOME
+endif
 if ( -f ~/.tcshrc ) then
     source ~/.tcshrc || true
 else if ( -f ~/.cshrc ) then

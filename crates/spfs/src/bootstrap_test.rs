@@ -78,7 +78,7 @@ async fn test_shell_initialization_startup_scripts(
             // find the shell we are trying to test
             return;
         }
-        crate::bootstrap::Shell::Tcsh { .. } if shell == "bash" => {
+        crate::bootstrap::Shell::Tcsh(_) if shell == "bash" => {
             // Test will fail because we weren't able to
             // find the shell we are trying to test
             return;
@@ -161,7 +161,6 @@ async fn test_find_alternate_bash(shell: &str, tmpdir: tempfile::TempDir) {
 
     let tmp_shell = tmpdir.path().join(shell);
     make_exe(&tmp_shell);
-    make_exe(&tmpdir.path().join("expect")); // for tcsh
 
     let found = super::find_best_shell(None).expect("should find a shell");
     let expected = tmp_shell.as_os_str().to_os_string();
