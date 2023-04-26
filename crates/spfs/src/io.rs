@@ -226,3 +226,18 @@ pub async fn pretty_print_filepaths(
     }
     Ok(())
 }
+
+/// Trait for making a string with the appropriate pluralisation based on a count
+pub trait Pluralize {
+    fn pluralize<T: From<u8> + PartialOrd>(&self, count: T) -> String;
+}
+
+impl Pluralize for str {
+    fn pluralize<T: From<u8> + PartialOrd>(&self, count: T) -> String {
+        if count > 1.into() {
+            format!("{self}s")
+        } else {
+            self.to_string()
+        }
+    }
+}

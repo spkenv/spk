@@ -8,7 +8,7 @@ use colored::*;
 use spfs::env::SPFS_DIR;
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::Object;
-use spfs::io::{self, DigestFormat};
+use spfs::io::{self, DigestFormat, Pluralize};
 use spfs::prelude::*;
 use spfs::{self};
 
@@ -249,7 +249,7 @@ impl CmdInfo {
                         query,
                         file_entry.kind.to_string().green(),
                         number,
-                        if number > 1 { "layers" } else { "layer" },
+                        "layer".pluralize(number),
                         if verbosity < 1 && number > 1 {
                             ", topmost 1 shown, use -v to see all"
                         } else {

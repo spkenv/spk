@@ -77,7 +77,7 @@ async fn find_path_in_spfs_item(
     obj: &Object,
     repo: &storage::RepositoryHandle,
 ) -> Result<Vec<Vec<ObjectPathEntry>>> {
-    let mut data: Vec<Vec<ObjectPathEntry>> = Vec::new();
+    let mut paths: Vec<Vec<ObjectPathEntry>> = Vec::new();
 
     match obj {
         Object::Platform(obj) => {
@@ -85,10 +85,10 @@ async fn find_path_in_spfs_item(
                 let item = repo.read_object(*reference).await?;
                 let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
                 for path in paths_to_file {
-                    let mut tempdata: Vec<ObjectPathEntry> = Vec::new();
-                    tempdata.push(ObjectPathEntry::Parent(Object::Platform(obj.clone())));
-                    tempdata.extend(path);
-                    data.push(tempdata);
+                    let mut new_path: Vec<ObjectPathEntry> = Vec::new();
+                    new_path.push(ObjectPathEntry::Parent(Object::Platform(obj.clone())));
+                    new_path.extend(path);
+                    paths.push(new_path);
                 }
             }
         }
@@ -97,10 +97,10 @@ async fn find_path_in_spfs_item(
             let item = repo.read_object(obj.manifest).await?;
             let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
             for path in paths_to_file {
-                let mut tempdata: Vec<ObjectPathEntry> = Vec::new();
-                tempdata.push(ObjectPathEntry::Parent(Object::Layer(obj.clone())));
-                tempdata.extend(path);
-                data.push(tempdata);
+                let mut new_path: Vec<ObjectPathEntry> = Vec::new();
+                new_path.push(ObjectPathEntry::Parent(Object::Layer(obj.clone())));
+                new_path.extend(path);
+                paths.push(new_path);
             }
         }
 
@@ -109,11 +109,11 @@ async fn find_path_in_spfs_item(
 
             for node in obj.to_tracking_manifest().walk_abs(env::SPFS_DIR) {
                 if node.path == path {
-                    let tempdata = vec![
+                    let new_path = vec![
                         ObjectPathEntry::Parent(Object::Manifest(obj.clone())),
                         ObjectPathEntry::FilePath(node.entry.clone()),
                     ];
-                    data.push(tempdata);
+                    paths.push(new_path);
                     break;
                 }
             }
@@ -124,5 +124,5 @@ async fn find_path_in_spfs_item(
         }
     };
 
-    Ok(data)
+    Ok(paths)
 }
