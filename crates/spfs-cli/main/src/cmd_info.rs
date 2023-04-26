@@ -21,7 +21,7 @@ pub struct CmdInfo {
     #[clap(long, short)]
     remote: Option<String>,
 
-    /// Tag or id, or /spfs/file/path to show information about
+    /// Tag, id, or /spfs/file/path to show information about
     #[clap(value_name = "REF")]
     refs: Vec<String>,
 

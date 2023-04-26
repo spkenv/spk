@@ -145,7 +145,6 @@ pub fn format_size(size: u64) -> String {
     format!("{size:3.1} Pi")
 }
 
-// TODO: maybe more this to find_path.rs?
 /// Display a pretty printed and indented list of ObjectPathEntry items
 pub async fn pretty_print_filepath(
     file: &str,
@@ -209,7 +208,6 @@ pub async fn pretty_print_filepath(
     Ok(())
 }
 
-// TODO: maybe move to find_path.rs?
 /// Display all the given lists of ObjectPathEntrys
 pub async fn pretty_print_filepaths(
     file: &str,
@@ -221,7 +219,7 @@ pub async fn pretty_print_filepaths(
         pretty_print_filepath(file, &info_path, digest_format.clone()).await?;
 
         if verbosity < 1 {
-            // Only higher verbosity levels are all the found
+            // Only at higher verbosity levels are all the found
             // locations shown.
             break;
         }

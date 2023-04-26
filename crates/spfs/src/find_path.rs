@@ -109,7 +109,7 @@ async fn find_path_in_spfs_item(
 
             for node in obj.to_tracking_manifest().walk_abs(env::SPFS_DIR) {
                 if node.path == path {
-                    let tempdata: Vec<ObjectPathEntry> = vec![
+                    let tempdata = vec![
                         ObjectPathEntry::Parent(Object::Manifest(obj.clone())),
                         ObjectPathEntry::FilePath(node.entry.clone()),
                     ];
