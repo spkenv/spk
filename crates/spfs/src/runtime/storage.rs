@@ -13,7 +13,7 @@ use futures::{Stream, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 
-use super::{csh_exp, startup_csh, startup_sh};
+use super::{startup_csh, startup_sh};
 use crate::encoding::{self, Encodable};
 use crate::{graph, storage, tracking, Error, Result};
 
@@ -114,8 +114,6 @@ pub struct Config {
     pub sh_startup_file: PathBuf,
     /// The location of the startup script for csh-based shells
     pub csh_startup_file: PathBuf,
-    /// The location of the expect utility script used for csh-based shell environments
-    pub csh_expect_file: PathBuf,
     /// The name of the mount namespace this runtime is using, if known
     pub mount_namespace: Option<PathBuf>,
 }
@@ -132,8 +130,7 @@ impl Config {
     const LOWER_DIR: &'static str = "lower";
     const WORK_DIR: &'static str = "work";
     const SH_STARTUP_FILE: &'static str = "startup.sh";
-    const CSH_STARTUP_FILE: &'static str = "startup.csh";
-    const CSH_EXPECT_FILE: &'static str = "_csh.exp";
+    const CSH_STARTUP_FILE: &'static str = ".cshrc";
 
     fn from_root<P: Into<PathBuf>>(root: P) -> Self {
         let root = root.into();
@@ -146,7 +143,6 @@ impl Config {
             work_dir: root.join(Self::WORK_DIR),
             sh_startup_file: root.join(Self::SH_STARTUP_FILE),
             csh_startup_file: root.join(Self::CSH_STARTUP_FILE),
-            csh_expect_file: root.join(Self::CSH_EXPECT_FILE),
             runtime_dir: Some(root),
             tmpfs_size,
             mount_namespace: None,
@@ -161,7 +157,6 @@ impl Config {
         self.work_dir = root.join(Self::WORK_DIR);
         self.sh_startup_file = root.join(Self::SH_STARTUP_FILE);
         self.csh_startup_file = root.join(Self::CSH_STARTUP_FILE);
-        self.csh_expect_file = root.join(Self::CSH_EXPECT_FILE);
         self.runtime_dir = Some(root);
     }
 }
@@ -411,8 +406,6 @@ impl Runtime {
             startup_csh::source(tmpdir_value_for_child_process),
         )
         .map_err(|err| Error::RuntimeWriteError(self.config.csh_startup_file.clone(), err))?;
-        std::fs::write(&self.config.csh_expect_file, csh_exp::SOURCE)
-            .map_err(|err| Error::RuntimeWriteError(self.config.csh_expect_file.clone(), err))?;
         Ok(())
     }
 

@@ -5,8 +5,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::fn_params_excessive_bools)]
 
-use std::ffi::{CString, OsString};
-use std::os::unix::prelude::OsStringExt;
+use std::ffi::OsString;
 #[cfg(feature = "sentry")]
 use std::sync::atomic::Ordering;
 
@@ -190,20 +189,9 @@ impl CmdEnter {
             }
         };
 
-        tracing::debug!("{cmd:?}");
-        let exe = CString::new(cmd.executable.into_vec())
-            .context("Executable name cannot contain a nul character")?;
-        let mut argv = vec![exe];
-        argv.extend(
-            cmd.args
-                .into_iter()
-                .map(OsStringExt::into_vec)
-                .map(CString::new)
-                .map(|res| res.context("Command arguments cannot contain a nul character"))
-                .collect::<Result<Vec<_>>>()?,
-        );
-        nix::unistd::execvp(&argv[0], &argv).context("Failed to launch subcommand")?;
-        unreachable!("execvp does not return")
+        cmd.exec()
+            .map(|_| 0)
+            .context("Failed to execute runtime command")
     }
 
     fn report_render_summary(&self, _render_summary: RenderSummary) {

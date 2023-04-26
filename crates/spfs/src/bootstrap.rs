@@ -1,7 +1,8 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::ffi::{OsStr, OsString};
+use std::ffi::{CString, OsStr, OsString};
+use std::os::unix::prelude::OsStringExt;
 use std::path::{Path, PathBuf};
 
 use super::resolve::{which, which_spfs};
@@ -11,10 +12,18 @@ use crate::{runtime, Error, Result};
 #[path = "./bootstrap_test.rs"]
 mod bootstrap_test;
 
+/// Environment variable used to store the original value of HOME
+/// when launching through certain shells (tcsh).
+const SPFS_ORIGINAL_HOME: &str = "SPFS_ORIGINAL_HOME";
+
 /// A command to be executed
+#[derive(Debug, Clone)]
 pub struct Command {
     pub executable: OsString,
     pub args: Vec<OsString>,
+    /// A list of NAME=value pairs to set in the
+    /// launched environment
+    pub vars: Vec<(OsString, OsString)>,
 }
 
 impl Command {
@@ -22,6 +31,7 @@ impl Command {
     pub fn into_std(self) -> std::process::Command {
         let mut cmd = std::process::Command::new(self.executable);
         cmd.args(self.args);
+        cmd.envs(self.vars);
         cmd
     }
 
@@ -29,16 +39,35 @@ impl Command {
     pub fn into_tokio(self) -> tokio::process::Command {
         let mut cmd = tokio::process::Command::new(self.executable);
         cmd.args(self.args);
+        cmd.envs(self.vars);
         cmd
     }
-}
 
-impl std::fmt::Debug for Command {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Command")
-            .field(&self.executable)
-            .field(&self.args)
-            .finish()
+    /// Execute this command, replacing the current program.
+    ///
+    /// Upon success, this function will never return. Upon
+    /// error, the current process' environment will have been updated
+    /// to that of this command, and caution should be taken.
+    #[cfg(target_os = "linux")]
+    pub fn exec(self) -> Result<std::convert::Infallible> {
+        tracing::debug!("{self:#?}");
+        // ensure that all components of this command are utilized
+        let Self {
+            executable,
+            args,
+            vars,
+        } = self;
+        let exe = CString::new(executable.into_vec()).map_err(crate::Error::CommandHasNul)?;
+        let mut argv = Vec::with_capacity(args.len() + 1);
+        argv.push(exe);
+        for arg in args.into_iter() {
+            argv.push(CString::new(arg.into_vec()).map_err(crate::Error::CommandHasNul)?);
+        }
+        for (name, value) in vars {
+            // set the environment to be inherited by the new process
+            std::env::set_var(name, value);
+        }
+        nix::unistd::execv(&argv[0], argv.as_slice()).map_err(crate::Error::from)
     }
 }
 
@@ -71,12 +100,23 @@ pub fn build_interactive_shell_command(
 ) -> Result<Command> {
     let shell = find_best_shell(shell)?;
     match shell {
-        Shell::Tcsh { tcsh, expect } => Ok(Command {
-            executable: expect.into(),
-            args: vec![
-                rt.config.csh_expect_file.clone().into(),
-                tcsh.into(),
-                rt.config.csh_startup_file.clone().into(),
+        Shell::Tcsh(tcsh) => Ok(Command {
+            executable: tcsh.into(),
+            args: vec![],
+            vars: vec![
+                (
+                    SPFS_ORIGINAL_HOME.into(),
+                    std::env::var_os("HOME").unwrap_or_default(),
+                ),
+                (
+                    "HOME".into(),
+                    rt.config
+                        .csh_startup_file
+                        .parent()
+                        .unwrap_or_else(|| std::path::Path::new("."))
+                        .as_os_str()
+                        .to_owned(),
+                ),
             ],
         }),
 
@@ -86,6 +126,7 @@ pub fn build_interactive_shell_command(
                 "--init-file".into(),
                 rt.config.sh_startup_file.as_os_str().to_owned(),
             ],
+            vars: vec![],
         }),
     }
 }
@@ -119,6 +160,7 @@ where
     Ok(Command {
         executable: shell.executable().into(),
         args: shell_args,
+        vars: vec![],
     })
 }
 
@@ -139,6 +181,7 @@ pub(crate) fn build_spfs_remount_command(rt: &runtime::Runtime) -> Result<Comman
     Ok(Command {
         executable: exe.into(),
         args,
+        vars: vec![],
     })
 }
 
@@ -178,6 +221,7 @@ where
     Ok(Command {
         executable: exe.into(),
         args: enter_args,
+        vars: vec![],
     })
 }
 
@@ -197,23 +241,24 @@ impl AsRef<str> for ShellKind {
 }
 
 /// A supported shell that exists on this system
+#[derive(Debug)]
 enum Shell {
     Bash(PathBuf),
-    Tcsh { tcsh: PathBuf, expect: PathBuf },
+    Tcsh(PathBuf),
 }
 
 impl Shell {
     fn kind(&self) -> ShellKind {
         match self {
             Self::Bash(_) => ShellKind::Bash,
-            Self::Tcsh { .. } => ShellKind::Tcsh,
+            Self::Tcsh(_) => ShellKind::Tcsh,
         }
     }
 
     fn executable(&self) -> &Path {
         match self {
             Self::Bash(p) => p,
-            Self::Tcsh { tcsh, .. } => tcsh,
+            Self::Tcsh(p) => p,
         }
     }
 
@@ -221,15 +266,7 @@ impl Shell {
         let path = path.as_ref();
         match path.file_name().map(OsStr::to_string_lossy) {
             Some(n) if n == ShellKind::Bash.as_ref() => Ok(Self::Bash(path.to_owned())),
-            Some(n) if n == ShellKind::Tcsh.as_ref() => {
-                let expect = which("expect").ok_or_else(|| {
-                    Error::new("Cannot run tcsh without expect, and 'expect' was not found in PATH")
-                })?;
-                Ok(Self::Tcsh {
-                    tcsh: path.to_owned(),
-                    expect,
-                })
-            }
+            Some(n) if n == ShellKind::Tcsh.as_ref() => Ok(Self::Tcsh(path.to_owned())),
             Some(_) => Err(Error::new(format!("Unsupported shell: {path:?}"))),
             None => Err(Error::new(format!("Invalid shell path: {path:?}"))),
         }

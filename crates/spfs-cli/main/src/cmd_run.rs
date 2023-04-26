@@ -3,9 +3,8 @@
 // https://github.com/imageworks/spk
 
 use std::ffi::OsString;
-use std::os::unix::ffi::OsStrExt;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Args;
 use spfs_cli_common as cli;
 
@@ -79,15 +78,8 @@ impl CmdRun {
 
         tracing::debug!("resolving entry process");
         let cmd = spfs::build_command_for_runtime(&runtime, &self.command, self.args.drain(..))?;
-        tracing::trace!(?cmd);
-        let exe = std::ffi::CString::new(cmd.executable.as_bytes()).unwrap();
-        let mut args: Vec<_> = cmd
-            .args
-            .into_iter()
-            .map(|arg| std::ffi::CString::new(arg.as_bytes()).unwrap())
-            .collect();
-        args.insert(0, exe.clone());
-        nix::unistd::execv(exe.as_ref(), args.as_slice())?;
-        Ok(0)
+        cmd.exec()
+            .map(|_| 0)
+            .context("Failed to execute runtime command")
     }
 }
