@@ -47,13 +47,6 @@ pub struct CmdEnter {
     #[clap(long)]
     tmpdir: Option<String>,
 
-    /// Time it took to sync the layers, objects, etc for the runtime.
-    /// If given, the value is included in the render reports sent to
-    /// sentry. Used by 'spfs run ...' commands that then call
-    /// 'spfs-enter'. Users are not expected to fill this in themselves.
-    #[clap(long)]
-    sync_time_seconds: Option<f64>,
-
     /// Put the rendering and syncing times into environment variables
     #[clap(long)]
     metrics_in_env: bool,
@@ -107,16 +100,10 @@ impl CmdEnter {
     ) -> Result<Option<spfs::runtime::OwnedRuntime>> {
         let mut runtime = self.load_runtime(config).await?;
 
-        let sync_time: f64 = self.sync_time_seconds.unwrap_or(0.0);
-
         if self.remount {
             let start_time = Instant::now();
             let render_summary = spfs::reinitialize_runtime(&mut runtime).await?;
-            self.report_render_summary(
-                render_summary,
-                sync_time,
-                start_time.elapsed().as_secs_f64(),
-            );
+            self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
             Ok(None)
         } else {
             let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
@@ -144,11 +131,7 @@ impl CmdEnter {
             tracing::debug!("initializing runtime");
             let start_time = Instant::now();
             let render_summary = spfs::initialize_runtime(&mut owned).await?;
-            self.report_render_summary(
-                render_summary,
-                sync_time,
-                start_time.elapsed().as_secs_f64(),
-            );
+            self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
 
             // We promise to not mutate the runtime after this point.
             // spfs-monitor will read and modify it after we tell it to
@@ -220,26 +203,21 @@ impl CmdEnter {
             .context("Failed to execute runtime command")
     }
 
-    fn report_render_summary(
-        &self,
-        _render_summary: RenderSummary,
-        sync_time: f64,
-        render_time: f64,
-    ) {
+    fn report_render_summary(&self, _render_summary: RenderSummary, render_time: f64) {
         if self.metrics_in_env {
-            // All the render summary data is put into a json blob in
-            // a env var for other, non-spfs, program to access.
+            // The render summary data is put into a json blob in a
+            // environment variable for other, non-spfs, programs to
+            // access.
             std::env::set_var(
                 "SPFS_METRICS_RENDER_REPORT",
-                format!(
-                    "{}",
-                    json!({
-                        "sync_time": sync_time,
-                        "render_time": render_time,
-                        "render_summary": _render_summary,
-                    })
-                ),
+                format!("{}", json!(_render_summary)),
             );
+            // The render time is put into environment variables for
+            // other, non-spfs, programs to access. If this command
+            // has been run from spfs-run, then the sync time will
+            // already be in an environment variable called
+            // SPFS_METRICS_SYNC_TIME_SECS as well.
+            std::env::set_var("SPFS_METRICS_RENDER_TIME_SECS", format!("{render_time}"));
         }
 
         #[cfg(feature = "sentry")]
@@ -251,6 +229,12 @@ impl CmdEnter {
             // This is called after `[re]initialize_runtime` and now it is
             // "safe" to initialize sentry and send a sentry event.
             if let Some(_guard) = configure_sentry(self.command_name().to_owned()) {
+                // Sync time is read in so it can be added to the
+                // sentry data. It's not being used for anything else
+                // so it doesn't need to be converted to a float.
+                let sync_time =
+                    std::env::var("SPFS_METRICS_SYNC_TIME_SECS").unwrap_or(String::from("0.0"));
+
                 tracing::error!(
                         target: "sentry",
                         entry_count = %_render_summary.entry_count.load(Ordering::Relaxed),
