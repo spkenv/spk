@@ -3606,7 +3606,6 @@ dependencies = [
  "spk-cli-common",
  "spk-schema",
  "spk-storage",
- "tokio",
  "tracing",
 ]
 

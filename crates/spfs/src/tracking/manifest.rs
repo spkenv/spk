@@ -180,6 +180,7 @@ impl<T> Manifest<T>
 where
     T: Default,
 {
+    /// Same as find_entry_by_string but will return the file/dirs in the given dir
     pub fn list_entries_in_dir(&self, path: &str) -> Vec<&String> {
         let target_entry = self.find_entry_by_string(path);
         let entries_in_dir = target_entry.entries.keys().collect_vec();
@@ -189,7 +190,7 @@ where
 
     /// Finds the entry of a given path.
     pub fn find_entry_by_string(&self, entry_path: &str) -> &Entry {
-        let mut paths: Vec<String> = entry_path.split('/').map(str::to_string).collect();
+        let mut paths = entry_path.split('/').collect_vec();
 
         // Remove any empty strings
         paths.retain(|c| !c.is_empty());
@@ -204,7 +205,7 @@ where
         for path in paths.iter() {
             matched_entry = matched_entry
                 .entries
-                .get(path)
+                .get(*path)
                 .unwrap_or_else(|| panic!("Unable to find entry: {path}"))
         }
         matched_entry

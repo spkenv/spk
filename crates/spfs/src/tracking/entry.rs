@@ -9,8 +9,9 @@ use std::string::ToString;
 
 use itertools::Itertools;
 
-use crate::io::format_size;
 use crate::{encoding, Error, Result};
+
+pub const LEVEL_SEPARATOR: char = '/';
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum EntryKind {
@@ -215,20 +216,20 @@ impl<T> Entry<T>
 where
     T: Clone,
 {
-    /// Calculates and returns the sum of the total size of the entry.
-    pub fn calculate_size_of_child_entries(
-        &self,
-        short_print: bool,
-        root_dir: &str,
-        human_readable: bool,
-    ) -> (u64, Vec<(String, String)>, usize) {
-        let mut total_size = 0;
-        let mut to_iter: HashMap<String, HashMap<String, Entry>> = HashMap::new();
-        let mut longest_length_string = 0;
-        let mut to_print: Vec<(String, String)> = Vec::new();
-        let initial_entries = self.entries.clone();
-        to_iter.insert(root_dir.to_string(), initial_entries);
 
+    /// Generates the disk usage of a given entry.
+    pub fn generate_dir_disk_usage(&self, root_path: &String) -> EntryDiskUsage {
+        let mut entry_du = if self.is_dir() {
+            EntryDiskUsage::new(format!("{}/", root_path), self.size)
+        } else {
+            EntryDiskUsage::new(root_path.to_string(), self.size)
+        };
+
+        let mut to_iter: HashMap<String, HashMap<String, Entry>> = HashMap::new();
+        let initial_entries = self.entries.clone();
+        to_iter.insert(root_path.to_string(), initial_entries);
+
+        // Loops through all child entries to obtain the total size
         while !to_iter.is_empty() {
             let mut next_iter: HashMap<String, HashMap<String, Entry>> = HashMap::new();
             for (dir, entries) in to_iter.iter().sorted_by_key(|(k, _)| *k) {
@@ -237,33 +238,25 @@ where
                         continue;
                     }
 
-                    let abs_path = [dir.clone(), name.clone()].join("/");
-                    if !short_print && entry.is_regular_file() {
-                        if human_readable {
-                            let size_to_print = format_size(entry.size);
-                            if size_to_print.len() > longest_length_string {
-                                longest_length_string = size_to_print.len();
-                            }
-                            to_print.push((size_to_print, abs_path));
-                        } else {
-                            if entry.size.to_string().len() > longest_length_string {
-                                longest_length_string = entry.size.to_string().len();
-                            }
-                            to_print.push((entry.size.to_string(), abs_path));
-                        }
+                    // Skip dirs and only construct and store absolute path for printing if entry is a blob.
+                    if entry.kind.is_blob() {
+                        let abs_path =
+                            [dir.clone(), name.clone()].join(&LEVEL_SEPARATOR.to_string());
+                        entry_du.child_entries.push((entry.size, abs_path));
                     }
 
-                    if entry.is_dir() {
-                        let new_dir = [dir.clone(), name.clone()].join("/");
+                    // Must check if child entries exists for next iteration
+                    if !entry.entries.is_empty() {
+                        let new_dir =
+                            [dir.clone(), name.clone()].join(&LEVEL_SEPARATOR.to_string());
                         next_iter.insert(new_dir, entry.entries.clone());
                     }
-
-                    total_size += entry.size;
+                    entry_du.total_size += entry.size;
                 }
             }
             to_iter = std::mem::take(&mut next_iter);
         }
-        (total_size, to_print, longest_length_string)
+        entry_du
     }
 
     pub fn update(&mut self, other: &Self) {
@@ -287,5 +280,24 @@ where
             }
         }
         self.size = self.entries.len() as u64;
+    }
+}
+
+/// Stores the entry's disk usage data.
+/// The child entries are stored in the format of (size, path_to_file).
+#[derive(Default, Clone, Debug)]
+pub struct EntryDiskUsage {
+    pub root: String,
+    pub total_size: u64,
+    pub child_entries: Vec<(u64, String)>,
+}
+
+impl EntryDiskUsage {
+    pub fn new(root: String, size: u64) -> Self {
+        Self {
+            root,
+            total_size: size,
+            child_entries: Vec::new(),
+        }
     }
 }

@@ -6,34 +6,40 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Args;
+use colored::Colorize;
 use itertools::Itertools;
 use spfs::graph::Object;
 use spfs::io::DigestFormat;
 use spfs::storage::RepositoryHandle;
+use spfs::tracking::{EntryDiskUsage, LEVEL_SEPARATOR};
 use spfs::Digest;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::ident::parse_ident;
-use spk_schema::ident_component::Component;
 use spk_schema::name::PkgName;
 use spk_schema::{Deprecate, Ident, Package, Spec};
 
+const PACKAGE_LEVEL: usize = 1;
+const VERSION_LEVEL: usize = 2;
+const DIGEST_LEVEL: usize = 3;
+
+/// Abstract methods to keep track and update the
+/// longest string length value between all entries
 pub trait Output: Default + Send + Sync {
     /// A line of output to display.
     fn println(&mut self, line: String);
 
-    /// A line of output to display as a warning.
-    fn warn(&mut self, line: String);
+    /// Updates the largest string length value for printing
+    fn update_string_length(&mut self, count: usize);
 
-    /// Updates the char count for printing
-    fn update_char_count(&mut self, count: usize);
-
-    /// Returns current char count for printing
-    fn get_current_char_count(&mut self) -> usize;
+    /// Returns current longest string length for printing
+    fn get_current_string_count(&mut self) -> usize;
 }
 
+/// Keeps track of the longest string length value
+/// between all threads, to align the output of each print.
 #[derive(Default)]
 pub struct Console {
-    longest_char_count: usize,
+    pub longest_string_count: usize,
 }
 
 impl Output for Console {
@@ -41,18 +47,14 @@ impl Output for Console {
         println!("{line}");
     }
 
-    fn warn(&mut self, line: String) {
-        tracing::warn!("{line}");
-    }
-
-    fn update_char_count(&mut self, count: usize) {
-        if count > self.longest_char_count {
-            self.longest_char_count = count;
+    fn update_string_length(&mut self, count: usize) {
+        if count > self.longest_string_count {
+            self.longest_string_count = count;
         }
     }
 
-    fn get_current_char_count(&mut self) -> usize {
-        self.longest_char_count
+    fn get_current_string_count(&mut self) -> usize {
+        self.longest_string_count
     }
 }
 /// Return the disk usage of a package
@@ -61,9 +63,13 @@ pub struct Du<Output: Default = Console> {
     #[clap(flatten)]
     pub repos: flags::Repositories,
 
-    /// The Package/Version to show the disk utility of
+    /// The Package/Version to show the disk usage of
     #[clap(name = "PKG NAME/VERSION")]
     pub package: String,
+
+    /// Lists deprecated packages
+    #[clap(long, short = 'd')]
+    pub deprecated: bool,
 
     /// Lists file sizes in human readable format
     #[clap(long, short = 'H')]
@@ -77,36 +83,170 @@ pub struct Du<Output: Default = Console> {
     #[clap(long, short = 'c')]
     pub total: bool,
 
+    /// Output is updated while the command
+    /// runs to update the longest length string
     #[clap(skip)]
     pub(crate) output: Output,
+}
+
+/// Configurations needed when printing the
+/// disk usage of an entry.
+#[derive(Debug, Clone)]
+pub struct EntryPrintConfig {
+    pub spec: Arc<Spec>,
+    pub deprecated: bool,
+    pub total_size: u64,
+    pub entries_to_print: Vec<(String, String)>,
+}
+
+impl EntryPrintConfig {
+    pub fn new(spec: Arc<Spec>) -> Self {
+        Self {
+            spec,
+            deprecated: false,
+            total_size: 0,
+            entries_to_print: Vec::new(),
+        }
+    }
+
+    fn print_stored_entries(&mut self, longest_str_length: usize, print_deprecate_status: bool) {
+        for (size, path) in self.entries_to_print.iter().sorted_by_key(|(_, k)| k) {
+            let pkg_path = if print_deprecate_status && self.deprecated {
+                format!("{path} {}", "DEPRECATED".red())
+            } else {
+                path.to_string()
+            };
+            println!("{size:>longest_str_length$} {pkg_path}", size = size);
+        }
+    }
 }
 
 #[async_trait::async_trait]
 impl<T: Output> Run for Du<T> {
     async fn run(&mut self) -> Result<i32> {
-        let mut package_path: Vec<String> = self.package.split('/').map(str::to_string).collect();
+        let mut input_by_level: Vec<String> = self
+            .package
+            .split(LEVEL_SEPARATOR)
+            .map(str::to_string)
+            .collect();
 
-        let mut package = self.package.clone();
         // Remove any empty strings
-        package_path.retain(|c| !c.is_empty());
+        input_by_level.retain(|c| !c.is_empty());
 
-        let to_print = if package_path.len() == 1 && !self.package.ends_with('/') {
-            let pkgname = PkgName::new(&package)?;
-            self.get_size_of_highest_package_version(pkgname).await?
-        } else if package_path.len() == 1 && self.package.ends_with('/') {
-            package.pop();
-            let pkgname = PkgName::new(&package)?;
-            self.get_size_per_version(pkgname, &package).await?
+        let level = input_by_level.len();
+
+        let input_digest = if level >= DIGEST_LEVEL {
+            input_by_level[2].clone()
         } else {
-            self.get_size_of_package(package, package_path).await?
+            "".to_string()
         };
 
-        let longest_char_count = self.output.get_current_char_count();
-        for output in to_print.iter() {
+        let spfs_storage_dirs = if input_by_level.len() > DIGEST_LEVEL {
+            input_by_level[DIGEST_LEVEL..].join(&LEVEL_SEPARATOR.to_string())
+        } else {
+            "".to_string()
+        };
+
+        let mut entries = self.compile_entries_to_calculate(input_by_level).await?;
+
+        let repos = self.repos.get_repos_for_non_destructive_operation().await?;
+
+        entries.iter().sorted_by_key(|(k, _)| k);
+
+        let mut formatted_entries: Vec<(String, EntryPrintConfig)> = Vec::new();
+
+        for (_, repo) in repos.iter() {
+            for (pkg_name, entry) in entries.iter_mut() {
+                if entry.deprecated && !self.deprecated {
+                    continue;
+                }
+
+                let components = match repo.read_components(entry.spec.ident()).await {
+                    Ok(c) => c,
+                    _ => continue,
+                };
+
+                let digests: Vec<_> = components.values().into_iter().unique().collect();
+
+                let spk_storage::RepositoryHandle::SPFS(repo) = repo else { continue; };
+
+                for digest in digests.iter() {
+                    let shortened_digest =
+                        spfs::io::format_digest(**digest, DigestFormat::Shortened(repo)).await?;
+
+                    let pkg_with_digest = [pkg_name.to_string(), shortened_digest.to_string()]
+                        .join(&LEVEL_SEPARATOR.to_string());
+
+                    // If a digest is provided in the input argument, we only need the entry with the
+                    // matching digest and can skip the rest.
+                    if !input_digest.is_empty() && !pkg_with_digest.contains(&input_digest) {
+                        continue;
+                    }
+
+                    let (digest_size, mut to_print) = self
+                        .process_entry_size(
+                            digest,
+                            repo,
+                            &pkg_with_digest,
+                            spfs_storage_dirs.as_str(),
+                        )
+                        .await?;
+
+                    entry.total_size += digest_size;
+                    entry.entries_to_print.append(&mut to_print);
+
+                    let name = if self.skip_update_to_package_name(level) {
+                        pkg_name.to_string()
+                    } else {
+                        pkg_with_digest
+                    };
+                    formatted_entries.push((name, entry.to_owned()));
+                }
+            }
+        }
+
+        let mut total_output_size = 0;
+        let mut sum_of_sizes_by_package: HashMap<String, u64> = HashMap::default();
+        for (pkg_name, entry) in formatted_entries
+            .iter_mut()
+            .sorted_by_key(|(k, _)| k.to_string())
+        {
+            if self.print_all_files(level) {
+                entry.print_stored_entries(self.output.get_current_string_count(), self.deprecated);
+            } else {
+                let name = if entry.deprecated && self.deprecated {
+                    format!("{pkg_name}/ {}", "DEPRECATED".red())
+                } else {
+                    format!("{pkg_name}/")
+                };
+
+                sum_of_sizes_by_package
+                    .entry(name)
+                    .and_modify(|size| *size += entry.total_size)
+                    .or_insert(entry.total_size);
+            }
+            total_output_size += entry.total_size;
+        }
+
+        let longest_str_length = self.output.get_current_string_count();
+        if !sum_of_sizes_by_package.is_empty() {
+            for (name, size) in sum_of_sizes_by_package
+                .iter()
+                .sorted_by_key(|(k, _)| *k)
+                .rev()
+            {
+                println!(
+                    "{size:>longest_str_length$} {entry}",
+                    size = self.human_readable(*size),
+                    entry = name,
+                );
+            }
+        }
+
+        if self.total {
             println!(
-                "{size:>longest_char_count$} {entry}",
-                size = output.0,
-                entry = output.1,
+                "{size:>longest_str_length$} total",
+                size = self.human_readable(total_output_size)
             );
         }
         Ok(0)
@@ -121,350 +261,178 @@ impl<T: Output> CommandArgs for Du<T> {
 
 impl<T: Output> Du<T> {
     fn human_readable(&self, size: u64) -> String {
-        let mut result = size.to_string();
         if self.human_readable {
-            result = spfs::io::format_size(size)
+            spfs::io::format_size(size)
+        } else {
+            size.to_string()
         }
-
-        result
     }
 
-    async fn generate_package_name_with_digest(
+    fn print_all_files(&self, level: usize) -> bool {
+        !self.short || level >= DIGEST_LEVEL
+    }
+
+    fn skip_update_to_package_name(&self, level: usize) -> bool {
+        (level == VERSION_LEVEL && !self.package.ends_with(LEVEL_SEPARATOR))
+            || level == PACKAGE_LEVEL
+    }
+
+    fn generate_entry_to_print(&mut self, size: u64, path: String) -> (String, String) {
+        let size = self.human_readable(size);
+        self.output.update_string_length(size.len());
+
+        (size, path)
+    }
+
+    async fn compile_entries_to_calculate(
         &self,
-        repo: &RepositoryHandle,
-        name: &str,
-        digest: &Digest,
-    ) -> Result<String> {
-        let shortened_digest =
-            match spfs::io::format_digest(*digest, DigestFormat::Shortened(repo)).await {
-                Ok(d) => d,
-                Err(_) => "".to_string(),
-            };
-
-        let package = [name.to_owned(), shortened_digest].join("/");
-
-        Ok(package)
-    }
-
-    async fn get_size_of_package(
-        &mut self,
-        package: String,
-        package_path: Vec<String>,
-    ) -> Result<Vec<(String, String)>> {
-        let mut to_print: Vec<(String, String)> = Vec::new();
+        input_by_level: Vec<String>,
+    ) -> Result<Vec<(String, EntryPrintConfig)>> {
         let repos = self.repos.get_repos_for_non_destructive_operation().await?;
 
-        let mut pkg = package.clone();
-        let mut dir_to_check = None;
-        let mut input_digest = None;
-        if package_path.len() >= 3 {
-            let (temp_package, temp_dir_to_check) = package_path.split_at(3);
-            input_digest = temp_package.last();
-            pkg = temp_package.join("/");
-            if temp_dir_to_check.is_empty() {
-                dir_to_check = None;
-            } else {
-                dir_to_check = Some(temp_dir_to_check.join("/"));
+        // Only need the PACKAGE/VERSION so we remove anything after the DIGEST_LEVEL
+        let mut input_package = if input_by_level.len() >= DIGEST_LEVEL {
+            input_by_level[..2].join(&LEVEL_SEPARATOR.to_string())
+        } else {
+            self.package.clone()
+        };
+
+        // Check if input package ends with a `/`
+        let ends_with_level_separator = input_package.ends_with(LEVEL_SEPARATOR);
+
+        // If input package ends with `/` we must remove to obtain ident
+        let pkg_ident = if ends_with_level_separator {
+            input_package.pop();
+            parse_ident(&input_package)?
+        } else {
+            parse_ident(&input_package)?
+        };
+
+        let pkgname = PkgName::new(&pkg_ident.name)?;
+
+        let mut specs: Vec<(String, EntryPrintConfig)> = Vec::new();
+
+        // If None is returned, no version/build was provided in input package
+        match pkg_ident.version_and_build() {
+            Some(_version_build) => {
+                for (_, repo) in repos.iter() {
+                    let mut builds = repo.list_package_builds(&pkg_ident).await?;
+
+                    specs.append(&mut self.get_specs_to_process(&mut builds, repo).await?);
+                }
             }
-        }
-
-        if pkg.ends_with('/') {
-            pkg.pop();
-        }
-
-        for (_repo_name, repo) in repos.iter() {
-            let pkg_ident = parse_ident(&pkg)?;
-
-            let mut builds = repo.list_package_builds(&pkg_ident).await?;
-
-            let specs = self.get_specs_to_process(&mut builds, repo).await?;
-
-            if !specs.is_empty() {
-                let components_to_process = self
-                    .get_components_to_process(specs, repo, input_digest)
-                    .await?;
-
-                let spk_storage::RepositoryHandle::SPFS(repo) = repo else { continue; };
-
-                let mut total_size = 0;
-                for components in components_to_process.iter() {
-                    let mut prev_digests: Vec<String> = Vec::new();
-                    for (_, digest) in components.iter().sorted_by_key(|(k, _)| *k) {
-                        if prev_digests.contains(&digest.to_string()) {
-                            continue;
-                        }
-                        if package_path.len() < 3 {
-                            let pkgname = self
-                                .generate_package_name_with_digest(repo, &pkg, digest)
-                                .await?;
-
-                            let (size, _) = self
-                                .process_component_size(
-                                    digest,
-                                    repo,
-                                    &pkgname,
-                                    dir_to_check.as_ref(),
-                                )
-                                .await?;
-
-                            if self.package.ends_with('/') && self.short {
-                                to_print.push((self.human_readable(size), format!("{pkgname}/")))
-                            }
-                            total_size += size;
-                        } else {
-                            let (size, mut temp_to_print) = self
-                                .process_component_size(digest, repo, &pkg, dir_to_check.as_ref())
-                                .await?;
-                            total_size += size;
-                            to_print.append(&mut temp_to_print);
-                        }
-                        prev_digests.push(digest.to_string());
-                    }
+            None => {
+                // Find all versions for given package.
+                let mut versions = Vec::new();
+                for (index, (_, repo)) in repos.iter().enumerate() {
+                    versions.extend(
+                        repo.list_package_versions(pkgname)
+                            .await?
+                            .iter()
+                            .map(|v| ((**v).clone(), index)),
+                    );
                 }
 
-                if (!self.package.ends_with('/') && package_path.len() <= 3) && self.short {
-                    to_print.push((self.human_readable(total_size), format!("{pkg}/")))
+                versions.sort_by_key(|v| v.0.clone());
+                versions.reverse();
+
+                // If input package does not end with a '/' then we need to output the highest version.
+                if !ends_with_level_separator {
+                    // There always should exist at least one version per package.
+                    let highest_version = versions.first().unwrap();
+
+                    versions = vec![highest_version.clone()];
                 }
 
-                if self.total {
-                    to_print.push((self.human_readable(total_size), "total".to_string()));
+                for (version, repo_index) in versions {
+                    let (_, repo) = repos.get(repo_index).unwrap();
+                    let pkg_ident =
+                        parse_ident(format!("{}/{}", &input_package, &version.to_string()))?;
+
+                    let builds = &mut repo.list_package_builds(&pkg_ident).await?;
+
+                    specs.append(&mut self.get_specs_to_process(builds, repo).await?);
                 }
             }
         }
-
-        Ok(to_print)
-    }
-
-    async fn get_size_of_highest_package_version(
-        &mut self,
-        pkgname: &PkgName,
-    ) -> Result<Vec<(String, String)>> {
-        let mut to_print: Vec<(String, String)> = Vec::new();
-        let repos = self.repos.get_repos_for_non_destructive_operation().await?;
-
-        for (_repo_name, repo) in repos.iter() {
-            let version = match repo.highest_package_version(pkgname).await? {
-                Some(v) => v,
-                _ => continue,
-            };
-
-            let mut name = String::from(&self.package);
-            name.push('/');
-            name.push_str(&version.to_string());
-
-            let pkg_ident = parse_ident(name.clone())?;
-
-            let mut builds = repo.list_package_builds(&pkg_ident).await?;
-
-            let specs = self.get_specs_to_process(&mut builds, repo).await?;
-
-            if !specs.is_empty() {
-                let components_to_process =
-                    self.get_components_to_process(specs, repo, None).await?;
-
-                let spk_storage::RepositoryHandle::SPFS(repo) = repo else { continue; };
-
-                let mut total_size = 0;
-                for components in components_to_process.iter() {
-                    let mut prev_digests: Vec<String> = Vec::new();
-                    for (_, digest) in components.iter() {
-                        let package = self
-                            .generate_package_name_with_digest(repo, &name, digest)
-                            .await?;
-
-                        if prev_digests.contains(&digest.to_string()) {
-                            continue;
-                        }
-                        let (size, mut temp_to_print) = self
-                            .process_component_size(digest, repo, &package, None)
-                            .await?;
-                        if !self.short {
-                            to_print.append(&mut temp_to_print);
-                        }
-                        total_size += size;
-                        prev_digests.push(digest.to_string());
-                    }
-                }
-
-                let size_to_print = self.human_readable(total_size);
-                self.output.update_char_count(size_to_print.len());
-
-                if self.short {
-                    name.push('/');
-                    to_print.push((size_to_print.clone(), name));
-                }
-
-                if self.total {
-                    to_print.push((size_to_print.clone(), "total".to_string()));
-                }
-            }
-        }
-
-        Ok(to_print)
-    }
-
-    async fn get_size_per_version(
-        &mut self,
-        pkgname: &PkgName,
-        package: &String,
-    ) -> Result<Vec<(String, String)>> {
-        let repos = self.repos.get_repos_for_non_destructive_operation().await?;
-
-        let mut to_print: Vec<(String, String)> = Vec::new();
-
-        let mut versions = Vec::new();
-        for (index, (_, repo)) in repos.iter().enumerate() {
-            versions.extend(
-                repo.list_package_versions(pkgname)
-                    .await?
-                    .iter()
-                    .map(|v| ((**v).clone(), index)),
-            );
-        }
-
-        versions.sort_by_key(|v| v.0.clone());
-        versions.reverse();
-
-        let mut total_size = 0;
-        for (version, repo_index) in versions {
-            let (_repo_name, repo) = repos.get(repo_index).unwrap();
-
-            let mut name = String::from(package);
-            name.push('/');
-            name.push_str(&version.to_string());
-
-            let pkg_ident = parse_ident(name.clone())?;
-
-            let mut builds = repo.list_package_builds(&pkg_ident).await?;
-
-            let specs = self.get_specs_to_process(&mut builds, repo).await?;
-
-            if !specs.is_empty() {
-                let components_to_process =
-                    self.get_components_to_process(specs, repo, None).await?;
-
-                let spk_storage::RepositoryHandle::SPFS(repo) = repo else { continue; };
-
-                let mut per_version_size = 0;
-                for components in components_to_process.iter() {
-                    let mut prev_digests: Vec<String> = Vec::new();
-                    for (_, digest) in components.iter() {
-                        if prev_digests.contains(&digest.to_string()) {
-                            continue;
-                        }
-
-                        let package = self
-                            .generate_package_name_with_digest(repo, &name, digest)
-                            .await?;
-
-                        let (size, mut temp_to_print) = self
-                            .process_component_size(digest, repo, &package, None)
-                            .await?;
-                        if !self.short {
-                            to_print.append(&mut temp_to_print);
-                        }
-                        per_version_size += size;
-                        prev_digests.push(digest.to_string());
-                    }
-                }
-
-                total_size += per_version_size;
-                let size_to_print = self.human_readable(per_version_size);
-                self.output.update_char_count(size_to_print.len());
-
-                if self.short {
-                    name.push('/');
-                    to_print.push((size_to_print, name));
-                }
-            }
-        }
-
-        let size_to_print = self.human_readable(total_size);
-        self.output.update_char_count(size_to_print.len());
-
-        if self.total {
-            to_print.push((size_to_print, "total".to_string()));
-        }
-
-        Ok(to_print)
+        Ok(specs)
     }
 
     async fn get_specs_to_process(
         &self,
         builds: &mut Vec<Ident>,
         repo: &spk_storage::RepositoryHandle,
-    ) -> Result<Vec<Arc<Spec>>> {
-        let mut result: Vec<Arc<Spec>> = Vec::new();
-        builds.sort();
+    ) -> Result<Vec<(String, EntryPrintConfig)>> {
+        let mut result: Vec<(String, EntryPrintConfig)> = Vec::new();
         while let Some(build) = builds.pop() {
-            match repo.read_package(&build).await {
-                Ok(spec) if !spec.is_deprecated() => result.push(spec),
-                Ok(_) => {
-                    continue;
-                }
-                Err(err) => {
-                    println!("{}", format_args!("Error reading spec for {build}: {err}"));
-                }
-            }
-        }
-        Ok(result)
-    }
+            // Skip embedded builds
+            if build.is_embedded() {
+                continue;
+            };
 
-    async fn get_components_to_process(
-        &self,
-        spec: Vec<Arc<Spec>>,
-        repo: &spk_storage::RepositoryHandle,
-        input_digest: Option<&String>,
-    ) -> Result<Vec<HashMap<Component, Digest>>> {
-        let mut result: Vec<HashMap<Component, Digest>> = Vec::new();
-        for spec in spec.iter() {
-            let ident = spec.ident();
-            match repo.read_components(ident).await {
-                Ok(c) => match input_digest {
-                    Some(digest) => {
-                        if c.values().any(|&x| x.to_string().contains(digest)) {
-                            result.push(c);
-                            return Ok(result);
-                        }
-                    }
-                    _ => result.push(c),
-                },
-                Err(spk_storage::Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(_),
-                )) => {
-                    tracing::info!("Skipping missing build {ident}; currently being built?");
-                    continue;
-                }
-                Err(err) => return Err(err.into()),
+            let spec = repo.read_package(&build).await?;
+
+            let mut entry = EntryPrintConfig::new(spec.clone());
+
+            entry.deprecated = spec.is_deprecated();
+
+            if !self.deprecated && spec.is_deprecated() {
+                continue;
+            } else {
+                result.push((spec.ident().get_current_version(), entry))
             };
         }
-
         Ok(result)
     }
 
-    async fn process_component_size(
+    fn format_entries_to_print(
+        &mut self,
+        root: String,
+        child_entires: Vec<EntryDiskUsage>,
+    ) -> Vec<(String, String)> {
+        let mut to_print: Vec<(String, String)> = Vec::new();
+        if !self.short {
+            for entry in child_entires.iter() {
+                if entry.child_entries.is_empty() {
+                    to_print.push(
+                        self.generate_entry_to_print(entry.total_size, entry.root.to_string()),
+                    )
+                } else {
+                    for (size, path) in entry.child_entries.iter() {
+                        to_print.push(self.generate_entry_to_print(*size, path.to_string()))
+                    }
+                }
+            }
+        } else if self.package.ends_with(LEVEL_SEPARATOR) {
+            for entry in child_entires.iter() {
+                to_print
+                    .push(self.generate_entry_to_print(entry.total_size, entry.root.to_string()))
+            }
+        } else {
+            let mut total_size = 0;
+            for entry in child_entires.iter() {
+                total_size += entry.total_size;
+            }
+            to_print.push(self.generate_entry_to_print(total_size, root));
+        }
+        to_print
+    }
+
+    async fn process_entry_size(
         &mut self,
         digest: &Digest,
         repo: &RepositoryHandle,
         pkg_path: &str,
-        dir_to_check: Option<&String>,
+        root_dir: &str,
     ) -> Result<(u64, Vec<(String, String)>)> {
-        let mut total_size = 0;
         let mut item = repo.read_ref(digest.to_string().as_str()).await?;
         let mut items_to_process: Vec<spfs::graph::Object> = vec![item];
+        let mut entires_to_print: Vec<(String, String)> = Vec::new();
+        let mut child_entries: Vec<EntryDiskUsage> = Vec::new();
 
-        let root_dir = match dir_to_check {
-            Some(dir) => dir.to_string(),
-            _ => "".to_string(),
-        };
+        let mut total_size = 0;
+        let abs_root_path = [pkg_path, root_dir].join(&LEVEL_SEPARATOR.to_string());
 
-        let path = if root_dir.is_empty() {
-            pkg_path.to_owned()
-        } else {
-            [pkg_path.to_owned(), root_dir.clone()].join("/")
-        };
-
-        let mut to_print: Vec<(String, String)> = Vec::new();
         while !items_to_process.is_empty() {
             let mut next_iter_objects: Vec<spfs::graph::Object> = Vec::new();
             for object in items_to_process.iter() {
@@ -481,92 +449,57 @@ impl<T: Output> Du<T> {
                     }
                     Object::Manifest(object) => {
                         let tracking_manifest = object.unlock();
+                        let mut root = root_dir.to_string();
+                        let root_entry = tracking_manifest.find_entry_by_string(&root);
+                        let is_blob: bool = root_entry.kind.is_blob();
 
-                        if self.package.ends_with('/') {
-                            let mut entries =
-                                tracking_manifest.list_entries_in_dir(root_dir.as_str());
-                            entries.sort();
-                            for entry_name in entries {
-                                let entry = tracking_manifest
-                                    .find_entry_by_string(&format!("{root_dir}/{entry_name}"));
-                                if entry.is_regular_file() {
-                                    total_size += entry.size;
-                                    let size_to_print = self.human_readable(entry.size);
-                                    self.output.update_char_count(size_to_print.len());
-                                    to_print
-                                        .push((size_to_print, format!("{}/{entry_name}", &path)));
-                                } else {
-                                    let (size, mut temp_to_print, temp_longest_char) = entry
-                                        .calculate_size_of_child_entries(
-                                            self.short,
-                                            path.as_str(),
-                                            self.human_readable,
-                                        );
+                        // If the input is a blob, we must search from the directory that contains the blob.
+                        // Else, return the directories that exists in the root dir.
+                        let entries = if is_blob {
+                            let mut dir_containing_blob: Vec<String> =
+                                root.split(LEVEL_SEPARATOR).map(str::to_string).collect();
 
-                                    // Check longest char from child entries
-                                    self.output.update_char_count(temp_longest_char);
-
-                                    // Check if total size is longer than current longest char
-                                    let size_to_print = self.human_readable(size);
-                                    self.output.update_char_count(size_to_print.len());
-
-                                    total_size += size;
-
-                                    to_print.push((size_to_print, format!("{path}/{entry_name}/")));
-
-                                    if !self.short {
-                                        to_print.append(&mut temp_to_print);
-                                    }
-                                }
-                            }
+                            dir_containing_blob.pop();
+                            root = dir_containing_blob.join(&LEVEL_SEPARATOR.to_string());
+                            tracking_manifest.list_entries_in_dir(&root)
                         } else {
-                            let root_entry =
-                                tracking_manifest.find_entry_by_string(root_dir.as_str());
-                            if root_entry.is_regular_file() {
-                                total_size += root_entry.size;
-                                let size_to_print = self.human_readable(root_entry.size);
-                                self.output.update_char_count(size_to_print.len());
-                                to_print.push((size_to_print, path.to_string()))
-                            } else {
-                                let (size, mut temp_to_print, temp_longest_char) = root_entry
-                                    .calculate_size_of_child_entries(
-                                        self.short,
-                                        path.as_str(),
-                                        self.human_readable,
-                                    );
+                            tracking_manifest.list_entries_in_dir(&root)
+                        };
 
-                                // Check longest char from child entries
-                                self.output.update_char_count(temp_longest_char);
-
-                                // Check if total size is longer than current longest char
-                                let size_to_print = self.human_readable(size);
-                                self.output.update_char_count(size_to_print.len());
-
-                                total_size += size;
-
-                                if !self.short {
-                                    to_print.append(&mut temp_to_print);
-                                }
-
-                                if !root_dir.is_empty() && self.short {
-                                    to_print.push((size_to_print, path.clone()))
-                                }
+                        // Loop through each child dir that exists in the root dir.
+                        for entry_name in entries.iter().sorted_by_key(|k| **k) {
+                            // If input entry is a blob, we only care about evaluating the target blob.
+                            if is_blob && root_dir != format!("{root}/{entry_name}") {
+                                continue;
                             }
+
+                            // The absolute path including PACKAGE/VERSION/DIGEST.
+                            let mut abs_path_vec = vec![pkg_path, &root, entry_name];
+                            abs_path_vec.retain(|c| !c.is_empty());
+                            let abs_path = abs_path_vec.join(&LEVEL_SEPARATOR.to_string());
+
+                            // The path from the /spfs directory to find the target entry.
+                            let mut target_entry_vec =
+                                vec![root.to_string(), entry_name.to_string()];
+                            target_entry_vec.retain(|c| !c.is_empty());
+                            let target_entry = target_entry_vec.join(&LEVEL_SEPARATOR.to_string());
+
+                            let entry = tracking_manifest.find_entry_by_string(&target_entry);
+                            let entry_du = entry.generate_dir_disk_usage(&abs_path);
+                            total_size += entry_du.total_size;
+                            child_entries.push(entry_du);
                         }
+
+                        entires_to_print.append(&mut self.format_entries_to_print(
+                            abs_root_path.to_owned(),
+                            child_entries.to_owned(),
+                        ));
                     }
-                    Object::Tree(object) => {
-                        for entry in object.entries.iter() {
-                            total_size += entry.size;
-                        }
-                    }
-                    Object::Blob(object) => {
-                        total_size += object.size;
-                    }
-                    Object::Mask => (),
+                    Object::Tree(_) | Object::Mask | Object::Blob(_) => (), // Object needs to be a type that can obtain a manifest to evaluate.
                 }
             }
             items_to_process = std::mem::take(&mut next_iter_objects);
         }
-        Ok((total_size, to_print))
+        Ok((total_size, entires_to_print))
     }
 }

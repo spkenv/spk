@@ -85,6 +85,12 @@ impl<Base, Target> Ident<Base, Target> {
         self.base
     }
 
+    /// Return the package name with the version
+    pub fn get_current_version(&self) -> String {
+        let pkg_name_with_version = format!("{}/{}", self.name, self.version);
+        pkg_name_with_version
+    }
+
     /// Extract this identifier's target (`<base>/<target>`)
     pub fn into_target(self) -> Target {
         self.target
