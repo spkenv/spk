@@ -82,12 +82,14 @@ impl CmdRun {
         runtime.save_state_to_storage().await?;
 
         tracing::debug!("resolving entry process");
-        let cmd = spfs::build_command_for_runtime(
-            &runtime,
-            &self.command,
-            self.args.drain(..),
-            start_time.elapsed(),
-        )?;
+        let cmd = spfs::build_command_for_runtime(&runtime, &self.command, self.args.drain(..))?;
+
+        let sync_time = start_time.elapsed();
+        std::env::set_var(
+            "SPFS_METRICS_SYNC_TIME_SECS",
+            sync_time.as_secs_f64().to_string(),
+        );
+
         cmd.exec()
             .map(|_| 0)
             .context("Failed to execute runtime command")

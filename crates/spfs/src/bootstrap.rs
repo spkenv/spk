@@ -4,7 +4,6 @@
 use std::ffi::{CString, OsStr, OsString};
 use std::os::unix::prelude::OsStringExt;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use super::resolve::{which, which_spfs};
 use crate::{runtime, Error, Result};
@@ -80,14 +79,13 @@ pub fn build_command_for_runtime<E, A, S>(
     runtime: &runtime::Runtime,
     command: E,
     args: A,
-    sync_time: Duration,
 ) -> Result<Command>
 where
     E: Into<OsString>,
     A: IntoIterator<Item = S>,
     S: Into<OsString>,
 {
-    build_spfs_enter_command(runtime, command, args, sync_time)
+    build_spfs_enter_command(runtime, command, args)
 }
 
 /// Return a command that initializes and runs an interactive shell
@@ -187,12 +185,7 @@ pub(crate) fn build_spfs_remount_command(rt: &runtime::Runtime) -> Result<Comman
     })
 }
 
-fn build_spfs_enter_command<E, A, S>(
-    rt: &runtime::Runtime,
-    command: E,
-    args: A,
-    sync_time: Duration,
-) -> Result<Command>
+fn build_spfs_enter_command<E, A, S>(rt: &runtime::Runtime, command: E, args: A) -> Result<Command>
 where
     E: Into<OsString>,
     A: IntoIterator<Item = S>,
@@ -221,8 +214,6 @@ where
         rt.storage().address().to_string().into(),
         "--runtime".into(),
         rt.name().into(),
-        "--sync-time-seconds".into(),
-        sync_time.as_secs_f64().to_string().into(),
         "--metrics-in-env".into(),
         "--".into(),
         command.into(),
