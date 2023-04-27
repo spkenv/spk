@@ -20,7 +20,7 @@ pub struct Entry {
 }
 
 impl Entry {
-    pub fn from(name: String, entry: &tracking::Entry) -> Self {
+    pub fn from<T>(name: String, entry: &tracking::Entry<T>) -> Self {
         Self {
             object: entry.object,
             kind: entry.kind,

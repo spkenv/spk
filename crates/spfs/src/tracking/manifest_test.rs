@@ -105,7 +105,7 @@ async fn test_layer_manifests(tmpdir: tempfile::TempDir) {
 #[rstest]
 #[tokio::test]
 async fn test_layer_manifests_removal() {
-    let mut a = Manifest::default();
+    let mut a = Manifest::<()>::default();
     a.mkfile("a_only").unwrap();
 
     let mut b = Manifest::default();
