@@ -271,7 +271,7 @@ impl Config {
         .map_err(|err| match err {
             err @ crate::Error::FailedToOpenRepository { .. } => err,
             err => crate::Error::FailedToOpenRepository {
-                reason: String::from("error"),
+                repository: remote_name.as_ref().to_owned(),
                 source: Box::new(err),
             },
         })
@@ -321,11 +321,11 @@ pub fn load_config() -> Result<Config> {
 pub async fn open_repository<S: AsRef<str>>(
     address: S,
 ) -> crate::Result<storage::RepositoryHandle> {
-    match RemoteConfig::from_str(address).await?.open().await {
+    match RemoteConfig::from_str(address.as_ref()).await?.open().await {
         Ok(repo) => Ok(repo),
         err @ Err(crate::Error::FailedToOpenRepository { .. }) => err,
         Err(err) => Err(crate::Error::FailedToOpenRepository {
-            reason: String::from("error"),
+            repository: address.as_ref().to_owned(),
             source: Box::new(err),
         }),
     }

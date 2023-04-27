@@ -491,7 +491,7 @@ macro_rules! handle_result {
                 }
                 _ => {
                     $crate::capture_if_relevant(&err);
-                    tracing::error!("{err}");
+                    tracing::error!("{err:?}");
                     1
                 }
             },
