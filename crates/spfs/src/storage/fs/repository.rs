@@ -122,7 +122,7 @@ impl FSRepository {
             Ok(r) => r,
             Err(err) => {
                 return Err(crate::Error::FailedToOpenRepository {
-                    reason: root.as_ref().to_string_lossy().to_string(),
+                    repository: root.as_ref().to_string_lossy().to_string(),
                     source: Box::new(err),
                 })
             }

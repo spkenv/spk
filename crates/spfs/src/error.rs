@@ -61,12 +61,9 @@ pub enum Error {
     #[error("Object is not a blob: {1}")]
     ObjectNotABlob(crate::graph::Object, encoding::Digest),
 
-    #[error(
-        "Failed to open repository: {reason}, {}",
-        .source.to_string()
-    )]
+    #[error("Failed to open repository: {repository}")]
     FailedToOpenRepository {
-        reason: String,
+        repository: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
     #[error("No remote name '{0}' configured.")]
@@ -78,12 +75,9 @@ pub enum Error {
     NoActiveRuntime,
     #[error("Runtime has not been initialized: {0}")]
     RuntimeNotInitialized(String),
-    #[error(
-        "Runtime does not exist: {message}: {}",
-        .source.to_string()
-    )]
+    #[error("Runtime does not exist: {runtime}")]
     UnknownRuntime {
-        message: String,
+        runtime: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
     #[error("Runtime already exists: {0}")]

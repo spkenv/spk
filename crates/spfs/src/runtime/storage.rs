@@ -500,7 +500,7 @@ impl Storage {
             Ok(tag) => tag.target,
             Err(err @ Error::UnknownReference(_)) => {
                 return Err(Error::UnknownRuntime {
-                    message: format!("{} in storage {}", name.as_ref(), self.address()),
+                    runtime: format!("{} in storage {}", name.as_ref(), self.address()),
                     source: Box::new(err),
                 });
             }
@@ -512,7 +512,7 @@ impl Storage {
                 .await
                 .map_err(|err| match err {
                     Error::UnknownObject(_) => Error::UnknownRuntime {
-                        message: format!("{} in storage {}", name.as_ref(), self.address()),
+                        runtime: format!("{} in storage {}", name.as_ref(), self.address()),
                         source: Box::new(err),
                     },
                     _ => err,

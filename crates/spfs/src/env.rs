@@ -71,7 +71,7 @@ pub fn join_runtime(rt: &runtime::Runtime) -> Result<()> {
         Err(err) => {
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Err(Error::UnknownRuntime {
-                    message: rt.name().into(),
+                    runtime: rt.name().into(),
                     source: Box::new(err),
                 }),
                 _ => Err(Error::RuntimeReadError(ns_path, err)),
