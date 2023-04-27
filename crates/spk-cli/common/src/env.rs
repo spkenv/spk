@@ -30,34 +30,71 @@ pub async fn current_env() -> crate::Result<Solution> {
     }
 
     let repo = Arc::new(storage::RepositoryHandle::Runtime(Default::default()));
-    let mut solution = Solution::default();
+    let mut packages_in_runtime_f = Vec::new();
     for name in repo.list_packages().await? {
-        for version in repo.list_package_versions(&name).await?.iter() {
-            let pkg = VersionIdent::new(name.clone(), (**version).clone());
-            for pkg in repo.list_package_builds(&pkg).await? {
-                let spec = repo.read_package(&pkg).await?;
-                let components = match repo.read_components(spec.ident()).await {
-                    Ok(c) => c,
-                    Err(spk_storage::Error::SpkValidatorsError(
-                        spk_schema::validators::Error::PackageNotFoundError(_),
-                    )) => {
-                        tracing::info!("Skipping missing build {pkg}; currently being built?");
-                        continue;
-                    }
-                    Err(err) => return Err(err.into()),
-                };
-                let range_ident =
-                    RangeIdent::equals(&spec.ident().to_any(), components.keys().cloned());
-                let mut request = PkgRequest::new(range_ident, RequestedBy::CurrentEnvironment);
-                request.prerelease_policy = PreReleasePolicy::IncludeAll;
-                let repo = repo.clone();
-                solution.add(
-                    request,
-                    spec,
-                    PackageSource::Repository { repo, components },
-                );
+        let repo = Arc::clone(&repo);
+        packages_in_runtime_f.push(tokio::spawn(async move {
+            let mut specs = Vec::new();
+            for version in repo.list_package_versions(&name).await?.iter() {
+                let pkg = VersionIdent::new(name.clone(), (**version).clone());
+                for pkg in repo.list_package_builds(&pkg).await? {
+                    let spec = repo.read_package(&pkg).await?;
+                    specs.push(spec);
+                }
             }
+            Ok::<_, Error>(specs)
+        }));
+    }
+
+    let mut solution = Solution::default();
+
+    // Transform `FuturesUnordered<JoinHandle<impl Future<Output = Result<Vec<Arc<Spec>>>>>>`
+    // into flattened `Vec<Arc<Spec>>`.
+    let mut packages_in_runtime = Vec::new();
+    for package_f in packages_in_runtime_f {
+        let specs = package_f
+            .await
+            .map_err(|err| Error::String(format!("Tokio join error: {err}")))??;
+        packages_in_runtime.extend(specs.into_iter());
+    }
+
+    let package_idents_in_runtime = packages_in_runtime
+        .iter()
+        .map(|spec| spec.ident())
+        .collect::<Vec<_>>();
+
+    let components_in_runtime = match &*repo {
+        spk_solve::RepositoryHandle::Runtime(runtime) => {
+            runtime
+                .read_components_bulk(&package_idents_in_runtime)
+                .await?
         }
+        _ => unreachable!(),
+    };
+
+    // The results that come out of `read_components_bulk` are in the order of
+    // the argument elements, so here we iterate over them and walk the
+    // packages again in that same order to process the results.
+
+    debug_assert_eq!(
+        components_in_runtime.len(),
+        packages_in_runtime.len(),
+        "return value from read_components_bulk expected to match input length"
+    );
+
+    for (spec, components) in packages_in_runtime
+        .into_iter()
+        .zip(components_in_runtime.into_iter())
+    {
+        let range_ident = RangeIdent::equals(&spec.ident().to_any(), components.keys().cloned());
+        let mut request = PkgRequest::new(range_ident, RequestedBy::CurrentEnvironment);
+        request.prerelease_policy = PreReleasePolicy::IncludeAll;
+        let repo = repo.clone();
+        solution.add(
+            request,
+            spec,
+            PackageSource::Repository { repo, components },
+        );
     }
 
     Ok(solution)
