@@ -10,13 +10,14 @@ use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
-use spk_schema::{Recipe, SpecRecipe};
+use spk_schema::ident_build::Build;
+use spk_schema::{Recipe, SpecRecipe, Variant};
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_storage::{self as storage};
 
 use super::Tester;
 
-pub struct PackageInstallTester<'a> {
+pub struct PackageInstallTester<'a, V> {
     prefix: PathBuf,
     recipe: SpecRecipe,
     script: String,
@@ -25,10 +26,14 @@ pub struct PackageInstallTester<'a> {
     additional_requirements: Vec<Request>,
     source: Option<PathBuf>,
     env_resolver: BoxedResolverCallback<'a>,
+    variant: V,
 }
 
-impl<'a> PackageInstallTester<'a> {
-    pub fn new(recipe: SpecRecipe, script: String) -> Self {
+impl<'a, V> PackageInstallTester<'a, V>
+where
+    V: Variant + Send,
+{
+    pub fn new(recipe: SpecRecipe, script: String, variant: V) -> Self {
         Self {
             prefix: PathBuf::from("/spfs"),
             recipe,
@@ -38,6 +43,7 @@ impl<'a> PackageInstallTester<'a> {
             additional_requirements: Vec::new(),
             source: None,
             env_resolver: Box::new(DefaultResolver {}),
+            variant,
         }
     }
 
@@ -93,7 +99,14 @@ impl<'a> PackageInstallTester<'a> {
             solver.add_repository(repo);
         }
 
-        let pkg = RangeIdent::equals(&self.recipe.ident().to_any(None), [Component::All]);
+        // Request the specific build that goes with the selected build variant.
+        let build_to_test = self
+            .recipe
+            .ident()
+            .to_any(None)
+            .with_build(Some(Build::Digest(self.variant.options().digest())));
+
+        let pkg = RangeIdent::double_equals(&build_to_test, [Component::All]);
         let request = PkgRequest::new(pkg, RequestedBy::InstallTest(self.recipe.ident().clone()))
             .with_prerelease(PreReleasePolicy::IncludeAll)
             .with_pin(None)
@@ -123,9 +136,12 @@ impl<'a> PackageInstallTester<'a> {
 }
 
 #[async_trait::async_trait]
-impl<'a> Tester for PackageInstallTester<'a> {
+impl<'a, V> Tester for PackageInstallTester<'a, V>
+where
+    V: Variant + Send,
+{
     async fn test(&mut self) -> Result<()> {
-        self.test().await
+        PackageInstallTester::test(self).await
     }
     fn prefix(&self) -> &Path {
         &self.prefix
