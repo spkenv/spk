@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 use relative_path::RelativePath;
 
+use crate::config::ToAddress;
 use crate::prelude::*;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::EntryType;
@@ -23,6 +24,21 @@ mod repository_test;
 pub struct Config {
     pub primary: String,
     pub secondary: Vec<String>,
+}
+
+impl ToAddress for Config {
+    fn to_address(&self) -> Result<url::Url> {
+        let query = serde_qs::to_string(&self).map_err(|err| {
+            crate::Error::String(format!(
+                "Proxy repo parameters do not create a valid url: {err:?}"
+            ))
+        })?;
+        url::Url::parse(&format!("proxy:?{query}")).map_err(|err| {
+            crate::Error::String(format!(
+                "Proxy repo config does not create a valid url: {err:?}"
+            ))
+        })
+    }
 }
 
 #[async_trait::async_trait]
@@ -59,11 +75,11 @@ impl storage::FromConfig for ProxyRepository {
         let spfs_config = crate::Config::current()?;
         #[rustfmt::skip]
         let (primary, secondary) = tokio::try_join!(
-            spfs_config.get_remote(&config.primary),
+            crate::config::open_repository_from_string(&spfs_config, Some(&config.primary)),
             async {
                 let mut secondary = Vec::with_capacity(config.secondary.len());
                 for name in config.secondary.iter() {
-                    secondary.push(spfs_config.get_remote(&name).await?)
+                    secondary.push(crate::config::open_repository_from_string(&spfs_config, Some(&name)).await?)
                 }
                 Ok(secondary)
             }
@@ -265,7 +281,6 @@ impl Repository for ProxyRepository {
                 .map(|s| s.address().to_string())
                 .collect(),
         };
-        let query = serde_qs::to_string(&config).expect("We should not fail to create a url");
-        url::Url::parse(&format!("proxy:?{query}")).unwrap()
+        config.to_address().expect("config creates a valid url")
     }
 }

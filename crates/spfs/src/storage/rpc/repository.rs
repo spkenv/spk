@@ -4,6 +4,7 @@
 
 use storage::FromUrl;
 
+use crate::config::ToAddress;
 use crate::proto::database_service_client::DatabaseServiceClient;
 use crate::proto::payload_service_client::PayloadServiceClient;
 use crate::proto::repository_client::RepositoryClient;
@@ -41,8 +42,8 @@ impl FromUrl for Config {
     }
 }
 
-impl Config {
-    pub fn to_address(&self) -> Result<url::Url> {
+impl ToAddress for Config {
+    fn to_address(&self) -> Result<url::Url> {
         let query = serde_qs::to_string(&self.params).map_err(|err| {
             crate::Error::String(format!(
                 "Grpc repo parameters do not create a valid url: {err:?}"
