@@ -42,6 +42,7 @@ fn test_split_manifest_permissions() {
                 mode: 0o555,
                 size: 0,
                 entries: Default::default(),
+                user_data: (),
             },
         )
         .unwrap();

@@ -190,7 +190,7 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
 async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRepo) {
     init_logging();
     let tmprepo = tmprepo.await;
-    let manifest = tracking::Manifest::default();
+    let manifest = tracking::Manifest::<()>::default();
     let layer = tmprepo
         .create_layer(&graph::Manifest::from(&manifest))
         .await

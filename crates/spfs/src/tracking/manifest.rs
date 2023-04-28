@@ -31,28 +31,44 @@ pub const DEFAULT_MAX_CONCURRENT_BLOBS: usize = 1000;
 /// See: [`ManifestBuilder::with_max_concurrent_branches`]
 pub const DEFAULT_MAX_CONCURRENT_BRANCHES: usize = 5;
 
-#[derive(Default, Debug, Eq, PartialEq, Clone)]
-pub struct Manifest {
-    root: Entry,
+#[derive(Default, Clone)]
+pub struct Manifest<T = ()> {
+    root: Entry<T>,
 }
 
-impl Manifest {
-    pub fn new(root: Entry) -> Self {
+impl<T> std::fmt::Debug for Manifest<T>
+where
+    T: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Manifest")
+            .field("root", &self.root)
+            .finish()
+    }
+}
+
+impl<T> std::cmp::PartialEq for Manifest<T>
+where
+    T: std::cmp::PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.root == other.root
+    }
+}
+
+impl<T> std::cmp::Eq for Manifest<T> where T: std::cmp::Eq {}
+
+impl<T> Manifest<T> {
+    pub fn new(root: Entry<T>) -> Self {
         Self { root }
     }
 
-    pub fn root(&self) -> &Entry {
+    pub fn root(&self) -> &Entry<T> {
         &self.root
     }
 
-    pub fn take_root(self) -> Entry {
+    pub fn take_root(self) -> Entry<T> {
         self.root
-    }
-
-    /// Convert this manifest into its encodable,
-    /// hashable form for storage.
-    pub fn to_graph_manifest(&self) -> crate::graph::Manifest {
-        self.into()
     }
 
     /// Return true if this manifest has no contents.
@@ -61,7 +77,7 @@ impl Manifest {
     }
 
     /// Get an entry in this manifest given it's filepath.
-    pub fn get_path<P: AsRef<str>>(&self, path: P) -> Option<&Entry> {
+    pub fn get_path<P: AsRef<str>>(&self, path: P) -> Option<&Entry<T>> {
         const TRIM_START: &[char] = &['/', '.'];
         const TRIM_END: &[char] = &['/'];
         let path = path
@@ -103,26 +119,57 @@ impl Manifest {
     ///
     /// None is returned if the directory does not exist or the provided entry is
     /// not a directory
-    pub fn read_dir(&self, path: &str) -> Option<impl Iterator<Item = (&String, &Entry)>> {
+    pub fn read_dir(&self, path: &str) -> Option<impl Iterator<Item = (&String, &Entry<T>)>> {
         let entry = self.get_path(path)?;
         match entry.kind {
             EntryKind::Tree => Some(entry.entries.iter()),
             _ => None,
         }
     }
+}
 
+impl<T> Manifest<T>
+where
+    T: std::cmp::Eq + std::cmp::PartialEq,
+{
+    /// Convert this manifest into its encodable,
+    /// hashable form for storage.
+    pub fn to_graph_manifest(&self) -> crate::graph::Manifest {
+        self.into()
+    }
+}
+
+impl<T> Manifest<T>
+where
+    T: Clone,
+{
+    /// Layer another manifest on top of this one
+    pub fn update(&mut self, other: &Self) {
+        self.root.update(&other.root)
+    }
+}
+
+impl<T> Manifest<T>
+where
+    T: Eq + PartialEq,
+{
     /// Walk the contents of this manifest top-down and depth-first.
-    pub fn walk(&self) -> ManifestWalker<'_> {
+    pub fn walk(&self) -> ManifestWalker<'_, T> {
         ManifestWalker::new(&self.root)
     }
 
     /// Same as walk(), but joins all entry paths to the given root.
-    pub fn walk_abs<P: Into<RelativePathBuf>>(&self, root: P) -> ManifestWalker<'_> {
+    pub fn walk_abs<P: Into<RelativePathBuf>>(&self, root: P) -> ManifestWalker<'_, T> {
         self.walk().with_prefix(root)
     }
+}
 
+impl<T> Manifest<T>
+where
+    T: Default,
+{
     /// Add a new directory entry to this manifest
-    pub fn mkdir<P: AsRef<str>>(&mut self, path: P) -> Result<&mut Entry> {
+    pub fn mkdir<P: AsRef<str>>(&mut self, path: P) -> Result<&mut Entry<T>> {
         let entry = Entry::default();
         self.mknod(path, entry)
     }
@@ -132,7 +179,7 @@ impl Manifest {
     /// Entries that do not exist are created with a reasonable default
     /// file mode, but can and should be replaced by a new entry in the
     /// case where this is not desired.
-    pub fn mkdirs<P: AsRef<str>>(&mut self, path: P) -> Result<&mut Entry> {
+    pub fn mkdirs<P: AsRef<str>>(&mut self, path: P) -> Result<&mut Entry<T>> {
         const TRIM_PAT: &[char] = &['/', '.'];
         let path = path.as_ref().trim_start_matches(TRIM_PAT);
         if path.is_empty() {
@@ -160,15 +207,17 @@ impl Manifest {
     }
 
     /// Make a new file entry in this manifest
-    pub fn mkfile<'m>(&'m mut self, path: &str) -> Result<&'m mut Entry> {
+    pub fn mkfile<'m>(&'m mut self, path: &str) -> Result<&'m mut Entry<T>> {
         let entry = Entry {
             kind: EntryKind::Blob,
             ..Default::default()
         };
         self.mknod(path, entry)
     }
+}
 
-    pub fn mknod<P: AsRef<str>>(&mut self, path: P, new_entry: Entry) -> Result<&mut Entry> {
+impl<T> Manifest<T> {
+    pub fn mknod<P: AsRef<str>>(&mut self, path: P, new_entry: Entry<T>) -> Result<&mut Entry<T>> {
         use relative_path::Component;
         const TRIM_PAT: &[char] = &['/', '.'];
 
@@ -206,22 +255,17 @@ impl Manifest {
             _ => Err(nix::errno::Errno::EIO.into()),
         }
     }
-
-    /// Layer another manifest on top of this one
-    pub fn update(&mut self, other: &Self) {
-        self.root.update(&other.root)
-    }
 }
 
 /// Walks all entries in a manifest depth-first
-pub struct ManifestWalker<'m> {
+pub struct ManifestWalker<'m, T = ()> {
     prefix: RelativePathBuf,
-    children: std::collections::hash_map::Iter<'m, String, Entry>,
-    active_child: Option<Box<ManifestWalker<'m>>>,
+    children: std::collections::hash_map::Iter<'m, String, Entry<T>>,
+    active_child: Option<Box<ManifestWalker<'m, T>>>,
 }
 
-impl<'m> ManifestWalker<'m> {
-    fn new(root: &'m Entry) -> Self {
+impl<'m, T> ManifestWalker<'m, T> {
+    fn new(root: &'m Entry<T>) -> Self {
         ManifestWalker {
             prefix: RelativePathBuf::from("/"),
             children: root.entries.iter(),
@@ -235,8 +279,11 @@ impl<'m> ManifestWalker<'m> {
     }
 }
 
-impl<'m> Iterator for ManifestWalker<'m> {
-    type Item = ManifestNode<'m>;
+impl<'m, T> Iterator for ManifestWalker<'m, T>
+where
+    T: Eq + PartialEq,
+{
+    type Item = ManifestNode<'m, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(active_child) = self.active_child.as_mut() {
@@ -600,23 +647,40 @@ where
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub struct ManifestNode<'a> {
+#[derive(Debug)]
+pub struct ManifestNode<'a, T = ()> {
     pub path: RelativePathBuf,
-    pub entry: &'a Entry,
+    pub entry: &'a Entry<T>,
 }
 
-impl<'a> ManifestNode<'a> {
+impl<'a, T> ManifestNode<'a, T>
+where
+    T: Clone,
+{
     /// Create an owned node by cloning the underlying entry data.
     pub fn into_owned(self) -> OwnedManifestNode {
         OwnedManifestNode {
             path: self.path,
-            entry: self.entry.clone(),
+            entry: self.entry.clone().strip_user_data(),
         }
     }
 }
 
-impl<'a> Ord for ManifestNode<'a> {
+impl<'a, T> PartialEq for ManifestNode<'a, T>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path && self.entry == other.entry
+    }
+}
+
+impl<'a, T> Eq for ManifestNode<'a, T> where T: Eq {}
+
+impl<'a, T> Ord for ManifestNode<'a, T>
+where
+    T: Eq + PartialEq,
+{
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         use std::cmp::Ordering;
 
@@ -671,7 +735,10 @@ impl<'a> Ord for ManifestNode<'a> {
     }
 }
 
-impl<'a> PartialOrd for ManifestNode<'a> {
+impl<'a, T> PartialOrd for ManifestNode<'a, T>
+where
+    T: Eq + PartialEq,
+{
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
