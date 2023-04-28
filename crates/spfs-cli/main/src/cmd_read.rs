@@ -16,7 +16,7 @@ pub struct CmdRead {
 
     /// The tag or digest of the blob/payload to output
     #[clap(value_name = "REF")]
-    reference: String,
+    reference: spfs::tracking::EnvSpecItem,
 
     /// If the given ref is not a blob, read the blob found at this path
     #[clap(value_name = "PATH")]
@@ -27,7 +27,7 @@ impl CmdRead {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
-        let item = repo.read_ref(self.reference.as_str()).await?;
+        let item = repo.read_ref(&self.reference.to_string()).await?;
         use spfs::graph::Object;
         let blob = match item {
             Object::Blob(blob) => blob,

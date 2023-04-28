@@ -119,7 +119,10 @@ impl Runtime {
             args.push(std::ffi::CString::new("--no-runtime").expect("--no-runtime is valid UTF-8"));
         }
         args.insert(0, std::ffi::CString::new("--").expect("should never fail"));
-        args.insert(0, std::ffi::CString::new("-").expect("should never fail"));
+        args.insert(
+            0,
+            std::ffi::CString::new(spfs::tracking::ENV_SPEC_EMPTY).expect("should never fail"),
+        );
         args.insert(0, std::ffi::CString::new("run").expect("should never fail"));
         args.insert(0, spfs.clone());
 

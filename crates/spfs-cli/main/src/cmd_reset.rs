@@ -24,7 +24,7 @@ pub struct CmdReset {
     /// an empty string to request an empty environment. Only valid
     /// if no paths are given
     #[clap(long = "ref", short)]
-    reference: Option<String>,
+    reference: Option<spfs::tracking::EnvSpec>,
 
     /// Glob patterns in the spfs dir of files to reset, defaults to everything
     paths: Vec<String>,
@@ -37,23 +37,21 @@ impl CmdReset {
             spfs::active_runtime(),
             config.get_local_repository_handle()
         )?;
-        if let Some(reference) = &self.reference {
+        if let Some(env_spec) = &self.reference {
             runtime.reset::<&str>(&[])?;
             runtime.status.stack.truncate(0);
-            match reference.as_str() {
-                "" | "-" => self.edit = true,
-                _ => {
-                    let env_spec = spfs::tracking::EnvSpec::parse(reference)?;
-                    let origin = config.get_remote("origin").await?;
-                    let synced = self
-                        .sync
-                        .get_syncer(&origin, &repo)
-                        .sync_env(env_spec)
-                        .await?;
-                    for item in synced.env.iter() {
-                        let digest = item.resolve_digest(&*repo).await?;
-                        runtime.push_digest(digest);
-                    }
+            if env_spec.is_empty() {
+                self.edit = true;
+            } else {
+                let origin = config.get_remote("origin").await?;
+                let synced = self
+                    .sync
+                    .get_syncer(&origin, &repo)
+                    .sync_env(env_spec.clone())
+                    .await?;
+                for item in synced.env.iter() {
+                    let digest = item.resolve_digest(&*repo).await?;
+                    runtime.push_digest(digest);
                 }
             }
         } else {
