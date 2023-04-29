@@ -43,7 +43,7 @@ if [ "$#" -ne 0 ]; then
     exit $?
 fi
 
-echo "* You are now in a configured subshell *" 1>&2
+echo "$SPFS_SHELL_MESSAGE" 1>&2
 "#
     )
 }
