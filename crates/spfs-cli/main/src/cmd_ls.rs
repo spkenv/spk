@@ -168,13 +168,11 @@ impl CmdLs {
     }
 
     fn human_readable(&self, size: u64) -> String {
-        let result = if self.human_readable {
+        if self.human_readable {
             spfs::io::format_size(size)
         } else {
             size.to_string()
-        };
-
-        result
+        }
     }
 
     fn print_entries_in_dir(&mut self, entries: &EntriesPerDir) {
