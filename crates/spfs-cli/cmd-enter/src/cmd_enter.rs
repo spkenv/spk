@@ -203,7 +203,7 @@ impl CmdEnter {
             }
             // This is called after `[re]initialize_runtime` and now it is
             // "safe" to initialize sentry and send a sentry event.
-            if let Some(_guard) = configure_sentry() {
+            if let Some(_guard) = configure_sentry(self.command_name().to_owned()) {
                 tracing::error!(
                         target: "sentry",
                         entry_count = %_render_summary.entry_count.load(Ordering::Relaxed),
