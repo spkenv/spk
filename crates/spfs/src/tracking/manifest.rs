@@ -159,18 +159,6 @@ where
     pub fn update(&mut self, other: &Self) {
         self.root.update(&other.root)
     }
-
-    /// Same as list_dir() but instead,
-    /// lists the entries that exists inside the directory.
-    ///
-    /// None is also returned if the entry is not a directory.
-    pub fn list_entries_in_dir(&self, path: &str) -> Option<HashMap<String, Entry>> {
-        let entry = self.get_path(path)?;
-        match entry.kind {
-            EntryKind::Tree => Some(entry.entries.clone()),
-            _ => None,
-        }
-    }
 }
 
 impl<T> Manifest<T>
