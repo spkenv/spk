@@ -87,18 +87,18 @@ impl CmdLs {
 
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
-        match repo.read_tag_metadata(self.reference.as_str()).await {
+        match repo.read_tag_metadata(&self.reference.to_string()).await {
             Some(tag) => {
                 self.username = tag.username_without_org();
                 self.last_modified = tag.time.format("%b %e %H:%M").to_string();
             }
             _ => tracing::warn!(
                 "Unable to find the username and last modified fields of: {}",
-                self.reference.as_str()
+                self.reference.to_string()
             ),
         }
 
-        let item = repo.read_ref(self.reference.as_str()).await?;
+        let item = repo.read_ref(&self.reference.to_string()).await?;
 
         let path = self
             .path
@@ -168,10 +168,11 @@ impl CmdLs {
     }
 
     fn human_readable(&self, size: u64) -> String {
-        let mut result = size.to_string();
-        if self.human_readable {
-            result = spfs::io::format_size(size)
-        }
+        let result = if self.human_readable {
+            spfs::io::format_size(size)
+        } else {
+            size.to_string()
+        };
 
         result
     }
