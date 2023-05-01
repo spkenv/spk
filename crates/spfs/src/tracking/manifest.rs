@@ -154,7 +154,7 @@ where
             _ => None,
         }
     }
-    
+
     /// Layer another manifest on top of this one
     pub fn update(&mut self, other: &Self) {
         self.root.update(&other.root)

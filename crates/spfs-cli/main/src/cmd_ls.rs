@@ -138,7 +138,7 @@ impl CmdLs {
 
             for (dir_name, entries) in entries_to_print.iter().sorted_by_key(|(k, _)| k) {
                 if self.recursive {
-                    println!("{}/:", dir_name);
+                    println!("{dir_name}/:");
                 }
                 self.print_entries_in_dir(entries);
             }
