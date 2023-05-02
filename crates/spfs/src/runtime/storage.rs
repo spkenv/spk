@@ -115,7 +115,7 @@ pub struct Config {
     /// The location of the startup script for csh-based shells
     pub csh_startup_file: PathBuf,
     /// The location of the expect utility script used for csh-based shell environments
-    /// [DEPRECATED] This field still exists for spk/spfs interop but is unused
+    /// \[DEPRECATED\] This field still exists for spk/spfs interop but is unused
     #[serde(skip_deserializing, default = "Config::default_csh_expect_file")]
     pub csh_expect_file: PathBuf,
     /// The name of the mount namespace this runtime is using, if known
