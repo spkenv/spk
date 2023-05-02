@@ -15,7 +15,7 @@ pub struct CmdLs {
 
     /// The tag or digest of the file tree to read from
     #[clap(value_name = "REF")]
-    reference: String,
+    reference: spfs::tracking::EnvSpecItem,
 
     /// The subdirectory to list
     #[clap(default_value = "/spfs")]
@@ -26,7 +26,7 @@ impl CmdLs {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
-        let item = repo.read_ref(self.reference.as_str()).await?;
+        let item = repo.read_ref(&self.reference.to_string()).await?;
 
         let path = self
             .path

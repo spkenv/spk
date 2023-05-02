@@ -228,7 +228,7 @@ impl CmdEnter {
             }
             // This is called after `[re]initialize_runtime` and now it is
             // "safe" to initialize sentry and send a sentry event.
-            if let Some(_guard) = configure_sentry() {
+            if let Some(_guard) = configure_sentry(self.command_name().to_owned()) {
                 // Sync time is read in so it can be added to the
                 // sentry data. It's not being used for anything else
                 // so it doesn't need to be converted to a float.

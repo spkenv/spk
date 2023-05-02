@@ -28,7 +28,7 @@ pub struct CmdRun {
     /// The tag or id of the desired runtime
     ///
     /// Use '-' or an empty string to request an empty environment
-    pub reference: String,
+    pub reference: spfs::tracking::EnvSpec,
 
     /// The command to run in the environment
     pub command: OsString,
@@ -51,20 +51,18 @@ impl CmdRun {
             Some(name) => runtimes.create_named_runtime(name).await?,
             None => runtimes.create_runtime().await?,
         };
-        match self.reference.as_str() {
-            "-" | "" => self.edit = true,
-            reference => {
-                let env_spec = spfs::tracking::EnvSpec::parse(reference)?;
-                let origin = config.get_remote("origin").await?;
-                let synced = self
-                    .sync
-                    .get_syncer(&origin, &repo)
-                    .sync_env(env_spec)
-                    .await?;
-                for item in synced.env.iter() {
-                    let digest = item.resolve_digest(&*repo).await?;
-                    runtime.push_digest(digest);
-                }
+        if self.reference.is_empty() {
+            self.edit = true;
+        } else {
+            let origin = config.get_remote("origin").await?;
+            let synced = self
+                .sync
+                .get_syncer(&origin, &repo)
+                .sync_env(self.reference.clone())
+                .await?;
+            for item in synced.env.iter() {
+                let digest = item.resolve_digest(&*repo).await?;
+                runtime.push_digest(digest);
             }
         }
 

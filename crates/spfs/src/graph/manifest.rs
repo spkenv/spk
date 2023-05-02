@@ -24,14 +24,20 @@ pub struct Manifest {
     trees: BTreeMap<encoding::Digest, Tree>,
 }
 
-impl From<&tracking::Manifest> for Manifest {
-    fn from(source: &tracking::Manifest) -> Self {
+impl<T> From<&tracking::Manifest<T>> for Manifest
+where
+    T: std::cmp::Eq + std::cmp::PartialEq,
+{
+    fn from(source: &tracking::Manifest<T>) -> Self {
         Self::from(source.root())
     }
 }
 
-impl From<&tracking::Entry> for Manifest {
-    fn from(source: &tracking::Entry) -> Self {
+impl<T> From<&tracking::Entry<T>> for Manifest
+where
+    T: std::cmp::Eq + std::cmp::PartialEq,
+{
+    fn from(source: &tracking::Entry<T>) -> Self {
         let mut manifest = Self::default();
         let mut root = Tree::default();
 

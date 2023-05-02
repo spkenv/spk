@@ -448,6 +448,7 @@ macro_rules! main {
 #[macro_export(local_inner_macros)]
 macro_rules! configure {
     ($opt:ident, $sentry:literal, $syslog:literal) => {{
+        use $crate::CommandName;
         // sentry makes this process multithreaded, and must be disabled
         // for commands that use system calls which are bothered by this
         #[cfg(feature = "sentry")]
@@ -471,7 +472,6 @@ macro_rules! configure {
 macro_rules! handle_result {
     ($result:ident) => {{
         let code = match $result {
-            //  Err(err) => match err {
             Err(err) => match err.root_cause().downcast_ref::<spfs::Error>() {
                 Some(spfs::Error::Errno(msg, errno))
                     if *errno == $crate::__private::libc::ENOSPC =>

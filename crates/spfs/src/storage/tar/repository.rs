@@ -12,6 +12,7 @@ use futures::Stream;
 use relative_path::RelativePath;
 use tar::{Archive, Builder};
 
+use crate::config::ToAddress;
 use crate::prelude::*;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::EntryType;
@@ -22,6 +23,16 @@ use crate::{encoding, graph, storage, tracking, Error, Result};
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Config {
     pub path: std::path::PathBuf,
+}
+
+impl ToAddress for Config {
+    fn to_address(&self) -> Result<url::Url> {
+        url::Url::from_file_path(&self.path).map_err(|err| {
+            crate::Error::String(format!(
+                "Tar file path does not create a valid url: {err:?}"
+            ))
+        })
+    }
 }
 
 #[async_trait::async_trait]
