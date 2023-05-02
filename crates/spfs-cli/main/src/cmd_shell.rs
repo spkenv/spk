@@ -29,7 +29,7 @@ pub struct CmdShell {
     ///
     /// Use '-' or nothing to request an empty environment
     #[clap(name = "REF")]
-    reference: Option<String>,
+    reference: spfs::tracking::EnvSpec,
 }
 
 impl CmdShell {
@@ -39,7 +39,7 @@ impl CmdShell {
             verbose: self.verbose,
             edit: self.edit,
             name: self.name.clone(),
-            reference: self.reference.clone().unwrap_or_else(|| "".into()),
+            reference: self.reference.clone(),
             command: Default::default(),
             args: Default::default(),
         };

@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 use relative_path::RelativePath;
 
+use crate::config::ToAddress;
 use crate::prelude::*;
 use crate::storage::fs::{FSHashStore, FSRepository, RenderStore};
 use crate::storage::tag::TagSpecAndTagStream;
@@ -24,6 +25,21 @@ mod repository_test;
 pub struct Config {
     pub primary: String,
     pub secondary: Vec<String>,
+}
+
+impl ToAddress for Config {
+    fn to_address(&self) -> Result<url::Url> {
+        let query = serde_qs::to_string(&self).map_err(|err| {
+            crate::Error::String(format!(
+                "Fallback repo parameters do not create a valid url: {err:?}"
+            ))
+        })?;
+        url::Url::parse(&format!("fallback:?{query}")).map_err(|err| {
+            crate::Error::String(format!(
+                "Fallback repo config does not create a valid url: {err:?}"
+            ))
+        })
+    }
 }
 
 #[async_trait::async_trait]
@@ -266,8 +282,9 @@ impl Repository for PayloadFallback {
                 .map(|s| s.address().to_string())
                 .collect(),
         };
-        let query = serde_qs::to_string(&config).expect("We should not fail to create a url");
-        url::Url::parse(&format!("fallback:?{query}")).unwrap()
+        config
+            .to_address()
+            .expect("We should not fail to create a url")
     }
 }
 

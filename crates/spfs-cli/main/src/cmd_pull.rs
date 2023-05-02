@@ -26,7 +26,7 @@ pub struct CmdPull {
     /// These can be individual tags or digests, or they may also
     /// be a collection of items joined by a '+'
     #[clap(value_name = "REF", required = true)]
-    refs: Vec<String>,
+    refs: Vec<spfs::tracking::EnvSpec>,
 }
 
 impl CmdPull {
@@ -36,8 +36,7 @@ impl CmdPull {
             spfs::config::open_repository_from_string(config, self.remote.as_ref())
         )?;
 
-        let env_spec =
-            spfs::tracking::EnvSpec::parse(self.refs.join(spfs::tracking::ENV_SPEC_SEPARATOR))?;
+        let env_spec = self.refs.iter().cloned().collect();
         let summary = self
             .sync
             .get_syncer(&remote, &repo)

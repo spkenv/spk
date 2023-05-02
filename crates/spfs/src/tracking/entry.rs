@@ -82,16 +82,21 @@ impl encoding::Decodable for EntryKind {
     }
 }
 
+/// An entry in the manifest identifies a directory or file in the tree
 #[derive(Clone)]
-pub struct Entry {
+pub struct Entry<T = ()> {
     pub kind: EntryKind,
     pub object: encoding::Digest,
     pub mode: u32,
     pub size: u64,
-    pub entries: std::collections::HashMap<String, Entry>,
+    pub entries: std::collections::HashMap<String, Entry<T>>,
+    pub user_data: T,
 }
 
-impl Default for Entry {
+impl<T> Default for Entry<T>
+where
+    T: Default,
+{
     fn default() -> Self {
         Self {
             kind: EntryKind::Tree,
@@ -99,31 +104,61 @@ impl Default for Entry {
             mode: 0o777,
             size: 0,
             entries: Default::default(),
+            user_data: T::default(),
         }
     }
 }
 
-impl std::fmt::Debug for Entry {
+impl<T> std::fmt::Debug for Entry<T>
+where
+    T: std::fmt::Debug,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // break this apart to create compiler errors when
+        // new fields are added
+        let Entry {
+            kind,
+            object,
+            mode,
+            size,
+            entries,
+            user_data,
+        } = self;
         f.debug_struct("Entry")
-            .field("kind", &self.kind)
-            .field("mode", &format!("{:#06o}", self.mode))
-            .field("size", &self.size)
-            .field("object", &self.object)
-            .field("entries", &self.entries)
+            .field("kind", kind)
+            .field("mode", &format!("{mode:#06o}"))
+            .field("size", size)
+            .field("object", object)
+            .field("entries", entries)
+            .field("user_data", user_data)
             .finish()
     }
 }
 
-impl PartialEq for Entry {
+impl<T> PartialEq for Entry<T>
+where
+    T: PartialEq,
+{
     fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind
-            && self.mode == other.mode
-            && self.size == other.size
-            && self.object == other.object
+        // break this apart to create compiler errors when
+        // new fields are added
+        let Entry {
+            kind,
+            object,
+            mode,
+            size,
+            entries,
+            user_data,
+        } = other;
+        self.kind == *kind
+            && self.mode == *mode
+            && self.size == *size
+            && self.object == *object
+            && self.entries == *entries
+            && self.user_data == *user_data
     }
 }
-impl Eq for Entry {}
+impl<T> Eq for Entry<T> where T: Eq {}
 
 impl PartialOrd for Entry {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -136,7 +171,7 @@ impl PartialOrd for Entry {
     }
 }
 
-impl Entry {
+impl<T> Entry<T> {
     pub fn is_symlink(&self) -> bool {
         (libc::S_IFMT & self.mode) == libc::S_IFLNK
     }
@@ -147,7 +182,7 @@ impl Entry {
         (libc::S_IFMT & self.mode) == libc::S_IFREG
     }
 
-    pub fn iter_entries(&self) -> impl Iterator<Item = super::manifest::ManifestNode<'_>> {
+    pub fn iter_entries(&self) -> impl Iterator<Item = super::manifest::ManifestNode<'_, T>> {
         self.entries
             .iter()
             .map(|(name, entry)| super::manifest::ManifestNode {
@@ -156,6 +191,26 @@ impl Entry {
             })
     }
 
+    pub fn strip_user_data(self) -> Entry<()> {
+        Entry {
+            kind: self.kind,
+            object: self.object,
+            mode: self.mode,
+            size: self.size,
+            entries: self
+                .entries
+                .into_iter()
+                .map(|(n, e)| (n, e.strip_user_data()))
+                .collect(),
+            user_data: (),
+        }
+    }
+}
+
+impl<T> Entry<T>
+where
+    T: Clone,
+{
     pub fn update(&mut self, other: &Self) {
         self.kind = other.kind;
         self.object = other.object;

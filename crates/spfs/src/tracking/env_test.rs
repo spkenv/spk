@@ -14,5 +14,10 @@ fn test_env_spec_validation() {
 
 #[rstest]
 fn test_env_spec_empty() {
-    EnvSpec::parse("").expect_err("empty spec should be invalid");
+    let empty = EnvSpec::parse("").expect("empty spec should be valid");
+    let dash = EnvSpec::parse(super::ENV_SPEC_EMPTY).expect("dash spec should be valid");
+    assert_eq!(
+        empty, dash,
+        "dash and empty string should be an empty spec (for cli parsing)"
+    );
 }

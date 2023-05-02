@@ -14,6 +14,9 @@ mod env_test;
 /// The pattern used to split components of an env spec string
 pub const ENV_SPEC_SEPARATOR: &str = "+";
 
+/// Recognized as an empty environment spec with no items
+pub const ENV_SPEC_EMPTY: &str = "-";
+
 /// Specifies an spfs item that can appear in a runtime environment.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum EnvSpecItem {
@@ -93,8 +96,12 @@ impl From<encoding::Digest> for EnvSpecItem {
 /// let spec = EnvSpec::parse("3YDG35SUMJS67N2QPQ4NQCYJ6QGKMEB5H4MHC76VRGMRWBRBLFHA====+my-tag").unwrap();
 /// let items: Vec<_> = spec.iter().map(ToString::to_string).collect();
 /// assert_eq!(items, vec!["3YDG35SUMJS67N2QPQ4NQCYJ6QGKMEB5H4MHC76VRGMRWBRBLFHA====", "my-tag"]);
+///
+/// let spec = EnvSpec::parse("").unwrap();
+/// let items: Vec<_> = spec.iter().map(ToString::to_string).collect();
+/// assert!(items.is_empty());
 /// ```
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
 pub struct EnvSpec {
     items: Vec<EnvSpecItem>,
 }
@@ -103,6 +110,11 @@ impl EnvSpec {
     /// Parse the provided string into an environment spec.
     pub fn parse<S: AsRef<str>>(spec: S) -> Result<Self> {
         Self::from_str(spec.as_ref())
+    }
+
+    /// True if there are no items in this spec
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
     }
 }
 
@@ -162,6 +174,17 @@ impl<I: Into<EnvSpecItem>> std::iter::FromIterator<I> for EnvSpec {
     }
 }
 
+impl std::iter::FromIterator<EnvSpec> for EnvSpec {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = EnvSpec>,
+    {
+        Self {
+            items: iter.into_iter().flat_map(|e| e.into_iter()).collect(),
+        }
+    }
+}
+
 impl<I: Into<EnvSpecItem>> From<Vec<I>> for EnvSpec {
     fn from(value: Vec<I>) -> Self {
         Self::from_iter(value.into_iter())
@@ -186,6 +209,9 @@ impl std::string::ToString for EnvSpec {
 
 /// Return the items identified in an environment spec string.
 fn parse_env_spec_items<S: AsRef<str>>(spec: S) -> Result<Vec<EnvSpecItem>> {
+    if spec.as_ref() == ENV_SPEC_EMPTY || spec.as_ref() == "" {
+        return Ok(Vec::new());
+    }
     let mut items = Vec::new();
     for layer in spec.as_ref().split(ENV_SPEC_SEPARATOR) {
         items.push(parse_env_spec_item(layer)?);

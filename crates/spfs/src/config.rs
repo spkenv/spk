@@ -63,6 +63,15 @@ pub enum Remote {
     Config(RemoteConfig),
 }
 
+impl ToAddress for Remote {
+    fn to_address(&self) -> Result<url::Url> {
+        match self {
+            Self::Address(addr) => Ok(addr.address.clone()),
+            Self::Config(conf) => conf.to_address(),
+        }
+    }
+}
+
 impl<'de> serde::de::Deserialize<'de> for Remote {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -95,6 +104,17 @@ pub enum RemoteConfig {
     Grpc(storage::rpc::Config),
     Tar(storage::tar::Config),
     Proxy(storage::proxy::Config),
+}
+
+impl ToAddress for RemoteConfig {
+    fn to_address(&self) -> Result<url::Url> {
+        match self {
+            Self::Fs(c) => c.to_address(),
+            Self::Grpc(c) => c.to_address(),
+            Self::Tar(c) => c.to_address(),
+            Self::Proxy(c) => c.to_address(),
+        }
+    }
 }
 
 impl RemoteConfig {
@@ -276,6 +296,11 @@ impl Config {
             },
         })
     }
+}
+
+/// An item that can be converted into a web address
+pub trait ToAddress {
+    fn to_address(&self) -> Result<url::Url>;
 }
 
 /// Get the current spfs config, fetching it from disk if needed.

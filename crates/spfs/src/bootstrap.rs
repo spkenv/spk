@@ -16,6 +16,14 @@ mod bootstrap_test;
 /// when launching through certain shells (tcsh).
 const SPFS_ORIGINAL_HOME: &str = "SPFS_ORIGINAL_HOME";
 
+/// The environment variable used to store the message
+/// shown to users when an interactive spfs shell is started
+const SPFS_SHELL_MESSAGE: &str = "SPFS_SHELL_MESSAGE";
+
+/// The default message shows when an interactive
+/// spfs shell is started.
+const SPFS_SHELL_DEFAULT_MESSAGE: &str = "* You are now in a configured subshell *";
+
 /// A command to be executed
 #[derive(Debug, Clone)]
 pub struct Command {
@@ -99,6 +107,10 @@ pub fn build_interactive_shell_command(
     shell: Option<&str>,
 ) -> Result<Command> {
     let shell = find_best_shell(shell)?;
+    let shell_message = (
+        SPFS_SHELL_MESSAGE.into(),
+        std::env::var_os(SPFS_SHELL_MESSAGE).unwrap_or_else(|| SPFS_SHELL_DEFAULT_MESSAGE.into()),
+    );
     match shell {
         Shell::Tcsh(tcsh) => Ok(Command {
             executable: tcsh.into(),
@@ -117,6 +129,7 @@ pub fn build_interactive_shell_command(
                         .as_os_str()
                         .to_owned(),
                 ),
+                shell_message,
             ],
         }),
 
@@ -126,7 +139,7 @@ pub fn build_interactive_shell_command(
                 "--init-file".into(),
                 rt.config.sh_startup_file.as_os_str().to_owned(),
             ],
-            vars: vec![],
+            vars: vec![shell_message],
         }),
     }
 }
