@@ -48,8 +48,7 @@ if ( -d "${{startup_dir}}" != 0 ) then
 endif
 
 if ( "$#argv" != 0 ) then
-    $argv:q
-    exit $?
+    exec $argv:q
 endif
 
 # csh cannot echo to stderr, only sh can do that :/

@@ -39,8 +39,7 @@ if [ -d "${{startup_dir}}" ]; then
 fi
 
 if [ "$#" -ne 0 ]; then
-    "$@"
-    exit $?
+    exec "$@"
 fi
 
 echo "$SPFS_SHELL_MESSAGE" 1>&2
