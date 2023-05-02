@@ -114,6 +114,10 @@ pub struct Config {
     pub sh_startup_file: PathBuf,
     /// The location of the startup script for csh-based shells
     pub csh_startup_file: PathBuf,
+    /// The location of the expect utility script used for csh-based shell environments
+    /// [DEPRECATED] This field still exists for spk/spfs interop but is unused
+    #[serde(skip_deserializing, default = "Config::default_csh_expect_file")]
+    pub csh_expect_file: PathBuf,
     /// The name of the mount namespace this runtime is using, if known
     pub mount_namespace: Option<PathBuf>,
 }
@@ -131,6 +135,12 @@ impl Config {
     const WORK_DIR: &'static str = "work";
     const SH_STARTUP_FILE: &'static str = "startup.sh";
     const CSH_STARTUP_FILE: &'static str = ".cshrc";
+    const DEV_NULL: &'static str = "/dev/null";
+
+    /// Return a dummy value for the legacy csh_expect_file field.
+    fn default_csh_expect_file() -> PathBuf {
+        Self::DEV_NULL.into()
+    }
 
     fn from_root<P: Into<PathBuf>>(root: P) -> Self {
         let root = root.into();
@@ -143,6 +153,7 @@ impl Config {
             work_dir: root.join(Self::WORK_DIR),
             sh_startup_file: root.join(Self::SH_STARTUP_FILE),
             csh_startup_file: root.join(Self::CSH_STARTUP_FILE),
+            csh_expect_file: Self::default_csh_expect_file(),
             runtime_dir: Some(root),
             tmpfs_size,
             mount_namespace: None,
