@@ -12,11 +12,12 @@ assert_runtime_count() {
     # give any runtimes created by other tests a chance to expire
     # this number relates to the 2.5s poll interval when not using
     # cnproc.
-    sleep 3
+    sleep 4
 
     count=$(spfs runtime list -q | wc -l)
     test $count -eq $1
 }
+
 
 # there's a runtime inside but not once exited
 assert_runtime_count 0
@@ -34,11 +35,14 @@ wait
 assert_runtime_count 0
 
 # many runtimes launched recursively
-spfs run - -- spfs run - -- spfs run - -- spfs run - -- sleep 4 &
-assert_runtime_count 4
+spfs run - -- spfs run - -- spfs run - -- spfs run - -- sleep 5 &
+# when runtimes are stacked, the commands each move into
+# a new namespace and so the outer runtimes become empty
+# and can be cleaned up immediately
+assert_runtime_count 1
 wait
 assert_runtime_count 0
 
 # fast runtime doesn't linger
-spfs run - :
+spfs run - true
 assert_runtime_count 0
