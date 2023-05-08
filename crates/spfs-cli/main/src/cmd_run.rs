@@ -55,10 +55,19 @@ impl CmdRun {
             self.edit = true;
         } else {
             let origin = config.get_remote("origin").await?;
+            // Convert the tag items in the reference field to their
+            // underlying digests so the tags are not synced to the
+            // local repo. Tags synced to a local repo will prevent
+            // future 'spfs clean's from removing many unused spfs
+            // objects.
+            let references_to_sync = self
+                .reference
+                .convert_tags_to_underlying_digests(&*origin)
+                .await?;
             let synced = self
                 .sync
                 .get_syncer(&origin, &repo)
-                .sync_env(self.reference.clone())
+                .sync_env(references_to_sync)
                 .await?;
             for item in synced.env.iter() {
                 let digest = item.resolve_digest(&*repo).await?;

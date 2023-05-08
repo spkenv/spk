@@ -116,6 +116,25 @@ impl EnvSpec {
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
+
+    /// Return a new EnvSpec based on this one, with all the tag items
+    /// converted to digest items with the tags' underlying digests.
+    pub async fn convert_tags_to_underlying_digests<R>(&self, repo: &R) -> Result<EnvSpec>
+    where
+        R: crate::storage::Repository + ?Sized,
+    {
+        let mut new_items: Vec<EnvSpecItem> = Vec::with_capacity(self.items.len());
+
+        // Using a for loop to allow async calls inside the block
+        for item in &self.items {
+            new_items.push(match item {
+                EnvSpecItem::TagSpec(_) => EnvSpecItem::Digest(item.resolve_digest(repo).await?),
+                _ => item.clone(),
+            })
+        }
+
+        Ok(EnvSpec { items: new_items })
+    }
 }
 
 impl std::ops::Deref for EnvSpec {
