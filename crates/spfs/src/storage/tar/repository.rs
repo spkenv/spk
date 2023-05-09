@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::io::BufReader;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -16,7 +17,7 @@ use crate::config::ToAddress;
 use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::tag::TagSpecAndTagStream;
-use crate::storage::{EntryType, OpenRepositoryError, OpenRepositoryResult};
+use crate::storage::{EntryType, OpenRepositoryError, OpenRepositoryResult, TagStorageMut};
 use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
@@ -307,6 +308,11 @@ impl PayloadStorage for TarRepository {
 
 #[async_trait::async_trait]
 impl TagStorage for TarRepository {
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+        self.repo.get_tag_namespace()
+    }
+
     async fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
         self.repo.resolve_tag(tag_spec).await
     }
@@ -355,6 +361,12 @@ impl TagStorage for TarRepository {
         self.up_to_date
             .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
+    }
+}
+
+impl TagStorageMut for TarRepository {
+    fn try_set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Result<Option<PathBuf>> {
+        self.repo.try_set_tag_namespace(tag_namespace)
     }
 }
 

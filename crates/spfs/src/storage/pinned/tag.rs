@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::future::ready;
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -23,6 +25,11 @@ impl<T> TagStorage for PinnedRepository<T>
 where
     T: TagStorage + 'static,
 {
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+        T::get_tag_namespace(&*self.inner)
+    }
+
     /// Return true if the given tag exists in this storage.
     async fn has_tag(&self, tag: &tracking::TagSpec) -> bool {
         self.read_tag(tag).await.is_ok()

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::convert::TryInto;
 use std::ffi::OsStr;
 use std::mem::size_of;
@@ -20,13 +21,18 @@ use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 
 use super::{FsRepository, OpenFsRepository};
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
-use crate::storage::TagStorage;
+use crate::storage::{TagStorage, TagStorageMut};
 use crate::{encoding, tracking, Error, OsError, OsErrorExt, Result};
 
 const TAG_EXT: &str = "tag";
 
 #[async_trait::async_trait]
 impl TagStorage for FsRepository {
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+        Self::get_tag_namespace(self)
+    }
+
     fn ls_tags(
         &self,
         path: &RelativePath,
@@ -83,12 +89,21 @@ impl TagStorage for FsRepository {
 
 impl OpenFsRepository {
     fn tags_root(&self) -> PathBuf {
-        self.root().join("tags")
+        let mut tags_root = self.root().join("tags");
+        if let Some(tag_namespace) = self.get_tag_namespace() {
+            tags_root = tags_root.join(tag_namespace);
+        }
+        tags_root
     }
 }
 
 #[async_trait::async_trait]
 impl TagStorage for OpenFsRepository {
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+        Self::get_tag_namespace(self)
+    }
+
     fn ls_tags(
         &self,
         path: &RelativePath,
@@ -313,6 +328,12 @@ impl TagStorage for OpenFsRepository {
         }?;
 
         working_file.write_tags(&tags).await
+    }
+}
+
+impl TagStorageMut for FsRepository {
+    fn try_set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Result<Option<PathBuf>> {
+        Ok(Self::set_tag_namespace(self, tag_namespace))
     }
 }
 

@@ -79,6 +79,8 @@ pub struct Storage {
     /// is owned by a different user than the current user. Only applies to
     /// payloads readable by "other".
     pub allow_payload_sharing_between_users: bool,
+    // This name avoids underscores to allow it to be set from the env.
+    pub tagnamespace: Option<PathBuf>,
 }
 
 impl Storage {
@@ -98,6 +100,7 @@ impl Default for Storage {
                 .map(|data| data.join(DEFAULT_USER_STORAGE))
                 .unwrap_or_else(|| PathBuf::from(FALLBACK_STORAGE_ROOT)),
             allow_payload_sharing_between_users: false,
+            tagnamespace: None,
         }
     }
 }
@@ -388,7 +391,7 @@ impl Config {
                 Some(self.storage.root.join("ci").join(format!("pipeline_{id}")));
         }
 
-        storage::fs::OpenFsRepository::create(
+        let mut local_repo = storage::fs::OpenFsRepository::create(
             use_ci_isolated_storage_path
                 .as_ref()
                 .unwrap_or(&self.storage.root),
@@ -397,7 +400,11 @@ impl Config {
         .map_err(|source| Error::FailedToOpenRepository {
             repository: LOCAL_STORAGE_NAME.into(),
             source,
-        })
+        })?;
+
+        local_repo.set_tag_namespace(self.storage.tagnamespace.clone());
+
+        Ok(local_repo)
     }
 
     /// Get the local repository instance as configured, creating it if needed.

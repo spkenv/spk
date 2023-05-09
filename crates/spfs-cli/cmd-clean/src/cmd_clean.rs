@@ -117,8 +117,13 @@ impl CommandName for CmdClean {
 
 impl CmdClean {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        let mut repo =
+            spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
         tracing::debug!("spfs clean command called");
+
+        // It would be destructive to run clean on a repo while only
+        // considering the tags that exist within a namespace.
+        repo.try_as_tag_mut()?.try_set_tag_namespace(None)?;
 
         if let Some(runtime_name) = &self.remove_durable {
             tracing::debug!("durable rt name: {}", runtime_name);

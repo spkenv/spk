@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::convert::{TryFrom, TryInto};
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 use futures::{Stream, TryStreamExt};
@@ -16,6 +18,11 @@ use crate::{encoding, tracking, Result};
 
 #[async_trait::async_trait]
 impl storage::TagStorage for super::RpcRepository {
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+        None
+    }
+
     async fn resolve_tag(
         &self,
         tag_spec: &crate::tracking::TagSpec,
@@ -137,6 +144,15 @@ impl storage::TagStorage for super::RpcRepository {
             .into_inner()
             .to_result()?;
         Ok(())
+    }
+}
+
+impl storage::TagStorageMut for super::RpcRepository {
+    fn try_set_tag_namespace(
+        &mut self,
+        _tag_namespace: Option<PathBuf>,
+    ) -> Result<Option<PathBuf>> {
+        Ok(None)
     }
 }
 

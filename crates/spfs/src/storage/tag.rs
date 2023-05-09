@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::fmt::Display;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 use encoding::Encodable;
@@ -56,6 +58,9 @@ impl Display for EntryType {
 /// A location where tags are tracked and persisted.
 #[async_trait::async_trait]
 pub trait TagStorage: Send + Sync {
+    /// Return the (optional) tag namespace to use for this tag storage.
+    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>>;
+
     /// Return true if the given tag exists in this storage.
     async fn has_tag(&self, tag: &tracking::TagSpec) -> bool {
         self.resolve_tag(tag).await.is_ok()
@@ -165,6 +170,11 @@ pub trait TagStorage: Send + Sync {
 
 #[async_trait::async_trait]
 impl<T: TagStorage> TagStorage for &T {
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+        TagStorage::get_tag_namespace(&**self)
+    }
+
     async fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
         TagStorage::resolve_tag(&**self, tag_spec).await
     }
@@ -205,4 +215,10 @@ impl<T: TagStorage> TagStorage for &T {
     async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
         TagStorage::remove_tag(&**self, tag).await
     }
+}
+
+pub trait TagStorageMut {
+    /// Set the configured tag namespace, returning the old tag namespace,
+    /// if there was one.
+    fn try_set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Result<Option<PathBuf>>;
 }

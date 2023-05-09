@@ -88,6 +88,8 @@ pub enum OpenRepositoryError {
         #[from]
         source: tonic::transport::Error,
     },
+    #[error("Pinned repository is read only")]
+    RepositoryIsPinned,
 }
 
 impl OpenRepositoryError {

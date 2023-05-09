@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 use chrono::{DateTime, Utc};
@@ -11,7 +13,7 @@ use relative_path::RelativePath;
 use crate::config::ToAddress;
 use crate::prelude::*;
 use crate::storage::tag::TagSpecAndTagStream;
-use crate::storage::{EntryType, OpenRepositoryError, OpenRepositoryResult};
+use crate::storage::{EntryType, OpenRepositoryError, OpenRepositoryResult, TagStorageMut};
 use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Result};
 
@@ -233,6 +235,11 @@ impl PayloadStorage for ProxyRepository {
 
 #[async_trait::async_trait]
 impl TagStorage for ProxyRepository {
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+        self.primary.get_tag_namespace()
+    }
+
     fn ls_tags(
         &self,
         path: &RelativePath,
@@ -283,6 +290,14 @@ impl TagStorage for ProxyRepository {
     async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
         self.primary.remove_tag(tag).await?;
         Ok(())
+    }
+}
+
+impl TagStorageMut for ProxyRepository {
+    fn try_set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Result<Option<PathBuf>> {
+        self.primary
+            .try_as_tag_mut()
+            .and_then(|tag| tag.try_set_tag_namespace(tag_namespace))
     }
 }
 

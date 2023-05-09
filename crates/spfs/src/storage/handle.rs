@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -14,9 +16,9 @@ use spfs_encoding as encoding;
 use super::prelude::*;
 use super::repository::Ref;
 use super::tag::TagSpecAndTagStream;
-use super::RepositoryHandle;
+use super::{RepositoryHandle, TagStorageMut};
 use crate::tracking::{self, BlobRead};
-use crate::{graph, Result};
+use crate::{graph, Error, Result};
 
 /// Runs a code block on each variant of the handle,
 /// easily allowing the use of storage code without using
@@ -63,6 +65,11 @@ impl Repository for RepositoryHandle {
 
 #[async_trait::async_trait]
 impl TagStorage for RepositoryHandle {
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+        each_variant!(self, repo, { repo.get_tag_namespace() })
+    }
+
     async fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
         each_variant!(self, repo, { repo.resolve_tag(tag_spec).await })
     }
@@ -102,6 +109,19 @@ impl TagStorage for RepositoryHandle {
 
     async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
         each_variant!(self, repo, { repo.remove_tag(tag).await })
+    }
+}
+
+impl TagStorageMut for RepositoryHandle {
+    fn try_set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Result<Option<PathBuf>> {
+        match self {
+            RepositoryHandle::FS(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::Tar(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::Rpc(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::FallbackProxy(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::Proxy(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::Pinned(_) => Err(Error::RepositoryIsPinned),
+        }
     }
 }
 
@@ -223,6 +243,11 @@ impl Repository for Arc<RepositoryHandle> {
 
 #[async_trait::async_trait]
 impl TagStorage for Arc<RepositoryHandle> {
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+        RepositoryHandle::get_tag_namespace(self)
+    }
+
     async fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
         each_variant!(&**self, repo, { repo.resolve_tag(tag_spec).await })
     }

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -13,7 +15,7 @@ use crate::config::ToAddress;
 use crate::prelude::*;
 use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
 use crate::storage::tag::TagSpecAndTagStream;
-use crate::storage::{EntryType, LocalRepository};
+use crate::storage::{EntryType, LocalRepository, TagStorageMut};
 use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
@@ -284,6 +286,11 @@ impl PayloadStorage for FallbackProxy {
 
 #[async_trait::async_trait]
 impl TagStorage for FallbackProxy {
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+        self.primary.get_tag_namespace()
+    }
+
     fn ls_tags(
         &self,
         path: &RelativePath,
@@ -322,6 +329,12 @@ impl TagStorage for FallbackProxy {
     async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
         self.primary.remove_tag(tag).await?;
         Ok(())
+    }
+}
+
+impl TagStorageMut for FallbackProxy {
+    fn try_set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Result<Option<PathBuf>> {
+        Ok(Arc::make_mut(&mut self.primary).set_tag_namespace(tag_namespace))
     }
 }
 
