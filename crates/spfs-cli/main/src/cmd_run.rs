@@ -59,10 +59,12 @@ impl CmdRun {
             // underlying digests so the tags are not synced to the
             // local repo. Tags synced to a local repo will prevent
             // future 'spfs clean's from removing many unused spfs
-            // objects.
+            // objects. The repos will searched for tags in the order
+            // they are in the list.
+            let repos: Vec<_> = vec![&*origin, &*repo];
             let references_to_sync = self
                 .reference
-                .convert_tags_to_underlying_digests(&*origin)
+                .convert_tags_to_underlying_digests(&repos)
                 .await?;
             let synced = self
                 .sync

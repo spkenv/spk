@@ -117,9 +117,34 @@ impl EnvSpec {
         self.items.is_empty()
     }
 
+    /// Return the unerlying digest for the tag from the first repo
+    /// that contains the tag. This will error only if the tag is not
+    /// in any off the repos.
+    pub async fn convert_tag_item_to_underlying_digest<R>(
+        &self,
+        tag_item: &EnvSpecItem,
+        repos: &Vec<&R>,
+    ) -> Result<encoding::Digest>
+    where
+        R: crate::storage::Repository + ?Sized,
+    {
+        for repo in repos {
+            match tag_item.resolve_digest(*repo).await {
+                Ok(digest) => return Ok(digest),
+                Err(err) => {
+                    tracing::debug!("{err}")
+                }
+            }
+        }
+
+        Err(Error::UnknownReference(tag_item.to_string()))
+    }
+
     /// Return a new EnvSpec based on this one, with all the tag items
-    /// converted to digest items with the tags' underlying digests.
-    pub async fn convert_tags_to_underlying_digests<R>(&self, repo: &R) -> Result<EnvSpec>
+    /// converted to digest items for the tags' underlying
+    /// digests. The repos are searched in order for the tags, with
+    /// the first match being used to get the digest.
+    pub async fn convert_tags_to_underlying_digests<R>(&self, repos: &Vec<&R>) -> Result<EnvSpec>
     where
         R: crate::storage::Repository + ?Sized,
     {
@@ -127,9 +152,13 @@ impl EnvSpec {
 
         // Using a for loop to allow async calls inside the block
         for item in &self.items {
-            new_items.push(match item {
-                EnvSpecItem::TagSpec(_) => EnvSpecItem::Digest(item.resolve_digest(repo).await?),
-                _ => item.clone(),
+            new_items.push(if let EnvSpecItem::TagSpec(_tag) = item {
+                EnvSpecItem::Digest(
+                    self.convert_tag_item_to_underlying_digest(item, repos)
+                        .await?,
+                )
+            } else {
+                item.clone()
             })
         }
 
