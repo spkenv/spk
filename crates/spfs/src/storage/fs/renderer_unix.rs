@@ -256,15 +256,32 @@ where
         stack: &graph::Stack,
         render_type: Option<RenderType>,
     ) -> Result<Vec<PathBuf>> {
-        let layers = crate::resolve::resolve_stack_to_layers_with_repo(stack, self.repo).await?;
+        let layers = crate::resolve::resolve_stack_to_layers_with_repo(stack, self.repo)
+            .await
+            .map_err(|err| {
+                Error::StringWithSource("resolve stack to layers".to_owned(), Box::new(err))
+            })?;
         let mut futures = futures::stream::FuturesOrdered::new();
         for layer in layers {
             let fut = self
                 .repo
                 .read_manifest(layer.manifest)
-                .and_then(
-                    |manifest| async move { self.render_manifest(&manifest, render_type).await },
-                );
+                .map_err(move |err| {
+                    Error::StringWithSource(
+                        format!("read manifest {}", layer.manifest),
+                        Box::new(err),
+                    )
+                })
+                .and_then(move |manifest| async move {
+                    self.render_manifest(&manifest, render_type)
+                        .await
+                        .map_err(move |err| {
+                            Error::StringWithSource(
+                                format!("render manifest {}", layer.manifest),
+                                Box::new(err),
+                            )
+                        })
+                });
             futures.push_back(fut);
         }
         futures.try_collect().await

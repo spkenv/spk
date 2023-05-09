@@ -20,6 +20,9 @@ pub enum Error {
     #[error("{0}")]
     #[diagnostic(code("spfs::generic"))]
     String(String),
+    #[error("{0}")]
+    #[diagnostic(code("spfs::generic"))]
+    StringWithSource(String, #[source] Box<dyn std::error::Error + Send + Sync>),
     #[cfg(unix)]
     #[error(transparent)]
     #[diagnostic(code("spfs::generic"))]
