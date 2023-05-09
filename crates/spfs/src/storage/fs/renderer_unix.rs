@@ -345,7 +345,16 @@ where
             &working_dir,
             render_type.unwrap_or(RenderType::HardLink),
         )
-        .await?;
+        .await
+        .map_err(|err| {
+            Error::StringWithSource(
+                format!(
+                    "render manifest into working dir '{}'",
+                    working_dir.to_string_lossy()
+                ),
+                Box::new(err),
+            )
+        })?;
 
         render_store.renders.ensure_base_dir(&rendered_dirpath)?;
         match tokio::fs::rename(&working_dir, &rendered_dirpath).await {
