@@ -61,7 +61,8 @@ impl storage::FromUrl for Config {
 ///
 /// The proxy's secondary repositories are only used to repair any missing
 /// payloads from the primary discovered during rendering. Any missing
-/// payloads are copied into the primary repository.
+/// payloads are copied into the primary repository. Missing blobs are also
+/// repaired in the same way.
 #[derive(Debug)]
 pub struct PayloadFallback {
     // Why isn't this a RepositoryHandle?
@@ -82,11 +83,54 @@ impl PayloadFallback {
 #[async_trait::async_trait]
 impl graph::DatabaseView for PayloadFallback {
     async fn has_object(&self, digest: encoding::Digest) -> bool {
-        self.primary.has_object(digest).await
+        if self.primary.has_object(digest).await {
+            return true;
+        }
+
+        for repo in self.secondary.iter() {
+            if repo.has_object(digest).await {
+                return true;
+            }
+        }
+        false
     }
 
     async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
-        self.primary.read_object(digest).await
+        let mut res = self.primary.read_object(digest).await;
+        if res.is_ok() {
+            return res;
+        }
+
+        for repo in self.secondary.iter() {
+            res = repo.read_object(digest).await;
+
+            if let Ok(obj) = res.as_ref() {
+                // Attempt to repair the primary repository by writing the
+                // missing object. Best effort; ignore errors.
+                if let Err(err) = self.primary.write_object(obj).await {
+                    #[cfg(feature = "sentry")]
+                    tracing::error!(target: "sentry", ?err, ?digest, "Failed to repair missing object");
+
+                    tracing::warn!("Failed to repair missing object: {err}");
+                } else {
+                    #[cfg(not(feature = "sentry"))]
+                    {
+                        tracing::warn!("Repaired a missing object! {digest}",);
+                    }
+                    #[cfg(feature = "sentry")]
+                    {
+                        tracing::info!("Repaired a missing object! {digest}",);
+                        tracing::error!(target: "sentry", object = %digest, "Repaired a missing object!");
+                    }
+                }
+                break;
+            }
+
+            if !matches!(res, Err(crate::Error::UnknownObject(_))) {
+                break;
+            }
+        }
+        res
     }
 
     fn find_digests(
@@ -167,6 +211,13 @@ impl PayloadStorage for PayloadFallback {
             let missing_payload_error = match self.primary.open_payload(digest).await {
                 Ok(r) => return Ok(r),
                 Err(err @ Error::ObjectMissingPayload(_, _)) => err,
+                Err(err @ Error::UnknownObject(_)) => {
+                    // Try to repair the missing blob
+                    if self.read_object(digest).await.is_ok() {
+                        continue;
+                    }
+                    return Err(err);
+                }
                 Err(err) => return Err(err),
             };
 
