@@ -428,7 +428,9 @@ where
         if let Err(Error::StorageWriteError(_, p, _)) = &mut res {
             *p = target_dir.join(p.as_path());
         }
-        res?;
+        res.map_err(|err| {
+            Error::StringWithSource("render_into_dir <root node>".to_owned(), Box::new(err))
+        })?;
         self.reporter.rendered_layer(manifest);
         Ok(())
     }
@@ -508,11 +510,11 @@ where
                                 root_path.push(p.as_path());
                                 *p = root_path;
                             }
-                            res.map(|_| None)
+                            res.map(|_| None).map_err(|err| Error::StringWithSource(format!("render_into_dir '{}'", entry.name), Box::new(err)))
                         }
                         tracking::EntryKind::Mask => Ok(None),
                         tracking::EntryKind::Blob => {
-                            self.render_blob(root_dir_fd, &entry, render_type).await.map(Some)
+                            self.render_blob(root_dir_fd, &entry, render_type).await.map(Some).map_err(|err| Error::StringWithSource(format!("render blob '{}'", entry.name), Box::new(err)))
                         }
                     }.map(|render_blob_result_opt| (entry, render_blob_result_opt))
                 };
@@ -572,7 +574,11 @@ where
         // the payload file without calling `open_payload`. If `open_payload`
         // is not called here, the non-symlink code may fail due to a missing
         // a payload that could have been repaired.
-        let (mut reader, filename) = self.repo.open_payload(entry.object).await?;
+        let (mut reader, filename) = self
+            .repo
+            .open_payload(entry.object)
+            .await
+            .map_err(|err| Error::StringWithSource("open payload".to_owned(), Box::new(err)))?;
         let target_dir_fd = dir_fd.as_raw_fd();
         if entry.is_symlink() {
             let mut target = String::new();
