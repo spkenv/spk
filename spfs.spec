@@ -25,7 +25,7 @@ Filesystem isolation, capture, and distribution.
 %setup -q
 
 %build
-cargo build --release -p spfs -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render --verbose --all --features=server,spfs/protobuf-src,fuse-backend
+cargo build --release -p spfs -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render --verbose --all --features=server,spfs/protobuf-src,fuse-backend-rhel-7-9
 
 %install
 mkdir -p %{buildroot}/usr/local/bin
