@@ -8,6 +8,7 @@ use std::io::{Seek, SeekFrom};
 use std::mem::ManuallyDrop;
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::prelude::FileExt;
+#[cfg(feature = "fuse-backend-abi-7-31")]
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -27,7 +28,9 @@ use fuser::{
     Request,
 };
 use spfs::storage::FromConfig;
-use spfs::tracking::{BlobRead, Entry, EntryKind, EnvSpec, Manifest};
+#[cfg(feature = "fuse-backend-abi-7-31")]
+use spfs::tracking::BlobRead;
+use spfs::tracking::{Entry, EntryKind, EnvSpec, Manifest};
 use tokio::io::AsyncReadExt;
 
 /// Options to configure the FUSE filesystem and
@@ -310,6 +313,7 @@ impl Filesystem {
         };
 
         let mut handle = None;
+        #[allow(unused_mut)]
         let mut flags = FOPEN_KEEP_CACHE;
         for repo in self.repos.iter() {
             match &**repo {
@@ -326,6 +330,7 @@ impl Filesystem {
                         Err(err) => err!(reply, err),
                     }
                 }
+                #[cfg(feature = "fuse-backend-abi-7-31")]
                 repo => match repo.open_payload(*digest).await {
                     Ok((stream, _)) => {
                         // TODO: try to leverage the returned file path?
@@ -339,6 +344,14 @@ impl Filesystem {
                     Err(spfs::Error::UnknownObject(_)) => continue,
                     Err(err) => err!(reply, err),
                 },
+                repo => {
+                    tracing::error!(
+                        "Attempting to use unsupported repo type with fuse: {}",
+                        repo.address(),
+                    );
+                    reply.error(libc::ECONNREFUSED);
+                    return;
+                }
             }
         }
 
@@ -401,6 +414,7 @@ impl Filesystem {
                 tracing::trace!("read {fh} = {consumed}/{size} [FILE]");
                 reply.data(&buf[..consumed]);
             }
+            #[cfg(feature = "fuse-backend-abi-7-31")]
             Handle::BlobStream { entry: _, stream } => {
                 let mut stream = stream.lock().await;
                 let mut buf = vec![0; size as usize];
@@ -457,7 +471,13 @@ impl Filesystem {
 
         let fh = self.allocate_handle(handle);
         tracing::trace!("opendir {ino} = {fh}");
-        reply.opened(fh, FOPEN_CACHE_DIR);
+        #[allow(unused_mut)]
+        let mut flags = 0;
+        #[cfg(feature = "fuse-backend-abi-7-28")]
+        {
+            flags |= FOPEN_CACHE_DIR;
+        }
+        reply.opened(fh, flags);
     }
 
     async fn readdir(&self, _ino: u64, fh: u64, offset: i64, mut reply: ReplyDirectory) {
@@ -554,6 +574,7 @@ impl Filesystem {
                 return;
             }
             Handle::BlobFile { entry: _, file } => file,
+            #[cfg(feature = "fuse-backend-abi-7-31")]
             Handle::BlobStream { .. } => {
                 tracing::warn!("FUSE should not allow seek calls on streams");
                 tracing::debug!("lseek {fh} = EINVAL");
@@ -666,12 +687,14 @@ impl fuser::Filesystem for Session {
         const DESIRED: &[(&str, u32)] = &[
             ("FUSE_ASYNC_READ", FUSE_ASYNC_READ),
             ("FUSE_BIG_WRITES", FUSE_BIG_WRITES),
-            ("FUSE_CACHE_SYMLINKS", FUSE_CACHE_SYMLINKS),
             ("FUSE_DO_READDIRPLUS", FUSE_DO_READDIRPLUS),
             ("FUSE_EXPORT_SUPPORT", FUSE_EXPORT_SUPPORT),
             ("FUSE_FILE_OPS", FUSE_FILE_OPS),
-            ("FUSE_PARALLEL_DIROPS", FUSE_PARALLEL_DIROPS),
             ("FUSE_READDIRPLUS_AUTO", FUSE_READDIRPLUS_AUTO),
+            #[cfg(feature = "fuse-backend-abi-7-25")]
+            ("FUSE_PARALLEL_DIROPS", FUSE_PARALLEL_DIROPS),
+            #[cfg(feature = "fuse-backend-abi-7-28")]
+            ("FUSE_CACHE_SYMLINKS", FUSE_CACHE_SYMLINKS),
         ];
         let all_desired = DESIRED.iter().fold(0, |prev, (_, i)| prev | i);
         if let Err(unsupported) = config.add_capabilities(all_desired) {
@@ -845,6 +868,7 @@ enum Handle {
         entry: Arc<Entry<u64>>,
         file: std::fs::File,
     },
+    #[cfg(feature = "fuse-backend-abi-7-31")]
     // A handle to an opaque file stream that can only be read once
     BlobStream {
         entry: Arc<Entry<u64>>,
@@ -862,6 +886,7 @@ impl Handle {
     fn entry_owned(&self) -> Arc<Entry<u64>> {
         match self {
             Self::BlobFile { entry, .. } => Arc::clone(entry),
+            #[cfg(feature = "fuse-backend-abi-7-31")]
             Self::BlobStream { entry, .. } => Arc::clone(entry),
             Self::Tree { entry } => Arc::clone(entry),
         }

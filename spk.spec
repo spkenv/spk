@@ -31,7 +31,7 @@ Package manager and a software runtime for studio environments
 %setup -q -n %{name}-%{version}
 
 %build
-cargo build --release --all --features=server,spfs/protobuf-src,fuse-backend
+cargo build --release --all --features=server,spfs/protobuf-src,fuse-backend-rhel-7-9
 
 %install
 mkdir -p %{buildroot}/usr/local/bin
