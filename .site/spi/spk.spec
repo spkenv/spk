@@ -40,7 +40,7 @@ export SPK_METRICS_STATSD_PORT=30111
 export SPK_METRICS_STATSD_PREFIX=
 export SPK_METRICS_STATSD_FORMAT=statsd-exporter-librato
 # Include `--all` to also build spk-launcher
-dev env -- cargo build --release --features "migration-to-components,sentry,spfs/protobuf-src,statsd" --all
+dev env -- cargo build --release --features "migration-to-components,sentry,spfs/protobuf-src,statsd,fuse-backend-rhel-7-6" --all
 
 %install
 mkdir -p %{buildroot}/usr/local/bin
@@ -60,6 +60,7 @@ cp "$RELEASE_DIR"/spk %{buildroot}/opt/spk.dist/
 %caps(cap_chown,cap_fowner+ep) /usr/local/bin/spfs-render
 %caps(cap_sys_chroot,cap_sys_admin+ep) /usr/local/bin/spfs-join
 %caps(cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep) /usr/local/bin/spfs-enter
+%caps(cap_sys_admin+ep) /usr/local/bin/spfs-fuse
 /usr/local/bin/spk-launcher
 /opt/spk.dist/
 
