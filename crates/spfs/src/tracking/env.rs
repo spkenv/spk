@@ -117,10 +117,10 @@ impl EnvSpec {
         self.items.is_empty()
     }
 
-    /// Return the unerlying digest for the tag from the first repo
+    /// Return the underlying digest for the tag from the first repo
     /// that contains the tag. This will error only if the tag is not
     /// in any off the repos.
-    pub async fn convert_tag_item_to_underlying_digest<R>(
+    pub async fn resolve_tag_item_to_underlying_digest<R>(
         &self,
         tag_item: &EnvSpecItem,
         repos: &Vec<&R>,
@@ -150,11 +150,10 @@ impl EnvSpec {
     {
         let mut new_items: Vec<EnvSpecItem> = Vec::with_capacity(self.items.len());
 
-        // Using a for loop to allow async calls inside the block
         for item in &self.items {
             new_items.push(if let EnvSpecItem::TagSpec(_tag) = item {
                 EnvSpecItem::Digest(
-                    self.convert_tag_item_to_underlying_digest(item, repos)
+                    self.resolve_tag_item_to_underlying_digest(item, repos)
                         .await?,
                 )
             } else {
