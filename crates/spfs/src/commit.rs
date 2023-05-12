@@ -3,12 +3,13 @@
 // https://github.com/imageworks/spk
 
 use std::future::ready;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use once_cell::sync::OnceCell;
+use spfs_encoding::Encodable;
 
 use super::status::remount_runtime;
 use crate::prelude::*;
@@ -213,6 +214,21 @@ where
         }
     }
 
+    /// Calculate the manifest for the given path.
+    ///
+    /// Returns a tuple of the canonicalized path and its
+    /// [`tracking::Manifest`].
+    pub async fn manifest_for_path<P>(&self, path: P) -> Result<(PathBuf, tracking::Manifest)>
+    where
+        P: AsRef<Path>,
+    {
+        let path = tokio::fs::canonicalize(&path)
+            .await
+            .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
+        let manifest = self.builder.compute_manifest(&path).await?;
+        Ok((path, manifest))
+    }
+
     /// Commit a local file system directory to this storage.
     ///
     /// This collects all files to store as blobs and maintains a
@@ -221,10 +237,7 @@ where
     where
         P: AsRef<Path>,
     {
-        let path = tokio::fs::canonicalize(&path)
-            .await
-            .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
-        let manifest = { self.builder.compute_manifest(&path).await? };
+        let (path, manifest) = self.manifest_for_path(&path).await?;
 
         let mut stream = futures::stream::iter(manifest.walk_abs("."))
             .filter_map(|node| {

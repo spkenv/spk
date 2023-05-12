@@ -552,13 +552,6 @@ where
         spfs::remount_runtime(&runtime).await?;
 
         tracing::info!("Validating package contents...");
-        // Simplify this for use during the validation errors and to
-        // avoid having to pass ResolvedLayers down into the validation.
-        let files_to_packages: HashMap<RelativePathBuf, BuildIdent> = self
-            .files_to_layers
-            .iter()
-            .map(|(f, l)| (f.clone(), l.spec.ident().clone()))
-            .collect();
 
         let changed_files = package
             .validation()
@@ -567,6 +560,14 @@ where
             .map_err(|err| {
                 let err_message = match err {
                     spk_schema::Error::InvalidBuildChangeSetError(validator_name, source_err) => {
+                        // Simplify this for use during the validation errors and to
+                        // avoid having to pass ResolvedLayers down into the validation.
+                        let files_to_packages: HashMap<RelativePathBuf, BuildIdent> = self
+                            .files_to_layers
+                            .iter()
+                            .map(|(f, l)| (f.clone(), l.spec.ident().clone()))
+                            .collect();
+
                         format!(
                             "{}: {}",
                             validator_name,

@@ -47,7 +47,7 @@ pub use bootstrap::{
 pub use check::Checker;
 pub use clean::Cleaner;
 pub use commit::Committer;
-pub use diff::diff;
+pub use diff::{diff, diff_runtime_changes};
 pub use encoding::Digest;
 pub use error::{Error, Result};
 pub use resolve::{

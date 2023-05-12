@@ -91,7 +91,7 @@ impl ValidationSpec {
     {
         static SPFS: &str = "/spfs";
 
-        let mut diffs = spfs::diff(None, None).await?;
+        let mut diffs = spfs::diff_runtime_changes().await?;
 
         // FIXME: this is only required because of a bug in spfs reset which
         // fails to handle permission-only changes on files...
