@@ -41,6 +41,8 @@ pub use bootstrap::{
     build_command_for_runtime,
     build_interactive_shell_command,
     build_shell_initialized_command,
+    Shell,
+    ShellKind,
 };
 pub use check::Checker;
 pub use clean::Cleaner;

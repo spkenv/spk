@@ -72,13 +72,13 @@ async fn test_shell_initialization_startup_scripts(
 
     std::env::set_var("SHELL", &shell_path);
 
-    match crate::bootstrap::find_best_shell(None).unwrap() {
-        crate::bootstrap::Shell::Bash(_) if shell == "tcsh" => {
+    match crate::Shell::find_best(None).unwrap() {
+        crate::Shell::Bash(_) if shell == "tcsh" => {
             // Test will fail because we weren't able to
             // find the shell we are trying to test
             return;
         }
-        crate::bootstrap::Shell::Tcsh(_) if shell == "bash" => {
+        crate::Shell::Tcsh(_) if shell == "bash" => {
             // Test will fail because we weren't able to
             // find the shell we are trying to test
             return;
@@ -162,7 +162,7 @@ async fn test_find_alternate_bash(shell: &str, tmpdir: tempfile::TempDir) {
     let tmp_shell = tmpdir.path().join(shell);
     make_exe(&tmp_shell);
 
-    let found = super::find_best_shell(None).expect("should find a shell");
+    let found = super::Shell::find_best(None).expect("should find a shell");
     let expected = tmp_shell.as_os_str().to_os_string();
     assert!(found.executable() == expected, "should find shell in PATH");
 

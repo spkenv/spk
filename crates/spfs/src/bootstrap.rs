@@ -106,7 +106,7 @@ pub fn build_interactive_shell_command(
     rt: &runtime::Runtime,
     shell: Option<&str>,
 ) -> Result<Command> {
-    let shell = find_best_shell(shell)?;
+    let shell = Shell::find_best(shell)?;
     let shell_message = (
         SPFS_SHELL_MESSAGE.into(),
         std::env::var_os(SPFS_SHELL_MESSAGE).unwrap_or_else(|| SPFS_SHELL_DEFAULT_MESSAGE.into()),
@@ -161,7 +161,7 @@ where
     A: IntoIterator<Item = S>,
     S: Into<OsString>,
 {
-    let shell = find_best_shell(shell)?;
+    let shell = Shell::find_best(shell)?;
     let startup_file = match shell.kind() {
         ShellKind::Bash => &runtime.config.sh_startup_file,
         ShellKind::Tcsh => &runtime.config.csh_startup_file,
@@ -239,7 +239,7 @@ where
 }
 
 /// The set of supported shells which spfs can run under
-enum ShellKind {
+pub enum ShellKind {
     Bash,
     Tcsh,
 }
@@ -255,27 +255,31 @@ impl AsRef<str> for ShellKind {
 
 /// A supported shell that exists on this system
 #[derive(Debug)]
-enum Shell {
+pub enum Shell {
     Bash(PathBuf),
     Tcsh(PathBuf),
 }
 
 impl Shell {
-    fn kind(&self) -> ShellKind {
+    pub fn kind(&self) -> ShellKind {
         match self {
             Self::Bash(_) => ShellKind::Bash,
             Self::Tcsh(_) => ShellKind::Tcsh,
         }
     }
 
-    fn executable(&self) -> &Path {
+    /// The location of this shell's binary
+    pub fn executable(&self) -> &Path {
         match self {
             Self::Bash(p) => p,
             Self::Tcsh(p) => p,
         }
     }
 
-    fn from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
+    /// Given a path to a shell binary, determine which
+    /// shell variant it represents. Fails if the path is invalid
+    /// or the shell is not supported by spfs
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         match path.file_name().map(OsStr::to_string_lossy) {
             Some(n) if n == ShellKind::Bash.as_ref() => Ok(Self::Bash(path.to_owned())),
@@ -284,52 +288,52 @@ impl Shell {
             None => Err(Error::new(format!("Invalid shell path: {path:?}"))),
         }
     }
-}
 
-/// Looks for the most desired shell to use for bootstrapping.
-///
-/// If `shell` is not provided, read the value of `$SHELL` from the
-/// environment.
-///
-/// In general, this strategy uses the value of SHELL before
-/// searching for viable entries in PATH and then falling back
-/// to whatever it can find listed in /etc/shells
-fn find_best_shell(shell: Option<&str>) -> Result<Shell> {
-    let shell = shell
-        .map(|s| s.to_string())
-        .or_else(|| std::env::var("SHELL").ok());
+    /// Looks for the most desired shell to use for bootstrapping.
+    ///
+    /// If `shell` is not provided, read the value of `$SHELL` from the
+    /// environment.
+    ///
+    /// In general, this strategy uses the value of SHELL before
+    /// searching for viable entries in PATH and then falling back
+    /// to whatever it can find listed in /etc/shells
+    pub fn find_best(shell: Option<&str>) -> Result<Shell> {
+        let shell = shell
+            .map(|s| s.to_string())
+            .or_else(|| std::env::var("SHELL").ok());
 
-    let mut desired = None;
-    if let Some(name) = shell {
-        if Path::new(&name).is_absolute() {
-            desired = Some(PathBuf::from(name));
-        } else {
-            desired = which(name);
+        let mut desired = None;
+        if let Some(name) = shell {
+            if Path::new(&name).is_absolute() {
+                desired = Some(PathBuf::from(name));
+            } else {
+                desired = which(name);
+            }
         }
-    }
 
-    if let Some(path) = desired {
-        if let Ok(shell) = Shell::from_path(path) {
-            return Ok(shell);
-        }
-    }
-
-    for kind in &[ShellKind::Bash, ShellKind::Tcsh] {
-        if let Some(path) = which(kind) {
+        if let Some(path) = desired {
             if let Ok(shell) = Shell::from_path(path) {
                 return Ok(shell);
             }
         }
-    }
 
-    if let Ok(shells) = std::fs::read_to_string("/etc/shells") {
-        for candidate in shells.split('\n') {
-            let path = Path::new(candidate.trim());
-            if let Ok(shell) = Shell::from_path(path) {
-                return Ok(shell);
+        for kind in &[ShellKind::Bash, ShellKind::Tcsh] {
+            if let Some(path) = which(kind) {
+                if let Ok(shell) = Shell::from_path(path) {
+                    return Ok(shell);
+                }
             }
         }
-    }
 
-    Err(Error::NoSupportedShell)
+        if let Ok(shells) = std::fs::read_to_string("/etc/shells") {
+            for candidate in shells.split('\n') {
+                let path = Path::new(candidate.trim());
+                if let Ok(shell) = Shell::from_path(path) {
+                    return Ok(shell);
+                }
+            }
+        }
+
+        Err(Error::NoSupportedShell)
+    }
 }
