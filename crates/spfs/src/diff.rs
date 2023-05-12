@@ -56,15 +56,11 @@ pub async fn diff_runtime_changes() -> Result<Vec<tracking::Diff>> {
     let upperdir_manifest = tokio::spawn(async {
         let config = crate::get_config()?;
         let repo = Arc::new(config.get_local_repository_handle().await?);
-        let mut runtime = active_runtime().await?;
-        let layer = crate::Committer::new(&repo)
-            .commit_layer(&mut runtime)
-            .await?;
-        Ok::<_, crate::Error>(
-            repo.read_manifest(layer.manifest)
-                .await?
-                .to_tracking_manifest(),
-        )
+        let runtime = active_runtime().await?;
+        crate::Committer::new(&repo)
+            .manifest_for_path(&runtime.config.upper_dir)
+            .await
+            .map(|(_, manifest)| manifest)
     });
 
     tracing::debug!("computing diffs");
