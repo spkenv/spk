@@ -35,6 +35,15 @@ pub enum EnvOp {
 }
 
 impl EnvOp {
+    /// Construct the source representation for this operation in the
+    /// format of the identified shell.
+    pub fn source_for_shell(&self, shell: spfs::ShellKind) -> String {
+        match shell {
+            spfs::ShellKind::Bash => self.bash_source(),
+            spfs::ShellKind::Tcsh => self.tcsh_source(),
+        }
+    }
+
     /// Construct the bash source representation for this operation
     pub fn bash_source(&self) -> String {
         match self {
