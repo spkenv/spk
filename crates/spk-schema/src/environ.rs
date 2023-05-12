@@ -19,7 +19,8 @@ const OP_SET: &str = "set";
 const OP_NAMES: &[&str] = &[OP_APPEND, OP_PREPEND, OP_SET];
 
 /// The set of operation types for use in deserialization
-enum OpKind {
+#[derive(Copy, Clone, Debug)]
+pub enum OpKind {
     Append,
     Prepend,
     Set,
@@ -35,6 +36,14 @@ pub enum EnvOp {
 }
 
 impl EnvOp {
+    pub fn kind(&self) -> OpKind {
+        match self {
+            EnvOp::Append(_) => OpKind::Append,
+            EnvOp::Prepend(_) => OpKind::Prepend,
+            EnvOp::Set(_) => OpKind::Set,
+        }
+    }
+
     /// Construct the source representation for this operation in the
     /// format of the identified shell.
     pub fn source_for_shell(&self, shell: spfs::ShellKind) -> String {
@@ -151,10 +160,10 @@ impl<'de> Deserialize<'de> for EnvOp {
 /// host operating system (':' for unix, ';' for windows)
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct AppendEnv {
-    append: String,
-    value: String,
+    pub append: String,
+    pub value: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    separator: Option<String>,
+    pub separator: Option<String>,
 }
 
 impl AppendEnv {
@@ -200,10 +209,10 @@ impl AppendEnv {
 /// host operating system (':' for unix, ';' for windows)
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct PrependEnv {
-    prepend: String,
-    value: String,
+    pub prepend: String,
+    pub value: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    separator: Option<String>,
+    pub separator: Option<String>,
 }
 
 impl PrependEnv {
@@ -246,8 +255,8 @@ impl PrependEnv {
 /// Operates on an environment variable by setting it to a value
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct SetEnv {
-    set: String,
-    value: String,
+    pub set: String,
+    pub value: String,
 }
 
 impl SetEnv {
