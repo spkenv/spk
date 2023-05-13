@@ -571,7 +571,10 @@ impl PkgOpt {
         } else {
             format!("{}/{}", self.pkg, value)
         };
-        let pkg = parse_ident_range(ident_range)?;
+        let mut pkg = parse_ident_range(ident_range)?;
+        // We don't bother serializing our components into the string to be
+        // parsed, but we can inject them here.
+        pkg.components = self.components.clone().into_inner();
 
         let request = PkgRequest::new(pkg, requester)
             .with_prerelease(self.prerelease_policy)

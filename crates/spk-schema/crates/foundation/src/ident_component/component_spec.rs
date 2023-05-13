@@ -240,6 +240,13 @@ impl FormatComponents for ComponentSet {
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ComponentBTreeSet(BTreeSet<Component>);
 
+impl ComponentBTreeSet {
+    /// Consume self and return the inner `BTreeSet<Component>`.
+    pub fn into_inner(self) -> BTreeSet<Component> {
+        self.0
+    }
+}
+
 impl<I> From<I> for ComponentBTreeSet
 where
     I: IntoIterator<Item = Component>,
