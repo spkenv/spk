@@ -239,6 +239,7 @@ where
 }
 
 /// The set of supported shells which spfs can run under
+#[derive(Copy, Clone, Debug)]
 pub enum ShellKind {
     Bash,
     Tcsh,
@@ -254,7 +255,7 @@ impl AsRef<str> for ShellKind {
 }
 
 /// A supported shell that exists on this system
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Shell {
     Bash(PathBuf),
     Tcsh(PathBuf),
