@@ -1009,9 +1009,16 @@ impl Storage {
     ///
     /// Runtime storage is expected to be backed by the same repository
     /// that will be used to render and run the environment.
-    pub fn new<R: Into<storage::RepositoryHandle>>(inner: R) -> Self {
-        let inner = Arc::new(inner.into());
-        Self { inner }
+    pub fn new<R: Into<storage::RepositoryHandle>>(inner: R) -> Result<Self> {
+        let mut inner = inner.into();
+
+        // Keep runtime tags out of the tag namespace. Allow `spfs runtime`
+        // to view and operate on all runtimes on the host.
+        inner.try_as_tag_mut()?.try_set_tag_namespace(None)?;
+
+        Ok(Self {
+            inner: Arc::new(inner),
+        })
     }
 
     /// The address of the underlying repository being used

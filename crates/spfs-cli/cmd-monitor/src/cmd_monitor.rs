@@ -150,7 +150,7 @@ impl CmdMonitor {
             .map_err(|err| Error::process_spawn_error("signal()", err, None))?;
 
         let repo = spfs::open_repository(&self.runtime_storage).await?;
-        let storage = spfs::runtime::Storage::new(repo);
+        let storage = spfs::runtime::Storage::new(repo)?;
         let runtime = storage.read_runtime(&self.runtime).await?;
         tracing::trace!("read runtime from storage repo");
 

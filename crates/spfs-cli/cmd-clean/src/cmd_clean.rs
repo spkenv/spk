@@ -136,7 +136,7 @@ impl CmdClean {
                 Some(address) => spfs::open_repository(address).await?,
                 None => config.get_local_repository_handle().await?,
             };
-            let storage = spfs::runtime::Storage::new(repo);
+            let storage = spfs::runtime::Storage::new(repo)?;
             let durable_path = storage.durable_path(runtime_name.clone()).await?;
             tracing::debug!("durable path to remove: {}", durable_path.display());
             if durable_path.exists() {

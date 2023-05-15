@@ -41,7 +41,7 @@ async fn test_shell_initialization_startup_scripts(
             .await
             .unwrap(),
     );
-    let storage = runtime::Storage::new(repo);
+    let storage = runtime::Storage::new(repo).unwrap();
 
     let mut rt = runtime::Storage::create_transient_runtime(&storage)
         .await
@@ -115,7 +115,7 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempf
             .await
             .unwrap(),
     );
-    let storage = runtime::Storage::new(repo);
+    let storage = runtime::Storage::new(repo).unwrap();
 
     let mut rt = storage.create_transient_runtime().await.unwrap();
     rt.set_runtime_dir(tmpdir.path()).await.unwrap();

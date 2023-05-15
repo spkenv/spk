@@ -442,9 +442,9 @@ impl Config {
 
     /// Get the local runtime storage, as configured.
     pub async fn get_runtime_storage(&self) -> Result<runtime::Storage> {
-        Ok(runtime::Storage::new(storage::RepositoryHandle::from(
+        runtime::Storage::new(storage::RepositoryHandle::from(
             self.get_local_repository().await?,
-        )))
+        ))
     }
 
     /// Get a remote repository by name.

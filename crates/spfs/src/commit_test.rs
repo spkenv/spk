@@ -17,7 +17,7 @@ async fn test_commit_empty(tmpdir: tempfile::TempDir) {
             .await
             .unwrap(),
     );
-    let storage = crate::runtime::Storage::new(repo);
+    let storage = crate::runtime::Storage::new(repo).unwrap();
     let repo = crate::storage::RepositoryHandle::from(
         crate::storage::fs::FsRepository::create(root)
             .await
