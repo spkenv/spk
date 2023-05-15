@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::sync::Arc;
-
 use rstest::rstest;
 
 use super::Committer;
@@ -14,12 +12,17 @@ use crate::Error;
 #[tokio::test]
 async fn test_commit_empty(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
-    let repo = Arc::new(crate::storage::RepositoryHandle::from(
+    let repo = crate::storage::RepositoryHandle::from(
+        crate::storage::fs::FsRepository::create(&root)
+            .await
+            .unwrap(),
+    );
+    let storage = crate::runtime::Storage::new(repo);
+    let repo = crate::storage::RepositoryHandle::from(
         crate::storage::fs::FsRepository::create(root)
             .await
             .unwrap(),
-    ));
-    let storage = crate::runtime::Storage::new(repo.clone());
+    );
     let mut rt = storage.create_transient_runtime().await.unwrap();
     rt.ensure_required_directories().await.unwrap();
     let committer = Committer::new(&repo);

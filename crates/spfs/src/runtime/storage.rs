@@ -1009,10 +1009,9 @@ impl Storage {
     ///
     /// Runtime storage is expected to be backed by the same repository
     /// that will be used to render and run the environment.
-    pub fn new<R: Into<Arc<storage::RepositoryHandle>>>(inner: R) -> Self {
-        Self {
-            inner: inner.into(),
-        }
+    pub fn new<R: Into<storage::RepositoryHandle>>(inner: R) -> Self {
+        let inner = Arc::new(inner.into());
+        Self { inner }
     }
 
     /// The address of the underlying repository being used
