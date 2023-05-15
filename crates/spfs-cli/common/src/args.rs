@@ -19,11 +19,22 @@ const SPFS_LOG: &str = "SPFS_LOG";
 #[derive(Debug, Clone, clap::Args)]
 pub struct Sync {
     /// Sync the latest information for each tag even if it already exists
-    #[clap(short, long, alias = "pull")]
+    #[clap(long, alias = "pull")]
     pub sync: bool,
 
-    /// Forcefully sync all associated graph data even if it
-    /// already exists
+    /// Traverse and check the entire graph, filling in any missing data
+    ///
+    /// When a repository is in good health, this should not be necessary, but
+    /// if some subset of the data has been deleted or lost, this option may
+    /// help recover it.
+    #[clap(long)]
+    pub check: bool,
+
+    /// Forcefully sync all associated graph data even if it already exists
+    ///
+    /// When a repository is in good health, this should not be necessary, but
+    /// if some subset of the data has been deleted, lost, or corrupted this
+    /// option may help recover it.
     #[clap(long)]
     pub resync: bool,
 
@@ -52,18 +63,25 @@ impl Sync {
         src: &'src spfs::storage::RepositoryHandle,
         dest: &'dst spfs::storage::RepositoryHandle,
     ) -> spfs::Syncer<'src, 'dst, spfs::sync::ConsoleSyncReporter> {
-        let policy = if self.resync {
-            spfs::sync::SyncPolicy::ResyncEverything
-        } else if self.sync {
-            spfs::sync::SyncPolicy::LatestTags
-        } else {
-            spfs::sync::SyncPolicy::default()
-        };
+        let policy = self.sync_policy();
         spfs::Syncer::new(src, dest)
             .with_policy(policy)
             .with_max_concurrent_manifests(self.max_concurrent_manifests)
             .with_max_concurrent_payloads(self.max_concurrent_payloads)
             .with_reporter(spfs::sync::ConsoleSyncReporter::default())
+    }
+
+    /// The selected sync policy for these options
+    pub fn sync_policy(&self) -> spfs::sync::SyncPolicy {
+        if self.resync {
+            spfs::sync::SyncPolicy::ResyncEverything
+        } else if self.check {
+            spfs::sync::SyncPolicy::LatestTagsAndResyncObjects
+        } else if self.sync {
+            spfs::sync::SyncPolicy::LatestTags
+        } else {
+            spfs::sync::SyncPolicy::default()
+        }
     }
 }
 
