@@ -8,7 +8,7 @@ use std::ffi::OsStr;
 use std::mem::size_of;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::pin::Pin;
 use std::task::Poll;
 
@@ -91,7 +91,19 @@ impl OpenFsRepository {
     fn tags_root(&self) -> PathBuf {
         let mut tags_root = self.root().join("tags");
         if let Some(tag_namespace) = self.get_tag_namespace() {
-            tags_root = tags_root.join(tag_namespace);
+            for (index, component) in tag_namespace.components().enumerate() {
+                // Assuming the tag namespace is only made up of `Normal`
+                // elements (validated elsewhere).
+                let Component::Normal(component) = component else {
+                    continue;
+                };
+
+                // Add a suffix in the form of `"#ns.<depth>"` to distinguish
+                // tag namespace subdirectories from normal tag subdirectories,
+                // and to disambiguate some tag namespaces having a common
+                // directory prefix with another namespace.
+                tags_root = tags_root.join(format!("{}#ns.{index}", component.to_string_lossy()));
+            }
         }
         tags_root
     }
