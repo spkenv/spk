@@ -25,6 +25,7 @@ mod tag_test;
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum EntryType {
     Folder(String),
+    Namespace { name: String, depth: u64 },
     Tag(String),
 }
 
@@ -32,6 +33,7 @@ impl AsRef<str> for EntryType {
     fn as_ref(&self) -> &str {
         match self {
             Self::Folder(s) => s,
+            Self::Namespace { name, .. } => name,
             Self::Tag(s) => s,
         }
     }
@@ -41,6 +43,7 @@ impl From<EntryType> for String {
     fn from(entry: EntryType) -> String {
         match entry {
             EntryType::Folder(s) => s,
+            EntryType::Namespace { name, .. } => name,
             EntryType::Tag(s) => s,
         }
     }
@@ -50,6 +53,7 @@ impl Display for EntryType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
             EntryType::Folder(e) => f.pad(format!("{e}/").as_str()),
+            EntryType::Namespace { name, depth } => f.pad(format!("{name}#ns.{depth}/").as_str()),
             EntryType::Tag(e) => f.pad(e),
         }
     }

@@ -63,6 +63,10 @@ where
             async move {
                 Ok(match &entry {
                     EntryType::Folder(_) => repo.has_tag_folder(&entry_path).await.then_some(entry),
+                    EntryType::Namespace { .. } => {
+                        // XXX: Any reason to hide namespaces in a pinned repo?
+                        Some(entry)
+                    }
                     EntryType::Tag(_) => {
                         let spec = tracking::TagSpec::parse(entry_path).unwrap();
                         repo.has_tag(&spec).await.then_some(entry)

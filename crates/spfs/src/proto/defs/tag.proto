@@ -17,12 +17,18 @@ message Tag {
   DateTime time = 6;
 }
 
+message TagNamespace {
+  string name = 1;
+  uint64 depth = 2;
+}
+
 message LsTagsRequest { string path = 1; }
 message LsTagsResponse {
   message Entry {
     oneof kind {
       string folder = 1;
       string tag = 2;
+      TagNamespace namespace = 3;
     }
   }
   message EntryList {

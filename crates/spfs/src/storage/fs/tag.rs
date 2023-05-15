@@ -153,8 +153,21 @@ impl TagStorage for OpenFsRepository {
                 path.file_stem()
                     .map(|s| Ok(EntryType::Tag(s.to_string_lossy().to_string())))
             } else if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
-                path.file_name()
-                    .map(|s| Ok(EntryType::Folder(s.to_string_lossy().to_string())))
+                path.file_name().map(|s| {
+                    let s = s.to_string_lossy();
+                    match s.split_once("#ns.") {
+                        Some((name, depth)) => Ok(EntryType::Namespace {
+                            name: name.to_owned(),
+                            depth: depth.parse().map_err(|err| {
+                                Error::String(format!(
+                                    "Failed to parse depth number in tag namespace '{}': {err}",
+                                    s
+                                ))
+                            })?,
+                        }),
+                        None => Ok(EntryType::Folder(s.to_string())),
+                    }
+                })
             } else {
                 None
             }
