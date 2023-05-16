@@ -77,24 +77,24 @@ impl Run for View {
             return self.print_variants_info(&options);
         }
 
-        let package = match &self.package {
-            None => {
+        let package = match (&self.package, &self.filepath, &self.pkg) {
+            (None, Some(fp), _) => {
                 // No bareword package request given, but was there a
-                // -F filepath or -p pkg given?
-                if let Some(fp) = &self.filepath {
-                    // e.g. 'spk info -F some/path/'
-                    fp
-                } else if let Some(p) = &self.pkg {
-                    // e.g. 'spk info -p some_package'
-                    p
-                } else {
-                    // No package, filepath, or pkg options given
-                    // e.g. 'spk info'
-                    return self.print_current_env().await;
-                }
+                // -F <filepath> option, e.g. 'spk info -F some/path/'
+                fp
             }
-            // e.g. 'spk info some_package_or_filepath'
-            Some(p) => p,
+            (None, None, Some(p)) => {
+                // No bareword package request given, but was there a
+                // -p <pkg> option, e.g. 'spk info -p some_package
+                p
+            }
+            (None, None, None) => {
+                // No package, filepath or pkg options given
+                // e.g. 'spk info'
+                return self.print_current_env().await;
+            }
+            // A bareword request, e.g. 'spk info package_or_filepath'
+            (Some(p), _, _) => p,
         };
 
         // For 'spk info /spfs/file/path' or 'spk info -F
@@ -109,7 +109,7 @@ impl Run for View {
             if self.filepath.is_some() {
                 // This was given as a filepath but there
                 // isn't a matching file on disk under /spfs
-                bail!("Not a filepath under /spfs: {package}");
+                bail!("Path does not exist under /spfs: {package}");
             }
             // Otherwise fall through to trying to get info on the
             // value as a package.
