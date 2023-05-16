@@ -63,7 +63,7 @@ impl CmdRun {
             let repos: Vec<_> = vec![&*origin, &*repo];
             let references_to_sync = self
                 .reference
-                .convert_tags_to_underlying_digests(&repos)
+                .with_tag_items_resolved_to_digest_items(&repos)
                 .await?;
             let synced = self
                 .sync
