@@ -12,8 +12,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use nix::unistd::execv;
 use spfs::encoding::Digest;
 use spfs::prelude::*;
+use spfs::storage::fallback::FallbackProxy;
 use spfs::storage::fs::FSRepository;
-use spfs::storage::payload_fallback::PayloadFallback;
 use spfs::storage::RepositoryHandle;
 use spfs::tracking::EnvSpec;
 
@@ -126,9 +126,9 @@ impl<'a> Dynamic<'a> {
             let r = syncer.sync_env(env_spec).await.context("sync reference")?;
             let env_spec = r.env;
 
-            let payload_fallback = PayloadFallback::new(local, vec![remote]);
+            let fallback = FallbackProxy::new(local, vec![remote]);
 
-            spfs::storage::fs::Renderer::new(&payload_fallback)
+            spfs::storage::fs::Renderer::new(&fallback)
                 .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
                 .render_into_directory(
                     env_spec,

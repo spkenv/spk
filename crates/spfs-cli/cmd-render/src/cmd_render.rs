@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use spfs::prelude::*;
-use spfs::storage::payload_fallback::PayloadFallback;
+use spfs::storage::fallback::FallbackProxy;
 use spfs::{Error, RenderResult};
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
@@ -64,14 +64,11 @@ impl CmdRender {
 
         // Use PayloadFallback to repair any missing payloads found in the
         // local repository by copying from any of the configure remotes.
-        let payload_fallback = PayloadFallback::new(repo, remotes);
+        let fallback = FallbackProxy::new(repo, remotes);
 
         let rendered = match &self.target {
-            Some(target) => {
-                self.render_to_dir(payload_fallback, synced.env, target)
-                    .await?
-            }
-            None => self.render_to_repo(payload_fallback, synced.env).await?,
+            Some(target) => self.render_to_dir(fallback, synced.env, target).await?,
+            None => self.render_to_repo(fallback, synced.env).await?,
         };
 
         tracing::debug!("render(s) completed successfully");
@@ -82,7 +79,7 @@ impl CmdRender {
 
     async fn render_to_dir(
         &self,
-        repo: PayloadFallback,
+        repo: FallbackProxy,
         env_spec: spfs::tracking::EnvSpec,
         target: &std::path::Path,
     ) -> Result<RenderResult> {
@@ -130,7 +127,7 @@ impl CmdRender {
 
     async fn render_to_repo(
         &self,
-        repo: PayloadFallback,
+        repo: FallbackProxy,
         env_spec: spfs::tracking::EnvSpec,
     ) -> Result<RenderResult> {
         let mut digests = Vec::with_capacity(env_spec.len());

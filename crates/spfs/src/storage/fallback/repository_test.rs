@@ -38,7 +38,7 @@ async fn test_proxy_payload_repair(tmpdir: tempfile::TempDir) {
     assert!(err.is_err());
 
     // Loading the payload through the fallback should succeed.
-    let proxy = super::PayloadFallback::new(primary, vec![secondary.into()]);
+    let proxy = super::FallbackProxy::new(primary, vec![secondary.into()]);
     proxy
         .open_payload(digest)
         .await

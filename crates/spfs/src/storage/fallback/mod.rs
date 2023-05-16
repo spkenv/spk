@@ -7,4 +7,4 @@
 //! are only used to fetch missing objects and tags.
 
 mod repository;
-pub use repository::{Config, PayloadFallback};
+pub use repository::{Config, FallbackProxy};

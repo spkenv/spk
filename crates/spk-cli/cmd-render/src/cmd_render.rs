@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 use clap::Args;
-use spfs::storage::payload_fallback::PayloadFallback;
+use spfs::storage::fallback::FallbackProxy;
 use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
 use spk_exec::resolve_runtime_layers;
 
@@ -94,8 +94,8 @@ impl Run for Render {
                 .render_into_directory(stack, &path, spfs::storage::fs::RenderType::Copy)
                 .await?;
         } else {
-            let payload_fallback = PayloadFallback::new(local, fallback_repository_handles);
-            spfs::storage::fs::Renderer::new(&payload_fallback)
+            let fallback = FallbackProxy::new(local, fallback_repository_handles);
+            spfs::storage::fs::Renderer::new(&fallback)
                 .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
                 .render_into_directory(stack, &path, spfs::storage::fs::RenderType::Copy)
                 .await?;
