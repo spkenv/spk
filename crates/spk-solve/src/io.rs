@@ -418,7 +418,7 @@ pub struct DecisionFormatterBuilder {
     long_solves_threshold: u64,
     max_frequent_errors: usize,
     status_bar: bool,
-    solver_output_from: MultiSolverKind,
+    solver_to_run: MultiSolverKind,
     show_search_space_size: bool,
 }
 
@@ -435,7 +435,7 @@ impl Default for DecisionFormatterBuilder {
             long_solves_threshold: 0,
             max_frequent_errors: 0,
             status_bar: false,
-            solver_output_from: MultiSolverKind::Unchanged,
+            solver_to_run: MultiSolverKind::Unchanged,
             show_search_space_size: false,
         }
     }
@@ -510,8 +510,8 @@ impl DecisionFormatterBuilder {
         self
     }
 
-    pub fn with_solver_output_from(&mut self, kind: MultiSolverKind) -> &mut Self {
-        self.solver_output_from = kind;
+    pub fn with_solver_to_run(&mut self, kind: MultiSolverKind) -> &mut Self {
+        self.solver_to_run = kind;
         self
     }
 
@@ -557,7 +557,7 @@ impl DecisionFormatterBuilder {
                 long_solves_threshold: self.long_solves_threshold,
                 max_frequent_errors: self.max_frequent_errors,
                 status_bar: self.status_bar,
-                solver_output_from: self.solver_output_from.clone(),
+                solver_to_run: self.solver_to_run.clone(),
                 show_search_space_size: self.show_search_space_size,
             },
         }
@@ -615,7 +615,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) long_solves_threshold: u64,
     pub(crate) max_frequent_errors: usize,
     pub(crate) status_bar: bool,
-    pub(crate) solver_output_from: MultiSolverKind,
+    pub(crate) solver_to_run: MultiSolverKind,
     pub(crate) show_search_space_size: bool,
 }
 
@@ -629,6 +629,25 @@ enum LoopOutcome {
 pub enum MultiSolverKind {
     Unchanged,
     AllImpossibleChecks,
+    // This isn't a solver on its own. It indicates: the run all the
+    // solvers in parallel but show the output from the unchanged one.
+    All,
+}
+
+impl MultiSolverKind {
+    /// Return true if this represents running multiple solvers
+    fn is_multi(&self) -> bool {
+        *self == MultiSolverKind::All
+    }
+
+    /// Return the command line option value for this MultiSolveKind
+    fn cli_name(&self) -> &'static str {
+        match self {
+            MultiSolverKind::Unchanged => "cli",
+            MultiSolverKind::AllImpossibleChecks => "checks",
+            MultiSolverKind::All => "all",
+        }
+    }
 }
 
 impl Display for MultiSolverKind {
@@ -636,6 +655,7 @@ impl Display for MultiSolverKind {
         let name = match self {
             MultiSolverKind::Unchanged => "Unchanged",
             MultiSolverKind::AllImpossibleChecks => "All Impossible Checks",
+            MultiSolverKind::All => "All",
         };
         write!(f, "{name}")
     }
@@ -676,7 +696,7 @@ impl DecisionFormatter {
                 long_solves_threshold: 1,
                 max_frequent_errors: 5,
                 status_bar: false,
-                solver_output_from: MultiSolverKind::Unchanged,
+                solver_to_run: MultiSolverKind::Unchanged,
                 show_search_space_size: false,
             },
         }
@@ -750,18 +770,30 @@ impl DecisionFormatter {
         solver_with_all_checks.set_resolve_validation_impossible_checks(true);
         solver_with_all_checks.set_build_key_impossible_checks(true);
 
-        Vec::from([
-            SolverTaskSettings {
+        match self.settings.solver_to_run {
+            MultiSolverKind::Unchanged => Vec::from([SolverTaskSettings {
                 solver: solver_with_no_change,
                 solver_kind: MultiSolverKind::Unchanged,
                 ignore_failure: false,
-            },
-            SolverTaskSettings {
+            }]),
+            MultiSolverKind::AllImpossibleChecks => Vec::from([SolverTaskSettings {
                 solver: solver_with_all_checks,
                 solver_kind: MultiSolverKind::AllImpossibleChecks,
                 ignore_failure: false,
-            },
-        ])
+            }]),
+            MultiSolverKind::All => Vec::from([
+                SolverTaskSettings {
+                    solver: solver_with_no_change,
+                    solver_kind: MultiSolverKind::Unchanged,
+                    ignore_failure: false,
+                },
+                SolverTaskSettings {
+                    solver: solver_with_all_checks,
+                    solver_kind: MultiSolverKind::AllImpossibleChecks,
+                    ignore_failure: false,
+                },
+            ]),
+        }
     }
 
     fn launch_solver_tasks(
@@ -773,7 +805,9 @@ impl DecisionFormatter {
 
         for solver_settings in solvers {
             let mut task_formatter = self.clone();
-            if solver_settings.solver_kind != self.settings.solver_output_from {
+            if self.settings.solver_to_run.is_multi()
+                && solver_settings.solver_kind != MultiSolverKind::Unchanged
+            {
                 // Hide the output from all the solvers except the
                 // unchanged one. The output from the unchanged solver
                 // is enough to show the user that something is
@@ -844,15 +878,16 @@ impl DecisionFormatter {
                         task.abort();
                     }
 
-                    let ending = if let LoopOutcome::Interrupted(_) = loop_outcome {
-                        "was interrupted"
-                    } else {
-                        "found a solution"
-                    };
-
-                    tracing::debug!(
-                        "{solver_kind} solver {ending}. Stopped remaining solver tasks.",
-                    );
+                    if self.settings.solver_to_run.is_multi() {
+                        let ending = if let LoopOutcome::Interrupted(_) = loop_outcome {
+                            "was interrupted"
+                        } else {
+                            "has finished first"
+                        };
+                        tracing::debug!(
+                            "{solver_kind} solver {ending}. Stopped remaining solver tasks.",
+                        );
+                    }
 
                     let result = self
                         .check_and_output_solver_results(
@@ -864,7 +899,14 @@ impl DecisionFormatter {
                         .await;
 
                     if self.settings.verbosity > 0 && verbosity == 0 {
-                        tracing::info!("The {solver_kind} solver {ending}, but its output was disabled. To see its output, rerun the spk command with '--solver-output-from'" );
+                        let solver_outcome = if result.is_ok() {
+                            "a solution"
+                        } else {
+                            "no solution (rerun with '-t' for more info)"
+                        };
+                        let name = solver_kind.cli_name();
+
+                        tracing::info!("The {solver_kind} solver found {solver_outcome}, but its output was disabled. To see its output, rerun the spk command with '--solver-to-run {name}'" );
                     }
 
                     return result;

@@ -813,18 +813,21 @@ impl Repositories {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum SolverToShow {
-    /// Output from the solver specified by the command line parameters
+pub enum SolverToRun {
+    /// Run and show output from the solver specified by the command line parameters
     Cli,
-    /// Output from the solver based on the cli solver and with all impossible request checks enabled
+    /// Run and show output from the solver based on the cli solver and with all impossible request checks enabled
     Checks,
+    /// Run both solvers but show outputform the Cli solver
+    All,
 }
 
-impl From<SolverToShow> for MultiSolverKind {
-    fn from(item: SolverToShow) -> MultiSolverKind {
+impl From<SolverToRun> for MultiSolverKind {
+    fn from(item: SolverToRun) -> MultiSolverKind {
         match item {
-            SolverToShow::Cli => MultiSolverKind::Unchanged,
-            SolverToShow::Checks => MultiSolverKind::AllImpossibleChecks,
+            SolverToRun::Cli => MultiSolverKind::Unchanged,
+            SolverToRun::Checks => MultiSolverKind::AllImpossibleChecks,
+            SolverToRun::All => MultiSolverKind::All,
         }
     }
 }
@@ -880,13 +883,14 @@ pub struct DecisionFormatterSettings {
     #[clap(long)]
     pub status_bar: bool,
 
-    /// Show output from the named solver. There are two solver
-    /// configurations run in parallel when finding a solution for a
-    /// requested solve: one configured from the command line, one
-    /// based on the command line with all impossible request checks
-    /// enabled.
-    #[clap(long, value_enum, default_value_t = SolverToShow::Cli)]
-    pub solver_output_from: SolverToShow,
+    /// Run and show output from the named solver. There are two
+    /// solver configurations: one configured from the command line
+    /// (cli), and one based on the command line but with all
+    /// impossible request checks enabled (checks). By default, they
+    /// are both (all) run in parallel when finding a solution for a
+    /// requested solve.
+    #[clap(long, value_enum, default_value_t = SolverToRun::All)]
+    pub solver_to_run: SolverToRun,
 
     /// Display a report on of the search space size for the resolved solution.
     #[clap(long)]
@@ -926,7 +930,7 @@ impl DecisionFormatterSettings {
             .with_long_solves_threshold(self.long_solves)
             .with_max_frequent_errors(self.max_frequent_errors)
             .with_status_bar(self.status_bar)
-            .with_solver_output_from(self.solver_output_from.into())
+            .with_solver_to_run(self.solver_to_run.into())
             .with_search_space_size(self.show_search_size);
         Ok(builder)
     }
