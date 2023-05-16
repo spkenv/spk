@@ -7,12 +7,12 @@ sources:
 build:
   options:
     - pkg: m4
-    - pkg: automake/1.10b
+    - pkg: automake/1.16
     - pkg: libtool/2.2
     - pkg: gettext/0.16
     - pkg: gperf/3.0
     - pkg: help2man/1.29
-    - pkg: xz/4.999.8beta
+    - pkg: xz/5.2.2
     - pkg: texinfo/4.8
   script:
     - cd m4-1.4.9
