@@ -20,7 +20,7 @@ use crate::{encoding, graph, storage, tracking, Error, Result};
 #[path = "./repository_test.rs"]
 mod repository_test;
 
-/// Configuration for a payload fallback repository
+/// Configuration for a fallback repository
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Config {
     pub primary: String,
@@ -64,7 +64,7 @@ impl storage::FromUrl for Config {
 /// payloads are copied into the primary repository. Missing blobs are also
 /// repaired in the same way.
 #[derive(Debug)]
-pub struct PayloadFallback {
+pub struct FallbackProxy {
     // Why isn't this a RepositoryHandle?
     //
     // It needs to be something that implements LocalRepository so this
@@ -74,14 +74,14 @@ pub struct PayloadFallback {
     secondary: Vec<crate::storage::RepositoryHandle>,
 }
 
-impl PayloadFallback {
+impl FallbackProxy {
     pub fn new(primary: FSRepository, secondary: Vec<crate::storage::RepositoryHandle>) -> Self {
         Self { primary, secondary }
     }
 }
 
 #[async_trait::async_trait]
-impl graph::DatabaseView for PayloadFallback {
+impl graph::DatabaseView for FallbackProxy {
     async fn has_object(&self, digest: encoding::Digest) -> bool {
         if self.primary.has_object(digest).await {
             return true;
@@ -150,7 +150,7 @@ impl graph::DatabaseView for PayloadFallback {
 }
 
 #[async_trait::async_trait]
-impl graph::Database for PayloadFallback {
+impl graph::Database for FallbackProxy {
     async fn write_object(&self, obj: &graph::Object) -> Result<()> {
         self.primary.write_object(obj).await?;
         Ok(())
@@ -174,7 +174,7 @@ impl graph::Database for PayloadFallback {
 }
 
 #[async_trait::async_trait]
-impl PayloadStorage for PayloadFallback {
+impl PayloadStorage for FallbackProxy {
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
         if self.primary.has_payload(digest).await {
             return true;
@@ -277,7 +277,7 @@ impl PayloadStorage for PayloadFallback {
 }
 
 #[async_trait::async_trait]
-impl TagStorage for PayloadFallback {
+impl TagStorage for FallbackProxy {
     fn ls_tags(
         &self,
         path: &RelativePath,
@@ -319,11 +319,11 @@ impl TagStorage for PayloadFallback {
     }
 }
 
-impl BlobStorage for PayloadFallback {}
-impl ManifestStorage for PayloadFallback {}
-impl LayerStorage for PayloadFallback {}
-impl PlatformStorage for PayloadFallback {}
-impl Repository for PayloadFallback {
+impl BlobStorage for FallbackProxy {}
+impl ManifestStorage for FallbackProxy {}
+impl LayerStorage for FallbackProxy {}
+impl PlatformStorage for FallbackProxy {}
+impl Repository for FallbackProxy {
     fn address(&self) -> url::Url {
         let config = Config {
             primary: self.primary.address().to_string(),
@@ -339,7 +339,7 @@ impl Repository for PayloadFallback {
     }
 }
 
-impl LocalRepository for PayloadFallback {
+impl LocalRepository for FallbackProxy {
     #[inline]
     fn payloads(&self) -> &FSHashStore {
         self.primary.payloads()
