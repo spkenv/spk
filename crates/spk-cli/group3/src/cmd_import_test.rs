@@ -62,8 +62,9 @@ async fn test_archive_io() {
     );
     let result = super::Import {
         sync: spfs_cli_common::Sync {
-            sync: true,
+            sync: false,
             resync: true,
+            check: false,
             max_concurrent_manifests: 10,
             max_concurrent_payloads: 10,
         },
