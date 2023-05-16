@@ -321,3 +321,49 @@ async fn test_rm_tags(
         "should fail to remove a removed tag, got {res:?}"
     );
 }
+
+#[rstest]
+#[case::fs(tmprepo("fs"))]
+#[tokio::test]
+async fn test_tag_in_namespace(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
+    init_logging();
+    let tmprepo = tmprepo.await;
+
+    let namespace_name = "test-namespace";
+    let namespaced_repo = tmprepo.with_tag_namespace(namespace_name).await;
+
+    // Create a tag in the namespaced repo.
+    let tag_name = "a-tag";
+    let spec = tracking::TagSpec::parse(tag_name).unwrap();
+    namespaced_repo
+        .push_tag(&spec, &encoding::EMPTY_DIGEST.into())
+        .await
+        .unwrap();
+
+    // Listing the tags in the namespaced repo contains the tag we made.
+    let tags: Vec<_> = namespaced_repo
+        .ls_tags(&RelativePathBuf::from("/"))
+        .collect::<Result<Vec<_>>>()
+        .await
+        .unwrap();
+    assert_eq!(tags, vec![EntryType::Tag(tag_name.to_string())]);
+
+    // Listing the tags in the non-namespaced repo contains [only] the
+    // namespace.
+    let tags: Vec<_> = tmprepo
+        .ls_tags(&RelativePathBuf::from("/"))
+        .collect::<Result<Vec<_>>>()
+        .await
+        .unwrap();
+    assert_eq!(
+        tags,
+        vec![EntryType::Namespace {
+            name: namespace_name.to_string(),
+            depth: 0
+        }]
+    );
+}
