@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use spfs::prelude::*;
 use spfs::storage::payload_fallback::PayloadFallback;
@@ -132,15 +132,20 @@ impl CmdRender {
         &self,
         repo: PayloadFallback,
         env_spec: spfs::tracking::EnvSpec,
-    ) -> spfs::Result<RenderResult> {
+    ) -> Result<RenderResult> {
         let mut digests = Vec::with_capacity(env_spec.len());
         for env_item in env_spec.iter() {
             let env_item = env_item.to_string();
-            let digest = repo.resolve_ref(env_item.as_ref()).await?;
+            let digest = repo
+                .resolve_ref(env_item.as_ref())
+                .await
+                .with_context(|| format!("resolve ref '{env_item}'"))?;
             digests.push(digest);
         }
 
-        let layers = spfs::resolve_stack_to_layers_with_repo(digests.iter(), &repo).await?;
+        let layers = spfs::resolve_stack_to_layers_with_repo(digests.iter(), &repo)
+            .await
+            .context("resolve stack to layers")?;
 
         let console_render_reporter = spfs::storage::fs::ConsoleRenderReporter::default();
         let render_summary_reporter = spfs::storage::fs::RenderSummaryReporter::default();
@@ -159,5 +164,7 @@ impl CmdRender {
                 paths_rendered,
                 render_summary: render_summary_reporter.into_summary(),
             })
+            .map_err(Into::<anyhow::Error>::into)
+            .context("render layers")
     }
 }

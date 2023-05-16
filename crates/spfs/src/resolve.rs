@@ -48,7 +48,7 @@ async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<Option<RenderR
         .output()
         .await
         .map_err(|err| Error::process_spawn_error("spfs-render".to_owned(), err, None))?;
-    match output.status.code() {
+    let res = match output.status.code() {
         Some(0) => {
             if let Ok(render_result) =
                 serde_json::from_slice::<RenderResult>(output.stdout.as_slice())
@@ -69,7 +69,12 @@ async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<Option<RenderR
             ),
             None,
         )),
+    };
+    if res.is_err() {
+        // Let's show the user any stderr output from spfs-render.
+        let _ = std::io::Write::write_all(&mut std::io::stderr(), &output.stderr);
     }
+    res
 }
 
 /// Compute or load the spfs manifest representation for a saved reference.
