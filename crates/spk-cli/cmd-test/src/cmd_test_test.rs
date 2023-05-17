@@ -84,3 +84,89 @@ tests:
     .unwrap();
     opt.test.run().await.unwrap();
 }
+
+#[rstest]
+#[tokio::test]
+async fn test_install_test_picks_same_digest_as_build(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    let filename = tmpdir.path().join("dep.spk.yaml");
+    {
+        let mut file = File::create(&filename).unwrap();
+        file.write_all(
+            br#"
+pkg: a-pkg-with-no-version-specified/1.0.0
+build:
+  script:
+    - "true"
+"#,
+        )
+        .unwrap();
+    }
+
+    let filename_str = filename.as_os_str().to_str().unwrap();
+
+    // Build the package so it can be used as a dependency.
+    let mut opt = BuildOpt::try_parse_from([
+        "build",
+        // Don't exec a new process to move into a new runtime, this confuses
+        // coverage testing.
+        "--no-runtime",
+        "--disable-repo=origin",
+        filename_str,
+    ])
+    .unwrap();
+    opt.build.run().await.unwrap();
+
+    let filename = tmpdir.path().join("simple.spk.yaml");
+    {
+        let mut file = File::create(&filename).unwrap();
+        file.write_all(
+            br#"
+pkg: simple/1.0.0
+build:
+  options:
+    - pkg: a-pkg-with-no-version-specified
+  script:
+    - "true"
+
+tests:
+  - stage: install
+    script:
+      - "true"
+"#,
+        )
+        .unwrap();
+    }
+
+    let filename_str = filename.as_os_str().to_str().unwrap();
+
+    // Build the package so it can be tested.
+    let mut opt = BuildOpt::try_parse_from([
+        "build",
+        // Don't exec a new process to move into a new runtime, this confuses
+        // coverage testing.
+        "--no-runtime",
+        "--disable-repo=origin",
+        filename_str,
+    ])
+    .unwrap();
+    opt.build.run().await.unwrap();
+
+    let mut opt = TestOpt::try_parse_from([
+        "test",
+        // Don't exec a new process to move into a new runtime, this confuses
+        // coverage testing.
+        "--no-runtime",
+        "--disable-repo=origin",
+        filename_str,
+    ])
+    .unwrap();
+
+    // The test should be looking for the same build digest of "simple" that
+    // the build of "simple" created.
+    opt.test
+        .run()
+        .await
+        .expect("spk test should not have a solver error");
+}
