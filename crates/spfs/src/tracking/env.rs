@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::str::FromStr;
 
 use super::tag::TagSpec;
@@ -37,6 +38,24 @@ impl EnvSpecItem {
             Self::TagSpec(spec) => repo.resolve_tag(spec).await.map(|t| t.target),
             Self::PartialDigest(part) => repo.resolve_full_digest(part).await,
             Self::Digest(digest) => Ok(*digest),
+        }
+    }
+
+    /// EnvSpecItem::TagSpec item variants return a
+    /// EnvSpecItem::Digest item variant built from the TagSpec's
+    /// tag's underlying digest. All other item variants return the
+    /// existing item unchanged.
+    ///
+    /// Any necessary lookups are done using the provided repository
+    pub async fn with_tag_resolved<R>(&self, repo: &R) -> Result<Cow<'_, EnvSpecItem>>
+    where
+        R: crate::storage::Repository + ?Sized,
+    {
+        match self {
+            Self::TagSpec(_spec) => Ok(Cow::Owned(EnvSpecItem::Digest(
+                self.resolve_digest(repo).await?,
+            ))),
+            _ => Ok(Cow::Borrowed(self)),
         }
     }
 }
@@ -115,6 +134,49 @@ impl EnvSpec {
     /// True if there are no items in this spec
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
+    }
+
+    /// TagSpec items are turned into Digest items using the digest
+    /// resolved from the tag. All other items are returned as is.
+    /// This will error when trying to resolve a tag that is not in
+    /// any of the repos. The repos are searched in order for the tag,
+    /// and first repo with the tag is used.
+    pub async fn resolve_tag_item_to_digest_item<R>(
+        &self,
+        item: &EnvSpecItem,
+        repos: &Vec<&R>,
+    ) -> Result<EnvSpecItem>
+    where
+        R: crate::storage::Repository + ?Sized,
+    {
+        for repo in repos {
+            match item.with_tag_resolved(*repo).await {
+                Ok(resolved_item) => return Ok(resolved_item.into_owned()),
+                Err(err) => {
+                    tracing::debug!("{err}")
+                }
+            }
+        }
+
+        Err(Error::UnknownReference(item.to_string()))
+    }
+
+    /// Return a new EnvSpec based on this one, with all the tag items
+    /// converted to digest items using the tags' underlying digests.
+    pub async fn with_tag_items_resolved_to_digest_items<R>(
+        &self,
+        repos: &Vec<&R>,
+    ) -> Result<EnvSpec>
+    where
+        R: crate::storage::Repository + ?Sized,
+    {
+        let mut new_items: Vec<EnvSpecItem> = Vec::with_capacity(self.items.len());
+
+        for item in &self.items {
+            new_items.push(self.resolve_tag_item_to_digest_item(item, repos).await?);
+        }
+
+        Ok(EnvSpec { items: new_items })
     }
 }
 
