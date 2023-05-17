@@ -733,3 +733,77 @@ fn test_path_and_parents() {
         ]
     );
 }
+
+#[rstest]
+#[tokio::test]
+async fn test_build_options_respect_components() {
+    let rt = spfs_runtime().await;
+    // Create a base package that has a couple components with unique
+    // contents.
+    let base_spec = recipe!(
+        {
+            "pkg": "base/1.0.0",
+            "sources": [],
+            "build": {
+                "script": "echo run > /spfs/run ; echo build > /spfs/build",
+            },
+            "install": {
+                "components": [
+                    {
+                        "name": "build",
+                        "files": ["build"],
+                    },
+                    {
+                        "name": "run",
+                        "files": ["run"],
+                    }
+                ]
+            }
+        }
+    );
+    // Create a top package that depends on a specific component of base.
+    let top_spec = recipe!(
+        {
+            "pkg": "top/1.0.0",
+            "sources": [],
+            "build": {
+                "options": [
+                    {
+                        // Ask for the "run" component of pkg base.
+                        "pkg": "base:run"
+                    }
+                ],
+                "script": [
+                    // This "build" file should not exist in our build env.
+                    "test -f /spfs/build && exit 1",
+                    // This "run" file should exist in our build env.
+                    "test -f /spfs/run"
+                ]
+            },
+        }
+    );
+    rt.tmprepo.publish_recipe(&base_spec).await.unwrap();
+    rt.tmprepo.publish_recipe(&top_spec).await.unwrap();
+
+    SourcePackageBuilder::from_recipe(base_spec.clone())
+        .build_and_publish(".", &*rt.tmprepo)
+        .await
+        .unwrap();
+    let _base_pkg = BinaryPackageBuilder::from_recipe(base_spec)
+        .with_repository(rt.tmprepo.clone())
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
+        .await
+        .unwrap();
+
+    SourcePackageBuilder::from_recipe(top_spec.clone())
+        .build_and_publish(".", &*rt.tmprepo)
+        .await
+        .unwrap();
+
+    let r = BinaryPackageBuilder::from_recipe(top_spec)
+        .with_repository(rt.tmprepo.clone())
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
+        .await;
+
+    assert!(r.is_ok(), "build script for 'top' expected to succeed");
+}

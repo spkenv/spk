@@ -1,13 +1,15 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use std::convert::TryFrom;
 use std::str::FromStr;
 
 use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::option_map::Stringified;
-use spk_schema_ident::NameAndValue;
+use spk_schema_ident::{NameAndValue, RangeIdent};
 
 use crate::foundation::name::{OptName, OptNameBuf, PkgName, PkgNameBuf};
 use crate::foundation::version::{CompatRule, Compatibility};
@@ -166,6 +168,7 @@ impl TryFrom<Request> for Opt {
                     .collect();
                 Ok(Opt::Pkg(PkgOpt {
                     pkg: request.pkg.name.clone(),
+                    components: request.pkg.components.into(),
                     default,
                     prerelease_policy: request.prerelease_policy,
                     value: None,
@@ -203,7 +206,7 @@ impl<'de> Deserialize<'de> for Opt {
         #[derive(Default)]
         struct OptVisitor {
             // PkgOpt
-            pkg: Option<PkgNameBuf>,
+            pkg: Option<PkgNameWithComponents>,
             prerelease_policy: Option<PreReleasePolicy>,
 
             // VarOpt
@@ -238,12 +241,13 @@ impl<'de> Deserialize<'de> for Opt {
                 while let Some(key) = map.next_key::<Stringified>()? {
                     match key.as_str() {
                         "pkg" => {
-                            let NameAndValue::<PkgNameBuf>(name, value) = map.next_value()?;
-                            self.pkg = Some(name);
-                            if value.is_some() {
+                            let pkg_name_with_components: PkgNameWithComponents =
+                                map.next_value()?;
+                            if pkg_name_with_components.default.is_some() {
                                 check_existing_default(&self)?;
+                                self.default = pkg_name_with_components.default.clone();
                             }
-                            self.default = value;
+                            self.pkg = Some(pkg_name_with_components);
                         }
                         "prereleasePolicy" => {
                             self.prerelease_policy = Some(map.next_value::<PreReleasePolicy>()?)
@@ -282,7 +286,8 @@ impl<'de> Deserialize<'de> for Opt {
 
                 match (self.pkg, self.var) {
                     (Some(pkg), None) => Ok(Opt::Pkg(PkgOpt {
-                        pkg,
+                        pkg: pkg.name,
+                        components: pkg.components,
                         prerelease_policy: self.prerelease_policy.unwrap_or_default(),
                         required_compat: Default::default(),
                         default: self.default.unwrap_or_default(),
@@ -472,6 +477,7 @@ impl Serialize for VarOpt {
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PkgOpt {
     pub pkg: PkgNameBuf,
+    pub components: ComponentBTreeSet,
     pub default: String,
     pub prerelease_policy: PreReleasePolicy,
     pub required_compat: Option<CompatRule>,
@@ -482,6 +488,7 @@ impl PkgOpt {
     pub fn new(name: PkgNameBuf) -> Result<Self> {
         Ok(Self {
             pkg: name,
+            components: Default::default(),
             default: String::default(),
             prerelease_policy: PreReleasePolicy::default(),
             value: None,
@@ -564,7 +571,10 @@ impl PkgOpt {
         } else {
             format!("{}/{}", self.pkg, value)
         };
-        let pkg = parse_ident_range(ident_range)?;
+        let mut pkg = parse_ident_range(ident_range)?;
+        // We don't bother serializing our components into the string to be
+        // parsed, but we can inject them here.
+        pkg.components = self.components.clone().into_inner();
 
         let request = PkgRequest::new(pkg, requester)
             .with_prerelease(self.prerelease_policy)
@@ -575,9 +585,80 @@ impl PkgOpt {
     }
 }
 
+struct PkgNameWithComponents {
+    name: PkgNameBuf,
+    components: ComponentBTreeSet,
+    default: Option<String>,
+}
+
+impl<'de> Deserialize<'de> for PkgNameWithComponents {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct PkgNameWithComponentsVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for PkgNameWithComponentsVisitor {
+            type Value = PkgNameWithComponents;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a package name with optional components and version range")
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<PkgNameWithComponents, E>
+            where
+                E: serde::de::Error,
+            {
+                // A RangeIdent is close enough to what kind of value we're expecting
+                // here but need to verify no unsupported elements were present.
+                let range_ident = RangeIdent::from_str(value).map_err(serde::de::Error::custom)?;
+
+                if range_ident.repository_name.is_some() {
+                    return Err(serde::de::Error::custom(
+                        "repository name specifier not supported here",
+                    ));
+                }
+                if range_ident.build.is_some() {
+                    return Err(serde::de::Error::custom(
+                        "build specifier not supported here",
+                    ));
+                }
+
+                Ok(PkgNameWithComponents {
+                    name: range_ident.name,
+                    components: range_ident.components.into(),
+                    default: {
+                        if range_ident.version.is_empty() {
+                            None
+                        } else {
+                            Some(range_ident.version.to_string())
+                        }
+                    },
+                })
+            }
+        }
+
+        deserializer.deserialize_str(PkgNameWithComponentsVisitor)
+    }
+}
+
+impl Serialize for PkgNameWithComponents {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        let s = if let Some(default) = &self.default {
+            format!("{}{}/{}", self.name, self.components, default)
+        } else {
+            format!("{}{}", self.name, self.components)
+        };
+        s.serialize(serializer)
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 struct PkgOptSchema {
-    pkg: String,
+    pkg: PkgNameWithComponents,
     #[serde(
         default,
         rename = "prereleasePolicy",
@@ -593,14 +674,21 @@ impl Serialize for PkgOpt {
     where
         S: serde::ser::Serializer,
     {
-        let mut out = PkgOptSchema {
-            pkg: self.pkg.to_string(),
+        let out = PkgOptSchema {
+            pkg: PkgNameWithComponents {
+                name: self.pkg.clone(),
+                components: self.components.clone(),
+                default: {
+                    if self.default.is_empty() {
+                        None
+                    } else {
+                        Some(self.default.clone())
+                    }
+                },
+            },
             prerelease_policy: self.prerelease_policy,
             value: self.value.clone().unwrap_or_default(),
         };
-        if !self.default.is_empty() {
-            out.pkg = format!("{}/{}", self.pkg, self.default);
-        }
 
         out.serialize(serializer)
     }

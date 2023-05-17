@@ -5,14 +5,15 @@
 use std::io::Write;
 
 use rstest::rstest;
-use spk_schema_ident::VersionIdent;
+use spk_schema_foundation::ident_component::Component;
+use spk_schema_ident::{AnyIdent, VersionIdent};
 
 use super::Spec;
 use crate::foundation::fixtures::*;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::FromYaml;
 use crate::spec::SpecTemplate;
-use crate::{Recipe, Template, TemplateExt};
+use crate::{Opt, Recipe, Template, TemplateExt};
 
 #[rstest]
 fn test_spec_is_valid_with_only_name() {
@@ -119,4 +120,34 @@ fn test_yaml_error_context(#[case] yaml: &str, #[case] expected: &str) {
     ERROR:{message}EXPECTED:{expected}
     "
     );
+}
+
+#[rstest]
+fn test_build_options_respect_components() {
+    let spec: Spec<AnyIdent> = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        build:
+          options:
+            # This request has a component specified
+            - pkg: base:run
+    "#,
+    )
+    .unwrap();
+
+    let mut found = false;
+    for opt in spec.build.options {
+        match opt {
+            Opt::Pkg(pkg)
+                if pkg.pkg == "base"
+                    && pkg.components.len() == 1
+                    && pkg.components.contains(&Component::Run) =>
+            {
+                found = true;
+            }
+            _ => continue,
+        }
+    }
+
+    assert!(found, "build pkg requirement base has run component")
 }

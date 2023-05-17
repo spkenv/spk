@@ -236,3 +236,36 @@ impl FormatComponents for ComponentSet {
         out
     }
 }
+
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ComponentBTreeSet(BTreeSet<Component>);
+
+impl ComponentBTreeSet {
+    /// Consume self and return the inner `BTreeSet<Component>`.
+    pub fn into_inner(self) -> BTreeSet<Component> {
+        self.0
+    }
+}
+
+impl<I> From<I> for ComponentBTreeSet
+where
+    I: IntoIterator<Item = Component>,
+{
+    fn from(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl std::ops::Deref for ComponentBTreeSet {
+    type Target = BTreeSet<Component>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for ComponentBTreeSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fmt_component_set(f)
+    }
+}
