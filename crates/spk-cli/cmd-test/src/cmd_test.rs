@@ -187,7 +187,6 @@ impl Run for Test {
                                 let mut tester = PackageInstallTester::new(
                                     (*recipe).clone(),
                                     test.script.join("\n"),
-                                    variant,
                                 );
 
                                 tester
