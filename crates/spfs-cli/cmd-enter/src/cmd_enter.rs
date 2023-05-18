@@ -108,10 +108,14 @@ impl CmdEnter {
         } else {
             let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
 
-            // At this point, our pid is owned by root and has not moved into
-            // the proper mount namespace; spfs-monitor will not be able to
-            // read the namespace because it runs as a normal user, and would
-            // read the incorrect namespace if it were to read it right now.
+            // Enter the mount namespace before spawning the monitor process
+            // so that the monitor can properly view and manage that namespace.
+            // For example, the monitor may need to run fusermount to clean up
+            // fuse filesystems within the runtime before shutting down.
+            tracing::debug!("initializing runtime {owned:#?}");
+            let start_time = Instant::now();
+            let render_summary = spfs::initialize_runtime(&mut owned).await?;
+            self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
 
             let mut monitor_stdin = match spfs::env::spawn_monitor_for_runtime(&owned) {
                 Err(err) => {
@@ -127,11 +131,6 @@ impl CmdEnter {
                     spfs::Error::from("monitor was spawned without stdin attached")
                 })?,
             };
-
-            tracing::debug!("initializing runtime {owned:#?}");
-            let start_time = Instant::now();
-            let render_summary = spfs::initialize_runtime(&mut owned).await?;
-            self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
 
             // We promise to not mutate the runtime after this point.
             // spfs-monitor will read and modify it after we tell it to

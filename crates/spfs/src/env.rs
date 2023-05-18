@@ -267,7 +267,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     // child is created as we scan, and the parent exits before we
     // are able to see it so we don't think the child is relevant
     let current_pids = match mount_ns.as_ref() {
-        Some(ns) => match find_processes_in_mount_namespace(ns).await {
+        Some(ns) => match find_other_processes_in_mount_namespace(ns).await {
             Err(err) => {
                 tracing::error!(?err, "error while scanning active process tree");
                 return Err(err);
@@ -315,7 +315,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
                 let mut interval_stream = IntervalStream::new(interval);
 
                 while !tracked_processes.is_empty() && interval_stream.next().await.is_some() {
-                    let current_pids = match find_processes_in_mount_namespace(&ns).await {
+                    let current_pids = match find_other_processes_in_mount_namespace(&ns).await {
                         Err(err) => {
                             tracing::error!(?err, "error while scanning active process tree");
                             break;
@@ -409,7 +409,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     where
         S: std::hash::BuildHasher + Clone,
     {
-        let current_pids = match find_processes_in_mount_namespace(ns).await {
+        let current_pids = match find_other_processes_in_mount_namespace(ns).await {
             Err(err) => {
                 tracing::error!(?err, "error while scanning active process tree");
                 return;
@@ -545,7 +545,12 @@ pub async fn find_processes_and_mount_namespaces() -> Result<HashMap<u32, Option
 
 /// Provided the namespace symlink content from /proc fs,
 /// scan for all processes that share the same namespace
-async fn find_processes_in_mount_namespace(ns: &std::path::Path) -> Result<HashSet<u32>> {
+///
+/// This function explicitly excludes the current pid, because
+/// the monitor does not consider itself important when determining
+/// whether a runtime is empty and should shut down (otherwise it
+/// never would)
+async fn find_other_processes_in_mount_namespace(ns: &std::path::Path) -> Result<HashSet<u32>> {
     let mut found_processes = HashSet::new();
 
     let mut read_dir = tokio::fs::read_dir(PROC_DIR)
@@ -578,6 +583,7 @@ async fn find_processes_in_mount_namespace(ns: &std::path::Path) -> Result<HashS
             found_processes.insert(pid);
         }
     }
+    found_processes.remove(&(nix::unistd::getpid().as_raw() as u32));
     Ok(found_processes)
 }
 
