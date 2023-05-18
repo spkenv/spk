@@ -216,7 +216,6 @@ impl<T> Entry<T>
 where
     T: Clone,
 {
-
     /// Generates the disk usage of a given entry.
     pub fn generate_dir_disk_usage(&self, root_path: &String) -> EntryDiskUsage {
         let mut entry_du = if self.is_dir() {
@@ -225,13 +224,13 @@ where
             EntryDiskUsage::new(root_path.to_string(), self.size)
         };
 
-        let mut to_iter: HashMap<String, HashMap<String, Entry>> = HashMap::new();
+        let mut to_iter: HashMap<String, HashMap<String, Entry<T>>> = HashMap::new();
         let initial_entries = self.entries.clone();
         to_iter.insert(root_path.to_string(), initial_entries);
 
         // Loops through all child entries to obtain the total size
         while !to_iter.is_empty() {
-            let mut next_iter: HashMap<String, HashMap<String, Entry>> = HashMap::new();
+            let mut next_iter: HashMap<String, HashMap<String, Entry<T>>> = HashMap::new();
             for (dir, entries) in to_iter.iter().sorted_by_key(|(k, _)| *k) {
                 for (name, entry) in entries.iter().sorted_by_key(|(k, _)| *k) {
                     if entry.is_symlink() {

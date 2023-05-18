@@ -189,7 +189,7 @@ where
     }
 
     /// Finds the entry of a given path.
-    pub fn find_entry_by_string(&self, entry_path: &str) -> &Entry {
+    pub fn find_entry_by_string(&self, entry_path: &str) -> &Entry<T> {
         let mut paths = entry_path.split('/').collect_vec();
 
         // Remove any empty strings

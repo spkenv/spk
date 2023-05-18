@@ -16,7 +16,7 @@ use spfs::Digest;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::ident::parse_ident;
 use spk_schema::name::PkgName;
-use spk_schema::{Deprecate, Ident, Package, Spec};
+use spk_schema::{Deprecate, Package, Spec};
 
 const PACKAGE_LEVEL: usize = 1;
 const VERSION_LEVEL: usize = 2;
@@ -166,7 +166,7 @@ impl<T: Output> Run for Du<T> {
                     _ => continue,
                 };
 
-                let digests: Vec<_> = components.values().into_iter().unique().collect();
+                let digests: Vec<_> = components.values().unique().collect();
 
                 let spk_storage::RepositoryHandle::SPFS(repo) = repo else { continue; };
 
@@ -308,81 +308,66 @@ impl<T: Output> Du<T> {
             parse_ident(&input_package)?
         };
 
-        let pkgname = PkgName::new(&pkg_ident.name)?;
+        let pkgname = PkgName::new(pkg_ident.name())?;
 
         let mut specs: Vec<(String, EntryPrintConfig)> = Vec::new();
 
-        // If None is returned, no version/build was provided in input package
-        match pkg_ident.version_and_build() {
-            Some(_version_build) => {
-                for (_, repo) in repos.iter() {
-                    let mut builds = repo.list_package_builds(&pkg_ident).await?;
+        let mut versions = Vec::new();
 
-                    specs.append(&mut self.get_specs_to_process(&mut builds, repo).await?);
-                }
+        for (index, (_, repo)) in repos.iter().enumerate() {
+            versions.extend(
+                repo.list_package_versions(pkgname)
+                    .await?
+                    .iter()
+                    .map(|v| ((**v).clone(), index)),
+            );
+        }
+
+        versions.sort_by_key(|v| v.0.clone());
+        versions.reverse();
+
+        match pkg_ident.version_and_build() {
+            Some(input_version) => {
+                versions.retain(|(version, _)| *version == input_version);
             }
             None => {
-                // Find all versions for given package.
-                let mut versions = Vec::new();
-                for (index, (_, repo)) in repos.iter().enumerate() {
-                    versions.extend(
-                        repo.list_package_versions(pkgname)
-                            .await?
-                            .iter()
-                            .map(|v| ((**v).clone(), index)),
-                    );
-                }
-
-                versions.sort_by_key(|v| v.0.clone());
-                versions.reverse();
-
                 // If input package does not end with a '/' then we need to output the highest version.
                 if !ends_with_level_separator {
                     // There always should exist at least one version per package.
-                    let highest_version = versions.first().unwrap();
+                    let highest_version = versions.first().unwrap().clone();
 
-                    versions = vec![highest_version.clone()];
-                }
-
-                for (version, repo_index) in versions {
-                    let (_, repo) = repos.get(repo_index).unwrap();
-                    let pkg_ident =
-                        parse_ident(format!("{}/{}", &input_package, &version.to_string()))?;
-
-                    let builds = &mut repo.list_package_builds(&pkg_ident).await?;
-
-                    specs.append(&mut self.get_specs_to_process(builds, repo).await?);
+                    versions.retain(|(version, _)| highest_version.0 == *version);
                 }
             }
         }
-        Ok(specs)
-    }
 
-    async fn get_specs_to_process(
-        &self,
-        builds: &mut Vec<Ident>,
-        repo: &spk_storage::RepositoryHandle,
-    ) -> Result<Vec<(String, EntryPrintConfig)>> {
-        let mut result: Vec<(String, EntryPrintConfig)> = Vec::new();
-        while let Some(build) = builds.pop() {
-            // Skip embedded builds
-            if build.is_embedded() {
-                continue;
-            };
+        for (version, repo_index) in versions {
+            let (_, repo) = repos.get(repo_index).unwrap();
 
-            let spec = repo.read_package(&build).await?;
+            let pkg_ident = parse_ident(format!("{pkgname}/{version}"))?;
 
-            let mut entry = EntryPrintConfig::new(spec.clone());
+            let builds = &mut repo.list_package_builds(pkg_ident.as_version()).await?;
 
-            entry.deprecated = spec.is_deprecated();
+            while let Some(build) = builds.pop() {
+                // Skip embedded builds
+                if build.is_embedded() {
+                    continue;
+                };
 
-            if !self.deprecated && spec.is_deprecated() {
-                continue;
-            } else {
-                result.push((spec.ident().get_current_version(), entry))
-            };
+                let spec = repo.read_package(&build).await?;
+
+                let mut entry = EntryPrintConfig::new(spec.clone());
+
+                entry.deprecated = spec.is_deprecated();
+
+                if !self.deprecated && spec.is_deprecated() {
+                    continue;
+                } else {
+                    specs.push((spec.ident().as_version().to_string(), entry))
+                };
+            }
         }
-        Ok(result)
+        Ok(specs)
     }
 
     fn format_entries_to_print(
@@ -448,7 +433,7 @@ impl<T: Output> Du<T> {
                         next_iter_objects.push(item);
                     }
                     Object::Manifest(object) => {
-                        let tracking_manifest = object.unlock();
+                        let tracking_manifest = object.to_tracking_manifest();
                         let mut root = root_dir.to_string();
                         let root_entry = tracking_manifest.find_entry_by_string(&root);
                         let is_blob: bool = root_entry.kind.is_blob();

@@ -3593,11 +3593,11 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-du"
-version = "0.37.20"
+version = "0.39.1"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 3.2.11",
+ "clap 3.2.23",
  "colored",
  "futures",
  "itertools",
