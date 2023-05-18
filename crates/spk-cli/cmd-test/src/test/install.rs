@@ -11,7 +11,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::ident_build::Build;
-use spk_schema::{Recipe, SpecRecipe, Variant};
+use spk_schema::{Recipe, SpecRecipe, Variant, VariantExt};
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_storage::{self as storage};
 
@@ -31,7 +31,7 @@ pub struct PackageInstallTester<'a, V> {
 
 impl<'a, V> PackageInstallTester<'a, V>
 where
-    V: Variant + Send,
+    V: Clone + Variant + Send,
 {
     pub fn new(recipe: SpecRecipe, script: String, variant: V) -> Self {
         Self {
@@ -100,7 +100,10 @@ where
         }
 
         // Request the specific build that goes with the selected build variant.
-        let build_digest_for_variant = self.recipe.resolve_options(&self.variant)?.digest();
+        let build_digest_for_variant = self
+            .recipe
+            .resolve_options(&self.variant.clone().with_overrides(self.options.clone()))?
+            .digest();
 
         let build_to_test = self
             .recipe
@@ -140,7 +143,7 @@ where
 #[async_trait::async_trait]
 impl<'a, V> Tester for PackageInstallTester<'a, V>
 where
-    V: Variant + Send,
+    V: Clone + Variant + Send,
 {
     async fn test(&mut self) -> Result<()> {
         PackageInstallTester::test(self).await
