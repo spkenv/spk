@@ -128,7 +128,7 @@ impl FSRepository {
         // `VERSION` to our version, so it is compatible.
         // FIXME: No attempt to check if the repo already existed and is
         // actually incompatible.
-        unsafe { Self::open_unchecked(root).await }
+        unsafe { Self::open_unchecked(root) }
     }
 
     // Open a repository over the given directory, which must already
@@ -146,7 +146,7 @@ impl FSRepository {
 
         // Safety: we canonicalized `root` and check the version compatibility
         // in the next step.
-        let repo = unsafe { Self::open_unchecked(&root).await? };
+        let repo = unsafe { Self::open_unchecked(&root)? };
 
         let current_version = semver::Version::parse(crate::VERSION).unwrap();
         let repo_version = repo.last_migration().await?;
@@ -176,7 +176,7 @@ impl FSRepository {
     ///
     /// The caller must ensure that the repository version is compatible with
     /// this version of spfs before using the repository.
-    async unsafe fn open_unchecked<P: AsRef<Path>>(root: P) -> Result<Self> {
+    unsafe fn open_unchecked<P: AsRef<Path>>(root: P) -> Result<Self> {
         let root = root.as_ref();
         let username = whoami::username();
         Ok(Self {
