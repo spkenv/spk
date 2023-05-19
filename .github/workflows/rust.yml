@@ -26,6 +26,8 @@ jobs:
           apt-get update
           # nodejs is needed for rust-cache (when using `act`)
           apt-get install -y libcap2-bin sudo nodejs cmake tcsh rsync protobuf-compiler fuse libfuse-dev
+          # spfs-fuse requires this option enabled
+          echo user_allow_other >> /etc/fuse.conf
           rustup install nightly
           rustup component add clippy
           rustup component add rustfmt --toolchain nightly
