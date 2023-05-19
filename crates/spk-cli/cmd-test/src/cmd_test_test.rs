@@ -26,6 +26,34 @@ struct TestOpt {
     test: Test,
 }
 
+macro_rules! build_package {
+    ($tmpdir:ident, $filename:literal, $recipe:literal $(,)? $($extra_build_args:literal),*) => {{
+        // Leak `filename` for convenience.
+        let filename = Box::leak(Box::new($tmpdir.path().join($filename)));
+        {
+            let mut file = File::create(&filename).unwrap();
+            file.write_all($recipe).unwrap();
+        }
+
+        let filename_str = filename.as_os_str().to_str().unwrap();
+
+        // Build the package so it can be tested.
+        let mut opt = BuildOpt::try_parse_from([
+            "build",
+            // Don't exec a new process to move into a new runtime, this confuses
+            // coverage testing.
+            "--no-runtime",
+            "--disable-repo=origin",
+            $($extra_build_args,)*
+            filename_str,
+        ])
+        .unwrap();
+        opt.build.run().await.unwrap();
+
+        filename_str
+    }};
+}
+
 #[rstest]
 #[tokio::test]
 async fn test_all_test_stages_succeed(tmpdir: tempfile::TempDir) {
@@ -34,11 +62,10 @@ async fn test_all_test_stages_succeed(tmpdir: tempfile::TempDir) {
     // unique build.
     let _rt = spfs_runtime().await;
 
-    let filename = tmpdir.path().join("simple.spk.yaml");
-    {
-        let mut file = File::create(&filename).unwrap();
-        file.write_all(
-            br#"
+    let filename_str = build_package!(
+        tmpdir,
+        "simple.spk.yaml",
+        br#"
 pkg: simple/1.0.0
 build:
   script:
@@ -54,24 +81,8 @@ tests:
   - stage: install
     script:
       - "true"
-"#,
-        )
-        .unwrap();
-    }
-
-    let filename_str = filename.as_os_str().to_str().unwrap();
-
-    // Build the package so it can be tested.
-    let mut opt = BuildOpt::try_parse_from([
-        "build",
-        // Don't exec a new process to move into a new runtime, this confuses
-        // coverage testing.
-        "--no-runtime",
-        "--disable-repo=origin",
-        filename_str,
-    ])
-    .unwrap();
-    opt.build.run().await.unwrap();
+"#
+    );
 
     let mut opt = TestOpt::try_parse_from([
         "test",
@@ -90,39 +101,21 @@ tests:
 async fn test_install_test_picks_same_digest_as_build(tmpdir: tempfile::TempDir) {
     let _rt = spfs_runtime().await;
 
-    let filename = tmpdir.path().join("dep.spk.yaml");
-    {
-        let mut file = File::create(&filename).unwrap();
-        file.write_all(
-            br#"
+    build_package!(
+        tmpdir,
+        "dep.spk.yaml",
+        br#"
 pkg: a-pkg-with-no-version-specified/1.0.0
 build:
   script:
     - "true"
-"#,
-        )
-        .unwrap();
-    }
+"#
+    );
 
-    let filename_str = filename.as_os_str().to_str().unwrap();
-
-    // Build the package so it can be used as a dependency.
-    let mut opt = BuildOpt::try_parse_from([
-        "build",
-        // Don't exec a new process to move into a new runtime, this confuses
-        // coverage testing.
-        "--no-runtime",
-        "--disable-repo=origin",
-        filename_str,
-    ])
-    .unwrap();
-    opt.build.run().await.unwrap();
-
-    let filename = tmpdir.path().join("simple.spk.yaml");
-    {
-        let mut file = File::create(&filename).unwrap();
-        file.write_all(
-            br#"
+    let filename_str = build_package!(
+        tmpdir,
+        "simple.spk.yaml",
+        br#"
 pkg: simple/1.0.0
 build:
   options:
@@ -134,24 +127,8 @@ tests:
   - stage: install
     script:
       - "true"
-"#,
-        )
-        .unwrap();
-    }
-
-    let filename_str = filename.as_os_str().to_str().unwrap();
-
-    // Build the package so it can be tested.
-    let mut opt = BuildOpt::try_parse_from([
-        "build",
-        // Don't exec a new process to move into a new runtime, this confuses
-        // coverage testing.
-        "--no-runtime",
-        "--disable-repo=origin",
-        filename_str,
-    ])
-    .unwrap();
-    opt.build.run().await.unwrap();
+"#
+    );
 
     let mut opt = TestOpt::try_parse_from([
         "test",
@@ -178,68 +155,33 @@ async fn test_install_test_picks_same_digest_as_build_with_new_dep_in_variant(
 ) {
     let _rt = spfs_runtime().await;
 
-    let filename = tmpdir.path().join("dep-a.spk.yaml");
-    {
-        let mut file = File::create(&filename).unwrap();
-        file.write_all(
-            br#"
+    build_package!(
+        tmpdir,
+        "dep-a.spk.yaml",
+        br#"
 pkg: dep-a/1.2.3
 build:
   script:
     - "true"
-"#,
-        )
-        .unwrap();
-    }
+"#
+    );
 
-    let filename_str = filename.as_os_str().to_str().unwrap();
-
-    // Build the package so it can be used as a dependency.
-    let mut opt = BuildOpt::try_parse_from([
-        "build",
-        // Don't exec a new process to move into a new runtime, this confuses
-        // coverage testing.
-        "--no-runtime",
-        "--disable-repo=origin",
-        filename_str,
-    ])
-    .unwrap();
-    opt.build.run().await.unwrap();
-
-    let filename = tmpdir.path().join("dep-b.spk.yaml");
-    {
-        let mut file = File::create(&filename).unwrap();
-        file.write_all(
-            br#"
+    build_package!(
+        tmpdir,
+        "dep-b.spk.yaml",
+        br#"
 pkg: dep-b/1.2.3
 build:
   script:
     - "true"
-"#,
-        )
-        .unwrap();
-    }
-
-    let filename_str = filename.as_os_str().to_str().unwrap();
-
-    // Build the package so it can be used as a dependency.
-    let mut opt = BuildOpt::try_parse_from([
-        "build",
-        // Don't exec a new process to move into a new runtime, this confuses
-        // coverage testing.
-        "--no-runtime",
-        "--disable-repo=origin",
-        filename_str,
-    ])
-    .unwrap();
-    opt.build.run().await.unwrap();
+"#
+    );
 
     // Note that "dep-b" is introduced as a new dependency in the variant.
-    let filename = tmpdir.path().join("simple.spk.yaml");
-    {
-        let mut file = File::create(&filename).unwrap();
-        file.write_all(
-            br#"
+    let filename_str = build_package!(
+        tmpdir,
+        "simple.spk.yaml",
+        br#"
 pkg: simple/1.0.0
 build:
   options:
@@ -253,24 +195,8 @@ tests:
   - stage: install
     script:
       - "true"
-"#,
-        )
-        .unwrap();
-    }
-
-    let filename_str = filename.as_os_str().to_str().unwrap();
-
-    // Build the package so it can be tested.
-    let mut opt = BuildOpt::try_parse_from([
-        "build",
-        // Don't exec a new process to move into a new runtime, this confuses
-        // coverage testing.
-        "--no-runtime",
-        "--disable-repo=origin",
-        filename_str,
-    ])
-    .unwrap();
-    opt.build.run().await.unwrap();
+"#
+    );
 
     let mut opt = TestOpt::try_parse_from([
         "test",
@@ -297,67 +223,32 @@ async fn test_install_test_picks_same_digest_as_build_with_new_dep_in_variant_pl
 ) {
     let _rt = spfs_runtime().await;
 
-    let filename = tmpdir.path().join("dep-a.spk.yaml");
-    {
-        let mut file = File::create(&filename).unwrap();
-        file.write_all(
-            br#"
+    build_package!(
+        tmpdir,
+        "dep-a.spk.yaml",
+        br#"
 pkg: dep-a/1.2.5
 build:
   script:
     - "true"
-"#,
-        )
-        .unwrap();
-    }
+"#
+    );
 
-    let filename_str = filename.as_os_str().to_str().unwrap();
-
-    // Build the package so it can be used as a dependency.
-    let mut opt = BuildOpt::try_parse_from([
-        "build",
-        // Don't exec a new process to move into a new runtime, this confuses
-        // coverage testing.
-        "--no-runtime",
-        "--disable-repo=origin",
-        filename_str,
-    ])
-    .unwrap();
-    opt.build.run().await.unwrap();
-
-    let filename = tmpdir.path().join("dep-b.spk.yaml");
-    {
-        let mut file = File::create(&filename).unwrap();
-        file.write_all(
-            br#"
+    build_package!(
+        tmpdir,
+        "dep-b.spk.yaml",
+        br#"
 pkg: dep-b/1.2.3
 build:
   script:
     - "true"
-"#,
-        )
-        .unwrap();
-    }
+"#
+    );
 
-    let filename_str = filename.as_os_str().to_str().unwrap();
-
-    // Build the package so it can be used as a dependency.
-    let mut opt = BuildOpt::try_parse_from([
-        "build",
-        // Don't exec a new process to move into a new runtime, this confuses
-        // coverage testing.
-        "--no-runtime",
-        "--disable-repo=origin",
-        filename_str,
-    ])
-    .unwrap();
-    opt.build.run().await.unwrap();
-
-    let filename = tmpdir.path().join("simple.spk.yaml");
-    {
-        let mut file = File::create(&filename).unwrap();
-        file.write_all(
-            br#"
+    let filename_str = build_package!(
+        tmpdir,
+        "simple.spk.yaml",
+        br#"
 pkg: simple/1.0.0
 build:
   options:
@@ -372,26 +263,10 @@ tests:
     script:
       - "true"
 "#,
-        )
-        .unwrap();
-    }
-
-    let filename_str = filename.as_os_str().to_str().unwrap();
-
-    // Build the package so it can be tested.
-    let mut opt = BuildOpt::try_parse_from([
-        "build",
-        // Don't exec a new process to move into a new runtime, this confuses
-        // coverage testing.
-        "--no-runtime",
-        "--disable-repo=origin",
-        // Add a command line override.
+        // Extra build options specified here.
         "--opt",
-        "dep-a=1.2.4",
-        filename_str,
-    ])
-    .unwrap();
-    opt.build.run().await.unwrap();
+        "dep-a=1.2.4"
+    );
 
     let mut opt = TestOpt::try_parse_from([
         "test",
