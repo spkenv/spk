@@ -393,6 +393,10 @@ pub fn configure_logging(verbosity: usize, syslog: bool) {
 
         tracing::subscriber::set_global_default(sub).unwrap();
     };
+
+    if let Err(err) = tracing_log::LogTracer::init() {
+        tracing::info!("Failed to initialize LogTracer: {err}");
+    }
 }
 
 /// Trait all spfs cli command parsers must implement to provide the

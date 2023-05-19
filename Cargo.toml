@@ -55,5 +55,6 @@ tokio = { version = "1.20", features = ["rt"] }
 tokio-retry = "0.3.0"
 tracing = "0.1.35"
 tracing-capture = "0.1"
+tracing-log = "0.1"
 tracing-subscriber = "0.3.14"
 whoami = "1.2"

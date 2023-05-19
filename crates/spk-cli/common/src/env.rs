@@ -301,7 +301,13 @@ pub fn configure_logging(verbosity: u32) -> Result<()> {
             )
     };
 
-    tracing::subscriber::set_global_default(sub).context("Failed to set default logger")
+    let r = tracing::subscriber::set_global_default(sub).context("Failed to set default logger");
+
+    if let Err(err) = tracing_log::LogTracer::init() {
+        tracing::info!("Failed to initialize LogTracer: {err}");
+    }
+
+    r
 }
 
 static SPK_EXE: Lazy<&OsStr> = Lazy::new(|| match std::env::var_os("SPK_BIN_PATH") {

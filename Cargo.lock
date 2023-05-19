@@ -3002,6 +3002,7 @@ dependencies = [
  "strip-ansi-escapes",
  "syslog-tracing",
  "tracing",
+ "tracing-log",
  "tracing-subscriber 0.3.16",
  "whoami",
 ]
@@ -3196,6 +3197,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "tracing-log",
  "tracing-subscriber 0.3.16",
  "whoami",
 ]

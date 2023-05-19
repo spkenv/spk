@@ -20,5 +20,6 @@ spfs = { path = "../../spfs" }
 strip-ansi-escapes = { workspace = true, optional = true }
 syslog-tracing = "0.1.0"
 tracing = { workspace = true }
+tracing-log = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 whoami = { workspace = true, optional = true }
