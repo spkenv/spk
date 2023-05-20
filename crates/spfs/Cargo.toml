@@ -29,7 +29,7 @@ dashmap = "5.4.0"
 data-encoding = "2.3"
 expanduser = { workspace = true }
 faccess = "0.2.3"
-futures = "0.3.9"
+futures = { workspace = true }
 gitignore = "1.0"
 glob = "0.3.0"
 hyper = { version = "0.14.16", features = ["client"] }

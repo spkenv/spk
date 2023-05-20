@@ -18,7 +18,7 @@ anyhow = { workspace = true }
 clap = { workspace = true }
 chrono = { workspace = true }
 colored = "2.0"
-futures = "0.3.9"
+futures = { workspace = true }
 hyper = { version = "0.14.16", optional = true }
 itertools = "0.10.3"
 nix = { workspace = true }

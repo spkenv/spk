@@ -7,7 +7,7 @@ version = { workspace = true }
 [dependencies]
 async-trait = { workspace = true }
 dyn-clone = { workspace = true }
-futures = "0.3.9"
+futures = { workspace = true }
 once_cell = { workspace = true }
 spk-solve-solution = { path = "../solution" }
 spk-schema = { path = "../../../spk-schema" }

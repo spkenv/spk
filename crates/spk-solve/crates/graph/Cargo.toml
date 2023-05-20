@@ -11,7 +11,7 @@ async-trait = { workspace = true }
 colored = { workspace = true }
 ctrlc = "3.2"
 dyn-clone = { workspace = true }
-futures = "0.3.9"
+futures = { workspace = true }
 itertools = "0.10"
 once_cell = { workspace = true }
 priority-queue = "1.2"
