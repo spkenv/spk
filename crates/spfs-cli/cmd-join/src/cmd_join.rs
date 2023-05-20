@@ -7,8 +7,9 @@
 
 use std::ffi::OsString;
 
-use anyhow::Result;
-use clap::Parser;
+use anyhow::{anyhow, bail, Context, Result};
+use clap::{ArgGroup, Parser};
+use futures::StreamExt;
 use spfs::Error;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
@@ -17,12 +18,20 @@ cli::main!(CmdJoin, sentry = false, sync = true);
 
 /// Enter an existing runtime that is still active
 #[derive(Parser, Debug)]
+#[clap(group(
+    ArgGroup::new("runtime_id")
+    .required(true)
+    .args(&["runtime", "pid"])))]
 pub struct CmdJoin {
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: usize,
 
+    /// The pid of a process in an active runtime, to join the same runtime
+    #[clap(short, long)]
+    pid: Option<u32>,
+
     /// The name or id of the runtime to join
-    runtime: String,
+    runtime: Option<String>,
 
     /// The command to run after initialization
     ///
@@ -53,7 +62,30 @@ impl CmdJoin {
             .map_err(|err| Error::process_spawn_error("new_current_thread()".into(), err, None))?;
         let spfs_runtime = rt.block_on(async {
             let storage = config.get_runtime_storage().await?;
-            storage.read_runtime(&self.runtime).await
+
+            if let Some(runtime) = &self.runtime {
+                storage
+                    .read_runtime(runtime)
+                    .await
+                    .map_err(Into::<anyhow::Error>::into)
+            } else if let Some(pid) = self.pid {
+                let mount_ns = spfs::env::identify_mount_namespace_of_process(pid)
+                    .await
+                    .context("identify mount namespace of pid")?
+                    .ok_or(anyhow!("pid not found"))?;
+                let mut runtimes = storage.iter_runtimes().await;
+                while let Some(runtime) = runtimes.next().await {
+                    let Ok(runtime) = runtime else { continue; };
+                    let Some(this_runtime_mount_ns) = &runtime.data().config.mount_namespace else { continue; };
+                    if *this_runtime_mount_ns == mount_ns {
+                        return Ok(runtime);
+                    }
+                }
+                bail!("no runtime found for pid");
+            } else {
+                // Guaranteed by Clap config.
+                unreachable!();
+            }
         })?;
 
         // Shut down the tokio runtime (join threads) before attempting to
