@@ -60,10 +60,32 @@ impl CmdJoin {
         // join the spfs runtime. This is only allowed in a single-threaded
         // program.
 
-        // Do not block forever on drop because of any stuck blocking tasks.
-        rt.shutdown_timeout(std::time::Duration::from_millis(250));
+        // Wait as long as it takes to shutdown the Tokio runtime. We can't
+        // proceed with `join_runtime` until all background threads are
+        // terminated.
+        drop(rt);
 
-        spfs::env::join_runtime(&spfs_runtime)?;
+        let mut try_counter = 0;
+        const TIME_TO_WAIT_BETWEEN_ATTEMPTS: std::time::Duration =
+            std::time::Duration::from_millis(10);
+        debug_assert!(TIME_TO_WAIT_BETWEEN_ATTEMPTS.as_millis() < 500);
+        const ATTEMPTS_PER_SECOND: u128 = 1000u128 / TIME_TO_WAIT_BETWEEN_ATTEMPTS.as_millis();
+        loop {
+            try_counter += 1;
+            match spfs::env::join_runtime(&spfs_runtime) {
+                Err(spfs::Error::String(err)) if err.contains("single-threaded") => {
+                    // Anecdotally it takes one retry to succeed; don't start
+                    // to log anything until it is taking longer than usual.
+                    // Don't log every attempt since this retries rapidly.
+                    if try_counter % (ATTEMPTS_PER_SECOND / 2) == 0 {
+                        tracing::info!("Waiting for process to become single threaded: {err}");
+                    }
+                    std::thread::sleep(TIME_TO_WAIT_BETWEEN_ATTEMPTS);
+                }
+                Err(err) => return Err(err.into()),
+                Ok(_) => break,
+            }
+        }
 
         self.exec_runtime_command(&spfs_runtime)
     }
