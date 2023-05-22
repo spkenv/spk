@@ -9,6 +9,12 @@ name = "spfs-fuse"
 path = "src/cmd_fuse.rs"
 
 [features]
+fuse-backend-abi-7-22 = ["spfs-vfs/fuse-backend-abi-7-22"]
+fuse-backend-abi-7-25 = ["spfs-vfs/fuse-backend-abi-7-25"]
+fuse-backend-abi-7-28 = ["spfs-vfs/fuse-backend-abi-7-28"]
+fuse-backend-abi-7-31 = ["spfs-vfs/fuse-backend-abi-7-31"]
+fuse-backend-rhel-7-6 = ["spfs-vfs/fuse-backend-rhel-7-6"]
+fuse-backend-rhel-7-9 = ["spfs-vfs/fuse-backend-rhel-7-9"]
 sentry = ["spfs-cli-common/sentry"]
 
 [dependencies]
