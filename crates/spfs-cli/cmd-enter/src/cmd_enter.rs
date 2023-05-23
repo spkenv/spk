@@ -8,11 +8,13 @@
 use std::ffi::OsString;
 #[cfg(feature = "sentry")]
 use std::sync::atomic::Ordering;
+use std::time::Instant;
 
 use anyhow::{Context, Result};
 use clap::Parser;
 #[cfg(feature = "sentry")]
 use cli::configure_sentry;
+use serde_json::json;
 use spfs::env::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
 use spfs::storage::fs::RenderSummary;
 use spfs_cli_common as cli;
@@ -44,6 +46,10 @@ pub struct CmdEnter {
     /// The value to set $TMPDIR to in new environment
     #[clap(long)]
     tmpdir: Option<String>,
+
+    /// Put the rendering and syncing times into environment variables
+    #[clap(long)]
+    metrics_in_env: bool,
 
     /// The name of the runtime being entered
     #[clap(long)]
@@ -93,9 +99,11 @@ impl CmdEnter {
         config: &spfs::Config,
     ) -> Result<Option<spfs::runtime::OwnedRuntime>> {
         let mut runtime = self.load_runtime(config).await?;
+
         if self.remount {
+            let start_time = Instant::now();
             let render_summary = spfs::reinitialize_runtime(&mut runtime).await?;
-            self.report_render_summary(render_summary);
+            self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
             Ok(None)
         } else {
             let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
@@ -121,8 +129,9 @@ impl CmdEnter {
             };
 
             tracing::debug!("initializing runtime");
+            let start_time = Instant::now();
             let render_summary = spfs::initialize_runtime(&mut owned).await?;
-            self.report_render_summary(render_summary);
+            self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
 
             // We promise to not mutate the runtime after this point.
             // spfs-monitor will read and modify it after we tell it to
@@ -194,33 +203,57 @@ impl CmdEnter {
             .context("Failed to execute runtime command")
     }
 
-    fn report_render_summary(&self, _render_summary: RenderSummary) {
+    fn report_render_summary(&self, render_summary: RenderSummary, render_time: f64) {
+        if self.metrics_in_env {
+            // The render summary data is put into a json blob in a
+            // environment variable for other, non-spfs, programs to
+            // access.
+            std::env::set_var(
+                "SPFS_METRICS_RENDER_REPORT",
+                format!("{}", json!(render_summary)),
+            );
+            // The render time is put into environment variables for
+            // other, non-spfs, programs to access. If this command
+            // has been run from spfs-run, then the sync time will
+            // already be in an environment variable called
+            // SPFS_METRICS_SYNC_TIME_SECS as well.
+            std::env::set_var("SPFS_METRICS_RENDER_TIME_SECS", format!("{render_time}"));
+        }
+
         #[cfg(feature = "sentry")]
         {
             // Don't log if nothing was rendered.
-            if _render_summary.is_zero() {
+            if render_summary.is_zero() {
                 return;
             }
             // This is called after `[re]initialize_runtime` and now it is
             // "safe" to initialize sentry and send a sentry event.
             if let Some(_guard) = configure_sentry(self.command_name().to_owned()) {
+                // Sync time is read in so it can be added to the
+                // sentry data. It's not being used for anything else
+                // so it doesn't need to be converted to a float.
+                let sync_time =
+                    std::env::var("SPFS_METRICS_SYNC_TIME_SECS").unwrap_or(String::from("0.0"));
+
                 tracing::error!(
                         target: "sentry",
-                        entry_count = %_render_summary.entry_count.load(Ordering::Relaxed),
-                        already_existed_count = %_render_summary.already_existed_count.load(Ordering::Relaxed),
-                        copy_count = %_render_summary.copy_count.load(Ordering::Relaxed),
-                        copy_link_limit_count = %_render_summary.copy_link_limit_count.load(Ordering::Relaxed),
-                        copy_wrong_mode_count = %_render_summary.copy_wrong_mode_count.load(Ordering::Relaxed),
-                        copy_wrong_owner_count = %_render_summary.copy_wrong_owner_count.load(Ordering::Relaxed),
-                        link_count = %_render_summary.link_count.load(Ordering::Relaxed),
-                        symlink_count = %_render_summary.symlink_count.load(Ordering::Relaxed),
-                        total_bytes_rendered = %_render_summary.total_bytes_rendered.load(Ordering::Relaxed),
-                        total_bytes_already_existed = %_render_summary.total_bytes_already_existed.load(Ordering::Relaxed),
-                        total_bytes_copied = %_render_summary.total_bytes_copied.load(Ordering::Relaxed),
-                        total_bytes_copied_link_limit = %_render_summary.total_bytes_copied_link_limit.load(Ordering::Relaxed),
-                        total_bytes_copied_wrong_mode = %_render_summary.total_bytes_copied_wrong_mode.load(Ordering::Relaxed),
-                        total_bytes_copied_wrong_owner = %_render_summary.total_bytes_copied_wrong_owner.load(Ordering::Relaxed),
-                        total_bytes_linked = %_render_summary.total_bytes_linked.load(Ordering::Relaxed),
+                        entry_count = %render_summary.entry_count.load(Ordering::Relaxed),
+                        already_existed_count = %render_summary.already_existed_count.load(Ordering::Relaxed),
+                        copy_count = %render_summary.copy_count.load(Ordering::Relaxed),
+                        copy_link_limit_count = %render_summary.copy_link_limit_count.load(Ordering::Relaxed),
+                        copy_wrong_mode_count = %render_summary.copy_wrong_mode_count.load(Ordering::Relaxed),
+                        copy_wrong_owner_count = %render_summary.copy_wrong_owner_count.load(Ordering::Relaxed),
+                        link_count = %render_summary.link_count.load(Ordering::Relaxed),
+                        symlink_count = %render_summary.symlink_count.load(Ordering::Relaxed),
+                        total_bytes_rendered = %render_summary.total_bytes_rendered.load(Ordering::Relaxed),
+                        total_bytes_already_existed = %render_summary.total_bytes_already_existed.load(Ordering::Relaxed),
+                        total_bytes_copied = %render_summary.total_bytes_copied.load(Ordering::Relaxed),
+                        total_bytes_copied_link_limit = %render_summary.total_bytes_copied_link_limit.load(Ordering::Relaxed),
+                        total_bytes_copied_wrong_mode = %render_summary.total_bytes_copied_wrong_mode.load(Ordering::Relaxed),
+                        total_bytes_copied_wrong_owner = %render_summary.total_bytes_copied_wrong_owner.load(Ordering::Relaxed),
+                        total_bytes_linked = %render_summary.total_bytes_linked.load(Ordering::Relaxed),
+                        sync_time = %sync_time,
+                        render_time = %render_time,
                         "Render summary");
             }
         }

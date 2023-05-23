@@ -227,6 +227,7 @@ where
         rt.storage().address().to_string().into(),
         "--runtime".into(),
         rt.name().into(),
+        "--metrics-in-env".into(),
         "--".into(),
         command.into(),
     ]);
