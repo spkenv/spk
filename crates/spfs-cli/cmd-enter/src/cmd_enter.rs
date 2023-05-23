@@ -203,14 +203,14 @@ impl CmdEnter {
             .context("Failed to execute runtime command")
     }
 
-    fn report_render_summary(&self, _render_summary: RenderSummary, render_time: f64) {
+    fn report_render_summary(&self, render_summary: RenderSummary, render_time: f64) {
         if self.metrics_in_env {
             // The render summary data is put into a json blob in a
             // environment variable for other, non-spfs, programs to
             // access.
             std::env::set_var(
                 "SPFS_METRICS_RENDER_REPORT",
-                format!("{}", json!(_render_summary)),
+                format!("{}", json!(render_summary)),
             );
             // The render time is put into environment variables for
             // other, non-spfs, programs to access. If this command
@@ -223,7 +223,7 @@ impl CmdEnter {
         #[cfg(feature = "sentry")]
         {
             // Don't log if nothing was rendered.
-            if _render_summary.is_zero() {
+            if render_summary.is_zero() {
                 return;
             }
             // This is called after `[re]initialize_runtime` and now it is
@@ -237,21 +237,21 @@ impl CmdEnter {
 
                 tracing::error!(
                         target: "sentry",
-                        entry_count = %_render_summary.entry_count.load(Ordering::Relaxed),
-                        already_existed_count = %_render_summary.already_existed_count.load(Ordering::Relaxed),
-                        copy_count = %_render_summary.copy_count.load(Ordering::Relaxed),
-                        copy_link_limit_count = %_render_summary.copy_link_limit_count.load(Ordering::Relaxed),
-                        copy_wrong_mode_count = %_render_summary.copy_wrong_mode_count.load(Ordering::Relaxed),
-                        copy_wrong_owner_count = %_render_summary.copy_wrong_owner_count.load(Ordering::Relaxed),
-                        link_count = %_render_summary.link_count.load(Ordering::Relaxed),
-                        symlink_count = %_render_summary.symlink_count.load(Ordering::Relaxed),
-                        total_bytes_rendered = %_render_summary.total_bytes_rendered.load(Ordering::Relaxed),
-                        total_bytes_already_existed = %_render_summary.total_bytes_already_existed.load(Ordering::Relaxed),
-                        total_bytes_copied = %_render_summary.total_bytes_copied.load(Ordering::Relaxed),
-                        total_bytes_copied_link_limit = %_render_summary.total_bytes_copied_link_limit.load(Ordering::Relaxed),
-                        total_bytes_copied_wrong_mode = %_render_summary.total_bytes_copied_wrong_mode.load(Ordering::Relaxed),
-                        total_bytes_copied_wrong_owner = %_render_summary.total_bytes_copied_wrong_owner.load(Ordering::Relaxed),
-                        total_bytes_linked = %_render_summary.total_bytes_linked.load(Ordering::Relaxed),
+                        entry_count = %render_summary.entry_count.load(Ordering::Relaxed),
+                        already_existed_count = %render_summary.already_existed_count.load(Ordering::Relaxed),
+                        copy_count = %render_summary.copy_count.load(Ordering::Relaxed),
+                        copy_link_limit_count = %render_summary.copy_link_limit_count.load(Ordering::Relaxed),
+                        copy_wrong_mode_count = %render_summary.copy_wrong_mode_count.load(Ordering::Relaxed),
+                        copy_wrong_owner_count = %render_summary.copy_wrong_owner_count.load(Ordering::Relaxed),
+                        link_count = %render_summary.link_count.load(Ordering::Relaxed),
+                        symlink_count = %render_summary.symlink_count.load(Ordering::Relaxed),
+                        total_bytes_rendered = %render_summary.total_bytes_rendered.load(Ordering::Relaxed),
+                        total_bytes_already_existed = %render_summary.total_bytes_already_existed.load(Ordering::Relaxed),
+                        total_bytes_copied = %render_summary.total_bytes_copied.load(Ordering::Relaxed),
+                        total_bytes_copied_link_limit = %render_summary.total_bytes_copied_link_limit.load(Ordering::Relaxed),
+                        total_bytes_copied_wrong_mode = %render_summary.total_bytes_copied_wrong_mode.load(Ordering::Relaxed),
+                        total_bytes_copied_wrong_owner = %render_summary.total_bytes_copied_wrong_owner.load(Ordering::Relaxed),
+                        total_bytes_linked = %render_summary.total_bytes_linked.load(Ordering::Relaxed),
                         sync_time = %sync_time,
                         render_time = %render_time,
                         "Render summary");
