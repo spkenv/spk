@@ -11,13 +11,13 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::ident_build::Build;
-use spk_schema::{Recipe, SpecRecipe};
+use spk_schema::{Recipe, SpecRecipe, Variant, VariantExt};
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
 use spk_storage::{self as storage};
 
 use super::Tester;
 
-pub struct PackageInstallTester<'a> {
+pub struct PackageInstallTester<'a, V> {
     prefix: PathBuf,
     recipe: SpecRecipe,
     script: String,
@@ -26,10 +26,14 @@ pub struct PackageInstallTester<'a> {
     additional_requirements: Vec<Request>,
     source: Option<PathBuf>,
     env_resolver: BoxedResolverCallback<'a>,
+    variant: V,
 }
 
-impl<'a> PackageInstallTester<'a> {
-    pub fn new(recipe: SpecRecipe, script: String) -> Self {
+impl<'a, V> PackageInstallTester<'a, V>
+where
+    V: Clone + Variant + Send,
+{
+    pub fn new(recipe: SpecRecipe, script: String, variant: V) -> Self {
         Self {
             prefix: PathBuf::from("/spfs"),
             recipe,
@@ -39,6 +43,7 @@ impl<'a> PackageInstallTester<'a> {
             additional_requirements: Vec::new(),
             source: None,
             env_resolver: Box::new(DefaultResolver {}),
+            variant,
         }
     }
 
@@ -95,7 +100,10 @@ impl<'a> PackageInstallTester<'a> {
         }
 
         // Request the specific build that goes with the selected build variant.
-        let build_digest_for_variant = self.recipe.resolve_options(&self.options)?.digest();
+        let build_digest_for_variant = self
+            .recipe
+            .resolve_options(&self.variant.clone().with_overrides(self.options.clone()))?
+            .digest();
 
         let build_to_test = self
             .recipe
@@ -133,7 +141,10 @@ impl<'a> PackageInstallTester<'a> {
 }
 
 #[async_trait::async_trait]
-impl<'a> Tester for PackageInstallTester<'a> {
+impl<'a, V> Tester for PackageInstallTester<'a, V>
+where
+    V: Clone + Variant + Send,
+{
     async fn test(&mut self) -> Result<()> {
         PackageInstallTester::test(self).await
     }
