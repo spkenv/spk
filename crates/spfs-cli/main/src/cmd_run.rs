@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::ffi::OsString;
+use std::time::Instant;
 
 use anyhow::{Context, Result};
 use clap::Args;
@@ -51,6 +52,9 @@ impl CmdRun {
             Some(name) => runtimes.create_named_runtime(name).await?,
             None => runtimes.create_runtime().await?,
         };
+        tracing::debug!("created runtime: {}", runtime.name());
+
+        let start_time = Instant::now();
         if self.reference.is_empty() {
             self.edit = true;
         } else {
@@ -75,6 +79,7 @@ impl CmdRun {
                 runtime.push_digest(digest);
             }
         }
+        tracing::debug!("synced all the referenced objects locally");
 
         runtime.status.command = vec![self.command.to_string_lossy().to_string()];
         runtime
@@ -86,6 +91,13 @@ impl CmdRun {
 
         tracing::debug!("resolving entry process");
         let cmd = spfs::build_command_for_runtime(&runtime, &self.command, self.args.drain(..))?;
+
+        let sync_time = start_time.elapsed();
+        std::env::set_var(
+            "SPFS_METRICS_SYNC_TIME_SECS",
+            sync_time.as_secs_f64().to_string(),
+        );
+
         cmd.exec()
             .map(|_| 0)
             .context("Failed to execute runtime command")
