@@ -52,7 +52,7 @@ impl CmdRun {
             Some(name) => runtimes.create_named_runtime(name).await?,
             None => runtimes.create_runtime().await?,
         };
-        tracing::debug!("created runtime");
+        tracing::debug!("created runtime: {}", runtime.name());
 
         let start_time = Instant::now();
         if self.reference.is_empty() {
