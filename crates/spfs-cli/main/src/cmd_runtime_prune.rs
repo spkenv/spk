@@ -7,7 +7,7 @@ use chrono::{Duration, Utc};
 use clap::Args;
 use tokio_stream::StreamExt;
 
-/// List runtime information from the repository
+/// Find and remove runtimes from the repository based on a pruning strategy
 #[derive(Debug, Args)]
 #[clap(visible_alias = "prune")]
 pub struct CmdRuntimePrune {

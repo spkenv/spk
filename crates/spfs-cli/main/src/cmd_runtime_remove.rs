@@ -5,7 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 
-/// List runtime information from the repository
+/// Remove runtimes from the repository
 #[derive(Debug, Args)]
 #[clap(visible_alias = "rm")]
 pub struct CmdRuntimeRemove {
