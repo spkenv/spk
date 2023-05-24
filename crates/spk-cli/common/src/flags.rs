@@ -29,6 +29,7 @@ use crate::Error;
 mod flags_test;
 
 static SPK_NO_RUNTIME: &str = "SPK_NO_RUNTIME";
+static SPK_KEEP_RUNTIME: &str = "SPK_KEEP_RUNTIME";
 
 #[derive(Args, Clone)]
 pub struct Runtime {
@@ -47,6 +48,12 @@ pub struct Runtime {
     /// A name to use for the created spfs runtime (useful for rejoining it later)
     #[clap(long)]
     pub runtime_name: Option<String>,
+
+    /// Keep the runtime around rather than deleting it when the
+    /// process exits. This is best used with --runtime-name NAME to
+    /// make the runtime easier to reuse later.
+    #[clap(long, env = SPK_KEEP_RUNTIME)]
+    pub keep_runtime: bool,
 }
 
 impl Runtime {
@@ -148,6 +155,14 @@ impl Runtime {
                 std::ffi::CString::new("--name").expect("should never fail"),
             );
         }
+
+        if self.keep_runtime {
+            args.insert(
+                0,
+                std::ffi::CString::new("--keep-runtime").expect("should never fail"),
+            );
+        }
+
         args.insert(0, std::ffi::CString::new("run").expect("should never fail"));
         args.insert(0, spfs.clone());
 

@@ -84,6 +84,8 @@ pub enum Error {
     },
     #[error("Runtime already exists: {0}")]
     RuntimeExists(String),
+    #[error("An existing runtime is using the same upper name ({0}).\nTry another name, or connect to the runtime by running:\n\n   spfs join {1} <command>")]
+    RuntimeUpperDirAlreadyInUse(String, String),
     #[error("Runtime is already editable")]
     RuntimeAlreadyEditable,
     #[error("Runtime read error: {0}")]

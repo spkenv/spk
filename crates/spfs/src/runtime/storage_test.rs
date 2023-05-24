@@ -38,7 +38,11 @@ async fn test_storage_create_runtime(tmpdir: tempfile::TempDir) {
         .expect("failed to create runtime in storage");
     assert!(!runtime.name().is_empty());
 
-    assert!(storage.create_named_runtime(runtime.name()).await.is_err());
+    let keep_runtime = false;
+    assert!(storage
+        .create_named_runtime(runtime.name(), keep_runtime)
+        .await
+        .is_err());
 }
 
 #[rstest]

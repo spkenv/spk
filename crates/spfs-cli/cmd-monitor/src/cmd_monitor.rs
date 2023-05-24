@@ -184,8 +184,10 @@ impl CmdMonitor {
         }
 
         tracing::trace!("deleting runtime data");
-        if let Err(err) = owned.delete().await {
-            tracing::error!("failed to clean up runtime data: {err:?}");
+        if !owned.keep_runtime() {
+            if let Err(err) = owned.delete().await {
+                tracing::error!("failed to clean up runtime data: {err:?}")
+            }
         }
 
         res?;

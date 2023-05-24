@@ -41,6 +41,7 @@ async fn test_archive_io() {
         actual,
         vec![
             "VERSION".to_string(),
+            spfs::storage::fs::DURABLE_EDITS_DIR.to_string(),
             "objects".to_string(),
             "payloads".to_string(),
             "renders".to_string(),

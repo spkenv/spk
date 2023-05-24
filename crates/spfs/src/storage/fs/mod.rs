@@ -34,7 +34,8 @@ pub use renderer::{
 pub use repository::{
     read_last_migration_version,
     Config,
-    FsRepository,
+    FSRepository,
     OpenFsRepository,
     RenderStore,
+    DURABLE_EDITS_DIR,
 };

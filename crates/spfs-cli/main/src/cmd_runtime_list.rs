@@ -105,7 +105,7 @@ impl CmdRuntimeList {
                         };
 
                         message = format!(
-                            "{message}\trunning={}\tpid={:<7}\teditable={}\tstatus={process_status}",
+                            "{message}\trunning={}\tpid={:<7}\teditable={}\tdurable={}\tstatus={process_status}",
                             runtime.status.running,
                             runtime
                                 .status
@@ -113,6 +113,7 @@ impl CmdRuntimeList {
                                 .map(|pid| pid.to_string())
                                 .unwrap_or_else(|| "unknown".to_string()),
                             runtime.status.editable,
+                            runtime.keep_runtime(),
                         )
                     }
                     println!("{message}");

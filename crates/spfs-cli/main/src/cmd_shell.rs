@@ -29,6 +29,12 @@ pub struct CmdShell {
     #[clap(long)]
     runtime_name: Option<String>,
 
+    /// Use to keep the runtime around rather than deleting it when
+    /// the process exits. This is best used with '--name NAME' to
+    /// make rerunning the runtime easier at a later time.
+    #[clap(short, long, env = "SPFS_KEEP_RUNTIME")]
+    pub keep_runtime: bool,
+
     /// The tag or id of the desired runtime
     ///
     /// Use '-' or nothing to request an empty environment
@@ -45,6 +51,7 @@ impl CmdShell {
             no_edit: self.no_edit,
             runtime_name: self.runtime_name.clone(),
             reference: self.reference.clone(),
+            keep_runtime: self.keep_runtime,
             command: Default::default(),
             args: Default::default(),
         };

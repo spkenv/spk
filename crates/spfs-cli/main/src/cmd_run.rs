@@ -36,6 +36,12 @@ pub struct CmdRun {
     /// Use '-' or an empty string to request an empty environment
     pub reference: spfs::tracking::EnvSpec,
 
+    /// Use to keep the runtime around rather than deleting it when
+    /// the process exits. This is best used with '--name NAME' to
+    /// make rerunning the runtime easier at a later time.
+    #[clap(short, long, env = "SPFS_KEEP_RUNTIME")]
+    pub keep_runtime: bool,
+
     /// The command to run in the environment
     pub command: OsString,
 
@@ -54,10 +60,22 @@ impl CmdRun {
             config.get_runtime_storage()
         )?;
         let mut runtime = match &self.runtime_name {
-            Some(name) => runtimes.create_named_runtime(name).await?,
-            None => runtimes.create_runtime().await?,
+            Some(name) => {
+                runtimes
+                    .create_named_runtime(name, self.keep_runtime)
+                    .await?
+            }
+            None => {
+                runtimes
+                    .create_runtime_with_keep_runtime(self.keep_runtime)
+                    .await?
+            }
         };
-        tracing::debug!("created runtime: {}", runtime.name());
+        tracing::debug!(
+            "created runtime: {} [keep={}]",
+            runtime.name(),
+            self.keep_runtime
+        );
 
         let start_time = Instant::now();
         runtime.config.mount_backend = config.filesystem.backend;

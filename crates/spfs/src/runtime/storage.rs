@@ -19,6 +19,7 @@ use tokio::io::AsyncReadExt;
 
 use super::{startup_csh, startup_sh};
 use crate::encoding::{self, Encodable};
+use crate::storage::fs::{FSRepository, DURABLE_EDITS_DIR};
 use crate::{graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
@@ -136,6 +137,10 @@ pub struct Config {
     /// data from multiple repositories on-the-fly (eg FUSE)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub secondary_repositories: Vec<url::Url>,
+
+    /// Whether to keep the runtime around once the process using it exits.
+    #[serde(default)]
+    pub keep_runtime: bool,
 }
 
 impl Default for Config {
@@ -175,7 +180,23 @@ impl Config {
             mount_namespace: None,
             mount_backend: MountBackend::OverlayFsWithRenders,
             secondary_repositories: Vec::new(),
+            keep_runtime: false,
         }
+    }
+
+    /// Change upper root path for the Config's upper and work dirs.
+    /// The path must not be on NFS or the mount operation will fail.
+    fn with_upper_root(&mut self, upper_root_path: PathBuf) -> &mut Config {
+        self.upper_dir = upper_root_path.join(Self::UPPER_DIR);
+        // workdir has to be in the same filesystem/path root as
+        // upperdir for overlayfs.
+        self.work_dir = upper_root_path.join(Self::WORK_DIR);
+        self
+    }
+
+    fn with_keep_runtime(&mut self, keep_runtime: bool) -> &mut Self {
+        self.keep_runtime = keep_runtime;
+        self
     }
 
     #[cfg(test)]
@@ -273,9 +294,31 @@ impl Data {
         }
     }
 
+    /// Change the upper path for this Data's config. The path must
+    /// not be on NFS or the mount operation will fail.
+    pub fn with_upper_root(&mut self, upper_root_path: PathBuf) -> &mut Self {
+        self.config.with_upper_root(upper_root_path);
+        self
+    }
+
+    /// Change the keep_runtime setting for this Data's config
+    pub fn with_keep_runtime(&mut self, keep_runtime: bool) -> &mut Self {
+        self.config.with_keep_runtime(keep_runtime);
+        self
+    }
+
     /// The unique name used to identify this runtime
     pub fn name(&self) -> &String {
         &self.name
+    }
+
+    pub fn upper_dir(&self) -> &PathBuf {
+        &self.config.upper_dir
+    }
+
+    /// Whether to keep the runtime when the process is exits
+    pub fn keep_runtime(&self) -> bool {
+        self.config.keep_runtime
     }
 }
 
@@ -387,9 +430,25 @@ impl Runtime {
         }
     }
 
+    /// Change the upper root path for this Runtime. The path must not
+    /// be on NFS or the mount operation will fail.
+    pub fn with_upper_root(&mut self, upper_root_path: PathBuf) -> &Self {
+        self.data.with_upper_root(upper_root_path);
+        self
+    }
+
+    pub fn with_keep_runtime(&mut self, keep_runtime: bool) -> &Self {
+        self.data.with_keep_runtime(keep_runtime);
+        self
+    }
+
     /// The name of this runtime which identifies it uniquely
     pub fn name(&self) -> &str {
         self.name.as_ref()
+    }
+
+    pub fn upper_dir(&self) -> &PathBuf {
+        self.data.upper_dir()
     }
 
     pub fn data(&self) -> &Data {
@@ -398,6 +457,10 @@ impl Runtime {
 
     pub fn storage(&self) -> &Storage {
         &self.storage
+    }
+
+    pub fn keep_runtime(&self) -> bool {
+        self.data.keep_runtime()
     }
 
     /// Clear all working changes in this runtime's upper dir
@@ -610,6 +673,13 @@ impl Storage {
                 err => return err,
             }
         }
+        // remove the durable path associated with the runtime, if there is one.
+        let durable_path = self.durable_path(name.as_ref().to_string()).await?;
+        if durable_path.exists() {
+            std::fs::remove_dir_all(durable_path.clone())
+                .map_err(|err| Error::RuntimeWriteError(durable_path, err))?;
+        }
+
         Ok(())
     }
 
@@ -653,10 +723,18 @@ impl Storage {
         })
     }
 
-    /// Create a new runtime
+    /// Create a runtime with a generated name that will not be kept
     pub async fn create_runtime(&self) -> Result<Runtime> {
         let uuid = uuid::Uuid::new_v4().to_string();
-        self.create_named_runtime(uuid).await
+        let keep_runtime = false;
+        self.create_named_runtime(uuid, keep_runtime).await
+    }
+
+    /// Create a new runtime with a generated name that will be kept
+    /// or not based on the the given keep_runtime value.
+    pub async fn create_runtime_with_keep_runtime(&self, keep_runtime: bool) -> Result<Runtime> {
+        let uuid = uuid::Uuid::new_v4().to_string();
+        self.create_named_runtime(uuid, keep_runtime).await
     }
 
     /// Create a new runtime that is owned by this process and
@@ -667,8 +745,53 @@ impl Storage {
         OwnedRuntime::upgrade_as_owner(rt).await
     }
 
-    /// Create a new, empty runtime with a specific name
-    pub async fn create_named_runtime<S: Into<String>>(&self, name: S) -> Result<Runtime> {
+    fn durable_upper_path(&self, local_repo: FSRepository, name: String) -> PathBuf {
+        let mut upper_root_path = local_repo.root();
+        // This is not created as part of the local repo creation,
+        // but it will be created as part of setting up this
+        // runtime for the overlays mount operation.
+        upper_root_path.push(DURABLE_EDITS_DIR);
+        upper_root_path.push(name);
+        upper_root_path
+    }
+
+    async fn durable_path(&self, name: String) -> Result<PathBuf> {
+        let config = crate::Config::current()?;
+        let local_repo = config.get_local_repository().await?;
+        Ok(self.durable_upper_path(local_repo, name))
+    }
+
+    async fn check_upper_path_in_existing_runtimes(
+        &self,
+        upper_name: String,
+        upper_root_path: PathBuf,
+    ) -> Result<()> {
+        // If upper root name is already being used by another runtime
+        // (on this machine) then undefined sharing and masking will
+        // occur between the runtimes. We don't want that to happen, so
+        // runtimes aren't allowed to use the same named upper dir paths.
+        let mut runtimes = self.iter_runtimes().await;
+        let sample_upper_dir = upper_root_path.join(Config::UPPER_DIR);
+        while let Some(runtime) = runtimes.next().await {
+            let Ok(runtime) = runtime else { continue; };
+            if sample_upper_dir == *runtime.upper_dir() {
+                return Err(Error::RuntimeUpperDirAlreadyInUse(
+                    upper_name,
+                    runtime.name().to_string(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Create a new runtime with a specific name that will be kept or
+    /// not based on the given keep_runtime flag. If the runtime is kept,
+    /// it will use a durable upper root path for its upper/work dirs.
+    pub async fn create_named_runtime<S: Into<String>>(
+        &self,
+        name: S,
+        keep_runtime: bool,
+    ) -> Result<Runtime> {
         let name = name.into();
         let runtime_tag = runtime_tag(RuntimeDataType::Metadata, &name)?;
         match self.inner.resolve_tag(&runtime_tag).await {
@@ -676,7 +799,21 @@ impl Storage {
             Err(Error::UnknownReference(_)) => {}
             Err(err) => return Err(err),
         }
-        let rt = Runtime::new(name, self.clone());
+
+        let mut rt = Runtime::new(name.clone(), self.clone());
+        rt.with_keep_runtime(keep_runtime);
+        if keep_runtime {
+            // Keeping a runtime also activates a durable upperdir.
+            // The runtime's name is used the identifying token in the
+            // durable upper dir's root path. Overridden upper dirs
+            // are stored in the local repo in a known location to
+            // make them durable across runs.
+            let durable_path = self.durable_path(name.clone()).await?;
+            self.check_upper_path_in_existing_runtimes(name, durable_path.clone())
+                .await?;
+            rt.with_upper_root(durable_path);
+        }
+
         self.save_runtime(&rt).await?;
         Ok(rt)
     }
