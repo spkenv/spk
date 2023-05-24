@@ -8,6 +8,8 @@ use std::sync::Arc;
 
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
+use spfs::find_path::ObjectPathEntry;
+use spfs::io::DigestFormat;
 use spfs::prelude::*;
 use spk_schema::foundation::ident_build::parse_build;
 use spk_schema::foundation::ident_component::Component;
@@ -573,4 +575,30 @@ async fn find_layers_by_filenames<S: AsRef<str>>(
     Err(Error::String(
         "Internal bug; not all paths resolved but unknown which".to_owned(),
     ))
+}
+
+/// Return a list of spfs object lists that lead to the given
+/// filepath in the runtime repo.
+pub async fn find_path_providers(filepath: &str) -> Result<(bool, Vec<Vec<ObjectPathEntry>>)> {
+    let config = spfs::get_config()?;
+    let repo = config.get_local_repository_handle().await?;
+
+    spfs::find_path::find_path_providers_in_spfs_runtime(filepath, &repo)
+        .await
+        .map_err(|err| err.into())
+}
+
+/// Print out a spfs object list down to the given filepath
+pub async fn pretty_print_filepath(
+    filepath: &str,
+    objectpath: &Vec<ObjectPathEntry>,
+) -> Result<()> {
+    let config = spfs::get_config()?;
+    let repo = config.get_local_repository_handle().await?;
+
+    let digest_format = DigestFormat::Shortened(&repo);
+    match spfs::io::pretty_print_filepath(filepath, objectpath, digest_format).await {
+        Ok(r) => Ok(r),
+        Err(err) => Err(err.into()),
+    }
 }
