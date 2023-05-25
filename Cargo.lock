@@ -3093,6 +3093,7 @@ version = "0.34.6"
 dependencies = [
  "anyhow",
  "clap 3.2.23",
+ "nix 0.26.2",
  "spfs",
  "spfs-cli-common",
  "tokio",

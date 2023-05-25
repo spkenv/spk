@@ -14,6 +14,7 @@ sentry = ["spfs/sentry", "spfs-cli-common/sentry"]
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }
+nix = { workspace = true }
 spfs = { path = "../../spfs", features = ["fuse-backend"] }
 spfs-cli-common = { path = "../common" }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }

@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use spfs::Error;
 use spfs_cli_common as cli;
@@ -16,7 +16,7 @@ use tokio::io::AsyncReadExt;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::timeout;
 
-cli::main!(CmdMonitor, syslog = true);
+cli::main!(CmdMonitor, sentry = true, sync = true, syslog = true);
 
 /// Takes ownership of, and is responsible for monitoring an active runtime.
 ///
@@ -72,6 +72,7 @@ impl CmdMonitor {
         Ok(code)
     }
 
+    pub async fn wait_for_ready(&self) {
         // Wait to be informed that it is now safe to read the mount namespace
         // of the pid we are meant to be monitoring. Also wait to read/write
         // the runtime as well. spfs-enter promises to not modify the runtime
@@ -96,6 +97,15 @@ impl CmdMonitor {
                 tracing::warn!("Timeout waiting for parent process!");
             }
         }
+    }
+
+    pub async fn run_async(&mut self) -> Result<i32> {
+        let mut interrupt = signal(SignalKind::interrupt())
+            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
+        let mut quit = signal(SignalKind::quit())
+            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
+        let mut terminate = signal(SignalKind::terminate())
+            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
 
         let repo = spfs::open_repository(&self.runtime_storage).await?;
         let storage = spfs::runtime::Storage::new(repo);
