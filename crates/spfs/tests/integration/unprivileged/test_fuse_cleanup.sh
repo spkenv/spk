@@ -8,9 +8,20 @@ set -o errexit
 
 # no spfs-fuse processes should survive past runtime cleanup
 
+base_fuse_count=$(ps -ef | grep spfs-fuse | grep -v grep | wc -l)
 assert_spfs_fuse_count() {
     count=$(ps -ef | grep spfs-fuse | grep -v grep | wc -l)
-    test $count -eq $1
+    test $count -eq $(( $base_fuse_count + $1 ))
+}
+
+get_spfs_monitor_count() {
+    count=$(ps -ef | grep spfs-monitor | grep -v grep | wc -l)
+    echo $count
+}
+
+base_monitor_count=$(get_spfs_monitor_count)
+wait_for_spfs_monitor_count() {
+    until test $(get_spfs_monitor_count) -eq $(( $base_monitor_count + $1 )); do echo waiting for monitors to exit...; sleep 1; done
 }
 
 # create a tag we can run a ro fuse runtime with
@@ -21,7 +32,7 @@ spfs commit layer -t spfs-test/fuse-cleanup
 EOF
 
 # give this runtime a chance to cleanup
-sleep 5
+wait_for_spfs_monitor_count 0
 
 # baseline no spfs-fuse processes
 assert_spfs_fuse_count 0
@@ -35,7 +46,8 @@ sleep 1
 assert_spfs_fuse_count 1
 
 # allow runtime to cleanup
-sleep 10
+wait
+wait_for_spfs_monitor_count 0
 
 # now expected to be back to 0
 assert_spfs_fuse_count 0
