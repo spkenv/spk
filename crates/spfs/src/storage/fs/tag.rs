@@ -91,18 +91,16 @@ impl OpenFsRepository {
     fn tags_root(&self) -> PathBuf {
         let mut tags_root = self.root().join("tags");
         if let Some(tag_namespace) = self.get_tag_namespace() {
-            for (index, component) in tag_namespace.components().enumerate() {
+            for component in tag_namespace.components() {
                 // Assuming the tag namespace is only made up of `Normal`
                 // elements (validated elsewhere).
                 let Component::Normal(component) = component else {
                     continue;
                 };
 
-                // Add a suffix in the form of `"#ns.<depth>"` to distinguish
-                // tag namespace subdirectories from normal tag subdirectories,
-                // and to disambiguate some tag namespaces having a common
-                // directory prefix with another namespace.
-                tags_root = tags_root.join(format!("{}#ns.{index}", component.to_string_lossy()));
+                // Add a suffix in the form of `"#ns"` to distinguish
+                // tag namespace subdirectories from normal tag subdirectories.
+                tags_root = tags_root.join(format!("{}#ns", component.to_string_lossy()));
             }
         }
         tags_root
@@ -155,16 +153,8 @@ impl TagStorage for OpenFsRepository {
             } else if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
                 path.file_name().map(|s| {
                     let s = s.to_string_lossy();
-                    match s.split_once("#ns.") {
-                        Some((name, depth)) => Ok(EntryType::Namespace {
-                            name: name.to_owned(),
-                            depth: depth.parse().map_err(|err| {
-                                Error::String(format!(
-                                    "Failed to parse depth number in tag namespace '{}': {err}",
-                                    s
-                                ))
-                            })?,
-                        }),
+                    match s.split_once("#ns") {
+                        Some((name, _)) => Ok(EntryType::Namespace(name.to_owned())),
                         None => Ok(EntryType::Folder(s.to_string())),
                     }
                 })

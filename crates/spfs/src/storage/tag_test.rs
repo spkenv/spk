@@ -359,13 +359,7 @@ async fn test_tag_in_namespace(
         .collect::<Result<Vec<_>>>()
         .await
         .unwrap();
-    assert_eq!(
-        tags,
-        vec![EntryType::Namespace {
-            name: namespace_name.to_string(),
-            depth: 0
-        }]
-    );
+    assert_eq!(tags, vec![EntryType::Namespace(namespace_name.to_string())]);
 }
 
 #[rstest]

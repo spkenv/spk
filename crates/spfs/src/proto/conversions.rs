@@ -332,11 +332,8 @@ impl From<&storage::EntryType> for super::ls_tags_response::Entry {
                 storage::EntryType::Folder(e) => {
                     super::ls_tags_response::entry::Kind::Folder(e.to_owned())
                 }
-                storage::EntryType::Namespace { name, depth } => {
-                    super::ls_tags_response::entry::Kind::Namespace(super::TagNamespace {
-                        name: name.to_owned(),
-                        depth: *depth,
-                    })
+                storage::EntryType::Namespace(e) => {
+                    super::ls_tags_response::entry::Kind::Namespace(e.to_owned())
                 }
                 storage::EntryType::Tag(e) => {
                     super::ls_tags_response::entry::Kind::Tag(e.to_owned())
@@ -355,10 +352,7 @@ impl TryFrom<super::ls_tags_response::Entry> for storage::EntryType {
                     Ok(storage::EntryType::Folder(e))
                 }
                 super::ls_tags_response::entry::Kind::Namespace(e) => {
-                    Ok(storage::EntryType::Namespace {
-                        name: e.name,
-                        depth: e.depth,
-                    })
+                    Ok(storage::EntryType::Namespace(e))
                 }
                 super::ls_tags_response::entry::Kind::Tag(e) => Ok(storage::EntryType::Tag(e)),
             },
