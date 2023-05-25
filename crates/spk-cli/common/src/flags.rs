@@ -123,6 +123,17 @@ impl Runtime {
             0,
             std::ffi::CString::new(spfs::tracking::ENV_SPEC_EMPTY).expect("should never fail"),
         );
+        if let Some(runtime_name) = &self.env_name {
+            // Inject '--name <runtime_name>' so the runtime will be named
+            args.insert(
+                0,
+                std::ffi::CString::new(runtime_name.clone()).expect("should never fail"),
+            );
+            args.insert(
+                0,
+                std::ffi::CString::new("--name").expect("should never fail"),
+            );
+        }
         args.insert(0, std::ffi::CString::new("run").expect("should never fail"));
         args.insert(0, spfs.clone());
 
