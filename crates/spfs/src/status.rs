@@ -104,23 +104,23 @@ pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSum
     };
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(rt).await?;
-    env::ensure_mounts_already_exist()?;
-    env::unmount_env_fuse(rt)?;
+    env::ensure_mounts_already_exist().await?;
+    env::unmount_env_fuse(rt).await?;
     let original = env::become_root()?;
-    env::unmount_env(rt)?;
+    env::unmount_env(rt).await?;
     match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
-            env::mount_env_overlayfs(rt, &render_result.paths_rendered)?;
-            env::mask_files(&rt.config, &manifest, original.uid)?;
+            env::mount_env_overlayfs(rt, &render_result.paths_rendered).await?;
+            env::mask_files(&rt.config, &manifest, original.uid).await?;
         }
         #[cfg(feature = "fuse-backend")]
         runtime::MountBackend::OverlayFsWithFuse => {
-            env::mount_fuse_lower_dir(rt, &original)?;
-            env::mount_env_overlayfs(rt, &render_result.paths_rendered)?;
+            env::mount_fuse_lower_dir(rt, &original).await?;
+            env::mount_env_overlayfs(rt, &render_result.paths_rendered).await?;
         }
         #[cfg(feature = "fuse-backend")]
         runtime::MountBackend::FuseOnly => {
-            env::mount_env_fuse(rt, &original)?;
+            env::mount_env_fuse(rt, &original).await?;
         }
         #[allow(unreachable_patterns)]
         _ => {
@@ -161,25 +161,25 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
     rt.save_state_to_storage().await?;
 
     let original = env::become_root()?;
-    env::privatize_existing_mounts()?;
+    env::privatize_existing_mounts().await?;
     env::ensure_mount_targets_exist(&rt.config)?;
     match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
             env::mount_runtime(&rt.config)?;
             env::setup_runtime(rt).await?;
-            env::mount_env_overlayfs(rt, &render_result.paths_rendered)?;
-            env::mask_files(&rt.config, &manifest, original.uid)?;
+            env::mount_env_overlayfs(rt, &render_result.paths_rendered).await?;
+            env::mask_files(&rt.config, &manifest, original.uid).await?;
         }
         #[cfg(feature = "fuse-backend")]
         runtime::MountBackend::OverlayFsWithFuse => {
             env::mount_runtime(&rt.config)?;
             env::setup_runtime(rt).await?;
-            env::mount_fuse_lower_dir(rt, &original)?;
-            env::mount_env_overlayfs(rt, &render_result.paths_rendered)?;
+            env::mount_fuse_lower_dir(rt, &original).await?;
+            env::mount_env_overlayfs(rt, &render_result.paths_rendered).await?;
         }
         #[cfg(feature = "fuse-backend")]
         runtime::MountBackend::FuseOnly => {
-            env::mount_env_fuse(rt, &original)?;
+            env::mount_env_fuse(rt, &original).await?;
         }
         #[allow(unreachable_patterns)]
         _ => {

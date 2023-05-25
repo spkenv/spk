@@ -106,7 +106,7 @@ impl CmdMonitor {
                 // the mounted FUSE filesystem needs to be explicitly unmounted
                 // upon exit as the daemonized server will keep the mount namespace
                 // alive and never exit
-                if let Err(err) = spfs::env::unmount_env_fuse(&owned) {
+                if let Err(err) = spfs::env::unmount_env_fuse(&owned).await {
                     tracing::error!("{err}");
                 }
             }
