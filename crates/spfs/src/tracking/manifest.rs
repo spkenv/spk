@@ -181,21 +181,19 @@ where
     T: Default,
 {
     /// Same as find_entry_by_string but will return the file/dirs in the given dir
-    pub fn list_entries_in_dir(&self, path: &str) -> Vec<&String> {
-        let target_entry = self.find_entry_by_string(path);
-        let entries_in_dir = target_entry.entries.keys().collect_vec();
-
-        entries_in_dir
+    pub fn list_entries_in_dir(&self, path: &str) -> Option<Vec<&String>> {
+        self.find_entry_by_string(path)
+            .map(|entry| entry.entries.keys().collect_vec())
     }
 
     /// Finds the entry of a given path.
-    pub fn find_entry_by_string(&self, entry_path: &str) -> &Entry<T> {
+    pub fn find_entry_by_string(&self, entry_path: &str) -> Option<&Entry<T>> {
         let mut paths = entry_path.split('/').collect_vec();
 
         // Remove any empty strings
         paths.retain(|c| !c.is_empty());
 
-        let mut matched_entry = &self.root;
+        let mut matched_entry = Some(&self.root);
 
         // Loops through each path and obtain the entry for the corresponding path until it reaches the end
         // Example: /bin/python
@@ -203,10 +201,10 @@ where
         //     Loops through /spfs -> bin -> python then returns
         //     the python entry as the target entry we are trying to find.
         for path in paths.iter() {
-            matched_entry = matched_entry
-                .entries
-                .get(*path)
-                .unwrap_or_else(|| panic!("Unable to find entry: {path}"))
+            matched_entry = match matched_entry {
+                Some(entry) => entry.entries.get(*path),
+                _ => None,
+            };
         }
         matched_entry
     }

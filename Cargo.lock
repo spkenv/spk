@@ -3601,7 +3601,6 @@ dependencies = [
  "colored",
  "futures",
  "itertools",
- "serde_yaml",
  "spfs",
  "spk-cli-common",
  "spk-schema",

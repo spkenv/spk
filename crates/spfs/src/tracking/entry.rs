@@ -7,8 +7,6 @@ use std::io::BufRead;
 use std::str::FromStr;
 use std::string::ToString;
 
-use itertools::Itertools;
-
 use crate::{encoding, Error, Result};
 
 pub const LEVEL_SEPARATOR: char = '/';
@@ -216,45 +214,44 @@ impl<T> Entry<T>
 where
     T: Clone,
 {
-    /// Generates the disk usage of a given entry.
-    pub fn generate_dir_disk_usage(&self, root_path: &String) -> EntryDiskUsage {
-        let mut entry_du = if self.is_dir() {
-            EntryDiskUsage::new(format!("{}/", root_path), self.size)
-        } else {
-            EntryDiskUsage::new(root_path.to_string(), self.size)
-        };
-
-        let mut to_iter: HashMap<String, HashMap<String, Entry<T>>> = HashMap::new();
-        let initial_entries = self.entries.clone();
-        to_iter.insert(root_path.to_string(), initial_entries);
-
-        // Loops through all child entries to obtain the total size
-        while !to_iter.is_empty() {
-            let mut next_iter: HashMap<String, HashMap<String, Entry<T>>> = HashMap::new();
-            for (dir, entries) in to_iter.iter().sorted_by_key(|(k, _)| *k) {
-                for (name, entry) in entries.iter().sorted_by_key(|(k, _)| *k) {
-                    if entry.is_symlink() {
-                        continue;
-                    }
-
-                    // Skip dirs and only construct and store absolute path for printing if entry is a blob.
-                    if entry.kind.is_blob() {
-                        let abs_path =
-                            [dir.clone(), name.clone()].join(&LEVEL_SEPARATOR.to_string());
-                        entry_du.child_entries.push((entry.size, abs_path));
-                    }
-
-                    // Must check if child entries exists for next iteration
-                    if !entry.entries.is_empty() {
-                        let new_dir =
-                            [dir.clone(), name.clone()].join(&LEVEL_SEPARATOR.to_string());
-                        next_iter.insert(new_dir, entry.entries.clone());
-                    }
-                    entry_du.total_size += entry.size;
-                }
-            }
-            to_iter = std::mem::take(&mut next_iter);
+    // Walks through all entries from the given root entry and generates its size and the file path.
+    pub fn calculate_size_of_entries(
+        &self,
+        root_dir: String,
+        _disk_usage: &HashMap<String, Entry<T>>,
+    ) -> Vec<(u64, String)> {
+        let mut result: Vec<(u64, String)> = Vec::new();
+        if self.kind.is_blob() {
+            result.push((self.size, root_dir.to_string()))
         }
+
+        for (name, entry) in self.entries.iter() {
+            if entry.is_symlink() {
+                continue;
+            }
+
+            let abs_path =
+                [root_dir.to_string(), name.to_string()].join(&LEVEL_SEPARATOR.to_string());
+            // Skip dirs and only construct and store absolute path for printing if entry is a blob.
+            if entry.kind.is_blob() {
+                result.push((entry.size, abs_path.to_string()));
+            }
+
+            // Calculate entry sizes for child entries.
+            if !entry.entries.is_empty() {
+                result.extend(entry.calculate_size_of_entries(abs_path.to_string(), _disk_usage));
+            }
+        }
+        result
+    }
+
+    /// Generates the disk usage of a given entry.
+    pub fn generate_entry_disk_usage(&self, root: &String) -> EntryDiskUsage {
+        let mut entry_du = EntryDiskUsage::new(root.to_string());
+        entry_du
+            .child_entries
+            .extend(self.calculate_size_of_entries(root.to_string(), &self.entries));
+
         entry_du
     }
 
@@ -288,15 +285,54 @@ where
 pub struct EntryDiskUsage {
     pub root: String,
     pub total_size: u64,
+    pub pkg_info: String,
+    pub deprecated: bool,
     pub child_entries: Vec<(u64, String)>,
 }
 
 impl EntryDiskUsage {
-    pub fn new(root: String, size: u64) -> Self {
+    pub fn new(root: String) -> Self {
         Self {
             root,
-            total_size: size,
+            total_size: 0,
+            pkg_info: String::new(),
+            deprecated: false,
             child_entries: Vec::new(),
+        }
+    }
+
+    fn update_total_size_of_entries(&mut self) {
+        for (size, _) in self.child_entries.iter() {
+            self.total_size += size;
+        }
+    }
+
+    fn get_file_paths_of_child_entries(&self) -> Vec<String> {
+        let mut file_paths: Vec<String> = Vec::new();
+        for (_, path) in self.child_entries.iter() {
+            file_paths.push(path.to_string());
+        }
+        file_paths
+    }
+
+    /// Calculates the total size of the entry.
+    pub fn calculate_total_size(
+        &mut self,
+        component_entries: &Vec<EntryDiskUsage>,
+        count_links: bool,
+    ) {
+        match component_entries.is_empty() {
+            false => {
+                let curr_comp_file_paths = self.get_file_paths_of_child_entries();
+                for entry_du in component_entries.iter() {
+                    for (size, path) in entry_du.child_entries.iter() {
+                        if !curr_comp_file_paths.contains(path) || count_links {
+                            self.total_size += size
+                        }
+                    }
+                }
+            }
+            true => self.update_total_size_of_entries(),
         }
     }
 }
