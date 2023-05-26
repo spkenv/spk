@@ -213,9 +213,10 @@ impl CmdFuse {
             // create a blocking future that can move into tokio and be managed/scheduled
             // as desired, otherwise this thread will block and may affect the runtime
             // operation unpredictably
-            let fut = tokio::task::spawn_blocking(move || session.run());
-            tokio::select!{
-                res = fut => {
+            let join_handle = tokio::task::spawn_blocking(move || session.run());
+            let abort_handle = join_handle.abort_handle();
+            let res = tokio::select!{
+                res = join_handle => {
                     tracing::info!("Filesystem shutting down");
                     res.context("FUSE session failed")
                 }
@@ -224,7 +225,12 @@ impl CmdFuse {
                 _ = terminate.recv() => Err(anyhow!("Terminate signal received, filesystem shutting down")),
                 _ = interrupt.recv() => Err(anyhow!("Interrupt signal received, filesystem shutting down")),
                 _ = quit.recv() => Err(anyhow!("Quit signal received, filesystem shutting down")),
-            }
+            };
+            // the filesystem task must be fully terminated in order for the subsequent unmount
+            // process to function. Otherwise, the background task will keep this process alive
+            // forever.
+            abort_handle.abort();
+            res
         });
 
         // we generally expect at this point that the command is complete
