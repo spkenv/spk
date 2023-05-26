@@ -65,6 +65,12 @@ struct Filesystem {
 }
 
 impl Filesystem {
+    // establish a block site to report - this information
+    // is not necessarily accurate, but because the filesystem
+    // may or may not span any number of real disks we simply
+    // report a realistic value for commands to use (eg du)
+    const BLOCK_SIZE: u32 = 512;
+
     fn new(
         repos: Vec<Arc<spfs::storage::RepositoryHandle>>,
         manifest: Manifest,
@@ -149,12 +155,6 @@ impl Filesystem {
     }
 
     fn attr_from_entry(&self, entry: &Entry<u64>) -> FileAttr {
-        // establish a block site to report - this information
-        // is not necessarily accurate, but because the filesystem
-        // may or may not span any number of real disks we simply
-        // report a realistic value for commands to use (eg du)
-        const BLOCK_SIZE: u32 = 512;
-
         let now = SystemTime::now();
         let kind = match entry.kind {
             EntryKind::Blob if entry.is_symlink() => FileType::Symlink,
@@ -173,7 +173,7 @@ impl Filesystem {
             perm: entry.mode as u16, // truncate the non-perm bits
             uid: self.opts.uid.as_raw(),
             gid: self.opts.gid.as_raw(),
-            blocks: (size / BLOCK_SIZE as u64) + 1,
+            blocks: (size / Self::BLOCK_SIZE as u64) + 1,
             atime: now,
             mtime: now,
             ctime: now,
@@ -183,7 +183,7 @@ impl Filesystem {
             //       for all dirs below it (because of .. entries)
             nlink: if entry.is_dir() { 2 } else { 1 },
             rdev: 0,
-            blksize: BLOCK_SIZE,
+            blksize: Self::BLOCK_SIZE,
             flags: 0,
         }
     }
@@ -214,6 +214,29 @@ macro_rules! err {
 // so we don't have much control over the shape
 #[allow(clippy::too_many_arguments)]
 impl Filesystem {
+    async fn statfs(&self, _ino: u64, reply: fuser::ReplyStatfs) {
+        let blocks = self
+            .inodes
+            .iter()
+            .map(|i| (i.value().size / Self::BLOCK_SIZE as u64) + 1)
+            .sum();
+        let files = self
+            .inodes
+            .iter()
+            .filter(|i| i.value().kind.is_blob())
+            .count();
+        reply.statfs(
+            blocks,
+            0,
+            0,
+            files as u64,
+            0,
+            Self::BLOCK_SIZE,
+            u32::MAX,
+            Self::BLOCK_SIZE,
+        )
+    }
+
     async fn lookup(&self, parent: u64, name: OsString, reply: ReplyEntry) {
         let Some(name) = name.to_str() else {
             reply.error(libc::EINVAL);
@@ -724,6 +747,14 @@ impl fuser::Filesystem for Session {
         }
         tracing::info!("Filesystem initialized");
         Ok(())
+    }
+
+    fn statfs(&mut self, _req: &Request<'_>, ino: u64, reply: fuser::ReplyStatfs) {
+        let session = Arc::clone(&self.inner);
+        tokio::task::spawn(async move {
+            let fs = unwrap!(reply, session.get_fs().await);
+            fs.statfs(ino, reply).await
+        });
     }
 
     fn lookup(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
