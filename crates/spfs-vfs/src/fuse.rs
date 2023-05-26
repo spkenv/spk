@@ -380,6 +380,7 @@ impl Filesystem {
                     Err(spfs::Error::UnknownObject(_)) => continue,
                     Err(err) => err!(reply, err),
                 },
+                #[cfg(not(feature = "fuse-backend-abi-7-31"))]
                 repo => {
                     tracing::error!(
                         "Attempting to use unsupported repo type with fuse: {}",

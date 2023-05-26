@@ -21,7 +21,13 @@ get_spfs_monitor_count() {
 
 base_monitor_count=$(get_spfs_monitor_count)
 wait_for_spfs_monitor_count() {
-    until test $(get_spfs_monitor_count) -eq $(( $base_monitor_count + $1 )); do echo waiting for monitors to exit...; sleep 1; done
+    set +x
+    if test $(get_spfs_monitor_count) -ne $(( $base_monitor_count + $1 )); then
+        echo waiting for monitors...
+    fi
+    until test $(get_spfs_monitor_count) -eq $(( $base_monitor_count + $1 )); do sleep 2; done
+    sleep 2;
+    set -x
 }
 
 # create a tag we can run a ro fuse runtime with
@@ -41,8 +47,8 @@ assert_spfs_fuse_count 0
 export SPFS_FILESYSTEM_BACKEND=FuseOnly
 
 # while a runtime exists there should be one spfs-fuse process
-spfs run spfs-test/fuse-cleanup -- sleep 2 &
-sleep 1
+spfs run spfs-test/fuse-cleanup -- bash -c 'ls /spfs; sleep 2' &
+wait_for_spfs_monitor_count 1
 assert_spfs_fuse_count 1
 
 # allow runtime to cleanup

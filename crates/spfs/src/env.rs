@@ -933,9 +933,14 @@ where
     // the fuse filesystem may take some moments to be fully initialized, and we
     // don't want to return until this is true. Otherwise, subsequent operations may
     // see unexpected errors.
+    let mut sleep_time_ms = vec![2, 5, 10, 50, 100, 100, 100, 100];
     while let Err(err) = tokio::fs::symlink_metadata(path.as_ref()).await {
-        tracing::debug!("Waiting for FUSE to start up ({err})...");
-        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        if let Some(ms) = sleep_time_ms.pop() {
+            tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+        } else {
+            tracing::warn!("FUSE did not appear to start after delay: {err}");
+            break;
+        }
     }
     Ok(())
 }
@@ -944,19 +949,13 @@ where
 ///
 /// This is separate from [`unmount_env`] because it must be run as
 /// the unprivileged user that spawned the runtime.
-pub async fn unmount_env_fuse(rt: &runtime::Runtime) -> Result<()> {
-    tracing::debug!("unmounting existing fuse env...");
-
+pub async fn unmount_env_fuse(rt: &runtime::Runtime, lazy: bool) -> Result<()> {
     let mount_path = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithFuse => rt.config.lower_dir.as_path(),
         runtime::MountBackend::FuseOnly => std::path::Path::new(SPFS_DIR),
         runtime::MountBackend::OverlayFsWithRenders => return Ok(()),
     };
-
-    if !is_mounted(mount_path).await.unwrap_or(true) {
-        tracing::debug!("FUSE portion of the env is no longer mounted, skipping unmount...");
-        return Ok(());
-    }
+    tracing::debug!(%lazy, "unmounting existing fuse env @ {mount_path:?}...");
 
     // The FUSE filesystem can take some time to start up, and
     // if the runtime tries to exit too quickly, the fusermount
@@ -966,20 +965,23 @@ pub async fn unmount_env_fuse(rt: &runtime::Runtime) -> Result<()> {
     // A few retries in these cases gives time for the filesystem
     // to enter a ready and connected state.
     let mut retry_after_ms = vec![10, 50, 100, 200, 500, 1000];
-    loop {
+    while is_mounted(mount_path).await.unwrap_or(true) {
+        let flags = if lazy { "-uz" } else { "-u" };
         let child = tokio::process::Command::new("fusermount")
-            .arg("-uz")
+            .arg(flags)
             .arg(mount_path)
             .stderr(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stdin(std::process::Stdio::piped())
             .spawn()
             .map_err(|err| Error::ProcessSpawnError("fusermount".into(), err))?;
-        break match child.wait_with_output().await {
-            Err(err) => Err(Error::String(format!(
-                "Failed to unmount FUSE filesystem: {err:?}"
-            ))),
-            Ok(out) if out.status.code() == Some(0) => Ok(()),
+        match child.wait_with_output().await {
+            Err(err) => {
+                return Err(Error::String(format!(
+                    "Failed to unmount FUSE filesystem: {err:?}"
+                )))
+            }
+            Ok(out) if out.status.code() == Some(0) => continue,
             Ok(out) => {
                 let stderr = String::from_utf8_lossy(&out.stderr);
                 match retry_after_ms.pop() {
@@ -992,22 +994,25 @@ pub async fn unmount_env_fuse(rt: &runtime::Runtime) -> Result<()> {
                         tokio::time::sleep(std::time::Duration::from_millis(wait_ms)).await;
                         continue;
                     }
-                    None => Err(Error::String(format!(
-                        "FUSE unmount returned non-zero exit status, {:?}: {}",
-                        out.status.code(),
-                        stderr.trim()
-                    ))),
+                    None => {
+                        return Err(Error::String(format!(
+                            "FUSE unmount returned non-zero exit status, {:?}: {}",
+                            out.status.code(),
+                            stderr.trim()
+                        )))
+                    }
                 }
             }
         };
     }
+    Ok(())
 }
 
 /// Unmount the non-fuse portion of the provided runtime, if applicable.
 ///
 /// This function must be run as root in order to succeed in most cases
 /// and should not be called without also calling [`unmount_env_fuse`].
-pub async fn unmount_env(rt: &runtime::Runtime) -> Result<()> {
+pub async fn unmount_env(rt: &runtime::Runtime, lazy: bool) -> Result<()> {
     tracing::debug!("unmounting existing env...");
 
     match rt.config.mount_backend {
@@ -1020,12 +1025,13 @@ pub async fn unmount_env(rt: &runtime::Runtime) -> Result<()> {
         runtime::MountBackend::OverlayFsWithFuse | runtime::MountBackend::OverlayFsWithRenders => {}
     }
 
-    // Perform a lazy unmount in case there are still open handles to files.
-    // This way we can mount over the old one without worrying about business
-    let result = tokio::task::spawn_blocking(|| {
-        nix::mount::umount2(SPFS_DIR, nix::mount::MntFlags::MNT_DETACH)
-    })
-    .await?;
+    let mut flags = nix::mount::MntFlags::empty();
+    if lazy {
+        // Perform a lazy unmount in case there are still open handles to files.
+        // This way we can mount over the old one without worrying about busyness
+        flags |= nix::mount::MntFlags::MNT_DETACH;
+    }
+    let result = tokio::task::spawn_blocking(move || nix::mount::umount2(SPFS_DIR, flags)).await?;
     if let Err(err) = result {
         return Err(Error::wrap_nix(
             err,

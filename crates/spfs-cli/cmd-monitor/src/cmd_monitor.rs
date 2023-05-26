@@ -66,7 +66,7 @@ impl CmdMonitor {
             .build()
             .context("Failed to establish async runtime")?;
         let code = rt.block_on(self.run_async())?;
-        // the montior is running in the background and, although not expected,
+        // the monitor is running in the background and, although not expected,
         // can take extra time to shutdown if needed
         rt.shutdown_timeout(std::time::Duration::from_secs(5));
         Ok(code)
@@ -115,7 +115,10 @@ impl CmdMonitor {
 
         let fut = spfs::env::wait_for_empty_runtime(&owned);
         let res = tokio::select! {
-            res = fut => res,
+            res = fut => {
+                tracing::info!("Monitor detected no more processes, cleaning up runtime...");
+                res
+            }
             // we explicitly catch any signal related to interruption
             // and will act by cleaning up the runtime early
             _ = terminate.recv() => Err(spfs::Error::String("Terminate signal received, cleaning up runtime early".to_string())),
@@ -137,7 +140,9 @@ impl CmdMonitor {
                 // the mounted FUSE filesystem needs to be explicitly unmounted
                 // upon exit as the daemonized server will keep the mount namespace
                 // alive and never exit
-                if let Err(err) = spfs::env::unmount_env_fuse(&owned).await {
+                tracing::info!("Monitor is unmounting fuse filesystem...");
+                const LAZY: bool = false; // it must clean up fully because the runtime is shutting down
+                if let Err(err) = spfs::env::unmount_env_fuse(&owned, LAZY).await {
                     tracing::error!("{err}");
                 }
             }

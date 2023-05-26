@@ -105,9 +105,10 @@ pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSum
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(rt).await?;
     env::ensure_mounts_already_exist().await?;
-    env::unmount_env_fuse(rt).await?;
+    const LAZY: bool = true; // because we are about to re-mount over it
+    env::unmount_env_fuse(rt, LAZY).await?;
     let original = env::become_root()?;
-    env::unmount_env(rt).await?;
+    env::unmount_env(rt, LAZY).await?;
     match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
             env::mount_env_overlayfs(rt, &render_result.paths_rendered).await?;
