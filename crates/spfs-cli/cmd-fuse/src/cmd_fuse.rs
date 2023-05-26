@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
 use fuser::MountOption;
 use spfs::tracking::EnvSpec;
 use spfs::Error;
 use spfs_cli_common as cli;
 use spfs_vfs::{Config, Session};
+use tokio::signal::unix::{signal, SignalKind};
 
 // The runtime setup process manages the current namespace
 // which operates only on the current thread. For this reason
@@ -202,16 +203,34 @@ impl CmdFuse {
             .build()
             .context("Failed to establish runtime")?;
 
+        let mut unmounter = session.unmount_callable();
         let result = rt.block_on(async move {
+            let mut interrupt = signal(SignalKind::interrupt()).context("interrupt signal handler")?;
+            let mut quit = signal(SignalKind::quit()).context("quit signal handler")?;
+            let mut terminate = signal(SignalKind::terminate()).context("terminate signal handler")?;
+
             tracing::info!("Starting FUSE filesystem");
             // Although the filesystem could run in the current thread, we prefer to
             // create a blocking future that can move into tokio and be managed/scheduled
             // as desired, otherwise this thread will block and may affect the runtime
             // operation unpredictably
-            tokio::task::spawn_blocking(move || session.run().context("FUSE session failed")).await
+            let fut = tokio::task::spawn_blocking(move || session.run());
+            tokio::select!{
+                res = fut => {
+                    tracing::info!("Filesystem shutting down");
+                    res.context("FUSE session failed")
+                }
+                // we explicitly catch any signal related to interruption
+                // and will act by shutting down the filesystem early
+                _ = terminate.recv() => Err(anyhow!("Terminate signal received, filesystem shutting down")),
+                _ = interrupt.recv() => Err(anyhow!("Interrupt signal received, filesystem shutting down")),
+                _ = quit.recv() => Err(anyhow!("Quit signal received, filesystem shutting down")),
+            }
         });
 
-        tracing::info!("Filesystem shutting down");
+        if let Err(err) = unmounter.unmount() {
+            tracing::error!("Error unmounting filesystem after shutdown: {err}");
+        }
         // we generally expect at this point that the command is complete
         // and nothing else should be executing, but it's possible that
         // we've launched long running tasks that are waiting for signals or
