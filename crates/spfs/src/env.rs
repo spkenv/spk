@@ -11,8 +11,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use dashmap::DashSet;
-use futures::future::ready;
-use futures::TryFutureExt;
 use tokio_retry::strategy::{jitter, ExponentialBackoff};
 use tokio_retry::{Condition, RetryIf};
 use tokio_stream::wrappers::{IntervalStream, UnboundedReceiverStream};
@@ -652,7 +650,7 @@ pub async fn privatize_existing_mounts(_guard: &MountNamespace) -> Result<()> {
         ));
     }
 
-    if is_mounted("/tmp").await? {
+    if is_mounted(_guard, "/tmp").await? {
         res = mount(NONE, "/tmp", NONE, MsFlags::MS_PRIVATE, NONE);
         if let Err(err) = res {
             return Err(Error::wrap_nix(
@@ -676,9 +674,9 @@ pub fn ensure_mount_targets_exist(_guard: &MountNamespace, config: &runtime::Con
     Ok(())
 }
 
-pub async fn ensure_mounts_already_exist() -> Result<()> {
+pub async fn ensure_mounts_already_exist(_guard: &MountNamespace) -> Result<()> {
     tracing::debug!("ensuring mounts already exist...");
-    let res = is_mounted(SPFS_DIR).await;
+    let res = is_mounted(_guard, SPFS_DIR).await;
     match res {
         Err(err) => Err(err.wrap("Failed to check for existing mount")),
         Ok(true) => Ok(()),
@@ -1030,7 +1028,11 @@ where
 ///
 /// This is separate from [`unmount_env`] because it must be run as
 /// the unprivileged user that spawned the runtime.
-pub async fn unmount_env_fuse(rt: &runtime::Runtime, lazy: bool) -> Result<()> {
+pub async fn unmount_env_fuse(
+    _guard: &MountNamespace,
+    rt: &runtime::Runtime,
+    lazy: bool,
+) -> Result<()> {
     let mount_path = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithFuse => rt.config.lower_dir.as_path(),
         runtime::MountBackend::FuseOnly => std::path::Path::new(SPFS_DIR),
@@ -1046,7 +1048,7 @@ pub async fn unmount_env_fuse(rt: &runtime::Runtime, lazy: bool) -> Result<()> {
     // A few retries in these cases gives time for the filesystem
     // to enter a ready and connected state.
     let mut retry_after_ms = vec![10, 50, 100, 200, 500, 1000];
-    while is_mounted(mount_path).await.unwrap_or(true) {
+    while is_mounted(_guard, mount_path).await.unwrap_or(true) {
         let flags = if lazy { "-uz" } else { "-u" };
         let child = tokio::process::Command::new("fusermount")
             .arg(flags)
@@ -1141,21 +1143,30 @@ pub fn become_original_user(uids: Uids) -> Result<()> {
     Ok(())
 }
 
-async fn is_mounted<P: Into<PathBuf>>(target: P) -> Result<bool> {
+async fn is_mounted<P: Into<PathBuf>>(_guard: &MountNamespace, target: P) -> Result<bool> {
     let target = target.into();
     let parent = match target.parent() {
         None => return Ok(false),
         Some(p) => p.to_owned(),
     };
 
-    async fn do_stat(path: PathBuf) -> Result<nix::sys::stat::FileStat> {
-        tokio::task::spawn_blocking(move || nix::sys::stat::stat(&path).map_err(Error::from))
-            .map_err(Error::from)
-            .and_then(ready)
-            .await
-    }
+    // A new thread created while holding _guard will be inside the same
+    // mount namespace...
+    let stat_parent_thread =
+        std::thread::spawn(move || nix::sys::stat::stat(&parent).map_err(Error::from));
 
-    let (st_parent, st_target) = tokio::try_join!(do_stat(parent), do_stat(target))?;
+    let stat_target_thread =
+        std::thread::spawn(move || nix::sys::stat::stat(&target).map_err(Error::from));
+
+    let (st_parent, st_target) = tokio::task::spawn_blocking(move || {
+        let st_parent = stat_parent_thread.join();
+        let st_target = stat_target_thread.join();
+        (st_parent, st_target)
+    })
+    .await?;
+
+    let st_parent = st_parent.map_err(|_| Error::String("Failed to stat parent".to_owned()))??;
+    let st_target = st_target.map_err(|_| Error::String("Failed to stat target".to_owned()))??;
 
     Ok(st_target.st_dev != st_parent.st_dev)
 }

@@ -141,7 +141,10 @@ impl CmdMonitor {
                 // upon exit as the daemonized server will keep the mount namespace
                 // alive and never exit
                 const LAZY: bool = false; // it must clean up fully because the runtime is shutting down
-                if let Err(err) = spfs::env::unmount_env_fuse(&owned, LAZY).await {
+
+                // Safety: spfs-monitor is run inside the mount namespace.
+                let mount_ns_guard = unsafe { spfs::env::MountNamespace::existing()? };
+                if let Err(err) = spfs::env::unmount_env_fuse(&mount_ns_guard, &owned, LAZY).await {
                     tracing::error!("{err}");
                 }
             }

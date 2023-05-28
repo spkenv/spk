@@ -107,9 +107,9 @@ pub async fn reinitialize_runtime(
     };
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(rt).await?;
-    env::ensure_mounts_already_exist().await?;
+    env::ensure_mounts_already_exist(_guard).await?;
     const LAZY: bool = true; // because we are about to re-mount over it
-    env::unmount_env_fuse(rt, LAZY).await?;
+    env::unmount_env_fuse(_guard, rt, LAZY).await?;
     let original = env::become_root()?;
     env::unmount_env(rt, LAZY).await?;
     match rt.config.mount_backend {
