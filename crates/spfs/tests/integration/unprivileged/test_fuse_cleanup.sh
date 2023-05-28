@@ -8,24 +8,26 @@ set -o errexit
 
 # no spfs-fuse processes should survive past runtime cleanup
 
-base_fuse_count=$(ps -ef | grep spfs-fuse | grep -v grep | wc -l)
 assert_spfs_fuse_count() {
-    count=$(ps -ef | grep spfs-fuse | grep -v grep | wc -l)
-    test $count -eq $(( $base_fuse_count + $1 ))
+    # Don't count any defunct processes; on github actions there is an issue
+    # with the init process not reaping processes.
+    count=$(ps -ef | grep spfs-fuse | grep -v grep | grep -v defunct | wc -l)
+    test $count -eq $1
 }
 
 get_spfs_monitor_count() {
-    count=$(ps -ef | grep spfs-monitor | grep -v grep | wc -l)
+    # Don't count any defunct processes; on github actions there is an issue
+    # with the init process not reaping processes.
+    count=$(ps -ef | grep spfs-monitor | grep -v grep | grep -v defunct | wc -l)
     echo $count
 }
 
-base_monitor_count=$(get_spfs_monitor_count)
 wait_for_spfs_monitor_count() {
     set +x
-    if test $(get_spfs_monitor_count) -ne $(( $base_monitor_count + $1 )); then
+    if test $(get_spfs_monitor_count) -ne $1; then
         echo waiting for monitors...
     fi
-    until test $(get_spfs_monitor_count) -eq $(( $base_monitor_count + $1 )); do sleep 2; done
+    until test $(get_spfs_monitor_count) -eq $1; do sleep 2; done
     sleep 2;
     set -x
 }
