@@ -102,7 +102,10 @@ impl CmdEnter {
 
         if self.remount {
             let start_time = Instant::now();
-            let render_summary = spfs::reinitialize_runtime(&mut runtime).await?;
+            // Safety: remount is only expected to be used inside an existing
+            // runtime that has already been put into its own mount namespace.
+            let mount_ns_guard = unsafe { spfs::env::MountNamespace::existing()? };
+            let render_summary = spfs::reinitialize_runtime(&mount_ns_guard, &mut runtime).await?;
             self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
             Ok(None)
         } else {

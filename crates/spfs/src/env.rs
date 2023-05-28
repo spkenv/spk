@@ -130,13 +130,63 @@ fn have_required_join_capabilities() -> Result<bool> {
         && effective.contains(&caps::Capability::CAP_SYS_CHROOT))
 }
 
-pub fn enter_mount_namespace() -> Result<()> {
+/// Prevent a structure from being `Send`.
+struct NotSendMarker(std::marker::PhantomData<*mut u8>);
+/// Prevent a structure from being `Sync`.
+struct NotSyncMarker(std::marker::PhantomData<std::cell::Cell<u8>>);
+
+/// Structure representing that the current thread has been moved into a new
+/// mount namespace.
+///
+/// Any function that expects an instance of this struct is intended to
+/// perform all file I/O from inside the mount namespace. Not all threads of
+/// the current process may be inside the mount namespace, so care must be
+/// taken to avoid running tasks on threads that are not known to be in the
+/// mount namespace. For example, using `tokio::spawn_blocking` or any file IO
+/// functions from tokio may run on a thread from tokio's thread pool that is
+/// not in the mount namespace.
+///
+/// This struct is `!Send` and `!Sync` to prevent it from being moved to or
+/// referenced from a different thread where the mount namespace may be
+/// different.
+pub struct MountNamespace {
+    /// The path to the mount namespace this struct represents.
+    pub mount_ns: std::path::PathBuf,
+    _not_send: NotSendMarker,
+    _not_sync: NotSyncMarker,
+}
+
+impl MountNamespace {
+    /// Create a new guard without moving into a new mount namespace.
+    ///
+    /// # Safety
+    ///
+    /// This reads the existing mount namespace of the calling thread and it
+    /// is assumed the caller is already in a new mount namespace.
+    pub unsafe fn existing() -> Result<Self> {
+        Ok(MountNamespace {
+            mount_ns: std::fs::read_link(format!(
+                "/proc/{}/task/{}/ns/mnt",
+                std::process::id(),
+                nix::unistd::gettid()
+            ))
+            .map_err(|err| Error::String(format!("Failed to read mount namespace: {err}")))?,
+            _not_send: NotSendMarker(std::marker::PhantomData),
+            _not_sync: NotSyncMarker(std::marker::PhantomData),
+        })
+    }
+}
+
+/// Enter a new mount namespace and return a guard that represents the thread
+/// that is in the new namespace.
+pub fn enter_mount_namespace() -> Result<MountNamespace> {
     tracing::debug!("entering mount namespace...");
     if let Err(err) = nix::sched::unshare(nix::sched::CloneFlags::CLONE_NEWNS) {
-        Err(Error::wrap_nix(err, "Failed to enter mount namespace"))
-    } else {
-        Ok(())
+        return Err(Error::wrap_nix(err, "Failed to enter mount namespace"));
     }
+
+    // Safety: we just moved the thread into a new mount namespace.
+    unsafe { MountNamespace::existing() }
 }
 
 /// Run an spfs monitor for the provided runtime
@@ -589,7 +639,7 @@ async fn find_other_processes_in_mount_namespace(ns: &std::path::Path) -> Result
     Ok(found_processes)
 }
 
-pub async fn privatize_existing_mounts() -> Result<()> {
+pub async fn privatize_existing_mounts(_guard: &MountNamespace) -> Result<()> {
     use nix::mount::{mount, MsFlags};
 
     tracing::debug!("privatizing existing mounts...");
@@ -614,7 +664,7 @@ pub async fn privatize_existing_mounts() -> Result<()> {
     Ok(())
 }
 
-pub fn ensure_mount_targets_exist(config: &runtime::Config) -> Result<()> {
+pub fn ensure_mount_targets_exist(_guard: &MountNamespace, config: &runtime::Config) -> Result<()> {
     tracing::debug!("ensuring mount targets exist...");
     runtime::makedirs_with_perms(SPFS_DIR, 0o777)
         .map_err(|err| err.wrap(format!("Failed to create {SPFS_DIR}")))?;
@@ -859,6 +909,7 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
 pub(crate) const OVERLAY_ARGS_RO_PREFIX: &str = "ro";
 
 pub(crate) async fn mount_env_overlayfs<P: AsRef<Path>>(
+    _guard: &MountNamespace,
     rt: &runtime::Runtime,
     lowerdirs: impl IntoIterator<Item = P>,
 ) -> Result<()> {
@@ -886,62 +937,87 @@ pub(crate) async fn mount_env_overlayfs<P: AsRef<Path>>(
 }
 
 #[cfg(feature = "fuse-backend")]
-pub(crate) async fn mount_fuse_lower_dir(rt: &runtime::Runtime, owner: &Uids) -> Result<()> {
-    mount_fuse_onto(rt, owner, &rt.config.lower_dir).await
+pub(crate) async fn mount_fuse_lower_dir(
+    _guard: &MountNamespace,
+    rt: &runtime::Runtime,
+    owner: &Uids,
+) -> Result<()> {
+    mount_fuse_onto(_guard, rt, owner, &rt.config.lower_dir).await
 }
 
 #[cfg(feature = "fuse-backend")]
-pub(crate) async fn mount_env_fuse(rt: &runtime::Runtime, owner: &Uids) -> Result<()> {
-    mount_fuse_onto(rt, owner, SPFS_DIR).await
+pub(crate) async fn mount_env_fuse(
+    _guard: &MountNamespace,
+    rt: &runtime::Runtime,
+    owner: &Uids,
+) -> Result<()> {
+    mount_fuse_onto(_guard, rt, owner, SPFS_DIR).await
 }
 
-async fn mount_fuse_onto<P>(rt: &runtime::Runtime, owner: &Uids, path: P) -> Result<()>
+async fn mount_fuse_onto<P>(
+    _guard: &MountNamespace,
+    rt: &runtime::Runtime,
+    owner: &Uids,
+    path: P,
+) -> Result<()>
 where
     P: AsRef<std::ffi::OsStr>,
 {
     use spfs_encoding::Encodable;
 
-    tracing::debug!("mounting the FUSE filesystem...");
+    let path = path.as_ref().to_owned();
     let platform = rt.to_platform().digest()?.to_string();
-    let spfs_fuse = match super::resolve::which_spfs("fuse") {
-        None => return Err(Error::MissingBinary("spfs-fuse")),
-        Some(exe) => exe,
-    };
     let opts = get_fuse_args(&rt.config, owner, true);
-    let mut cmd = tokio::process::Command::new(spfs_fuse);
-    cmd.arg("-o");
-    cmd.arg(opts);
-    // We are trusting that the runtime has been saved to the repository
-    // and so the platform that the runtime relies on has also been tagged
-    cmd.arg(platform);
-    cmd.arg(path.as_ref());
-    // The command logs all output to stderr, and should never hold onto
-    // a handle to this process' stdout as it can cause hanging
-    cmd.stdout(std::process::Stdio::null());
-    tracing::debug!("{cmd:?}");
-    match cmd.status().await {
-        Err(err) => return Err(Error::process_spawn_error("mount".to_owned(), err, None)),
-        Ok(status) if status.code() == Some(0) => {}
-        Ok(status) => {
-            return Err(Error::String(format!(
+
+    // A new thread created while holding _guard will be inside the same
+    // mount namespace...
+    let mount_and_wait_thread = std::thread::spawn(move || {
+        tracing::debug!("mounting the FUSE filesystem...");
+        let spfs_fuse = match super::resolve::which_spfs("fuse") {
+            None => return Err(Error::MissingBinary("spfs-fuse")),
+            Some(exe) => exe,
+        };
+        let mut cmd = std::process::Command::new(spfs_fuse);
+        cmd.arg("-o");
+        cmd.arg(opts);
+        // We are trusting that the runtime has been saved to the repository
+        // and so the platform that the runtime relies on has also been tagged
+        cmd.arg(platform);
+        cmd.arg(&path);
+        // The command logs all output to stderr, and should never hold onto
+        // a handle to this process' stdout as it can cause hanging
+        cmd.stdout(std::process::Stdio::null());
+        tracing::debug!("{cmd:?}");
+        match cmd.status() {
+            Err(err) => return Err(Error::process_spawn_error("mount".to_owned(), err, None)),
+            Ok(status) if status.code() == Some(0) => {}
+            Ok(status) => {
+                return Err(Error::String(format!(
                 "Failed to mount fuse filesystem, mount command exited with non-zero status {:?}",
                 status.code()
             )))
-        }
-    };
+            }
+        };
 
-    // the fuse filesystem may take some moments to be fully initialized, and we
-    // don't want to return until this is true. Otherwise, subsequent operations may
-    // see unexpected errors.
-    let mut sleep_time_ms = vec![2, 5, 10, 50, 100, 100, 100, 100];
-    while let Err(err) = tokio::fs::symlink_metadata(path.as_ref()).await {
-        if let Some(ms) = sleep_time_ms.pop() {
-            tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
-        } else {
-            tracing::warn!("FUSE did not appear to start after delay: {err}");
-            break;
+        // the fuse filesystem may take some moments to be fully initialized, and we
+        // don't want to return until this is true. Otherwise, subsequent operations may
+        // see unexpected errors.
+        let mut sleep_time_ms = vec![2, 5, 10, 50, 100, 100, 100, 100];
+        while let Err(err) = std::fs::symlink_metadata(&path) {
+            if let Some(ms) = sleep_time_ms.pop() {
+                std::thread::sleep(std::time::Duration::from_millis(ms));
+            } else {
+                tracing::warn!("FUSE did not appear to start after delay: {err}");
+                break;
+            }
         }
-    }
+        Ok(())
+    });
+
+    tokio::task::spawn_blocking(move || mount_and_wait_thread.join())
+        .await?
+        .map_err(|_| Error::String("Failed to mount and wait for fuse".to_owned()))??;
+
     Ok(())
 }
 
