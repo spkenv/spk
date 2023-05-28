@@ -115,7 +115,7 @@ pub async fn reinitialize_runtime(
     match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
             env::mount_env_overlayfs(_guard, rt, &render_result.paths_rendered).await?;
-            env::mask_files(&rt.config, &manifest, original.uid).await?;
+            env::mask_files(_guard, &rt.config, manifest, original.uid).await?;
         }
         #[cfg(feature = "fuse-backend")]
         runtime::MountBackend::OverlayFsWithFuse => {
@@ -171,7 +171,7 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
             env::mount_runtime(&rt.config)?;
             env::setup_runtime(rt).await?;
             env::mount_env_overlayfs(&mount_ns_guard, rt, &render_result.paths_rendered).await?;
-            env::mask_files(&rt.config, &manifest, original.uid).await?;
+            env::mask_files(&mount_ns_guard, &rt.config, manifest, original.uid).await?;
         }
         #[cfg(feature = "fuse-backend")]
         runtime::MountBackend::OverlayFsWithFuse => {

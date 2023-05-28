@@ -758,104 +758,109 @@ pub async fn setup_runtime(rt: &runtime::Runtime) -> Result<()> {
 }
 
 pub async fn mask_files(
+    _guard: &MountNamespace,
     config: &runtime::Config,
-    manifest: &super::tracking::Manifest,
+    manifest: super::tracking::Manifest,
     owner: nix::unistd::Uid,
 ) -> Result<()> {
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
     tracing::debug!("masking deleted files...");
 
-    let prefix = config.upper_dir.to_str().ok_or_else(|| {
-        crate::Error::String(format!(
-            "configured runtime upper_dir has invalid characters: {:?}",
-            config.upper_dir
-        ))
-    })?;
-    let nodes: Vec<_> = manifest.walk_abs(prefix).collect();
-    for node in nodes.iter() {
-        if !node.entry.kind.is_mask() {
-            continue;
-        }
-        let relative_fullpath = node.path.to_path("");
-        if let Some(parent) = relative_fullpath.parent() {
-            tracing::trace!(?parent, "build parent dir for mask");
-            runtime::makedirs_with_perms(parent, 0o777)?;
-        }
-        tracing::trace!(?node.path, "Creating file mask");
+    let prefix = config
+        .upper_dir
+        .to_str()
+        .ok_or_else(|| {
+            crate::Error::String(format!(
+                "configured runtime upper_dir has invalid characters: {:?}",
+                config.upper_dir
+            ))
+        })?
+        .to_owned();
 
-        let fullpath = node.path.to_path("/");
-        let existing = tokio::fs::symlink_metadata(&fullpath).await.ok();
-        if let Some(meta) = existing {
-            if runtime::is_removed_entry(&meta) {
+    // A new thread created while holding _guard will be inside the same
+    // mount namespace...
+    let mask_files_thread = std::thread::spawn(move || {
+        let nodes: Vec<_> = manifest.walk_abs(prefix).collect();
+        for node in nodes.iter() {
+            if !node.entry.kind.is_mask() {
                 continue;
             }
-            if meta.is_file() {
-                tokio::fs::remove_file(&fullpath)
-                    .await
-                    .map_err(|err| Error::RuntimeWriteError(fullpath.clone(), err))?;
-            } else {
-                tokio::fs::remove_dir_all(&fullpath)
-                    .await
-                    .map_err(|err| Error::RuntimeWriteError(fullpath.clone(), err))?;
+            let relative_fullpath = node.path.to_path("");
+            if let Some(parent) = relative_fullpath.parent() {
+                tracing::trace!(?parent, "build parent dir for mask");
+                runtime::makedirs_with_perms(parent, 0o777)?;
             }
-        }
+            tracing::trace!(?node.path, "Creating file mask");
 
-        tokio::task::spawn_blocking(move || {
+            let fullpath = node.path.to_path("/");
+            let existing = std::fs::symlink_metadata(&fullpath).ok();
+            if let Some(meta) = existing {
+                if runtime::is_removed_entry(&meta) {
+                    continue;
+                }
+                if meta.is_file() {
+                    std::fs::remove_file(&fullpath)
+                        .map_err(|err| Error::RuntimeWriteError(fullpath.clone(), err))?;
+                } else {
+                    std::fs::remove_dir_all(&fullpath)
+                        .map_err(|err| Error::RuntimeWriteError(fullpath.clone(), err))?;
+                }
+            }
+
             nix::sys::stat::mknod(
                 &fullpath,
                 nix::sys::stat::SFlag::S_IFCHR,
                 nix::sys::stat::Mode::empty(),
                 0,
             )
-        })
-        .await?
-        .map_err(move |err| {
-            Error::wrap_nix(err, format!("Failed to create file mask: {}", node.path))
-        })?;
-    }
+            .map_err(move |err| {
+                Error::wrap_nix(err, format!("Failed to create file mask: {}", node.path))
+            })?;
+        }
 
-    for node in nodes.iter().rev() {
-        if !node.entry.kind.is_tree() {
-            continue;
-        }
-        let fullpath = node.path.to_path("/");
-        if !fullpath.is_dir() {
-            continue;
-        }
-        let existing = tokio::fs::symlink_metadata(&fullpath)
-            .await
-            .map_err(|err| Error::RuntimeReadError(fullpath.clone(), err))?;
-        if existing.permissions().mode() != node.entry.mode {
-            if let Err(err) = tokio::fs::set_permissions(
-                &fullpath,
-                std::fs::Permissions::from_mode(node.entry.mode),
-            )
-            .await
-            {
-                match err.kind() {
-                    std::io::ErrorKind::NotFound => continue,
-                    _ => {
-                        return Err(Error::RuntimeSetPermissionsError(fullpath, err));
+        for node in nodes.iter().rev() {
+            if !node.entry.kind.is_tree() {
+                continue;
+            }
+            let fullpath = node.path.to_path("/");
+            if !fullpath.is_dir() {
+                continue;
+            }
+            let existing = std::fs::symlink_metadata(&fullpath)
+                .map_err(|err| Error::RuntimeReadError(fullpath.clone(), err))?;
+            if existing.permissions().mode() != node.entry.mode {
+                if let Err(err) = std::fs::set_permissions(
+                    &fullpath,
+                    std::fs::Permissions::from_mode(node.entry.mode),
+                ) {
+                    match err.kind() {
+                        std::io::ErrorKind::NotFound => continue,
+                        _ => {
+                            return Err(Error::RuntimeSetPermissionsError(fullpath, err));
+                        }
+                    }
+                }
+            }
+            if existing.uid() != owner.as_raw() {
+                let res = nix::unistd::chown(&fullpath, Some(owner), None);
+                match res {
+                    Ok(_) | Err(nix::errno::Errno::ENOENT) => continue,
+                    Err(err) => {
+                        return Err(Error::wrap_nix(
+                            err,
+                            format!("Failed to set ownership on masked file [{}]", node.path),
+                        ));
                     }
                 }
             }
         }
-        if existing.uid() != owner.as_raw() {
-            let res = tokio::task::spawn_blocking(move || {
-                nix::unistd::chown(&fullpath, Some(owner), None)
-            })
-            .await?;
-            match res {
-                Ok(_) | Err(nix::errno::Errno::ENOENT) => continue,
-                Err(err) => {
-                    return Err(Error::wrap_nix(
-                        err,
-                        format!("Failed to set ownership on masked file [{}]", node.path),
-                    ));
-                }
-            }
-        }
-    }
+        Ok(())
+    });
+
+    tokio::task::spawn_blocking(move || mask_files_thread.join())
+        .await?
+        .map_err(|_| Error::String("Failed to mask files".to_owned()))??;
+
     Ok(())
 }
 
