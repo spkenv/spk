@@ -50,7 +50,7 @@ export SPFS_FILESYSTEM_BACKEND=FuseOnly
 
 # while a runtime exists there should be one spfs-fuse process
 spfs run spfs-test/fuse-cleanup -- bash -c 'sleep 2' &
-wait_for_spfs_monitor_count 1
+sleep 1
 assert_spfs_fuse_count 1
 
 # allow runtime to cleanup
