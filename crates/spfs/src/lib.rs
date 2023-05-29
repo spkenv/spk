@@ -64,6 +64,7 @@ pub use spfs_encoding as encoding;
 pub use status::{
     active_runtime,
     compute_runtime_manifest,
+    exit_runtime,
     initialize_runtime,
     make_active_runtime_editable,
     reinitialize_runtime,

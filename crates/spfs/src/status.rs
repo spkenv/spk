@@ -40,10 +40,32 @@ pub async fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
     tracing::debug!("{:?}", cmd);
     let res = tokio::task::spawn_blocking(move || cmd.status())
         .await?
-        .map_err(|err| Error::process_spawn_error("spfs-remount".to_owned(), err, None))?;
+        .map_err(|err| Error::process_spawn_error("spfs-enter --remount".to_owned(), err, None))?;
     if res.code() != Some(0) {
         Err(Error::String(format!(
-            "Failed to re-mount runtime filesystem: spfs-remount failed with code {:?}",
+            "Failed to re-mount runtime filesystem: spfs-enter --remount failed with code {:?}",
+            res.code()
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+/// Exit the given runtime as configured, this should only ever be called with the active runtime
+pub async fn exit_runtime(rt: &runtime::Runtime) -> Result<()> {
+    let command = bootstrap::build_spfs_exit_command(rt)?;
+    // Not using `tokio::process` here because it relies on `SIGCHLD` to know
+    // when the process is done, which can be unreliable if something else
+    // is trapping signals, like the tarpaulin code coverage tool.
+    let mut cmd = std::process::Command::new(command.executable);
+    cmd.args(command.args);
+    tracing::debug!("{:?}", cmd);
+    let res = tokio::task::spawn_blocking(move || cmd.status())
+        .await?
+        .map_err(|err| Error::process_spawn_error("spfs-enter --exit".to_owned(), err, None))?;
+    if res.code() != Some(0) {
+        Err(Error::String(format!(
+            "Failed to re-mount runtime filesystem: spfs-enter --exit failed with code {:?}",
             res.code()
         )))
     } else {

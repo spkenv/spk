@@ -11,7 +11,7 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{Args, Parser};
 #[cfg(feature = "sentry")]
 use cli::configure_sentry;
 use serde_json::json;
@@ -27,15 +27,24 @@ use tokio::io::AsyncWriteExt;
 cli::main!(CmdEnter, sentry = false, sync = true);
 
 /// Run a command in a configured spfs runtime
+///
+/// Although executable directly, this command is meant to be called
+/// directly by other spfs commands in order to perform privileged
+/// operations related to environment setup and teardown.
 #[derive(Debug, Parser)]
 #[clap(name = "spfs-enter")]
 pub struct CmdEnter {
     #[clap(flatten)]
     pub logging: cli::Logging,
 
-    /// Remount the overlay filesystem, don't enter a new namespace
-    #[clap(short, long)]
-    remount: bool,
+    #[clap(flatten)]
+    exit: ExitArgs,
+
+    #[clap(flatten)]
+    remount: RemountArgs,
+
+    #[clap(flatten)]
+    enter: EnterArgs,
 
     /// The address of the storage being used for runtimes
     ///
@@ -43,6 +52,30 @@ pub struct CmdEnter {
     #[clap(long)]
     runtime_storage: Option<url::Url>,
 
+    /// The name of the runtime
+    #[clap(long)]
+    runtime: String,
+}
+
+#[derive(Debug, Args)]
+#[group(id = "exit_grp", conflicts_with_all = ["enter_grp", "remount_grp"])]
+pub struct ExitArgs {
+    /// Exit the current runtime, shutting down all filesystems
+    #[clap(id = "exit", long = "exit")]
+    enabled: bool,
+}
+
+#[derive(Debug, Args)]
+#[group(id = "remount_grp", conflicts_with_all = ["exit_grp", "enter_grp"])]
+pub struct RemountArgs {
+    /// Remount the overlay filesystem, don't enter a new namespace
+    #[clap(id = "remount", long = "remount")]
+    enabled: bool,
+}
+
+#[derive(Debug, Args)]
+#[group(id = "enter_grp")]
+pub struct EnterArgs {
     /// The value to set $TMPDIR to in new environment
     #[clap(long)]
     tmpdir: Option<String>,
@@ -50,10 +83,6 @@ pub struct CmdEnter {
     /// Put the rendering and syncing times into environment variables
     #[clap(long)]
     metrics_in_env: bool,
-
-    /// The name of the runtime being entered
-    #[clap(long)]
-    runtime: String,
 
     /// The command to run after initialization
     ///
@@ -100,7 +129,18 @@ impl CmdEnter {
     ) -> Result<Option<spfs::runtime::OwnedRuntime>> {
         let mut runtime = self.load_runtime(config).await?;
 
-        if self.remount {
+        if self.exit.enabled {
+            // Safety: exit is only expected to be used inside an existing
+            // runtime that has already been put into its own mount namespace.
+            let guard = unsafe { spfs::env::MountNamespace::existing()? };
+            const LAZY: bool = false;
+            spfs::env::unmount_env_fuse(&guard, &runtime, LAZY).await?;
+            let original_user = spfs::env::become_root()?;
+            spfs::env::unmount_env(&runtime, LAZY).await?;
+            spfs::env::unmount_runtime(&runtime.config)?;
+            spfs::env::become_original_user(original_user)?;
+            Ok(None)
+        } else if self.remount.enabled {
             let start_time = Instant::now();
             // Safety: remount is only expected to be used inside an existing
             // runtime that has already been put into its own mount namespace.
@@ -169,7 +209,7 @@ impl CmdEnter {
                 }
             };
 
-            owned.ensure_startup_scripts(&self.tmpdir)?;
+            owned.ensure_startup_scripts(&self.enter.tmpdir)?;
             std::env::set_var("SPFS_RUNTIME", owned.name());
 
             Ok(Some(owned))
@@ -189,10 +229,10 @@ impl CmdEnter {
     }
 
     fn exec_runtime_command(&mut self, rt: spfs::runtime::OwnedRuntime) -> Result<i32> {
-        let cmd = match self.command.take() {
+        let cmd = match self.enter.command.take() {
             Some(exe) if !exe.is_empty() => {
                 tracing::debug!("executing runtime command");
-                spfs::build_shell_initialized_command(&rt, None, exe, self.args.drain(..))?
+                spfs::build_shell_initialized_command(&rt, None, exe, self.enter.args.drain(..))?
             }
             _ => {
                 tracing::debug!("starting interactive shell environment");
@@ -206,7 +246,7 @@ impl CmdEnter {
     }
 
     fn report_render_summary(&self, render_summary: RenderSummary, render_time: f64) {
-        if self.metrics_in_env {
+        if self.enter.metrics_in_env {
             // The render summary data is put into a json blob in a
             // environment variable for other, non-spfs, programs to
             // access.
