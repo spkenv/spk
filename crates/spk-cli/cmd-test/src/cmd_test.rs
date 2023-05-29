@@ -31,8 +31,8 @@ pub struct Test {
     #[clap(flatten)]
     pub repos: flags::Repositories,
 
-    #[clap(short, long, global = true, parse(from_occurrences))]
-    pub verbose: u32,
+    #[clap(short, long, global = true, action = clap::ArgAction::Count)]
+    pub verbose: u8,
 
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,

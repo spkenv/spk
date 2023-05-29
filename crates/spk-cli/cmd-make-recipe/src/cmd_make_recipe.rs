@@ -21,8 +21,8 @@ pub struct MakeRecipe {
     #[clap(flatten)]
     pub options: flags::Options,
 
-    #[clap(short, long, global = true, parse(from_occurrences))]
-    pub verbose: u32,
+    #[clap(short, long, global = true, action = clap::ArgAction::Count)]
+    pub verbose: u8,
 
     /// The package spec file to render
     #[clap(name = "SPEC_FILE")]

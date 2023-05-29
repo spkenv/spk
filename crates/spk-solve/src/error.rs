@@ -50,7 +50,7 @@ pub struct OutOfOptions {
 }
 
 impl FormatError for Error {
-    fn format_error(&self, verbosity: u32) -> String {
+    fn format_error(&self, verbosity: u8) -> String {
         let mut msg = String::new();
         msg.push_str("Failed to resolve");
         match self {

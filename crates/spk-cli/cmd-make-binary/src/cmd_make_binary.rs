@@ -56,8 +56,8 @@ pub struct MakeBinary {
     #[clap(flatten)]
     pub runtime: flags::Runtime,
 
-    #[clap(short, long, global = true, parse(from_occurrences))]
-    pub verbose: u32,
+    #[clap(short, long, global = true, action = clap::ArgAction::Count)]
+    pub verbose: u8,
 
     /// Build from the current directory, instead of a source package)
     #[clap(long)]

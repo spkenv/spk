@@ -293,8 +293,8 @@ pub fn shutdown_sentry() {
 #[derive(Debug, Clone, clap::Args)]
 pub struct Logging {
     /// Make output more verbose, can be specified more than once
-    #[clap(short, long, global = true, parse(from_occurrences))]
-    pub verbose: usize,
+    #[clap(short, long, global = true, action = clap::ArgAction::Count)]
+    pub verbose: u8,
 
     /// Additionally log output to the provided file
     #[clap(long, global = true, env = "SPFS_LOG_FILE")]

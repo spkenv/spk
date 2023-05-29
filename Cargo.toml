@@ -28,7 +28,7 @@ version = "0.36.0"
 anyhow = "1.0"
 async-trait = "0.1"
 chrono = { version = "0.4.19", features = ["serde"] }
-clap = { version = "3.2", features = ["derive", "env"] }
+clap = { version = "4.3", features = ["derive", "env"] }
 colored = "2.0.0"
 config = "0.13.1"
 console = "0.15"

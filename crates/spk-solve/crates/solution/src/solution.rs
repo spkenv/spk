@@ -327,7 +327,7 @@ impl Solution {
     /// package is also the highest version available in the repositories
     pub async fn format_solution_with_highest_versions(
         &self,
-        verbosity: u32,
+        verbosity: u8,
         repos: &[Arc<RepositoryHandle>],
     ) -> Result<String> {
         if self.is_empty() {
@@ -338,7 +338,7 @@ impl Solution {
         Ok(self.format_solution_with_padding_and_highest(verbosity, &highest_versions))
     }
 
-    fn format_solution_without_padding_or_highest(&self, verbosity: u32) -> String {
+    fn format_solution_without_padding_or_highest(&self, verbosity: u8) -> String {
         let mut out = SOLUTION_FORMAT_HEADING.to_string();
 
         // The resolved packages are typically stored in resolve
@@ -370,7 +370,7 @@ impl Solution {
 
     fn format_solution_with_padding_and_highest(
         &self,
-        verbosity: u32,
+        verbosity: u8,
         highest_versions: &HashMap<PkgNameBuf, Arc<Version>>,
     ) -> String {
         let mut out = SOLUTION_FORMAT_HEADING.to_string();
@@ -465,7 +465,7 @@ impl BuildEnv for Solution {
 }
 
 impl FormatSolution for Solution {
-    fn format_solution(&self, verbosity: u32) -> String {
+    fn format_solution(&self, verbosity: u8) -> String {
         if self.is_empty() {
             return SOLUTION_FORMAT_EMPTY_REPORT.to_string();
         }

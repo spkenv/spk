@@ -12,8 +12,8 @@ use spk_storage::{self as storage};
 /// Publish a package into a shared repository
 #[derive(Args)]
 pub struct Publish {
-    #[clap(short, long, global = true, parse(from_occurrences))]
-    pub verbose: u32,
+    #[clap(short, long, global = true, action = clap::ArgAction::Count)]
+    pub verbose: u8,
 
     /// The repository to publish to
     ///

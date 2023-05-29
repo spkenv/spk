@@ -224,7 +224,7 @@ fn remove_ansi_escapes(message: String) -> String {
     message
 }
 
-pub fn configure_logging(verbosity: u32) -> Result<()> {
+pub fn configure_logging(verbosity: u8) -> Result<()> {
     use tracing_subscriber::layer::SubscriberExt;
     // NOTE: If you change these, please update docs/ref/logging.md
     let mut directives = match verbosity {

@@ -8,10 +8,14 @@ use colored::*;
 use spfs::io::{self, DigestFormat};
 use spfs::prelude::*;
 use spfs::{self};
+use spfs_cli_common as cli;
 
 /// Display information about the current environment, or specific items
 #[derive(Debug, Args)]
 pub struct CmdInfo {
+    #[clap(flatten)]
+    logging: cli::Logging,
+
     /// Operate on a remote repository instead of the local one
     ///
     /// This is really only helpful if you are providing a specific ref to look up.
@@ -32,7 +36,7 @@ pub struct CmdInfo {
 }
 
 impl CmdInfo {
-    pub async fn run(&mut self, verbosity: usize, config: &spfs::Config) -> Result<i32> {
+    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         if self.refs.is_empty() {
@@ -40,7 +44,8 @@ impl CmdInfo {
         } else {
             for reference in self.refs.iter() {
                 let item = repo.read_ref(reference.as_str()).await?;
-                self.pretty_print_ref(item, &repo, verbosity).await?;
+                self.pretty_print_ref(item, &repo, self.logging.verbose as usize)
+                    .await?;
             }
         }
         Ok(0)

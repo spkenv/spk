@@ -88,7 +88,7 @@ pub fn format_note(note: &Note) -> String {
     }
 }
 
-pub fn change_is_relevant_at_verbosity(change: &Change, verbosity: u32) -> bool {
+pub fn change_is_relevant_at_verbosity(change: &Change, verbosity: u8) -> bool {
     use Change::*;
     let relevant_level = match change {
         SetPackage(_) => 1,
@@ -117,7 +117,7 @@ where
     inner: Pin<Box<I>>,
     level: u64,
     output_queue: VecDeque<String>,
-    verbosity: u32,
+    verbosity: u8,
     // For "too long" and ctrl-c interruption checks during solver steps
     start: Instant,
     too_long_counter: u64,
@@ -408,10 +408,10 @@ where
 
 #[derive(Debug, Clone)]
 pub struct DecisionFormatterBuilder {
-    verbosity: u32,
+    verbosity: u8,
     time: bool,
     verbosity_increase_seconds: u64,
-    max_verbosity_increase_level: u32,
+    max_verbosity_increase_level: u8,
     timeout: u64,
     show_solution: bool,
     heading_prefix: String,
@@ -428,7 +428,7 @@ impl Default for DecisionFormatterBuilder {
             verbosity: 0,
             time: false,
             verbosity_increase_seconds: 0,
-            max_verbosity_increase_level: u32::MAX,
+            max_verbosity_increase_level: u8::MAX,
             timeout: 0,
             show_solution: false,
             heading_prefix: String::from(""),
@@ -460,7 +460,7 @@ impl DecisionFormatterBuilder {
         }
     }
 
-    pub fn with_verbosity(&mut self, verbosity: u32) -> &mut Self {
+    pub fn with_verbosity(&mut self, verbosity: u8) -> &mut Self {
         self.verbosity = verbosity;
         self
     }
@@ -475,7 +475,7 @@ impl DecisionFormatterBuilder {
         self
     }
 
-    pub fn with_max_verbosity_increase_level(&mut self, max_level: u32) -> &mut Self {
+    pub fn with_max_verbosity_increase_level(&mut self, max_level: u8) -> &mut Self {
         self.max_verbosity_increase_level = max_level;
         self
     }
@@ -604,11 +604,11 @@ impl OutputKind {
 
 #[derive(Debug, Clone)]
 pub(crate) struct DecisionFormatterSettings {
-    pub(crate) verbosity: u32,
+    pub(crate) verbosity: u8,
     pub(crate) report_time: bool,
     pub(crate) too_long: Duration,
     pub(crate) max_too_long_count: u64,
-    pub(crate) max_verbosity_increase_level: u32,
+    pub(crate) max_verbosity_increase_level: u8,
     pub(crate) show_solution: bool,
     /// This is followed immediately by "Installed Packages"
     pub(crate) heading_prefix: String,
@@ -671,7 +671,7 @@ struct SolverTaskDone {
     pub(crate) start: Instant,
     pub(crate) loop_outcome: LoopOutcome,
     pub(crate) runtime: SolverRuntime,
-    pub(crate) verbosity: u32,
+    pub(crate) verbosity: u8,
     pub(crate) solver_kind: MultiSolverKind,
     pub(crate) can_ignore_failure: bool,
 }
@@ -690,7 +690,7 @@ impl DecisionFormatter {
                 report_time: false,
                 too_long: Duration::from_secs(5),
                 max_too_long_count: 1,
-                max_verbosity_increase_level: u32::MAX,
+                max_verbosity_increase_level: u8::MAX,
                 show_solution: true,
                 heading_prefix: String::new(),
                 long_solves_threshold: 1,

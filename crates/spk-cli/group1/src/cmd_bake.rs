@@ -16,14 +16,14 @@ use spk_solve::Component;
 
 // Verbosity level above which repo and component names will be
 // included in the package display values.
-const NO_VERBOSITY: u32 = 0;
+const NO_VERBOSITY: u8 = 0;
 
 // Constants for the valid output formats
 const LAYER_FORMAT: &str = "layers";
 const BUILD_FORMAT: &str = "builds";
 const YAML_FORMAT: &str = "yaml";
 const JSON_FORMAT: &str = "json";
-const OUTPUT_FORMATS: &[&str] = &[LAYER_FORMAT, BUILD_FORMAT, YAML_FORMAT, JSON_FORMAT];
+const OUTPUT_FORMATS: [&str; 4] = [LAYER_FORMAT, BUILD_FORMAT, YAML_FORMAT, JSON_FORMAT];
 
 // TODO: a duplicate of this exists in spk-cli/common/src hidden
 // behind the "sentry" feature. Might want consider refactoring these
@@ -55,12 +55,12 @@ pub struct Bake {
     /// 'layers' outputs only the spfs layer digests one per line, 'builds' outputs
     /// only the spk package builds one per line, and 'yaml' and 'json' output all
     /// the available layer data in the matching format.
-    #[clap(short, long, possible_values=OUTPUT_FORMATS, default_value=LAYER_FORMAT)]
+    #[clap(short, long, value_parser=OUTPUT_FORMATS, default_value=LAYER_FORMAT)]
     pub format: String,
 
     /// Verbosity level, can be specified multiple times for more verbose output
-    #[clap(short, long, global = true, parse(from_occurrences))]
-    pub verbose: u32,
+    #[clap(short, long, global = true, action = clap::ArgAction::Count)]
+    pub verbose: u8,
 
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,

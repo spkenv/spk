@@ -10,7 +10,7 @@ use crate::name::{PkgName, RepositoryNameBuf};
 
 /// Helper to hold values that affect the formatting of a request
 pub struct FormatChangeOptions {
-    pub verbosity: u32,
+    pub verbosity: u8,
     pub level: u64,
 }
 
@@ -42,7 +42,7 @@ pub trait FormatComponents {
 }
 
 pub trait FormatError {
-    fn format_error(&self, verbosity: u32) -> String;
+    fn format_error(&self, verbosity: u8) -> String;
 }
 
 pub trait FormatIdent {
@@ -66,5 +66,5 @@ pub trait FormatRequest {
 }
 
 pub trait FormatSolution {
-    fn format_solution(&self, verbosity: u32) -> String;
+    fn format_solution(&self, verbosity: u8) -> String;
 }
