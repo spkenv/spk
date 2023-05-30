@@ -232,8 +232,11 @@ where
                 continue;
             }
 
-            let abs_path =
-                [root_dir.to_string(), name.to_string()].join(&LEVEL_SEPARATOR.to_string());
+            let abs_path = match root_dir.is_empty() {
+                true => name.to_string(),
+                false => [root_dir.to_string(), name.to_string()].join(&LEVEL_SEPARATOR.to_string()),
+            };
+
             // Skip dirs and only construct and store absolute path for printing if entry is a blob.
             if entry.kind.is_blob() {
                 result.push((entry.size, abs_path.to_string()));
@@ -342,7 +345,7 @@ impl EntryDiskUsage {
     pub fn convert_child_entries_for_output(&self) -> HashMap<(String, bool), u64> {
         let mut formatted_entries: HashMap<(String, bool), u64> = HashMap::default();
         for (size, path) in self.child_entries.iter() {
-            formatted_entries.insert((path.to_string(), self.deprecated), *size);
+            formatted_entries.insert((format!("{}/{path}", self.pkg_info), self.deprecated), *size);
         }
         formatted_entries
     }
