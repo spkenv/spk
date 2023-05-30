@@ -155,6 +155,37 @@ impl CmdFuse {
             bail!("rw mode is not supported, yet");
         }
 
+        let mountpoint = self
+            .mountpoint
+            .canonicalize()
+            .context("Invalid mount point")?;
+
+        if !opts.uid.is_root() {
+            nix::unistd::seteuid(opts.uid).context("Failed to become desired user (effective)")?;
+            nix::unistd::setegid(opts.gid).context("Failed to become desired group (effective)")?;
+            // unprivileged users must have write access to the directory that
+            // they are trying to mount over.
+            nix::unistd::access(&mountpoint, nix::unistd::AccessFlags::W_OK)
+                .context("Must have write access to mountpoint")?;
+            nix::unistd::seteuid(calling_uid)
+                .context("Failed to reset calling user (effective)")?;
+            nix::unistd::setegid(calling_gid)
+                .context("Failed to reset calling group (effective)")?;
+        }
+
+        // establish the fuse session before changing the uid/gid of this process
+        // so that we are allowed to use options such as `allow_other`. We also
+        // need root to have access to this mount so that it can be properly
+        // introspected and unmounted by other parts of spfs such as the monitor
+        tracing::debug!("Establishing fuse session...");
+        let mount_opts = opts.mount_options.iter().cloned().collect::<Vec<_>>();
+        let mut session = fuser::Session::new(
+            Session::new(self.reference.clone(), opts.clone()),
+            &mountpoint,
+            &mount_opts,
+        )
+        .context("Failed to create a FUSE session")?;
+
         if opts.gid != calling_gid {
             nix::unistd::setgid(opts.gid).context("Failed to set desired group (actual)")?;
             nix::unistd::setegid(opts.gid).context("Failed to set desired group (effective)")?;
@@ -163,27 +194,6 @@ impl CmdFuse {
             nix::unistd::setuid(opts.uid).context("Failed to become desired user (actual)")?;
             nix::unistd::seteuid(opts.uid).context("Failed to become desired user (effective)")?;
         }
-
-        let mountpoint = self
-            .mountpoint
-            .canonicalize()
-            .context("Invalid mount point")?;
-
-        if !calling_uid.is_root() {
-            // unprivileged callers must have write access to the directory that
-            // they are trying to mount over.
-            nix::unistd::access(&mountpoint, nix::unistd::AccessFlags::W_OK)
-                .context("Must have write access to mountpoint")?;
-        }
-
-        tracing::debug!("Establishing fuse session...");
-        let mount_opts = opts.mount_options.iter().cloned().collect::<Vec<_>>();
-        let mut session = fuser::Session::new(
-            Session::new(self.reference.clone(), opts),
-            &mountpoint,
-            &mount_opts,
-        )
-        .context("Failed to create a FUSE session")?;
 
         if !self.foreground {
             tracing::debug!("Moving into background...");

@@ -59,14 +59,17 @@ pub async fn exit_runtime(rt: &runtime::Runtime) -> Result<()> {
     // is trapping signals, like the tarpaulin code coverage tool.
     let mut cmd = std::process::Command::new(command.executable);
     cmd.args(command.args);
+    cmd.stderr(std::process::Stdio::piped());
     tracing::debug!("{:?}", cmd);
-    let res = tokio::task::spawn_blocking(move || cmd.status())
+    let res = tokio::task::spawn_blocking(move || cmd.output())
         .await?
         .map_err(|err| Error::process_spawn_error("spfs-enter --exit".to_owned(), err, None))?;
-    if res.code() != Some(0) {
+    if res.status.code() != Some(0) {
+        let out = String::from_utf8_lossy(&res.stderr);
         Err(Error::String(format!(
-            "Failed to re-mount runtime filesystem: spfs-enter --exit failed with code {:?}",
-            res.code()
+            "Failed to tear-down runtime filesystem: spfs-enter --exit failed with code {:?}: {}",
+            res.status.code(),
+            out.trim()
         )))
     } else {
         Ok(())
@@ -113,10 +116,10 @@ pub async fn active_runtime() -> Result<runtime::Runtime> {
 }
 
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).
-pub async fn reinitialize_runtime(
-    _guard: &env::MountNamespace,
-    rt: &mut runtime::Runtime,
-) -> Result<RenderSummary> {
+///
+/// This function will run blocking IO on the current thread. Although this is not ideal,
+/// the mount namespacing operated per-thread and so restricts our ability to move execution.
+pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
     let render_result = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
             resolve_and_render_overlay_dirs(rt, false).await?
@@ -127,26 +130,32 @@ pub async fn reinitialize_runtime(
             Default::default()
         }
     };
+
+    let in_namespace = env::RuntimeConfigurator::default().current_runtime(rt)?;
+
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(rt).await?;
-    env::ensure_mounts_already_exist(_guard).await?;
+    in_namespace.ensure_mounts_already_exist().await?;
     const LAZY: bool = true; // because we are about to re-mount over it
-    env::unmount_env_fuse(_guard, rt, LAZY).await?;
-    let original = env::become_root()?;
-    env::unmount_env(rt, LAZY).await?;
+    let with_root = in_namespace.become_root()?;
+    with_root.unmount_env(rt, LAZY).await?;
     match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
-            env::mount_env_overlayfs(_guard, rt, &render_result.paths_rendered).await?;
-            env::mask_files(_guard, &rt.config, manifest, original.uid).await?;
+            with_root
+                .mount_env_overlayfs(rt, &render_result.paths_rendered)
+                .await?;
+            with_root.mask_files(&rt.config, manifest).await?;
         }
         #[cfg(feature = "fuse-backend")]
         runtime::MountBackend::OverlayFsWithFuse => {
-            env::mount_fuse_lower_dir(_guard, rt, &original).await?;
-            env::mount_env_overlayfs(_guard, rt, &render_result.paths_rendered).await?;
+            with_root.mount_fuse_lower_dir(rt).await?;
+            with_root
+                .mount_env_overlayfs(rt, &render_result.paths_rendered)
+                .await?;
         }
         #[cfg(feature = "fuse-backend")]
         runtime::MountBackend::FuseOnly => {
-            env::mount_env_fuse(_guard, rt, &original).await?;
+            with_root.mount_env_fuse(rt).await?;
         }
         #[allow(unreachable_patterns)]
         _ => {
@@ -156,12 +165,14 @@ pub async fn reinitialize_runtime(
             )))
         }
     }
-    env::become_original_user(original)?;
-    env::drop_all_capabilities()?;
+    with_root.become_original_user()?;
     Ok(render_result.render_summary)
 }
 
 /// Initialize the current runtime as rt.
+///
+/// This function will run blocking IO on the current thread. Although this is not ideal,
+/// the mount namespacing operated per-thread and so restricts our ability to move execution.
 pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
     let render_result = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
@@ -181,30 +192,35 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
     };
     tracing::debug!("computing runtime manifest");
     let manifest = compute_runtime_manifest(rt).await?;
-    let mount_ns_guard = env::enter_mount_namespace()?;
-    rt.config.mount_namespace = Some(mount_ns_guard.mount_ns.clone());
+
+    let in_namespace = env::RuntimeConfigurator::default().enter_mount_namespace()?;
+    rt.config.mount_namespace = Some(in_namespace.mount_namespace().to_path_buf());
     rt.save_state_to_storage().await?;
 
-    let original = env::become_root()?;
-    env::privatize_existing_mounts(&mount_ns_guard).await?;
-    env::ensure_mount_targets_exist(&mount_ns_guard, &rt.config)?;
+    let with_root = in_namespace.become_root()?;
+    with_root.privatize_existing_mounts().await?;
+    with_root.ensure_mount_targets_exist(&rt.config)?;
     match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
-            env::mount_runtime(&rt.config)?;
-            env::setup_runtime(rt).await?;
-            env::mount_env_overlayfs(&mount_ns_guard, rt, &render_result.paths_rendered).await?;
-            env::mask_files(&mount_ns_guard, &rt.config, manifest, original.uid).await?;
+            with_root.mount_runtime(&rt.config)?;
+            with_root.setup_runtime(rt).await?;
+            with_root
+                .mount_env_overlayfs(rt, &render_result.paths_rendered)
+                .await?;
+            with_root.mask_files(&rt.config, manifest).await?;
         }
         #[cfg(feature = "fuse-backend")]
         runtime::MountBackend::OverlayFsWithFuse => {
-            env::mount_runtime(&rt.config)?;
-            env::setup_runtime(rt).await?;
-            env::mount_fuse_lower_dir(&mount_ns_guard, rt, &original).await?;
-            env::mount_env_overlayfs(&mount_ns_guard, rt, &render_result.paths_rendered).await?;
+            with_root.mount_runtime(&rt.config)?;
+            with_root.setup_runtime(rt).await?;
+            with_root.mount_fuse_lower_dir(rt).await?;
+            with_root
+                .mount_env_overlayfs(rt, &render_result.paths_rendered)
+                .await?;
         }
         #[cfg(feature = "fuse-backend")]
         runtime::MountBackend::FuseOnly => {
-            env::mount_env_fuse(&mount_ns_guard, rt, &original).await?;
+            with_root.mount_env_fuse(rt).await?;
         }
         #[allow(unreachable_patterns)]
         _ => {
@@ -214,7 +230,6 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
             )))
         }
     }
-    env::become_original_user(original)?;
-    env::drop_all_capabilities()?;
+    with_root.become_original_user()?;
     Ok(render_result.render_summary)
 }

@@ -104,7 +104,7 @@ impl CmdJoin {
         const ATTEMPTS_PER_SECOND: u128 = 1000u128 / TIME_TO_WAIT_BETWEEN_ATTEMPTS.as_millis();
         loop {
             try_counter += 1;
-            match spfs::env::join_runtime(&spfs_runtime) {
+            match spfs::env::RuntimeConfigurator::default().join_runtime(&spfs_runtime) {
                 Err(spfs::Error::String(err)) if err.contains("single-threaded") => {
                     // Anecdotally it takes one retry to succeed; don't start
                     // to log anything until it is taking longer than usual.

@@ -130,22 +130,17 @@ impl CmdEnter {
         let mut runtime = self.load_runtime(config).await?;
 
         if self.exit.enabled {
-            // Safety: exit is only expected to be used inside an existing
-            // runtime that has already been put into its own mount namespace.
-            let guard = unsafe { spfs::env::MountNamespace::existing()? };
+            let in_namespace =
+                spfs::env::RuntimeConfigurator::default().current_runtime(&runtime)?;
+            let with_root = in_namespace.become_root()?;
             const LAZY: bool = false;
-            spfs::env::unmount_env_fuse(&guard, &runtime, LAZY).await?;
-            let original_user = spfs::env::become_root()?;
-            spfs::env::unmount_env(&runtime, LAZY).await?;
-            spfs::env::unmount_runtime(&runtime.config)?;
-            spfs::env::become_original_user(original_user)?;
+            with_root.unmount_env(&runtime, LAZY).await?;
+            with_root.unmount_runtime(&runtime.config)?;
+            with_root.become_original_user()?;
             Ok(None)
         } else if self.remount.enabled {
             let start_time = Instant::now();
-            // Safety: remount is only expected to be used inside an existing
-            // runtime that has already been put into its own mount namespace.
-            let mount_ns_guard = unsafe { spfs::env::MountNamespace::existing()? };
-            let render_summary = spfs::reinitialize_runtime(&mount_ns_guard, &mut runtime).await?;
+            let render_summary = spfs::reinitialize_runtime(&mut runtime).await?;
             self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
             Ok(None)
         } else {
