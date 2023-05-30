@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -37,6 +36,7 @@ pub trait Output: Default + Send + Sync {
 #[derive(Default)]
 pub struct Console {
     pub longest_string_count: usize,
+    pub input_level: usize,
 }
 
 impl Output for Console {
@@ -99,24 +99,21 @@ impl<T: Output> Run for Du<T> {
         // Remove any empty strings
         input_by_level.retain(|c| !c.is_empty());
 
-        let level = input_by_level.len();
+        let level: usize = input_by_level.len();
 
-        let input_component = if level >= COMPONENT_LEVEL {
-            input_by_level[3].clone()
-        } else {
-            "".to_string()
+        let input_component = match level >= COMPONENT_LEVEL {
+            true => input_by_level[3].to_string(),
+            false => "".to_string(),
         };
 
-        let input_digest = if level >= DIGEST_LEVEL {
-            input_by_level[2].clone()
-        } else {
-            "".to_string()
+        let input_digest = match level >= DIGEST_LEVEL {
+            true => input_by_level[2].to_string(),
+            false => "".to_string(),
         };
 
-        let spfs_storage_dirs = if input_by_level.len() > COMPONENT_LEVEL {
-            input_by_level[COMPONENT_LEVEL..].join(&LEVEL_SEPARATOR.to_string())
-        } else {
-            "".to_string()
+        let spfs_storage_dirs = match input_by_level.len() > COMPONENT_LEVEL {
+            true => input_by_level[COMPONENT_LEVEL..].join(&LEVEL_SEPARATOR.to_string()),
+            false => "".to_string(),
         };
 
         let specs = self.compile_entries_to_calculate(input_by_level).await?;
@@ -146,7 +143,7 @@ impl<T: Output> Run for Du<T> {
 
                     // If a digest or component is provided in the input argument, we only need the entry with the
                     // matching digest or component and can skip the rest.
-                    let abs_path = format!("{}/{}", spec.ident(), component_for_output);
+                    let abs_path = format!("{}/{component_for_output}", spec.ident());
                     if !input_digest.is_empty() && !abs_path.contains(&input_digest) {
                         continue;
                     }
@@ -221,7 +218,8 @@ impl<T: Output> Run for Du<T> {
             }
         }
 
-        if self.total {
+        // Print total if sum_of_sizes_by_package is not empty and -c argument is passed.
+        if self.total && !sum_of_sizes_by_package.is_empty() {
             println!(
                 "{size:>longest_str_length$} total",
                 size = self.human_readable(total_output_size)
@@ -336,38 +334,10 @@ impl<T: Output> Du<T> {
     }
 
     fn format_entries(&mut self, entry: &EntryDiskUsage) -> HashMap<(String, bool), u64> {
-        const INITIAL_ROOT_DIRS: usize = 0;
-        let mut sum_by_dir: HashMap<(String, bool), u64> = HashMap::default();
-        for (size, file) in entry.child_entries.iter() {
-            // The level variable determines the depths of the file paths to group.
-            // For example:
-            //      file = spk/pkg/python/3.9.7/XO645NLV/options.json
-            // If short is not enabled than the level is the max len of this string.
-            // If the root is empty this means that we must group by the dirs from /spfs.
-            // Lastly in all other cases, we check the length of root. This value determines
-            // the directory we need to check and group for the output.
-            let level = if !self.short {
-                file.split(LEVEL_SEPARATOR).collect_vec().len() - 1
-            } else if entry.root.is_empty() {
-                INITIAL_ROOT_DIRS
-            } else {
-                entry.root.split(LEVEL_SEPARATOR).collect_vec().len()
-            };
-
-            let mut file_vec = file.split(LEVEL_SEPARATOR).collect_vec();
-            file_vec.retain(|c| !c.is_empty());
-
-            let path = file_vec[..=level].join(&LEVEL_SEPARATOR.to_string());
-            let path = match Path::new(&path).extension() {
-                Some(_) => format!("{}/{path}", entry.pkg_info),
-                None => format!("{}/{path}/", entry.pkg_info),
-            };
-
-            sum_by_dir
-                .entry((path, entry.deprecated))
-                .and_modify(|s| *s += size)
-                .or_insert(*size);
-        }
+        let sum_by_dir = match self.short {
+            true => entry.group_entries(self.package.ends_with(LEVEL_SEPARATOR)),
+            false => entry.convert_child_entries_for_output(),
+        };
         self.update_string_length(sum_by_dir.values().collect_vec());
         sum_by_dir
     }

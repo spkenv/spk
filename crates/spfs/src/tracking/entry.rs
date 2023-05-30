@@ -7,6 +7,8 @@ use std::io::BufRead;
 use std::str::FromStr;
 use std::string::ToString;
 
+use itertools::Itertools;
+
 use crate::{encoding, Error, Result};
 
 pub const LEVEL_SEPARATOR: char = '/';
@@ -248,6 +250,7 @@ where
     /// Generates the disk usage of a given entry.
     pub fn generate_entry_disk_usage(&self, root: &String) -> EntryDiskUsage {
         let mut entry_du = EntryDiskUsage::new(root.to_string());
+        entry_du.kind = self.kind;
         entry_du
             .child_entries
             .extend(self.calculate_size_of_entries(root.to_string(), &self.entries));
@@ -281,9 +284,10 @@ where
 
 /// Stores the entry's disk usage data.
 /// The child entries are stored in the format of (size, path_to_file).
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct EntryDiskUsage {
     pub root: String,
+    pub kind: EntryKind,
     pub total_size: u64,
     pub pkg_info: String,
     pub deprecated: bool,
@@ -294,6 +298,7 @@ impl EntryDiskUsage {
     pub fn new(root: String) -> Self {
         Self {
             root,
+            kind: EntryKind::Tree,
             total_size: 0,
             pkg_info: String::new(),
             deprecated: false,
@@ -313,6 +318,79 @@ impl EntryDiskUsage {
             file_paths.push(path.to_string());
         }
         file_paths
+    }
+
+    fn get_entry_names_in_root(&self) -> Vec<String> {
+        let mut entries: Vec<String> = Vec::new();
+        let path_length = match self.root.is_empty() {
+            true => 0,
+            false => self.root.split(LEVEL_SEPARATOR).collect_vec().len(),
+        };
+        if self.kind.is_tree() {
+            for (_, path) in self.child_entries.iter() {
+                let mut sub_path = path.split(LEVEL_SEPARATOR).collect_vec();
+                sub_path.retain(|c| !c.is_empty());
+                entries.push(sub_path[..=path_length].join(&LEVEL_SEPARATOR.to_string()));
+            }
+        }
+
+        entries.dedup();
+        entries
+    }
+
+    /// Formats the entries in child_entries to output.
+    pub fn convert_child_entries_for_output(&self) -> HashMap<(String, bool), u64> {
+        let mut formatted_entries: HashMap<(String, bool), u64> = HashMap::default();
+        for (size, path) in self.child_entries.iter() {
+            formatted_entries.insert((path.to_string(), self.deprecated), *size);
+        }
+        formatted_entries
+    }
+
+    /// Groups the entry and sums the sizes together.
+    /// If the input ends with a level separator '/' this means we need to
+    /// output and sum the sizes of the entries contained inside the root dir.
+    /// Else, if the input does not end with a level separator we group and sum the
+    /// sizes by the root dir.
+    pub fn group_entries(&self, group_by_dirs_in_root: bool) -> HashMap<(String, bool), u64> {
+        let mut sum_by_dir: HashMap<(String, bool), u64> = HashMap::default();
+        match group_by_dirs_in_root {
+            false => {
+                for (size, path) in self.child_entries.iter() {
+                    if path.contains(&self.root) {
+                        let abs_path = match self.kind.is_tree() {
+                            true => format!("{}/{}/", self.pkg_info, self.root),
+                            false => format!("{}/{}", self.pkg_info, self.root),
+                        };
+                        sum_by_dir
+                            .entry((abs_path.to_string(), self.deprecated))
+                            .and_modify(|s| *s += size)
+                            .or_insert(*size);
+                    }
+                }
+            }
+            true => {
+                let entries_in_root = self.get_entry_names_in_root();
+                for entry in entries_in_root.iter() {
+                    let (sizes, paths): (Vec<u64>, Vec<String>) = self
+                        .child_entries
+                        .iter()
+                        .cloned()
+                        .filter(|(_, p)| p.contains(entry))
+                        .unzip();
+                    let abs_path = match paths.contains(entry) {
+                        true => format!("{}/{entry}", self.pkg_info),
+                        false => format!("{}/{entry}/", self.pkg_info),
+                    };
+                    let total_size = sizes.into_iter().sum();
+                    sum_by_dir
+                        .entry((abs_path, self.deprecated))
+                        .and_modify(|s| *s += total_size)
+                        .or_insert(total_size);
+                }
+            }
+        }
+        sum_by_dir
     }
 
     /// Calculates the total size of the entry.
