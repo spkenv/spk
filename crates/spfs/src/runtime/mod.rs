@@ -21,8 +21,11 @@ pub use overlayfs::is_removed_entry;
 pub use storage::{
     makedirs_with_perms,
     Author,
+    BindMount,
     Config,
     Data,
+    LiveLayer,
+    LiveLayerFile,
     MountBackend,
     OwnedRuntime,
     Runtime,

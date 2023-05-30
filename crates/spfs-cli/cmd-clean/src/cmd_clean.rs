@@ -121,11 +121,10 @@ impl CommandName for CmdClean {
 impl CmdClean {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
-
-        tracing::info!("clean called");
+        tracing::debug!("spfs clean command called");
 
         if let Some(runtime_name) = &self.remove_durable {
-            tracing::info!("durable: rt name: {}", runtime_name);
+            tracing::debug!("durable rt name: {}", runtime_name);
             // Remove the durable path associated with the runtime,if
             // there is one. This uses the runtime_storage option
             // because the repo name is not available from the spfs

@@ -57,7 +57,9 @@ impl CmdLs {
                 self.username = tag.username_without_org().to_string();
                 self.last_modified = tag.time.format("%b %e %H:%M").to_string();
             }
-            EnvSpecItem::PartialDigest(_) | EnvSpecItem::Digest(_) => (),
+            EnvSpecItem::PartialDigest(_)
+            | EnvSpecItem::Digest(_)
+            | EnvSpecItem::LiveLayerFile(_) => (),
         }
 
         let item = repo.read_ref(&self.reference.to_string()).await?;

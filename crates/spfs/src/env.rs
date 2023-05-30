@@ -11,6 +11,7 @@ use super::runtime;
 use crate::{which, Error, Result};
 
 pub const SPFS_DIR: &str = "/spfs";
+pub const SPFS_DIR_PREFIX: &str = "/spfs/";
 
 const NONE: Option<&str> = None;
 
@@ -412,6 +413,85 @@ where
         rt.ensure_required_directories().await
     }
 
+    async fn mount_extra_bind_mounts(&self, rt: &runtime::Runtime) -> Result<()> {
+        // Mounts the bind mounts from the any live layers in the runtime the top of paths
+        // inside /spfs
+        //
+        // It requires the mount destinations to exist under
+        // /spfs/. If they do not, the mount commands will error. The
+        // mount destinations are either provided by one of the layers
+        // in the runtime, or by an earlier call to
+        // ensure_extra_bind_mount_locations_exist() made in
+        // initialize_runtime()
+        if let Some(live_layers) = rt.live_layers() {
+            tracing::debug!("mounting the extra bind mounts over the {SPFS_DIR} filesystem ...");
+            let mount = super::resolve::which("mount").unwrap_or_else(|| "/usr/bin/mount".into());
+
+            for layer in live_layers {
+                let injection_mounts = layer.bind_mounts();
+
+                for extra_mount in injection_mounts {
+                    let dest = if extra_mount.dest.starts_with(SPFS_DIR_PREFIX) {
+                        PathBuf::from(extra_mount.dest.clone())
+                    } else {
+                        PathBuf::from(SPFS_DIR).join(extra_mount.dest.clone())
+                    };
+
+                    let mut cmd = tokio::process::Command::new(mount.clone());
+                    cmd.arg("--bind");
+                    cmd.arg(extra_mount.src.to_string_lossy().into_owned());
+                    cmd.arg(dest);
+                    tracing::debug!("About to run: {cmd:?}");
+
+                    match cmd.status().await {
+                        Err(err) => {
+                            return Err(Error::process_spawn_error("mount".to_owned(), err, None))
+                        }
+                        Ok(status) => match status.code() {
+                            Some(0) => (),
+                            _ => {
+                             return Err(format!(
+                                 "Failed to inject bind mount into the {SPFS_DIR} filesystem using: {cmd:?}"
+                             ).into())
+                            }
+                        },
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn unmount_extra_bind_mounts(&self, rt: &runtime::Runtime) -> Result<()> {
+        // Unmount the bind mounted items from the live layers
+        if let Some(live_layers) = rt.live_layers() {
+            tracing::debug!("unmounting the extra bind mounts from the {SPFS_DIR} filesystem ...");
+            let umount =
+                super::resolve::which("umount").unwrap_or_else(|| "/usr/bin/umount".into());
+
+            for layer in live_layers {
+                let injection_mounts = layer.bind_mounts();
+
+                for extra_mount in injection_mounts {
+                    let mut cmd = tokio::process::Command::new(umount.clone());
+                    cmd.arg(PathBuf::from(SPFS_DIR).join(extra_mount.dest.clone()));
+                    tracing::debug!("About to run: {cmd:?}");
+
+                    match cmd.status().await {
+                        Err(err) => {
+                            return Err(Error::process_spawn_error("umount".to_owned(), err, None))
+                        }
+                        Ok(status) => match status.code() {
+                            Some(0) => (),
+                            _ => return Err(format!("Failed to unmount a bind mount injected into the {SPFS_DIR} filesystem using: {cmd:?}").into()),
+                        },
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) async fn mount_env_overlayfs<P: AsRef<Path>>(
         &self,
         rt: &runtime::Runtime,
@@ -437,7 +517,9 @@ where
                 Some(0) => Ok(()),
                 _ => Err("Failed to mount overlayfs".into()),
             },
-        }
+        }?;
+
+        self.mount_extra_bind_mounts(rt).await
     }
 
     #[cfg(feature = "fuse-backend")]
@@ -447,7 +529,8 @@ where
 
     #[cfg(feature = "fuse-backend")]
     pub(crate) async fn mount_env_fuse(&self, rt: &runtime::Runtime) -> Result<()> {
-        self.mount_fuse_onto(rt, SPFS_DIR).await
+        self.mount_fuse_onto(rt, SPFS_DIR).await?;
+        self.mount_extra_bind_mounts(rt).await
     }
 
     #[cfg(feature = "fuse-backend")]
@@ -763,7 +846,13 @@ where
     async fn unmount_env_fuse(&self, rt: &runtime::Runtime, lazy: bool) -> Result<()> {
         let mount_path = match rt.config.mount_backend {
             runtime::MountBackend::OverlayFsWithFuse => rt.config.lower_dir.as_path(),
-            runtime::MountBackend::FuseOnly => std::path::Path::new(SPFS_DIR),
+            runtime::MountBackend::FuseOnly => {
+                // Unmount any extra paths mounted in the depths of
+                // the fuse-only backend before fuse itself is
+                // unmounted to avoid issue with lazy unmounting.
+                self.unmount_extra_bind_mounts(rt).await?;
+                std::path::Path::new(SPFS_DIR)
+            }
             runtime::MountBackend::OverlayFsWithRenders | runtime::MountBackend::WinFsp => {
                 return Ok(())
             }

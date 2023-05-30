@@ -206,6 +206,10 @@ where
             tracking::EnvSpecItem::TagSpec(tag_spec) => {
                 self.sync_tag(tag_spec).await.map(SyncEnvItemResult::Tag)?
             }
+            // These are not objects in spfs, so they are not synable
+            tracking::EnvSpecItem::LiveLayerFile(_) => {
+                return Ok(SyncEnvItemResult::Object(SyncObjectResult::Ignorable))
+            }
         };
         self.reporter.synced_env_item(&res);
         Ok(res)
@@ -738,6 +742,9 @@ impl SyncTagResult {
 pub enum SyncObjectResult {
     /// The object was already synced in this session
     Duplicate,
+    /// The object can be ignored, it does not need syncing, it has no
+    /// representation in the database.
+    Ignorable,
     Platform(SyncPlatformResult),
     Layer(SyncLayerResult),
     Blob(SyncBlobResult),
@@ -754,6 +761,7 @@ impl SyncObjectResult {
                 skipped_objects: 1,
                 ..Default::default()
             },
+            Ignorable => SyncSummary::default(),
             Platform(res) => res.summary(),
             Layer(res) => res.summary(),
             Blob(res) => res.summary(),

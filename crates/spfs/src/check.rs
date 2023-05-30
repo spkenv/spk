@@ -159,6 +159,11 @@ where
                 .check_tag_spec(tag_spec)
                 .await
                 .map(CheckEnvItemResult::Tag)?,
+            tracking::EnvSpecItem::LiveLayerFile(_) => {
+                // These items do not need checking, they can be ignored.
+                // They do no represent spfs objects in a repo.
+                CheckEnvItemResult::Object(CheckObjectResult::Ignorable)
+            }
         };
         Ok(res)
     }
@@ -768,6 +773,9 @@ impl CheckTagResult {
 pub enum CheckObjectResult {
     /// The object was already checked in this session
     Duplicate,
+    /// The object can be ignored, it does not need checking, it has
+    /// no representation in the database.
+    Ignorable,
     /// The object was found to be missing from the database
     Missing(encoding::Digest),
     Platform(CheckPlatformResult),
@@ -784,6 +792,7 @@ impl CheckObjectResult {
     fn set_repaired(&mut self) {
         match self {
             CheckObjectResult::Duplicate => (),
+            CheckObjectResult::Ignorable => (),
             CheckObjectResult::Missing(_) => (),
             CheckObjectResult::Platform(r) => r.set_repaired(),
             CheckObjectResult::Layer(r) => r.set_repaired(),
@@ -798,6 +807,7 @@ impl CheckObjectResult {
         use CheckObjectResult::*;
         match self {
             Duplicate => CheckSummary::default(),
+            Ignorable => CheckSummary::default(),
             Missing(digest) => CheckSummary {
                 missing_objects: Some(*digest).into_iter().collect(),
                 ..Default::default()

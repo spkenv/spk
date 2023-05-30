@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::str::FromStr;
 
 use super::tag::TagSpec;
+use crate::runtime::{LiveLayer, LiveLayerFile};
 use crate::{encoding, Error, Result};
 
 #[cfg(test)]
@@ -24,6 +25,7 @@ pub enum EnvSpecItem {
     TagSpec(TagSpec),
     PartialDigest(encoding::PartialDigest),
     Digest(encoding::Digest),
+    LiveLayerFile(LiveLayerFile),
 }
 
 impl EnvSpecItem {
@@ -38,6 +40,9 @@ impl EnvSpecItem {
             Self::TagSpec(spec) => repo.resolve_tag(spec).await.map(|t| t.target),
             Self::PartialDigest(part) => repo.resolve_full_digest(part).await,
             Self::Digest(digest) => Ok(*digest),
+            Self::LiveLayerFile(_) => Err(Error::String(String::from(
+                "Impossible operation: live layers do not have digests",
+            ))),
         }
     }
 
@@ -66,6 +71,7 @@ impl std::fmt::Display for EnvSpecItem {
             Self::TagSpec(x) => x.fmt(f),
             Self::PartialDigest(x) => x.fmt(f),
             Self::Digest(x) => x.fmt(f),
+            Self::LiveLayerFile(x) => x.fmt(f),
         }
     }
 }
@@ -136,6 +142,17 @@ impl EnvSpec {
         self.items.is_empty()
     }
 
+    /// Return a list of the live layers filtered out from the spec
+    pub fn load_live_layers(&self) -> Result<Vec<LiveLayer>> {
+        let mut live_layers = Vec::new();
+        for item in self.items.iter() {
+            if let EnvSpecItem::LiveLayerFile(llf) = item {
+                live_layers.push(llf.load()?);
+            }
+        }
+        Ok(live_layers)
+    }
+
     /// TagSpec items are turned into Digest items using the digest
     /// resolved from the tag. All other items are returned as is.
     /// This will error when trying to resolve a tag that is not in
@@ -173,6 +190,10 @@ impl EnvSpec {
         let mut new_items: Vec<EnvSpecItem> = Vec::with_capacity(self.items.len());
 
         for item in &self.items {
+            // Filter out the LiveLayers entirely because they do not have digests
+            if let EnvSpecItem::LiveLayerFile(_) = item {
+                continue;
+            }
             new_items.push(self.resolve_tag_item_to_digest_item(item, repos).await?);
         }
 
@@ -288,5 +309,6 @@ fn parse_env_spec_item<S: AsRef<str>>(spec: S) -> Result<EnvSpecItem> {
     encoding::parse_digest(spec)
         .map(EnvSpecItem::Digest)
         .or_else(|_| encoding::PartialDigest::parse(spec).map(EnvSpecItem::PartialDigest))
+        .or_else(|_| LiveLayerFile::parse(spec).map(EnvSpecItem::LiveLayerFile))
         .or_else(|_| TagSpec::parse(spec).map(EnvSpecItem::TagSpec))
 }

@@ -188,6 +188,13 @@ pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSum
 /// This function will run blocking IO on the current thread. Although this is not ideal,
 /// the mount namespacing operated per-thread and so restricts our ability to move execution.
 pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
+    // Before rendering the runtime's layers, have to make sure that
+    // if extra mounts going to be included that the runtime includes
+    // all the mount point paths for the extra mounts. This doesn't
+    // save the runtime because it will be saved below after we have
+    // the namespace.
+    rt.ensure_extra_bind_mount_locations_exist().await?;
+
     let render_result = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
             resolve_and_render_overlay_dirs(

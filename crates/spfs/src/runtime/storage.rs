@@ -4,18 +4,23 @@
 
 //! Definition and persistent storage of runtimes.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env::temp_dir;
+use std::fmt::Display;
+use std::fs::OpenOptions;
+use std::io::Read;
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 #[cfg(windows)]
 use std::os::windows::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use futures::{Stream, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
+use tempfile::TempDir;
 use tokio::io::AsyncReadExt;
 
 #[cfg(windows)]
@@ -23,6 +28,7 @@ use super::startup_ps;
 #[cfg(unix)]
 use super::{startup_csh, startup_sh};
 use crate::encoding::{self, Encodable};
+use crate::env::SPFS_DIR_PREFIX;
 use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::RepositoryHandle;
@@ -41,6 +47,10 @@ const SPFS_FILESYSTEM_TMPFS_SIZE: &str = "SPFS_FILESYSTEM_TMPFS_SIZE";
 // For durable paramater of create_runtime()
 #[cfg(test)]
 const TRANSIENT: bool = false;
+
+// For the config file that contains the extra bind mounts
+const LIVE_LAYER_FILE_SUFFIX_YAML: &str = ".spfs.yaml";
+const DEFAULT_LIVE_LAYER_FILENAME: &str = "layer.spfs.yaml";
 
 /// Information about the source of a runtime
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -92,6 +102,230 @@ pub struct Status {
     /// An empty command signifies that this runtime is being
     /// used to launch an interactive shell environment
     pub command: Vec<String>,
+}
+
+/// Data needed to bind mount a path onto an /spfs backend that uses
+/// overlayfs.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct BindMount {
+    /// Path to the source dir, or file, to bind mount into /spfs at
+    /// the destination.
+    #[serde(alias = "bind")]
+    pub src: PathBuf,
+    /// Where to attach the dir, or file, inside /spfs
+    pub dest: String,
+}
+
+impl BindMount {
+    /// Checks the bind mount is valid for use in /spfs with the given parent directory
+    pub(crate) fn validate(&self, parent: PathBuf) -> Result<()> {
+        if !self.src.starts_with(parent.clone()) {
+            return Err(Error::String(format!(
+                "Bind mount is not valid: {} is not under the live layer's directory: {}",
+                self.src.display(),
+                parent.display()
+            )));
+        }
+
+        if !self.src.exists() {
+            return Err(Error::String(format!(
+                "Bind mount is not valid: {} does not exist",
+                self.src.display()
+            )));
+        }
+
+        Ok(())
+    }
+}
+
+impl Display for BindMount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.src.display(), self.dest)
+    }
+}
+
+/// The kinds of contents that can be part of a live layer
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum LiveLayerContents {
+    /// A directory or file that will be bind mounted over /spfs
+    BindMount(BindMount),
+}
+
+/// Returns a default value for a live layer's api field.
+pub fn default_live_layer_api_value() -> String {
+    String::from("v0/layer")
+}
+
+/// Data needed to add a live layer onto an /spfs overlayfs.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct LiveLayer {
+    // TODO: maybe, eventually use the same kind of api verison token that spk does
+    /// The api format version of the live layer data
+    #[serde(default = "default_live_layer_api_value")]
+    pub api: String,
+    /// The contents that the live layer will put into /spfs
+    pub contents: Vec<LiveLayerContents>,
+    // Note: when adding more fields in future, remember to add
+    // #[serde(default)] to them or make then optional with
+    // Option<..>, or you will have backwards compatibility issues
+    // with existing live layers configurations
+}
+
+impl LiveLayer {
+    /// Returns a list of the BindMounts in this LiveLayer
+    pub fn bind_mounts(&self) -> Vec<BindMount> {
+        self.contents
+            .iter()
+            .map(|c| match c {
+                LiveLayerContents::BindMount(bm) => bm.clone(),
+            })
+            .collect::<Vec<_>>()
+    }
+
+    /// Updates the live layer's contents entries using given parent
+    /// directory. This will error if the resulting paths do not exist.
+    ///
+    /// This should be called before validate()
+    fn set_parent(&mut self, parent: PathBuf) -> Result<()> {
+        let mut new_contents = Vec::new();
+
+        for entry in self.contents.iter() {
+            let new_entry = match entry {
+                LiveLayerContents::BindMount(bm) => {
+                    let full_path = match parent.join(bm.src.clone()).canonicalize() {
+                        Ok(abs_path) => abs_path.clone(),
+                        Err(err) => {
+                            return Err(Error::InvalidPath(parent.join(bm.src.clone()), err))
+                        }
+                    };
+
+                    LiveLayerContents::BindMount(BindMount {
+                        src: full_path,
+                        dest: bm.dest.clone(),
+                    })
+                }
+            };
+
+            new_contents.push(new_entry);
+        }
+        self.contents = new_contents;
+
+        Ok(())
+    }
+
+    /// Validates the live layer's contents are under the given parent
+    /// directory and accessible by the current user.
+    ///
+    /// This should be called after set_parent()
+    fn validate(&self, parent: PathBuf) -> Result<()> {
+        for entry in self.contents.iter() {
+            match entry {
+                LiveLayerContents::BindMount(bm) => bm.validate(parent.clone())?,
+            }
+        }
+        Ok(())
+    }
+
+    /// Sets the live layer's parent directory, which updates its
+    /// contents, and then validates its contents.
+    pub fn set_parent_and_validate(&mut self, parent: PathBuf) -> Result<()> {
+        self.set_parent(parent.clone())?;
+        self.validate(parent)
+    }
+}
+
+impl Display for LiveLayer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{:?}", self.api, self.contents)
+    }
+}
+
+/// A path to a live layer yaml config file, or the path to a
+/// directory that contains a live layer yaml config file named
+/// 'layer.spfs.yaml'.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct LiveLayerFile {
+    filepath: PathBuf,
+}
+
+impl LiveLayerFile {
+    /// Loads the LiveLayer object from this live layer file
+    pub fn load(&self) -> Result<LiveLayer> {
+        tracing::debug!("Opening live layer file: {self}");
+
+        let file = std::fs::File::open(self.filepath.clone()).map_err(|err| {
+            Error::String(format!(
+                "Failed to open file: {} - {err}",
+                self.filepath.display()
+            ))
+        })?;
+
+        let mut data = String::new();
+        std::io::BufReader::new(file)
+            .read_to_string(&mut data)
+            .map_err(|err| {
+                Error::String(format!(
+                    "Failed to read live layer from file {}: {err}",
+                    self.filepath.display()
+                ))
+            })?;
+
+        let mut layer: LiveLayer = serde_yaml::from_str(&data)?;
+
+        let parent = match self.filepath.parent() {
+            Some(p) => p,
+            None => {
+                return Err(Error::String(
+                    "Cannot have a live layer in the top-level root directory".to_string(),
+                ))
+            }
+        };
+        layer.set_parent_and_validate(parent.to_path_buf())?;
+
+        Ok(layer)
+    }
+
+    pub fn parse<S: AsRef<str>>(spec: S) -> Result<Self> {
+        LiveLayerFile::from_str(spec.as_ref())
+    }
+}
+
+impl FromStr for LiveLayerFile {
+    type Err = crate::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let path = std::path::Path::new(s);
+
+        if path.is_absolute() {
+            let filepath = if path.is_dir() {
+                path.join(DEFAULT_LIVE_LAYER_FILENAME)
+            } else {
+                // Have to use the path as a string because the live
+                // layer filename suffix we are looking for has more
+                // than one '.' in it.
+                let path_string: String = path.display().to_string();
+                if !path_string.ends_with(LIVE_LAYER_FILE_SUFFIX_YAML) {
+                    return Err(Error::String(format!(
+                        "Invalid: {s} does not have a live layer file suffix: {LIVE_LAYER_FILE_SUFFIX_YAML:}"
+        )));
+                }
+                path.to_path_buf()
+            };
+
+            return Ok(Self { filepath });
+        }
+
+        Err(Error::String(format!(
+            "Invalid: {s} is not an absolute path to a live layer"
+        )))
+    }
+}
+
+impl Display for LiveLayerFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.filepath.display())
+    }
 }
 
 /// Configuration parameters for the execution of a runtime
@@ -154,6 +388,8 @@ pub struct Config {
     /// Whether to keep the runtime around once the process using it exits.
     #[serde(default)]
     pub durable: bool,
+    /// List of live layers to add on top of the runtime's overlayfs
+    pub live_layers: Option<Vec<LiveLayer>>,
 }
 
 impl Default for Config {
@@ -196,6 +432,7 @@ impl Config {
             mount_backend: MountBackend::OverlayFsWithRenders,
             secondary_repositories: Vec::new(),
             durable: false,
+            live_layers: Some(Vec::new()),
         }
     }
 
@@ -314,6 +551,11 @@ impl Data {
     /// runtime into a durable runtime.
     pub fn set_durable(&mut self, value: bool) {
         self.config.durable = value;
+    }
+
+    /// List of additional paths to mount from this Data's Config
+    pub fn live_layers(&self) -> &Option<Vec<LiveLayer>> {
+        &self.config.live_layers
     }
 }
 
@@ -456,6 +698,97 @@ impl Runtime {
         self.config.mount_namespace = None;
 
         self.save_state_to_storage().await
+    }
+
+    /// List of additional paths to mount on top of this Runtime's overlayfs
+    pub fn live_layers(&self) -> &Option<Vec<LiveLayer>> {
+        self.data.live_layers()
+    }
+
+    /// If there are any extra bind mounts in the runtime, ensure that
+    /// all of their mount directory location will exist in the
+    /// runtime's /spfs filesytem by creating and adding a new layer
+    /// to the runtime that contains all the directory paths.
+    pub async fn ensure_extra_bind_mount_locations_exist(&mut self) -> Result<()> {
+        if let Some(live_layers) = self.live_layers() {
+            // Make a layer that contains paths to all the mount locations.
+            // This layer is added to the runtime so all the mount paths are
+            // present for the extra mounts. This avoids having to check all
+            // the other layers in the runtime to see which extra mounts
+            // locations are missing. Only directory and file mounts are supported.
+            let tmp_dir = TempDir::new().map_err(|err| Error::String(err.to_string()))?;
+            let mut seen_dir_mounts = HashMap::new();
+
+            for layer in live_layers {
+                let injection_mounts = layer.bind_mounts();
+
+                for extra_mount in injection_mounts {
+                    let extra_mountpoint = match extra_mount.dest.strip_prefix(SPFS_DIR_PREFIX) {
+                        Some(mp) => mp.to_string(),
+                        None => extra_mount.dest.clone(),
+                    };
+                    let mountpoint = PathBuf::from(tmp_dir.path()).join(extra_mountpoint);
+                    tracing::debug!("extra bind mount point: {:?}", mountpoint);
+
+                    if extra_mount.src.is_dir() {
+                        tracing::debug!("extra bind mount point is a dir");
+                        std::fs::create_dir_all(mountpoint.clone()).expect(
+                            "failed to make extra mount directory location: {mountpoint:?}",
+                        );
+                        seen_dir_mounts.insert(mountpoint.clone(), extra_mount);
+                    } else if extra_mount.src.is_file() {
+                        tracing::debug!("extra bind mount point is a file");
+                        if let Some(parent) = mountpoint.parent() {
+                            // Because extra mounts are bind mounted in order, if there
+                            // is a directory mount in the list of dirs that have already
+                            // been processed, its mount will clobber this file mount
+                            // point's destination before the file can be mounted. This
+                            // will cause its bind mount to fail, unless the source dir
+                            // for the dir mount also contains a file of the same name.
+                            if let Some(dir_mount) = seen_dir_mounts.get(&parent.to_path_buf()) {
+                                let existing_file = dir_mount
+                                    .src
+                                    .join(mountpoint.as_path().file_name().unwrap());
+                                tracing::debug!("file to test will be: {existing_file:?}");
+                                if !existing_file.exists() {
+                                    // This file's mount will fail because of the earlier
+                                    // directory extra mount over the file's parent directory.
+                                    return Err(Error::String(format!("Invalid extra mount order: the file mount, {}, will fail because its destination is hidden by the earlier dir mount, {}, please reorder these extra mounts", extra_mount, dir_mount )));
+                                }
+                            }
+
+                            std::fs::create_dir_all(parent).expect(
+                                "failed to make extra mount file location's parent: {mountpoint:?}",
+                            );
+                        }
+                        OpenOptions::new()
+                            .create(true)
+                            .write(true)
+                            .open(mountpoint)
+                            .expect("failed to make extra mount file location: {mountpoint:?}");
+                    } else {
+                        // Only dirs and files are supported in spfs as bind mounts
+                        return Err(Error::String(format!(
+                            "Invalid extra mount: its source '{}' is not a directory or a file",
+                            extra_mount.src.display()
+                        )));
+                    }
+                }
+            }
+
+            let manifest = crate::tracking::compute_manifest(tmp_dir.path()).await?;
+
+            // This creates and saves the layer into the same repo as
+            // the one the runtime is in.
+            let layer: crate::graph::Layer =
+                self.storage.create_layer_from_manifest(&manifest).await?;
+            tracing::debug!("new layer saved with digest: {}", layer.digest()?);
+
+            // TODO: do we want to tag this extra layer as well?
+            // self.storage.push_tag(&tag_spec, &layer.digest()?).await?;
+            self.push_digest(layer.digest()?);
+        }
+        Ok(())
     }
 
     /// Clear all working changes in this runtime's upper dir
@@ -790,21 +1123,39 @@ impl Storage {
     pub async fn create_transient_runtime(&self) -> Result<Runtime> {
         let uuid = uuid::Uuid::new_v4().to_string();
         let durable = false;
-        self.create_named_runtime(uuid, durable).await
+        let extra_mounts = None;
+        self.create_named_runtime(uuid, durable, extra_mounts).await
     }
 
     /// Create a new runtime with a generated name
-    pub async fn create_runtime(&self, durable: bool) -> Result<Runtime> {
+    pub async fn create_runtime(
+        &self,
+        durable: bool,
+        live_layers: Option<Vec<LiveLayer>>,
+    ) -> Result<Runtime> {
         let uuid = uuid::Uuid::new_v4().to_string();
-        self.create_named_runtime(uuid, durable).await
+        self.create_named_runtime(uuid, durable, live_layers).await
     }
 
     /// Create a new runtime that is owned by this process and
     /// will be deleted upon drop
     #[cfg(test)]
     pub async fn create_owned_runtime(&self) -> Result<OwnedRuntime> {
-        let rt = self.create_runtime(TRANSIENT).await?;
+        let extra_mounts = None;
+        let rt = self.create_runtime(TRANSIENT, extra_mounts).await?;
         OwnedRuntime::upgrade_as_owner(rt).await
+    }
+
+    /// Create new layer from an arbitrary manifest
+    pub async fn create_layer_from_manifest(
+        &self,
+        manifest: &tracking::Manifest,
+    ) -> Result<graph::Layer> {
+        let storable_manifest = graph::Manifest::from(manifest);
+        self.inner
+            .write_object(&graph::Object::Manifest(storable_manifest.clone()))
+            .await?;
+        self.inner.create_layer(&storable_manifest).await
     }
 
     pub async fn durable_path(&self, name: String) -> Result<PathBuf> {
@@ -851,6 +1202,7 @@ impl Storage {
         &self,
         name: S,
         durable: bool,
+        live_layers: Option<Vec<LiveLayer>>,
     ) -> Result<Runtime> {
         let name = name.into();
         let runtime_tag = runtime_tag(RuntimeDataType::Metadata, &name)?;
@@ -866,6 +1218,7 @@ impl Storage {
             // Keeping a runtime also activates a durable upperdir.
             rt.setup_durable_upper_dir().await?;
         }
+        rt.config.live_layers = live_layers;
 
         self.save_runtime(&rt).await?;
         Ok(rt)

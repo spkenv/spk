@@ -141,10 +141,15 @@ pub async fn compute_environment_manifest(
 ) -> Result<tracking::Manifest> {
     let stack_futures: futures::stream::FuturesOrdered<_> = env
         .iter()
-        .map(|i| match i {
-            tracking::EnvSpecItem::Digest(d) => std::future::ready(Ok(*d)).boxed(),
-            tracking::EnvSpecItem::PartialDigest(p) => repo.resolve_full_digest(p).boxed(),
-            tracking::EnvSpecItem::TagSpec(t) => repo.resolve_tag(t).map_ok(|t| t.target).boxed(),
+        .filter_map(|i| match i {
+            tracking::EnvSpecItem::Digest(d) => Some(std::future::ready(Ok(*d)).boxed()),
+            tracking::EnvSpecItem::PartialDigest(p) => Some(repo.resolve_full_digest(p).boxed()),
+            tracking::EnvSpecItem::TagSpec(t) => {
+                Some(repo.resolve_tag(t).map_ok(|t| t.target).boxed())
+            }
+            // BindMounts are stored in the runtime, not as spfs
+            // objects/layers, so this filters them out.
+            tracking::EnvSpecItem::LiveLayerFile(_) => None,
         })
         .collect();
     let stack: Vec<_> = stack_futures.try_collect().await?;

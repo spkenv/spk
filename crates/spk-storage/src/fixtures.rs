@@ -179,8 +179,9 @@ pub async fn spfs_runtime() -> RuntimeLock {
         .expect("Failed to load temporary runtime storage");
 
     let keep_runtime = false;
+    let extra_mounts = None;
     let mut replica = runtime_storage
-        .create_named_runtime(runtime.name(), keep_runtime)
+        .create_named_runtime(runtime.name(), keep_runtime, extra_mounts)
         .await
         .expect("Failed to replicate runtime for test");
     std::mem::swap(runtime.deref_mut(), replica.deref_mut());

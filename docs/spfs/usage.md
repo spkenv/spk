@@ -105,3 +105,34 @@ The pruning process will always prefer keeping a tag version over removing it wh
 ## Temporary Filesystem Size
 
 The spfs runtime uses a temporary, in-memory filesystem, which means that large sets of changes can run out of space because of RAM limitations. The size of this filesystem can be overridden using the `SPFS_FILESYSTEM_TMPFS_SIZE` variable (eg `SPFS_FILESYSTEM_TMPFS_SIZE=10G`). Note that specifying values close to or larger than the available memory on the system may cause deadlocks or system instability.
+
+
+## Live Layers: external directories and files in a spfs runtime
+
+Spfs supports adding external directories and files on top of an /spfs runtime. These are known as live layers in Spfs. They can be used to include things like local git repo checkouts of code directly inside /spfs to aid development, debugging, and allow normal git commands to operate insdie that part of /spfs.
+
+A live layer is configued by a yaml file, called `layer.spfs.yaml` by default.
+
+You can give `spfs run` the path to a live layer file, or the path to a directory that contains a 'layer.spfs.yaml' file, as one of the REFS on the command line that will make up the spfs runtime, e.g. `spfs run digest+digest+liverlayerfile+tag+digest`. Multiple files can be specified on the command line. `spfs run` will put a live layer into /spfs each for config file specified.
+
+Example `layer.spfs.yaml` file in `/some/directory/somewhere/`:
+
+```yaml
+# layer.spfs.yaml
+api: v0/layer
+contents:
+  - bind: docs/use
+    dest: /spfs/docs
+  - bind: tests/some.data
+    dest: test_data/some.data
+```
+
+The `api:` field is required to indicate which version of live layer is in the file.
+
+The `contents:` field is required and tells spfs what this live layer will add into /spfs. It is a list of items. Currently spfs supports bind mount items in live layers. Each bind mount consists of a source (`bind:` or `src:`) path and a destination (`dest:`) path. 
+
+Each source path must be within the directory that the `layer.spfs.yaml` is in. For the example live layer above to be valid, its parent directory must contain these sub-directories and files (from its `bind:` fields):
+- docs/use
+- tests/some.data
+
+Each destination path will be relative to /spfs. You can specify /spfs in a destination path or not, spfs will add it as needed. If a destination location doesn't exist under /spfs, spfs will create it (by making a new spfs layer at runtime that contains all the destinations).
