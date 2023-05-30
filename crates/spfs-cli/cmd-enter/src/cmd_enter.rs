@@ -15,7 +15,7 @@ use clap::{Args, Parser};
 #[cfg(feature = "sentry")]
 use cli::configure_sentry;
 use serde_json::json;
-use spfs::env::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
+use spfs::monitor::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
 use spfs::storage::fs::RenderSummary;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
@@ -155,7 +155,7 @@ impl CmdEnter {
             let render_summary = spfs::initialize_runtime(&mut owned).await?;
             self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
 
-            let mut monitor_stdin = match spfs::env::spawn_monitor_for_runtime(&owned) {
+            let mut monitor_stdin = match spfs::monitor::spawn_monitor_for_runtime(&owned) {
                 Err(err) => {
                     if let Err(err) = owned.delete().await {
                         tracing::error!(

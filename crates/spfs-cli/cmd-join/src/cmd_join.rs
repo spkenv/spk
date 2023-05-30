@@ -69,7 +69,7 @@ impl CmdJoin {
                     .await
                     .map_err(Into::<anyhow::Error>::into)
             } else if let Some(pid) = self.pid {
-                let mount_ns = spfs::env::identify_mount_namespace_of_process(pid)
+                let mount_ns = spfs::monitor::identify_mount_namespace_of_process(pid)
                     .await
                     .context("identify mount namespace of pid")?
                     .ok_or(anyhow!("pid not found"))?;

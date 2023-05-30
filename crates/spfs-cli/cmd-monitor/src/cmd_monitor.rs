@@ -113,7 +113,7 @@ impl CmdMonitor {
 
         let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_monitor(runtime).await?;
 
-        let fut = spfs::env::wait_for_empty_runtime(&owned);
+        let fut = spfs::monitor::wait_for_empty_runtime(&owned);
         let res = tokio::select! {
             res = fut => {
                 tracing::info!("Monitor detected no more processes, cleaning up runtime...");

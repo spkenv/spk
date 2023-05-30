@@ -22,6 +22,7 @@ pub mod env;
 mod error;
 pub mod graph;
 pub mod io;
+pub mod monitor;
 pub mod prelude;
 pub mod proto;
 mod prune;
