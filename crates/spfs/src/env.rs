@@ -111,6 +111,32 @@ impl ProcessIsInMountNamespace {
     }
 }
 
+mod __private {
+    use super::{ProcessIsInMountNamespace, ThreadIsInMountNamespace};
+
+    /// Marker trait for [`ThreadIsInMountNamespace`] and [`ProcessIsInMountNamespace`]
+    pub trait CurrentThreadIsInMountNamespace {
+        /// The path to the mount namespace associated of the current thread
+        fn mount_ns(&self) -> &std::path::Path;
+    }
+    impl CurrentThreadIsInMountNamespace for ThreadIsInMountNamespace {
+        #[inline]
+        fn mount_ns(&self) -> &std::path::Path {
+            &self.mount_ns
+        }
+    }
+
+    /// Marker trait for [`ProcessIsInMountNamespace`]
+    pub trait CurrentProcessIsInMountNamespace: CurrentThreadIsInMountNamespace {}
+    impl CurrentThreadIsInMountNamespace for ProcessIsInMountNamespace {
+        #[inline]
+        fn mount_ns(&self) -> &std::path::Path {
+            &self.mount_ns
+        }
+    }
+    impl CurrentProcessIsInMountNamespace for ProcessIsInMountNamespace {}
+}
+
 impl<User, MountNamespace> RuntimeConfigurator<User, MountNamespace> {
     fn new(user: User, ns: MountNamespace) -> Self {
         Self { user, ns }
@@ -170,14 +196,14 @@ impl<User> RuntimeConfigurator<User, NoMountNamespace> {
     pub fn current_runtime(
         self,
         rt: &runtime::Runtime,
-    ) -> Result<RuntimeConfigurator<User, ThreadIsInMountNamespace>> {
+    ) -> Result<RuntimeConfigurator<User, ProcessIsInMountNamespace>> {
         let Some(runtime_ns) = &rt.config.mount_namespace else {
             return Err(Error::NoActiveRuntime);
         };
         // Safety: we are going to validate that this is the
         // expected namespace for the provided runtime and so
         // is considered to be a valid spfs mount namespace
-        let current_ns = unsafe { ThreadIsInMountNamespace::existing() }?;
+        let current_ns = unsafe { ProcessIsInMountNamespace::existing() }?;
         if runtime_ns != &current_ns.mount_ns {
             return Err(Error::String(format!(
                 "Current runtime does not match expected: {runtime_ns:?} != {:?}",
@@ -238,12 +264,12 @@ impl<User> RuntimeConfigurator<User, NoMountNamespace> {
     }
 }
 
-impl<User> RuntimeConfigurator<User, ThreadIsInMountNamespace> {
-    /// The path to the mount namespace associated of the current thread
-    pub fn mount_namespace(&self) -> &std::path::Path {
-        &self.ns.mount_ns
-    }
-
+/// Operations that do not need root but require the current thread to be in a
+/// mount namespace.
+impl<User, MountNamespace> RuntimeConfigurator<User, MountNamespace>
+where
+    MountNamespace: __private::CurrentThreadIsInMountNamespace,
+{
     /// Return an error if the spfs filesystem is not mounted.
     pub async fn ensure_mounts_already_exist(&self) -> Result<()> {
         tracing::debug!("ensuring mounts already exist...");
@@ -255,7 +281,7 @@ impl<User> RuntimeConfigurator<User, ThreadIsInMountNamespace> {
         }
     }
 
-    /// Chack if the identified directory is an active mountpoint.
+    /// Check if the identified directory is an active mount point.
     async fn is_mounted<P: Into<PathBuf>>(&self, target: P) -> Result<bool> {
         let target = target.into();
         let parent = match target.parent() {
@@ -285,11 +311,22 @@ impl<User> RuntimeConfigurator<User, ThreadIsInMountNamespace> {
 
         Ok(st_target.st_dev != st_parent.st_dev)
     }
+
+    /// The path to the mount namespace associated of the current thread
+    #[inline]
+    pub fn mount_namespace(&self) -> &std::path::Path {
+        self.ns.mount_ns()
+    }
 }
 
-impl RuntimeConfigurator<IsRootUser, ThreadIsInMountNamespace> {
+/// Operations that need root and require the current thread to be in a mount
+/// namespace.
+impl<MountNamespace> RuntimeConfigurator<IsRootUser, MountNamespace>
+where
+    MountNamespace: __private::CurrentThreadIsInMountNamespace,
+{
     /// Privatize mounts in the current namespace, so that new mounts and changes
-    /// to existng mounts don't propagate to the parent namespace.
+    /// to existing mounts don't propagate to the parent namespace.
     pub async fn privatize_existing_mounts(&self) -> Result<()> {
         use nix::mount::{mount, MsFlags};
 
@@ -582,7 +619,14 @@ impl RuntimeConfigurator<IsRootUser, ThreadIsInMountNamespace> {
 
         Ok(())
     }
+}
 
+/// Operations that need root and require the whole process to be in a mount
+/// namespace.
+impl<MountNamespace> RuntimeConfigurator<IsRootUser, MountNamespace>
+where
+    MountNamespace: __private::CurrentProcessIsInMountNamespace,
+{
     /// Unmount the non-fuse portion of the provided runtime, if applicable.
     pub async fn unmount_env(&self, rt: &runtime::Runtime, lazy: bool) -> Result<()> {
         tracing::debug!("unmounting existing env...");
@@ -679,6 +723,7 @@ impl RuntimeConfigurator<IsRootUser, ThreadIsInMountNamespace> {
     }
 }
 
+/// Operations that need root but have no mount namespace requirements.
 impl<MountNamespace> RuntimeConfigurator<IsRootUser, MountNamespace> {
     /// Drop all capabilities and become the original user that
     /// this thread was running as before becoming root
