@@ -24,7 +24,7 @@ pub struct CmdRun {
 
     /// Provide a name for this runtime to make it easier to identify
     #[clap(short, long)]
-    pub name: Option<String>,
+    pub runtime_name: Option<String>,
 
     /// The tag or id of the desired runtime
     ///
@@ -48,7 +48,7 @@ impl CmdRun {
             config.get_local_repository_handle(),
             config.get_runtime_storage()
         )?;
-        let mut runtime = match &self.name {
+        let mut runtime = match &self.runtime_name {
             Some(name) => runtimes.create_named_runtime(name).await?,
             None => runtimes.create_runtime().await?,
         };

@@ -23,7 +23,7 @@ pub struct CmdShell {
 
     /// Provide a name for this runtime to make it easier to identify
     #[clap(short, long)]
-    name: Option<String>,
+    runtime_name: Option<String>,
 
     /// The tag or id of the desired runtime
     ///
@@ -38,7 +38,7 @@ impl CmdShell {
             sync: self.sync.clone(),
             verbose: self.verbose,
             edit: self.edit,
-            name: self.name.clone(),
+            runtime_name: self.runtime_name.clone(),
             reference: self.reference.clone(),
             command: Default::default(),
             args: Default::default(),

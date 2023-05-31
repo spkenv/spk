@@ -40,7 +40,7 @@ pub struct Runtime {
 
     /// A name to use for the created spfs runtime (useful for rejoining it later)
     #[clap(long)]
-    pub env_name: Option<String>,
+    pub runtime_name: Option<String>,
 }
 
 impl Runtime {
@@ -123,8 +123,8 @@ impl Runtime {
             0,
             std::ffi::CString::new(spfs::tracking::ENV_SPEC_EMPTY).expect("should never fail"),
         );
-        if let Some(runtime_name) = &self.env_name {
-            // Inject '--name <runtime_name>' so the runtime will be named
+        if let Some(runtime_name) = &self.runtime_name {
+            // Inject '--runtime-name <name>' so the runtime will be named
             args.insert(
                 0,
                 std::ffi::CString::new(runtime_name.clone()).expect("should never fail"),
