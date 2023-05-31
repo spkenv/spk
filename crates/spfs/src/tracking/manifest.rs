@@ -147,10 +147,10 @@ where
     /// lists the entries that exists inside the directory.
     ///
     /// None is also returned if the entry is not a directory.
-    pub fn list_entries_in_dir(&self, path: &str) -> Option<HashMap<String, Entry<T>>> {
+    pub fn list_entries_in_dir(&self, path: &str) -> Option<&HashMap<String, Entry<T>>> {
         let entry = self.get_path(path)?;
         match entry.kind {
-            EntryKind::Tree => Some(entry.entries.clone()),
+            EntryKind::Tree => Some(&entry.entries),
             _ => None,
         }
     }

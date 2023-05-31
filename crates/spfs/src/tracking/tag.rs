@@ -67,13 +67,8 @@ impl Tag {
         }
     }
 
-    pub fn username_without_org(&self) -> String {
-        let username = if let Some((name, _)) = self.user.rsplit_once('@') {
-            name.to_string()
-        } else {
-            self.user.to_string()
-        };
-        username
+    pub fn username_without_org(&self) -> &str {
+        self.user.split('@').next().expect("Always one item from str::split")
     }
 }
 

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use clap::Args;
 use itertools::Itertools;
+use spfs::tracking::EnvSpecItem;
 
 /// List the contents of a committed directory
 #[derive(Debug, Args)]
@@ -18,7 +19,7 @@ pub struct CmdLs {
 
     /// The tag or digest of the file tree to read from
     #[clap(value_name = "REF")]
-    reference: spfs::tracking::EnvSpecItem,
+    reference: EnvSpecItem,
 
     /// Recursively list all files and directories
     #[clap(long, short = 'R')]
@@ -47,17 +48,17 @@ pub struct CmdLs {
 
 #[derive(Default, Debug, Clone)]
 pub struct EntriesPerDir {
-    pub dir_name: String,
-    pub longest_length_str: usize,
-    pub entries: HashMap<String, spfs::tracking::Entry>,
+    dir_name: String,
+    longest_length_str: usize,
+    entries: HashMap<String, spfs::tracking::Entry>,
 }
 
 impl EntriesPerDir {
-    pub fn new(dir: String, entries: HashMap<String, spfs::tracking::Entry>) -> Self {
+    pub fn new(dir: String, entries: &HashMap<String, spfs::tracking::Entry>) -> Self {
         Self {
             dir_name: dir,
             longest_length_str: 0,
-            entries,
+            entries: entries.clone(),
         }
     }
 
@@ -72,7 +73,7 @@ impl EntriesPerDir {
         for (entry_name, entry) in self.entries.iter() {
             if entry.is_dir() {
                 let new_dir: String = format!("{}/{entry_name}", self.dir_name);
-                let new_dir_entry = EntriesPerDir::new(new_dir.clone(), entry.entries.clone());
+                let new_dir_entry = EntriesPerDir::new(new_dir.clone(), &entry.entries);
 
                 result.push((new_dir, new_dir_entry));
             }
@@ -87,15 +88,13 @@ impl CmdLs {
 
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
-        match repo.read_tag_metadata(&self.reference.to_string()).await {
-            Some(tag) => {
-                self.username = tag.username_without_org();
+        match &self.reference {
+            EnvSpecItem::TagSpec(tag_spec) => {
+                let tag = repo.resolve_tag(tag_spec).await?;
+                self.username = tag.username_without_org().to_string();
                 self.last_modified = tag.time.format("%b %e %H:%M").to_string();
-            }
-            _ => tracing::warn!(
-                "Unable to find the username and last modified fields of: {}",
-                self.reference.to_string()
-            ),
+            },
+            EnvSpecItem::PartialDigest(_) | EnvSpecItem::Digest(_) => (), // Input expected to be a TagSpec.
         }
 
         let item = repo.read_ref(&self.reference.to_string()).await?;
@@ -179,35 +178,18 @@ impl CmdLs {
         let longest_length_str = entries.longest_length_str;
         for (name, entry) in entries.entries.iter().sorted_by_key(|(k, _)| *k) {
             let size: String = self.human_readable(entry.size);
+            let suffix = if entry.kind.is_tree() { "/" } else { "" };
             if self.long {
-                match entry.kind {
-                    spfs::tracking::EntryKind::Tree => {
-                        println!(
-                            "{} {username} {size:>longest_length_str$} {modified} {name}/",
-                            unix_mode::to_string(entry.mode),
-                            username = self.username,
-                            modified = self.last_modified,
-                        )
-                    }
-                    _ => {
-                        println!(
-                            "{} {username} {size:>longest_length_str$} {modified} {name}",
-                            unix_mode::to_string(entry.mode),
-                            username = self.username,
-                            modified = self.last_modified,
-                        )
-                    }
-                };
+                println!(
+                    "{} {username} {size:>longest_length_str$} {modified} {name}{suffix}",
+                    unix_mode::to_string(entry.mode),
+                    username = self.username,
+                    modified = self.last_modified,
+                );
             } else if self.recursive {
-                match entry.kind {
-                    spfs::tracking::EntryKind::Tree => print!("{name}/  "),
-                    _ => print!("{name}/  "),
-                };
+                print!("{name}{suffix}")
             } else {
-                match entry.kind {
-                    spfs::tracking::EntryKind::Tree => println!("{name}/"),
-                    _ => println!("{name}"),
-                };
+                println!("{name}{suffix}")
             }
         }
 
