@@ -327,10 +327,9 @@ impl EntryDiskUsage {
 
     fn get_entry_names_in_root(&self) -> Vec<String> {
         let mut entries: Vec<String> = Vec::new();
-        let path_length = match self.root.is_empty() {
-            true => 0,
-            false => self.root.split(LEVEL_SEPARATOR).collect_vec().len(),
-        };
+        let root_level = self.root.split(LEVEL_SEPARATOR).collect_vec().len();
+        let path_length = if self.root.is_empty() { 0 } else { root_level };
+
         if self.kind.is_tree() {
             for (_, path) in self.child_entries.iter() {
                 let mut sub_path = path.split(LEVEL_SEPARATOR).collect_vec();
@@ -364,12 +363,15 @@ impl EntryDiskUsage {
         let mut sum_by_dir: HashMap<(String, bool), u64> = HashMap::default();
         match group_by_dirs_in_root {
             false => {
+                let suffix = if self.kind.is_tree() {
+                    LEVEL_SEPARATOR.to_string()
+                } else {
+                    "".to_string()
+                };
+
                 for (size, path) in self.child_entries.iter() {
                     if path.contains(&self.root) {
-                        let abs_path = match self.kind.is_tree() {
-                            true => format!("{}/{}/", self.pkg_info, self.root),
-                            false => format!("{}/{}", self.pkg_info, self.root),
-                        };
+                        let abs_path = format!("{}/{}{suffix}", self.pkg_info, self.root);
                         sum_by_dir
                             .entry((abs_path.to_string(), self.deprecated))
                             .and_modify(|s| *s += size)
@@ -386,10 +388,12 @@ impl EntryDiskUsage {
                         .cloned()
                         .filter(|(_, p)| p.contains(entry))
                         .unzip();
-                    let abs_path = match paths.contains(entry) {
-                        true => format!("{}/{entry}", self.pkg_info),
-                        false => format!("{}/{entry}/", self.pkg_info),
+                    let suffix = if paths.contains(entry) {
+                        "".to_string()
+                    } else {
+                        LEVEL_SEPARATOR.to_string()
                     };
+                    let abs_path = format!("{}/{entry}{suffix}", self.pkg_info);
                     let total_size = sizes.into_iter().sum();
                     sum_by_dir
                         .entry((abs_path, self.deprecated))

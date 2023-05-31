@@ -90,29 +90,26 @@ pub struct Du<Output: Default = Console> {
 #[async_trait::async_trait]
 impl<T: Output> Run for Du<T> {
     async fn run(&mut self) -> Result<i32> {
-        let mut input_by_level: Vec<String> = self
-            .package
-            .split(LEVEL_SEPARATOR)
-            .map(str::to_string)
-            .collect();
+        let mut input_by_level = self.package.split(LEVEL_SEPARATOR).collect_vec();
 
         // Remove any empty strings
         input_by_level.retain(|c| !c.is_empty());
 
         let level: usize = input_by_level.len();
-
-        let input_component = match level >= COMPONENT_LEVEL {
-            true => input_by_level[3].to_string(),
-            false => "".to_string(),
+        let input_component = match self.get_input_component(level) {
+            true => input_by_level[COMPONENT_LEVEL - 1],
+            false => "",
         };
 
-        let input_digest = match level >= DIGEST_LEVEL {
-            true => input_by_level[2].to_string(),
-            false => "".to_string(),
+        let input_digest = match self.get_input_digest(level) {
+            true => input_by_level[DIGEST_LEVEL - 1],
+            false => "",
         };
 
-        let spfs_storage_dirs = match input_by_level.len() > COMPONENT_LEVEL {
-            true => input_by_level[COMPONENT_LEVEL..].join(&LEVEL_SEPARATOR.to_string()),
+        let spfs_storage_dirs = match self.get_spfs_storage_paths(input_by_level.len()) {
+            true => input_by_level[COMPONENT_LEVEL..]
+                .to_vec()
+                .join(LEVEL_SEPARATOR.to_string().as_str()),
             false => "".to_string(),
         };
 
@@ -144,16 +141,14 @@ impl<T: Output> Run for Du<T> {
                     // If a digest or component is provided in the input argument, we only need the entry with the
                     // matching digest or component and can skip the rest.
                     let abs_path = format!("{}/{component_for_output}", spec.ident());
-                    if !input_digest.is_empty() && !abs_path.contains(&input_digest) {
-                        continue;
-                    }
-
-                    if !input_component.is_empty() && !abs_path.contains(&input_component) {
+                    if self.skip_du_generation(input_digest, &abs_path)
+                        || self.skip_du_generation(input_component, &abs_path)
+                    {
                         continue;
                     }
 
                     let mut component_du = self
-                        .process_entry_size(digest, repo, &spfs_storage_dirs)
+                        .process_entry_size(digest, repo, &spfs_storage_dirs.to_string())
                         .await?;
 
                     component_du.pkg_info = abs_path.to_string();
@@ -251,9 +246,25 @@ impl<T: Output> Du<T> {
         }
     }
 
+    fn get_input_digest(&self, level: usize) -> bool {
+        level >= DIGEST_LEVEL
+    }
+
+    fn get_input_component(&self, level: usize) -> bool {
+        level >= COMPONENT_LEVEL
+    }
+
+    fn get_spfs_storage_paths(&self, level: usize) -> bool {
+        level > COMPONENT_LEVEL
+    }
+
+    fn skip_du_generation(&self, input: &str, path: &str) -> bool {
+        !input.is_empty() && !path.contains(input)
+    }
+
     async fn compile_entries_to_calculate(
         &self,
-        input_by_level: Vec<String>,
+        input_by_level: Vec<&str>,
     ) -> Result<Vec<Arc<Spec>>> {
         let repos = self.repos.get_repos_for_non_destructive_operation().await?;
 
@@ -343,7 +354,7 @@ impl<T: Output> Du<T> {
     }
 
     async fn process_entry_size(
-        &mut self,
+        &self,
         digest: &Digest,
         repo: &RepositoryHandle,
         root_dir: &String,

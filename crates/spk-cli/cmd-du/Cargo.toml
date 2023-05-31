@@ -16,3 +16,4 @@ spk-cli-common = { path = '../common' }
 spk-storage = { path = '../../spk-storage' }
 spk-schema = { path = '../../spk-schema' }
 tracing = { workspace = true }
+tokio = { workspace = true, features = ["rt"] }
