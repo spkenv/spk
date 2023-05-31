@@ -86,3 +86,11 @@ ci_config:
   all:
     variables:
       SPDEV_CONFIG_FILE: .site/spi/.spdev.yaml
+  deploy:
+    rules:
+      - if: "$CI_COMMIT_BRANCH =~ /^spi-release-.*/"
+        when: manual
+  promote:
+    rules:
+      - if: "$CI_COMMIT_BRANCH =~ /^spi-release-.*/"
+        when: manual
