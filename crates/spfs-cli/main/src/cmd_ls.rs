@@ -93,7 +93,7 @@ impl CmdLs {
                 let tag = repo.resolve_tag(tag_spec).await?;
                 self.username = tag.username_without_org().to_string();
                 self.last_modified = tag.time.format("%b %e %H:%M").to_string();
-            },
+            }
             EnvSpecItem::PartialDigest(_) | EnvSpecItem::Digest(_) => (), // Input expected to be a TagSpec.
         }
 

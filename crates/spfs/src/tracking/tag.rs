@@ -68,7 +68,10 @@ impl Tag {
     }
 
     pub fn username_without_org(&self) -> &str {
-        self.user.split('@').next().expect("Always one item from str::split")
+        self.user
+            .split('@')
+            .next()
+            .expect("Always one item from str::split")
     }
 }
 
