@@ -85,6 +85,32 @@ impl ThreadIsInMountNamespace {
     }
 }
 
+/// Structure representing that all threads of the process have been moved
+/// into a new mount namespace or was already in one and it has been
+/// validated.
+///
+/// Unlike [`ThreadIsInMountNamespace`], this struct is `Send` and `Sync` and
+/// it is safe to use `tokio::spawn_blocking` and tokio file IO.
+pub struct ProcessIsInMountNamespace {
+    /// The path to the mount namespace this struct represents.
+    pub mount_ns: std::path::PathBuf,
+}
+
+impl ProcessIsInMountNamespace {
+    /// Create a new guard without moving into a new mount namespace.
+    ///
+    /// # Safety
+    ///
+    /// This reads the existing mount namespace of the calling thread and it
+    /// is assumed the caller is already in a new mount namespace.
+    pub unsafe fn existing() -> Result<Self> {
+        Ok(ProcessIsInMountNamespace {
+            mount_ns: std::fs::read_link("/proc/self/ns/mnt")
+                .map_err(|err| Error::String(format!("Failed to read mount namespace: {err}")))?,
+        })
+    }
+}
+
 impl<User, MountNamespace> RuntimeConfigurator<User, MountNamespace> {
     fn new(user: User, ns: MountNamespace) -> Self {
         Self { user, ns }
