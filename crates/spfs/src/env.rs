@@ -16,7 +16,7 @@ const NONE: Option<&str> = None;
 
 /// Manages the configuration of an spfs runtime environment.
 ///
-/// Specifically thing like, privilege escalation, mount namspespace,
+/// Specifically thing like, privilege escalation, mount namespace,
 /// filesystem mounts, etc.
 ///
 /// This type is explicitly not [`Send`] and not [`Sync`] because changes
