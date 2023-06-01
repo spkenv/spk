@@ -23,7 +23,7 @@ pub struct CmdRun {
     pub edit: bool,
 
     /// Provide a name for this runtime to make it easier to identify
-    #[clap(short, long)]
+    #[clap(long)]
     pub runtime_name: Option<String>,
 
     /// The tag or id of the desired runtime
