@@ -25,8 +25,8 @@ pub struct MakeSource {
     #[clap(flatten)]
     pub options: flags::Options,
 
-    #[clap(short, long, global = true, parse(from_occurrences))]
-    pub verbose: u32,
+    #[clap(short, long, global = true, action = clap::ArgAction::Count)]
+    pub verbose: u8,
 
     /// The packages or yaml spec files to collect
     #[clap(name = "PKG|SPEC_FILE")]

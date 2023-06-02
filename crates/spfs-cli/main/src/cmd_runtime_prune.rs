@@ -9,7 +9,6 @@ use tokio_stream::StreamExt;
 
 /// Find and remove runtimes from the repository based on a pruning strategy
 #[derive(Debug, Args)]
-#[clap(visible_alias = "prune")]
 pub struct CmdRuntimePrune {
     /// Prune a runtime in a remote or alternate repository
     #[clap(short, long)]

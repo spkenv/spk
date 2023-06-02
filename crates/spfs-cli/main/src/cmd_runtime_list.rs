@@ -5,7 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 use futures::StreamExt;
-use spfs::env::find_processes_and_mount_namespaces;
+use spfs::monitor::find_processes_and_mount_namespaces;
 
 /// List runtime information from the repository
 #[derive(Debug, Args)]

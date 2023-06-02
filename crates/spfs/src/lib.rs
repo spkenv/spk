@@ -22,6 +22,7 @@ pub mod env;
 mod error;
 pub mod graph;
 pub mod io;
+pub mod monitor;
 pub mod prelude;
 pub mod proto;
 mod prune;
@@ -51,6 +52,7 @@ pub use diff::{diff, diff_runtime_changes};
 pub use encoding::Digest;
 pub use error::{Error, Result};
 pub use resolve::{
+    compute_environment_manifest,
     compute_manifest,
     compute_object_manifest,
     resolve_stack_to_layers,
@@ -63,6 +65,7 @@ pub use spfs_encoding as encoding;
 pub use status::{
     active_runtime,
     compute_runtime_manifest,
+    exit_runtime,
     initialize_runtime,
     make_active_runtime_editable,
     reinitialize_runtime,

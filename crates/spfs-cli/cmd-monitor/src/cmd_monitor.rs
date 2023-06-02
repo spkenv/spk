@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use spfs::Error;
 use spfs_cli_common as cli;
@@ -16,7 +16,7 @@ use tokio::io::AsyncReadExt;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::timeout;
 
-cli::main!(CmdMonitor, syslog = true);
+cli::main!(CmdMonitor, sentry = true, sync = true, syslog = true);
 
 /// Takes ownership of, and is responsible for monitoring an active runtime.
 ///
@@ -24,8 +24,8 @@ cli::main!(CmdMonitor, syslog = true);
 /// will clean up the runtime when all processes exit.
 #[derive(Debug, Parser)]
 pub struct CmdMonitor {
-    #[clap(short, long, parse(from_occurrences))]
-    pub verbose: usize,
+    #[clap(flatten)]
+    pub logging: cli::Logging,
 
     /// The address of the storage being used for runtimes
     #[clap(long)]
@@ -43,14 +43,36 @@ impl CommandName for CmdMonitor {
 }
 
 impl CmdMonitor {
-    pub async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
-        let mut interrupt = signal(SignalKind::interrupt())
-            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
-        let mut quit = signal(SignalKind::quit())
-            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
-        let mut terminate = signal(SignalKind::terminate())
-            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
+    pub fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
+        // create an initial runtime that will wait for the
+        // caller to signal that we are ready to start processing
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .max_blocking_threads(1)
+            .enable_all()
+            .build()
+            .context("Failed to establish async runtime")?;
+        rt.block_on(self.wait_for_ready());
+        // clean up this runtime and all other threads before detaching
+        drop(rt);
 
+        const NO_CHDIR: bool = false;
+        const NO_CLOSE: bool = false;
+        nix::unistd::daemon(NO_CHDIR, NO_CLOSE)
+            .context("Failed to daemonize the monitor process")?;
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .max_blocking_threads(2)
+            .enable_all()
+            .build()
+            .context("Failed to establish async runtime")?;
+        let code = rt.block_on(self.run_async())?;
+        // the monitor is running in the background and, although not expected,
+        // can take extra time to shutdown if needed
+        rt.shutdown_timeout(std::time::Duration::from_secs(5));
+        Ok(code)
+    }
+
+    pub async fn wait_for_ready(&self) {
         // Wait to be informed that it is now safe to read the mount namespace
         // of the pid we are meant to be monitoring. Also wait to read/write
         // the runtime as well. spfs-enter promises to not modify the runtime
@@ -75,6 +97,15 @@ impl CmdMonitor {
                 tracing::warn!("Timeout waiting for parent process!");
             }
         }
+    }
+
+    pub async fn run_async(&mut self) -> Result<i32> {
+        let mut interrupt = signal(SignalKind::interrupt())
+            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
+        let mut quit = signal(SignalKind::quit())
+            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
+        let mut terminate = signal(SignalKind::terminate())
+            .map_err(|err| Error::process_spawn_error("signal()".into(), err, None))?;
 
         let repo = spfs::open_repository(&self.runtime_storage).await?;
         let storage = spfs::runtime::Storage::new(repo);
@@ -82,9 +113,12 @@ impl CmdMonitor {
 
         let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_monitor(runtime).await?;
 
-        let fut = spfs::env::wait_for_empty_runtime(&owned);
+        let fut = spfs::monitor::wait_for_empty_runtime(&owned);
         let res = tokio::select! {
-            res = fut => res,
+            res = fut => {
+                tracing::info!("Monitor detected no more processes, cleaning up runtime...");
+                res
+            }
             // we explicitly catch any signal related to interruption
             // and will act by cleaning up the runtime early
             _ = terminate.recv() => Err(spfs::Error::String("Terminate signal received, cleaning up runtime early".to_string())),
@@ -98,9 +132,15 @@ impl CmdMonitor {
         // here is unfortunate but not fatal.
         owned.status.running = false;
         let _ = owned.save_state_to_storage().await;
-        if let Err(err) = owned.delete().await {
-            tracing::error!("failed to clean up runtime data: {err:?}")
+
+        if let Err(err) = spfs::exit_runtime(&owned).await {
+            tracing::error!("failed to tear down runtime: {err:?}");
         }
+
+        if let Err(err) = owned.delete().await {
+            tracing::error!("failed to clean up runtime data: {err:?}");
+        }
+
         res?;
         Ok(0)
     }

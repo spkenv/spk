@@ -12,19 +12,6 @@
 useradd -m user1
 useradd -m user2
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/privileged" &> /dev/null && pwd )"
-for file in $(ls $DIR); do
-  if [[ "$file" == `basename ${BASH_SOURCE[0]}` || "$file" == README ]]; then
-    continue
-  fi
-  echo running test: $file
-  echo "-----------------------------"
-  bash -ex "$DIR/$file"
-  result="$?"
-  sleep 1
-  if [[ "$result" -ne 0 ]]; then
-    echo test failed: $file
-    exit 1;
-  fi
-  echo "----------- OK --------------"
-done
+. $(dirname "${BASH_SOURCE[0]}")/test_harness.sh
+
+run_tests_in_dir $(dirname "${BASH_SOURCE[0]}")/privileged

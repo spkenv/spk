@@ -863,7 +863,7 @@ pub struct DecisionFormatterSettings {
     /// stop at and not go above.
     ///
     #[clap(long, env = "SPK_SOLVER_VERBOSITY_INCREASE_LIMIT", default_value_t = 2)]
-    pub max_verbosity_increase_level: u32,
+    pub max_verbosity_increase_level: u8,
 
     /// Maximum number of seconds to let the solver run before halting the solve
     ///
@@ -911,7 +911,7 @@ pub struct DecisionFormatterSettings {
 impl DecisionFormatterSettings {
     /// Get a decision formatter configured from the command line
     /// options and their defaults.
-    pub fn get_formatter(&self, verbosity: u32) -> Result<DecisionFormatter> {
+    pub fn get_formatter(&self, verbosity: u8) -> Result<DecisionFormatter> {
         Ok(self.get_formatter_builder(verbosity)?.build())
     }
 
@@ -919,7 +919,7 @@ impl DecisionFormatterSettings {
     /// line options and defaults and ready to call build() on, in
     /// case some extra configuration might be needed before calling
     /// build.
-    pub fn get_formatter_builder(&self, verbosity: u32) -> Result<DecisionFormatterBuilder> {
+    pub fn get_formatter_builder(&self, verbosity: u8) -> Result<DecisionFormatterBuilder> {
         let mut builder =
             DecisionFormatterBuilder::try_from_config().context("Failed to load config")?;
         builder

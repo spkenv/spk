@@ -40,7 +40,7 @@ pub struct Solver {
 
     /// The maximum verbosity that automatic verbosity increases will
     /// stop at and not go above.
-    pub verbosity_increase_limit: u32,
+    pub verbosity_increase_limit: u8,
 
     /// Maximum number of seconds to let the solver run before halting the solve
     ///

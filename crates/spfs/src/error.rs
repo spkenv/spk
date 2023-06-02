@@ -139,6 +139,7 @@ impl Error {
         };
 
         match self {
+            Error::UnknownObject(_) => Some(libc::ENOENT),
             Error::Encoding(encoding::Error::FailedRead(err)) => handle_io_error(err),
             Error::Encoding(encoding::Error::FailedWrite(err)) => handle_io_error(err),
             Error::ProcessSpawnError(_, err) => handle_io_error(err),

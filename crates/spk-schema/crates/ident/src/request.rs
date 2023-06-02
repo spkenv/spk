@@ -492,9 +492,9 @@ impl PkgRequest {
     // The level/depth for initial requests
     pub const INITIAL_REQUESTS_LEVEL: u64 = 0;
     // Show request fields that are non-default values at v > 1
-    pub const SHOW_REQUEST_DETAILS: u32 = 1;
+    pub const SHOW_REQUEST_DETAILS: u8 = 1;
     // Show all request fields for initial requests at v > 5
-    pub const SHOW_INITIAL_REQUESTS_FULL_VALUES: u32 = 5;
+    pub const SHOW_INITIAL_REQUESTS_FULL_VALUES: u8 = 5;
 
     pub fn new(pkg: RangeIdent, requester: RequestedBy) -> Self {
         let key = pkg.to_string();

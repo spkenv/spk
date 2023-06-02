@@ -21,11 +21,11 @@ const DIGITS_LIMIT: usize = 10;
 
 // Verbosity levels that show more details:
 // This changes size numbers display from "1.04 x 10^5" to "10423"
-const SHOW_FULL_DIGITS_LEVEL: u32 = 1;
+const SHOW_FULL_DIGITS_LEVEL: u8 = 1;
 // This adds calculation detail to output, e.g.
 //   9844560*6 python-pyside2 (so far: 69062469) +
 //   59067360*3 python-pytest (so far: 246264549) + ...
-const SHOW_FULL_CALCULATION_LEVEL: u32 = 2;
+const SHOW_FULL_CALCULATION_LEVEL: u8 = 2;
 
 /// Shows a report on search space sizes and related stats based on
 /// the given requests, their solution, and packages in the repos.
@@ -33,7 +33,7 @@ pub async fn show_search_space_stats(
     initial_requests: &[String],
     solution: &Solution,
     repos: &[Arc<RepositoryHandle>],
-    verbosity: u32,
+    verbosity: u8,
 ) -> Result<()> {
     // The names of all packages in the solution are needed to gather
     // data on all their versions and builds. The order the packages
@@ -121,7 +121,7 @@ fn display_search_space_stats(
     initial_requests: &[String],
     packages: &Vec<BuildIdent>,
     extracted_data: &Vec<Arc<Spec>>,
-    verbosity: u32,
+    verbosity: u8,
     requests: &HashMap<PkgNameBuf, PkgRequest>,
 ) {
     let mut total_counters: HashMap<PkgNameBuf, u64> = HashMap::new();
@@ -194,7 +194,7 @@ fn display_search_space_stats(
 fn show_total_stats(
     counters: &HashMap<PkgNameBuf, u64>,
     packages: &Vec<BuildIdent>,
-    verbosity: u32,
+    verbosity: u8,
 ) {
     let mut calc: String = "1".to_string();
     let mut total: Integer = Integer::new() + 1;

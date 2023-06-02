@@ -12,8 +12,8 @@ pub struct CmdPull {
     #[clap(flatten)]
     sync: cli::Sync,
 
-    #[clap(short, long, parse(from_occurrences))]
-    verbose: usize,
+    #[clap(short, long, action = clap::ArgAction::Count)]
+    verbose: u8,
 
     /// The name or address of the remote server to pull from
     ///

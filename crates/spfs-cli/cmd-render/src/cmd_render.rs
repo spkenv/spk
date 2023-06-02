@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use anyhow::{Context, Result};
+use clap::builder::TypedValueParser;
 use clap::Parser;
 use spfs::prelude::*;
 use spfs::storage::fallback::FallbackProxy;
@@ -17,12 +18,10 @@ cli::main!(CmdRender);
 pub struct CmdRender {
     #[clap(flatten)]
     sync: cli::Sync,
-
     #[clap(flatten)]
     render: cli::Render,
-
-    #[clap(short, long, parse(from_occurrences))]
-    verbose: usize,
+    #[clap(flatten)]
+    logging: cli::Logging,
 
     /// Allow re-rendering when the target directory is not empty
     #[clap(long = "allow-existing")]
@@ -30,7 +29,11 @@ pub struct CmdRender {
 
     /// The strategy to use when rendering. Defaults to `Copy` when
     /// using a local directory and `HardLink` for the repository.
-    #[clap(long, possible_values = spfs::storage::fs::RenderType::VARIANTS)]
+    #[clap(
+        long,
+        value_parser = clap::builder::PossibleValuesParser::new(spfs::storage::fs::RenderType::VARIANTS)
+            .map(|s| s.parse::<spfs::storage::fs::RenderType>().unwrap())
+    )]
     strategy: Option<spfs::storage::fs::RenderType>,
 
     /// The tag or digest of what to render, use a '+' to join multiple layers

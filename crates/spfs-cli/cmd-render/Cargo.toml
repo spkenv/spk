@@ -17,6 +17,6 @@ clap = { workspace = true }
 serde_json = { workspace = true }
 spfs = { path = "../../spfs" }
 spfs-cli-common = { path = "../common" }
-strum = { version = "0.24", features = ["derive"] }
+strum = { workspace = true, features = ["derive"] }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }

@@ -55,8 +55,8 @@ cli::main!(Opt);
                   "
 )]
 pub struct Opt {
-    #[clap(short, long, global = true, parse(from_occurrences))]
-    pub verbose: usize,
+    #[clap(flatten)]
+    pub logging: cli::Logging,
     #[clap(subcommand)]
     pub cmd: Command,
 }
@@ -118,7 +118,7 @@ impl Opt {
             Command::Layers(cmd) => cmd.run(config).await,
             Command::Platforms(cmd) => cmd.run(config).await,
             Command::Tags(cmd) => cmd.run(config).await,
-            Command::Info(cmd) => cmd.run(self.verbose, config).await,
+            Command::Info(cmd) => cmd.run(config).await,
             Command::Log(cmd) => cmd.run(config).await,
             Command::Search(cmd) => cmd.run(config).await,
             Command::Diff(cmd) => cmd.run(config).await,

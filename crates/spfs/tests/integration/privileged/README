@@ -1,1 +1,3 @@
 Tests in this directory are designed to be run as privileged user (root).
+
+All test files are expected to be named "test_<something>.sh".

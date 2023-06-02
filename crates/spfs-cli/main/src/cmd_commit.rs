@@ -40,7 +40,7 @@ pub struct CmdCommit {
     hash_while_committing: bool,
 
     /// Deprecated, has no effect
-    #[clap(long, hidden = true)]
+    #[clap(long, hide = true)]
     hash_first: bool,
 
     /// The total number of blobs that can be committed concurrently
@@ -66,7 +66,7 @@ pub struct CmdCommit {
 
     /// The desired object type to create, skip this when giving --path
     #[clap(
-        possible_values = &["layer", "platform"],
+        value_parser = ["layer", "platform"],
         conflicts_with_all = &["path", "remote"],
         required_unless_present = "path",
     )]

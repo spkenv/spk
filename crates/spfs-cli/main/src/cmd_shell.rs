@@ -14,8 +14,8 @@ pub struct CmdShell {
     #[clap(flatten)]
     sync: cli::Sync,
 
-    #[clap(short, long, parse(from_occurrences))]
-    pub verbose: usize,
+    #[clap(flatten)]
+    logging: cli::Logging,
 
     /// Mount the spfs filesystem in edit mode (true if REF is empty or not given)
     #[clap(short, long)]
@@ -36,7 +36,7 @@ impl CmdShell {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let mut run_cmd = cmd_run::CmdRun {
             sync: self.sync.clone(),
-            verbose: self.verbose,
+            logging: self.logging.clone(),
             edit: self.edit,
             runtime_name: self.runtime_name.clone(),
             reference: self.reference.clone(),

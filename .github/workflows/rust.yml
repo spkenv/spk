@@ -25,7 +25,9 @@ jobs:
         run: |
           apt-get update
           # nodejs is needed for rust-cache (when using `act`)
-          apt-get install -y libcap2-bin sudo nodejs cmake tcsh rsync protobuf-compiler
+          apt-get install -y libcap2-bin sudo nodejs cmake tcsh rsync protobuf-compiler fuse libfuse-dev
+          # spfs-fuse requires this option enabled
+          echo user_allow_other >> /etc/fuse.conf
           rustup install nightly
           rustup component add clippy
           rustup component add rustfmt --toolchain nightly
@@ -49,11 +51,13 @@ jobs:
           cargo build --bin spk
           export PATH="$PWD/target/debug:$PATH"
           make packages.lint
-      - name: SPFS Integration Tests
+      - name: SPFS Integration Tests - Regular User
         run: |
           # Run tests as a normal user to verify privilege escalation
           useradd -m e2e
           su e2e -c crates/spfs/tests/integration/run_tests.sh
+      - name: SPFS Integration Tests - Root User
+        run: |
           # Run tests that need root
           crates/spfs/tests/integration/run_privileged_tests.sh
       - name: Change perms for rust-cache

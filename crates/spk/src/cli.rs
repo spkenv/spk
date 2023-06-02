@@ -42,8 +42,8 @@ use spk_solve::{
 #[derive(Parser)]
 #[clap(about)]
 pub struct Opt {
-    #[clap(short, long, global = true, parse(from_occurrences))]
-    pub verbose: u32,
+    #[clap(short, long, global = true, action = clap::ArgAction::Count)]
+    pub verbose: u8,
     #[clap(subcommand)]
     pub cmd: Command,
 }

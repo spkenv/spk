@@ -10,6 +10,6 @@ pub mod __private {
     pub use libc;
 }
 
-pub use args::{capture_if_relevant, configure_logging, CommandName, Render, Sync};
+pub use args::{capture_if_relevant, CommandName, Logging, Render, Sync};
 #[cfg(feature = "sentry")]
 pub use args::{configure_sentry, shutdown_sentry};
