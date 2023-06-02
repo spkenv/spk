@@ -1859,6 +1859,88 @@ async fn test_solver_components(mut solver: Solver) {
 
 #[rstest]
 #[tokio::test]
+async fn test_solver_components_interaction_with_embeds(mut solver: Solver) {
+    // Test that a package can have a component that embeds a specific
+    // component of some other package. This package must be included in a
+    // solution to satisfy a request for that package+component combo.
+
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "real-pkg/1.0.0",
+                "install": {
+                    "components": [
+                        {"name": "comp1"},
+                        {"name": "comp2"},
+                    ]
+                },
+            },
+            {
+                "pkg": "fake-pkg/1.0.0",
+                "install": {
+                    "components": [
+                        {
+                            "name": "comp1",
+                            "embedded_components": [
+                                "real-pkg:comp1",
+                            ]
+                        },
+                        {
+                            "name": "comp2",
+                            "embedded_components": [
+                                "real-pkg:comp2",
+                            ]
+                        },
+                    ],
+                    "embedded": [{
+                        "pkg": "real-pkg/1.0.0",
+                        "install": {
+                            "components": [
+                                {"name": "comp1"},
+                                {"name": "comp2"},
+                            ]
+                        }
+                    }]
+                },
+            },
+            {
+                "pkg": "victim/1.0.0",
+                "install": {
+                    "requirements": [
+                        {"pkg": "real-pkg:comp2/1.0.0"},
+                    ]
+                },
+            },
+        ]
+    );
+
+    solver.add_repository(Arc::new(repo));
+    // Deliberately not asking for comp2 of fake-pkg. This should be
+    // included in the solution because it's required by victim.
+    solver.add_request(request!("fake-pkg:comp1"));
+    solver.add_request(request!("victim"));
+
+    let Ok(solution) = run_and_print_resolve_for_tests(&solver).await else {
+        panic!("Expected a valid solution");
+    };
+
+    let resolved = solution
+        .get("fake-pkg")
+        .unwrap()
+        .request
+        .pkg
+        .components
+        .clone();
+    let expected = ["comp1", "comp2"]
+        .iter()
+        .map(|c| Component::parse(c).map_err(|err| err.into()))
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(resolved, expected);
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_solver_components_when_no_components_requested(mut solver: Solver) {
     // test when a package is requested with no components and the
     // package is one that has components
