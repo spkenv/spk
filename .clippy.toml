@@ -3,3 +3,12 @@ max-fn-params-bools = 1
 
 # default is 7
 too-many-arguments-threshold = 5
+
+ignore-interior-mutability = [
+    # Bytes is the default value for this setting.
+    "bytes::Bytes",
+    # FileMatcher contains a Gitignore field which has interior mutability,
+    # but FileMatcher has a custom hash implementation that skips that field.
+    "spk_schema_foundation::spec_ops::file_matcher::FileMatcher",
+]
+

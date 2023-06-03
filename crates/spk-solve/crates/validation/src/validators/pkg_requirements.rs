@@ -73,9 +73,10 @@ impl PkgRequirementsValidator {
         let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
             Ok((spec, source, _)) => match source {
                 PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
-                PackageSource::BuildFromSource { .. }
-                | PackageSource::Embedded { .. }
-                | PackageSource::SpkInternalTest => (spec, spec.components().names()),
+                PackageSource::Embedded { components, .. } => (spec, components.iter().collect()),
+                PackageSource::BuildFromSource { .. } | PackageSource::SpkInternalTest => {
+                    (spec, spec.components().names())
+                }
             },
             Err(spk_solve_graph::GetCurrentResolveError::PackageNotResolved(_)) => {
                 return Ok(Compatible)
