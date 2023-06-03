@@ -657,7 +657,7 @@ impl Solver {
                                         spec.ident().to_any_ident(),
                                         Compatibility::Incompatible({
                                             match conflicting_pkg_source {
-                                                PackageSource::Embedded { parent } => {
+                                                PackageSource::Embedded { parent, .. } => {
                                                     IncompatibleReason::AlreadyEmbeddedPackage {
                                                         embedded: conflicting_package_name,
                                                         embedded_by: parent.name().to_owned(),

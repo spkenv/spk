@@ -50,7 +50,10 @@ pub enum PackageSource {
         recipe: Arc<SpecRecipe>,
     },
     /// The package was embedded in another.
-    Embedded { parent: BuildIdent },
+    Embedded {
+        parent: BuildIdent,
+        components: HashSet<Component>,
+    },
     /// Only for a package being used in spk' automated (unit) test code
     /// when the source of the package is not relevant for the test.
     SpkInternalTest,
@@ -144,10 +147,11 @@ impl SolvedRequest {
             .map(ToOwned::to_owned)
             .collect();
 
-        let mut repo_name: Option<RepositoryNameBuf> = None;
-        if let PackageSource::Repository { repo, .. } = &self.source {
-            repo_name = Some(repo.name().to_owned());
-        }
+        let repo_name = if let PackageSource::Repository { repo, .. } = &self.source {
+            Some(repo.name().to_owned())
+        } else {
+            None
+        };
 
         // Pass zero verbosity to format_request(), via the format
         // change options, to stop it outputting the internal details.
