@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::cmp::{Ord, Ordering};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::convert::TryFrom;
 use std::str::FromStr;
 
@@ -11,6 +11,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::{Error, Result, Version, VERSION_SEP};
+use crate::ident_component::Component;
 use crate::name::PkgNameBuf;
 use crate::version;
 
@@ -87,6 +88,13 @@ impl Ord for CompatRule {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ComponentsMissing {
+    pub package: PkgNameBuf,
+    pub provided: HashSet<Component>,
+    pub missing: HashSet<Component>,
+}
+
 /// Denotes whether or not something is compatible.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IncompatibleReason {
@@ -94,6 +102,7 @@ pub enum IncompatibleReason {
         embedded: PkgNameBuf,
         embedded_by: PkgNameBuf,
     },
+    ComponentsMissing(ComponentsMissing),
     ConflictingEmbeddedPackage(PkgNameBuf),
     Other(String),
 }
@@ -109,6 +118,27 @@ impl std::fmt::Display for IncompatibleReason {
                     f,
                     "embedded package {embedded} already embedded by another package in solve: {embedded_by}"
                 )
+            }
+            IncompatibleReason::ComponentsMissing(ComponentsMissing {
+                package,
+                provided,
+                missing,
+            }) => {
+                write!(f, "resolved package {package} does not provide all required components: needed {}, have {}",
+                 missing
+                     .iter()
+                     .map(Component::to_string)
+                     .join("\n"),
+                 {
+                     if provided.is_empty() {
+                         "none".to_owned()
+                     } else {
+                         provided
+                             .iter()
+                             .map(Component::to_string)
+                             .join("\n")
+                     }
+                 })
             }
             IncompatibleReason::ConflictingEmbeddedPackage(pkg) => {
                 write!(

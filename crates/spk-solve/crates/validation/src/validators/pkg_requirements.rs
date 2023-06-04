@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use itertools::Itertools;
+use spk_schema::version::{ComponentsMissing, IncompatibleReason};
 
 use super::prelude::*;
 use crate::ValidatorT;
@@ -110,29 +110,19 @@ impl PkgRequirementsValidator {
         let required_components = resolved
             .components()
             .resolve_uses(request.pkg.components.iter());
-        let missing_components: Vec<_> = required_components
+        let missing_components: std::collections::HashSet<_> = required_components
             .iter()
             .filter(|c| !provided_components.contains(c))
+            .cloned()
             .collect();
         if !missing_components.is_empty() {
-            return Ok(Compatibility::incompatible(format!(
-                "resolved package {} does not provide all required components: needed {}, have {}",
-                request.pkg.name,
-                missing_components
-                    .into_iter()
-                    .map(Component::to_string)
-                    .join("\n"),
-                {
-                    if provided_components.is_empty() {
-                        "none".to_owned()
-                    } else {
-                        provided_components
-                            .into_iter()
-                            .map(Component::to_string)
-                            .join("\n")
-                    }
-                }
-            )));
+            return Ok(Compatibility::Incompatible(
+                IncompatibleReason::ComponentsMissing(ComponentsMissing {
+                    package: request.pkg.name.clone(),
+                    provided: provided_components.into_iter().cloned().collect(),
+                    missing: missing_components,
+                }),
+            ));
         }
 
         Ok(Compatible)
