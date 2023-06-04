@@ -75,10 +75,15 @@ impl PkgRequirementsValidator {
             }
         };
 
+        let mut was_embedded = None;
+
         let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
             Ok((spec, source, _)) => match source {
                 PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
-                PackageSource::Embedded { components, .. } => (spec, components.iter().collect()),
+                PackageSource::Embedded { parent, components } => {
+                    was_embedded = Some(parent);
+                    (spec, components.iter().collect())
+                }
                 PackageSource::BuildFromSource { .. } | PackageSource::SpkInternalTest => {
                     (spec, spec.components().names())
                 }
@@ -88,15 +93,35 @@ impl PkgRequirementsValidator {
             }
         };
 
-        let compat = Self::validate_request_against_existing_resolve(
-            &request,
-            resolved,
-            provided_components,
-        )?;
-        if !&compat {
-            return Ok(compat);
-        }
-        Ok(Compatible)
+        Ok(
+            match Self::validate_request_against_existing_resolve(
+                &request,
+                resolved,
+                provided_components,
+            )? {
+                Compatible => Compatible,
+                Compatibility::Incompatible(reason) => match (reason, was_embedded) {
+                    (
+                        IncompatibleReason::ComponentsMissing(
+                            ComponentsMissingProblem::ComponentsNotProvided {
+                                package,
+                                needed,
+                                have,
+                            },
+                        ),
+                        Some(parent),
+                    ) => Compatibility::Incompatible(IncompatibleReason::ComponentsMissing(
+                        ComponentsMissingProblem::EmbeddedComponentsNotProvided {
+                            embedder: parent.name().to_owned(),
+                            embedded: package,
+                            needed,
+                            have,
+                        },
+                    )),
+                    (reason, _) => Compatibility::Incompatible(reason),
+                },
+            },
+        )
     }
 
     fn validate_request_against_existing_resolve(

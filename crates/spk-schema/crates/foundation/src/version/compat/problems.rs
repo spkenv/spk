@@ -276,6 +276,15 @@ pub enum ComponentsMissingProblem {
         needed: CommaSeparated<BTreeSet<String>>,
         have: CommaSeparated<BTreeSet<String>>,
     },
+    #[strum(
+        to_string = "package {embedder} embeds {embedded} but does not provide all required components: needed {needed}; have {have}"
+    )]
+    EmbeddedComponentsNotProvided {
+        embedder: PkgNameBuf,
+        embedded: PkgNameBuf,
+        needed: CommaSeparated<BTreeSet<String>>,
+        have: CommaSeparated<BTreeSet<String>>,
+    },
 }
 
 impl IsSameReasonAs for ComponentsMissingProblem {
