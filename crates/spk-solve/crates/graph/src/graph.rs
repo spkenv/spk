@@ -355,6 +355,35 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         }
     }
 
+    /// Make this package the next request to be considered.
+    pub fn reconsider_package_with_additional_components(
+        self,
+        request: PkgRequest,
+        package_with_unsatisfied_components: &PkgName,
+        counter: Arc<AtomicU64>,
+    ) -> Decision {
+        let generate_changes = || {
+            let changes = vec![
+                Change::StepBack(StepBack::new(
+                    format!(
+                        "Package {package_with_unsatisfied_components} needs additional components from {}",
+                        request.pkg.name
+                    ),
+                    self.base,
+                    counter,
+                )),
+                Change::RequestPackage(RequestPackage::prioritize(request)),
+            ];
+
+            changes
+        };
+
+        Decision {
+            changes: generate_changes(),
+            notes: Vec::default(),
+        }
+    }
+
     fn requirements_to_changes(
         &self,
         requirements: &RequirementsList,
