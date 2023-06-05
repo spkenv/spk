@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::mem::take;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -19,7 +19,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
-use spk_schema::version::{IncompatibleReason, IsSameReasonAs};
+use spk_schema::version::{ComponentsMissingProblem, IncompatibleReason, IsSameReasonAs};
 use spk_schema::{try_recipe, BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
     Change,
@@ -463,6 +463,15 @@ impl Solver {
             .map_err(Error::ValidationError)
     }
 
+    /// Default behavior for skipping an incompatible build.
+    fn skip_build(&mut self, notes: &mut Vec<Note>, spec: &Spec, compat: &Compatibility) {
+        notes.push(Note::SkipPackageNote(SkipPackageNote::new(
+            spec.ident().to_any_ident(),
+            compat.clone(),
+        )));
+        self.number_builds_skipped += 1;
+    }
+
     async fn step_state(
         &mut self,
         graph: &Arc<tokio::sync::RwLock<Graph>>,
@@ -549,7 +558,11 @@ impl Solver {
                 continue;
             }
 
-            let builds = if !builds.lock().await.is_sorted_build_iterator() {
+            let builds: Arc<tokio::sync::Mutex<dyn BuildIterator + Send>> = if !builds
+                .lock()
+                .await
+                .is_sorted_build_iterator()
+            {
                 // TODO: this could be a HashSet if build key generation
                 // only looks at the idents in the hashmap.
                 let builds_with_impossible_requests = if self.impossible_checks.use_in_build_keys {
@@ -696,12 +709,126 @@ impl Solver {
                                     Arc::clone(&self.number_of_steps_back),
                                 )
                             }
+                            Compatibility::Incompatible(IncompatibleReason::ComponentsMissing(
+                                ComponentsMissingProblem::EmbeddedComponentsNotProvided {
+                                    embedder,
+                                    embedded,
+                                    needed,
+                                    ..
+                                },
+                            )) => {
+                                if let Ok((parent_spec, _, state_id)) =
+                                    node.state.get_current_resolve(&embedder)
+                                {
+                                    // This build couldn't be used because it needs
+                                    // components from an embedded package that
+                                    // have not been provided from the package that
+                                    // embeds it. It might be possible to add a
+                                    // request for a component from the parent
+                                    // package to bring in the needed component.
+
+                                    // Find which component(s) of parent_spec
+                                    // embed the missing components.
+                                    let mut remaining_missing_components: BTreeSet<Component> =
+                                        needed
+                                            .0
+                                            .iter()
+                                            .map(|c| {
+                                                // The error will only contain
+                                                // stringified components, so
+                                                // converting back should not
+                                                // fail.
+                                                Component::parse(c).expect("valid component")
+                                            })
+                                            .collect();
+                                    let mut components_to_request = BTreeSet::new();
+                                    for component in parent_spec.components().iter() {
+                                        for embedded_component in
+                                            component.embedded_components.iter()
+                                        {
+                                            if embedded_component.name != embedded {
+                                                continue;
+                                            }
+
+                                            let overlapping: Vec<_> = remaining_missing_components
+                                                .intersection(&embedded_component.components)
+                                                .collect();
+                                            if overlapping.is_empty() {
+                                                continue;
+                                            }
+
+                                            components_to_request.insert(component.name.clone());
+
+                                            remaining_missing_components =
+                                                remaining_missing_components
+                                                    .difference(
+                                                        &overlapping.into_iter().cloned().collect(),
+                                                    )
+                                                    .cloned()
+                                                    .collect();
+
+                                            if remaining_missing_components.is_empty() {
+                                                break;
+                                            }
+                                        }
+
+                                        if remaining_missing_components.is_empty() {
+                                            break;
+                                        }
+                                    }
+
+                                    if !remaining_missing_components.is_empty() {
+                                        // Couldn't find a way to satisfy all
+                                        // the missing components.
+                                        self.skip_build(&mut notes, &spec, &compat);
+                                        continue;
+                                    }
+
+                                    // Add a request for the components of the
+                                    // parent package that will provide the
+                                    // missing components in the embedded
+                                    // package, and retry this build.
+
+                                    let graph_lock = graph.read().await;
+
+                                    let target_state_node = graph_lock
+                                        .nodes
+                                        .get(&state_id.id())
+                                        .ok_or_else(|| Error::String("state not found".into()))?
+                                        .read()
+                                        .await;
+
+                                    Decision::builder(&target_state_node.state)
+                                        .reconsider_package_with_additional_components(
+                                            {
+                                                let mut pkg_request = PkgRequest::new(
+                                                    parent_spec.ident().to_any_ident().into(),
+                                                    RequestedBy::PackageBuild(spec.ident().clone()),
+                                                );
+
+                                                let existing_requested_components = node
+                                                    .state
+                                                    .get_merged_request(parent_spec.ident().name())
+                                                    .map(|r| r.pkg.components)
+                                                    .unwrap_or_default();
+
+                                                pkg_request.pkg.components =
+                                                    existing_requested_components
+                                                        .union(&components_to_request)
+                                                        .cloned()
+                                                        .collect();
+                                                pkg_request
+                                            },
+                                            spec.ident().name(),
+                                            Arc::clone(&self.number_of_steps_back),
+                                        )
+                                } else {
+                                    self.skip_build(&mut notes, &spec, &compat);
+                                    continue;
+                                }
+                            }
                             compat @ Compatibility::Incompatible(_) => {
-                                notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                                    spec.ident().to_any_ident(),
-                                    compat.clone(),
-                                )));
-                                self.number_builds_skipped += 1;
+                                self.skip_build(&mut notes, &spec, &compat);
                                 continue;
                             }
                         }
