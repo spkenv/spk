@@ -43,6 +43,7 @@ impl crate::storage::PayloadStorage for FSRepository {
                     // blob is really unknown or just the payload is missing.
                     match self.read_blob(digest).await {
                         Ok(blob) => Err(Error::ObjectMissingPayload(blob.into(), digest)),
+                        Err(err @ Error::ObjectNotABlob(_, _)) => Err(err),
                         Err(_) => Err(Error::UnknownObject(digest)),
                     }
                 }
