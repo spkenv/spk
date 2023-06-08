@@ -21,7 +21,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, Reposito
 use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::ident::VersionIdent;
 use spk_schema::ident_build::parsing::embedded_source_package;
-use spk_schema::ident_build::EmbeddedSource;
+use spk_schema::ident_build::{EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema::ident_ops::TagPath;
 use spk_schema::{AnyIdent, BuildIdent, FromYaml, Package, Recipe, Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
@@ -261,7 +261,7 @@ impl Storage for SPFSRepository {
                 Err(_) => None,
             })
             .filter_map(|b| {
-                b.strip_prefix("embedded-by-")
+                b.strip_prefix(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX)
                     .and_then(|encoded_ident| {
                         data_encoding::BASE32_NOPAD
                             .decode(encoded_ident.as_bytes())

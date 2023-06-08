@@ -37,6 +37,10 @@ pub struct EmbeddedSourcePackage {
     pub components: BTreeSet<Component>,
 }
 
+impl EmbeddedSourcePackage {
+    pub const EMBEDDED_BY_PREFIX: &str = "embedded-by-";
+}
+
 /// An embedded package's source (if known).
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum EmbeddedSource {
@@ -49,7 +53,8 @@ impl MetadataPath for EmbeddedSource {
     fn metadata_path(&self) -> RelativePathBuf {
         match self {
             package @ EmbeddedSource::Package { .. } => RelativePathBuf::from(format!(
-                "embedded-by-{}",
+                "{}{}",
+                EmbeddedSourcePackage::EMBEDDED_BY_PREFIX,
                 // Encode the parent ident into base32 to have a unique value
                 // per unique parent that is a valid filename. The trailing
                 // '=' are not allowed in tag names (use NOPAD).
