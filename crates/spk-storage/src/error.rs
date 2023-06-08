@@ -43,6 +43,17 @@ pub enum Error {
     String(String),
 }
 
+impl Error {
+    /// Return true if this is a `PackageNotFound` error.
+    #[inline]
+    pub fn is_package_not_found(&self) -> bool {
+        match self {
+            Error::SpkValidatorsError(e) => e.is_package_not_found(),
+            _ => false,
+        }
+    }
+}
+
 impl From<String> for Error {
     fn from(err: String) -> Error {
         Error::String(err)

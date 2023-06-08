@@ -47,3 +47,11 @@ pub enum Error {
     #[error("Existing file was {0:?}: {1:?}")]
     ExistingFileAltered(Box<DiffMode>, RelativePathBuf),
 }
+
+impl Error {
+    /// Return true if this is a `PackageNotFound` error.
+    #[inline]
+    pub fn is_package_not_found(&self) -> bool {
+        matches!(self, Error::PackageNotFoundError(_))
+    }
+}

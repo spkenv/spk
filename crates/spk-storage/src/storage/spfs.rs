@@ -550,46 +550,18 @@ impl Storage for SPFSRepository {
             legacy_tags_result,
         ]
         .into_iter()
-        .fold(Ok(false), |acc, x| match (acc, x) {
+        .fold(Ok::<_, Error>(false), |acc, x| match (acc, x) {
             // Preserve the first non-PackageNotFoundError encountered.
-            (Err(err), _)
-                if !matches!(
-                    err,
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        _
-                    ))
-                ) =>
-            {
-                Err(err)
-            }
+            (Err(err), _) if !err.is_package_not_found() => Err(err),
             // Incoming error is not PackageNotFoundError.
-            (_, Err(err))
-                if !matches!(
-                    err,
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        _
-                    ))
-                ) =>
-            {
-                Err(err)
-            }
+            (_, Err(err)) if !err.is_package_not_found() => Err(err),
             // Successes merge with successes and retain "deleted
             // something" if either did.
             (Ok(x), Ok(y)) => Ok(x || y),
             // Having successfully deleted something trumps
             // `PackageNotFound`.
-            (
-                Ok(true),
-                Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(_),
-                )),
-            )
-            | (
-                Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(_),
-                )),
-                Ok(true),
-            ) => Ok(true),
+            (Ok(true), Err(err)) if err.is_package_not_found() => Ok(true),
+            (Err(err), Ok(true)) if err.is_package_not_found() => Ok(true),
             // Otherwise, keep the prevailing error.
             (Err(err), _) => Err(err),
             (_, Err(err)) => Err(err),

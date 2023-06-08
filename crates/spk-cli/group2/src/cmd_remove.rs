@@ -128,31 +128,18 @@ async fn remove_build_impl(
     // will get deleted on the first call and then it will be "not found" for
     // subsequent calls. To avoid warning about it not being found, transmute
     // PackageNotFoundError into a success.
-    if build_index > 0
-        && matches!(
-            recipe,
-            Err(spk_storage::Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(_)
-            ))
-        )
-    {
+    if build_index > 0 && matches!(&recipe, Err(err) if err.is_package_not_found()) {
         recipe = Ok(());
     }
 
     // Treat "not found" problems as warnings unless both parts were not
     // found.
     let recipe_not_found = matches!(
-        recipe,
-        Err(spk_storage::Error::SpkValidatorsError(
-            spk_schema::validators::Error::PackageNotFoundError(_)
-        ))
-    );
+        &recipe,
+        Err(err) if err.is_package_not_found());
     let pkg_not_found = matches!(
-        package,
-        Err(spk_storage::Error::SpkValidatorsError(
-            spk_schema::validators::Error::PackageNotFoundError(_)
-        ))
-    );
+        &package,
+        Err(err) if err.is_package_not_found());
     if recipe_not_found && pkg_not_found {
         // Both parts were not found; this is a hard error so don't
         // emit warnings.
