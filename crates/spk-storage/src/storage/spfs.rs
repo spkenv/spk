@@ -531,7 +531,8 @@ impl Storage for SPFSRepository {
             }
         };
 
-        let (r1, r2, r3) = tokio::join!(component_tags, legacy_tags, build_recipe_tags);
+        let (component_tags_result, legacy_tags_result, build_recipe_tags_result) =
+            tokio::join!(component_tags, legacy_tags, build_recipe_tags);
 
         // Still invalidate caches in case some of individual deletions were
         // successful.
@@ -541,42 +542,59 @@ impl Storage for SPFSRepository {
         // the only failures otherwise was `PackageNotFoundError`, then return
         // success. Since something was deleted then the package was
         // technically "found."
-        [r1, r2, r3]
-            .into_iter()
-            .fold(Ok(false), |acc, x| match (acc, x) {
-                // Incoming error that isn't `PackageNotFound` is preserved.
-                (_, Err(err))
-                    if !matches!(
-                        err,
-                        Error::SpkValidatorsError(
-                            spk_schema::validators::Error::PackageNotFoundError(_)
-                        )
-                    ) =>
-                {
-                    Err(err)
-                }
-                // Successes merge with successes and retain "deleted
-                // something" if either did.
-                (Ok(x), Ok(y)) => Ok(x || y),
-                // Having successfully deleted something trumps
-                // `PackageNotFound`.
-                (
-                    Ok(true),
-                    Err(Error::SpkValidatorsError(
-                        spk_schema::validators::Error::PackageNotFoundError(_),
-                    )),
-                )
-                | (
-                    Err(Error::SpkValidatorsError(
-                        spk_schema::validators::Error::PackageNotFoundError(_),
-                    )),
-                    Ok(true),
-                ) => Ok(true),
-                // Otherwise, keep the prevailing error.
-                (Err(err), _) => Err(err),
-                (_, Err(err)) => Err(err),
-            })
-            .map(|_| ())
+        [
+            component_tags_result,
+            build_recipe_tags_result,
+            // Check legacy tags last because errors deleting legacy tags are
+            // less important.
+            legacy_tags_result,
+        ]
+        .into_iter()
+        .fold(Ok(false), |acc, x| match (acc, x) {
+            // Preserve the first non-PackageNotFoundError encountered.
+            (Err(err), _)
+                if !matches!(
+                    err,
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                        _
+                    ))
+                ) =>
+            {
+                Err(err)
+            }
+            // Incoming error is not PackageNotFoundError.
+            (_, Err(err))
+                if !matches!(
+                    err,
+                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
+                        _
+                    ))
+                ) =>
+            {
+                Err(err)
+            }
+            // Successes merge with successes and retain "deleted
+            // something" if either did.
+            (Ok(x), Ok(y)) => Ok(x || y),
+            // Having successfully deleted something trumps
+            // `PackageNotFound`.
+            (
+                Ok(true),
+                Err(Error::SpkValidatorsError(
+                    spk_schema::validators::Error::PackageNotFoundError(_),
+                )),
+            )
+            | (
+                Err(Error::SpkValidatorsError(
+                    spk_schema::validators::Error::PackageNotFoundError(_),
+                )),
+                Ok(true),
+            ) => Ok(true),
+            // Otherwise, keep the prevailing error.
+            (Err(err), _) => Err(err),
+            (_, Err(err)) => Err(err),
+        })
+        .map(|_| ())
     }
 }
 
