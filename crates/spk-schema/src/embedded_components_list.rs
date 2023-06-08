@@ -71,18 +71,36 @@ impl Serialize for EmbeddedComponents {
 /// A set of packages that are embedded/provided by another.
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
-pub struct EmbeddedComponentsList(Vec<EmbeddedComponents>);
+pub struct EmbeddedComponentsList {
+    components: Vec<EmbeddedComponents>,
+    #[serde(skip)]
+    fabricated: bool,
+}
+
+impl EmbeddedComponentsList {
+    /// Return if the list was fabricated by defaults.
+    #[inline]
+    pub fn is_fabricated(&self) -> bool {
+        self.fabricated
+    }
+
+    /// Mark this list as having been fabricated by defaults.
+    #[inline]
+    pub fn set_fabricated(&mut self) {
+        self.fabricated = true;
+    }
+}
 
 impl std::ops::Deref for EmbeddedComponentsList {
     type Target = Vec<EmbeddedComponents>;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.components
     }
 }
 
 impl std::ops::DerefMut for EmbeddedComponentsList {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.components
     }
 }
 
@@ -91,6 +109,9 @@ where
     I: IntoIterator<Item = EmbeddedComponents>,
 {
     fn from(items: I) -> Self {
-        Self(items.into_iter().collect())
+        Self {
+            components: items.into_iter().collect(),
+            fabricated: false,
+        }
     }
 }
