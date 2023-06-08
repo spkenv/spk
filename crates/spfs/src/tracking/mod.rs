@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-///! Object tracking and definitions
+//! Object tracking and definitions
+
 pub mod blob_reader;
 mod diff;
 mod entry;

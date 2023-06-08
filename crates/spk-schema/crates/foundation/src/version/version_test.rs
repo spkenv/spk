@@ -79,6 +79,7 @@ fn test_parse_version_invalid(#[case] string: &str) {
 #[case("1.2.5.7-alpha.4+rev.6")]
 fn test_parse_version_clone(#[case] string: &str) {
     let v1 = parse_version(string).unwrap();
+    #[allow(clippy::redundant_clone)]
     let v2 = v1.clone();
     assert_eq!(v1, v2);
 }

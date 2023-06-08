@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-///! Definition and persistent storage of runtimes.
+//! Definition and persistent storage of runtimes.
+
 use std::collections::HashSet;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
