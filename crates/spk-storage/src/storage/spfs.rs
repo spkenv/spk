@@ -220,13 +220,33 @@ impl Storage for SPFSRepository {
     type Package = Spec;
 
     async fn get_concrete_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>> {
-        let base = self.build_package_tag(pkg);
-        let builds: HashSet<_> = self
-            .ls_tags(&base)
-            .await
+        // It is possible for a `spk/spec/pkgname/1.0.0/BUILDKEY` tag to
+        // exist without a corresponding `spk/spk/pkgname/1.0.0/BUILDKEY`
+        // tag. In this scenario, "pkgname" will appear in the results of
+        // `list_packages` and `list_package_versions`, because those look at
+        // the `spk/spec/...` spfs tag tree, i.e., this package will appear
+        // in the output of `spk ls`. In order to make it possible to locate
+        // the build spec, e.g., for `spk rm pkgname/1.0.0` to work, this
+        // method needs to return a union of all the build tags of both the
+        // `spk/spec/` and `spk/pkg/` tag trees.
+        let spec_base = self.build_spec_tag(pkg);
+        let package_base = self.build_package_tag(pkg);
+
+        let spec_tags = self.ls_tags(&spec_base);
+        let package_tags = self.ls_tags(&package_base);
+
+        let (spec_tags, package_tags) = tokio::join!(spec_tags, package_tags);
+
+        let builds: HashSet<_> = spec_tags
             .into_iter()
+            .chain(package_tags.into_iter())
             .filter_map(|entry| match entry {
-                Ok(EntryType::Tag(name)) => Some(name),
+                Ok(EntryType::Tag(name))
+                    if !name.starts_with(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX) =>
+                {
+                    Some(name)
+                }
+                Ok(EntryType::Tag(_)) => None,
                 Ok(EntryType::Folder(name)) => Some(name),
                 Err(_) => None,
             })
