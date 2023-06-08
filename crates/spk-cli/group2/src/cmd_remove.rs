@@ -102,9 +102,19 @@ async fn remove_build(
     repo: &storage::RepositoryHandle,
     pkg: &BuildIdent,
 ) -> Result<()> {
+    remove_build_impl(repo_name, repo, pkg, 0).await
+}
+
+async fn remove_build_impl(
+    repo_name: &str,
+    repo: &storage::RepositoryHandle,
+    pkg: &BuildIdent,
+    build_index: usize,
+) -> Result<()> {
     let repo_name = repo_name.bold();
     let pretty_pkg = pkg.format_ident();
-    let (recipe, package) = tokio::join!(repo.remove_recipe(pkg.base()), repo.remove_package(pkg),);
+    let (mut recipe, package) =
+        tokio::join!(repo.remove_recipe(pkg.base()), repo.remove_package(pkg),);
     // First inform on the things that actually happened.
     if recipe.is_ok() {
         tracing::info!("removed recipe {pretty_pkg: >25} from {repo_name}")
@@ -112,6 +122,23 @@ async fn remove_build(
     if package.is_ok() {
         tracing::info!("removed build  {pretty_pkg: >25} from {repo_name}")
     }
+
+    // When deleting multiple builds of the same package (by calling
+    // `remove_build_impl` multiple times for the same package), the recipe
+    // will get deleted on the first call and then it will be "not found" for
+    // subsequent calls. To avoid warning about it not being found, transmute
+    // PackageNotFoundError into a success.
+    if build_index > 0
+        && matches!(
+            recipe,
+            Err(spk_storage::Error::SpkValidatorsError(
+                spk_schema::validators::Error::PackageNotFoundError(_)
+            ))
+        )
+    {
+        recipe = Ok(());
+    }
+
     // Treat "not found" problems as warnings unless both parts were not
     // found.
     let recipe_not_found = matches!(
@@ -152,22 +179,34 @@ async fn remove_all(
     repo: &storage::RepositoryHandle,
     pkg: &VersionIdent,
 ) -> Result<()> {
-    let pretty_pkg = pkg.format_ident();
-    for build in repo.list_package_builds(pkg).await? {
-        if build.is_embedded() {
-            // Don't attempt to remove an embedded package; the stub
-            // will be removed when removing its provider.
-            continue;
-        }
-        remove_build(repo_name, repo, &build).await?
+    let mut deleted_something = false;
+
+    for (build_index, build) in repo
+        .list_package_builds(pkg)
+        .await?
+        .iter()
+        // Don't attempt to remove an embedded package; the stub
+        // will be removed when removing its provider.
+        .filter(|build| !build.is_embedded())
+        .enumerate()
+    {
+        remove_build_impl(repo_name, repo, build, build_index).await?;
+        deleted_something = true;
     }
+
     let repo_name = repo_name.bold();
+    let pretty_pkg = pkg.format_ident();
     match repo.remove_recipe(pkg).await {
         Ok(()) => tracing::info!("removed recipe {pretty_pkg: >25} from {repo_name}"),
         Err(spk_storage::Error::SpkValidatorsError(
             spk_schema::validators::Error::PackageNotFoundError(_),
         )) => {
-            tracing::warn!("spec {pretty_pkg: >25} not found in {repo_name}")
+            // If builds were found above, `remove_build` will have also
+            // attempted to delete the recipe, so don't warn about not finding
+            // it now.
+            if !deleted_something {
+                tracing::warn!("spec {pretty_pkg: >25} not found in {repo_name}")
+            }
         }
         Err(err) => return Err(err.into()),
     }
