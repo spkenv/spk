@@ -220,7 +220,7 @@ impl Storage for SPFSRepository {
     type Package = Spec;
 
     async fn get_concrete_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>> {
-        let base = self.build_package_tag(pkg)?;
+        let base = self.build_package_tag(pkg);
         let builds: HashSet<_> = self
             .ls_tags(&base)
             .await
@@ -317,7 +317,7 @@ impl Storage for SPFSRepository {
         package: &<Self::Recipe as spk_schema::Recipe>::Output,
         components: &HashMap<Component, spfs::encoding::Digest>,
     ) -> Result<()> {
-        let tag_path = self.build_package_tag(package.ident())?;
+        let tag_path = self.build_package_tag(package.ident());
 
         // We will also publish the 'run' component in the old style
         // for compatibility with older versions of the spk command.
@@ -470,7 +470,7 @@ impl Storage for SPFSRepository {
         // with the old repo tag structure, we must also try to remove
         // the legacy version of the tag after removing the discovered
         // as it may still be there and cause the removal to be ineffective
-        if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)?) {
+        if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)) {
             match self.inner.remove_tag_stream(&legacy_tag).await {
                 Err(spfs::Error::UnknownReference(_)) => (),
                 res => res?,
@@ -699,7 +699,7 @@ impl Repository for SPFSRepository {
                     let components = stored.into_components();
                     for (name, tag_spec) in components.into_iter() {
                         let tag = self.inner.resolve_tag(&tag_spec).await?;
-                        let new_tag_path = self.build_package_tag(&build)?.join(name.to_string());
+                        let new_tag_path = self.build_package_tag(&build).join(name.to_string());
                         let new_tag_spec = spfs::tracking::TagSpec::parse(&new_tag_path)?;
 
                         // NOTE(rbottriell): this copying process feels annoying
@@ -855,7 +855,7 @@ impl SPFSRepository {
     /// (with or without package components)
     async fn lookup_package(&self, pkg: &BuildIdent) -> Result<StoredPackage> {
         use spfs::tracking::TagSpec;
-        let tag_path = self.build_package_tag(pkg)?;
+        let tag_path = self.build_package_tag(pkg);
         let tag_specs: HashMap<Component, TagSpec> = self
             .ls_tags(&tag_path)
             .await
@@ -881,7 +881,7 @@ impl SPFSRepository {
     }
 
     /// Construct an spfs tag string to represent a binary package layer.
-    fn build_package_tag<T>(&self, pkg: &T) -> Result<RelativePathBuf>
+    fn build_package_tag<T>(&self, pkg: &T) -> RelativePathBuf
     where
         T: TagPath,
     {
@@ -889,7 +889,7 @@ impl SPFSRepository {
         tag.push("pkg");
         tag.push(pkg.tag_path());
 
-        Ok(tag)
+        tag
     }
 
     /// Construct an spfs tag string to represent a spec file blob.
