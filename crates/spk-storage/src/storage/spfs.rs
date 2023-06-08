@@ -476,28 +476,107 @@ impl Storage for SPFSRepository {
     }
 
     async fn remove_package_from_storage(&self, pkg: &BuildIdent) -> Result<()> {
-        for tag_spec in
-            with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
-                .await?
-                .tags()
-        {
-            match self.inner.remove_tag_stream(tag_spec).await {
-                Err(spfs::Error::UnknownReference(_)) => (),
-                res => res?,
+        // The three things this method is responsible for deleting are:
+        //
+        // 1. Component build tags like: `spk/pkg/example/4.2.1/GMTG3CXY/build`.
+        // 2. Legacy build tags like   : `spk/pkg/example/4.2.1/GMTG3CXY`.
+        // 3. Build recipe tags like   : `spk/spec/example/4.2.1/GMTG3CXY`.
+        //
+        // It should make an effort to delete all three types before returning
+        // any failures.
+
+        let component_tags = async {
+            let mut deleted_something = false;
+
+            for tag_spec in
+                with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
+                    .await?
+                    .tags()
+            {
+                match self.inner.remove_tag_stream(tag_spec).await {
+                    Err(spfs::Error::UnknownReference(_)) => (),
+                    Ok(_) => deleted_something = true,
+                    res => res?,
+                };
             }
-        }
-        // because we double-publish packages to be visible/compatible
-        // with the old repo tag structure, we must also try to remove
-        // the legacy version of the tag after removing the discovered
-        // as it may still be there and cause the removal to be ineffective
-        if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)) {
-            match self.inner.remove_tag_stream(&legacy_tag).await {
-                Err(spfs::Error::UnknownReference(_)) => (),
-                res => res?,
+            Ok::<_, Error>(deleted_something)
+        };
+
+        let legacy_tags = async {
+            // because we double-publish packages to be visible/compatible
+            // with the old repo tag structure, we must also try to remove
+            // the legacy version of the tag after removing the discovered
+            // as it may still be there and cause the removal to be ineffective
+            let mut deleted_something = false;
+
+            if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)) {
+                match self.inner.remove_tag_stream(&legacy_tag).await {
+                    Err(spfs::Error::UnknownReference(_)) => (),
+                    Ok(_) => deleted_something = true,
+                    res => res?,
+                }
+            };
+            Ok::<_, Error>(deleted_something)
+        };
+
+        let build_recipe_tags = async {
+            let tag_path = self.build_spec_tag(pkg);
+            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
+            match self.inner.remove_tag_stream(&tag_spec).await {
+                Err(spfs::Error::UnknownReference(_)) => Err(Error::SpkValidatorsError(
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
+                )),
+                Err(err) => Err(err.into()),
+                Ok(_) => Ok(true),
             }
-        }
+        };
+
+        let (r1, r2, r3) = tokio::join!(component_tags, legacy_tags, build_recipe_tags);
+
+        // Still invalidate caches in case some of individual deletions were
+        // successful.
         self.invalidate_caches();
-        Ok(())
+
+        // If any of the three sub-tasks successfully deleted something *and*
+        // the only failures otherwise was `PackageNotFoundError`, then return
+        // success. Since something was deleted then the package was
+        // technically "found."
+        [r1, r2, r3]
+            .into_iter()
+            .fold(Ok(false), |acc, x| match (acc, x) {
+                // Incoming error that isn't `PackageNotFound` is preserved.
+                (_, Err(err))
+                    if !matches!(
+                        err,
+                        Error::SpkValidatorsError(
+                            spk_schema::validators::Error::PackageNotFoundError(_)
+                        )
+                    ) =>
+                {
+                    Err(err)
+                }
+                // Successes merge with successes and retain "deleted
+                // something" if either did.
+                (Ok(x), Ok(y)) => Ok(x || y),
+                // Having successfully deleted something trumps
+                // `PackageNotFound`.
+                (
+                    Ok(true),
+                    Err(Error::SpkValidatorsError(
+                        spk_schema::validators::Error::PackageNotFoundError(_),
+                    )),
+                )
+                | (
+                    Err(Error::SpkValidatorsError(
+                        spk_schema::validators::Error::PackageNotFoundError(_),
+                    )),
+                    Ok(true),
+                ) => Ok(true),
+                // Otherwise, keep the prevailing error.
+                (Err(err), _) => Err(err),
+                (_, Err(err)) => Err(err),
+            })
+            .map(|_| ())
     }
 }
 
