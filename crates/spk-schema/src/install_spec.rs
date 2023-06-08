@@ -3,12 +3,14 @@
 // https://github.com/spkenv/spk
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::spec_ops::Named;
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::BuildIdent;
 
 use super::{ComponentSpecList, EmbeddedPackagesList, EnvOp, OpKind, RequirementsList};
+use crate::embedded_components_list::EmbeddedComponents;
 use crate::foundation::option_map::OptionMap;
-use crate::{EnvOpList, Result};
+use crate::{EnvOpList, Package, Result};
 
 #[cfg(test)]
 #[path = "./install_spec_test.rs"]
@@ -28,6 +30,7 @@ mod install_spec_test;
     PartialOrd,
     Serialize,
 )]
+#[serde(from = "RawInstallSpec")]
 pub struct InstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requirements: RequirementsList,
@@ -35,11 +38,7 @@ pub struct InstallSpec {
     pub embedded: EmbeddedPackagesList,
     #[serde(default)]
     pub components: ComponentSpecList,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_env_conf",
-        skip_serializing_if = "IsDefault::is_default"
-    )]
+    #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub environment: EnvOpList,
 }
 
@@ -60,6 +59,69 @@ impl InstallSpec {
         }
         Ok(())
     }
+}
+
+impl From<RawInstallSpec> for InstallSpec {
+    fn from(raw: RawInstallSpec) -> Self {
+        let mut install = Self {
+            requirements: raw.requirements,
+            embedded: raw.embedded,
+            components: raw.components,
+            environment: raw.environment,
+        };
+
+        if install.embedded.is_empty() {
+            // If there are no embedded packages, then there is no need to
+            // populate defaults.
+            return install;
+        }
+
+        // If the same package is embedded multiple times, then it is not
+        // possible to provide defaults.
+        let mut embedded_names = std::collections::HashSet::new();
+        for embedded in install.embedded.iter() {
+            if !embedded_names.insert(embedded.name()) {
+                return install;
+            }
+        }
+
+        // Populate any missing components.embedded_components with default
+        // values.
+        for component in install.components.iter_mut() {
+            if !component.embedded_components.is_empty() {
+                continue;
+            }
+            component.embedded_components = install
+                .embedded
+                .iter()
+                .filter_map(|embedded| {
+                    if embedded.components().names().contains(&component.name) {
+                        Some(EmbeddedComponents {
+                            name: embedded.name().to_owned(),
+                            components: [component.name.clone()].into(),
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .into();
+        }
+
+        install
+    }
+}
+
+/// A raw, unvalidated install spec.
+#[derive(Deserialize)]
+struct RawInstallSpec {
+    #[serde(default)]
+    requirements: RequirementsList,
+    #[serde(default)]
+    embedded: EmbeddedPackagesList,
+    #[serde(default)]
+    components: ComponentSpecList,
+    #[serde(default, deserialize_with = "deserialize_env_conf")]
+    environment: EnvOpList,
 }
 
 fn deserialize_env_conf<'de, D>(deserializer: D) -> std::result::Result<EnvOpList, D::Error>

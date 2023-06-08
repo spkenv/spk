@@ -85,3 +85,12 @@ impl std::ops::DerefMut for EmbeddedComponentsList {
         &mut self.0
     }
 }
+
+impl<I> From<I> for EmbeddedComponentsList
+where
+    I: IntoIterator<Item = EmbeddedComponents>,
+{
+    fn from(items: I) -> Self {
+        Self(items.into_iter().collect())
+    }
+}
