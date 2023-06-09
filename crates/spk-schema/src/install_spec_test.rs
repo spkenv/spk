@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::collections::HashSet;
 use std::str::FromStr;
 
 use rstest::rstest;
@@ -192,11 +193,15 @@ embedded:
 }
 
 #[rstest]
-#[case("comp1", "1.0.0")]
-#[case("comp2", "2.0.0")]
+#[case::comp1("comp1", "1.0.0", &["build", "run"])]
+#[case::comp2("comp2", "2.0.0", &["build", "run"])]
+#[case::v3_with_all("v3-with-all", "3.0.0", &["build", "run", "aa", "bb", "cc"])]
+#[case::v3_with_components_elided("v3-with-components-elided", "3.0.0", &["build", "run", "aa", "bb", "cc"])]
+#[case::v3_with_subset_of_components("v3-with-subset-of-components", "3.0.0", &["aa", "bb"])]
 fn test_embedding_multiple_versions_of_the_same_package(
     #[case] component_name: &str,
     #[case] expected_component_version: &str,
+    #[case] expected_embedded_components: &[&str],
 ) {
     // Allow multiple versions of the same package to be embedded. Test that
     // it is possible to assign the different versions to different
@@ -210,24 +215,53 @@ components:
   - name: comp2
     embedded_components:
       - embedded:all/2.0.0
+  - name: v3-with-all
+    embedded_components:
+      - embedded:all/3.0.0
+  - name: v3-with-components-elided
+    embedded_components:
+      - embedded/3.0.0
+  - name: v3-with-subset-of-components
+    embedded_components:
+      - embedded:{aa,bb}/3.0.0
 embedded:
   - pkg: "embedded/1.0.0"
   - pkg: "embedded/2.0.0"
+  - pkg: "embedded/3.0.0"
+    install:
+      components:
+        - name: aa
+        - name: bb
+        - name: cc
         "#,
     )
     .unwrap();
 
-    assert_eq!(install.embedded.len(), 2, "expecting two embedded packages");
-
     assert_eq!(
-        install.embedded[0].ident().name(),
-        install.embedded[1].ident().name(),
-        "expecting both embedded packages to be the same package"
+        install.embedded.len(),
+        3,
+        "expecting three embedded packages"
     );
 
-    assert_ne!(
-        install.embedded[0].ident().version(),
-        install.embedded[1].ident().version(),
+    assert_eq!(
+        1,
+        install
+            .embedded
+            .iter()
+            .map(|p| p.ident().name())
+            .collect::<HashSet<_>>()
+            .len(),
+        "expecting all embedded packages to be the same package"
+    );
+
+    assert_eq!(
+        3,
+        install
+            .embedded
+            .iter()
+            .map(|p| p.ident().version())
+            .collect::<HashSet<_>>()
+            .len(),
         "expecting the embedded packages to be different versions"
     );
 
@@ -250,8 +284,15 @@ embedded:
     );
 
     assert_eq!(
-        comp.embedded_components[0].components.len(),
-        2,
-        "expecting 'all' to be expanded into all the embedded package's components"
+        expected_embedded_components
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>(),
+        comp.embedded_components[0]
+            .components
+            .iter()
+            .map(|c| c.as_str())
+            .collect::<HashSet<_>>(),
+        "expecting embedded_components to be expanded correctly"
     );
 }

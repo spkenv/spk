@@ -81,7 +81,10 @@ impl From<RawInstallSpec> for InstallSpec {
         for component in install.components.iter_mut() {
             'embedded_component: for embedded_component in component.embedded_components.iter_mut()
             {
-                if !embedded_component.components.remove(&Component::All) {
+                // Also expand if no components were explicitly specified.
+                if !(embedded_component.components.is_empty()
+                    || embedded_component.components.remove(&Component::All))
+                {
                     continue;
                 }
 
