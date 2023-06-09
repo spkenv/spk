@@ -104,10 +104,10 @@ impl EmbeddedPackageValidator {
                 continue;
             }
 
-            for embedded_component in component.embedded_components.iter() {
+            for embedded_package in component.embedded_packages.iter() {
                 for embedded in spec
                     .embedded()
-                    .packages_matching_embedded_component(embedded_component)
+                    .packages_matching_embedded_package(embedded_package)
                 {
                     let compat =
                         Self::validate_embedded_package_against_state(spec, embedded, state)?;

@@ -728,15 +728,13 @@ impl Solver {
                                         missing.missing.iter().cloned().collect();
                                     let mut components_to_request = BTreeSet::new();
                                     for component in parent_spec.components().iter() {
-                                        for embedded_component in
-                                            component.embedded_components.iter()
-                                        {
-                                            if embedded_component.pkg.name() != missing.package {
+                                        for embedded_package in component.embedded_packages.iter() {
+                                            if embedded_package.pkg.name() != missing.package {
                                                 continue;
                                             }
 
                                             let overlapping: Vec<_> = remaining_missing_components
-                                                .intersection(&embedded_component.components)
+                                                .intersection(&embedded_package.components)
                                                 .collect();
                                             if overlapping.is_empty() {
                                                 continue;

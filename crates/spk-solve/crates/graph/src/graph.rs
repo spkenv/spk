@@ -482,15 +482,13 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 if !required.contains(&component.name) {
                     continue;
                 }
-                for embedded_component in component.embedded_components.iter() {
+                for embedded_package in component.embedded_packages.iter() {
                     // TODO: It should be validated elsewhere that
-                    // component.embedded_components only refers to valid
+                    // component.embedded_packages only refers to valid
                     // packages declared in embedded.
-                    for embedded in
-                        embedded.packages_matching_embedded_component(embedded_component)
-                    {
+                    for embedded in embedded.packages_matching_embedded_package(embedded_package) {
                         (*merged_changes.entry(embedded).or_insert(BTreeSet::new()))
-                            .extend(embedded_component.components.iter().cloned());
+                            .extend(embedded_package.components.iter().cloned());
                     }
                 }
             }
