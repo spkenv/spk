@@ -3,9 +3,10 @@
 // https://github.com/spkenv/spk
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::spec_ops::Named;
 use spk_schema_foundation::IsDefault;
-use spk_schema_ident::BuildIdent;
+use spk_schema_ident::{BuildIdent, OptVersionIdent};
 
 use super::{ComponentSpecList, EmbeddedPackagesList, EnvOp, OpKind, RequirementsList};
 use crate::embedded_components_list::EmbeddedComponents;
@@ -76,6 +77,46 @@ impl From<RawInstallSpec> for InstallSpec {
             return install;
         }
 
+        // Expand any use of "all" in the defined embedded components.
+        for component in install.components.iter_mut() {
+            'embedded_component: for embedded_component in component.embedded_components.iter_mut()
+            {
+                if !embedded_component.components.remove(&Component::All) {
+                    continue;
+                }
+
+                let mut matching_embedded = install
+                    .embedded
+                    .packages_matching_embedded_component(embedded_component);
+
+                let Some(target_embedded_package) = matching_embedded.next() else {
+                    continue;
+                };
+
+                for another_match in matching_embedded {
+                    // If there are multiple embedded packages matching the
+                    // embedded_component, then it is not possible to know
+                    // which one to use to expand the "all" component.
+                    //
+                    // Unless they _all_ have identical component sets, then
+                    // it isn't ambiguous.
+                    if another_match.components().names()
+                        != target_embedded_package.components().names()
+                    {
+                        continue 'embedded_component;
+                    }
+                }
+
+                embedded_component.components.extend(
+                    target_embedded_package
+                        .components()
+                        .names()
+                        .into_iter()
+                        .cloned(),
+                );
+            }
+        }
+
         // If the same package is embedded multiple times, then it is not
         // possible to provide defaults.
         let mut embedded_names = std::collections::HashSet::new();
@@ -97,7 +138,7 @@ impl From<RawInstallSpec> for InstallSpec {
                 .filter_map(|embedded| {
                     if embedded.components().names().contains(&component.name) {
                         Some(EmbeddedComponents {
-                            name: embedded.name().to_owned(),
+                            pkg: OptVersionIdent::new(embedded.name().to_owned(), None),
                             components: [component.name.clone()].into(),
                         })
                     } else {

@@ -4,11 +4,14 @@
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::EmbeddedSource;
+use spk_schema_foundation::spec_ops::Named;
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::AnyIdent;
 
 use super::{BuildSpec, InstallSpec, Spec};
+use crate::embedded_components_list::EmbeddedComponents;
 use crate::foundation::ident_build::Build;
+use crate::Package;
 
 #[cfg(test)]
 #[path = "./embedded_packages_list_test.rs"]
@@ -18,6 +21,26 @@ mod embedded_packages_list_test;
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct EmbeddedPackagesList(Vec<Spec>);
+
+impl EmbeddedPackagesList {
+    /// Return an iterator over the embedded packages that match the given
+    /// embedded component.
+    pub fn packages_matching_embedded_component<'a, 'b, 'c>(
+        &'a self,
+        embedded_component: &'b EmbeddedComponents,
+    ) -> impl Iterator<Item = &'a Spec> + 'c
+    where
+        'a: 'c,
+        'b: 'c,
+    {
+        self.iter().filter(move |embedded| {
+            embedded.name() == embedded_component.pkg.name()
+                && (embedded_component.pkg.target().is_none()
+                    || embedded.ident().version()
+                        == embedded_component.pkg.target().as_ref().unwrap())
+        })
+    }
+}
 
 impl IsDefault for EmbeddedPackagesList {
     fn is_default(&self) -> bool {

@@ -746,7 +746,7 @@ impl Solver {
                                         for embedded_component in
                                             component.embedded_components.iter()
                                         {
-                                            if embedded_component.name != embedded {
+                                            if embedded_component.pkg.name() != embedded {
                                                 continue;
                                             }
 
