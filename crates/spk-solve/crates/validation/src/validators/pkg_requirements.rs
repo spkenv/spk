@@ -10,6 +10,7 @@ use spk_schema::version::{
 };
 
 use super::prelude::*;
+use crate::validators::EmbeddedPackageValidator;
 use crate::ValidatorT;
 
 /// Validates that the pkg install requirements do not conflict with the existing resolve.
@@ -63,7 +64,7 @@ impl PkgRequirementsValidator {
             Err(err) => return Err(err.into()),
         };
 
-        let mut restricted = existing;
+        let mut restricted = existing.clone();
         let request = match restricted.restrict(request) {
             Compatible => restricted,
             Compatibility::Incompatible(incompatible) => {
@@ -93,35 +94,75 @@ impl PkgRequirementsValidator {
             }
         };
 
-        Ok(
-            match Self::validate_request_against_existing_resolve(
-                &request,
-                resolved,
-                provided_components,
-            )? {
-                Compatible => Compatible,
-                Compatibility::Incompatible(reason) => match (reason, was_embedded) {
-                    (
-                        IncompatibleReason::ComponentsMissing(
-                            ComponentsMissingProblem::ComponentsNotProvided {
-                                package,
-                                needed,
-                                have,
-                            },
-                        ),
-                        Some(parent),
-                    ) => Compatibility::Incompatible(IncompatibleReason::ComponentsMissing(
-                        ComponentsMissingProblem::EmbeddedComponentsNotProvided {
-                            embedder: parent.name().to_owned(),
-                            embedded: package,
+        let compat = match Self::validate_request_against_existing_resolve(
+            &request,
+            resolved,
+            provided_components,
+        )? {
+            Compatible => Compatible,
+            Compatibility::Incompatible(reason) => match (reason, was_embedded) {
+                (
+                    IncompatibleReason::ComponentsMissing(
+                        ComponentsMissingProblem::ComponentsNotProvided {
+                            package,
                             needed,
                             have,
                         },
-                    )),
-                    (reason, _) => Compatibility::Incompatible(reason),
-                },
+                    ),
+                    Some(parent),
+                ) => Compatibility::Incompatible(IncompatibleReason::ComponentsMissing(
+                    ComponentsMissingProblem::EmbeddedComponentsNotProvided {
+                        embedder: parent.name().to_owned(),
+                        embedded: package,
+                        needed,
+                        have,
+                    },
+                )),
+                (reason, _) => Compatibility::Incompatible(reason),
             },
-        )
+        };
+        if !compat.is_ok() {
+            return Ok(compat);
+        }
+
+        let existing_components = resolved
+            .components()
+            .resolve_uses(existing.pkg.components.iter());
+        let required_components = resolved
+            .components()
+            .resolve_uses(request.pkg.components.iter());
+        for component in resolved.components().iter() {
+            if existing_components.contains(&component.name) {
+                continue;
+            }
+            if !required_components.contains(&component.name) {
+                continue;
+            }
+            for embedded_component in component.embedded_components.iter() {
+                for embedded in resolved
+                    .embedded()
+                    .packages_matching_embedded_component(embedded_component)
+                {
+                    let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
+                        &**resolved,
+                        embedded,
+                        state,
+                    )?;
+                    if let Compatibility::Incompatible(compat) = compat {
+                        return Ok(Compatibility::Incompatible(
+                            IncompatibleReason::ConflictingEmbeddedPackageRequirement(
+                                resolved.name().to_owned(),
+                                component.name.to_string(),
+                                embedded.name().to_owned(),
+                                Box::new(compat),
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+
+        Ok(Compatible)
     }
 
     fn validate_request_against_existing_resolve(
