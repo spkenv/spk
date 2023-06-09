@@ -8,10 +8,18 @@ use spk_schema_foundation::spec_ops::Named;
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{BuildIdent, OptVersionIdent};
 
-use super::{ComponentSpecList, EmbeddedPackagesList, EnvOp, OpKind, RequirementsList};
-use crate::embedded_components_list::EmbeddedComponents;
+use crate::component_embedded_packages::ComponentEmbeddedPackage;
 use crate::foundation::option_map::OptionMap;
-use crate::{EnvOpList, Package, Result};
+use crate::{
+    ComponentSpecList,
+    EmbeddedPackagesList,
+    EnvOp,
+    EnvOpList,
+    OpKind,
+    Package,
+    RequirementsList,
+    Result,
+};
 
 #[cfg(test)]
 #[path = "./install_spec_test.rs"]
@@ -79,18 +87,17 @@ impl From<RawInstallSpec> for InstallSpec {
 
         // Expand any use of "all" in the defined embedded components.
         for component in install.components.iter_mut() {
-            'embedded_component: for embedded_component in component.embedded_components.iter_mut()
-            {
+            'embedded_package: for embedded_package in component.embedded_packages.iter_mut() {
                 // Also expand if no components were explicitly specified.
-                if !(embedded_component.components.is_empty()
-                    || embedded_component.components.remove(&Component::All))
+                if !(embedded_package.components.is_empty()
+                    || embedded_package.components.remove(&Component::All))
                 {
                     continue;
                 }
 
                 let mut matching_embedded = install
                     .embedded
-                    .packages_matching_embedded_component(embedded_component);
+                    .packages_matching_embedded_package(embedded_package);
 
                 let Some(target_embedded_package) = matching_embedded.next() else {
                     continue;
@@ -98,7 +105,7 @@ impl From<RawInstallSpec> for InstallSpec {
 
                 for another_match in matching_embedded {
                     // If there are multiple embedded packages matching the
-                    // embedded_component, then it is not possible to know
+                    // embedded_package, then it is not possible to know
                     // which one to use to expand the "all" component.
                     //
                     // Unless they _all_ have identical component sets, then
@@ -106,11 +113,11 @@ impl From<RawInstallSpec> for InstallSpec {
                     if another_match.components().names()
                         != target_embedded_package.components().names()
                     {
-                        continue 'embedded_component;
+                        continue 'embedded_package;
                     }
                 }
 
-                embedded_component.components.extend(
+                embedded_package.components.extend(
                     target_embedded_package
                         .components()
                         .names()
@@ -129,18 +136,18 @@ impl From<RawInstallSpec> for InstallSpec {
             }
         }
 
-        // Populate any missing components.embedded_components with default
+        // Populate any missing components.embedded_packages with default
         // values.
         for component in install.components.iter_mut() {
-            if !component.embedded_components.is_empty() {
+            if !component.embedded_packages.is_empty() {
                 continue;
             }
-            component.embedded_components = install
+            component.embedded_packages = install
                 .embedded
                 .iter()
                 .filter_map(|embedded| {
                     if embedded.components().names().contains(&component.name) {
-                        Some(EmbeddedComponents {
+                        Some(ComponentEmbeddedPackage {
                             pkg: OptVersionIdent::new(embedded.name().to_owned(), None),
                             components: [component.name.clone()].into(),
                         })
@@ -149,7 +156,7 @@ impl From<RawInstallSpec> for InstallSpec {
                     }
                 })
                 .into();
-            component.embedded_components.set_fabricated();
+            component.embedded_packages.set_fabricated();
         }
 
         install

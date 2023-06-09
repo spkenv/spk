@@ -10,13 +10,19 @@ use spk_schema_foundation::ident_component::{Component, Components};
 use spk_schema_foundation::ident_ops::parsing::request_pkg_name_and_version;
 use spk_schema_ident::OptVersionIdent;
 
+/// A struct describing a package that is embedded within a component of a
+/// host package.
+///
+/// A component of a host package may embed another package but only contain
+/// some of the files of the embedded package. This struct describes the
+/// identity of the embedded package and the components that are embedded.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct EmbeddedComponents {
+pub struct ComponentEmbeddedPackage {
     pub pkg: OptVersionIdent,
     pub components: BTreeSet<Component>,
 }
 
-impl std::fmt::Display for EmbeddedComponents {
+impl std::fmt::Display for ComponentEmbeddedPackage {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         self.pkg.name().fmt(f)?;
         self.components.fmt_component_set(f)?;
@@ -28,7 +34,7 @@ impl std::fmt::Display for EmbeddedComponents {
     }
 }
 
-impl<'de> Deserialize<'de> for EmbeddedComponents {
+impl<'de> Deserialize<'de> for ComponentEmbeddedPackage {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -36,7 +42,7 @@ impl<'de> Deserialize<'de> for EmbeddedComponents {
         struct EmbeddedComponentsVisitor;
 
         impl<'de> serde::de::Visitor<'de> for EmbeddedComponentsVisitor {
-            type Value = EmbeddedComponents;
+            type Value = ComponentEmbeddedPackage;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("an embedded components")
@@ -64,7 +70,7 @@ impl<'de> Deserialize<'de> for EmbeddedComponents {
     }
 }
 
-impl Serialize for EmbeddedComponents {
+impl Serialize for ComponentEmbeddedPackage {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -73,16 +79,16 @@ impl Serialize for EmbeddedComponents {
     }
 }
 
-/// A set of packages that are embedded/provided by another.
+/// A set of packages that are embedded within a component.
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
-pub struct EmbeddedComponentsList {
-    components: Vec<EmbeddedComponents>,
+pub struct ComponentEmbeddedPackagesList {
+    components: Vec<ComponentEmbeddedPackage>,
     #[serde(skip)]
     fabricated: bool,
 }
 
-impl EmbeddedComponentsList {
+impl ComponentEmbeddedPackagesList {
     /// Return if the list was fabricated by defaults.
     #[inline]
     pub fn is_fabricated(&self) -> bool {
@@ -96,22 +102,22 @@ impl EmbeddedComponentsList {
     }
 }
 
-impl std::ops::Deref for EmbeddedComponentsList {
-    type Target = Vec<EmbeddedComponents>;
+impl std::ops::Deref for ComponentEmbeddedPackagesList {
+    type Target = Vec<ComponentEmbeddedPackage>;
     fn deref(&self) -> &Self::Target {
         &self.components
     }
 }
 
-impl std::ops::DerefMut for EmbeddedComponentsList {
+impl std::ops::DerefMut for ComponentEmbeddedPackagesList {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.components
     }
 }
 
-impl<I> From<I> for EmbeddedComponentsList
+impl<I> From<I> for ComponentEmbeddedPackagesList
 where
-    I: IntoIterator<Item = EmbeddedComponents>,
+    I: IntoIterator<Item = ComponentEmbeddedPackage>,
 {
     fn from(items: I) -> Self {
         Self {

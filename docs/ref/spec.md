@@ -276,20 +276,20 @@ A test spec defines one test script that should be run against the package to va
 
 The component spec defines a single component of a package. Components can be individually requested for a package. The `build` and `run` components are generated automatically unless they are defined explicitly for a package.
 
-| Field               | Type                                                      | Description                                                                                                                                             |
-| ------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| name                | _string_                                                  | The name of this component                                                                                                                              |
-| files               | _List[string]_                                            | A list of patterns that identify which files belong to this component. Patterns follow the same syntax as gitignore files                               |
-| uses                | _List[string]_                                            | A list of other components from this package that this component uses, and are therefore also included whenever this component is included.             |
-| requirements        | _List[[Request](#request)]_                               | A list of requirements that this component has. These requirements are **in addition to** any requirements defined at the `install.requirements` level. |
-| embedded_components | _List[[EmbeddedComponentsSpec](#embeddedcomponentsspec)]_ | A list of which embedded packages' components are embedded in this component.                                                                           |
-| file_match_mode     | _List[[ComponentFileMatchMode](#componentfilematchmode)]_ | Control how the file filters are applied.                                                                                                               |
+| Field               | Type                                                                    | Description                                                                                                                                             |
+| ------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| name                | _string_                                                                | The name of this component                                                                                                                              |
+| files               | _List[string]_                                                          | A list of patterns that identify which files belong to this component. Patterns follow the same syntax as gitignore files                               |
+| uses                | _List[string]_                                                          | A list of other components from this package that this component uses, and are therefore also included whenever this component is included.             |
+| requirements        | _List[[Request](#request)]_                                             | A list of requirements that this component has. These requirements are **in addition to** any requirements defined at the `install.requirements` level. |
+| embedded_packages   | _List[[ComponentEmbeddedPackagesSpec](#componentembeddedpackagesspec)]_ | A list of which embedded packages are embedded in this component, and which components of the embedded package are present.                             |
+| file_match_mode     | _List[[ComponentFileMatchMode](#componentfilematchmode)]_               | Control how the file filters are applied.                                                                                                               |
 
-#### EmbeddedComponentsSpec
+#### ComponentEmbeddedPackagesSpec
 
-| Value | Description                                                                                                                                                                                                                          |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| _str_ | A package and component(s) in the form of either `pkg-name:comp-name` or `pkg-name:{comp1,comp2,...,compn}`, referring to an embedded package and its component(s) defined in the `embedded` section of [InstallSpec](#installspec). |
+| Value | Description                                                                                                                                                                                                                                                                      |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _str_ | A package and component(s), with optional version, in the form of either `pkg-name:comp-name[/version]` or `pkg-name:{comp1,comp2,...,compn}[/version]`, referring to an embedded package and its component(s) defined in the `embedded` section of [InstallSpec](#installspec). |
 
 #### ComponentFileMatchMode
 

@@ -94,25 +94,25 @@ embedded:
 
     for component in install.components.iter() {
         assert_eq!(
-            component.embedded_components.len(),
+            component.embedded_packages.len(),
             1,
             "expecting each host component to embed one component"
         );
 
         assert_eq!(
-            component.embedded_components[0].pkg.name(),
+            component.embedded_packages[0].pkg.name(),
             "embedded",
             "expecting the embedded package name to be correct"
         );
 
         assert_eq!(
-            component.embedded_components[0].components.len(),
+            component.embedded_packages[0].components.len(),
             1,
             "expecting the build and run components to get mapped 1:1"
         );
 
         assert_eq!(
-            *component.embedded_components[0]
+            *component.embedded_packages[0]
                 .components
                 .iter()
                 .next()
@@ -157,25 +157,25 @@ embedded:
 
     for component in install.components.iter() {
         assert_eq!(
-            component.embedded_components.len(),
+            component.embedded_packages.len(),
             1,
             "expecting each host component to embed one component"
         );
 
         assert_eq!(
-            component.embedded_components[0].pkg.name(),
+            component.embedded_packages[0].pkg.name(),
             "embedded",
             "expecting the embedded package name to be correct"
         );
 
         assert_eq!(
-            component.embedded_components[0].components.len(),
+            component.embedded_packages[0].components.len(),
             1,
             "expecting all the host package's components to get mapped 1:1"
         );
 
         assert_eq!(
-            *component.embedded_components[0]
+            *component.embedded_packages[0]
                 .components
                 .iter()
                 .next()
@@ -210,19 +210,19 @@ fn test_embedding_multiple_versions_of_the_same_package(
         r#"
 components:
   - name: comp1
-    embedded_components:
+    embedded_packages:
       - embedded:all/1.0.0
   - name: comp2
-    embedded_components:
+    embedded_packages:
       - embedded:all/2.0.0
   - name: v3-with-all
-    embedded_components:
+    embedded_packages:
       - embedded:all/3.0.0
   - name: v3-with-components-elided
-    embedded_components:
+    embedded_packages:
       - embedded/3.0.0
   - name: v3-with-subset-of-components
-    embedded_components:
+    embedded_packages:
       - embedded:{aa,bb}/3.0.0
 embedded:
   - pkg: "embedded/1.0.0"
@@ -272,13 +272,13 @@ embedded:
         .unwrap();
 
     assert_eq!(
-        comp.embedded_components.len(),
+        comp.embedded_packages.len(),
         1,
         "expecting one embedded package"
     );
 
     assert_eq!(
-        comp.embedded_components[0].pkg.target(),
+        comp.embedded_packages[0].pkg.target(),
         &Some(Version::from_str(expected_component_version).unwrap()),
         "expecting the embedded package version to be correct"
     );
@@ -288,11 +288,11 @@ embedded:
             .iter()
             .cloned()
             .collect::<HashSet<_>>(),
-        comp.embedded_components[0]
+        comp.embedded_packages[0]
             .components
             .iter()
             .map(|c| c.as_str())
             .collect::<HashSet<_>>(),
-        "expecting embedded_components to be expanded correctly"
+        "expecting embedded_packages to be expanded correctly"
     );
 }

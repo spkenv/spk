@@ -1881,13 +1881,13 @@ async fn test_solver_components_interaction_with_embeds(mut solver: Solver) {
                     "components": [
                         {
                             "name": "comp1",
-                            "embedded_components": [
+                            "embedded_packages": [
                                 "real-pkg:comp1",
                             ]
                         },
                         {
                             "name": "comp2",
-                            "embedded_components": [
+                            "embedded_packages": [
                                 "real-pkg:comp2",
                             ]
                         },
@@ -2221,8 +2221,8 @@ async fn test_solver_component_embedded(mut solver: Solver) {
                 "pkg": "mypkg/1.0.0",
                 "install": {
                     "components": [
-                        {"name": "build", "embedded_components": ["dep-e1:all"]},
-                        {"name": "run", "embedded_components": ["dep-e2:all"]},
+                        {"name": "build", "embedded_packages": ["dep-e1:all"]},
+                        {"name": "run", "embedded_packages": ["dep-e2:all"]},
                     ],
                     "embedded": [
                         {"pkg": "dep-e1/1.0.0"},
@@ -2349,8 +2349,8 @@ async fn test_solver_component_embedded_multiple_versions(
                 "pkg": "mypkg/1.0.0",
                 "install": {
                     "components": [
-                        {"name": "build", "embedded_components": ["dep-e1:all/1.0.0"]},
-                        {"name": "run", "embedded_components": ["dep-e1:all/2.0.0"]},
+                        {"name": "build", "embedded_packages": ["dep-e1:all/1.0.0"]},
+                        {"name": "run", "embedded_packages": ["dep-e1:all/2.0.0"]},
                     ],
                     "embedded": [
                         {"pkg": "dep-e1/1.0.0"},

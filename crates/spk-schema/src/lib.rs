@@ -3,10 +3,10 @@
 // https://github.com/spkenv/spk
 
 mod build_spec;
+mod component_embedded_packages;
 mod component_spec;
 mod component_spec_list;
 mod deprecate;
-mod embedded_components_list;
 mod embedded_packages_list;
 mod environ;
 mod error;
@@ -27,10 +27,10 @@ pub mod validation;
 pub mod variant;
 
 pub use build_spec::{BuildSpec, Script};
+pub use component_embedded_packages::ComponentEmbeddedPackagesList;
 pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
 pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};
-pub use embedded_components_list::EmbeddedComponentsList;
 pub use embedded_packages_list::EmbeddedPackagesList;
 pub use environ::{
     AppendEnv,

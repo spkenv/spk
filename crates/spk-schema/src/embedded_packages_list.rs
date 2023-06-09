@@ -9,7 +9,7 @@ use spk_schema_foundation::IsDefault;
 use spk_schema_ident::AnyIdent;
 
 use super::{BuildSpec, InstallSpec, Spec};
-use crate::embedded_components_list::EmbeddedComponents;
+use crate::component_embedded_packages::ComponentEmbeddedPackage;
 use crate::foundation::ident_build::Build;
 use crate::Package;
 
@@ -25,19 +25,19 @@ pub struct EmbeddedPackagesList(Vec<Spec>);
 impl EmbeddedPackagesList {
     /// Return an iterator over the embedded packages that match the given
     /// embedded component.
-    pub fn packages_matching_embedded_component<'a, 'b, 'c>(
+    pub fn packages_matching_embedded_package<'a, 'b, 'c>(
         &'a self,
-        embedded_component: &'b EmbeddedComponents,
+        embedded_package: &'b ComponentEmbeddedPackage,
     ) -> impl Iterator<Item = &'a Spec> + 'c
     where
         'a: 'c,
         'b: 'c,
     {
         self.iter().filter(move |embedded| {
-            embedded.name() == embedded_component.pkg.name()
-                && (embedded_component.pkg.target().is_none()
+            embedded.name() == embedded_package.pkg.name()
+                && (embedded_package.pkg.target().is_none()
                     || embedded.ident().version()
-                        == embedded_component.pkg.target().as_ref().unwrap())
+                        == embedded_package.pkg.target().as_ref().unwrap())
         })
     }
 }
