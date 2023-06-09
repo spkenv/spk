@@ -118,3 +118,71 @@ embedded:
         );
     }
 }
+
+#[rstest]
+fn test_embedded_components_extra_components() {
+    // If the embedded package has components that the host package doesn't
+    // have, they don't get mapped anywhere automatically.
+    let install = serde_yaml::from_str::<InstallSpec>(
+        r#"
+components:
+  - name: comp1
+embedded:
+  - pkg: "embedded/1.0.0"
+    install:
+      components:
+        - name: comp1
+        - name: comp2
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        install.components.len(),
+        3,
+        "expecting two default components and one explicit component: comp1"
+    );
+
+    assert_eq!(install.embedded.len(), 1, "expecting one embedded package");
+
+    assert_eq!(
+        install.embedded[0].components().len(),
+        4,
+        "expecting two default components and two explicit components: comp1 and comp2"
+    );
+
+    for component in install.components.iter() {
+        assert_eq!(
+            component.embedded_components.len(),
+            1,
+            "expecting each host component to embed one component"
+        );
+
+        assert_eq!(
+            component.embedded_components[0].name, "embedded",
+            "expecting the embedded package name to be correct"
+        );
+
+        assert_eq!(
+            component.embedded_components[0].components.len(),
+            1,
+            "expecting all the host package's components to get mapped 1:1"
+        );
+
+        assert_eq!(
+            *component.embedded_components[0]
+                .components
+                .iter()
+                .next()
+                .unwrap(),
+            component.name,
+            "expecting the component names to agree"
+        );
+
+        assert_ne!(
+            component.name.as_str(),
+            "comp2",
+            "expecting the host package to not have comp2"
+        );
+    }
+}
