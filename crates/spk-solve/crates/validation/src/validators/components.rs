@@ -5,6 +5,7 @@
 use itertools::Itertools;
 
 use super::prelude::*;
+use crate::validators::EmbeddedPackageValidator;
 use crate::ValidatorT;
 
 /// Ensures that all of the requested components are available.
@@ -35,7 +36,9 @@ impl ValidatorT for ComponentsValidator {
             return Ok(Compatibility::Incompatible(reason));
         }
 
-        Ok(Compatible)
+        EmbeddedPackageValidator::validate_embedded_packages_in_required_components(
+            spec, &request, state,
+        )
     }
 
     fn validate_recipe<R: Recipe>(

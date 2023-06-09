@@ -30,29 +30,7 @@ impl ValidatorT for EmbeddedPackageValidator {
             "empty request.pkg.components not handled"
         );
 
-        let requesting_all = request.pkg.components.contains(&Component::All);
-
-        for component in spec.components().iter() {
-            // If the component is not active, skip it.
-            if !(requesting_all || request.pkg.components.contains(&component.name)) {
-                continue;
-            }
-
-            for embedded_component in component.embedded_components.iter() {
-                for embedded in spec
-                    .embedded()
-                    .packages_matching_embedded_component(embedded_component)
-                {
-                    let compat =
-                        Self::validate_embedded_package_against_state(spec, embedded, state)?;
-                    if !&compat {
-                        return Ok(compat);
-                    }
-                }
-            }
-        }
-
-        Ok(Compatibility::Compatible)
+        Self::validate_embedded_packages_in_required_components(spec, &request, state)
     }
 
     fn validate_recipe<R: Recipe>(
@@ -103,5 +81,43 @@ impl EmbeddedPackageValidator {
             )));
         }
         Ok(Compatible)
+    }
+
+    /// Validate that any embedded packages that are present in any of the
+    /// components requested by the given request are compatible with the
+    /// current state.
+    pub(super) fn validate_embedded_packages_in_required_components<P>(
+        spec: &P,
+        request: &PkgRequest,
+        state: &State,
+    ) -> crate::Result<Compatibility>
+    where
+        P: Package,
+    {
+        let required_components = spec
+            .components()
+            .resolve_uses(request.pkg.components.iter());
+
+        for component in spec.components().iter() {
+            // If the component is not active, skip it.
+            if !required_components.contains(&component.name) {
+                continue;
+            }
+
+            for embedded_component in component.embedded_components.iter() {
+                for embedded in spec
+                    .embedded()
+                    .packages_matching_embedded_component(embedded_component)
+                {
+                    let compat =
+                        Self::validate_embedded_package_against_state(spec, embedded, state)?;
+                    if !&compat {
+                        return Ok(compat);
+                    }
+                }
+            }
+        }
+
+        Ok(Compatibility::Compatible)
     }
 }
