@@ -477,6 +477,7 @@
     "openvdb",
     "optix",
     "optruleset",
+    "optversion",
     "orld",
     "oslbatch",
     "oslcudatarget",
