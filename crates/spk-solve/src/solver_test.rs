@@ -2329,6 +2329,79 @@ async fn test_solver_component_embedded_component_requirements(
 }
 
 #[rstest]
+#[case::downstream1("downstream1", true)]
+#[case::downstream2("downstream2", true)]
+#[case::downstream3("downstream3", false)]
+#[tokio::test]
+async fn test_solver_component_embedded_multiple_versions(
+    mut solver: Solver,
+    #[case] package_to_request: &str,
+    #[case] expected_solve_result: bool,
+) {
+    // test when different components embed different versions of the same
+    // embedded package
+    // - requesting individual components should select the correct version of
+    //   the embedded package
+
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "mypkg/1.0.0",
+                "install": {
+                    "components": [
+                        {"name": "build", "embedded_components": ["dep-e1:all/1.0.0"]},
+                        {"name": "run", "embedded_components": ["dep-e1:all/2.0.0"]},
+                    ],
+                    "embedded": [
+                        {"pkg": "dep-e1/1.0.0"},
+                        {"pkg": "dep-e1/2.0.0"},
+                    ],
+                },
+            },
+            {"pkg": "dep-e1/1.0.0"},
+            {"pkg": "dep-e1/2.0.0"},
+            {
+                "pkg": "downstream1",
+                "install": {
+                    "requirements": [{"pkg": "dep-e1/1.0.0"}, {"pkg": "mypkg:build"}]
+                },
+            },
+            {
+                "pkg": "downstream2",
+                "install": {
+                    "requirements": [{"pkg": "dep-e1/2.0.0"}, {"pkg": "mypkg:run"}]
+                },
+            },
+            {
+                "pkg": "downstream3",
+                "install": {
+                    "requirements": [{"pkg": "dep-e1/1.0.0"}, {"pkg": "mypkg:run"}]
+                },
+            },
+        ]
+    );
+    let repo = Arc::new(repo);
+
+    solver.add_repository(repo);
+    solver.add_request(request!(package_to_request));
+
+    match run_and_print_resolve_for_tests(&solver).await {
+        Ok(solution) => {
+            assert!(expected_solve_result, "expected solve to fail");
+
+            assert_resolved!(
+                solution,
+                "dep-e1",
+                build = Build::Embedded(EmbeddedSource::Unknown)
+            );
+        }
+        Err(_) => {
+            assert!(!expected_solve_result, "expected solve to succeed");
+        }
+    }
+}
+
+#[rstest]
 fn test_solver_get_request_validator() {
     let solver = Solver::default();
     let resolve_validator = solver.request_validator();
