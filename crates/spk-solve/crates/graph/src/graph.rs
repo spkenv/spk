@@ -486,12 +486,9 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                     // TODO: It should be validated elsewhere that
                     // component.embedded_components only refers to valid
                     // packages declared in embedded.
-
-                    for embedded in embedded.iter() {
-                        if embedded.name() != embedded_component.pkg.name() {
-                            continue;
-                        }
-
+                    for embedded in
+                        embedded.packages_matching_embedded_component(embedded_component)
+                    {
                         (*merged_changes.entry(embedded).or_insert(BTreeSet::new()))
                             .extend(embedded_component.components.iter().cloned());
                     }

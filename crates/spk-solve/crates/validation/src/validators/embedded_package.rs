@@ -18,10 +18,37 @@ impl ValidatorT for EmbeddedPackageValidator {
     where
         P: Package,
     {
-        for embedded in spec.embedded().iter() {
-            let compat = Self::validate_embedded_package_against_state(spec, embedded, state)?;
-            if !&compat {
-                return Ok(compat);
+        // Only the embedded packages that are active based on the components
+        // being requested from this spec are checked. There may be
+        // incompatibilities with other embedded packages that are not active
+        // but that shouldn't block this spec from being valid.
+        let request = state.get_merged_request(spec.name())?;
+
+        // XXX: Can `request.pkg.components` be empty? What would that mean?
+        debug_assert!(
+            !request.pkg.components.is_empty(),
+            "empty request.pkg.components not handled"
+        );
+
+        let requesting_all = request.pkg.components.contains(&Component::All);
+
+        for component in spec.components().iter() {
+            // If the component is not active, skip it.
+            if !(requesting_all || request.pkg.components.contains(&component.name)) {
+                continue;
+            }
+
+            for embedded_component in component.embedded_components.iter() {
+                for embedded in spec
+                    .embedded()
+                    .packages_matching_embedded_component(embedded_component)
+                {
+                    let compat =
+                        Self::validate_embedded_package_against_state(spec, embedded, state)?;
+                    if !&compat {
+                        return Ok(compat);
+                    }
+                }
             }
         }
 
