@@ -488,7 +488,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                     // packages declared in embedded.
 
                     for embedded in embedded.iter() {
-                        if embedded.name() != embedded_component.name {
+                        if embedded.name() != embedded_component.pkg.name() {
                             continue;
                         }
 

@@ -731,7 +731,7 @@ impl Solver {
                                         for embedded_component in
                                             component.embedded_components.iter()
                                         {
-                                            if embedded_component.name != missing.package {
+                                            if embedded_component.pkg.name() != missing.package {
                                                 continue;
                                             }
 

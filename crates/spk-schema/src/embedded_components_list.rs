@@ -3,22 +3,27 @@
 // https://github.com/imageworks/spk
 
 use std::collections::BTreeSet;
+use std::fmt::Write;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::{Component, Components};
-use spk_schema_foundation::ident_ops::parsing::range_ident_pkg_name;
-use spk_schema_foundation::name::PkgNameBuf;
+use spk_schema_foundation::ident_ops::parsing::request_pkg_name_and_version;
+use spk_schema_ident::OptVersionIdent;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct EmbeddedComponents {
-    pub name: PkgNameBuf,
+    pub pkg: OptVersionIdent,
     pub components: BTreeSet<Component>,
 }
 
 impl std::fmt::Display for EmbeddedComponents {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        self.name.fmt(f)?;
+        self.pkg.name().fmt(f)?;
         self.components.fmt_component_set(f)?;
+        if let Some(version) = self.pkg.target() {
+            f.write_char('/')?;
+            version.fmt(f)?;
+        }
         Ok(())
     }
 }
@@ -41,9 +46,9 @@ impl<'de> Deserialize<'de> for EmbeddedComponents {
             where
                 E: serde::de::Error,
             {
-                range_ident_pkg_name::<nom_supreme::error::ErrorTree<_>>(v)
-                    .map(|(_, (name, components))| Self::Value {
-                        name: name.to_owned(),
+                request_pkg_name_and_version::<nom_supreme::error::ErrorTree<_>>(v)
+                    .map(|(_, (name, components, opt_version))| Self::Value {
+                        pkg: OptVersionIdent::new(name.to_owned(), opt_version),
                         components,
                     })
                     .map_err(|err| match err {

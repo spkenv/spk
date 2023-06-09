@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::str::FromStr;
+
 use rstest::rstest;
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map::OptionMap;
-use spk_schema_foundation::version::BINARY_STR;
+use spk_schema_foundation::version::{Version, BINARY_STR};
 use spk_schema_ident::{parse_ident_range, PkgRequest, Request, RequestedBy};
 
 use crate::{InstallSpec, Package, RequirementsList};
@@ -97,7 +99,8 @@ embedded:
         );
 
         assert_eq!(
-            component.embedded_components[0].name, "embedded",
+            component.embedded_components[0].pkg.name(),
+            "embedded",
             "expecting the embedded package name to be correct"
         );
 
@@ -159,7 +162,8 @@ embedded:
         );
 
         assert_eq!(
-            component.embedded_components[0].name, "embedded",
+            component.embedded_components[0].pkg.name(),
+            "embedded",
             "expecting the embedded package name to be correct"
         );
 
@@ -185,4 +189,69 @@ embedded:
             "expecting the host package to not have comp2"
         );
     }
+}
+
+#[rstest]
+#[case("comp1", "1.0.0")]
+#[case("comp2", "2.0.0")]
+fn test_embedding_multiple_versions_of_the_same_package(
+    #[case] component_name: &str,
+    #[case] expected_component_version: &str,
+) {
+    // Allow multiple versions of the same package to be embedded. Test that
+    // it is possible to assign the different versions to different
+    // components in the host package.
+    let install = serde_yaml::from_str::<InstallSpec>(
+        r#"
+components:
+  - name: comp1
+    embedded_components:
+      - embedded:all/1.0.0
+  - name: comp2
+    embedded_components:
+      - embedded:all/2.0.0
+embedded:
+  - pkg: "embedded/1.0.0"
+  - pkg: "embedded/2.0.0"
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(install.embedded.len(), 2, "expecting two embedded packages");
+
+    assert_eq!(
+        install.embedded[0].ident().name(),
+        install.embedded[1].ident().name(),
+        "expecting both embedded packages to be the same package"
+    );
+
+    assert_ne!(
+        install.embedded[0].ident().version(),
+        install.embedded[1].ident().version(),
+        "expecting the embedded packages to be different versions"
+    );
+
+    let comp = install
+        .components
+        .iter()
+        .find(|c| c.name.as_str() == component_name)
+        .unwrap();
+
+    assert_eq!(
+        comp.embedded_components.len(),
+        1,
+        "expecting one embedded package"
+    );
+
+    assert_eq!(
+        comp.embedded_components[0].pkg.target(),
+        &Some(Version::from_str(expected_component_version).unwrap()),
+        "expecting the embedded package version to be correct"
+    );
+
+    assert_eq!(
+        comp.embedded_components[0].components.len(),
+        2,
+        "expecting 'all' to be expanded into all the embedded package's components"
+    );
 }
