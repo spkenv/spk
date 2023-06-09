@@ -95,5 +95,26 @@ embedded:
             1,
             "expecting each host component to embed one component"
         );
+
+        assert_eq!(
+            component.embedded_components[0].name, "embedded",
+            "expecting the embedded package name to be correct"
+        );
+
+        assert_eq!(
+            component.embedded_components[0].components.len(),
+            1,
+            "expecting the build and run components to get mapped 1:1"
+        );
+
+        assert_eq!(
+            *component.embedded_components[0]
+                .components
+                .iter()
+                .next()
+                .unwrap(),
+            component.name,
+            "expecting the component names to agree"
+        );
     }
 }
