@@ -421,7 +421,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         embedded
             .iter()
             .flat_map(|embedded| {
-                [
+                let mut changes = vec![
                     Change::RequestPackage(RequestPackage::new(PkgRequest::from_ident(
                         embedded.ident().to_any(),
                         RequestedBy::Embedded(parent.clone()),
@@ -432,7 +432,11 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                             parent: parent.clone(),
                         },
                     ))),
-                ]
+                ];
+
+                changes.extend(self.components_to_changes(embedded.components(), embedded.ident()));
+
+                changes
             })
             .collect()
     }

@@ -192,6 +192,12 @@ macro_rules! request {
             RequestedBy::SpkInternalTest,
         ))
     };
+    ($req:ident) => {
+        $crate::Request::Pkg($crate::PkgRequest::new(
+            $crate::parse_ident_range($req).unwrap(),
+            RequestedBy::SpkInternalTest,
+        ))
+    };
     ($req:tt) => {{
         let value = serde_json::json!($req);
         let req: $crate::Request = serde_json::from_value(value).unwrap();

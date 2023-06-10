@@ -2131,6 +2131,61 @@ async fn test_solver_component_embedded(mut solver: Solver) {
 }
 
 #[rstest]
+#[case::comp1(&["mypkg:comp1", "dep-e1:comp1"], true)]
+#[case::comp2(&["mypkg:comp2", "dep-e1:comp2"], false)]
+#[tokio::test]
+async fn test_solver_component_embedded_component_requirements(
+    mut solver: Solver,
+    #[case] packages_to_request: &[&str],
+    #[case] expected_solve_result: bool,
+) {
+    // test a component with embedded packages that have their own requirements
+    // - the requirements are added to the solution
+
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "mypkg/1.0.0",
+                "install": {
+                    "components": [
+                        {"name": "comp1"},
+                        {"name": "comp2"},
+                    ],
+                    "embedded": [
+                        {"pkg": "dep-e1/1.0.0",
+                         "install": {"components": [
+                                        // comp1 requires a package that exists
+                                        {"name": "comp1", "requirements": [{"pkg": "dep-e2/1.0.0"}]},
+                                        // comp2 requires a package that does not exist
+                                        {"name": "comp2", "requirements": [{"pkg": "dep-e3/1.0.0"}]}
+                                    ]}
+                        },
+                    ],
+                },
+            },
+            {"pkg": "dep-e2/1.0.0"},
+        ]
+    );
+    let repo = Arc::new(repo);
+
+    solver.add_repository(repo);
+    for package_to_request in packages_to_request {
+        solver.add_request(request!(package_to_request));
+    }
+
+    match run_and_print_resolve_for_tests(&solver).await {
+        Ok(solution) => {
+            assert!(expected_solve_result, "expected solve to fail");
+
+            assert_resolved!(solution, "dep-e2", "1.0.0");
+        }
+        Err(_) => {
+            assert!(!expected_solve_result, "expected solve to succeed");
+        }
+    }
+}
+
+#[rstest]
 fn test_solver_get_request_validator() {
     let solver = Solver::default();
     let resolve_validator = solver.request_validator();
