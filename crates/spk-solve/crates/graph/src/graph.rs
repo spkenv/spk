@@ -58,6 +58,9 @@ pub enum Change {
     RequestPackage(RequestPackage),
     RequestVar(RequestVar),
     SetOptions(SetOptions),
+    /// Adds a package to the solution. The package must have already been
+    /// checked that it is compatible with the current solution and valid to
+    /// be added.
     SetPackage(Box<SetPackage>),
     SetPackageBuild(Box<SetPackageBuild>),
     StepBack(StepBack),
@@ -274,26 +277,26 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         })
     }
 
+    /// Return all the changes needed when adding a package to the solution.
+    fn set_package(&self, spec: Arc<Spec>, source: PackageSource) -> Vec<Change> {
+        let mut changes = vec![Change::SetPackage(Box::new(SetPackage::new(
+            Arc::clone(&spec),
+            source,
+        )))];
+
+        let requester_ident: &BuildIdent = spec.ident();
+        let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
+        changes.extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
+        changes.extend(self.components_to_changes(spec.components(), requester_ident));
+        changes.extend(self.embedded_to_changes(spec.embedded(), requester_ident));
+        changes.push(Self::options_to_change(&spec));
+
+        changes
+    }
+
     pub fn resolve_package(self, spec: &Arc<Spec>, source: PackageSource) -> Decision {
-        let generate_changes = || {
-            let mut changes = vec![Change::SetPackage(Box::new(SetPackage::new(
-                Arc::clone(spec),
-                source,
-            )))];
-
-            let requester_ident: &BuildIdent = spec.ident();
-            let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
-            changes
-                .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
-            changes.extend(self.components_to_changes(spec.components(), requester_ident));
-            changes.extend(self.embedded_to_changes(spec.embedded(), requester_ident));
-            changes.push(Self::options_to_change(spec));
-
-            changes
-        };
-
         Decision {
-            changes: generate_changes(),
+            changes: self.set_package(Arc::clone(spec), source),
             notes: Vec::default(),
         }
     }
@@ -421,21 +424,18 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         embedded
             .iter()
             .flat_map(|embedded| {
-                let mut changes = vec![
-                    Change::RequestPackage(RequestPackage::new(PkgRequest::from_ident(
+                let mut changes = vec![Change::RequestPackage(RequestPackage::new(
+                    PkgRequest::from_ident(
                         embedded.ident().to_any(),
                         RequestedBy::Embedded(parent.clone()),
-                    ))),
-                    Change::SetPackage(Box::new(SetPackage::new(
-                        Arc::new(embedded.clone()),
-                        PackageSource::Embedded {
-                            parent: parent.clone(),
-                        },
-                    ))),
-                ];
-
-                changes.extend(self.components_to_changes(embedded.components(), embedded.ident()));
-
+                    ),
+                ))];
+                changes.extend(self.set_package(
+                    Arc::new(embedded.clone()),
+                    PackageSource::Embedded {
+                        parent: parent.clone(),
+                    },
+                ));
                 changes
             })
             .collect()
