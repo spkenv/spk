@@ -460,6 +460,50 @@ async fn test_solver_dependency_already_satisfied(mut solver: Solver) {
 
 #[rstest]
 #[tokio::test]
+async fn test_solver_dependency_already_satisfied_conflicting_components(mut solver: Solver) {
+    // like test_solver_dependency_already_satisfied but with conflicting components
+
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "pkg-top/1.0.0",
+                "install": {
+                    "requirements": [{"pkg": "dep-1:comp1/~1.0.0"}, {"pkg": "dep-2/1"}]
+                },
+            },
+            {
+                "pkg": "dep-1/1.0.0",
+                "install": {
+                    "components": [
+                        {"name": "comp1", "embedded_packages": ["em-1/1.0.0"]},
+                        {"name": "comp2", "embedded_packages": ["em-1/2.0.0"]},
+                    ],
+                    "embedded": [
+                        {"pkg": "em-1/1.0.0"},
+                        {"pkg": "em-1/2.0.0"},
+                    ],
+                },
+            },
+            // when dep_2 gets resolved, it will re-request this but comp2 conflicts with comp1
+            {"pkg": "dep-2/1.0.0", "install": {"requirements": [{"pkg": "dep-1:comp2/1"}]}},
+        ]
+    );
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(request!("pkg-top"));
+
+    // XXX: This test provides coverage for the
+    // "requires {}:{} which embeds {}" incompatibility check inside
+    // PkgRequirementsValidator::validate_request_against_existing_state.
+    // How can this test code verify that the solver is actually hitting
+    // that code path?
+
+    run_and_print_resolve_for_tests(&solver)
+        .await
+        .expect_err("solve should fail");
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_solver_dependency_reopen_solvable(mut solver: Solver) {
     // test what happens when a dependency is added which represents
     // a package which has already been resolved
@@ -2399,6 +2443,44 @@ async fn test_solver_component_embedded_multiple_versions(
             assert!(!expected_solve_result, "expected solve to succeed");
         }
     }
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_solver_component_embedded_incompatible_requests(mut solver: Solver) {
+    // test when different components of a package embedded packages that
+    // make incompatible requests
+
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "mypkg/1.0.0",
+                "install": {
+                    "components": [
+                        {"name": "comp1"},
+                        {"name": "comp2"},
+                    ],
+                    "embedded": [
+                        {"pkg": "dep-e1/1.0.0",
+                         "install": {"components": [
+                                        {"name": "comp1", "requirements": [{"pkg": "dep-e2/1.0.0"}]},
+                                        {"name": "comp2", "requirements": [{"pkg": "dep-e2/2.0.0"}]}
+                                    ]}
+                        },
+                    ],
+                },
+            },
+        ]
+    );
+    let repo = Arc::new(repo);
+
+    solver.add_repository(repo);
+    solver.add_request(request!("mypkg:comp1"));
+    solver.add_request(request!("mypkg:comp2"));
+
+    run_and_print_resolve_for_tests(&solver)
+        .await
+        .expect_err("expected solve to fail");
 }
 
 #[rstest]
