@@ -29,6 +29,7 @@ indexmap = { workspace = true }
 is_default_derive_macro = { workspace = true }
 itertools = { workspace = true }
 nom = { workspace = true }
+nom-supreme = { workspace = true }
 regex = { workspace = true }
 relative-path = { workspace = true }
 ring = { workspace = true }

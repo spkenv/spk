@@ -2139,8 +2139,12 @@ async fn test_solver_component_embedded(mut solver: Solver) {
                 "pkg": "mypkg/1.0.0",
                 "install": {
                     "components": [
-                        {"name": "build", "embedded": [{"pkg": "dep-e1/1.0.0"}]},
-                        {"name": "run", "embedded": [{"pkg": "dep-e2/1.0.0"}]},
+                        {"name": "build", "embedded_components": ["dep-e1:all"]},
+                        {"name": "run", "embedded_components": ["dep-e2:all"]},
+                    ],
+                    "embedded": [
+                        {"pkg": "dep-e1/1.0.0"},
+                        {"pkg": "dep-e2/1.0.0"},
                     ],
                 },
             },
@@ -2235,71 +2239,6 @@ async fn test_solver_component_embedded_component_requirements(
             assert!(expected_solve_result, "expected solve to fail");
 
             assert_resolved!(solution, "dep-e2", "1.0.0");
-        }
-        Err(_) => {
-            assert!(!expected_solve_result, "expected solve to succeed");
-        }
-    }
-}
-
-#[rstest]
-#[case::comp1(&["mypkg"], true)]
-#[tokio::test]
-async fn test_solver_embedded_embedded_requirements(
-    mut solver: Solver,
-    #[case] packages_to_request: &[&str],
-    #[case] expected_solve_result: bool,
-) {
-    // test a package with an embedded package with an embedded package adds
-    // requirements as expected
-
-    let repo = make_repo!(
-        [
-            {
-                "pkg": "mypkg/1.0.0",
-                "install": {
-                    "embedded": [
-                        {
-                            "pkg": "dep-e1/1.0.0",
-                            "install": {
-                                "components": [
-                                    {
-                                        "name": "run",
-                                        "embedded": [
-                                            {
-                                                "pkg": "dep-e2/1.0.0",
-                                                "install": {
-                                                    "components": [
-                                                        {
-                                                            "name": "run",
-                                                            "requirements": [{"pkg": "dep-e3/1.0.0"}]
-                                                        }
-                                                    ]
-                                                }
-                                            }
-                                        ]
-                                    }
-                                ]
-                            },
-                        },
-                    ],
-                },
-            },
-            {"pkg": "dep-e3/1.0.0"},
-        ]
-    );
-    let repo = Arc::new(repo);
-
-    solver.add_repository(repo);
-    for package_to_request in packages_to_request {
-        solver.add_request(request!(package_to_request));
-    }
-
-    match run_and_print_resolve_for_tests(&solver).await {
-        Ok(solution) => {
-            assert!(expected_solve_result, "expected solve to fail");
-
-            assert_resolved!(solution, "dep-e3", "1.0.0");
         }
         Err(_) => {
             assert!(!expected_solve_result, "expected solve to succeed");

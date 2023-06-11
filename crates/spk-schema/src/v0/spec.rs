@@ -145,7 +145,7 @@ impl<Ident> Spec<Ident> {
             files: Default::default(),
             uses: Default::default(),
             requirements: Default::default(),
-            embedded: Default::default(),
+            embedded_components: Default::default(),
             file_match_mode: Default::default(),
         });
     }
@@ -281,13 +281,7 @@ impl Package for Spec<BuildIdent> {
         self.install
             .embedded
             .iter()
-            .map(|embed| (embed.clone(), None))
-            .chain(self.install.components.iter().flat_map(|cs| {
-                cs.embedded
-                    .iter()
-                    .map(move |embed| (embed.clone(), Some(cs.name.clone())))
-            }))
-            .map(|(recipe, component)| recipe.try_into().map(|r| (r, component)))
+            .map(|embed| embed.clone().try_into().map(|r| (r, None)))
             .collect()
     }
 
