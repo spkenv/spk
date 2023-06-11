@@ -36,7 +36,7 @@ pub struct ComponentSpec {
     #[serde(default)]
     pub requirements: super::RequirementsList,
     #[serde(default)]
-    pub embedded: super::EmbeddedPackagesList,
+    pub embedded_components: super::EmbeddedComponentsList,
     #[serde(default)]
     pub file_match_mode: ComponentFileMatchMode,
 }
@@ -52,7 +52,7 @@ impl ComponentSpec {
             uses: Default::default(),
             files: Default::default(),
             requirements: Default::default(),
-            embedded: Default::default(),
+            embedded_components: Default::default(),
             file_match_mode: Default::default(),
         })
     }
@@ -65,7 +65,7 @@ impl ComponentSpec {
             uses: Default::default(),
             files: FileMatcher::all(),
             requirements: Default::default(),
-            embedded: Default::default(),
+            embedded_components: Default::default(),
             file_match_mode: Default::default(),
         }
     }
@@ -78,7 +78,7 @@ impl ComponentSpec {
             uses: Default::default(),
             files: FileMatcher::all(),
             requirements: Default::default(),
-            embedded: Default::default(),
+            embedded_components: Default::default(),
             file_match_mode: Default::default(),
         }
     }

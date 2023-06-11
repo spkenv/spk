@@ -48,7 +48,7 @@ impl EmbeddedPackageValidator {
     {
         use Compatibility::Compatible;
 
-        // There may not be a "real" instance of the embedded package in the
+        // There must not be a "real" instance of the embedded package in the
         // solve already.
         if let Some((existing, _, _)) = state.get_resolved_packages().get(embedded.name()) {
             // If found, it must be the stub of the package now being embedded

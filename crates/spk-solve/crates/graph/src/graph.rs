@@ -382,7 +382,6 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 continue;
             }
             changes.extend(self.requirements_to_changes(&component.requirements, &requested_by));
-            changes.extend(self.embedded_to_changes(&component.embedded, requester));
         }
         changes
     }

@@ -5,7 +5,6 @@
 use itertools::Itertools;
 
 use super::prelude::*;
-use crate::validators::EmbeddedPackageValidator;
 use crate::ValidatorT;
 
 /// Ensures that all of the requested components are available.
@@ -36,24 +35,6 @@ impl ValidatorT for ComponentsValidator {
             return Ok(Compatibility::Incompatible(reason));
         }
 
-        let required_components = spec
-            .components()
-            .resolve_uses(request.pkg.components.iter());
-
-        for component in spec.components().iter() {
-            if !required_components.contains(&component.name) {
-                continue;
-            }
-
-            for embedded in component.embedded.iter() {
-                let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
-                    spec, embedded, state,
-                )?;
-                if !&compat {
-                    return Ok(compat);
-                }
-            }
-        }
         Ok(Compatible)
     }
 

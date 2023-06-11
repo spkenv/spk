@@ -4354,6 +4354,7 @@ dependencies = [
  "itertools 0.12.0",
  "miette",
  "nom",
+ "nom-supreme",
  "proptest",
  "regex",
  "relative-path",

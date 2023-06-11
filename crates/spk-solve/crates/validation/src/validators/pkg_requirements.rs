@@ -5,7 +5,6 @@
 use itertools::Itertools;
 
 use super::prelude::*;
-use crate::validators::EmbeddedPackageValidator;
 use crate::ValidatorT;
 
 /// Validates that the pkg install requirements do not conflict with the existing resolve.
@@ -59,7 +58,7 @@ impl PkgRequirementsValidator {
             Err(err) => return Err(err.into()),
         };
 
-        let mut restricted = existing.clone();
+        let mut restricted = existing;
         let request = match restricted.restrict(request) {
             Ok(_) => restricted,
             // FIXME: only match ValueError
@@ -90,37 +89,6 @@ impl PkgRequirementsValidator {
         )?;
         if !&compat {
             return Ok(compat);
-        }
-
-        let existing_components = resolved
-            .components()
-            .resolve_uses(existing.pkg.components.iter());
-        let required_components = resolved
-            .components()
-            .resolve_uses(request.pkg.components.iter());
-        for component in resolved.components().iter() {
-            if existing_components.contains(&component.name) {
-                continue;
-            }
-            if !required_components.contains(&component.name) {
-                continue;
-            }
-            for embedded in component.embedded.iter() {
-                let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
-                    &**resolved,
-                    embedded,
-                    state,
-                )?;
-                if !&compat {
-                    return Ok(Compatibility::incompatible(format!(
-                        "requires {}:{} which embeds {}, and {}",
-                        resolved.name(),
-                        component.name,
-                        embedded.name(),
-                        compat,
-                    )));
-                }
-            }
         }
         Ok(Compatible)
     }
