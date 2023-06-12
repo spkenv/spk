@@ -9,6 +9,7 @@ use std::sync::Arc;
 use colored::Colorize;
 use futures::stream::{FuturesUnordered, TryStreamExt};
 use once_cell::sync::OnceCell;
+use progress_bar_derive_macro::ProgressBar;
 use tokio::sync::Semaphore;
 
 use crate::prelude::*;
@@ -594,77 +595,24 @@ impl CheckReporter for ConsoleCheckReporter {
     }
 }
 
+#[derive(ProgressBar)]
 struct ConsoleCheckReporterBars {
     renderer: Option<std::thread::JoinHandle<()>>,
+    #[progress_bar(
+        message = "scanning objects",
+        template = "      {spinner} {msg:<18.green} {pos:>9} reached in {elapsed:.cyan} [{per_sec}]"
+    )]
     objects: indicatif::ProgressBar,
+    #[progress_bar(
+        message = "finding issues",
+        template = "      {spinner} {msg:<18.green} {len:>9} errors, {pos} repaired ({percent}%)"
+    )]
     missing: indicatif::ProgressBar,
+    #[progress_bar(
+        message = "payloads footprint",
+        template = "      {spinner} {msg:<18.green} {total_bytes:>9} seen,   {bytes} pulled"
+    )]
     bytes: indicatif::ProgressBar,
-}
-
-impl Default for ConsoleCheckReporterBars {
-    fn default() -> Self {
-        static TICK_STRINGS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-        static PROGRESS_CHARS: &str = "=>-";
-        let layers_style = indicatif::ProgressStyle::default_bar()
-            .template(
-                "      {spinner} {msg:<18.green} {pos:>9} reached in {elapsed:.cyan} [{per_sec}]",
-            )
-            .tick_strings(TICK_STRINGS)
-            .progress_chars(PROGRESS_CHARS);
-        let payloads_style = indicatif::ProgressStyle::default_bar()
-            .template(
-                "      {spinner} {msg:<18.green} {len:>9} errors, {pos} repaired ({percent}%)",
-            )
-            .tick_strings(TICK_STRINGS)
-            .progress_chars(PROGRESS_CHARS);
-        let bytes_style = indicatif::ProgressStyle::default_bar()
-            .template("      {spinner} {msg:<18.green} {total_bytes:>9} seen,   {bytes} pulled")
-            .tick_strings(TICK_STRINGS)
-            .progress_chars(PROGRESS_CHARS);
-        let bars = indicatif::MultiProgress::new();
-        let objects = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(layers_style)
-                .with_message("scanning objects"),
-        );
-        let payloads = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(payloads_style)
-                .with_message("finding issues"),
-        );
-        let bytes = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(bytes_style)
-                .with_message("payloads footprint"),
-        );
-        objects.enable_steady_tick(100);
-        payloads.enable_steady_tick(100);
-        bytes.enable_steady_tick(100);
-        // the progress bar must be awaited from some thread
-        // or nothing will be shown in the terminal
-        let renderer = Some(std::thread::spawn(move || {
-            if let Err(err) = bars.join() {
-                tracing::error!("Failed to render check progress: {err}");
-            }
-        }));
-        Self {
-            renderer,
-            objects,
-            missing: payloads,
-            bytes,
-        }
-    }
-}
-
-impl Drop for ConsoleCheckReporterBars {
-    fn drop(&mut self) {
-        self.bytes.finish_and_clear();
-        self.missing.finish_and_clear();
-        self.objects.finish_and_clear();
-        if let Some(r) = self.renderer.take() {
-            let _ = r.join();
-        }
-    }
 }
 
 #[derive(Default, Debug)]
