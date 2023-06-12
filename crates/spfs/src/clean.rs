@@ -12,6 +12,7 @@ use colored::Colorize;
 use dashmap::DashSet;
 use futures::{FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 use once_cell::sync::OnceCell;
+use progress_bar_derive_macro::ProgressBar;
 
 use super::prune::PruneParameters;
 use crate::runtime::makedirs_with_perms;
@@ -946,6 +947,7 @@ impl CleanReporter for ConsoleCleanReporter {
     }
 }
 
+#[derive(ProgressBar)]
 struct ConsoleCleanReporterBars {
     renderer: Option<std::thread::JoinHandle<()>>,
     tags: indicatif::ProgressBar,
@@ -1010,19 +1012,6 @@ impl Default for ConsoleCleanReporterBars {
             payloads,
             proxies,
             renders,
-        }
-    }
-}
-
-impl Drop for ConsoleCleanReporterBars {
-    fn drop(&mut self) {
-        self.payloads.finish_and_clear();
-        self.proxies.finish_and_clear();
-        self.renders.finish_and_clear();
-        self.objects.finish_and_clear();
-        self.tags.finish_and_clear();
-        if let Some(r) = self.renderer.take() {
-            let _ = r.join();
         }
     }
 }

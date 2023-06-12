@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use once_cell::sync::OnceCell;
+use progress_bar_derive_macro::ProgressBar;
 use spfs_encoding::Encodable;
 
 use super::status::remount_runtime;
@@ -387,6 +388,7 @@ impl CommitReporter for ConsoleCommitReporter {
     }
 }
 
+#[derive(ProgressBar)]
 struct ConsoleCommitReporterBars {
     renderer: Option<std::thread::JoinHandle<()>>,
     entries: indicatif::ProgressBar,
@@ -443,17 +445,6 @@ impl Default for ConsoleCommitReporterBars {
             entries,
             blobs,
             bytes,
-        }
-    }
-}
-
-impl Drop for ConsoleCommitReporterBars {
-    fn drop(&mut self) {
-        self.bytes.finish_at_current_pos();
-        self.blobs.finish_at_current_pos();
-        self.entries.finish_at_current_pos();
-        if let Some(r) = self.renderer.take() {
-            let _ = r.join();
         }
     }
 }

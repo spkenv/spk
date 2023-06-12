@@ -1,0 +1,11 @@
+[package]
+name = "progress_bar_derive_macro"
+version = { workspace = true }
+edition = { workspace = true }
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "2.0"
+quote = "1.0"

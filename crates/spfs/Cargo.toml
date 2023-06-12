@@ -43,6 +43,7 @@ nonempty = "0.8.1"
 once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
 procfs = { workspace = true }
+progress_bar_derive_macro = { workspace = true }
 prost = "0.11"
 rand = "0.8.5"
 relative-path = "1.3"

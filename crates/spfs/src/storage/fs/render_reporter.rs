@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use once_cell::sync::OnceCell;
+use progress_bar_derive_macro::ProgressBar;
 
 use crate::graph;
 
@@ -96,6 +97,7 @@ impl RenderReporter for ConsoleRenderReporter {
     }
 }
 
+#[derive(ProgressBar)]
 struct ConsoleRenderReporterBars {
     renderer: Option<std::thread::JoinHandle<()>>,
     layers: indicatif::ProgressBar,
@@ -147,17 +149,6 @@ impl Default for ConsoleRenderReporterBars {
             layers,
             entries,
             bytes,
-        }
-    }
-}
-
-impl Drop for ConsoleRenderReporterBars {
-    fn drop(&mut self) {
-        self.bytes.finish_and_clear();
-        self.entries.finish_and_clear();
-        self.layers.finish_and_clear();
-        if let Some(r) = self.renderer.take() {
-            let _ = r.join();
         }
     }
 }

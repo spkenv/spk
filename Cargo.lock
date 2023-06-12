@@ -2225,6 +2225,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "progress_bar_derive_macro"
+version = "0.36.0"
+dependencies = [
+ "quote",
+ "syn 2.0.12",
+]
+
+[[package]]
 name = "proptest"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3061,6 +3069,7 @@ dependencies = [
  "once_cell",
  "pin-project-lite",
  "procfs",
+ "progress_bar_derive_macro",
  "prost",
  "protobuf-src",
  "rand 0.8.5",

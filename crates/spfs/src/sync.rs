@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use futures::stream::{FuturesUnordered, TryStreamExt};
 use once_cell::sync::OnceCell;
+use progress_bar_derive_macro::ProgressBar;
 use tokio::sync::Semaphore;
 
 use crate::prelude::*;
@@ -592,6 +593,7 @@ impl SyncReporter for ConsoleSyncReporter {
     }
 }
 
+#[derive(ProgressBar)]
 struct ConsoleSyncReporterBars {
     renderer: Option<std::thread::JoinHandle<()>>,
     manifests: indicatif::ProgressBar,
@@ -648,17 +650,6 @@ impl Default for ConsoleSyncReporterBars {
             manifests,
             payloads,
             bytes,
-        }
-    }
-}
-
-impl Drop for ConsoleSyncReporterBars {
-    fn drop(&mut self) {
-        self.bytes.finish_and_clear();
-        self.payloads.finish_and_clear();
-        self.manifests.finish_and_clear();
-        if let Some(r) = self.renderer.take() {
-            let _ = r.join();
         }
     }
 }
