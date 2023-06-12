@@ -948,70 +948,19 @@ impl CleanReporter for ConsoleCleanReporter {
 }
 
 #[derive(ProgressBar)]
+#[progress_bar(
+    template = " {spinner} {msg:<17.green} {pos:>10.cyan} found {len:>10.yellow} to remove [{per_sec}]"
+)]
 struct ConsoleCleanReporterBars {
     renderer: Option<std::thread::JoinHandle<()>>,
+    #[progress_bar(message = "cleaning tags")]
     tags: indicatif::ProgressBar,
+    #[progress_bar(message = "cleaning objects")]
     objects: indicatif::ProgressBar,
+    #[progress_bar(message = "cleaning renders")]
     renders: indicatif::ProgressBar,
+    #[progress_bar(message = "cleaning payloads")]
     payloads: indicatif::ProgressBar,
+    #[progress_bar(message = "cleaning proxies")]
     proxies: indicatif::ProgressBar,
-}
-
-impl Default for ConsoleCleanReporterBars {
-    fn default() -> Self {
-        static TICK_STRINGS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-        static PROGRESS_CHARS: &str = "=>-";
-        let counter_style = indicatif::ProgressStyle::default_bar()
-            .template(
-                " {spinner} {msg:<17.green} {pos:>10.cyan} found {len:>10.yellow} to remove [{per_sec}]",
-            )
-            .tick_strings(TICK_STRINGS)
-            .progress_chars(PROGRESS_CHARS);
-        let bars = indicatif::MultiProgress::new();
-        let tags = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(counter_style.clone())
-                .with_message("cleaning tags"),
-        );
-        let objects = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(counter_style.clone())
-                .with_message("cleaning objects"),
-        );
-        let payloads = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(counter_style.clone())
-                .with_message("cleaning payloads"),
-        );
-        let renders = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(counter_style.clone())
-                .with_message("cleaning renders"),
-        );
-        let proxies = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(counter_style)
-                .with_message("cleaning proxies"),
-        );
-        tags.enable_steady_tick(100);
-        objects.enable_steady_tick(100);
-        renders.enable_steady_tick(100);
-        proxies.enable_steady_tick(100);
-        payloads.enable_steady_tick(100);
-        // the progress bar must be awaited from some thread
-        // or nothing will be shown in the terminal
-        let renderer = Some(std::thread::spawn(move || {
-            if let Err(err) = bars.join() {
-                tracing::error!("Failed to render clean progress: {err}");
-            }
-        }));
-        Self {
-            renderer,
-            tags,
-            objects,
-            payloads,
-            proxies,
-            renders,
-        }
-    }
 }

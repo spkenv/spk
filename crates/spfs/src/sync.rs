@@ -596,62 +596,21 @@ impl SyncReporter for ConsoleSyncReporter {
 #[derive(ProgressBar)]
 struct ConsoleSyncReporterBars {
     renderer: Option<std::thread::JoinHandle<()>>,
+    #[progress_bar(
+        message = "syncing layers",
+        template = "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}"
+    )]
     manifests: indicatif::ProgressBar,
+    #[progress_bar(
+        message = "syncing payloads",
+        template = "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}"
+    )]
     payloads: indicatif::ProgressBar,
+    #[progress_bar(
+        message = "syncing data",
+        template = "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {bytes:>8}/{total_bytes:7}"
+    )]
     bytes: indicatif::ProgressBar,
-}
-
-impl Default for ConsoleSyncReporterBars {
-    fn default() -> Self {
-        static TICK_STRINGS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-        static PROGRESS_CHARS: &str = "=>-";
-        let layers_style = indicatif::ProgressStyle::default_bar()
-            .template("      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")
-            .tick_strings(TICK_STRINGS)
-            .progress_chars(PROGRESS_CHARS);
-        let payloads_style = indicatif::ProgressStyle::default_bar()
-            .template("      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")
-            .tick_strings(TICK_STRINGS)
-            .progress_chars(PROGRESS_CHARS);
-        let bytes_style = indicatif::ProgressStyle::default_bar()
-            .template(
-                "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {bytes:>8}/{total_bytes:7}",
-            )
-            .tick_strings(TICK_STRINGS)
-            .progress_chars(PROGRESS_CHARS);
-        let bars = indicatif::MultiProgress::new();
-        let manifests = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(layers_style)
-                .with_message("syncing layers"),
-        );
-        let payloads = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(payloads_style)
-                .with_message("syncing payloads"),
-        );
-        let bytes = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(bytes_style)
-                .with_message("syncing data"),
-        );
-        manifests.enable_steady_tick(100);
-        payloads.enable_steady_tick(100);
-        bytes.enable_steady_tick(100);
-        // the progress bar must be awaited from some thread
-        // or nothing will be shown in the terminal
-        let renderer = Some(std::thread::spawn(move || {
-            if let Err(err) = bars.join() {
-                tracing::error!("Failed to render sync progress: {err}");
-            }
-        }));
-        Self {
-            renderer,
-            manifests,
-            payloads,
-            bytes,
-        }
-    }
 }
 
 #[derive(Default, Debug)]

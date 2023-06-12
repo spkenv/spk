@@ -98,59 +98,18 @@ impl RenderReporter for ConsoleRenderReporter {
 }
 
 #[derive(ProgressBar)]
+#[progress_bar(template = "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")]
 struct ConsoleRenderReporterBars {
     renderer: Option<std::thread::JoinHandle<()>>,
+    #[progress_bar(message = "rendering layers")]
     layers: indicatif::ProgressBar,
+    #[progress_bar(message = "rendering entries")]
     entries: indicatif::ProgressBar,
+    #[progress_bar(
+        message = "processing data",
+        template = "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {bytes:>8}/{total_bytes:7}"
+    )]
     bytes: indicatif::ProgressBar,
-}
-
-impl Default for ConsoleRenderReporterBars {
-    fn default() -> Self {
-        static TICK_STRINGS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-        static PROGRESS_CHARS: &str = "=>-";
-        let entries_style = indicatif::ProgressStyle::default_bar()
-            .template("      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")
-            .tick_strings(TICK_STRINGS)
-            .progress_chars(PROGRESS_CHARS);
-        let bytes_style = indicatif::ProgressStyle::default_bar()
-            .template(
-                "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {bytes:>8}/{total_bytes:7}",
-            )
-            .tick_strings(TICK_STRINGS)
-            .progress_chars(PROGRESS_CHARS);
-        let bars = indicatif::MultiProgress::new();
-        let layers = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(entries_style.clone())
-                .with_message("rendering layers"),
-        );
-        let entries = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(entries_style)
-                .with_message("rendering entries"),
-        );
-        let bytes = bars.add(
-            indicatif::ProgressBar::new(0)
-                .with_style(bytes_style)
-                .with_message("processing data"),
-        );
-        entries.enable_steady_tick(100);
-        bytes.enable_steady_tick(100);
-        // the progress bar must be awaited from some thread
-        // or nothing will be shown in the terminal
-        let renderer = Some(std::thread::spawn(move || {
-            if let Err(err) = bars.join() {
-                tracing::error!("Failed to show render progress: {err}");
-            }
-        }));
-        Self {
-            renderer,
-            layers,
-            entries,
-            bytes,
-        }
-    }
 }
 
 /// An object that can delegate to multiple implementations of

@@ -2228,8 +2228,10 @@ dependencies = [
 name = "progress_bar_derive_macro"
 version = "0.36.0"
 dependencies = [
+ "indicatif",
  "quote",
  "syn 2.0.12",
+ "tracing",
 ]
 
 [[package]]
