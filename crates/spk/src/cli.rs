@@ -166,7 +166,7 @@ pub enum Command {
     Render(cmd_render::Render),
     Repo(cmd_repo::Repo),
     Search(cmd_search::Search),
-    Test(cmd_test::Test),
+    Test(cmd_test::CmdTest),
     Undeprecate(cmd_undeprecate::Undeprecate),
     Version(cmd_version::Version),
     View(cmd_view::View),

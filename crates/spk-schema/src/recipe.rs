@@ -10,8 +10,7 @@ use spk_schema_ident::VersionIdent;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
 use crate::ident::Request;
-use crate::test_spec::TestSpec;
-use crate::{Package, Result, Variant};
+use crate::{Package, Result, TestStage, Variant};
 
 /// Return the resolved packages from a solution.
 pub trait BuildEnv {
@@ -27,6 +26,7 @@ pub trait Recipe:
 {
     type Output: super::Package;
     type Variant: super::Variant + Clone;
+    type Test: super::Test;
 
     /// Build an identifier to represent this recipe.
     ///
@@ -53,8 +53,8 @@ pub trait Recipe:
     where
         V: Variant;
 
-    /// Return the tests defined for this package.
-    fn get_tests<V>(&self, variant: &V) -> Result<Vec<TestSpec>>
+    /// Return the tests defined for this package at the given stage.
+    fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<Self::Test>>
     where
         V: Variant;
 
@@ -75,6 +75,7 @@ where
 {
     type Output = T::Output;
     type Variant = T::Variant;
+    type Test = T::Test;
 
     fn ident(&self) -> &VersionIdent {
         (**self).ident()
@@ -98,11 +99,11 @@ where
         (**self).get_build_requirements(variant)
     }
 
-    fn get_tests<V>(&self, variant: &V) -> Result<Vec<TestSpec>>
+    fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<Self::Test>>
     where
         V: Variant,
     {
-        (**self).get_tests(variant)
+        (**self).get_tests(stage, variant)
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
@@ -125,6 +126,7 @@ where
 {
     type Output = T::Output;
     type Variant = T::Variant;
+    type Test = T::Test;
 
     fn ident(&self) -> &VersionIdent {
         (**self).ident()
@@ -148,11 +150,11 @@ where
         (**self).get_build_requirements(variant)
     }
 
-    fn get_tests<V>(&self, variant: &V) -> Result<Vec<TestSpec>>
+    fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<Self::Test>>
     where
         V: Variant,
     {
-        (**self).get_tests(variant)
+        (**self).get_tests(stage, variant)
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {

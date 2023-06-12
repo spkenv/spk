@@ -12,7 +12,7 @@ use spk_cmd_build::cmd_build::Build;
 use spk_schema::foundation::fixtures::*;
 use spk_storage::fixtures::*;
 
-use super::Test;
+use super::CmdTest;
 
 #[derive(Parser)]
 struct BuildOpt {
@@ -23,7 +23,7 @@ struct BuildOpt {
 #[derive(Parser)]
 struct TestOpt {
     #[clap(flatten)]
-    test: Test,
+    test: CmdTest,
 }
 
 macro_rules! build_package {
