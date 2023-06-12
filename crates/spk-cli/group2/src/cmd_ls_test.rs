@@ -180,7 +180,7 @@ async fn test_ls_dash_l_shows_local_packages_only() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "-l"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "-L"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 1);
     assert_eq!(opt.ls.output.vec.get(0).unwrap(), "my-local-pkg");

@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, ValueEnum};
-use colored::Colorize;
 use solve::{DecisionFormatter, DecisionFormatterBuilder, MultiSolverKind};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
@@ -707,12 +706,10 @@ where
 
 #[derive(Args, Clone)]
 pub struct Repositories {
-    /// Enable the local repository (DEPRECATED)
-    ///
-    /// This option is ignored and the local repository is enabled by default.
+    /// This option will enable the local repository only.
     /// Use `--no-local-repo` to disable the local repository.
-    #[clap(short, long, value_parser = warn_local_flag_deprecated)]
-    pub local_repo: bool,
+    #[clap(short = 'L', long)]
+    pub local_repo_only: bool,
 
     /// Disable the local repository
     #[clap(long, hide = true)]
@@ -776,9 +773,6 @@ impl Repositories {
     /// This behavior can be altered with the `--enable-repo`, `--disable-repo`,
     /// and `--no-local-repo` flags.
     ///
-    /// For backwards compatibility purposes, if the deprecated `--local-repo`
-    /// flag is used, then only the local repo is enabled.
-    ///
     /// The `--enable-repo` is considered additive instead of exclusive.
     ///
     /// Remote repos enabled with `--enable-repo` are added to the list before
@@ -795,7 +789,7 @@ impl Repositories {
             let repo = storage::local_repository().await?;
             repos.push(("local".into(), repo.into()));
         }
-        if self.local_repo {
+        if self.local_repo_only {
             return Ok(repos);
         }
         for name in self
@@ -944,20 +938,5 @@ impl DecisionFormatterSettings {
             .with_solver_to_run(self.solver_to_run.into())
             .with_search_space_size(self.show_search_size);
         Ok(builder)
-    }
-}
-
-fn warn_local_flag_deprecated(arg: &str) -> Result<bool> {
-    // This will be called with `"true"` if the flag is present on the command
-    // line.
-    if arg == "true" {
-        // Logging is not configured at this point (args have to parsed to
-        // know verbosity level before logging can be configured).
-        eprintln!(
-            "{warning}: The -l (--local-repo) is deprecated, please remove it from your command line!",
-            warning = "WARNING".yellow());
-        Ok(true)
-    } else {
-        Ok(false)
     }
 }
