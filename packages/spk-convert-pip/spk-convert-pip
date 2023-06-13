@@ -3,19 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
-from typing import Any, Dict, List, Optional, Set
-import os
-import sys
-import re
-import argparse
-import tempfile
-import subprocess
-import pkginfo
-import json
-import packaging.version
-import packaging.markers
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
+import argparse
+import json
 import logging
+import operator
+import os
+import packaging.markers
+import packaging.version
+import pkginfo
+import re
+import subprocess
+import sys
+import tempfile
 
 
 logging.basicConfig(format="%(message)s", stream=sys.stdout, level=logging.INFO)
@@ -229,8 +230,15 @@ class PipImporter:
         spec["install"]["requirements"].append(
             {"pkg": f"python/{self._python_version}"}
         )
-        for requirement_str in info.requires_dist:
 
+        # the package may specify multiple requirements for the same package,
+        # for example:
+        #    Requires-Dist: numpy (>=1.17.0) ; python_version >= "3.7"
+        #    Requires-Dist: numpy (>=1.17.3) ; python_version >= "3.8"
+        #    Requires-Dist: numpy (>=1.19.3) ; python_version >= "3.9"
+        dist_requirements = {}
+
+        for requirement_str in info.requires_dist:
             if ";" not in requirement_str:
                 requirement_str += ";"
             version_str, markers_str = requirement_str.split(";", 1)
@@ -261,12 +269,30 @@ class PipImporter:
                 continue
             spk_name = _to_spk_name(pypi_name)
             spk_version_range = _to_spk_version_range(match.group(2) or "*")
-            request = {"pkg": f"{spk_name}/{spk_version_range}"}
+
+            dist_requirements.setdefault(
+                spk_name, {"pypi_name": pypi_name, "requirements": []}
+            )["requirements"].append((spk_version_range, match.group(2) or ""))
+
+        for spk_name, requirement in dist_requirements.items():
+            # Join all the requirements together and let spk figure out if
+            # they are compatible. Example:
+            #    ">=1.17.0,>=1.17.3,>=1.19.3"
+            spk_requirements = ",".join(
+                map(operator.itemgetter(0), requirement["requirements"])
+            )
+
+            request = {"pkg": f"{spk_name}/{spk_requirements}"}
             spec["install"]["requirements"].append(request)
 
             if self._follow_deps:
                 _LOGGER.debug("following dependencies...")
-                builds.extend(self.import_package(match.group(1), match.group(2) or ""))
+                pypi_requirements = ",".join(
+                    map(operator.itemgetter(1), requirement["requirements"])
+                )
+                builds.extend(
+                    self.import_package(requirement["pypi_name"], pypi_requirements)
+                )
 
         with tempfile.NamedTemporaryFile("w") as spec_file:
             json.dump(spec, spec_file)
