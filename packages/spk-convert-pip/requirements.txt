@@ -1,2 +1,5 @@
 pkginfo==1.7.0
 packaging==20.9
+# 0.40.0 latest at time of writing but no implied requirement for exactly this
+# version.
+wheel==0.40.0
