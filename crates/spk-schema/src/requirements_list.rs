@@ -17,6 +17,10 @@ use crate::{Error, Result};
 mod requirements_list_test;
 
 /// A set of installation requirements.
+///
+/// Requirements lists cannot contain multiple requests with the
+/// same name, requiring instead that they be combined into a single
+/// request as needed.
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct RequirementsList(Vec<Request>);
@@ -28,26 +32,46 @@ impl std::ops::Deref for RequirementsList {
     }
 }
 
-impl std::ops::DerefMut for RequirementsList {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
 impl RequirementsList {
     /// Add or update a requirement in this list.
     ///
-    /// If a request exists for the same name, it is replaced with the given
-    /// one. Otherwise the new request is appended to the list.
-    pub fn upsert(&mut self, request: Request) {
+    /// If a request exists for the same name, it is replaced with the
+    /// given one. Otherwise the new request is appended to the list.
+    /// Returns the replaced request, if any.
+    pub fn insert_or_replace(&mut self, request: Request) -> Option<Request> {
         let name = request.name();
-        for other in self.iter_mut() {
-            if other.name() == name {
-                let _ = std::mem::replace(other, request);
-                return;
+        for existing in self.0.iter_mut() {
+            if existing.name() == name {
+                return Some(std::mem::replace(existing, request));
             }
         }
-        self.push(request);
+        self.0.push(request);
+        None
+    }
+
+    /// Add a requirement in this list, or merge it in.
+    ///
+    /// If a request exists for the same name, it is updated with the
+    /// restrictions of this one one. Otherwise the new request is
+    /// appended to the list. Returns the newly inserted or updated request.
+    pub fn insert_or_merge(&mut self, request: Request) -> Result<()> {
+        let name = request.name();
+        for existing in self.0.iter_mut() {
+            if existing.name() != name {
+                continue;
+            }
+            match (existing, &request) {
+                (Request::Pkg(existing), Request::Pkg(request)) => {
+                    existing.restrict(request)?;
+                }
+                (existing, _) => {
+                    return Err(Error::String(format!("Cannot insert requirement: one already exists and only pkg requests can be merged: {existing} + {request}")))
+                }
+            }
+            return Ok(());
+        }
+        self.0.push(request);
+        Ok(())
     }
 
     /// Reports whether the provided request would be satisfied by
@@ -79,7 +103,7 @@ impl RequirementsList {
         for pkg in resolved {
             by_name.insert(pkg.name(), pkg);
         }
-        for request in self.iter_mut() {
+        for request in self.0.iter_mut() {
             match request {
                 Request::Pkg(request) => {
                     if request.pin.is_none() {
@@ -121,23 +145,25 @@ impl RequirementsList {
         }
         Ok(())
     }
-}
 
-impl<A> Extend<A> for RequirementsList
-where
-    Vec<Request>: Extend<A>,
-{
-    fn extend<T: IntoIterator<Item = A>>(&mut self, iter: T) {
-        self.0.extend(iter)
+    /// Attempt to build a requirements list from a set of requests.
+    ///
+    /// Duplicate requests will be merged. Any error during this process
+    /// will cause this process to fail.
+    pub fn try_from_iter<I>(value: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = Request>,
+    {
+        let mut out = Self::default();
+        for item in value.into_iter() {
+            out.insert_or_merge(item)?;
+        }
+        Ok(out)
     }
-}
 
-impl<A> FromIterator<A> for RequirementsList
-where
-    Vec<Request>: FromIterator<A>,
-{
-    fn from_iter<I: IntoIterator<Item = A>>(iter: I) -> Self {
-        Self(Vec::from_iter(iter))
+    /// Remove all requests from this list
+    pub fn clear(&mut self) {
+        self.0.clear()
     }
 }
 

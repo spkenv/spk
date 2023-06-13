@@ -47,19 +47,19 @@ impl Variant {
             //
             // If it is not a valid package name, assume it is a var.
             let Ok(pkg_name) = PkgName::new(name) else {
-                requirements.push(VarRequest::new_with_value(name.clone(), value).into());
+                requirements.insert_or_replace(VarRequest::new_with_value(name.clone(), value).into());
                 continue;
             };
             // If the value is not a legal version range, assume it is
             // a var.
             let Ok(version_range) = VersionRange::from_str(value) else {
-                requirements.push(VarRequest::new_with_value(name.clone(), value).into());
+                requirements.insert_or_replace(VarRequest::new_with_value(name.clone(), value).into());
                 continue;
             };
             // It is a valid package name and the value is a legal
             // version range expression, and it doesn't match any
             // declared options. Treat as a new package request
-            requirements.push(
+            requirements.insert_or_replace(
                 PkgRequest::new(
                     RangeIdent {
                         name: pkg_name.to_owned(),

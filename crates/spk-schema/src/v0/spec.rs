@@ -252,9 +252,10 @@ impl Package for Spec<BuildIdent> {
                     pin: false,
                 }
             })
-            .map(Request::Var)
-            .collect();
-        Cow::Owned(requests)
+            .map(Request::Var);
+        RequirementsList::try_from_iter(requests)
+            .map(Cow::Owned)
+            .expect("build opts do not contain duplicates")
     }
 
     fn downstream_runtime_requirements<'a>(
@@ -271,9 +272,10 @@ impl Package for Spec<BuildIdent> {
             })
             .filter(|o| o.inheritance == Inheritance::Strong)
             .map(|o| VarRequest::new(o.var.with_default_namespace(self.name())))
-            .map(Request::Var)
-            .collect();
-        Cow::Owned(requests)
+            .map(Request::Var);
+        RequirementsList::try_from_iter(requests)
+            .map(Cow::Owned)
+            .expect("build opts do not contain duplicates")
     }
 
     fn validation(&self) -> &ValidationSpec {
@@ -380,7 +382,7 @@ impl Recipe for Spec<VersionIdent> {
                         // inject the default component for this context if needed
                         req.pkg.components.insert(Component::default_for_build());
                     }
-                    requests.push(req.into());
+                    requests.insert_or_merge(req.into())?;
                 }
                 Opt::Var(opt) => {
                     // If no value was specified in the spec, there's
@@ -388,7 +390,7 @@ impl Recipe for Spec<VersionIdent> {
                     // find a var with an empty value.
                     if let Some(value) = options.get(&opt.var) {
                         if !value.is_empty() {
-                            requests.push(opt.to_request(Some(value)).into());
+                            requests.insert_or_merge(opt.to_request(Some(value)).into())?;
                         }
                     }
                 }
