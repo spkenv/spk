@@ -113,7 +113,7 @@ repos private (prior to announced public release of the open source project), pl
 3. Edit, compile, and test your changes in a topic branch:
 
    ```
-   $ git checkout -b mytopic master
+   $ git checkout -b mytopic main
    $ ... do your edits ...
    ```
 
@@ -141,4 +141,4 @@ committed. Sometimes this takes a few rounds of give and take. Please don't
 take it hard if your first try is not accepted. It happens to all of us.
 
 8. After approval, one of the senior developers (with commit approval to the
-official main repository) will merge your fixes into the master branch.
+official main repository) will merge your fixes into the main branch.

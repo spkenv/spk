@@ -6,7 +6,7 @@ on:
       - "crates/**.rs"
   push:
     branches:
-      - master
+      - main
     paths:
       # Only run coverage report if the sources have changed
       - "src/**.rs"

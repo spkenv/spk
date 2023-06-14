@@ -34,7 +34,7 @@ $ spk env --local my-pkg
 ```
 
 Use the [Package Definition Guide](spec) for more details.
-Check the included [examples](https://github.com/imageworks/spk/tree/master/examples) for additional help.
+Check the included [examples](https://github.com/imageworks/spk/tree/main/examples) for additional help.
 
 For more detailed information on the build process, check the [Package Build Process](build)
 
