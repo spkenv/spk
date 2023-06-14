@@ -146,7 +146,7 @@ fn impl_proc_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
                 // or nothing will be shown in the terminal
                 let renderer = Some(std::thread::spawn(move || {
                     if let Err(err) = bars.join() {
-                        tracing::error!("Failed to render commit progress: {err}");
+                        tracing::error!("Failed to render commit progress: {}", err);
                     }
                 }));
                 Self {

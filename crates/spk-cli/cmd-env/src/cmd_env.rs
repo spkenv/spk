@@ -50,6 +50,7 @@ impl Run for Env {
             .runtime
             .ensure_active_runtime(&["env", "run", "shell"])
             .await?;
+        rt.status.editable = self.runtime.editable();
 
         let mut solver = self.solver.get_solver(&self.options).await?;
 
