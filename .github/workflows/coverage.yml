@@ -53,6 +53,6 @@ jobs:
           # this feature is enabled.
           spfs run - -- bash -c 'cargo tarpaulin --features migration-to-components --workspace --verbose --timeout 120 --out Xml'
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
