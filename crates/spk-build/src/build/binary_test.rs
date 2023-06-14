@@ -311,12 +311,12 @@ async fn test_build_var_pinning() {
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
     let top_req = spec.runtime_requirements().get(0).unwrap().clone();
     match top_req {
-        Request::Var(r) => assert_eq!(&r.value, "topvalue"),
+        Request::Var(r) => assert_eq!(r.value.as_pinned(), Some("topvalue")),
         _ => panic!("expected var request"),
     }
     let depreq = spec.runtime_requirements().get(1).unwrap().clone();
     match depreq {
-        Request::Var(r) => assert_eq!(&r.value, "depvalue"),
+        Request::Var(r) => assert_eq!(r.value.as_pinned(), Some("depvalue")),
         _ => panic!("expected var request"),
     }
 }
@@ -560,7 +560,7 @@ async fn test_build_package_downstream_build_requests() {
         }) => {
             assert_eq!(&required_by, base_pkg.ident());
             assert!(
-                matches!(&request, Request::Var(v) if v.var.as_str() == "base.inherited" && v.value == "val"),
+                matches!(&request, Request::Var(v) if v.var.as_str() == "base.inherited" && v.value.as_pinned() == Some("val")),
                 "{request}"
             );
         }
@@ -620,7 +620,7 @@ async fn test_build_package_downstream_runtime_request() {
         }) => {
             assert_eq!(&required_by, base_pkg.ident());
             assert!(
-                matches!(&request, Request::Var(v) if v.var.as_str() == "base.inherited" && v.value == "val"),
+                matches!(&request, Request::Var(v) if v.var.as_str() == "base.inherited" && v.value.as_pinned() == Some("val")),
                 "{request}"
             );
         }

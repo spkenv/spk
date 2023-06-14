@@ -361,7 +361,14 @@ impl Solver {
         }
         for var_request in state.get_var_requests() {
             if !opts.contains_key(&var_request.var) {
-                opts.insert(var_request.var.clone(), var_request.value.clone());
+                opts.insert(
+                    var_request.var.clone(),
+                    var_request
+                        .value
+                        .as_pinned()
+                        .unwrap_or_default()
+                        .to_string(),
+                );
             }
         }
 

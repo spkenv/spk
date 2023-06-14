@@ -119,10 +119,13 @@ impl FormatChange for Change {
                 format!(
                     "{} {}{}",
                     Self::get_request_change_label(format_settings.level).blue(),
-                    option_map! {c.request.var.clone() => c.request.value.clone()}
+                    option_map! {c.request.var.clone() => c.request.value.as_pinned().unwrap_or_default()}
                         .format_option_map(),
                     if format_settings.verbosity > PkgRequest::SHOW_REQUEST_DETAILS {
-                        format!(" fromBuildEnv: {}", c.request.pin.to_string().cyan())
+                        format!(
+                            " fromBuildEnv: {}",
+                            c.request.value.is_from_build_env().to_string().cyan()
+                        )
                     } else {
                         "".to_string()
                     }
@@ -890,7 +893,16 @@ impl RequestVar {
         }
         let options = SetOptions::compute_new_options(
             base,
-            vec![(&self.request.var, &self.request.value)].into_iter(),
+            vec![(
+                &self.request.var,
+                &self
+                    .request
+                    .value
+                    .as_pinned()
+                    .map(str::to_string)
+                    .unwrap_or_default(),
+            )]
+            .into_iter(),
             true,
         );
         Arc::new(base.with_var_requests_and_options(parent, new_requests, options))

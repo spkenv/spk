@@ -13,6 +13,7 @@ use spk_schema::ident::{
     build_ident,
     parse_ident_range,
     version_ident,
+    PinnableValue,
     PkgRequest,
     RangeIdent,
     Request,
@@ -712,8 +713,7 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
         solver.add_request(
             VarRequest {
                 var: opt_name!("python").to_owned(),
-                pin: false,
-                value: pyver.to_string(),
+                value: PinnableValue::Pinned(pyver.to_string()),
             }
             .into(),
         );

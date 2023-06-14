@@ -9,7 +9,7 @@ use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::option_map::Stringified;
-use spk_schema_ident::{NameAndValue, RangeIdent};
+use spk_schema_ident::{NameAndValue, PinnableValue, RangeIdent};
 
 use crate::foundation::name::{OptName, OptNameBuf, PkgName, PkgNameBuf};
 use crate::foundation::version::{CompatRule, Compatibility};
@@ -175,9 +175,9 @@ impl TryFrom<Request> for Opt {
                     required_compat: request.required_compat,
                 }))
             }
-            Request::Var(VarRequest { var, pin: _, value }) => Ok(Opt::Var(VarOpt {
+            Request::Var(VarRequest { var, value }) => Ok(Opt::Var(VarOpt {
                 var,
-                default: value,
+                default: value.as_pinned().map(str::to_string).unwrap_or_default(),
                 choices: Default::default(),
                 inheritance: Default::default(),
                 value: None,
@@ -438,8 +438,7 @@ impl VarOpt {
         let value = self.get_value(given_value).unwrap_or_default();
         VarRequest {
             var: self.var.clone(),
-            value,
-            pin: false,
+            value: PinnableValue::Pinned(value),
         }
     }
 }

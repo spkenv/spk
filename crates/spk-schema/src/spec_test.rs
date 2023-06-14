@@ -151,7 +151,7 @@ macro_rules! assert_requests_contains {
         if !$requests
             .iter()
             .enumerate()
-            .any(|(index, r)| matches!(r, $crate::Request::Var(var) if &var.var == $expected_key && var.value == $expected_value && ($expected_index.is_none() || $expected_index.unwrap() == index)))
+            .any(|(index, r)| matches!(r, $crate::Request::Var(var) if &var.var == $expected_key && var.value.as_pinned().as_deref() == Some($expected_value) && ($expected_index.is_none() || $expected_index.unwrap() == index)))
         {
             panic!(
                 "requests did not contain var with {} and {}{}",

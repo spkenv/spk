@@ -29,10 +29,11 @@ impl ValidatorT for VarRequirementsValidator {
                         // empty option values do not provide a valuable opinion on the resolve
                         continue;
                     }
-                    if request.value != *value {
+                    let requested = request.value.as_pinned().unwrap_or_default();
+                    if requested != value.as_str() {
                         return Ok(Compatibility::incompatible(format!(
-                            "package wants {}={}, resolve has {}={}",
-                            request.var, request.value, name, value,
+                            "package wants {}={requested}, resolve has {name}={value}",
+                            request.var
                         )));
                     }
                 }

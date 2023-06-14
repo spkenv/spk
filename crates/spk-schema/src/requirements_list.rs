@@ -122,7 +122,7 @@ impl RequirementsList {
                     }
                 }
                 Request::Var(request) => {
-                    if !request.pin {
+                    if !request.value.is_from_build_env() {
                         continue;
                     }
                     let opts = match request.var.namespace() {

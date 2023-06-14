@@ -11,7 +11,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::Stringified;
-use spk_schema_ident::{AnyIdent, BuildIdent, Ident, VersionIdent};
+use spk_schema_ident::{AnyIdent, BuildIdent, Ident, PinnableValue, VersionIdent};
 
 use super::TestSpec;
 use crate::build_spec::UncheckedBuildSpec;
@@ -248,8 +248,7 @@ impl Package for Spec<BuildIdent> {
                     var,
                     // we are assuming that the var here will have a value because
                     // this is a built binary package
-                    value: o.get_value(None).unwrap_or_default(),
-                    pin: false,
+                    value: PinnableValue::Pinned(o.get_value(None).unwrap_or_default()),
                 }
             })
             .map(Request::Var);
@@ -605,15 +604,16 @@ where
                 }
                 Compatibility::Compatible
             }
-            Some(Opt::Pkg(opt)) => opt.validate(Some(&var_request.value)),
+            Some(Opt::Pkg(opt)) => opt.validate(var_request.value.as_pinned()),
             Some(Opt::Var(opt)) => {
-                let exact = opt.get_value(Some(&var_request.value));
-                if exact.as_deref() != Some(&var_request.value) {
+                let request_value = var_request.value.as_pinned();
+                let exact = opt.get_value(request_value);
+                if exact.as_deref() != request_value {
                     Compatibility::incompatible(format!(
                         "Incompatible build option '{}': '{}' != '{}'",
                         var_request.var,
                         exact.unwrap_or_else(|| "None".to_string()),
-                        var_request.value
+                        request_value.unwrap_or_default()
                     ))
                 } else {
                     Compatibility::Compatible
