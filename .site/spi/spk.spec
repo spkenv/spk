@@ -11,12 +11,15 @@ BuildRequires: git
 BuildRequires: gcc-c++
 BuildRequires: libcap-devel
 BuildRequires: openssl-devel
+BuildRequires: fuse-devel
+BuildRequires: m4
 BuildRequires: cmake3
 BuildRequires: make
+
 BuildRequires: spdev >= 0.28.2
-BuildRequires: m4
 
 Requires: bash
+Requires: fuse
 Obsoletes: spfs
 Provides: spfs = 0.34.6
 
