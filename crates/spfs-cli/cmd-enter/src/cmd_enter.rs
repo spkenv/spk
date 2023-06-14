@@ -127,6 +127,11 @@ impl CmdEnter {
         &mut self,
         config: &spfs::Config,
     ) -> Result<Option<spfs::runtime::OwnedRuntime>> {
+        // this function will eventually be required to discover the overlayfs
+        // attributes. It can take many milliseconds to run so we prime the cache as
+        // soon as possible in a separate thread
+        std::thread::spawn(spfs::runtime::overlayfs::overlayfs_available_options_prime_cache);
+
         let mut runtime = self.load_runtime(config).await?;
 
         if self.exit.enabled {

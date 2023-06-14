@@ -102,6 +102,10 @@ pub enum Error {
     #[error("Command, arguments or environment contained a nul byte, this is not supported")]
     CommandHasNul(#[source] std::ffi::NulError),
 
+    #[cfg(target_os = "linux")]
+    #[error("OverlayFS kernel module does not appear to be installed")]
+    OverlayFSNotInstalled,
+
     #[error("{}, and {} more errors during clean", errors.get(0).unwrap(), errors.len() - 1)]
     IncompleteClean { errors: Vec<Self> },
 }
