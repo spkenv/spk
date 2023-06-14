@@ -7,7 +7,7 @@ api: v0/package
   # - license: BSD-3-clause
   # - bindings: [ "C++", "Python", "cli" ]
 
-# If building off the master/development branch of OSL, there is no
+# If building off the main/development branch of OSL, there is no
 # guarantee of API or ABI compatibility (except for the most minor level of
 # patches), so be stricter than usual, with "x.x.a.b". If building from a
 # release branch, however, the usual x.a.b correctly reflects OSL's
