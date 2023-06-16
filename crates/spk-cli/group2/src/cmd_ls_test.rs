@@ -239,7 +239,7 @@ async fn test_ls_dash_r_shows_local_and_remote_packages() {
 /// repositories.
 #[tokio::test]
 async fn test_ls_dash_dash_no_local_repo_shows_remote_packages_only() {
-    let mut rt = spfs_runtime().await;
+    let mut rt: RuntimeLock = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
 
     // Populate the "origin" repo with one package.

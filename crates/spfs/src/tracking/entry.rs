@@ -2,16 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashMap;
 use std::io::BufRead;
+use std::pin::Pin;
 use std::str::FromStr;
 use std::string::ToString;
 
+use async_stream::try_stream;
+use futures::{Stream, TryStreamExt};
 use itertools::Itertools;
 
+use super::{DiskUsage, EntryDiskUsage};
 use crate::{encoding, Error, Result};
-
-pub const LEVEL_SEPARATOR: char = '/';
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum EntryKind {
@@ -216,53 +217,6 @@ impl<T> Entry<T>
 where
     T: Clone,
 {
-    // Walks through all entries from the given root entry and generates its size and the file path.
-    pub fn calculate_size_of_entries(
-        &self,
-        root_dir: String,
-        _disk_usage: &HashMap<String, Entry<T>>,
-    ) -> Vec<(u64, String)> {
-        let mut result: Vec<(u64, String)> = Vec::new();
-        if self.kind.is_blob() {
-            result.push((self.size, root_dir.to_string()))
-        }
-
-        for (name, entry) in self.entries.iter() {
-            if entry.is_symlink() {
-                continue;
-            }
-
-            let abs_path = match root_dir.is_empty() {
-                true => name.to_string(),
-                false => {
-                    [root_dir.to_string(), name.to_string()].join(&LEVEL_SEPARATOR.to_string())
-                }
-            };
-
-            // Skip dirs and only construct and store absolute path for printing if entry is a blob.
-            if entry.kind.is_blob() {
-                result.push((entry.size, abs_path.to_string()));
-            }
-
-            // Calculate entry sizes for child entries.
-            if !entry.entries.is_empty() {
-                result.extend(entry.calculate_size_of_entries(abs_path.to_string(), _disk_usage));
-            }
-        }
-        result
-    }
-
-    /// Generates the disk usage of a given entry.
-    pub fn generate_entry_disk_usage(&self, root: &String) -> EntryDiskUsage {
-        let mut entry_du = EntryDiskUsage::new(root.to_string());
-        entry_du.kind = self.kind;
-        entry_du
-            .child_entries
-            .extend(self.calculate_size_of_entries(root.to_string(), &self.entries));
-
-        entry_du
-    }
-
     pub fn update(&mut self, other: &Self) {
         self.kind = other.kind;
         self.object = other.object;
@@ -287,142 +241,48 @@ where
     }
 }
 
-/// Stores the entry's disk usage data.
-/// The child entries are stored in the format of (size, path_to_file).
-#[derive(Clone, Debug)]
-pub struct EntryDiskUsage {
-    pub root: String,
-    pub kind: EntryKind,
-    pub total_size: u64,
-    pub pkg_info: String,
-    pub deprecated: bool,
-    pub child_entries: Vec<(u64, String)>,
-}
+impl DiskUsage for Entry {
+    fn walk(&self) -> Pin<Box<dyn Stream<Item = Result<EntryDiskUsage>> + Send + Sync + '_>> {
+        fn walk_nested_entries(
+            root_entry: &Entry,
+            paths: Vec<String>,
+        ) -> Pin<Box<dyn Stream<Item = Result<EntryDiskUsage>> + Send + Sync + '_>> {
+            Box::pin(try_stream! {
+                for (path, entry) in root_entry.entries.iter() {
+                    if entry.is_symlink() { continue; }
 
-impl EntryDiskUsage {
-    pub fn new(root: String) -> Self {
-        Self {
-            root,
-            kind: EntryKind::Tree,
-            total_size: 0,
-            pkg_info: String::new(),
-            deprecated: false,
-            child_entries: Vec::new(),
-        }
-    }
+                    // Update path
+                    let mut updated_paths = paths.clone();
+                    updated_paths.push(path.clone());
 
-    fn update_total_size_of_entries(&mut self) {
-        for (size, _) in self.child_entries.iter() {
-            self.total_size += size;
-        }
-    }
-
-    fn get_file_paths_of_child_entries(&self) -> Vec<String> {
-        let mut file_paths: Vec<String> = Vec::new();
-        for (_, path) in self.child_entries.iter() {
-            file_paths.push(path.to_string());
-        }
-        file_paths
-    }
-
-    fn get_entry_names_in_root(&self) -> Vec<String> {
-        let mut entries: Vec<String> = Vec::new();
-        let root_level = self.root.split(LEVEL_SEPARATOR).collect_vec().len();
-        let path_length = if self.root.is_empty() { 0 } else { root_level };
-
-        if self.kind.is_tree() {
-            for (_, path) in self.child_entries.iter() {
-                let mut sub_path = path.split(LEVEL_SEPARATOR).collect_vec();
-                sub_path.retain(|c| !c.is_empty());
-                entries.push(sub_path[..=path_length].join(&LEVEL_SEPARATOR.to_string()));
-            }
-        }
-
-        entries.dedup();
-        entries
-    }
-
-    /// Formats the entries in child_entries to output.
-    pub fn convert_child_entries_for_output(&self) -> HashMap<(String, bool), u64> {
-        let mut formatted_entries: HashMap<(String, bool), u64> = HashMap::default();
-        for (size, path) in self.child_entries.iter() {
-            formatted_entries.insert(
-                (format!("{}/{path}", self.pkg_info), self.deprecated),
-                *size,
-            );
-        }
-        formatted_entries
-    }
-
-    /// Groups the entry and sums the sizes together.
-    /// If the input ends with a level separator '/' this means we need to
-    /// output and sum the sizes of the entries contained inside the root dir.
-    /// Else, if the input does not end with a level separator we group and sum the
-    /// sizes by the root dir.
-    pub fn group_entries(&self, group_by_dirs_in_root: bool) -> HashMap<(String, bool), u64> {
-        let mut sum_by_dir: HashMap<(String, bool), u64> = HashMap::default();
-        match group_by_dirs_in_root {
-            false => {
-                let suffix = if self.kind.is_tree() {
-                    LEVEL_SEPARATOR.to_string()
-                } else {
-                    "".to_string()
-                };
-
-                for (size, path) in self.child_entries.iter() {
-                    if path.contains(&self.root) {
-                        let abs_path = format!("{}/{}{suffix}", self.pkg_info, self.root);
-                        sum_by_dir
-                            .entry((abs_path.to_string(), self.deprecated))
-                            .and_modify(|s| *s += size)
-                            .or_insert(*size);
+                    // Base case. We can start traversing back up.
+                    if entry.kind.is_blob() {
+                        yield EntryDiskUsage::new(
+                                updated_paths.clone(),
+                                entry.size,
+                                entry.object,
+                            )
                     }
-                }
-            }
-            true => {
-                let entries_in_root = self.get_entry_names_in_root();
-                for entry in entries_in_root.iter() {
-                    let (sizes, paths): (Vec<u64>, Vec<String>) = self
-                        .child_entries
-                        .iter()
-                        .cloned()
-                        .filter(|(_, p)| p.contains(entry))
-                        .unzip();
-                    let suffix = if paths.contains(entry) {
-                        "".to_string()
-                    } else {
-                        LEVEL_SEPARATOR.to_string()
-                    };
-                    let abs_path = format!("{}/{entry}{suffix}", self.pkg_info);
-                    let total_size = sizes.into_iter().sum();
-                    sum_by_dir
-                        .entry((abs_path, self.deprecated))
-                        .and_modify(|s| *s += total_size)
-                        .or_insert(total_size);
-                }
-            }
-        }
-        sum_by_dir
-    }
 
-    /// Calculates the total size of the entry.
-    pub fn calculate_total_size(
-        &mut self,
-        component_entries: &Vec<EntryDiskUsage>,
-        count_links: bool,
-    ) {
-        match component_entries.is_empty() {
-            false => {
-                let curr_comp_file_paths = self.get_file_paths_of_child_entries();
-                for entry_du in component_entries.iter() {
-                    for (size, path) in entry_du.child_entries.iter() {
-                        if !curr_comp_file_paths.contains(path) || count_links {
-                            self.total_size += size
+                    // We need to walk deeper if more child entries exists.
+                    if !entry.entries.is_empty() {
+                        let mut walked = walk_nested_entries(entry, updated_paths);
+                        while let Some(du) = walked.try_next().await? {
+                            yield du
                         }
                     }
                 }
-            }
-            true => self.update_total_size_of_entries(),
+            })
         }
+
+        Box::pin(try_stream! {
+            // Sets up the initial paths before recursively walking all child entries.
+            for (path, entry) in self.entries.iter().sorted_by_key(|(k, _)| *k) {
+                let mut walked = walk_nested_entries(entry, vec![path.clone()]);
+                while let Some(du) = walked.try_next().await? {
+                    yield du
+                }
+            }
+        })
     }
 }

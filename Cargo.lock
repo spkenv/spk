@@ -3596,14 +3596,17 @@ name = "spk-cmd-du"
 version = "0.39.2"
 dependencies = [
  "anyhow",
+ "async-stream",
  "async-trait",
  "clap 3.2.23",
  "colored",
  "futures",
  "itertools",
  "spfs",
+ "spk-build",
  "spk-cli-common",
  "spk-schema",
+ "spk-solve",
  "spk-storage",
  "tokio",
  "tracing",
