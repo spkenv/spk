@@ -41,6 +41,37 @@ struct Opt {
 }
 
 #[tokio::test]
+async fn test_du_trivially_works() {
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    let spec = recipe!(
+        {"pkg": "my-pkg/1.0.0", "build": {"script": "echo Hello World!"}}
+    );
+
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
+
+    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+        .with_source(BuildSource::LocalPath(".".into()))
+        .with_repository(rt.tmprepo.clone())
+        .build_and_publish(&option_map! {}, &*rt.tmprepo)
+        .await
+        .unwrap();
+
+    let mut opt = Opt::try_parse_from(["du", "local/"]).unwrap();
+    opt.du.run().await.unwrap();
+
+    assert_eq!(opt.du.output.vec.lock().unwrap().len(), 8);
+}
+
+#[tokio::test]
 async fn test_du_warnings_when_object_is_tree_or_blob() {
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
@@ -75,10 +106,9 @@ async fn test_du_warnings_when_object_is_tree_or_blob() {
 }
 
 #[tokio::test]
-async fn test_du_non_existing_package() {
+async fn test_du_non_existing_version() {
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
-
     rt.add_remote_repo(
         "origin",
         Remote::Address(RemoteAddress {
@@ -87,23 +117,20 @@ async fn test_du_non_existing_package() {
     )
     .unwrap();
 
-    // publish package without publishing spec
-    let components = vec![
-        (Component::Run, EMPTY_DIGEST.into()),
-        (Component::Build, EMPTY_DIGEST.into()),
-    ]
-    .into_iter()
-    .collect();
+    let spec = recipe!(
+        {"pkg": "my-pkg/1.0.0", "build": {"script": "echo Hello World!"}}
+    );
 
-    let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
-    remote_repo.publish_recipe(&recipe).await.unwrap();
-    let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
-    remote_repo
-        .publish_package(&spec, &components)
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
+
+    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+        .with_source(BuildSource::LocalPath(".".into()))
+        .with_repository(rt.tmprepo.clone())
+        .build_and_publish(&option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["du", "my-pkg/1.1.1", "-s"]).unwrap();
+    let mut opt = Opt::try_parse_from(["du", "local/my-pkg/1.0.1", "-s"]).unwrap();
     opt.du.run().await.unwrap();
     assert_eq!(opt.du.output.vec.lock().unwrap().len(), 0);
 }
@@ -135,7 +162,7 @@ async fn test_du_out_of_range_input() {
 
     let mut opt = Opt::try_parse_from([
         "du",
-        "my-pkg/1.0.0/3I42H3S6/:build/spk/pkg/my-pkg/1.0.0/3I42H3S6/options.json/",
+        "local/my-pkg/1.0.0/3I42H3S6/:build/spk/pkg/my-pkg/1.0.0/3I42H3S6/options.json/",
     ])
     .unwrap();
     opt.du.run().await.unwrap();
@@ -267,7 +294,7 @@ async fn test_du_total_size() {
 }
 
 #[tokio::test]
-async fn test_du_short_output_enabled() {
+async fn test_du_summarize_output_enabled() {
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -297,7 +324,7 @@ async fn test_du_short_output_enabled() {
 }
 
 #[tokio::test]
-async fn test_du_short_output_is_not_enabled() {
+async fn test_du_summarize_output_is_not_enabled() {
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -324,4 +351,89 @@ async fn test_du_short_output_is_not_enabled() {
     let mut opt = Opt::try_parse_from(["du", "local/my-pkg"]).unwrap();
     opt.du.run().await.unwrap();
     assert_eq!(opt.du.output.vec.lock().unwrap().len(), 8); // Output should show 8 files. 4 from build and 4 from run.
+}
+
+#[tokio::test]
+async fn test_deprecate_flag() {
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    let spec = recipe!(
+        {"pkg": "my-pkg/1.0.0", "build": {"script": "echo Hello World!"}, "deprecated": true}
+    );
+
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
+
+    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+        .with_source(BuildSource::LocalPath(".".into()))
+        .with_repository(rt.tmprepo.clone())
+        .build_and_publish(&option_map! {}, &*rt.tmprepo)
+        .await
+        .unwrap();
+
+    let mut opt_without_deprecate_flag = Opt::try_parse_from(["du", "local/my-pkg"]).unwrap();
+    opt_without_deprecate_flag.du.run().await.unwrap();
+    assert_eq!(
+        opt_without_deprecate_flag
+            .du
+            .output
+            .vec
+            .lock()
+            .unwrap()
+            .len(),
+        0
+    );
+
+    let mut opt_with_deprecate_flag = Opt::try_parse_from(["du", "local/my-pkg", "-ds"]).unwrap();
+    opt_with_deprecate_flag.du.run().await.unwrap();
+    assert_eq!(
+        opt_with_deprecate_flag.du.output.vec.lock().unwrap().len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn test_human_readable_flag() {
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    let spec = recipe!(
+        {"pkg": "my-pkg/1.0.0", "build": {"script": "echo Hello World!"}}
+    );
+
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
+
+    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+        .with_source(BuildSource::LocalPath(".".into()))
+        .with_repository(rt.tmprepo.clone())
+        .build_and_publish(&option_map! {}, &*rt.tmprepo)
+        .await
+        .unwrap();
+
+    let mut opt = Opt::try_parse_from(["du", "local/my-pkg/1.0.0/3I42H3S6/:build/", "-H"]).unwrap();
+    opt.du.run().await.unwrap();
+
+    let units = ["B", "Ki", "Mi", "Gi", "Ti"];
+    assert!(opt
+        .du
+        .output
+        .vec
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|i| units.iter().any(|&u| i.contains(u))));
 }

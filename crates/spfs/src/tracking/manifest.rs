@@ -180,35 +180,6 @@ impl<T> Manifest<T>
 where
     T: Default,
 {
-    /// Same as find_entry_by_string but will return the file/dirs in the given dir
-    pub fn list_entries_in_dir(&self, path: &str) -> Option<Vec<&String>> {
-        self.find_entry_by_string(path)
-            .map(|entry| entry.entries.keys().collect_vec())
-    }
-
-    /// Finds the entry of a given path.
-    pub fn find_entry_by_string(&self, entry_path: &str) -> Option<&Entry<T>> {
-        let mut paths = entry_path.split('/').collect_vec();
-
-        // Remove any empty strings
-        paths.retain(|c| !c.is_empty());
-
-        let mut matched_entry = Some(&self.root);
-
-        // Loops through each path and obtain the entry for the corresponding path until it reaches the end
-        // Example: /bin/python
-        //     We always start the scan from the /spfs directory.
-        //     Loops through /spfs -> bin -> python then returns
-        //     the python entry as the target entry we are trying to find.
-        for path in paths.iter() {
-            matched_entry = match matched_entry {
-                Some(entry) => entry.entries.get(*path),
-                _ => None,
-            };
-        }
-        matched_entry
-    }
-
     /// Add a new directory entry to this manifest
     pub fn mkdir<P: AsRef<str>>(&mut self, path: P) -> Result<&mut Entry<T>> {
         let entry = Entry::default();

@@ -176,11 +176,11 @@ pub struct Du<Output: Default = Console> {
     #[clap(long, short = 'H')]
     pub human_readable: bool,
 
-    /// Shows each directory size from input package passed
+    /// Display only a total for each argument
     #[clap(long, short = 's')]
-    pub short: bool,
+    pub summarize: bool,
 
-    /// Output the grand total
+    /// Produce the grand total
     #[clap(long, short = 'c')]
     pub total: bool,
 
@@ -194,7 +194,7 @@ impl<T: Output> Run for Du<T> {
     async fn run(&mut self) -> Result<i32> {
         let mut total_size = 0;
         let mut visited_digests = HashSet::new();
-        if self.short {
+        if self.summarize {
             let mut input_by_level = self.path.split(LEVEL_SEPARATOR).rev().collect_vec();
 
             input_by_level.retain(|c| !c.is_empty());
