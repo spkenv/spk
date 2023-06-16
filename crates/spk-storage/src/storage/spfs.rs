@@ -21,7 +21,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, Reposito
 use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::ident::VersionIdent;
 use spk_schema::ident_build::parsing::embedded_source_package;
-use spk_schema::ident_build::EmbeddedSource;
+use spk_schema::ident_build::{EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema::ident_ops::TagPath;
 use spk_schema::{AnyIdent, BuildIdent, FromYaml, Package, Recipe, Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
@@ -220,13 +220,33 @@ impl Storage for SPFSRepository {
     type Package = Spec;
 
     async fn get_concrete_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>> {
-        let base = self.build_package_tag(pkg)?;
-        let builds: HashSet<_> = self
-            .ls_tags(&base)
-            .await
+        // It is possible for a `spk/spec/pkgname/1.0.0/BUILDKEY` tag to
+        // exist without a corresponding `spk/spk/pkgname/1.0.0/BUILDKEY`
+        // tag. In this scenario, "pkgname" will appear in the results of
+        // `list_packages` and `list_package_versions`, because those look at
+        // the `spk/spec/...` spfs tag tree, i.e., this package will appear
+        // in the output of `spk ls`. In order to make it possible to locate
+        // the build spec, e.g., for `spk rm pkgname/1.0.0` to work, this
+        // method needs to return a union of all the build tags of both the
+        // `spk/spec/` and `spk/pkg/` tag trees.
+        let spec_base = self.build_spec_tag(pkg);
+        let package_base = self.build_package_tag(pkg);
+
+        let spec_tags = self.ls_tags(&spec_base);
+        let package_tags = self.ls_tags(&package_base);
+
+        let (spec_tags, package_tags) = tokio::join!(spec_tags, package_tags);
+
+        let builds: HashSet<_> = spec_tags
             .into_iter()
+            .chain(package_tags.into_iter())
             .filter_map(|entry| match entry {
-                Ok(EntryType::Tag(name)) => Some(name),
+                Ok(EntryType::Tag(name))
+                    if !name.starts_with(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX) =>
+                {
+                    Some(name)
+                }
+                Ok(EntryType::Tag(_)) => None,
                 Ok(EntryType::Folder(name)) => Some(name),
                 Err(_) => None,
             })
@@ -261,7 +281,7 @@ impl Storage for SPFSRepository {
                 Err(_) => None,
             })
             .filter_map(|b| {
-                b.strip_prefix("embedded-by-")
+                b.strip_prefix(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX)
                     .and_then(|encoded_ident| {
                         data_encoding::BASE32_NOPAD
                             .decode(encoded_ident.as_bytes())
@@ -317,7 +337,7 @@ impl Storage for SPFSRepository {
         package: &<Self::Recipe as spk_schema::Recipe>::Output,
         components: &HashMap<Component, spfs::encoding::Digest>,
     ) -> Result<()> {
-        let tag_path = self.build_package_tag(package.ident())?;
+        let tag_path = self.build_package_tag(package.ident());
 
         // We will also publish the 'run' component in the old style
         // for compatibility with older versions of the spk command.
@@ -456,28 +476,97 @@ impl Storage for SPFSRepository {
     }
 
     async fn remove_package_from_storage(&self, pkg: &BuildIdent) -> Result<()> {
-        for tag_spec in
-            with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
-                .await?
-                .tags()
-        {
-            match self.inner.remove_tag_stream(tag_spec).await {
-                Err(spfs::Error::UnknownReference(_)) => (),
-                res => res?,
+        // The three things this method is responsible for deleting are:
+        //
+        // 1. Component build tags like: `spk/pkg/example/4.2.1/GMTG3CXY/build`.
+        // 2. Legacy build tags like   : `spk/pkg/example/4.2.1/GMTG3CXY`.
+        // 3. Build recipe tags like   : `spk/spec/example/4.2.1/GMTG3CXY`.
+        //
+        // It should make an effort to delete all three types before returning
+        // any failures.
+
+        let component_tags = async {
+            let mut deleted_something = false;
+
+            for tag_spec in
+                with_cache_policy!(self, CachePolicy::BypassCache, { self.lookup_package(pkg) })
+                    .await?
+                    .tags()
+            {
+                match self.inner.remove_tag_stream(tag_spec).await {
+                    Err(spfs::Error::UnknownReference(_)) => (),
+                    Ok(_) => deleted_something = true,
+                    res => res?,
+                };
             }
-        }
-        // because we double-publish packages to be visible/compatible
-        // with the old repo tag structure, we must also try to remove
-        // the legacy version of the tag after removing the discovered
-        // as it may still be there and cause the removal to be ineffective
-        if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)?) {
-            match self.inner.remove_tag_stream(&legacy_tag).await {
-                Err(spfs::Error::UnknownReference(_)) => (),
-                res => res?,
+            Ok::<_, Error>(deleted_something)
+        };
+
+        let legacy_tags = async {
+            // because we double-publish packages to be visible/compatible
+            // with the old repo tag structure, we must also try to remove
+            // the legacy version of the tag after removing the discovered
+            // as it may still be there and cause the removal to be ineffective
+            let mut deleted_something = false;
+
+            if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(self.build_package_tag(pkg)) {
+                match self.inner.remove_tag_stream(&legacy_tag).await {
+                    Err(spfs::Error::UnknownReference(_)) => (),
+                    Ok(_) => deleted_something = true,
+                    res => res?,
+                }
+            };
+            Ok::<_, Error>(deleted_something)
+        };
+
+        let build_recipe_tags = async {
+            let tag_path = self.build_spec_tag(pkg);
+            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
+            match self.inner.remove_tag_stream(&tag_spec).await {
+                Err(spfs::Error::UnknownReference(_)) => Err(Error::SpkValidatorsError(
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
+                )),
+                Err(err) => Err(err.into()),
+                Ok(_) => Ok(true),
             }
-        }
+        };
+
+        let (component_tags_result, legacy_tags_result, build_recipe_tags_result) =
+            tokio::join!(component_tags, legacy_tags, build_recipe_tags);
+
+        // Still invalidate caches in case some of individual deletions were
+        // successful.
         self.invalidate_caches();
-        Ok(())
+
+        // If any of the three sub-tasks successfully deleted something *and*
+        // the only failures otherwise was `PackageNotFoundError`, then return
+        // success. Since something was deleted then the package was
+        // technically "found."
+        [
+            component_tags_result,
+            build_recipe_tags_result,
+            // Check legacy tags last because errors deleting legacy tags are
+            // less important.
+            legacy_tags_result,
+        ]
+        .into_iter()
+        .fold(Ok::<_, Error>(false), |acc, x| match (acc, x) {
+            // Preserve the first non-PackageNotFoundError encountered.
+            (Err(err), _) if !err.is_package_not_found() => Err(err),
+            // Incoming error is not PackageNotFoundError.
+            (_, Err(err)) if !err.is_package_not_found() => Err(err),
+            // Successes merge with successes and retain "deleted
+            // something" if either did.
+            (Ok(x), Ok(y)) => Ok(x || y),
+            // Having successfully deleted something trumps
+            // `PackageNotFound`.
+            (Ok(true), Err(err)) if err.is_package_not_found() => Ok(true),
+            (Err(err), Ok(true)) if err.is_package_not_found() => Ok(true),
+            // Otherwise, keep the prevailing error.
+            (Err(err), _) => Err(err),
+            (_, Err(err)) => Err(err),
+        })
+        .map(|_| ())
     }
 }
 
@@ -699,7 +788,7 @@ impl Repository for SPFSRepository {
                     let components = stored.into_components();
                     for (name, tag_spec) in components.into_iter() {
                         let tag = self.inner.resolve_tag(&tag_spec).await?;
-                        let new_tag_path = self.build_package_tag(&build)?.join(name.to_string());
+                        let new_tag_path = self.build_package_tag(&build).join(name.to_string());
                         let new_tag_spec = spfs::tracking::TagSpec::parse(&new_tag_path)?;
 
                         // NOTE(rbottriell): this copying process feels annoying
@@ -855,7 +944,7 @@ impl SPFSRepository {
     /// (with or without package components)
     async fn lookup_package(&self, pkg: &BuildIdent) -> Result<StoredPackage> {
         use spfs::tracking::TagSpec;
-        let tag_path = self.build_package_tag(pkg)?;
+        let tag_path = self.build_package_tag(pkg);
         let tag_specs: HashMap<Component, TagSpec> = self
             .ls_tags(&tag_path)
             .await
@@ -881,7 +970,7 @@ impl SPFSRepository {
     }
 
     /// Construct an spfs tag string to represent a binary package layer.
-    fn build_package_tag<T>(&self, pkg: &T) -> Result<RelativePathBuf>
+    fn build_package_tag<T>(&self, pkg: &T) -> RelativePathBuf
     where
         T: TagPath,
     {
@@ -889,7 +978,7 @@ impl SPFSRepository {
         tag.push("pkg");
         tag.push(pkg.tag_path());
 
-        Ok(tag)
+        tag
     }
 
     /// Construct an spfs tag string to represent a spec file blob.
