@@ -292,15 +292,21 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V1, V2, E, P>(
+        &self,
+        input_variant: &V1,
+        resolved_variant: &V2,
+        build_env: &E,
+    ) -> Result<Self::Output>
     where
-        V: Variant,
+        V1: Variant,
+        V2: Variant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
         match self {
             SpecRecipe::V0Package(r) => r
-                .generate_binary_build(variant, build_env)
+                .generate_binary_build(input_variant, resolved_variant, build_env)
                 .map(Spec::V0Package),
         }
     }

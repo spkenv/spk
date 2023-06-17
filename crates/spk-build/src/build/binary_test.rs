@@ -688,7 +688,7 @@ async fn test_build_add_startup_files(tmpdir: tempfile::TempDir) {
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
 
     let spec = recipe
-        .generate_binary_build(&option_map! {}, &Solution::default())
+        .generate_binary_build(&option_map! {}, &option_map! {}, &Solution::default())
         .unwrap();
     BinaryPackageBuilder::from_recipe(recipe)
         .with_prefix(tmpdir.path().into())
