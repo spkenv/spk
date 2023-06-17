@@ -224,7 +224,7 @@ where
         repo: &R,
     ) -> Result<(Recipe::Output, HashMap<Component, spfs::encoding::Digest>)>
     where
-        V: Variant,
+        V: Variant + Clone,
         R: std::ops::Deref<Target = T>,
         T: storage::Repository<Recipe = Recipe> + ?Sized,
         <T as storage::Storage>::Package: PackageMut,
@@ -244,7 +244,7 @@ where
         variant: V,
     ) -> Result<(Recipe::Output, HashMap<Component, spfs::encoding::Digest>)>
     where
-        V: Variant,
+        V: Variant + Clone,
     {
         self.environment.clear();
         let mut runtime = spfs::active_runtime().await?;
@@ -276,6 +276,7 @@ where
             .extend(solution.to_environment(Some(std::env::vars())));
 
         let full_variant = variant
+            .clone()
             .with_overrides(solution.options().clone())
             // original options to be reapplied. It feels like this
             // shouldn't be necessary but I've not been able to isolate what
@@ -367,7 +368,7 @@ where
 
         let package = self
             .recipe
-            .generate_binary_build(&full_variant, &solution)?;
+            .generate_binary_build(&variant, &full_variant, &solution)?;
         self.validate_generated_package(&solution, &package)?;
         let components = self
             .build_and_commit_artifacts(&package, full_variant.options())

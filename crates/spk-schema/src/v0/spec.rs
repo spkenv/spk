@@ -461,17 +461,23 @@ impl Recipe for Spec<VersionIdent> {
         Ok(source)
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V1, V2, E, P>(
+        &self,
+        input_variant: &V1,
+        full_variant: &V2,
+        build_env: &E,
+    ) -> Result<Self::Output>
     where
-        V: Variant,
+        V1: Variant,
+        V2: Variant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        let build_requirements = self.get_build_requirements(variant)?.into_owned();
+        let build_requirements = self.get_build_requirements(full_variant)?.into_owned();
 
-        let build_options = variant.options();
+        let build_options = full_variant.options();
         let mut updated = self.clone();
-        updated.build.options = self.build.opts_for_variant(variant)?;
+        updated.build.options = self.build.opts_for_variant(full_variant)?;
 
         let specs: HashMap<_, _> = build_env
             .build_env()
@@ -583,7 +589,7 @@ impl Recipe for Spec<VersionIdent> {
         // Calculate the digest from the non-updated spec so it isn't affected
         // by `build_env`. The digest is expected to be based solely on the
         // input options and recipe.
-        let digest = self.resolve_options(variant)?.digest();
+        let digest = self.resolve_options(input_variant)?.digest();
         Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
     }
 }
