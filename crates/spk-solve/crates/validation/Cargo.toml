@@ -4,6 +4,14 @@ edition = { workspace = true }
 name = "spk-solve-validation"
 version = { workspace = true }
 
+[features]
+migration-to-components = [
+	"spk-solve-graph/migration-to-components",
+	"spk-solve-solution/migration-to-components",
+	"spk-schema/migration-to-components",
+	"spk-storage/migration-to-components",
+]
+
 [dependencies]
 colored = { workspace = true }
 dashmap = { workspace = true }

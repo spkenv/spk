@@ -4,6 +4,14 @@ edition = { workspace = true }
 name = "spk-cmd-make-source"
 version = { workspace = true }
 
+[features]
+migration-to-components = [
+	"spk-build/migration-to-components",
+	"spk-cli-common/migration-to-components",
+	"spk-schema/migration-to-components",
+	"spk-storage/migration-to-components",
+]
+
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }

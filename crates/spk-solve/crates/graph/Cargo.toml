@@ -4,6 +4,14 @@ edition = { workspace = true }
 name = "spk-solve-graph"
 version = { workspace = true }
 
+[features]
+migration-to-components = [
+	"spk-solve-package-iterator/migration-to-components",
+	"spk-solve-solution/migration-to-components",
+	"spk-schema/migration-to-components",
+	"spk-storage/migration-to-components",
+]
+
 [dependencies]
 async-recursion = "1.0"
 async-stream = "0.3"

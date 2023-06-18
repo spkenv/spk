@@ -4,6 +4,12 @@ edition = { workspace = true }
 name = "spk-schema-validators"
 version = { workspace = true }
 
+[features]
+migration-to-components = [
+	"spk-schema-foundation/migration-to-components",
+	"spk-schema-ident/migration-to-components",
+]
+
 [dependencies]
 data-encoding = "2.3.0"
 ignore = "0.4.18"

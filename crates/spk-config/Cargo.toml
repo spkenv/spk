@@ -4,6 +4,9 @@ name = "spk-config"
 edition = { workspace = true }
 version = { workspace = true }
 
+[features]
+migration-to-components = []
+
 [dependencies]
 config = { workspace = true }
 expanduser = { workspace = true }

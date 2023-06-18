@@ -5,6 +5,13 @@ name = "spk-cli-common"
 version = { workspace = true }
 
 [features]
+migration-to-components = [
+	"spk-build/migration-to-components",
+	"spk-exec/migration-to-components",
+	"spk-solve/migration-to-components",
+	"spk-schema/migration-to-components",
+	"spk-storage/migration-to-components",
+]
 sentry = ["dep:sentry", "dep:sentry-anyhow", "dep:sentry-tracing", "dep:strip-ansi-escapes", "spk-solve/sentry", "spk-build/sentry", "spfs/sentry"]
 statsd = ["dep:statsd"]
 

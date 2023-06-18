@@ -4,6 +4,12 @@ edition = { workspace = true }
 name = "spk-solve-solution"
 version = { workspace = true }
 
+[features]
+migration-to-components = [
+	"spk-schema/migration-to-components",
+	"spk-storage/migration-to-components",
+]
+
 [dependencies]
 colored = { workspace = true }
 console =  { workspace = true }

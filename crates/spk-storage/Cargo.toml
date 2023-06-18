@@ -4,6 +4,11 @@ edition = { workspace = true }
 name = "spk-storage"
 version = { workspace = true }
 
+[features]
+migration-to-components = [
+	"spk-schema/migration-to-components",
+]
+
 [dependencies]
 async-trait = { workspace = true }
 colored = { workspace = true }
