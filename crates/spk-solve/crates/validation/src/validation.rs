@@ -25,14 +25,14 @@ mod validation_test;
 #[derive(Clone, Copy)]
 #[enum_dispatch(ValidatorT)]
 pub enum Validators {
-    Deprecation(DeprecationValidator),
     BinaryOnly(BinaryOnlyValidator),
-    PackageRequest(PkgRequestValidator),
     Components(ComponentsValidator),
-    Options(OptionsValidator),
-    VarRequirements(VarRequirementsValidator),
-    PkgRequirements(PkgRequirementsValidator),
+    Deprecation(DeprecationValidator),
     EmbeddedPackage(EmbeddedPackageValidator),
+    Options(OptionsValidator),
+    PackageRequest(PkgRequestValidator),
+    PkgRequirements(PkgRequirementsValidator),
+    VarRequirements(VarRequirementsValidator),
 }
 
 /// For validation methods that only operate on package requests
