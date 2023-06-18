@@ -24,6 +24,10 @@ macro_rules! build_package {
 
         let filename_str = filename.as_os_str().to_str().unwrap();
 
+        $crate::build_package!($tmpdir, filename_str, $($extra_build_args),*)
+    }};
+
+    ($tmpdir:ident, $filename:ident $(,)? $($extra_build_args:literal),*) => {{
         // Build the package so it can be tested.
         let mut opt = $crate::macros::BuildOpt::try_parse_from([
             "build",
@@ -32,11 +36,11 @@ macro_rules! build_package {
             "--no-runtime",
             "--disable-repo=origin",
             $($extra_build_args,)*
-            filename_str,
+            $filename,
         ])
         .unwrap();
         opt.build.run().await.unwrap();
 
-        filename_str
+        $filename
     }};
 }
