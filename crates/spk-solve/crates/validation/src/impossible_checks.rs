@@ -747,7 +747,7 @@ async fn any_valid_build_in_version(
             "Read components for: {build} and validation",
         );
 
-        let compat = validate_against_pkg_request(
+        let compat = match validate_against_pkg_request(
             &validators,
             &request,
             &spec,
@@ -755,7 +755,17 @@ async fn any_valid_build_in_version(
                 repo: Arc::clone(&repo),
                 components,
             },
-        )?;
+        ) {
+            Ok(compat) => compat,
+            Err(err) => {
+                tracing::debug!(
+                    target: IMPOSSIBLE_CHECKS_TARGET,
+                    ?err,
+                    "Invalid build {build} for the combined request"
+                );
+                return Err(err);
+            }
+        };
         if !compat.is_ok() {
             // Not compatible, move on to check the next build
             tracing::debug!(
@@ -764,6 +774,11 @@ async fn any_valid_build_in_version(
             );
             continue;
         } else {
+            tracing::debug!(
+                target: IMPOSSIBLE_CHECKS_TARGET,
+                "Valid build {build} for the combined request: {compat}"
+            );
+
             // Compatible, so send a message and return immediately
             send_version_task_done_message(channel, build.to_any(), compat.clone(), builds_read)
                 .await;
