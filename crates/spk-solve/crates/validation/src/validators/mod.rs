@@ -4,6 +4,7 @@
 
 mod binary_only;
 mod components;
+mod deny_package_with_name;
 mod deprecation;
 mod embedded_package;
 mod options;
@@ -14,6 +15,7 @@ mod var_requirements;
 
 pub use binary_only::BinaryOnlyValidator;
 pub use components::ComponentsValidator;
+pub use deny_package_with_name::DenyPackageWithNameValidator;
 pub use deprecation::DeprecationValidator;
 pub use embedded_package::EmbeddedPackageValidator;
 pub use options::OptionsValidator;
