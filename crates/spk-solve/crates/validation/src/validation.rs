@@ -65,7 +65,7 @@ pub trait ValidatorT {
     /// Check if the given package is appropriate for the packages request data.
     ///
     /// This does not use options related data or data from already
-    /// reolved parts of a state.
+    /// resolved parts of a state.
     fn validate_package_against_request<PR, P>(
         &self,
         _pkgrequest_data: &PR,
