@@ -17,11 +17,12 @@ use crate::Error;
 #[path = "./validation_test.rs"]
 mod validation_test;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 #[enum_dispatch(ValidatorT)]
 pub enum Validators {
     BinaryOnly(BinaryOnlyValidator),
     Components(ComponentsValidator),
+    DenyPackageWithName(DenyPackageWithNameValidator),
     Deprecation(DeprecationValidator),
     EmbeddedPackage(EmbeddedPackageValidator),
     Options(OptionsValidator),
