@@ -8,50 +8,16 @@ use std::io::Write;
 use clap::Parser;
 use rstest::rstest;
 use spk_cli_common::Run;
-use spk_cmd_build::cmd_build::Build;
+use spk_cmd_build::build_package;
 use spk_schema::foundation::fixtures::*;
 use spk_storage::fixtures::*;
 
 use super::CmdTest;
 
 #[derive(Parser)]
-struct BuildOpt {
-    #[clap(flatten)]
-    build: Build,
-}
-
-#[derive(Parser)]
 struct TestOpt {
     #[clap(flatten)]
     test: CmdTest,
-}
-
-macro_rules! build_package {
-    ($tmpdir:ident, $filename:literal, $recipe:literal $(,)? $($extra_build_args:literal),*) => {{
-        // Leak `filename` for convenience.
-        let filename = Box::leak(Box::new($tmpdir.path().join($filename)));
-        {
-            let mut file = File::create(&filename).unwrap();
-            file.write_all($recipe).unwrap();
-        }
-
-        let filename_str = filename.as_os_str().to_str().unwrap();
-
-        // Build the package so it can be tested.
-        let mut opt = BuildOpt::try_parse_from([
-            "build",
-            // Don't exec a new process to move into a new runtime, this confuses
-            // coverage testing.
-            "--no-runtime",
-            "--disable-repo=origin",
-            $($extra_build_args,)*
-            filename_str,
-        ])
-        .unwrap();
-        opt.build.run().await.unwrap();
-
-        filename_str
-    }};
 }
 
 #[rstest]
