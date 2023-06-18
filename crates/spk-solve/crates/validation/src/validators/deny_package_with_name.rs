@@ -5,7 +5,7 @@
 use spk_schema::name::{PkgName, PkgNameBuf};
 
 use super::prelude::*;
-use crate::ValidatorT;
+use crate::{ValidatorT, Validators};
 
 /// Ensures that packages with the given name are not included.
 #[derive(Clone)]
@@ -23,6 +23,38 @@ impl DenyPackageWithNameValidator {
             )))
         } else {
             Ok(Compatibility::Compatible)
+        }
+    }
+
+    /// Add or remove a DenyPackageWithName validator to the given list of
+    /// validators.
+    pub fn update_validators(pkg_name: &PkgName, reject: bool, validators: &mut Vec<Validators>) {
+        let has_reject = validators
+            .iter()
+            .find_map(|v| match v {
+                Validators::DenyPackageWithName(DenyPackageWithNameValidator { name })
+                    if name == pkg_name =>
+                {
+                    Some(true)
+                }
+                _ => None,
+            })
+            .unwrap_or(false);
+        if !(has_reject ^ reject) {
+            return;
+        }
+        if reject {
+            // Add validator because it was missing.
+            validators.insert(
+                0,
+                Validators::DenyPackageWithName(DenyPackageWithNameValidator {
+                    name: pkg_name.to_owned(),
+                }),
+            )
+        } else {
+            // Remove any DenyPackageWithName validators because one was found.
+            validators
+                .retain(|v| !matches!(v, Validators::DenyPackageWithName(DenyPackageWithNameValidator { name }) if name == pkg_name))
         }
     }
 }
