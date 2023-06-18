@@ -478,6 +478,10 @@ where
         self.solver.reset();
         self.solver.update_options(options.clone());
         self.solver.set_binary_only(true);
+        // Deny resolving a package that has the name of the package being
+        // built (circular dependency).
+        self.solver
+            .set_reject_package_with_name(self.recipe.name(), true);
         for repo in self.repos.iter().cloned() {
             self.solver.add_repository(repo);
         }

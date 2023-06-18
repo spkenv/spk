@@ -43,7 +43,7 @@ use spk_solve_package_iterator::{
     SortedBuildIterator,
 };
 use spk_solve_solution::{PackageSource, Solution};
-use spk_solve_validation::validators::BinaryOnlyValidator;
+use spk_solve_validation::validators::{BinaryOnlyValidator, DenyPackageWithNameValidator};
 use spk_solve_validation::{
     default_validators,
     ImpossibleRequestsChecker,
@@ -943,6 +943,17 @@ impl Solver {
                 .filter(|v| !matches!(v, Validators::BinaryOnly(_)))
                 .collect();
         }
+    }
+
+    /// If true, do not allow the solver to resolve a package with the given
+    /// name.
+    pub fn set_reject_package_with_name(&mut self, pkg_name: &PkgName, reject: bool) {
+        self.request_validator
+            .set_reject_package_with_name(pkg_name, reject);
+
+        let mut validators = take(self.validators.to_mut());
+        DenyPackageWithNameValidator::update_validators(pkg_name, reject, &mut validators);
+        self.validators = validators.into();
     }
 
     /// Enable or disable running impossible checks on the initial requests
