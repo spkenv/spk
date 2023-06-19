@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::collections::HashSet;
+use std::fmt::Write;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::version::Compatibility;
@@ -79,18 +80,39 @@ impl RequirementsList {
     /// exist in this list exactly, so long as there is a request in this
     /// list that is at least as restrictive
     pub fn contains_request(&self, theirs: &Request) -> Compatibility {
+        let mut global_opt_request = None;
         for ours in self.iter() {
             match (ours, theirs) {
-                (Request::Pkg(ours), Request::Pkg(theirs)) => {
+                (Request::Pkg(ours), Request::Pkg(theirs)) if ours.pkg.name == theirs.pkg.name => {
                     return ours.contains(theirs);
                 }
-                (Request::Var(ours), Request::Var(theirs)) => {
+                // a var request satisfy another if they have the same opt name or
+                // if our request is package-less and has the same base name, eg:
+                // name/value     [contains] name/value
+                // pkg.name/value [contains] pkg.name/value
+                // name/value     [contains] pkg.name/value
+                //
+                // We only exit early when we find a complete match. The last case
+                // above is saved and only evaluated if no more specific request is found
+                (Request::Var(ours), Request::Var(theirs)) if ours.var == theirs.var => {
                     return ours.contains(theirs);
                 }
-                _ => continue,
+                (Request::Var(ours), Request::Var(theirs))
+                    if theirs.var.namespace().is_some()
+                        && ours.var.as_str() == theirs.var.base_name() =>
+                {
+                    global_opt_request = Some((ours, theirs));
+                }
+                _ => {
+                    tracing::trace!("skip {ours}, not {theirs}");
+                    continue;
+                }
             }
         }
-        Compatibility::incompatible("No request exists for this")
+        if let Some((ours, theirs)) = global_opt_request {
+            return ours.contains(theirs);
+        }
+        Compatibility::incompatible(format!("No request exists for {}", theirs.name()))
     }
 
     /// Render all requests with a package pin using the given resolved packages.
@@ -136,7 +158,7 @@ impl RequirementsList {
                             ));
                         }
                         Some(opt) => {
-                            let rendered = request.render_pin(opt)?;
+                            let rendered = request.render_pin(opt.as_str())?;
                             let _ = std::mem::replace(request, rendered);
                         }
                     }
@@ -164,6 +186,20 @@ impl RequirementsList {
     /// Remove all requests from this list
     pub fn clear(&mut self) {
         self.0.clear()
+    }
+}
+
+impl std::fmt::Display for RequirementsList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char('[')?;
+        let mut entries = self.0.iter().peekable();
+        while let Some(i) = entries.next() {
+            i.fmt(f)?;
+            if entries.peek().is_some() {
+                f.write_str(", ")?;
+            }
+        }
+        f.write_char(']')
     }
 }
 
@@ -199,12 +235,11 @@ impl<'de> Deserialize<'de> for RequirementsList {
                 let mut requirement_names = HashSet::with_capacity(size_hint);
                 while let Some(request) = seq.next_element::<Request>()? {
                     let name = request.name();
-                    if requirement_names.contains(name) {
+                    if !requirement_names.insert(name.to_owned()) {
                         return Err(serde::de::Error::custom(format!(
                             "found multiple install requirements for '{name}'"
                         )));
                     }
-                    requirement_names.insert(name.to_owned());
                     requirements.push(request);
                 }
                 Ok(RequirementsList(requirements))
