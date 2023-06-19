@@ -19,7 +19,8 @@ use tokio::io::AsyncReadExt;
 
 use super::{startup_csh, startup_sh};
 use crate::encoding::{self, Encodable};
-use crate::storage::fs::{FSRepository, DURABLE_EDITS_DIR};
+use crate::storage::fs::DURABLE_EDITS_DIR;
+use crate::storage::RepositoryHandle;
 use crate::{graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
@@ -745,20 +746,19 @@ impl Storage {
         OwnedRuntime::upgrade_as_owner(rt).await
     }
 
-    fn durable_upper_path(&self, local_repo: FSRepository, name: String) -> PathBuf {
-        let mut upper_root_path = local_repo.root();
-        // This is not created as part of the local repo creation,
-        // but it will be created as part of setting up this
-        // runtime for the overlays mount operation.
-        upper_root_path.push(DURABLE_EDITS_DIR);
-        upper_root_path.push(name);
-        upper_root_path
-    }
-
     async fn durable_path(&self, name: String) -> Result<PathBuf> {
-        let config = crate::Config::current()?;
-        let local_repo = config.get_local_repository().await?;
-        Ok(self.durable_upper_path(local_repo, name))
+        match &*self.inner {
+            RepositoryHandle::FS(repo) => {
+                let mut upper_root_path = repo.root();
+                // This is not created as part of the local repo creation,
+                // but it will be created as part of setting up this
+                // runtime for the overlays mount operation.
+                upper_root_path.push(DURABLE_EDITS_DIR);
+                upper_root_path.push(name);
+                Ok(upper_root_path)
+            }
+            _ => Err(Error::DoesNotSupportDurableRuntimePath),
+        }
     }
 
     async fn check_upper_path_in_existing_runtimes(

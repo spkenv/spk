@@ -86,6 +86,8 @@ pub enum Error {
     RuntimeExists(String),
     #[error("An existing runtime is using the same upper name ({0}).\nTry another name, or connect to the runtime by running:\n\n   spfs join {1} <command>")]
     RuntimeUpperDirAlreadyInUse(String, String),
+    #[error("This kind of repository does not support durable runtime paths. A FSRepository is required for that.")]
+    DoesNotSupportDurableRuntimePath,
     #[error("Runtime is already editable")]
     RuntimeAlreadyEditable,
     #[error("Runtime read error: {0}")]
