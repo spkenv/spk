@@ -11,7 +11,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::Stringified;
-use spk_schema_ident::{AnyIdent, BuildIdent, Ident, PinnableValue, VersionIdent};
+use spk_schema_ident::{AnyIdent, BuildIdent, Ident, VersionIdent};
 
 use super::TestSpec;
 use crate::build_spec::UncheckedBuildSpec;
@@ -248,7 +248,7 @@ impl Package for Spec<BuildIdent> {
                     var,
                     // we are assuming that the var here will have a value because
                     // this is a built binary package
-                    value: PinnableValue::Pinned(o.get_value(None).unwrap_or_default()),
+                    value: o.get_value(None).unwrap_or_default().into(),
                 }
             })
             .map(Request::Var);

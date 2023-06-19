@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::marker::PhantomData;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
@@ -289,7 +290,7 @@ impl<T> VarRequest<T> {
 
 impl VarRequest<PinnableValue> {
     /// Create a copy of this request with its pin rendered out using 'var'.
-    pub fn render_pin<S: Into<String>>(&self, value: S) -> Result<VarRequest> {
+    pub fn render_pin<S: Into<Arc<str>>>(&self, value: S) -> Result<VarRequest> {
         if !self.value.is_from_build_env() {
             return Err(Error::String(
                 "Request has no pin to be rendered".to_string(),
@@ -405,7 +406,7 @@ impl Serialize for VarRequest<PinnableValue> {
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum PinnableValue {
     FromBuildEnv,
-    Pinned(String),
+    Pinned(Arc<str>),
 }
 
 impl PinnableValue {
@@ -414,27 +415,30 @@ impl PinnableValue {
     }
 
     pub fn is_pinned(&self) -> bool {
-        matches!(self, Self::FromBuildEnv)
+        matches!(self, Self::Pinned(_))
     }
 
     /// The current pinned value, if any
     pub fn as_pinned(&self) -> Option<&str> {
         match self {
             Self::FromBuildEnv => None,
-            Self::Pinned(v) => Some(v.as_str()),
+            Self::Pinned(v) => Some(v),
         }
     }
 }
 
 impl Default for PinnableValue {
     fn default() -> Self {
-        Self::Pinned(String::new())
+        Self::Pinned(Arc::from(""))
     }
 }
 
-impl From<String> for PinnableValue {
-    fn from(value: String) -> Self {
-        Self::Pinned(value)
+impl<T> From<T> for PinnableValue
+where
+    T: Into<Arc<str>>,
+{
+    fn from(value: T) -> Self {
+        Self::Pinned(value.into())
     }
 }
 
@@ -965,7 +969,7 @@ impl PinValue {
                 format!("request for `{var}` must specify a value (eg: {var}/<value>) when `fromBuildEnv` is false or omitted")
             )),
             (Some(value), Self::None) => {
-                Ok(PinnableValue::Pinned(value))
+                Ok(PinnableValue::Pinned(Arc::from(value)))
             }
             (None, Self::True) => Ok(PinnableValue::FromBuildEnv),
             (_, Self::String(s)) => Err(E::custom(format!(

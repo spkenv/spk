@@ -438,7 +438,7 @@ impl VarOpt {
         let value = self.get_value(given_value).unwrap_or_default();
         VarRequest {
             var: self.var.clone(),
-            value: PinnableValue::Pinned(value),
+            value: PinnableValue::Pinned(value.into()),
         }
     }
 }
