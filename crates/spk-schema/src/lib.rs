@@ -26,6 +26,7 @@ mod test;
 pub mod v0;
 mod validation;
 pub mod variant;
+mod variant_for_build_digest;
 
 pub use build_spec::{BuildSpec, Script};
 pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
@@ -60,6 +61,7 @@ pub use template::{Template, TemplateData, TemplateExt};
 pub use test::{Test, TestStage};
 pub use validation::{default_validators, ValidationSpec, Validator};
 pub use variant::{Variant, VariantExt};
+pub use variant_for_build_digest::VariantForBuildDigest;
 pub use {serde_json, spk_schema_validators as validators};
 
 #[cfg(test)]
