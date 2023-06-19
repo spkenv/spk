@@ -561,7 +561,7 @@ impl SortedBuildIterator {
                 // before. The count is used later to check if the
                 // name is used by all, or only some, builds.
                 let counter = changes.entry(name.clone()).or_insert(ChangeCounter {
-                    last: value.clone(),
+                    last: value.to_string(),
                     count: 0,
                     use_it: false,
                 });
@@ -570,7 +570,7 @@ impl SortedBuildIterator {
                 // Is this name marked as don't use yet, and is this
                 // value different from the last one seen for this
                 // name?
-                if !counter.use_it && counter.last != *value {
+                if !counter.use_it && counter.last.as_str() != &**value {
                     // The values differ, mark this name as one to use
                     counter.use_it = true;
                 }

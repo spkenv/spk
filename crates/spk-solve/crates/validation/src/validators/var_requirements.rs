@@ -30,7 +30,7 @@ impl ValidatorT for VarRequirementsValidator {
                         continue;
                     }
                     let requested = request.value.as_pinned().unwrap_or_default();
-                    if requested != value.as_str() {
+                    if requested != &**value {
                         return Ok(Compatibility::incompatible(format!(
                             "package wants {}={requested}, resolve has {name}={value}",
                             request.var

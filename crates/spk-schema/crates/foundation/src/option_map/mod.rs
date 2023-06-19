@@ -79,11 +79,11 @@ impl HostOptions {
         };
 
         if let Some(id) = info.id {
-            opts.insert(OptName::distro().to_owned(), id.clone());
+            opts.insert(OptName::distro().to_owned(), id.clone().into());
             match OptNameBuf::try_from(id) {
                 Ok(id) => {
                     if let Some(version_id) = info.version_id {
-                        opts.insert(id, version_id);
+                        opts.insert(id, version_id.into());
                     }
                 }
                 Err(err) => {
@@ -126,11 +126,11 @@ pub static HOST_OPTIONS: HostOptions = HostOptions(Lazy::new(|| {
 #[derive(Default, Clone, Hash, PartialEq, Eq, Serialize, Ord, PartialOrd)]
 #[serde(transparent)]
 pub struct OptionMap {
-    options: BTreeMap<OptNameBuf, String>,
+    options: BTreeMap<OptNameBuf, Arc<str>>,
 }
 
 impl std::ops::Deref for OptionMap {
-    type Target = BTreeMap<OptNameBuf, String>;
+    type Target = BTreeMap<OptNameBuf, Arc<str>>;
 
     fn deref(&self) -> &Self::Target {
         &self.options
@@ -143,16 +143,16 @@ impl std::ops::DerefMut for OptionMap {
     }
 }
 
-impl From<&Arc<BTreeMap<OptNameBuf, String>>> for OptionMap {
-    fn from(hm: &Arc<BTreeMap<OptNameBuf, String>>) -> Self {
+impl From<&Arc<BTreeMap<OptNameBuf, Arc<str>>>> for OptionMap {
+    fn from(hm: &Arc<BTreeMap<OptNameBuf, Arc<str>>>) -> Self {
         Self {
             options: (**hm).clone(),
         }
     }
 }
 
-impl FromIterator<(OptNameBuf, String)> for OptionMap {
-    fn from_iter<T: IntoIterator<Item = (OptNameBuf, String)>>(iter: T) -> Self {
+impl FromIterator<(OptNameBuf, Arc<str>)> for OptionMap {
+    fn from_iter<T: IntoIterator<Item = (OptNameBuf, Arc<str>)>>(iter: T) -> Self {
         Self {
             options: BTreeMap::from_iter(iter),
         }
@@ -173,8 +173,8 @@ impl std::fmt::Display for OptionMap {
 }
 
 impl IntoIterator for OptionMap {
-    type IntoIter = std::collections::btree_map::IntoIter<OptNameBuf, String>;
-    type Item = (OptNameBuf, String);
+    type IntoIter = std::collections::btree_map::IntoIter<OptNameBuf, Arc<str>>;
+    type Item = (OptNameBuf, Arc<str>);
 
     fn into_iter(self) -> Self::IntoIter {
         self.options.into_iter()
@@ -183,11 +183,11 @@ impl IntoIterator for OptionMap {
 
 impl OptionMap {
     /// Return the data of these options as environment variables.
-    pub fn to_environment(&self) -> HashMap<String, String> {
+    pub fn to_environment(&self) -> HashMap<Arc<str>, Arc<str>> {
         let mut out = HashMap::default();
         for (name, value) in self.iter() {
             let var_name = format!("SPK_OPT_{name}");
-            out.insert(var_name, value.into());
+            out.insert(var_name.into(), Arc::clone(value));
         }
         out
     }
@@ -284,7 +284,7 @@ impl<'de> Deserialize<'de> for OptionMap {
             {
                 let mut options = OptionMap::default();
                 while let Some((name, value)) = map.next_entry::<OptNameBuf, Stringified>()? {
-                    options.insert(name, value.0);
+                    options.insert(name, value.0.into());
                 }
                 Ok(options)
             }

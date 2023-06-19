@@ -29,22 +29,10 @@ fn test_package_options() {
 fn test_option_map_deserialize_scalar() {
     let opts: OptionMap =
         serde_yaml::from_str("{one: one, two: 2, three: false, four: 4.4}").unwrap();
-    assert_eq!(
-        opts.options.get(opt_name!("one")).map(String::to_owned),
-        Some("one".to_string())
-    );
-    assert_eq!(
-        opts.options.get(opt_name!("two")).map(String::to_owned),
-        Some("2".to_string())
-    );
-    assert_eq!(
-        opts.options.get(opt_name!("three")).map(String::to_owned),
-        Some("false".to_string())
-    );
-    assert_eq!(
-        opts.options.get(opt_name!("four")).map(String::to_owned),
-        Some("4.4".to_string())
-    );
+    assert_eq!(opts.options.get(opt_name!("one")), Some(&"one".into()));
+    assert_eq!(opts.options.get(opt_name!("two")), Some(&"2".into()));
+    assert_eq!(opts.options.get(opt_name!("three")), Some(&"false".into()));
+    assert_eq!(opts.options.get(opt_name!("four")), Some(&"4.4".into()));
 }
 
 #[rstest]

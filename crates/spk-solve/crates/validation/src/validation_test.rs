@@ -52,7 +52,7 @@ fn test_src_package_install_requests_are_not_considered() {
         .collect(),
         vec![],
         vec![],
-        vec![(opt_name!("debug").to_owned(), "off".to_string())],
+        vec![(opt_name!("debug").to_owned(), "off".into())],
     );
 
     for validator in validators {
@@ -73,7 +73,7 @@ fn test_empty_options_can_match_anything() {
         vec![],
         // this option is requested to be a specific value in the installed
         // spec file, but is empty so should not cause a conflict
-        vec![(opt_name!("python.abi").to_owned(), "".to_string())],
+        vec![(opt_name!("python.abi").to_owned(), "".into())],
     );
 
     let spec = Arc::new(spec!(

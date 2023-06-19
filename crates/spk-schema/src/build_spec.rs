@@ -249,12 +249,12 @@ impl BuildSpec {
                     .get(&opt.full_name().with_namespace(pkg_name))
                     .or_else(|| given.get(opt.full_name())),
             };
-            let value = opt.get_value(given_value.map(String::as_ref));
+            let value = opt.get_value(given_value);
             let compat = opt.validate(Some(&value));
             if !compat.is_ok() {
                 return Err(Error::String(compat.to_string()));
             }
-            resolved.insert(opt.full_name().to_owned(), value);
+            resolved.insert(opt.full_name().to_owned(), value.into());
         }
 
         Ok((resolved, opts))

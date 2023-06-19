@@ -355,7 +355,7 @@ impl Solver {
             if !opts.contains_key(pkg_request.pkg.name.as_opt_name()) {
                 opts.insert(
                     pkg_request.pkg.name.as_opt_name().to_owned(),
-                    pkg_request.pkg.version.to_string(),
+                    pkg_request.pkg.version.to_string().into(),
                 );
             }
         }
@@ -363,11 +363,7 @@ impl Solver {
             if !opts.contains_key(&var_request.var) {
                 opts.insert(
                     var_request.var.clone(),
-                    var_request
-                        .value
-                        .as_pinned()
-                        .unwrap_or_default()
-                        .to_string(),
+                    var_request.value.as_pinned().unwrap_or_default().into(),
                 );
             }
         }

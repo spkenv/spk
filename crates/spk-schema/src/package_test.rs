@@ -34,17 +34,17 @@ fn test_resolve_options_package_option() {
     let resolved = recipe.resolve_options(&options).unwrap();
     assert_eq!(
         resolved.get(opt_name!("my-opt")),
-        Some(&"override".to_string()),
+        Some(&"override".into()),
         "namespaced option should take precedence"
     );
     assert_eq!(
         resolved.get(opt_name!("debug")),
-        Some(&"on".to_string()),
+        Some(&"on".into()),
         "global opt should resolve if given"
     );
     assert_eq!(
         resolved.get(opt_name!("python.abi")),
-        Some(&"cp27mu".to_string()),
+        Some(&"cp27mu".into()),
         "opt for other package should exist"
     );
 }

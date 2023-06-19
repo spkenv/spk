@@ -5,6 +5,7 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
+use std::sync::Arc;
 
 use clap::Args;
 use miette::{miette, Result};
@@ -49,7 +50,7 @@ impl FromStr for VariantSpec {
                     .and_then(|(name, value)| {
                         Ok((OptNameBuf::try_from(name)?, value.to_string()))
                     })?;
-                Ok((name, value))
+                Ok((name, value.into()))
             })
             .collect::<std::result::Result<OptionMap, Self::Err>>()
             .map(VariantSpec::Filter)
@@ -77,8 +78,8 @@ impl std::fmt::Display for VariantLocation {
 
 /// A mismatch between the expected and actual values of a variant option.
 pub struct VariantOptionMismatch {
-    pub expected: String,
-    pub actual: Option<String>,
+    pub expected: Arc<str>,
+    pub actual: Option<Arc<str>>,
 }
 
 /// Details on if a variant is selected for build or why it is not.
