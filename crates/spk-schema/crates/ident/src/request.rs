@@ -288,7 +288,7 @@ impl<T> VarRequest<T> {
 }
 
 impl VarRequest<PinnableValue> {
-    /// Create a copy of this request with it's pin rendered out using 'var'.
+    /// Create a copy of this request with its pin rendered out using 'var'.
     pub fn render_pin<S: Into<String>>(&self, value: S) -> Result<VarRequest> {
         if !self.value.is_from_build_env() {
             return Err(Error::String(
@@ -302,7 +302,7 @@ impl VarRequest<PinnableValue> {
         })
     }
 
-    /// Create a copy of this request with it's pin rendered out using 'var'.
+    /// Create a copy of this request with its pin rendered out using 'var'.
     pub fn into_pinned<S: Into<String>>(self, value: S) -> Result<VarRequest<String>> {
         if !self.value.is_from_build_env() {
             return Err(Error::String(
@@ -340,7 +340,7 @@ impl VarRequest<PinnableValue> {
                 self.var, other.var
             ));
         }
-        let (Some(self_value), Some(other_value)) = (&self.value.as_pinned(), &other.value.as_pinned()) else{
+        let (Some(self_value), Some(other_value)) = (&self.value.as_pinned(), &other.value.as_pinned()) else {
             // we cannot consider a request that still needs to be pinned as
             // containing any other because the ultimate value of this request
             // is unknown
@@ -674,7 +674,7 @@ impl PkgRequest {
         Ok(new)
     }
 
-    /// Create a copy of this request with it's pin rendered out using 'pkg'.
+    /// Create a copy of this request with its pin rendered out using 'pkg'.
     pub fn render_pin(&self, pkg: &BuildIdent) -> Result<PkgRequest> {
         match &self.pin {
             None => Err(Error::String(

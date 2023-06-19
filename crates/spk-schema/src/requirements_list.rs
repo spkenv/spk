@@ -52,7 +52,7 @@ impl RequirementsList {
     /// Add a requirement in this list, or merge it in.
     ///
     /// If a request exists for the same name, it is updated with the
-    /// restrictions of this one one. Otherwise the new request is
+    /// restrictions of this one. Otherwise the new request is
     /// appended to the list. Returns the newly inserted or updated request.
     pub fn insert_or_merge(&mut self, request: Request) -> Result<()> {
         let name = request.name();
@@ -74,7 +74,7 @@ impl RequirementsList {
         Ok(())
     }
 
-    /// Reports whether the provided request would be satisfied by
+    /// Reports whether the provided requests would be satisfied by
     /// this list of requests. The provided request does not need to
     /// exist in this list exactly, so long as there is a request in this
     /// list that is at least as restrictive
