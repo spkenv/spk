@@ -351,7 +351,6 @@ impl Solver {
     #[async_recursion::async_recursion]
     async fn resolve_new_build(&self, recipe: &SpecRecipe, state: &State) -> Result<Arc<Spec>> {
         let mut opts = state.get_option_map().clone();
-        let input_opts = opts.clone();
         for pkg_request in state.get_pkg_requests() {
             if !opts.contains_key(pkg_request.pkg.name.as_opt_name()) {
                 opts.insert(
@@ -380,7 +379,7 @@ impl Solver {
         solver.update_options(opts.clone());
         let solution = solver.solve_build_environment(recipe).await?;
         recipe
-            .generate_binary_build(&input_opts, &opts, &solution)
+            .generate_binary_build(&opts, &solution)
             .map_err(|err| err.into())
             .map(Arc::new)
     }
@@ -841,10 +840,9 @@ impl Solver {
 
             let solution = Solution::new(OptionMap::default());
             let mut build_opts = OptionMap::default();
-            let input_opts = build_opts.clone();
             let mut resolved_opts = recipe.resolve_options(&build_opts).unwrap().into_iter();
             build_opts.extend(&mut resolved_opts);
-            let dummy_spec = recipe.generate_binary_build(&input_opts, &build_opts, &solution)?;
+            let dummy_spec = recipe.generate_binary_build(&build_opts, &solution)?;
 
             // All the initial_requests are passed in as well to
             // handle situations when same package is requested

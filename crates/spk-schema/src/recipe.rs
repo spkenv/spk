@@ -9,7 +9,7 @@ use spk_schema_ident::VersionIdent;
 
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
-use crate::{Package, RequirementsList, Result, TestStage, Variant};
+use crate::{Package, RequirementsList, Result, TestStage, Variant, VariantForBuildDigest};
 
 /// Return the resolved packages from a solution.
 pub trait BuildEnv {
@@ -61,22 +61,9 @@ pub trait Recipe:
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output>;
 
     /// Create a new binary package from this recipe and the given parameters.
-    ///
-    /// `input_variant` specifies the raw options as specified in the recipe,
-    /// plus possible command line overrides, before any resolving. This is
-    /// used to calculate the build digest of the built package.
-    ///
-    /// `resolved_variant` specifies the fully resolved options and will be
-    /// used for producing the package spec.
-    fn generate_binary_build<V1, V2, E, P>(
-        &self,
-        input_variant: &V1,
-        resolved_variant: &V2,
-        build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
-        V1: Variant,
-        V2: Variant,
+        V: VariantForBuildDigest,
         E: BuildEnv<Package = P>,
         P: Package;
 }
@@ -122,19 +109,13 @@ where
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<V1, V2, E, P>(
-        &self,
-        input_variant: &V1,
-        resolved_variant: &V2,
-        build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
-        V1: Variant,
-        V2: Variant,
+        V: VariantForBuildDigest,
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        (**self).generate_binary_build(input_variant, resolved_variant, build_env)
+        (**self).generate_binary_build(variant, build_env)
     }
 }
 
@@ -179,18 +160,12 @@ where
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<V1, V2, E, P>(
-        &self,
-        input_variant: &V1,
-        resolved_variant: &V2,
-        build_env: &E,
-    ) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
-        V1: Variant,
-        V2: Variant,
+        V: VariantForBuildDigest,
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        (**self).generate_binary_build(input_variant, resolved_variant, build_env)
+        (**self).generate_binary_build(variant, build_env)
     }
 }

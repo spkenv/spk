@@ -34,6 +34,7 @@ use spk_schema::{
     PackageMut,
     Variant,
     VariantExt,
+    VariantForBuildDigest,
 };
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
@@ -81,6 +82,41 @@ pub enum BuildSource {
 /// e.g. because they both provide one or more of the same files.
 #[derive(Eq, Hash, PartialEq)]
 struct ConflictingPackagePair(BuildIdent, BuildIdent);
+
+/// A struct with the two variants needed to calculate a build digest for a
+/// package as well as build the package.
+struct VariantPair<V1, V2> {
+    input_variant: V1,
+    resolved_variant: V2,
+}
+
+impl<V1, V2> Variant for VariantPair<V1, V2>
+where
+    V2: Variant,
+{
+    #[inline]
+    fn options(&self) -> std::borrow::Cow<'_, OptionMap> {
+        self.resolved_variant.options()
+    }
+
+    #[inline]
+    fn additional_requirements(&self) -> std::borrow::Cow<'_, spk_schema::RequirementsList> {
+        self.resolved_variant.additional_requirements()
+    }
+}
+
+impl<V1, V2> VariantForBuildDigest for VariantPair<V1, V2>
+where
+    V1: Variant,
+    V2: Variant,
+{
+    type Output = V1;
+
+    #[inline]
+    fn variant_for_build_digest(&self) -> &Self::Output {
+        &self.input_variant
+    }
+}
 
 /// Builds a binary package.
 ///
@@ -366,9 +402,13 @@ where
         runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
 
-        let package = self
-            .recipe
-            .generate_binary_build(&variant, &full_variant, &solution)?;
+        let package = self.recipe.generate_binary_build(
+            &VariantPair {
+                input_variant: &variant,
+                resolved_variant: &full_variant,
+            },
+            &solution,
+        )?;
         self.validate_generated_package(&solution, &package)?;
         let components = self
             .build_and_commit_artifacts(&package, full_variant.options())
