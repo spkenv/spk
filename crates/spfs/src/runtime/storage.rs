@@ -185,21 +185,6 @@ impl Config {
         }
     }
 
-    /// Change upper root path for the Config's upper and work dirs.
-    /// The path must not be on NFS or the mount operation will fail.
-    fn with_upper_root(&mut self, upper_root_path: PathBuf) -> &mut Config {
-        self.upper_dir = upper_root_path.join(Self::UPPER_DIR);
-        // workdir has to be in the same filesystem/path root as
-        // upperdir for overlayfs.
-        self.work_dir = upper_root_path.join(Self::WORK_DIR);
-        self
-    }
-
-    fn with_keep_runtime(&mut self, keep_runtime: bool) -> &mut Self {
-        self.keep_runtime = keep_runtime;
-        self
-    }
-
     #[cfg(test)]
     fn set_root<P: Into<PathBuf>>(&mut self, path: P) {
         let root = path.into();
@@ -293,19 +278,6 @@ impl Data {
             author: Default::default(),
             config: Default::default(),
         }
-    }
-
-    /// Change the upper path for this Data's config. The path must
-    /// not be on NFS or the mount operation will fail.
-    pub fn with_upper_root(&mut self, upper_root_path: PathBuf) -> &mut Self {
-        self.config.with_upper_root(upper_root_path);
-        self
-    }
-
-    /// Change the keep_runtime setting for this Data's config
-    pub fn with_keep_runtime(&mut self, keep_runtime: bool) -> &mut Self {
-        self.config.with_keep_runtime(keep_runtime);
-        self
     }
 
     /// The unique name used to identify this runtime
@@ -429,18 +401,6 @@ impl Runtime {
             data: Data::new(name),
             storage,
         }
-    }
-
-    /// Change the upper root path for this Runtime. The path must not
-    /// be on NFS or the mount operation will fail.
-    pub fn with_upper_root(&mut self, upper_root_path: PathBuf) -> &Self {
-        self.data.with_upper_root(upper_root_path);
-        self
-    }
-
-    pub fn with_keep_runtime(&mut self, keep_runtime: bool) -> &Self {
-        self.data.with_keep_runtime(keep_runtime);
-        self
     }
 
     /// The name of this runtime which identifies it uniquely
@@ -750,9 +710,6 @@ impl Storage {
         match &*self.inner {
             RepositoryHandle::FS(repo) => {
                 let mut upper_root_path = repo.root();
-                // This is not created as part of the local repo creation,
-                // but it will be created as part of setting up this
-                // runtime for the overlays mount operation.
                 upper_root_path.push(DURABLE_EDITS_DIR);
                 upper_root_path.push(name);
                 Ok(upper_root_path)
@@ -801,17 +758,23 @@ impl Storage {
         }
 
         let mut rt = Runtime::new(name.clone(), self.clone());
-        rt.with_keep_runtime(keep_runtime);
+        rt.data.config.keep_runtime = keep_runtime;
         if keep_runtime {
             // Keeping a runtime also activates a durable upperdir.
             // The runtime's name is used the identifying token in the
-            // durable upper dir's root path. Overridden upper dirs
-            // are stored in the local repo in a known location to
-            // make them durable across runs.
+            // durable upper dir's root path, which is stored in the
+            // local repo in a known location to make them durable
+            // across invocations.
             let durable_path = self.durable_path(name.clone()).await?;
             self.check_upper_path_in_existing_runtimes(name, durable_path.clone())
                 .await?;
-            rt.with_upper_root(durable_path);
+
+            // The durable_path must not be on NFS or else the mount
+            // operation will fail.
+            rt.data.config.upper_dir = durable_path.join(Config::UPPER_DIR);
+            // The workdir has to be in the same filesystem/path root
+            // as the upperdir, for overlayfs.
+            rt.data.config.work_dir = durable_path.join(Config::WORK_DIR);
         }
 
         self.save_runtime(&rt).await?;
