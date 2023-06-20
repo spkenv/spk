@@ -358,11 +358,14 @@ def _to_spk_version_range(version_range: str) -> str:
             converted = stripped
         version = _to_spk_range_prefix(prefix) + converted
 
+        if version[0] == "=" and version.endswith(".*"):
+            # "=1.*" becomes "1.*"
+            version = version[1:]
         # we cannot combine '~=' and *, but a trailing * is the
         # most common and is semantically equal to the same version
         # without a wildcard
         # !=3.7.* ==> !=3.7
-        if version[0] in {"!", "="} and version.endswith(".*"):
+        elif version[0] in {"!", "="} and version.endswith(".*"):
             version = f"{version[:-2]}"
         # spk uses a single equals sign for exact version, where pip
         # would use a double
