@@ -3,8 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
+from functools import reduce
+from packaging.requirements import Requirement
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, NamedTuple, NewType, Optional, Set, Tuple
 import argparse
 import json
 import logging
@@ -80,12 +82,8 @@ def main() -> int:
         importer.with_python_abi(args.python_abi)
 
     for name in args.packages:
-        version = ""
-        match = re.match(r"^(.*?)([<>=~]+.*)?$", name)
-        if match:
-            name, version = match.group(1), match.group(2) or ""
-
-        specs.extend(importer.import_package(name, version))
+        req = Requirement(name)
+        specs.extend(importer.import_package(req))
 
     print("\nThe following packages were converted:\n")
     for spec in specs:
@@ -107,16 +105,30 @@ def main() -> int:
         subprocess.check_call(cmd)
 
 
+SpkVersionRange = NewType("SpkVersionRange", str)
+
+
+class DepRequirement(NamedTuple):
+    pypi_name: str
+    requirements: List[Tuple[SpkVersionRange, Requirement]]
+
+
+class VisitedPackage(NamedTuple):
+    extras: Set[str]
+    """The union of all the extras that were required of this package as
+    have been encountered so far."""
+    filenames: Set[str]
+    """All the filenames that have been processed for this package so far."""
+
+
 class PipImporter:
     def __init__(self) -> None:
-
         self._python_version = "3.7"
         self._python_abi: Optional[str] = "cp37m"
         self._follow_deps = True
-        self._visited: Set[str] = set()
+        self._visited: Dict[str, VisitedPackage] = {}
 
     def with_python_version(self, version: str) -> "PipImporter":
-
         assert (
             re.match(r"\d+.\d+", version) is not None
         ), "python version must be in the form x.x"
@@ -124,40 +136,39 @@ class PipImporter:
         return self
 
     def with_python_abi(self, version: Optional[str]) -> "PipImporter":
-
         self._python_abi = version
         return self
 
     def recursive(self, recursive: bool) -> "PipImporter":
-
         self._follow_deps = recursive
         return self
 
-    def import_package(self, name: str, version: str = "") -> List[Dict[str, Any]]:
-
-        if name in self._visited:
-            _LOGGER.debug(f"found recursive dependency {name}")
-            return []
-        self._visited.add(name)
-
-        _LOGGER.info(f"fetching pip package... {name} {version}")
+    def import_package(self, req: Requirement) -> List[Dict[str, Any]]:
+        _LOGGER.info(f"fetching pip package... {req}")
 
         converted = []
         with tempfile.TemporaryDirectory() as _tmpdir:
-
             tmpdir = Path(_tmpdir)
-            pip_command = [
-                "pip",
-                "download",
-                f"{name}{version}",
-                "--python-version",
-                self._python_version,
-                "--abi",
-                self._python_abi,
-                "--no-deps",
-                "--dest",
-                _tmpdir,
-            ]
+
+            # Stringify Requirement without marker
+            orig_markers = req.marker
+            try:
+                req.marker = None
+
+                pip_command = [
+                    "pip",
+                    "download",
+                    f"{req}",
+                    "--python-version",
+                    self._python_version,
+                    "--abi",
+                    self._python_abi,
+                    "--no-deps",
+                    "--dest",
+                    _tmpdir,
+                ]
+            finally:
+                req.marker = orig_markers
 
             _LOGGER.debug(" ".join(pip_command))
             try:
@@ -170,14 +181,55 @@ class PipImporter:
             downloaded = list(tmpdir.glob(f"*"))
             assert (
                 len(downloaded) == 1
-            ), f"Expected pip to download one file for {name} {downloaded}"
+            ), f"Expected pip to download one file for {req.name} {downloaded}"
 
-            converted.extend(self.process_pip_package(downloaded[0]))
+            # As the dependency tree is processed, deeper dependencies may
+            # refine the version required for a package that has already been
+            # processed. This can be detected by checking if the file
+            # downloaded has not been downloaded before. Only skip processing
+            # if the same file has been seen. Otherwise, this other version of
+            # the package needs to be processed too.
+            downloaded = downloaded[0]
+            visited = self._visited.get(req.name)
+            if visited is not None:
+                if downloaded.name in visited.filenames:
+                    # The previously imported package is okay only if all the
+                    # required extras for that package were enabled when it was
+                    # last imported.
+                    if visited.extras.issuperset(req.extras):
+                        _LOGGER.debug(f"found recursive dependency {req.name}")
+                        return []
+                    else:
+                        _LOGGER.debug(
+                            f"Need to re-package {req.name} with additional extras"
+                        )
+                else:
+                    _LOGGER.debug(
+                        f"Need to re-package different download of {req.name}; {downloaded.name} not in {visited.filenames}"
+                    )
+                visited.extras.update(req.extras)
+                visited.filenames.add(downloaded.name)
+
+                # If re-importing a package imported before, it means that we
+                # encountered another package that is depending on a different
+                # version of this package. But that other package may not be
+                # asking for the same extras as the original request for the
+                # package. In order for this re-imported package to satisfy
+                # the original request, we need to enable the same features
+                # again here.
+                req.extras.update(visited.extras)
+            else:
+                self._visited[req.name] = VisitedPackage(
+                    extras=set(req.extras), filenames={str(downloaded.name)}
+                )
+
+            converted.extend(self.process_pip_package(req, downloaded))
 
         return converted
 
-    def process_pip_package(self, filepath: Path) -> List[Dict[str, Any]]:
-
+    def process_pip_package(
+        self, requester: Requirement, filepath: Path
+    ) -> List[Dict[str, Any]]:
         if filepath.name.endswith(".whl"):
             info = pkginfo.Wheel(filepath)
         elif filepath.name.endswith(".tar.gz") or filepath.name.endswith(".zip"):
@@ -186,10 +238,11 @@ class PipImporter:
             raise NotImplementedError(
                 f"No logic to install distribution format: {filepath}"
             )
-        return self._process_package(info)
+        return self._process_package(requester, info)
 
-    def _process_package(self, info: pkginfo.Distribution) -> List[Dict[str, Any]]:
-
+    def _process_package(
+        self, requester: Requirement, info: pkginfo.Distribution
+    ) -> List[Dict[str, Any]]:
         assert not info.requires, "No support for installation requirements"
         assert not info.requires_external, "No support for external requirements"
         assert not info.supported_platforms, "No support for supported platforms field"
@@ -210,6 +263,10 @@ class PipImporter:
                 "requirements": [],
             },
         }
+
+        for extra in requester.extras:
+            spec["build"]["options"].append({"var": f"python_extra_{extra}/true"})
+
         api_var = f"/{self._python_abi}" if self._python_abi else ""
         spec["build"]["options"].append({"var": f"python.abi{api_var}"})
 
@@ -236,31 +293,24 @@ class PipImporter:
         #    Requires-Dist: numpy (>=1.17.0) ; python_version >= "3.7"
         #    Requires-Dist: numpy (>=1.17.3) ; python_version >= "3.8"
         #    Requires-Dist: numpy (>=1.19.3) ; python_version >= "3.9"
-        dist_requirements = {}
+        dist_requirements: Dict[str, DepRequirement] = {}
 
         for requirement_str in info.requires_dist:
-            if ";" not in requirement_str:
-                requirement_str += ";"
-            version_str, markers_str = requirement_str.split(";", 1)
+            req = Requirement(requirement_str)
 
-            if markers_str.strip():
-                marker = packaging.markers.Marker(markers_str)
-                if not marker.evaluate(
-                    {"extra": "", "python_version": self._python_version}
+            if req.marker is not None:
+                if not req.marker.evaluate(
+                    {
+                        "extra": ",".join(requester.extras) or "",
+                        "python_version": self._python_version,
+                    }
                 ):
                     _LOGGER.debug(f"Skip requirement due to markers {requirement_str}")
                     continue
 
-            _LOGGER.debug(f"converting dependency requirement {version_str}")
+            _LOGGER.debug(f"converting dependency requirement {requirement_str}")
 
-            # Sometimes dependency requirement strings look like:
-            #     "shiboken2 (==5.15.2.1)"
-            # Other times they look like:
-            #     "typing-extensions>=4.5"
-            match = re.match(r"([^ !<>=~]+)\s*(?:\(?([^)]*)\)?)?", version_str.strip())
-            assert match, f"Failed to parse requirement string: {version_str}"
-
-            pypi_name = match.group(1)
+            pypi_name = req.name
             if pypi_name in BAKED_PYTHON_PACKAGES:
                 _LOGGER.warning(
                     f"skipping requirement for {pypi_name}, this package cannot be updated with the "
@@ -268,31 +318,49 @@ class PipImporter:
                 )
                 continue
             spk_name = _to_spk_name(pypi_name)
-            spk_version_range = _to_spk_version_range(match.group(2) or "*")
+            spk_version_range = _to_spk_version_range(str(req.specifier) or "*")
 
             dist_requirements.setdefault(
-                spk_name, {"pypi_name": pypi_name, "requirements": []}
-            )["requirements"].append((spk_version_range, match.group(2) or ""))
+                spk_name, DepRequirement(pypi_name, [])
+            ).requirements.append((spk_version_range, req))
+
+            # Inherit the requester's extras when recursing deeper.
+            req.extras |= requester.extras
 
         for spk_name, requirement in dist_requirements.items():
             # Join all the requirements together and let spk figure out if
             # they are compatible. Example:
             #    ">=1.17.0,>=1.17.3,>=1.19.3"
             spk_requirements = ",".join(
-                map(operator.itemgetter(0), requirement["requirements"])
+                map(operator.itemgetter(0), requirement.requirements)
             )
 
             request = {"pkg": f"{spk_name}/{spk_requirements}"}
             spec["install"]["requirements"].append(request)
 
+            def combine_requirements(
+                req1: Requirement, req2: Requirement
+            ) -> Requirement:
+                # SpecifierSet uses &= to combine.
+                req1.specifier &= req2.specifier
+                # extras are normal sets and use |= to combine.
+                req1.extras |= req2.extras
+                return req1
+
+            dep_requirement = reduce(
+                combine_requirements,
+                map(operator.itemgetter(1), requirement.requirements),
+            )
+
+            for extra in dep_requirement.extras:
+                spec["install"]["requirements"].append(
+                    {"var": f"{spk_name}.python_extra_{extra}/true"}
+                )
+
             if self._follow_deps:
                 _LOGGER.debug("following dependencies...")
-                pypi_requirements = ",".join(
-                    map(operator.itemgetter(1), requirement["requirements"])
-                )
-                builds.extend(
-                    self.import_package(requirement["pypi_name"], pypi_requirements)
-                )
+
+                builds.extend(self.import_package(dep_requirement))
 
         with tempfile.NamedTemporaryFile("w") as spec_file:
             json.dump(spec, spec_file)
@@ -314,7 +382,6 @@ class PipImporter:
 
 
 def _to_spk_name(name: str) -> str:
-
     name = name.lower().replace("_", "-").replace(".", "-")
     if not name.startswith("python-"):
         name = "python-" + name
@@ -322,7 +389,6 @@ def _to_spk_name(name: str) -> str:
 
 
 def _to_spk_version(version: str) -> str:
-
     python_version = packaging.version.parse(version)
     spk_version = python_version.base_version
     pre = []
@@ -343,12 +409,10 @@ def _to_spk_version(version: str) -> str:
     return spk_version
 
 
-def _to_spk_version_range(version_range: str) -> str:
-
+def _to_spk_version_range(version_range: str) -> SpkVersionRange:
     version_range = version_range.replace(" ", "").strip(",")
     versions = version_range.split(",")
     for i, version in enumerate(versions):
-
         stripped = version.lstrip("><=!~")
         prefix = version[: -len(stripped)]
         if "*" not in version:
@@ -374,11 +438,10 @@ def _to_spk_version_range(version_range: str) -> str:
             version = version[1:]
         versions[i] = version
 
-    return ",".join(versions)
+    return SpkVersionRange(",".join(versions))
 
 
 def _to_spk_range_prefix(prefix: str) -> str:
-
     pip_to_spk = {
         ">": ">",
         "<": "<",
