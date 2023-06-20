@@ -215,17 +215,23 @@ impl OptName {
 
     /// Return a copy of this option, adding the provided namespace if there isn't already one set
     pub fn with_default_namespace<N: AsRef<PkgName>>(&self, ns: N) -> OptNameBuf {
-        OptNameBuf(format!(
-            "{}{}{}",
-            self.namespace().unwrap_or_else(|| ns.as_ref()),
-            Self::SEP,
-            self.base_name()
-        ))
+        // Safety: the individual components are already validated.
+        unsafe {
+            OptNameBuf::from_string(format!(
+                "{}{}{}",
+                self.namespace().unwrap_or_else(|| ns.as_ref()),
+                Self::SEP,
+                self.base_name()
+            ))
+        }
     }
 
     /// Return a copy of this option, replacing any namespace with the provided one
     pub fn with_namespace<N: AsRef<PkgName>>(&self, ns: N) -> OptNameBuf {
-        OptNameBuf(format!("{}{}{}", ns.as_ref(), Self::SEP, self.base_name()))
+        // Safety: the individual components are already validated.
+        unsafe {
+            OptNameBuf::from_string(format!("{}{}{}", ns.as_ref(), Self::SEP, self.base_name()))
+        }
     }
 
     /// Return an option with the same name but no associated namespace
@@ -371,6 +377,6 @@ impl RepositoryName {
 impl RepositoryNameBuf {
     /// Return if this RepositoryName names the "local" repository
     pub fn is_local(&self) -> bool {
-        self.0 == "local"
+        self.as_str() == "local"
     }
 }

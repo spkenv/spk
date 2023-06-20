@@ -72,7 +72,7 @@ prop_compose! {
         "run[a-z]+".prop_map(Component::Named),
         "build[a-z]+".prop_map(Component::Named),
         "src[a-z]+".prop_map(Component::Named),
-        arb_pkg_legal_name().prop_filter("name can't be a reserved name", |name| !(name == "all" || name == "run" || name == "build" || name == "src")).prop_map(|name| Component::Named(name.into_inner())),
+        arb_pkg_legal_name().prop_filter("name can't be a reserved name", |name| !(name == "all" || name == "run" || name == "build" || name == "src")).prop_map(|name| Component::Named(name.to_string())),
     ]) -> Component {
         component
     }
@@ -159,7 +159,7 @@ fn arb_opt_version_filter() -> impl Strategy<Value = Option<VersionFilter>> {
 }
 
 prop_compose! {
-    fn arb_repo()(name in weighted(0.9, prop_oneof!["local", "origin", arb_pkg_legal_name().prop_map(|name| name.into_inner())])) -> Option<RepositoryNameBuf> {
+    fn arb_repo()(name in weighted(0.9, prop_oneof!["local", "origin", arb_pkg_legal_name().prop_map(|name| name.to_string())])) -> Option<RepositoryNameBuf> {
         // Safety: We only generate legal repository names.
         name.map(|n| unsafe { RepositoryNameBuf::from_string(n) })
     }

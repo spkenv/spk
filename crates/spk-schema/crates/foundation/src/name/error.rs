@@ -18,4 +18,6 @@ pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
     InvalidNameError(#[from] super::InvalidNameError),
+    #[error(transparent)]
+    LassoError(#[from] lasso::LassoError),
 }

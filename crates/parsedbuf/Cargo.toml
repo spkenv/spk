@@ -8,4 +8,6 @@ version = "0.1.0"
 workspace = true
 
 [dependencies]
+once_cell = { workspace = true }
 paste = "1.0"
+lasso = { workspace = true }

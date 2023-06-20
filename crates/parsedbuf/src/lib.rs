@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::sync::Arc;
+
 pub use paste;
+
+/// Global string interner for common strings.
+pub static RODEO: once_cell::sync::Lazy<Arc<lasso::ThreadedRodeo>> =
+    once_cell::sync::Lazy::new(|| Arc::new(lasso::ThreadedRodeo::default()));
 
 /// Generate a pair of types to represent a parsed string type.
 ///
@@ -39,9 +45,34 @@ macro_rules! parsed {
         }
 
         $crate::paste::paste! {
-            #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+            #[derive(Debug, Clone, Eq, PartialEq)]
             #[doc = "An owned, mutable, and validated " $what " string"]
-            pub struct $owned_type_name(String);
+            pub struct $owned_type_name(lasso::Spur);
+        }
+
+        impl std::hash::Hash for $owned_type_name {
+            #[inline]
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                // Hash the interned string, not the Spur, for consistency
+                // with hash() on the borrowed type.
+                $crate::RODEO.resolve(&self.0).hash(state)
+            }
+        }
+
+        impl Ord for $owned_type_name {
+            #[inline]
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                // Order on the interned string, not the Spur, for consistency
+                // with Ord on the borrowed type (as required by BTreeMap).
+                self.as_str().cmp(other.as_str())
+            }
+        }
+
+        impl PartialOrd for $owned_type_name {
+            #[inline]
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                Some(self.cmp(other))
+            }
         }
 
         #[cfg(feature = "parsedbuf-serde")]
@@ -74,6 +105,7 @@ macro_rules! parsed {
                 })
             }
 
+            #[inline]
             pub fn as_str(&self) -> &str {
                 &self.0
             }
@@ -90,10 +122,12 @@ macro_rules! parsed {
                 }
             }
 
+            #[inline]
             pub fn is_empty(&self) -> bool {
                 self.0.is_empty()
             }
 
+            #[inline]
             pub fn len(&self) -> usize {
                 self.0.len()
             }
@@ -109,27 +143,23 @@ macro_rules! parsed {
                 #[doc = ""]
                 #[doc = "No validation is performed on `name`."]
                 pub unsafe fn from_string(name: String) -> Self {
-                    Self(name)
-                }
-            }
-
-            $crate::paste::paste! {
-                #[doc = "Consume the [`" $owned_type_name "`], returning the inner [`String`]."]
-                pub fn into_inner(self) -> String {
-                    self.0
+                    let key = $crate::RODEO.try_get_or_intern(name).expect("won't run out of intern slots");
+                    Self(key)
                 }
             }
         }
 
         impl std::borrow::Borrow<$type_name> for $owned_type_name {
+            #[inline]
             fn borrow(&self) -> &$type_name {
                 self.as_ref()
             }
         }
 
-        impl std::borrow::Borrow<String> for $owned_type_name {
-            fn borrow(&self) -> &String {
-                &self.0
+        impl std::borrow::Borrow<str> for $owned_type_name {
+            #[inline]
+            fn borrow(&self) -> &str {
+                $crate::RODEO.resolve(&self.0)
             }
         }
 
@@ -137,99 +167,115 @@ macro_rules! parsed {
             type Owned = $owned_type_name;
 
             fn to_owned(&self) -> Self::Owned {
-                $owned_type_name(self.0.to_owned())
+                let key = $crate::RODEO.try_get_or_intern(&self.0).expect("won't run out of intern slots");
+                $owned_type_name(key)
             }
         }
 
         impl std::cmp::PartialEq<$type_name> for $owned_type_name {
+            #[inline]
             fn eq(&self, other: &$type_name) -> bool {
-                &**self == other
+                self.as_str() == &other.0
             }
         }
 
         impl std::cmp::PartialEq<$owned_type_name> for $type_name {
+            #[inline]
             fn eq(&self, other: &$owned_type_name) -> bool {
                 &self.0 == other.as_str()
             }
         }
 
         impl std::cmp::PartialEq<$owned_type_name> for &$type_name {
+            #[inline]
             fn eq(&self, other: &$owned_type_name) -> bool {
                 &self.0 == other.as_str()
             }
         }
 
         impl std::cmp::PartialEq<str> for $type_name {
+            #[inline]
+            fn eq(&self, other: &str) -> bool {
+                &self.0 == other
+            }
+        }
+
+        impl std::cmp::PartialEq<str> for $owned_type_name {
+            #[inline]
             fn eq(&self, other: &str) -> bool {
                 self.as_str() == other
             }
         }
 
-        impl std::cmp::PartialEq<str> for $owned_type_name {
-            fn eq(&self, other: &str) -> bool {
-                &**self == other
-            }
-        }
-
         impl std::convert::AsRef<$type_name> for $type_name {
+            #[inline]
             fn as_ref(&self) -> &$type_name {
                 self
             }
         }
 
         impl std::convert::AsRef<$type_name> for $owned_type_name {
+            #[inline]
             fn as_ref(&self) -> &$type_name {
                 // Safety: from_str bypasses validation but the contents
                 // of owned instance must already be valid
-                unsafe { $type_name::from_str(&self.0) }
+                unsafe { $type_name::from_str($crate::RODEO.resolve(&self.0)) }
             }
         }
 
         impl std::convert::AsRef<std::ffi::OsStr> for $type_name {
+            #[inline]
             fn as_ref(&self) -> &std::ffi::OsStr {
                 std::ffi::OsStr::new(&self.0)
             }
         }
 
         impl std::convert::AsRef<std::path::Path> for $type_name {
+            #[inline]
             fn as_ref(&self) -> &std::path::Path {
                 std::path::Path::new(&self.0)
             }
         }
 
         impl std::convert::AsRef<std::path::Path> for $owned_type_name {
+            #[inline]
             fn as_ref(&self) -> &std::path::Path {
-                std::path::Path::new(&self.0)
+                std::path::Path::new($crate::RODEO.resolve(&self.0))
             }
         }
 
         impl std::convert::AsRef<str> for $owned_type_name {
+            #[inline]
             fn as_ref(&self) -> &str {
-                &self.0
+                $crate::RODEO.resolve(&self.0)
             }
         }
 
         impl std::cmp::PartialEq<&str> for $type_name {
+            #[inline]
+            fn eq(&self, other: &&str) -> bool {
+                &self.0 == *other
+            }
+        }
+
+        impl std::cmp::PartialEq<&str> for $owned_type_name {
+            #[inline]
             fn eq(&self, other: &&str) -> bool {
                 self.as_str() == *other
             }
         }
 
-        impl std::cmp::PartialEq<&str> for $owned_type_name {
-            fn eq(&self, other: &&str) -> bool {
-                &**self == other
-            }
-        }
-
         impl std::convert::From<&$type_name> for $owned_type_name {
+            #[inline]
             fn from(name: &$type_name) -> Self {
                 name.to_owned()
             }
         }
 
         impl std::convert::From<$owned_type_name> for String {
+            #[inline]
             fn from(val: $owned_type_name) -> Self {
-                val.0
+                $crate::RODEO.resolve(&val.0).to_string()
             }
         }
 
@@ -273,7 +319,7 @@ macro_rules! parsed {
 
         impl std::fmt::Display for $owned_type_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                self.0.fmt(f)
+                $crate::RODEO.resolve(&self.0).fmt(f)
             }
         }
 

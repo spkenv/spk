@@ -1353,6 +1353,9 @@ name = "hashbrown"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
+dependencies = [
+ "ahash",
+]
 
 [[package]]
 name = "hashbrown"
@@ -1703,6 +1706,16 @@ checksum = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
 dependencies = [
  "winapi 0.2.8",
  "winapi-build",
+]
+
+[[package]]
+name = "lasso"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4644821e1c3d7a560fe13d842d13f587c07348a1a05d3a797152d41c90c56df2"
+dependencies = [
+ "dashmap",
+ "hashbrown 0.13.2",
 ]
 
 [[package]]
@@ -2148,6 +2161,8 @@ dependencies = [
 name = "parsedbuf"
 version = "0.1.0"
 dependencies = [
+ "lasso",
+ "once_cell",
  "paste",
 ]
 
@@ -4104,6 +4119,7 @@ dependencies = [
  "format_serde_error",
  "ignore",
  "itertools 0.12.0",
+ "lasso",
  "miette",
  "nom",
  "nom-supreme",
