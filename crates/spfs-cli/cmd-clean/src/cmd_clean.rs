@@ -33,6 +33,11 @@ pub struct CmdClean {
     #[clap(short, long)]
     remote: Option<String>,
 
+    /// Remove the durable upper path component of the named runtime.
+    /// If given, this will be the only thing removed.
+    #[clap(long, value_name = "RUNTIME")]
+    remove_durable: Option<String>,
+
     /// Don't prompt/ask before cleaning the data
     #[clap(long, short)]
     yes: bool,
@@ -110,6 +115,21 @@ impl CommandName for CmdClean {
 impl CmdClean {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+
+        if let Some(runtime_name) = &self.remove_durable {
+            // Remove the durable path associated with the runtime, if there is one. This
+            let storage = spfs::runtime::Storage::new(repo);
+            let durable_path = storage.durable_path(runtime_name.clone()).await?;
+            tracing::debug!("durable path to remove: {}", durable_path.display());
+            if durable_path.exists() {
+                // This requires privileges to remove the sub-directories inside the
+                // durable upper path's workdir that have 'd---------' permissions
+                // from overlayfs.
+                std::fs::remove_dir_all(durable_path.clone())
+                    .map_err(|err| spfs::Error::RuntimeWriteError(durable_path, err))?;
+            }
+            return Ok(0);
+        }
 
         let cleaner = spfs::Cleaner::new(&repo)
             .with_reporter(spfs::clean::ConsoleCleanReporter::default())

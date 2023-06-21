@@ -21,7 +21,7 @@ use super::{startup_csh, startup_sh};
 use crate::encoding::{self, Encodable};
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::RepositoryHandle;
-use crate::{graph, storage, tracking, Error, Result};
+use crate::{bootstrap, graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./storage_test.rs"]
@@ -620,6 +620,42 @@ impl Storage {
     /// This can break environments that are currently being used, and
     /// is generally not safe to call directly. Instead, use [`OwnedRuntime::delete`].
     pub async fn remove_runtime<S: AsRef<str>>(&self, name: S) -> Result<()> {
+        // Remove the durable path associated with the runtime first, if there is one.
+        let durable_path = self.durable_path(name.as_ref().to_string()).await?;
+        if durable_path.exists() {
+            // Removing the durable upper path requires elevated privileges
+            // so 'spfs-clean --remove-durable RUNTIME_NAAME' is run to do it.
+            //
+            // Assumes it is in the local repo, because can't get the storage
+            // name because repohandle's don't have keep their names
+            let mut cmd =
+                bootstrap::build_spfs_remove_durable_command(name.as_ref().to_string())?.into_std();
+            tracing::warn!("Removing durable path with: {cmd:?}");
+            match cmd
+                .status()
+                .map_err(|err| {
+                    Error::ProcessSpawnError(
+                        "spfs-clean --remove-durable to remove durable runtime".to_owned(),
+                        err,
+                    )
+                })?
+                .code()
+            {
+                Some(0) => (),
+                Some(code) => {
+                    return Err(Error::String(format!(
+                        "spfs-clean --remove-durable returned non-zero exit status: {code}"
+                    )))
+                }
+                None => {
+                    return Err(Error::String(
+                        "spfs-clean --remove-durable failed unexpectedly with no return code"
+                            .to_string(),
+                    ))
+                }
+            }
+        }
+
         // a runtime with no data takes up very little space, so we
         // remove the payload tag first because the other case is having
         // a tagged payload but no associated metadata
@@ -633,12 +669,6 @@ impl Storage {
                 Err(Error::UnknownReference(_)) => {}
                 err => return err,
             }
-        }
-        // remove the durable path associated with the runtime, if there is one.
-        let durable_path = self.durable_path(name.as_ref().to_string()).await?;
-        if durable_path.exists() {
-            std::fs::remove_dir_all(durable_path.clone())
-                .map_err(|err| Error::RuntimeWriteError(durable_path, err))?;
         }
 
         Ok(())
@@ -706,7 +736,7 @@ impl Storage {
         OwnedRuntime::upgrade_as_owner(rt).await
     }
 
-    async fn durable_path(&self, name: String) -> Result<PathBuf> {
+    pub async fn durable_path(&self, name: String) -> Result<PathBuf> {
         match &*self.inner {
             RepositoryHandle::FS(repo) => {
                 let mut upper_root_path = repo.root();

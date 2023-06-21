@@ -218,6 +218,21 @@ where
     })
 }
 
+pub(crate) fn build_spfs_remove_durable_command(runtime_name: String) -> Result<Command> {
+    let exe = match which_spfs("clean") {
+        None => return Err(Error::MissingBinary("spfs-clean")),
+        Some(exe) => exe,
+    };
+
+    let args = vec!["--remove-durable".into(), runtime_name.into()];
+
+    Ok(Command {
+        executable: exe.into(),
+        args,
+        vars: vec![],
+    })
+}
+
 pub(crate) fn build_spfs_remount_command(rt: &runtime::Runtime) -> Result<Command> {
     let exe = match which_spfs("enter") {
         None => return Err(Error::MissingBinary("spfs-enter")),
