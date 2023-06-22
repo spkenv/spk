@@ -254,3 +254,104 @@ tests:
         .await
         .expect("spk test should not have a solver error");
 }
+
+#[rstest]
+#[tokio::test]
+async fn test_install_test_picks_same_digest_as_build_with_circular_dependencies(
+    tmpdir: tempfile::TempDir,
+) {
+    let _rt = spfs_runtime().await;
+
+    // A common dependency.
+    build_package!(
+        tmpdir,
+        "some-other.spk.yaml",
+        br#"
+pkg: some-other/1.2.0
+build:
+  script:
+    - "true"
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "dep-a.spk.yaml",
+        br#"
+pkg: dep-a/1.2.0
+build:
+  options:
+    - pkg: some-other
+  script:
+    - "true"
+install:
+  requirements:
+    - pkg: some-other
+      fromBuildEnv: true
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "dep-b.spk.yaml",
+        br#"
+pkg: dep-b/1.2.0
+build:
+  options:
+    - pkg: dep-a
+    - pkg: some-other
+  script:
+    - "true"
+install:
+  requirements:
+    - pkg: dep-a
+      fromBuildEnv: true
+    - pkg: some-other
+      fromBuildEnv: true
+"#
+    );
+
+    let filename_str = build_package!(
+        tmpdir,
+        "dep-a.spk.yaml",
+        br#"
+pkg: dep-a/1.2.1
+build:
+  options:
+    - pkg: dep-b
+    - pkg: some-other
+  script:
+    - "true"
+install:
+  requirements:
+    - pkg: dep-b
+      fromBuildEnv: true
+    - pkg: some-other
+      fromBuildEnv: true
+tests:
+  - stage: install
+    script:
+      - "true"
+"#
+    );
+
+    let mut opt = TestOpt::try_parse_from([
+        "test",
+        // Don't exec a new process to move into a new runtime, this confuses
+        // coverage testing.
+        "--no-runtime",
+        "--disable-repo=origin",
+        // Add a command line override.
+        "--opt",
+        "dep-a=1.2.4",
+        filename_str,
+    ])
+    .unwrap();
+
+    // The test should be looking for the same build digest of "dep-a" that
+    // the second build of "dep-a" created.
+    opt.test
+        .run()
+        .await
+        .expect("spk test should not have a solver error");
+}
