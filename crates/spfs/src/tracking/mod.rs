@@ -7,7 +7,6 @@
 pub mod blob_reader;
 mod diff;
 mod entry;
-mod entry_du;
 mod env;
 mod manifest;
 mod object;
@@ -16,7 +15,6 @@ mod tag;
 pub use blob_reader::{BlobRead, BlobReadExt};
 pub use diff::{compute_diff, Diff, DiffMode};
 pub use entry::{Entry, EntryKind};
-pub use entry_du::{DiskUsage, EntryDiskUsage, LEVEL_SEPARATOR};
 pub use env::{EnvSpec, EnvSpecItem, ENV_SPEC_EMPTY, ENV_SPEC_SEPARATOR};
 pub use manifest::{
     compute_manifest,

@@ -6,3 +6,4 @@
 #![warn(clippy::fn_params_excessive_bools)]
 
 pub mod cmd_du;
+pub mod entry_du;

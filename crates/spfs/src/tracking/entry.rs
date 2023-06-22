@@ -3,15 +3,9 @@
 // https://github.com/imageworks/spk
 
 use std::io::BufRead;
-use std::pin::Pin;
 use std::str::FromStr;
 use std::string::ToString;
 
-use async_stream::try_stream;
-use futures::{Stream, TryStreamExt};
-use itertools::Itertools;
-
-use super::{DiskUsage, EntryDiskUsage};
 use crate::{encoding, Error, Result};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -238,51 +232,5 @@ where
             }
         }
         self.size = self.entries.len() as u64;
-    }
-}
-
-impl DiskUsage for Entry {
-    fn walk(&self) -> Pin<Box<dyn Stream<Item = Result<EntryDiskUsage>> + Send + Sync + '_>> {
-        fn walk_nested_entries(
-            root_entry: &Entry,
-            paths: Vec<String>,
-        ) -> Pin<Box<dyn Stream<Item = Result<EntryDiskUsage>> + Send + Sync + '_>> {
-            Box::pin(try_stream! {
-                for (path, entry) in root_entry.entries.iter() {
-                    if entry.is_symlink() { continue; }
-
-                    // Update path
-                    let mut updated_paths = paths.clone();
-                    updated_paths.push(path.clone());
-
-                    // Base case. We can start traversing back up.
-                    if entry.kind.is_blob() {
-                        yield EntryDiskUsage::new(
-                                updated_paths.clone(),
-                                entry.size,
-                                entry.object,
-                            )
-                    }
-
-                    // We need to walk deeper if more child entries exists.
-                    if !entry.entries.is_empty() {
-                        let mut walked = walk_nested_entries(entry, updated_paths);
-                        while let Some(du) = walked.try_next().await? {
-                            yield du
-                        }
-                    }
-                }
-            })
-        }
-
-        Box::pin(try_stream! {
-            // Sets up the initial paths before recursively walking all child entries.
-            for (path, entry) in self.entries.iter().sorted_by_key(|(k, _)| *k) {
-                let mut walked = walk_nested_entries(entry, vec![path.clone()]);
-                while let Some(du) = walked.try_next().await? {
-                    yield du
-                }
-            }
-        })
     }
 }

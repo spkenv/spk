@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::collections::{HashMap, HashSet};
+use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -12,7 +13,7 @@ use colored::Colorize;
 use futures::{Stream, TryStreamExt};
 use itertools::Itertools;
 use spfs::graph::Object;
-use spfs::tracking::{DiskUsage, EntryDiskUsage, LEVEL_SEPARATOR};
+use spfs::tracking::Entry;
 use spfs::Digest;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::ident::parse_ident;
@@ -21,6 +22,8 @@ use spk_schema::ident_component::Component;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::version::Version;
 use spk_schema::{BuildIdent, Deprecate, Package, Spec};
+
+use crate::entry_du::{DiskUsage, EntryDiskUsage, LEVEL_SEPARATOR};
 
 const WIDTH: usize = 12;
 
@@ -50,18 +53,22 @@ impl Output for Console {
     }
 }
 
+/// Stores the values of the package being walked.
+/// Starting from the repo name, it will store the
+/// absolute path up to an entry blob from the /spfs dir.
 #[derive(Clone, Debug)]
 pub struct PackageDiskUsage {
-    pkg: PkgNameBuf,
-    version: Arc<Version>,
-    build: Build,
-    component: Component,
-    entry: EntryDiskUsage,
-    deprecated: bool,
-    repo_name: String,
+    pub repo_name: String,
+    pub pkg: PkgNameBuf,
+    pub version: Arc<Version>,
+    pub build: Build,
+    pub component: Component,
+    pub entry: EntryDiskUsage,
+    pub deprecated: bool,
 }
 
 impl PackageDiskUsage {
+    /// Construct an empty PackageDiskUsage
     pub fn new(pkgname: PkgNameBuf, repo_name: String) -> Self {
         Self {
             pkg: pkgname,
@@ -74,83 +81,71 @@ impl PackageDiskUsage {
         }
     }
 
-    pub fn generate_partial_path(&self, depth: usize, ends_with_level_separator: bool) -> String {
-        let full_path = self.generate_full_path();
-        let mut full_path_by_level = full_path.split(LEVEL_SEPARATOR).collect_vec();
-        full_path_by_level.retain(|c| !c.is_empty());
+    /// Constructs a path from the values in PackageDiskUsage.
+    pub fn flatten_path(&self) -> Vec<String> {
+        let component = format!(":{}", self.component);
+        let mut path = vec![
+            self.repo_name.clone(),
+            self.pkg.to_string(),
+            self.version.to_string(),
+            self.build.to_string(),
+            component,
+        ];
 
-        let max_depth = if ends_with_level_separator {
-            full_path_by_level.len() - 1
+        self.entry
+            .path()
+            .iter()
+            .for_each(|p| path.push(p.to_string()));
+
+        path
+    }
+
+    /// Generates a partial path from the stored values from PackageDiskUsage given a depth.
+    pub fn generate_partial_path(&self, depth: usize, is_dir: bool) -> String {
+        let abs_path = self.flatten_path();
+        let max_depth = if is_dir {
+            abs_path.len() - 1
         } else {
-            full_path_by_level.len()
+            abs_path.len()
         };
-        let suffix = if depth.lt(&max_depth) { "/" } else { "" };
-        if ends_with_level_separator {
+        let suffix = if depth.lt(&max_depth) {
+            LEVEL_SEPARATOR
+        } else {
+            ' '
+        };
+
+        if is_dir {
             format!(
                 "{}{}",
-                full_path_by_level[..depth + 1].join(&LEVEL_SEPARATOR.to_string()),
+                abs_path[..depth + 1].join(&LEVEL_SEPARATOR.to_string()),
                 suffix
             )
         } else {
             format!(
                 "{}{}",
-                full_path_by_level[..depth].join(&LEVEL_SEPARATOR.to_string()),
+                abs_path[..depth].join(&LEVEL_SEPARATOR.to_string()),
                 suffix
             )
         }
     }
 
+    /// Return the absolute path of the entry.
     pub fn generate_full_path(&self) -> String {
-        format!(
-            "{}/{}/{}/{}/:{}/{}",
-            self.repo_name,
-            self.pkg,
-            self.version,
-            self.build,
-            self.component.as_str(),
-            self.entry.path(),
-        )
+        self.flatten_path().join(&LEVEL_SEPARATOR.to_string())
     }
 
-    pub fn get_size_of_entry(&self) -> u64 {
-        self.entry.size()
+    /// Returns true if the input is a subset of the absolute path.
+    pub fn is_subset(&self, input: &[&str]) -> bool {
+        let flatten_path = self.flatten_path();
+        input
+            .iter()
+            .all(|item| flatten_path.contains(&item.to_string()))
     }
 
-    pub fn get_package(&self) -> &PkgNameBuf {
-        &self.pkg
-    }
-
-    pub fn get_version(&self) -> &Arc<Version> {
-        &self.version
-    }
-
-    pub fn is_matching_path(&self, input: &String) -> bool {
-        let path = self.generate_full_path();
-        path.contains(input)
-    }
-
-    pub fn is_deprecated(&self) -> bool {
-        self.deprecated
-    }
-
-    pub fn update_deprecation_status(&mut self, deprecated: bool) {
-        self.deprecated = deprecated
-    }
-
-    pub fn update_version(&mut self, version: Arc<Version>) {
-        self.version = version
-    }
-
-    pub fn update_build(&mut self, build: &Build) {
-        self.build = build.clone()
-    }
-
-    pub fn update_component(&mut self, component: Component) {
-        self.component = component
-    }
-
-    pub fn update_disk_usage(&mut self, entry: EntryDiskUsage) {
-        self.entry = entry
+    /// Returns true if the input depth is greater than the absolute path.
+    pub fn is_out_of_range(&self, input_depth: usize) -> bool {
+        let abs_path_depth = self.flatten_path().len();
+        input_depth > abs_path_depth
     }
 }
 
@@ -194,20 +189,22 @@ impl<T: Output> Run for Du<T> {
     async fn run(&mut self) -> Result<i32> {
         let mut total_size = 0;
         let mut visited_digests = HashSet::new();
+
+        let input_depth = self.path.split(LEVEL_SEPARATOR).collect_vec().len();
+
         if self.summarize {
-            let mut input_by_level = self.path.split(LEVEL_SEPARATOR).rev().collect_vec();
-
-            input_by_level.retain(|c| !c.is_empty());
-
-            let input_depth = input_by_level.len();
             let mut grouped_entries: HashMap<String, (u64, &str)> = HashMap::new();
             let mut walked = self.walk();
             while let Some(du) = walked.try_next().await? {
-                let deprecate = if du.is_deprecated() { "DEPRECATED" } else { "" };
+                if du.is_out_of_range(input_depth) {
+                    continue;
+                }
+
+                let deprecate = if du.deprecated { "DEPRECATED" } else { "" };
                 let partial_path =
                     du.generate_partial_path(input_depth, self.path.ends_with(LEVEL_SEPARATOR));
                 let entry_size = if visited_digests.insert(*du.entry.digest()) || self.count_links {
-                    du.get_size_of_entry()
+                    du.entry.size()
                 } else {
                     0 // 0 because we don't need to calculate sizes if its a duplicate or count_links is not enabled.
                 };
@@ -243,8 +240,12 @@ impl<T: Output> Run for Du<T> {
         } else {
             let mut walked = self.walk();
             while let Some(du) = walked.try_next().await? {
+                if du.is_out_of_range(input_depth) {
+                    continue;
+                }
+
                 let full_path = du.generate_full_path();
-                let deprecate = if du.is_deprecated() {
+                let deprecate = if du.deprecated {
                     "DEPRECATED".red()
                 } else {
                     "".into()
@@ -289,13 +290,15 @@ impl<T: Output> Du<T> {
     }
 
     fn walk(&self) -> impl Stream<Item = Result<PackageDiskUsage>> + '_ {
-        let mut input = self.path.split(LEVEL_SEPARATOR).rev().collect_vec();
+        let mut input_path_in_parts: Vec<_> = self.path.split(LEVEL_SEPARATOR).rev().collect();
 
-        input.retain(|c| !c.is_empty());
+        input_path_in_parts.retain(|c| !c.is_empty());
+
+        let mut input_to_eval = input_path_in_parts.clone();
 
         Box::pin(try_stream! {
             let repos = self.repos.get_repos_for_non_destructive_operation().await?;
-            let input_repo = input.pop();
+            let input_repo = input_to_eval.pop();
             for (repo_index, (repo_name, repo)) in repos.iter().enumerate() {
                 let matched_repo_name = match input_repo {
                     Some(input_repo) => {
@@ -308,23 +311,23 @@ impl<T: Output> Du<T> {
                     None => repo_name
                 };
 
-                let mut packages = self.walk_packages(input.pop(), repo_index);
+                let mut packages = self.walk_packages(input_to_eval.pop(), repo_index);
                 while let Some(pkg) = packages.try_next().await? {
                     let package_du = PackageDiskUsage::new(pkg, matched_repo_name.clone());
-                    let mut versions = self.walk_versions(package_du.get_package(), repo_index, input.pop());
+                    let mut versions = self.walk_versions(&package_du.pkg, repo_index, input_to_eval.pop());
                     while let Some(version) = versions.try_next().await? {
                         let mut pkg_du_with_version = package_du.clone();
-                        pkg_du_with_version.update_version(version);
-                        let pkg_with_version = format!("{}/{}", pkg_du_with_version.get_package(), pkg_du_with_version.get_version());
-                        let mut specs = self.walk_specs(&pkg_with_version, repo_index, input.pop());
+                        pkg_du_with_version.version = version;
+                        let pkg_with_version = format!("{}/{}", pkg_du_with_version.pkg, &pkg_du_with_version.version);
+                        let mut specs = self.walk_specs(&pkg_with_version, repo_index, input_to_eval.pop());
                         while let Some(spec) = specs.try_next().await? {
                             let mut pkg_du_with_build = pkg_du_with_version.clone();
-                            pkg_du_with_build.update_build(spec.ident().build());
-                            pkg_du_with_build.update_deprecation_status(spec.is_deprecated());
-                            let mut components = self.walk_components(spec.ident(), repo_index, input.pop());
+                            pkg_du_with_build.build = spec.ident().build().clone();
+                            pkg_du_with_build.deprecated = spec.is_deprecated();
+                            let mut components = self.walk_components(spec.ident(), repo_index, input_to_eval.pop());
                             while let Some((component, digest)) = components.try_next().await? {
                                 let mut pkg_du_with_component = pkg_du_with_build.clone();
-                                pkg_du_with_component.update_component(component);
+                                pkg_du_with_component.component = component;
 
                                 let spk_storage::RepositoryHandle::SPFS(repo) = repo else { continue; };
 
@@ -350,9 +353,9 @@ impl<T: Output> Du<T> {
                                                 let mut walked_entries = root_entry.walk();
                                                 while let Some(disk_usage) = walked_entries.try_next().await? {
                                                     let mut pkg_du_with_entry = pkg_du_with_component.clone();
-                                                    pkg_du_with_entry.update_disk_usage(disk_usage);
+                                                    pkg_du_with_entry.entry = disk_usage;
 
-                                                    if pkg_du_with_entry.is_matching_path(&self.path) {
+                                                    if pkg_du_with_entry.is_subset(&input_path_in_parts) {
                                                         yield pkg_du_with_entry
                                                     }
                                                 }
@@ -428,12 +431,12 @@ impl<T: Output> Du<T> {
             let repos = self.repos.get_repos_for_non_destructive_operation().await?;
             let (_, repo) = repos.get(repo_index).unwrap();
 
-            let builds = &mut repo.list_package_builds(pkg_ident.as_version()).await?;
-            while let Some(build) = builds.pop() {
+            let builds = repo.list_package_builds(pkg_ident.as_version()).await?;
+            for build in builds.iter().sorted_by_key(|k| *k) {
                 if build.is_embedded() {
                     continue;
                 }
-                let spec = repo.read_package(&build).await?;
+                let spec = repo.read_package(build).await?;
                 if !self.deprecated && spec.is_deprecated() {
                     continue;
                 }
@@ -468,6 +471,50 @@ impl<T: Output> Du<T> {
                         }
                     }
                     None => yield (component.clone(), digest.clone())
+                }
+            }
+        })
+    }
+}
+
+impl DiskUsage for Entry {
+    fn walk(&self) -> Pin<Box<dyn Stream<Item = Result<EntryDiskUsage>> + Send + Sync + '_>> {
+        fn walk_nested_entries(
+            root_entry: &Entry,
+            parent_paths: Vec<Arc<String>>,
+        ) -> Pin<Box<dyn Stream<Item = Result<EntryDiskUsage>> + Send + Sync + '_>> {
+            Box::pin(try_stream! {
+                for (path, entry) in root_entry.entries.iter() {
+
+                    // Update path
+                    let mut updated_paths = parent_paths.clone();
+                    updated_paths.push(Arc::new(path.clone()));
+
+                    // Base case. We can start traversing back up.
+                    if entry.kind.is_blob() {
+                        yield EntryDiskUsage::new(
+                                updated_paths.clone(),
+                                entry.size,
+                                entry.object,
+                            )
+                    }
+
+                    // We need to walk deeper if more child entries exists.
+                    if !entry.entries.is_empty() {
+                        let mut walked = walk_nested_entries(entry, updated_paths);
+                        while let Some(du) = walked.try_next().await? {
+                            yield du
+                        }
+                    }
+                }
+            })
+        }
+
+        Box::pin(try_stream! {
+            // Sets up the initial paths before recursively walking all child entries.
+            for (path, entry) in self.entries.iter().sorted_by_key(|(k, _)| *k) {
+                for await du in walk_nested_entries(entry, vec![Arc::new(path.clone())]) {
+                    yield du?;
                 }
             }
         })
