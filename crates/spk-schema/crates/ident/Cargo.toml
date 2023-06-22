@@ -4,6 +4,11 @@ edition = { workspace = true }
 name = "spk-schema-ident"
 version = { workspace = true }
 
+[features]
+migration-to-components = [
+	"spk-schema-foundation/migration-to-components",
+]
+
 [dependencies]
 colored = { workspace = true }
 format_serde_error = { version = "0.3", default_features = false, features = [

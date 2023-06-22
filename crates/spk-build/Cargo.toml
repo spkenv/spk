@@ -5,6 +5,13 @@ name = "spk-build"
 version = { workspace = true }
 
 [features]
+migration-to-components = [
+	"spk-exec/migration-to-components",
+	"spk-solve/migration-to-components",
+	"spk-schema/migration-to-components",
+	"spk-schema-validators/migration-to-components",
+	"spk-storage/migration-to-components",
+]
 sentry = ["spk-solve/sentry"]
 
 [dependencies]

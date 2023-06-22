@@ -4,6 +4,13 @@ edition = { workspace = true }
 name = "spk-solve-package-iterator"
 version = { workspace = true }
 
+[features]
+migration-to-components = [
+	"spk-solve-solution/migration-to-components",
+	"spk-schema/migration-to-components",
+	"spk-storage/migration-to-components",
+]
+
 [dependencies]
 async-trait = { workspace = true }
 dyn-clone = { workspace = true }

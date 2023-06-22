@@ -6,7 +6,15 @@ version = { workspace = true }
 
 [features]
 sentry = ["dep:sentry", "spfs/sentry"]
-migration-to-components = []
+migration-to-components = [
+	"spk-config/migration-to-components",
+	"spk-solve-graph/migration-to-components",
+	"spk-solve-package-iterator/migration-to-components",
+	"spk-solve-solution/migration-to-components",
+	"spk-solve-validation/migration-to-components",
+	"spk-schema/migration-to-components",
+	"spk-storage/migration-to-components",
+]
 statsd = ["dep:statsd"]
 
 [dependencies]
