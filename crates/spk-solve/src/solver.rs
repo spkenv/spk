@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::mem::take;
@@ -42,9 +43,9 @@ use spk_solve_package_iterator::{
     SortedBuildIterator,
 };
 use spk_solve_solution::{PackageSource, Solution};
+use spk_solve_validation::validators::BinaryOnlyValidator;
 use spk_solve_validation::{
     default_validators,
-    BinaryOnlyValidator,
     ImpossibleRequestsChecker,
     ValidatorT,
     Validators,

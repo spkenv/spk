@@ -20,15 +20,13 @@ use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 use tokio::sync::mpsc::{self, Sender};
 
-use crate::validation::{
+use crate::validators::{
     BinaryOnlyValidator,
     ComponentsValidator,
     DeprecationValidator,
-    GetMergedRequest,
     PkgRequestValidator,
-    ValidatorT,
 };
-use crate::{Error, Result, Validators};
+use crate::{Error, GetMergedRequest, Result, ValidatorT, Validators};
 
 #[cfg(test)]
 #[path = "./impossible_checks_test.rs"]
