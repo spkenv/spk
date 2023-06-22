@@ -13,6 +13,7 @@ use spk_schema::ident::version_ident;
 use spk_storage::fixtures::*;
 
 use super::Build;
+use crate::build_package;
 
 #[derive(Parser)]
 struct Opt {
@@ -28,11 +29,10 @@ async fn test_variant_options_contribute_to_build_hash(tmpdir: tempfile::TempDir
     // unique build.
     let rt = spfs_runtime().await;
 
-    let filename = tmpdir.path().join("three-variants.spk.yaml");
-    {
-        let mut file = File::create(&filename).unwrap();
-        file.write_all(
-            br#"
+    build_package!(
+        tmpdir,
+        "three-variants.spk.yaml",
+        br#"
 pkg: three-variants/1.0.0
 
 build:
@@ -43,22 +43,7 @@ build:
   script:
     - "true"
 "#,
-        )
-        .unwrap();
-    }
-
-    let filename_str = filename.as_os_str().to_str().unwrap();
-
-    let mut opt = Opt::try_parse_from([
-        "build",
-        // Don't exec a new process to move into a new runtime, this confuses
-        // coverage testing.
-        "--no-runtime",
-        "--disable-repo=origin",
-        filename_str,
-    ])
-    .unwrap();
-    opt.build.run().await.unwrap();
+    );
 
     let ident = version_ident!("three-variants/1.0.0");
 
@@ -81,43 +66,23 @@ async fn test_build_hash_not_affected_by_dependency_version(tmpdir: tempfile::Te
     let rt = spfs_runtime().await;
 
     // Build a version 1.0.0 of some package.
-    {
-        let filename = tmpdir.path().join("old.spk.yaml");
-        {
-            let mut file = File::create(&filename).unwrap();
-            file.write_all(
-                br#"
+    build_package!(
+        tmpdir,
+        "dependency.spk.yaml",
+        br#"
 pkg: dependency/1.0.0
 
 build:
   script:
     - "true"
-"#,
-            )
-            .unwrap();
-        }
-
-        let filename_str = filename.as_os_str().to_str().unwrap();
-
-        let mut opt = Opt::try_parse_from([
-            "build",
-            // Don't exec a new process to move into a new runtime, this confuses
-            // coverage testing.
-            "--no-runtime",
-            "--disable-repo=origin",
-            filename_str,
-        ])
-        .unwrap();
-        opt.build.run().await.unwrap();
-    }
+"#
+    );
 
     // Build a package that depends on "dependency".
-    let package_filename = {
-        let filename = tmpdir.path().join("package.spk.yaml");
-        {
-            let mut file = File::create(&filename).unwrap();
-            file.write_all(
-                br#"
+    let package_filename = build_package!(
+        tmpdir,
+        "package.spk.yaml",
+        br#"
 pkg: package/1.0.0
 
 build:
@@ -126,72 +91,23 @@ build:
   script:
     - "true"
 "#,
-            )
-            .unwrap();
-        }
-
-        let filename_str = filename.as_os_str().to_str().unwrap();
-
-        let mut opt = Opt::try_parse_from([
-            "build",
-            // Don't exec a new process to move into a new runtime, this confuses
-            // coverage testing.
-            "--no-runtime",
-            "--disable-repo=origin",
-            filename_str,
-        ])
-        .unwrap();
-        opt.build.run().await.unwrap();
-
-        filename
-    };
+    );
 
     // Now build a newer version of the dependency.
-    {
-        let filename = tmpdir.path().join("old.spk.yaml");
-        {
-            let mut file = File::create(&filename).unwrap();
-            file.write_all(
-                br#"
+    build_package!(
+        tmpdir,
+        "dependency.spk.yaml",
+        br#"
 pkg: dependency/1.0.1
 
 build:
   script:
     - "true"
 "#,
-            )
-            .unwrap();
-        }
-
-        let filename_str = filename.as_os_str().to_str().unwrap();
-
-        let mut opt = Opt::try_parse_from([
-            "build",
-            // Don't exec a new process to move into a new runtime, this confuses
-            // coverage testing.
-            "--no-runtime",
-            "--disable-repo=origin",
-            filename_str,
-        ])
-        .unwrap();
-        opt.build.run().await.unwrap();
-    }
+    );
 
     // And build the other package again.
-    {
-        let filename_str = package_filename.as_os_str().to_str().unwrap();
-
-        let mut opt = Opt::try_parse_from([
-            "build",
-            // Don't exec a new process to move into a new runtime, this confuses
-            // coverage testing.
-            "--no-runtime",
-            "--disable-repo=origin",
-            filename_str,
-        ])
-        .unwrap();
-        opt.build.run().await.unwrap();
-    }
+    build_package!(tmpdir, package_filename);
 
     // The second time building "package" we expect it to build something with
     // the _same_ build digest (e.g., the change in version of one of its

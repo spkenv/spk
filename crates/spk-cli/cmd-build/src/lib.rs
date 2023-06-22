@@ -6,3 +6,4 @@
 #![warn(clippy::fn_params_excessive_bools)]
 
 pub mod cmd_build;
+pub mod macros;
