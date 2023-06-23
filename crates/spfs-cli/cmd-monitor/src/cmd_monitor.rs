@@ -31,6 +31,14 @@ pub struct CmdMonitor {
     #[clap(flatten)]
     pub logging: cli::Logging,
 
+    /// Do not change the current working directory to / when daemonizing
+    #[clap(long, env = "SPFS_MONITOR_NO_CHDIR")]
+    no_chdir: bool,
+
+    /// Do not close stdin, stdout, and stderr when daemonizing
+    #[clap(long, env = "SPFS_MONITOR_NO_CLOSE")]
+    no_close: bool,
+
     /// The address of the storage being used for runtimes
     #[clap(long)]
     runtime_storage: url::Url,
@@ -59,9 +67,7 @@ impl CmdMonitor {
         // clean up this runtime and all other threads before detaching
         drop(rt);
 
-        const NO_CHDIR: bool = false;
-        const NO_CLOSE: bool = false;
-        nix::unistd::daemon(NO_CHDIR, NO_CLOSE)
+        nix::unistd::daemon(self.no_chdir, self.no_close)
             .context("Failed to daemonize the monitor process")?;
 
         #[cfg(feature = "sentry")]
