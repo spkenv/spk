@@ -138,7 +138,7 @@ pub struct Du<Output: Default = Console> {
     pub path: String,
 
     /// Count sizes many times if hard linked
-    #[clap(long, short = 'L')]
+    #[clap(long, short = 'l')]
     pub count_links: bool,
 
     /// Lists deprecated packages

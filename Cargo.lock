@@ -3593,7 +3593,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-du"
-version = "0.39.2"
+version = "0.39.4"
 dependencies = [
  "anyhow",
  "async-stream",
