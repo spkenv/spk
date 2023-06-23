@@ -232,7 +232,7 @@ async fn test_du_is_counting_links() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["du", "local/my-pkg/1.0.0/3I42H3S6/", "-sL"]).unwrap();
+    let mut opt = Opt::try_parse_from(["du", "local/my-pkg/1.0.0/3I42H3S6/", "-sl"]).unwrap();
     opt.du.run().await.unwrap();
     let output_vec = opt.du.output.vec.lock().unwrap();
     let mut build_component_output = output_vec[0].split(' ').collect_vec();
