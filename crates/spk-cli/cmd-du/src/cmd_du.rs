@@ -69,7 +69,7 @@ pub struct PackageDiskUsage {
 
 impl PackageDiskUsage {
     /// Construct an empty PackageDiskUsage
-    pub fn new(pkgname: PkgNameBuf, repo_name: String) -> Self {
+    fn new(pkgname: PkgNameBuf, repo_name: String) -> Self {
         Self {
             pkg: pkgname,
             version: Version::default().into(),
@@ -82,7 +82,7 @@ impl PackageDiskUsage {
     }
 
     /// Constructs a path from the values in PackageDiskUsage.
-    pub fn flatten_path(&self) -> Vec<String> {
+    fn flatten_path(&self) -> Vec<String> {
         let component = format!(":{}", self.component);
         let mut path = vec![
             self.repo_name.clone(),
@@ -101,51 +101,29 @@ impl PackageDiskUsage {
     }
 
     /// Generates a partial path from the stored values from PackageDiskUsage given a depth.
-    pub fn generate_partial_path(&self, depth: usize, is_dir: bool) -> String {
-        let abs_path = self.flatten_path();
-        let max_depth = if is_dir {
-            abs_path.len() - 1
-        } else {
-            abs_path.len()
-        };
-        let suffix = if depth.lt(&max_depth) {
-            LEVEL_SEPARATOR
-        } else {
-            ' '
-        };
+    fn generate_partial_path(&self, depth: usize) -> Option<String> {
+        let mut abs_path = self.flatten_path();
+        let max_depth = abs_path.len();
 
-        if is_dir {
-            format!(
-                "{}{}",
-                abs_path[..depth + 1].join(&LEVEL_SEPARATOR.to_string()),
-                suffix
-            )
+        if depth.lt(&max_depth) {
+            abs_path.truncate(depth);
+            Some(format!(
+                "{}{LEVEL_SEPARATOR}",
+                abs_path.join(&LEVEL_SEPARATOR.to_string()),
+            ))
+        } else if depth.eq(&max_depth) {
+            Some(abs_path.join(&LEVEL_SEPARATOR.to_string()))
         } else {
-            format!(
-                "{}{}",
-                abs_path[..depth].join(&LEVEL_SEPARATOR.to_string()),
-                suffix
-            )
+            None
         }
     }
 
-    /// Return the absolute path of the entry.
-    pub fn generate_full_path(&self) -> String {
-        self.flatten_path().join(&LEVEL_SEPARATOR.to_string())
-    }
-
     /// Returns true if the input is a subset of the absolute path.
-    pub fn is_subset(&self, input: &[&str]) -> bool {
+    fn is_subset(&self, input: &[&str]) -> bool {
         let flatten_path = self.flatten_path();
         input
             .iter()
             .all(|item| flatten_path.contains(&item.to_string()))
-    }
-
-    /// Returns true if the input depth is greater than the absolute path.
-    pub fn is_out_of_range(&self, input_depth: usize) -> bool {
-        let abs_path_depth = self.flatten_path().len();
-        input_depth > abs_path_depth
     }
 }
 
@@ -187,88 +165,11 @@ pub struct Du<Output: Default = Console> {
 #[async_trait::async_trait]
 impl<T: Output> Run for Du<T> {
     async fn run(&mut self) -> Result<i32> {
-        let mut total_size = 0;
-        let mut visited_digests = HashSet::new();
-
         let input_depth = self.path.split(LEVEL_SEPARATOR).collect_vec().len();
-
         if self.summarize {
-            let mut grouped_entries: HashMap<String, (u64, &str)> = HashMap::new();
-            let mut walked = self.walk();
-            while let Some(du) = walked.try_next().await? {
-                if du.is_out_of_range(input_depth) {
-                    continue;
-                }
-
-                let deprecate = if du.deprecated { "DEPRECATED" } else { "" };
-                let partial_path =
-                    du.generate_partial_path(input_depth, self.path.ends_with(LEVEL_SEPARATOR));
-                let entry_size = if visited_digests.insert(*du.entry.digest()) || self.count_links {
-                    du.entry.size()
-                } else {
-                    0 // 0 because we don't need to calculate sizes if its a duplicate or count_links is not enabled.
-                };
-
-                // If the partial path does not exist and grouped_entries is not empty,
-                // the existing path is finished calculating and is ready to print.
-                if !grouped_entries.contains_key(&partial_path) && !grouped_entries.is_empty() {
-                    for (path, (size, deprecate_status)) in grouped_entries.drain().take(1) {
-                        self.output.println(format!(
-                            "{size:>WIDTH$}    {path} {deprecate}",
-                            size = self.human_readable(size),
-                            deprecate = deprecate_status.red(),
-                        ));
-                        total_size += size;
-                    }
-                }
-
-                grouped_entries
-                    .entry(partial_path)
-                    .and_modify(|(size, _)| *size += entry_size)
-                    .or_insert((entry_size, deprecate));
-            }
-
-            // Need to clear the last object inside grouped_entries.
-            for (path, (size, deprecate_status)) in grouped_entries.iter() {
-                self.output.println(format!(
-                    "{size:>WIDTH$}    {path} {deprecate}",
-                    size = self.human_readable(*size),
-                    deprecate = deprecate_status.red(),
-                ));
-                total_size += size;
-            }
+            self.print_grouped_entries(input_depth).await?;
         } else {
-            let mut walked = self.walk();
-            while let Some(du) = walked.try_next().await? {
-                if du.is_out_of_range(input_depth) {
-                    continue;
-                }
-
-                let full_path = du.generate_full_path();
-                let deprecate = if du.deprecated {
-                    "DEPRECATED".red()
-                } else {
-                    "".into()
-                };
-
-                let entry_size = if visited_digests.insert(*du.entry.digest()) || self.count_links {
-                    du.entry.size()
-                } else {
-                    0
-                };
-                self.output.println(format!(
-                    "{size:>WIDTH$}    {full_path} {deprecate}",
-                    size = self.human_readable(entry_size),
-                ));
-                total_size += entry_size;
-            }
-        }
-
-        if self.total {
-            self.output.println(format!(
-                "{:>WIDTH$}    total",
-                self.human_readable(total_size)
-            ));
+            self.print_all_entries(input_depth).await?;
         }
         Ok(0)
     }
@@ -287,6 +188,99 @@ impl<T: Output> Du<T> {
         } else {
             size.to_string()
         }
+    }
+
+    fn print_total(&self, total: u64) {
+        if self.total {
+            self.output
+                .println(format!("{:>WIDTH$}    total", self.human_readable(total)));
+        }
+    }
+
+    async fn print_all_entries(&self, input_depth: usize) -> Result<()> {
+        let mut total_size = 0;
+        let mut visited_digests = HashSet::new();
+        let mut walked = self.walk();
+        while let Some(du) = walked.try_next().await? {
+            let abs_path = du.flatten_path();
+            if input_depth > abs_path.len() {
+                continue;
+            }
+
+            let joined_path = abs_path.join(&LEVEL_SEPARATOR.to_string());
+            let deprecate = if du.deprecated {
+                "DEPRECATED".red()
+            } else {
+                "".into()
+            };
+
+            let entry_size = if visited_digests.insert(*du.entry.digest()) || self.count_links {
+                du.entry.size()
+            } else {
+                0
+            };
+
+            self.output.println(format!(
+                "{size:>WIDTH$}    {joined_path} {deprecate}",
+                size = self.human_readable(entry_size),
+            ));
+
+            total_size += entry_size;
+        }
+
+        self.print_total(total_size);
+        Ok(())
+    }
+
+    async fn print_grouped_entries(&self, input_depth: usize) -> Result<()> {
+        let mut total_size = 0;
+        let mut visited_digests = HashSet::new();
+        let mut grouped_entries: HashMap<String, (u64, &str)> = HashMap::new();
+        let mut walked = self.walk();
+        while let Some(du) = walked.try_next().await? {
+            let deprecate = if du.deprecated { "DEPRECATED" } else { "" };
+            let partial_path = match du.generate_partial_path(input_depth) {
+                Some(path) => path,
+                _ => continue,
+            };
+
+            let entry_size = if visited_digests.insert(*du.entry.digest()) || self.count_links {
+                du.entry.size()
+            } else {
+                0 // 0 because we don't need to calculate sizes if its a duplicate or count_links is not enabled.
+            };
+
+            // If the partial path does not exist and grouped_entries is not empty,
+            // the existing path is finished calculating and is ready to print.
+            if !grouped_entries.contains_key(&partial_path) && !grouped_entries.is_empty() {
+                for (path, (size, deprecate_status)) in grouped_entries.drain().take(1) {
+                    self.output.println(format!(
+                        "{size:>WIDTH$}    {path} {deprecate}",
+                        size = self.human_readable(size),
+                        deprecate = deprecate_status.red(),
+                    ));
+                    total_size += size;
+                }
+            }
+
+            grouped_entries
+                .entry(partial_path)
+                .and_modify(|(size, _)| *size += entry_size)
+                .or_insert((entry_size, deprecate));
+        }
+
+        // Need to clear the last object inside grouped_entries.
+        for (path, (size, deprecate_status)) in grouped_entries.iter() {
+            self.output.println(format!(
+                "{size:>WIDTH$}    {path} {deprecate}",
+                size = self.human_readable(*size),
+                deprecate = deprecate_status.red(),
+            ));
+            total_size += size;
+        }
+
+        self.print_total(total_size);
+        Ok(())
     }
 
     fn walk(&self) -> impl Stream<Item = Result<PackageDiskUsage>> + '_ {
@@ -501,9 +495,8 @@ impl DiskUsage for Entry {
 
                     // We need to walk deeper if more child entries exists.
                     if !entry.entries.is_empty() {
-                        let mut walked = walk_nested_entries(entry, updated_paths);
-                        while let Some(du) = walked.try_next().await? {
-                            yield du
+                        for await du in walk_nested_entries(entry, updated_paths) {
+                            yield du?;
                         }
                     }
                 }
