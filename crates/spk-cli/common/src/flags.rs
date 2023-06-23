@@ -37,16 +37,32 @@ pub struct Runtime {
     #[clap(long, env = SPK_NO_RUNTIME)]
     pub no_runtime: bool,
 
+    /// Make the underlying /spfs filesystem editable
+    #[clap(long)]
+    pub edit: bool,
+
+    /// Make the underlying /spfs filesystem read-only (default)
+    #[clap(long, overrides_with = "edit")]
+    pub no_edit: bool,
+
     /// A name to use for the created spfs runtime (useful for rejoining it later)
     #[clap(long)]
     pub runtime_name: Option<String>,
 }
 
 impl Runtime {
+    /// True if the flags are requesting an editable runtime
+    pub fn editable(&self) -> bool {
+        // clap will ensure that edit is only true if provided
+        // after --no-edit and because false is the default we
+        // don't need to explicitly check no_edit
+        self.edit
+    }
+
     /// Unless `--no-runtime` is present, relaunch the current process inside
     /// a new spfs runtime.
     ///
-    /// The caller is expected to pass in a list of subcommand alises that can
+    /// The caller is expected to pass in a list of subcommand aliases that can
     /// be used to find an appropriate place on the command line to insert a
     /// `--no-runtime` argument, to avoid recursively creating a runtime.
     pub async fn ensure_active_runtime(

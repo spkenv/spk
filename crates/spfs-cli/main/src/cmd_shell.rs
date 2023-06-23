@@ -21,6 +21,10 @@ pub struct CmdShell {
     #[clap(short, long)]
     edit: bool,
 
+    /// Mount the spfs filesystem in read-only mode (default if REF is non-empty)
+    #[clap(long, overrides_with = "edit")]
+    pub no_edit: bool,
+
     /// Provide a name for this runtime to make it easier to identify
     #[clap(long)]
     runtime_name: Option<String>,
@@ -38,6 +42,7 @@ impl CmdShell {
             sync: self.sync.clone(),
             logging: self.logging.clone(),
             edit: self.edit,
+            no_edit: self.no_edit,
             runtime_name: self.runtime_name.clone(),
             reference: self.reference.clone(),
             command: Default::default(),

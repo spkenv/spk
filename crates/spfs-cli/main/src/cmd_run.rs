@@ -19,9 +19,13 @@ pub struct CmdRun {
     #[clap(flatten)]
     pub logging: cli::Logging,
 
-    /// Mount the spfs filesystem in edit mode (true if REF is empty or not given)
+    /// Mount the spfs filesystem in edit mode (default if REF is empty or not given)
     #[clap(short, long)]
     pub edit: bool,
+
+    /// Mount the spfs filesystem in read-only mode (default if REF is non-empty)
+    #[clap(long, overrides_with = "edit")]
+    pub no_edit: bool,
 
     /// Provide a name for this runtime to make it easier to identify
     #[clap(long)]
@@ -57,7 +61,7 @@ impl CmdRun {
 
         let start_time = Instant::now();
         runtime.config.mount_backend = config.filesystem.backend;
-        if self.reference.is_empty() {
+        if self.reference.is_empty() && !self.no_edit {
             self.edit = true;
         } else if runtime.config.mount_backend.requires_localization() {
             let origin = config.get_remote("origin").await?;
