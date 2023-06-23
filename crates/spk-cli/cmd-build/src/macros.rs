@@ -14,13 +14,13 @@ pub struct BuildOpt {
 
 #[macro_export]
 macro_rules! build_package {
-    ($tmpdir:ident, $filename:literal, $recipe:literal $(,)? $($extra_build_args:expr),*) => {{
+    ($tmpdir:ident, $filename:literal, $recipe:literal $(,$extra_build_args:expr)* $(,)?) => {{
         let (filename, r) = $crate::try_build_package!($tmpdir, $filename, $recipe, $($extra_build_args),*);
         r.unwrap();
         filename
     }};
 
-    ($tmpdir:ident, $filename:ident $(,)? $($extra_build_args:expr),*) => {{
+    ($tmpdir:ident, $filename:ident $(,$extra_build_args:expr)* $(,)?) => {{
         let (filename, r) = $crate::try_build_package!($tmpdir, $filename, $($extra_build_args),*);
         r.unwrap();
         filename
