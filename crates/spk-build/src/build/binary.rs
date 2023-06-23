@@ -144,6 +144,7 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
     interactive: bool,
     files_to_layers: HashMap<RelativePathBuf, ResolvedLayer>,
     conflicting_packages: HashMap<ConflictingPackagePair, HashSet<RelativePathBuf>>,
+    allow_circular_dependencies: bool,
 }
 
 impl<'a, Recipe> BinaryPackageBuilder<'a, Recipe>
@@ -173,7 +174,18 @@ where
             interactive: false,
             files_to_layers: Default::default(),
             conflicting_packages: Default::default(),
+            allow_circular_dependencies: false,
         }
+    }
+
+    /// Allow circular dependencies when resolving dependencies.
+    ///
+    /// Normally if a build dependency has a dependency on the package being
+    /// built, this is a solver error. But if allow_circular_dependencies is
+    /// set to true, this is allowed.
+    pub fn with_allow_circular_dependencies(&mut self, allow: bool) -> &mut Self {
+        self.allow_circular_dependencies = allow;
+        self
     }
 
     /// Use an alternate prefix when building (not /spfs).
@@ -479,9 +491,10 @@ where
         self.solver.update_options(options.clone());
         self.solver.set_binary_only(true);
         // Deny resolving a package that has the name of the package being
-        // built (circular dependency).
+        // built (circular dependency), unless they have been explicitly
+        // allowed.
         self.solver
-            .set_reject_package_with_name(self.recipe.name(), true);
+            .set_reject_package_with_name(self.recipe.name(), !self.allow_circular_dependencies);
         for repo in self.repos.iter().cloned() {
             self.solver.add_repository(repo);
         }
