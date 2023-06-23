@@ -21,7 +21,13 @@ use crate::{Error, Result};
 pub const PROC_DIR: &str = "/proc";
 
 pub const SPFS_MONITOR_FOREGROUND_LOGGING_VAR: &str = "SPFS_MONITOR_FOREGROUND_LOGGING";
-const SPFS_MONITOR_DISABLE_CNPROC_VAR: &str = "SPFS_MONITOR_DISABLE_CNPROC";
+
+/// For internal process change messages
+#[derive(Debug)]
+enum PidEvent {
+    Fork { parent: i32, pid: i32 },
+    Exit(i32),
+}
 
 /// Run an spfs monitor for the provided runtime
 ///
@@ -129,15 +135,6 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     })
     .unwrap_or_default();
 
-    // we could use our own pid here, but then when running in a container
-    // or pid namespace the process id would actually be wrong. Passing
-    // zero will get the kernel to determine our pid from its perspective
-    let monitor = match is_cnproc_disabled() {
-        false => cnproc::PidMonitor::from_id(0)
-            .map_err(|e| crate::Error::String(format!("failed to establish process monitor: {e}"))),
-        true => Err(format!("cnproc disabled by env: {SPFS_MONITOR_DISABLE_CNPROC_VAR}").into()),
-    };
-
     let mut tracked_processes = HashSet::new();
     let (events_send, events_recv) = tokio::sync::mpsc::unbounded_channel();
 
@@ -171,26 +168,15 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         return Ok(());
     }
 
-    match (monitor, mount_ns.clone()) {
-        (Ok(mut monitor), _) => {
-            tokio::task::spawn_blocking(move || {
-                // Normal behavior when the monitor was successfully created.
-                while let Some(event) = monitor.recv() {
-                    if let Err(_err) = events_send.send(event) {
-                        // the receiver has stopped listening, no need to continue
-                        return;
-                    }
-                }
-                tracing::warn!("monitor event stream ended unexpectedly");
-            });
-        }
-        (Err(err), Some(ns)) => {
+    match mount_ns.clone() {
+        Some(ns) => {
             let mut tracked_processes = tracked_processes.clone();
 
             tokio::task::spawn(async move {
-                // Fallback to polling the process tree.
-
-                tracing::info!(?err, "Process monitor failed; using fallback mechanism");
+                // Polling the process tree here. We tried using
+                // cnproc for the netlink protocol but it was too
+                // flakey. It resulted in panics from misaligned
+                // pointers, which in turn caused left over runtimes.
 
                 // No need to poll rapidly; we don't care about short-lived
                 // processes and only need to find at least one existing
@@ -214,7 +200,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
                     let parent = *tracked_processes.iter().next().unwrap();
 
                     for new_pid in current_pids.difference(&tracked_processes) {
-                        if let Err(_err) = events_send.send(cnproc::PidEvent::Fork {
+                        if let Err(_err) = events_send.send(PidEvent::Fork {
                             parent: parent as i32,
                             pid: *new_pid as i32,
                         }) {
@@ -224,9 +210,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
                     }
 
                     for expiring_pid in tracked_processes.difference(&current_pids) {
-                        if let Err(_err) =
-                            events_send.send(cnproc::PidEvent::Exit(*expiring_pid as i32))
-                        {
+                        if let Err(_err) = events_send.send(PidEvent::Exit(*expiring_pid as i32)) {
                             // the receiver has stopped listening, no need to continue
                             return;
                         }
@@ -236,15 +220,13 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
                 }
             });
         }
-        (pid_monitor_result, mount_ns) => {
-            // No way to monitor; give up.
+        None => {
+            // The mount namespace wasn't found. So have to give up.
             // Let receiver know there won't be any messages.
             drop(events_send);
 
             tracing::warn!(
-                ?pid_monitor_result,
-                ?mount_ns,
-                "no way to monitor runtime; it will be deleted immediately!"
+                "no mount namespace. not monitoring runtime; it will be deleted immediately!"
             );
         }
     }
@@ -262,27 +244,13 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         let tracked_processes = Arc::clone(&tracked_processes);
 
         events_stream.filter(move |event| match event {
-            cnproc::PidEvent::Exec(_pid) => {
-                // exec is just one process turning into a new one with
-                // the pid remaining the same, so we are not interested...
-                // remember that launching a new process is a fork and then exec
-                false
-            }
-            cnproc::PidEvent::Fork { parent, pid }
-                if tracked_processes.contains(&(*parent as u32)) =>
-            {
+            PidEvent::Fork { parent, pid } if tracked_processes.contains(&(*parent as u32)) => {
                 tracked_processes.insert(*pid as u32);
                 true
             }
-            cnproc::PidEvent::Fork { .. } => false,
-            cnproc::PidEvent::Exit(pid) if tracked_processes.remove(&(*pid as u32)).is_some() => {
-                true
-            }
-            cnproc::PidEvent::Exit(..) => false,
-            cnproc::PidEvent::Coredump(pid) => {
-                tracing::trace!(?tracked_processes, ?pid, "notified of core dump");
-                false
-            }
+            PidEvent::Fork { .. } => false,
+            PidEvent::Exit(pid) if tracked_processes.remove(&(*pid as u32)).is_some() => true,
+            PidEvent::Exit(..) => false,
         })
     };
 
@@ -336,8 +304,8 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
 
         if no_more_processes {
             // If the mount namespace is known, verify there really aren't any
-            // more processes in the namespace. Since cnproc might not deliver
-            // every event, we may not know about processes that still exist.
+            // more processes in the namespace. Since the polling might not deliver
+            // every process change, we may not know about processes that still exist.
             if let Some(ns) = mount_ns.as_ref() {
                 repair_tracked_processes(&tracked_processes, ns).await;
 
@@ -350,7 +318,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
                 // actually happens in practice.
                 tracing::info!(?tracked_processes, "Discovered new pids after repairing");
             } else {
-                // Have to trust cnproc...
+                // Have to trust that all the processes are done ...
                 break;
             }
         }
@@ -369,14 +337,6 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
         }
     }
     Ok(())
-}
-
-fn is_cnproc_disabled() -> bool {
-    match std::env::var(SPFS_MONITOR_DISABLE_CNPROC_VAR) {
-        Err(_) => false,
-        Ok(s) if s == "0" => false,
-        Ok(_) => true,
-    }
 }
 
 /// Identify the mount namespace of the provided process id.

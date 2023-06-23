@@ -10,8 +10,7 @@ set -o errexit
 
 assert_runtime_count() {
     # give any runtimes created by other tests a chance to expire
-    # this number relates to the 2.5s poll interval when not using
-    # cnproc.
+    # this number relates to the 2.5s poll interval
     sleep 4
 
     count=$(spfs runtime list -q | wc -l)
