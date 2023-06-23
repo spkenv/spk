@@ -18,9 +18,28 @@ use tokio::io::AsyncReadExt;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::timeout;
 
-// Managing sentry initialization manually in this command due to how it
-// daemonizes itself.
-cli::main!(CmdMonitor, sentry = false, sync = true, syslog = true);
+fn main() {
+    // because this function exits right away it does not
+    // properly handle destruction of data, so we put the actual
+    // logic into a separate function/scope
+    std::process::exit(main2())
+}
+fn main2() -> i32 {
+    let mut opt = CmdMonitor::parse();
+    opt.logging
+        .log_file
+        .get_or_insert("/tmp/spfs-runtime/monitor.log".into());
+
+    // This disables sentry (the first boolean literal), and enables
+    // syslog (the second literal). The sentry initialization is
+    // managed directly in this command due to how it daemonizes
+    // itself.
+    let (config, _empty_sentry_guard) = cli::configure!(opt, false, true);
+
+    let result = opt.run(&config);
+
+    spfs_cli_common::handle_result!(result)
+}
 
 /// Takes ownership of, and is responsible for monitoring an active runtime.
 ///
