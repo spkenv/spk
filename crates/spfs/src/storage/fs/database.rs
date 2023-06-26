@@ -118,6 +118,15 @@ impl graph::Database for super::FSRepository {
                 err,
             ));
         }
+        let perms = std::fs::Permissions::from_mode(self.objects.file_permissions);
+        if let Err(err) = tokio::fs::set_permissions(&working_file, perms).await {
+            let _ = tokio::fs::remove_file(&working_file).await;
+            return Err(Error::StorageWriteError(
+                "set permissions on object file",
+                working_file,
+                err,
+            ));
+        }
         self.objects.ensure_base_dir(&filepath)?;
         match tokio::fs::rename(&working_file, &filepath).await {
             Ok(_) => Ok(()),
