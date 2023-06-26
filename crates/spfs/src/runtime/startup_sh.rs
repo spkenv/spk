@@ -42,7 +42,9 @@ if [ "$#" -ne 0 ]; then
     exec "$@"
 fi
 
-echo "$SPFS_SHELL_MESSAGE" 1>&2
+if [ ! -z "$SPFS_SHELL_MESSAGE" ]; then
+    echo "$SPFS_SHELL_MESSAGE" 1>&2
+fi
 "#
     )
 }
