@@ -9,6 +9,8 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+#[cfg(feature = "sentry")]
+use cli::configure_sentry;
 use spfs::Error;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
@@ -16,7 +18,9 @@ use tokio::io::AsyncReadExt;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::timeout;
 
-cli::main!(CmdMonitor, sentry = true, sync = true, syslog = true);
+// Managing sentry initialization manually in this command due to how it
+// daemonizes itself.
+cli::main!(CmdMonitor, sentry = false, sync = true, syslog = true);
 
 /// Takes ownership of, and is responsible for monitoring an active runtime.
 ///
@@ -59,6 +63,15 @@ impl CmdMonitor {
         const NO_CLOSE: bool = false;
         nix::unistd::daemon(NO_CHDIR, NO_CLOSE)
             .context("Failed to daemonize the monitor process")?;
+
+        #[cfg(feature = "sentry")]
+        {
+            // Initialize sentry after the call to `daemon` so it is safe for
+            // sentry to create threads and mutexes. The result can be dropped
+            // here because the sentry guard lives on inside a lazy init
+            // static.
+            let _ = configure_sentry(self.command_name().to_owned());
+        }
 
         let rt = tokio::runtime::Builder::new_multi_thread()
             .max_blocking_threads(2)
