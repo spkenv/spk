@@ -51,8 +51,10 @@ if ( "$#argv" != 0 ) then
     exec $argv:q
 endif
 
-# csh cannot echo to stderr, only sh can do that :/
-/bin/sh -c "echo '$SPFS_SHELL_MESSAGE' 1>&2"
+if ("$SPFS_SHELL_MESSAGE" != "") then
+    # csh cannot echo to stderr, only sh can do that :/
+    /bin/sh -c "echo '$SPFS_SHELL_MESSAGE' 1>&2"
+endif
 "#
     )
 }
