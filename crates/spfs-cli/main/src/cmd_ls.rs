@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use clap::Args;
 use itertools::Itertools;
-use spfs::tracking::EnvSpecItem;
+use spfs::tracking::{Entry, EnvSpecItem};
 
 /// List the contents of a committed directory
 #[derive(Debug, Args)]
@@ -46,46 +46,8 @@ pub struct CmdLs {
     last_modified: String,
 }
 
-#[derive(Default, Debug, Clone)]
-pub struct EntriesPerDir {
-    dir_name: String,
-    longest_length_str: usize,
-    entries: HashMap<String, spfs::tracking::Entry>,
-}
-
-impl EntriesPerDir {
-    pub fn new(dir: String, entries: &HashMap<String, spfs::tracking::Entry>) -> Self {
-        Self {
-            dir_name: dir,
-            longest_length_str: 0,
-            entries: entries.clone(),
-        }
-    }
-
-    fn update_string_length(&mut self, count: usize) {
-        if count > self.longest_length_str {
-            self.longest_length_str = count;
-        }
-    }
-
-    fn generate_child_entries(&mut self) -> Vec<(String, EntriesPerDir)> {
-        let mut result: Vec<(String, EntriesPerDir)> = Vec::new();
-        for (entry_name, entry) in self.entries.iter() {
-            if entry.is_dir() {
-                let new_dir: String = format!("{}/{entry_name}", self.dir_name);
-                let new_dir_entry = EntriesPerDir::new(new_dir.clone(), &entry.entries);
-
-                result.push((new_dir, new_dir_entry));
-            }
-        }
-        result
-    }
-}
-
 impl CmdLs {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let mut entries_to_print: Vec<(String, EntriesPerDir)> = Vec::new();
-
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         match &self.reference {
@@ -94,7 +56,7 @@ impl CmdLs {
                 self.username = tag.username_without_org().to_string();
                 self.last_modified = tag.time.format("%b %e %H:%M").to_string();
             }
-            EnvSpecItem::PartialDigest(_) | EnvSpecItem::Digest(_) => (), // Input expected to be a TagSpec.
+            EnvSpecItem::PartialDigest(_) | EnvSpecItem::Digest(_) => (),
         }
 
         let item = repo.read_ref(&self.reference.to_string()).await?;
@@ -106,40 +68,51 @@ impl CmdLs {
             .to_string();
 
         let manifest = spfs::compute_object_manifest(item, &repo).await?;
+
         if let Some(root_entries) = manifest.list_entries_in_dir(path.as_str()) {
-            let root_dir = ".";
             if self.recursive {
-                let mut entries_to_process: Vec<(String, EntriesPerDir)> = Vec::new();
-                let entries_in_root = EntriesPerDir::new(root_dir.to_string(), root_entries);
-                entries_to_print.push((root_dir.to_string(), entries_in_root.clone()));
-                entries_to_process.push((root_dir.to_string(), entries_in_root));
+                let mut entries_to_process: Vec<(String, HashMap<String, Entry>)> = Vec::new();
+                entries_to_process.push((String::from("."), root_entries.clone()));
 
                 while !entries_to_process.is_empty() {
-                    let mut trees: Vec<(String, EntriesPerDir)> = Vec::new();
-                    for (_, entries) in entries_to_process.iter_mut() {
-                        trees.append(&mut entries.generate_child_entries());
-                    }
+                    let mut trees: Vec<(String, HashMap<String, Entry>)> = Vec::new();
+                    for (dir, entries) in entries_to_process.iter() {
+                        println!("{dir}:");
+                        let print_width = entries
+                            .iter()
+                            .map(|(_, e)| self.human_readable(e.total_size()).len())
+                            .max()
+                            .unwrap_or(0);
 
-                    entries_to_print.append(&mut trees.clone());
+                        for (path, entry) in entries.iter().sorted_by_key(|(k, _)| *k) {
+                            self.print_entries_in_dir(path, entry, print_width);
+
+                            if !entry.entries.is_empty() {
+                                trees.push((format!("{dir}/{path}"), entry.entries.clone()));
+                            }
+                        }
+
+                        println!();
+
+                        // Additional new line needed when -l flag is not present.
+                        // When -l flag is enabled, each entry is outputted on a new line.
+                        // Whereas, when its disabled, each entry per dir is outputted on the same line.
+                        if !self.long && self.recursive {
+                            println!();
+                        }
+                    }
                     entries_to_process = std::mem::take(&mut trees);
                 }
-
-                // Update the longest length string for each EntriesPerDir
-                for (_, entry) in entries_to_print.iter_mut() {
-                    self.update_longest_length_string(entry);
-                }
             } else {
-                let mut entry: EntriesPerDir =
-                    EntriesPerDir::new(root_dir.to_string(), root_entries);
-                self.update_longest_length_string(&mut entry);
-                entries_to_print.push((root_dir.to_string(), entry));
-            }
+                let print_width = root_entries
+                    .iter()
+                    .map(|(_, e)| self.human_readable(e.total_size()).len())
+                    .max()
+                    .unwrap_or(0);
 
-            for (dir_name, entries) in entries_to_print.iter().sorted_by_key(|(k, _)| k) {
-                if self.recursive {
-                    println!("{dir_name}/:");
+                for (path, entry) in root_entries.iter().sorted_by_key(|(k, _)| *k) {
+                    self.print_entries_in_dir(path, entry, print_width);
                 }
-                self.print_entries_in_dir(entries);
             }
         } else {
             match manifest.get_path(path.as_str()) {
@@ -155,17 +128,6 @@ impl CmdLs {
         Ok(0)
     }
 
-    fn update_longest_length_string(&self, entry: &mut EntriesPerDir) {
-        let mut longest_length_string = 0;
-        for (_, e) in entry.entries.iter() {
-            let size = self.human_readable(e.size);
-            if size.len() > longest_length_string {
-                longest_length_string = size.len();
-            }
-        }
-        entry.update_string_length(longest_length_string);
-    }
-
     fn human_readable(&self, size: u64) -> String {
         if self.human_readable {
             spfs::io::format_size(size)
@@ -174,30 +136,34 @@ impl CmdLs {
         }
     }
 
-    fn print_entries_in_dir(&mut self, entries: &EntriesPerDir) {
-        let longest_length_str = entries.longest_length_str;
-        for (name, entry) in entries.entries.iter().sorted_by_key(|(k, _)| *k) {
-            let size: String = self.human_readable(entry.size);
-            let suffix = if entry.kind.is_tree() { "/" } else { "" };
-            if self.long {
-                println!(
-                    "{} {username} {size:>longest_length_str$} {modified} {name}{suffix}",
-                    unix_mode::to_string(entry.mode),
-                    username = self.username,
-                    modified = self.last_modified,
-                );
-            } else if self.recursive {
-                print!("{name}{suffix}")
-            } else {
-                println!("{name}{suffix}")
-            }
+    fn print_entries_in_dir(&mut self, dir: &String, entry: &Entry, width: usize) {
+        let size: String = self.human_readable(entry.total_size());
+        let suffix = if entry.kind.is_tree() { "/" } else { "" };
+        if self.long {
+            println!(
+                "{} {username} {size:>width$} {modified} {dir}{suffix}",
+                unix_mode::to_string(entry.mode),
+                username = self.username,
+                modified = self.last_modified,
+            );
+        } else if self.recursive {
+            print!("{dir}{suffix}  ")
+        } else {
+            println!("{dir}{suffix}")
         }
+    }
+}
 
-        // Additional new lines needed for output
-        if self.long && self.recursive {
-            println!();
-        } else if !self.long && self.recursive {
-            println!("\n");
+pub trait TotalSize {
+    fn total_size(&self) -> u64;
+}
+
+impl TotalSize for Entry {
+    fn total_size(&self) -> u64 {
+        if self.is_dir() {
+            self.entries.values().map(|e| e.total_size()).sum()
+        } else {
+            self.size
         }
     }
 }

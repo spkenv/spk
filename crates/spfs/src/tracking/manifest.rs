@@ -144,7 +144,7 @@ where
     T: Clone,
 {
     /// Same as list_dir() but instead,
-    /// lists the entries that exists inside the directory.
+    /// lists the entries that exist inside the directory.
     ///
     /// None is also returned if the entry is not a directory.
     pub fn list_entries_in_dir(&self, path: &str) -> Option<&HashMap<String, Entry<T>>> {
