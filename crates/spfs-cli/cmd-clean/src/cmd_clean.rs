@@ -38,6 +38,12 @@ pub struct CmdClean {
     #[clap(long, value_name = "RUNTIME")]
     remove_durable: Option<String>,
 
+    /// The address of the storage being used for runtimes
+    ///
+    /// Defaults to the current configured local repository.
+    #[clap(long)]
+    runtime_storage: Option<url::Url>,
+
     /// Don't prompt/ask before cleaning the data
     #[clap(long, short)]
     yes: bool,
@@ -117,7 +123,15 @@ impl CmdClean {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
         if let Some(runtime_name) = &self.remove_durable {
-            // Remove the durable path associated with the runtime, if there is one. This
+            // Remove the durable path associated with the runtime,if
+            // there is one. This uses the runtime_storage option
+            // because the repo name is not available from the spfs
+            // library call that generates spfs clean --remove-durable
+            // command line invocations.
+            let repo = match &self.runtime_storage {
+                Some(address) => spfs::open_repository(address).await?,
+                None => config.get_local_repository_handle().await?,
+            };
             let storage = spfs::runtime::Storage::new(repo);
             let durable_path = storage.durable_path(runtime_name.clone()).await?;
             tracing::debug!("durable path to remove: {}", durable_path.display());

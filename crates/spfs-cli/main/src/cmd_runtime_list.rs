@@ -98,6 +98,15 @@ impl CmdRuntimeList {
                                 // runtime.
                                 "zombie"
                             }
+                            (None, None, _) => {
+                                // There's no owner or monitor but the
+                                // durable runtime remains
+                                if runtime.config.keep_runtime {
+                                    "saved"
+                                } else {
+                                    "unknown"
+                                }
+                            }
                             (None, _, _) => {
                                 // these cases aren't expected
                                 "unknown"

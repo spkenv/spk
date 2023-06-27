@@ -4,6 +4,8 @@
 use std::ffi::{CString, OsStr, OsString};
 use std::path::{Path, PathBuf};
 
+use url::Url;
+
 use super::resolve::{which, which_spfs};
 use crate::{runtime, Error, Result};
 
@@ -218,13 +220,21 @@ where
     })
 }
 
-pub(crate) fn build_spfs_remove_durable_command(runtime_name: String) -> Result<Command> {
+pub(crate) fn build_spfs_remove_durable_command(
+    runtime_name: String,
+    repo_address: Url,
+) -> Result<Command> {
     let exe = match which_spfs("clean") {
         None => return Err(Error::MissingBinary("spfs-clean")),
         Some(exe) => exe,
     };
 
-    let args = vec!["--remove-durable".into(), runtime_name.into()];
+    let args = vec![
+        "--remove-durable".into(),
+        runtime_name.into(),
+        "--runtime-storage".into(),
+        repo_address.to_string().into(),
+    ];
 
     Ok(Command {
         executable: exe.into(),

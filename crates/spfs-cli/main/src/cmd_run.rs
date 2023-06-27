@@ -8,6 +8,7 @@ use std::time::Instant;
 use anyhow::{Context, Result};
 use clap::Args;
 use spfs::storage::FromConfig;
+use spfs::tracking::{EnvSpec, EnvSpecItem};
 use spfs_cli_common as cli;
 
 /// Run a program in a configured spfs environment
@@ -26,6 +27,10 @@ pub struct CmdRun {
     /// Mount the spfs filesystem in read-only mode (default if REF is non-empty)
     #[clap(long, overrides_with = "edit")]
     pub no_edit: bool,
+
+    /// Name of an existing durable runtime to run again.
+    #[clap(long)]
+    pub rerun: Option<String>,
 
     /// Provide a name for this runtime to make it easier to identify
     #[clap(long)]
@@ -59,6 +64,44 @@ impl CmdRun {
             config.get_local_repository_handle(),
             config.get_runtime_storage()
         )?;
+        tracing::debug!("got local repository handle and runtime storage");
+
+        if let Some(runtime_name) = &self.rerun {
+            tracing::debug!("reading existing durable runtime: {runtime_name}");
+            let mut runtime = runtimes
+                .read_runtime(runtime_name)
+                .await
+                .map_err(Into::<anyhow::Error>::into)?;
+
+            tracing::debug!(
+                "existing durable runtime loaded with status: {}",
+                runtime.status.running
+            );
+
+            let start_time = Instant::now();
+            let origin = config.get_remote("origin").await?;
+            let references_to_sync = EnvSpec::from(
+                runtime
+                    .status
+                    .stack
+                    .iter()
+                    .map(|d| EnvSpecItem::Digest(*d))
+                    .collect::<Vec<_>>(),
+            );
+            let _synced = self
+                .sync
+                .get_syncer(&origin, &repo)
+                .sync_env(references_to_sync)
+                .await?;
+            tracing::debug!("synced and about to launch process with durable runtime");
+
+            return self
+                .exec_runtime_command(&mut runtime, &start_time)
+                .await
+                .map_err(Into::<anyhow::Error>::into);
+        }
+
+        // Make a new empty runtime
         let mut runtime = match &self.runtime_name {
             Some(name) => {
                 runtimes
@@ -72,7 +115,7 @@ impl CmdRun {
             }
         };
         tracing::debug!(
-            "created runtime: {} [keep={}]",
+            "created new runtime: {} [keep={}]",
             runtime.name(),
             self.keep_runtime
         );
@@ -123,6 +166,14 @@ impl CmdRun {
         }
         tracing::debug!("synced all the referenced objects locally");
 
+        self.exec_runtime_command(&mut runtime, &start_time).await
+    }
+
+    async fn exec_runtime_command(
+        &mut self,
+        runtime: &mut spfs::runtime::Runtime,
+        start_time: &Instant,
+    ) -> Result<i32> {
         runtime.status.command = vec![self.command.to_string_lossy().to_string()];
         runtime
             .status
@@ -132,7 +183,8 @@ impl CmdRun {
         runtime.save_state_to_storage().await?;
 
         tracing::debug!("resolving entry process");
-        let cmd = spfs::build_command_for_runtime(&runtime, &self.command, self.args.drain(..))?;
+
+        let cmd = spfs::build_command_for_runtime(runtime, &self.command, self.args.drain(..))?;
 
         let sync_time = start_time.elapsed();
         std::env::set_var(

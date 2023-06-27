@@ -628,9 +628,12 @@ impl Storage {
             //
             // Assumes it is in the local repo, because can't get the storage
             // name because repohandle's don't have keep their names
-            let mut cmd =
-                bootstrap::build_spfs_remove_durable_command(name.as_ref().to_string())?.into_std();
-            tracing::warn!("Removing durable path with: {cmd:?}");
+            let mut cmd = bootstrap::build_spfs_remove_durable_command(
+                name.as_ref().to_string(),
+                self.inner.address(),
+            )?
+            .into_std();
+            tracing::trace!("running: {cmd:?}");
             match cmd
                 .status()
                 .map_err(|err| {

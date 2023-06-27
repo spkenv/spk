@@ -25,6 +25,10 @@ pub struct CmdShell {
     #[clap(long, overrides_with = "edit")]
     pub no_edit: bool,
 
+    /// Name of a previously run durable runtime to run again.
+    #[clap(long)]
+    pub rerun: Option<String>,
+
     /// Provide a name for this runtime to make it easier to identify
     #[clap(long)]
     runtime_name: Option<String>,
@@ -49,6 +53,7 @@ impl CmdShell {
             logging: self.logging.clone(),
             edit: self.edit,
             no_edit: self.no_edit,
+            rerun: self.rerun.clone(),
             runtime_name: self.runtime_name.clone(),
             reference: self.reference.clone(),
             keep_runtime: self.keep_runtime,
