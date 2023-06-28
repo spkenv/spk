@@ -28,9 +28,14 @@ pub struct CmdRun {
     #[clap(long, overrides_with = "edit")]
     pub no_edit: bool,
 
-    /// Name of an existing durable runtime to run again.
+    /// Name of an existing durable runtime to run again
     #[clap(long)]
     pub rerun: Option<String>,
+
+    /// Requires --rerun. Force reset the process fields of the
+    /// runtime before it is run again
+    #[clap(long, requires = "rerun")]
+    pub force: bool,
 
     /// Provide a name for this runtime to make it easier to identify
     #[clap(long)]
@@ -77,6 +82,15 @@ impl CmdRun {
                 "existing durable runtime loaded with status: {}",
                 runtime.status.running
             );
+
+            if self.force {
+                // Reset the runtime so it can be rerun. This is
+                // usually done in the spfs monitor, unless something
+                // went wrong when the runtime last exited.  The
+                // --force flag allows runtimes left in a strange
+                // state to be reset and rerun.
+                runtime.reinit_for_reuse().await?;
+            }
 
             let start_time = Instant::now();
             let origin = config.get_remote("origin").await?;

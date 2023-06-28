@@ -29,6 +29,11 @@ pub struct CmdShell {
     #[clap(long)]
     pub rerun: Option<String>,
 
+    /// Requires --rerun. Force reset the process fields of the
+    /// runtime before it is run again
+    #[clap(long, requires = "rerun")]
+    pub force: bool,
+
     /// Provide a name for this runtime to make it easier to identify
     #[clap(long)]
     runtime_name: Option<String>,
@@ -54,6 +59,7 @@ impl CmdShell {
             edit: self.edit,
             no_edit: self.no_edit,
             rerun: self.rerun.clone(),
+            force: self.force,
             runtime_name: self.runtime_name.clone(),
             reference: self.reference.clone(),
             keep_runtime: self.keep_runtime,

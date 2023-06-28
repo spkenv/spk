@@ -192,15 +192,12 @@ impl CmdMonitor {
             }
         );
         if owned.keep_runtime() {
-            // Reset the durable runtime's owner, monitor, and
-            // namespace fields so the runtime can be rerun in future.
-            owned.status.owner = None;
-            owned.status.monitor = None;
-            // This has to be done after the exit_runtime/spfs enter
-            // --exit is called because that command relies on this
-            // value to teardown the runtime.
-            owned.config.mount_namespace = None;
-            let _ = owned.save_state_to_storage().await;
+            // Reset the runtime can be rerun in future.  This has to
+            // be done after the exit_runtime/spfs enter --exit is
+            // called because that command relies on the
+            // mount_namespace value, which this resets, to teardown
+            // the runtime.
+            let _ = owned.reinit_for_reuse().await;
         } else if let Err(err) = owned.delete().await {
             tracing::error!("failed to clean up runtime data: {err:?}")
         }

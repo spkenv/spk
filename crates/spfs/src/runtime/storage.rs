@@ -424,6 +424,18 @@ impl Runtime {
         self.data.keep_runtime()
     }
 
+    /// Reset parts of the runtime's state so it can be reused in
+    /// another process run. Note: this saves the runtime to storage.
+    pub async fn reinit_for_reuse(&mut self) -> Result<()> {
+        // Reset the durable runtime's owner, monitor, and
+        // namespace fields so the runtime can be rerun in future.
+        self.status.owner = None;
+        self.status.monitor = None;
+        self.config.mount_namespace = None;
+
+        self.save_state_to_storage().await
+    }
+
     /// Clear all working changes in this runtime's upper dir
     pub fn reset_all(&self) -> Result<()> {
         self.reset(&["*"])
