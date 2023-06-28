@@ -34,7 +34,10 @@ pub struct RenderResult {
 ///
 /// The return value is defined only if the spfs-render output could be parsed
 /// successfully into a [`RenderResult`].
-async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<Option<RenderResult>> {
+async fn render_via_subcommand(
+    spec: tracking::EnvSpec,
+    kept_runtime: bool,
+) -> Result<Option<RenderResult>> {
     if spec.is_empty() {
         return Ok(Some(RenderResult::default()));
     }
@@ -44,6 +47,13 @@ async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<Option<RenderR
         None => return Err(Error::MissingBinary("spfs-render")),
     };
     let mut cmd = tokio::process::Command::new(render_cmd);
+    if kept_runtime {
+        // Durable runtimes are mounted without the index=on feature
+        // of overlayfs. To avoid any issues editing files and
+        // hardlinks the rendering for them switches to Copy.
+        cmd.arg("--strategy");
+        cmd.arg("Copy");
+    }
     cmd.arg(spec.to_string());
     tracing::debug!("{:?}", cmd);
     let output = cmd
@@ -344,7 +354,7 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
 
     let manifests = resolve_overlay_dirs(runtime, &fallback_repo, skip_runtime_save).await?;
     let to_render = manifests.iter().map(|m| m.digest()).try_collect()?;
-    match render_via_subcommand(to_render).await? {
+    match render_via_subcommand(to_render, runtime.config.keep_runtime).await? {
         Some(render_result) => Ok(render_result),
         None => {
             // If we couldn't parse the value printed by spfs-render, calculate
