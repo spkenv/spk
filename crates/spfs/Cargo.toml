@@ -24,7 +24,6 @@ cached = { workspace = true }
 caps = "0.5.3"
 chrono = { workspace = true }
 close-err = "1.0"
-cnproc = { git = "https://github.com/rydrman/cnproc-rs", branch = "act-like-iterator" }
 colored = "2.0"
 config = { workspace = true }
 dashmap = { workspace = true }

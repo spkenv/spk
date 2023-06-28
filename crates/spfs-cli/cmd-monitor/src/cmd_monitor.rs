@@ -148,8 +148,10 @@ impl CmdMonitor {
         let repo = spfs::open_repository(&self.runtime_storage).await?;
         let storage = spfs::runtime::Storage::new(repo);
         let runtime = storage.read_runtime(&self.runtime).await?;
+        tracing::trace!("read runtime from storage repo");
 
         let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_monitor(runtime).await?;
+        tracing::trace!("upgraded to owned runtime, waiting for empty runtime");
 
         let fut = spfs::monitor::wait_for_empty_runtime(&owned);
         let res = tokio::select! {
@@ -163,6 +165,7 @@ impl CmdMonitor {
             _ = interrupt.recv() => Err(spfs::Error::String("Interrupt signal received, cleaning up runtime early".to_string())),
             _ = quit.recv() => Err(spfs::Error::String("Quit signal received, cleaning up runtime early".to_string())),
         };
+        tracing::trace!("runtime empty of processes ");
 
         // try to set the running to false to make this
         // runtime easier to identify as safe to delete
@@ -171,10 +174,12 @@ impl CmdMonitor {
         owned.status.running = false;
         let _ = owned.save_state_to_storage().await;
 
+        tracing::trace!("tearing down and exiting");
         if let Err(err) = spfs::exit_runtime(&owned).await {
             tracing::error!("failed to tear down runtime: {err:?}");
         }
 
+        tracing::trace!("deleting runtime data");
         if let Err(err) = owned.delete().await {
             tracing::error!("failed to clean up runtime data: {err:?}");
         }
