@@ -775,7 +775,9 @@ impl Storage {
         let mut runtimes = self.iter_runtimes().await;
         let sample_upper_dir = upper_root_path.join(Config::UPPER_DIR);
         while let Some(runtime) = runtimes.next().await {
-            let Ok(runtime) = runtime else { continue; };
+            let Ok(runtime) = runtime else {
+                continue;
+            };
             if sample_upper_dir == *runtime.upper_dir() {
                 return Err(Error::RuntimeUpperDirAlreadyInUse(
                     upper_name,

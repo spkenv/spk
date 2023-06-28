@@ -114,7 +114,7 @@ impl CmdRuntimeList {
                         };
 
                         message = format!(
-                            "{message}\trunning={}\tpid={:<7}\teditable={}\tdurable={}\tstatus={process_status}",
+                            "{message:37}\trunning={}\tpid={:<7}\teditable={}\tdurable={}\tstatus={process_status}",
                             runtime.status.running,
                             runtime
                                 .status

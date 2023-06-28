@@ -3,13 +3,17 @@
 // https://github.com/imageworks/spk
 
 use anyhow::Result;
-use clap::Args;
+use clap::{ArgGroup, Args};
 use spfs_cli_common as cli;
 
 use super::cmd_run;
 
 /// Enter a subshell in a configured spfs environment
 #[derive(Debug, Args)]
+#[clap(group(
+    ArgGroup::new("runtime_id")
+    .required(true)
+        .args(&["rerun", "REF"])))]
 pub struct CmdShell {
     #[clap(flatten)]
     sync: cli::Sync,
@@ -25,8 +29,8 @@ pub struct CmdShell {
     #[clap(long, overrides_with = "edit")]
     pub no_edit: bool,
 
-    /// Name of a previously run durable runtime to run again.
-    #[clap(long)]
+    /// Name of a previously run durable runtime to reuse for this run
+    #[clap(long, value_name = "RUNTIME_NAME")]
     pub rerun: Option<String>,
 
     /// Requires --rerun. Force reset the process fields of the
@@ -48,7 +52,7 @@ pub struct CmdShell {
     ///
     /// Use '-' or nothing to request an empty environment
     #[clap(name = "REF")]
-    reference: spfs::tracking::EnvSpec,
+    reference: Option<spfs::tracking::EnvSpec>,
 }
 
 impl CmdShell {
@@ -64,7 +68,6 @@ impl CmdShell {
             reference: self.reference.clone(),
             keep_runtime: self.keep_runtime,
             command: Default::default(),
-            args: Default::default(),
         };
         run_cmd.run(config).await
     }
