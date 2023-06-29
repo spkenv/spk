@@ -23,6 +23,10 @@ pub struct Debug {
 
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
+
+    /// Name of packages to have their src package added onto
+    #[clap(name = "PKG NAME")]
+    pub packages: Vec<String>,
 }
 
 #[async_trait::async_trait]
@@ -46,6 +50,12 @@ impl Run for Debug {
             if let Some(Build::Digest(_)) = solved.request.pkg.build.as_ref() {
                 let mut source_pkg = solved.request.pkg.clone();
                 source_pkg.build = Some(Build::Source);
+
+                if !self.packages.is_empty()
+                    && !self.packages.contains(&source_pkg.name().to_string())
+                {
+                    continue;
+                };
 
                 if let Ok(ident) = source_pkg.try_into() {
                     // Search for a repo that has this source package.
