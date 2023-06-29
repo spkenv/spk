@@ -61,9 +61,9 @@ sentry-tracing = { version = "0.27.0" }
 serde = "1.0"
 serde_json = "1.0"
 strip-ansi-escapes = "0.1.1"
+strum = { version = "0.24", features = ["derive"] }
 thiserror = "1.0"
 tempfile = "3.3"
-strum = { version = "0.24" }
 tokio = { version = "1.28", features = ["rt"] }
 tokio-retry = "0.3.0"
 tracing = "0.1.35"

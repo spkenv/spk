@@ -12,13 +12,26 @@ use futures::{StreamExt, TryStreamExt};
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::Object;
 use spfs::Digest;
-use spk_cli_common::{current_env, flags, CommandArgs, Run};
+use spk_cli_common::with_version_and_build_set::WithVersionSet;
+use spk_cli_common::{current_env, flags, CommandArgs, DefaultVersionStrategy, Run};
 use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::Request;
-use spk_schema::{Recipe, Template};
+use spk_schema::name::PkgNameBuf;
+use spk_schema::version::Version;
+use spk_schema::{AnyIdent, BuildIdent, Recipe, Template, VersionIdent};
 use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
+use spk_storage;
+use strum::{Display, EnumString, EnumVariantNames};
+
+/// Constants for the valid output formats
+#[derive(Display, EnumString, EnumVariantNames, Clone)]
+#[strum(serialize_all = "lowercase")]
+pub enum OutputFormat {
+    Json,
+    Yaml,
+}
 
 /// Show the spfs filepaths entry details at v > 0
 const SHOW_SPFS_ENTRY_ONLY_LEVEL: u8 = 0;
@@ -50,6 +63,10 @@ pub struct View {
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
 
+    /// Format to output package data in
+    #[clap(short = 'f', long, default_value_t = OutputFormat::Yaml)]
+    pub format: OutputFormat,
+
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,
 
@@ -67,6 +84,13 @@ pub struct View {
     /// Display information about the variants defined by the package
     #[clap(long)]
     variants: bool,
+
+    // TODO: we can remove this, along with the solving call, once the
+    // no solving method is bedded in.
+    /// Use the older full solve method of finding the package info.
+    /// The default is to not do a full solve.
+    #[clap(long)]
+    full_solve: bool,
 }
 
 #[async_trait::async_trait]
@@ -115,67 +139,18 @@ impl Run for View {
             // value as a package.
         }
 
-        let mut solver = self.solver.get_solver(&self.options).await?;
-
-        let request = match self
-            .requests
-            .parse_request(&package, &self.options, solver.repositories())
-            .await
-        {
-            Ok(req) => req,
-            Err(err) => {
-                bail!("Was this meant to be a package or a filepath under /spfs? : {err}")
-            }
-        };
-
-        solver.add_request(request.clone());
-        let request = match request {
-            Request::Pkg(pkg) => pkg,
-            _ => bail!("Not a package request: {request:?}"),
-        };
-
-        let mut runtime = solver.run();
-
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
-
-        let result = formatter.run_and_print_decisions(&mut runtime).await;
-        let solution = match result {
-            Ok((s, _)) => s,
-            Err(err) => {
-                println!("{}", err.to_string().red());
-                match self.verbose {
-                    0 => eprintln!("{}", "try '--verbose' for more info".yellow().dimmed(),),
-                    v if v < 2 => {
-                        eprintln!("{}", "try '-vv' for even more info".yellow().dimmed(),)
-                    }
-                    _v => {
-                        let graph = runtime.graph();
-                        let graph = graph.read().await;
-                        // Iter much?
-                        let mut graph_walk = graph.walk();
-                        let walk_iter = graph_walk.iter().map(Ok);
-                        let mut decision_iter = formatter.formatted_decisions_iter(walk_iter);
-                        let iter = decision_iter.iter();
-                        tokio::pin!(iter);
-                        while let Some(line) = iter.try_next().await? {
-                            println!("{line}");
-                        }
-                    }
-                }
-
-                return Ok(1);
-            }
-        };
-
-        for item in solution.items() {
-            if item.spec.name() == request.pkg.name {
-                serde_yaml::to_writer(std::io::stdout(), &*item.spec)
-                    .context("Failed to serialize loaded spec")?;
-                return Ok(0);
-            }
+        if self.full_solve {
+            // This is the older way. It runs a full solve. It's here
+            // for backwards compatibility, and has to be opted-in to use.
+            // TODO: we can remove this, along with the solving call, once the
+            // no solving method is bedded in.
+            self.print_package_info_from_solve(package).await
+        } else {
+            // Look up the requested package without doing a complete
+            // dependency solve.  This is the newer way. It is the
+            // default.
+            self.print_package_info(package).await
         }
-        tracing::error!("Internal Error: requested package was not in solution");
-        Ok(1)
     }
 }
 
@@ -356,5 +331,205 @@ impl View {
         }
 
         Ok(0)
+    }
+
+    /// Display information on the package by looking up its
+    /// specification or recipe directly based on these rules about
+    /// what is in the given package identifier.
+    ///
+    /// ```txt
+    /// spk info python <-- outputs the version spec for the latest python version
+    /// spk info python/3 <!- error, no version spec for python/3 (show available versions)
+    /// spk info python/3.7.3 <-- outputs the version spec
+    /// spk info python/3.7.3/src <-- outputs the build spec
+    /// spk info python/3.7.3/F4E632 <-- outputs the build spec
+    /// ```
+    async fn print_package_info(&self, package: &String) -> Result<i32> {
+        let solver = self.solver.get_solver(&self.options).await?;
+        let repos = solver.repositories();
+
+        let parsed_request = match self
+            .requests
+            .parse_request(&package, &self.options, repos)
+            .await
+        {
+            Ok(req) => req,
+            Err(err) => {
+                bail!("Was this meant to be a package or a filepath under /spfs? : {err}")
+            }
+        };
+
+        let mut request = match parsed_request {
+            Request::Pkg(pkg) => pkg,
+            _ => bail!("Not a package request: {parsed_request:?}"),
+        };
+
+        // Request has a build, e.g.
+        //   spk info python/3.7.3/src    --> output the build's spec
+        //   spk info python/3.7.3/F4E632 --> output the build's spec
+        if request.pkg.build.is_some() {
+            let ident: BuildIdent = request.pkg.clone().try_into()?;
+            for repo in repos {
+                if let Ok(package_spec) = repo.read_package(&ident).await {
+                    match &self.format {
+                        OutputFormat::Yaml => {
+                            serde_yaml::to_writer(std::io::stdout(), &*package_spec)
+                                .context("Failed to serialize loaded spec")?
+                        }
+                        OutputFormat::Json => {
+                            serde_json::to_writer(std::io::stdout(), &*package_spec)
+                                .context("Failed to serialize loaded spec")?
+                        }
+                    }
+                    return Ok(0);
+                };
+            }
+
+            tracing::error!("Error: no such package/version/build found: {package}",);
+            return Ok(1);
+        }
+
+        // Request is just a package name, e.g.
+        //   spk info python --> output the version spec for the package's highest version
+        request = request
+            .with_version_or_else(DefaultVersionStrategy::Highest, repos)
+            .await?;
+
+        // Request is for a package/version, e.g.
+        //   spk info python/3.7.3 --> output the version's spec (a recipe)
+        if !request.pkg.version.is_empty() {
+            let temp_ident: AnyIdent = request.pkg.clone().try_into()?;
+            let ident: VersionIdent = temp_ident.to_version();
+            for repo in repos {
+                if let Ok(version_recipe) = repo.read_recipe(&ident).await {
+                    match &self.format {
+                        OutputFormat::Yaml => {
+                            serde_yaml::to_writer(std::io::stdout(), &*version_recipe)
+                                .context("Failed to serialize loaded spec")?
+                        }
+                        OutputFormat::Json => {
+                            serde_json::to_writer(std::io::stdout(), &*version_recipe)
+                                .context("Failed to serialize loaded spec")?
+                        }
+                    }
+                    return Ok(0);
+                };
+            }
+        }
+
+        // Request is for a package/version that does not exist in the repos, e.g.
+        //   spk info python/3   --> error, no version spec for python/3
+        //   show list of versions instead
+        tracing::info!("No version {} found for {package}", request.pkg.version);
+        tracing::info!(
+            "However, these versions are available for {}, some may be deprecated:",
+            request.pkg.name
+        );
+
+        let name = request.pkg.name.clone();
+        let versions = self.get_package_versions(&name, repos).await?;
+        tracing::info!(
+            "{}",
+            versions
+                .iter()
+                .map(|v| format!("{name}/{v}"))
+                .collect::<Vec<String>>()
+                .join("\n")
+        );
+
+        Ok(0)
+    }
+
+    /// Helper to get all the versions for the given package name in these repo
+    async fn get_package_versions(
+        &self,
+        name: &PkgNameBuf,
+        repos: &Vec<std::sync::Arc<spk_solve::RepositoryHandle>>,
+    ) -> Result<Vec<Version>> {
+        let mut versions = Vec::new();
+        for repo in repos {
+            versions.extend(
+                repo.list_package_versions(name)
+                    .await?
+                    .iter()
+                    .map(|v| (**v).clone()),
+            );
+        }
+
+        versions.sort();
+        Ok(versions)
+    }
+
+    /// Original info gathering process using a solver to resolve the
+    /// request for package and select the package build in the
+    /// solution as the one to display information about.
+    async fn print_package_info_from_solve(&self, package: &String) -> Result<i32> {
+        let mut solver = self.solver.get_solver(&self.options).await?;
+
+        let request = match self
+            .requests
+            .parse_request(&package, &self.options, solver.repositories())
+            .await
+        {
+            Ok(req) => req,
+            Err(err) => {
+                bail!("Was this meant to be a package or a filepath under /spfs? : {err}")
+            }
+        };
+
+        solver.add_request(request.clone());
+        let request = match request {
+            Request::Pkg(pkg) => pkg,
+
+            _ => bail!("Not a package request: {request:?}"),
+        };
+
+        let mut runtime = solver.run();
+
+        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
+
+        let result = formatter.run_and_print_decisions(&mut runtime).await;
+        let solution = match result {
+            Ok((s, _)) => s,
+            Err(err) => {
+                println!("{}", err.to_string().red());
+                match self.verbose {
+                    0 => eprintln!("{}", "try '--verbose' for more info".yellow().dimmed(),),
+                    v if v < 2 => {
+                        eprintln!("{}", "try '-vv' for even more info".yellow().dimmed(),)
+                    }
+                    _v => {
+                        let graph = runtime.graph();
+                        let graph = graph.read().await;
+                        // Iter much?
+                        let mut graph_walk = graph.walk();
+                        let walk_iter = graph_walk.iter().map(Ok);
+                        let mut decision_iter = formatter.formatted_decisions_iter(walk_iter);
+                        let iter = decision_iter.iter();
+                        tokio::pin!(iter);
+                        while let Some(line) = iter.try_next().await? {
+                            println!("{line}");
+                        }
+                    }
+                }
+
+                return Ok(1);
+            }
+        };
+
+        for item in solution.items() {
+            if item.spec.name() == request.pkg.name {
+                match &self.format {
+                    OutputFormat::Yaml => serde_yaml::to_writer(std::io::stdout(), &*item.spec)
+                        .context("Failed to serialize loaded spec")?,
+                    OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &*item.spec)
+                        .context("Failed to serialize loaded spec")?,
+                }
+                return Ok(0);
+            }
+        }
+
+        tracing::error!("Internal Error: requested package was not in solution");
+        Ok(1)
     }
 }

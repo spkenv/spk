@@ -390,24 +390,6 @@ impl Solution {
         out
     }
 
-    /// Helper to find the highest version number for package across
-    /// all the given repositories.
-    pub async fn find_highest_package_version(
-        &self,
-        name: PkgNameBuf,
-        repos: &[Arc<RepositoryHandle>],
-    ) -> Result<Arc<Version>> {
-        let mut max_version = Arc::new(Version::default());
-        for repo in repos.iter() {
-            if let Some(highest_version) = repo.highest_package_version(&name).await? {
-                if highest_version > max_version {
-                    max_version = highest_version;
-                }
-            };
-        }
-        Ok(max_version)
-    }
-
     /// Helper to get the highest versions of all packages in this `Solution` in all the
     /// given repositories.
     pub async fn get_all_highest_package_versions(
@@ -417,9 +399,7 @@ impl Solution {
         let mut highest_versions: HashMap<PkgNameBuf, Arc<Version>> = HashMap::new();
 
         for name in self.resolved.iter().map(|r| r.request.pkg.name.clone()) {
-            let max_version = self
-                .find_highest_package_version(name.clone(), repos)
-                .await?;
+            let max_version = find_highest_package_version(name.clone(), repos).await?;
             highest_versions.insert(name.clone(), max_version);
         }
         Ok(highest_versions)
@@ -574,4 +554,20 @@ impl FormatSolution for Solution {
 
         self.format_solution_without_padding_or_highest(verbosity)
     }
+}
+
+/// Helper for finding the highest version number of a package in a list of repositories
+pub async fn find_highest_package_version(
+    name: PkgNameBuf,
+    repos: &[Arc<RepositoryHandle>],
+) -> Result<Arc<Version>> {
+    let mut max_version = Arc::new(Version::default());
+    for repo in repos.iter() {
+        if let Some(highest_version) = repo.highest_package_version(&name).await? {
+            if highest_version > max_version {
+                max_version = highest_version;
+            }
+        };
+    }
+    Ok(max_version)
 }
