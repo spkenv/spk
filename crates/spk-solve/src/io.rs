@@ -1186,7 +1186,8 @@ impl DecisionFormatter {
             "spk explain {} {}",
             requests.join(" "),
             vars.iter()
-                .map(|v| format!("-o {}={:?}", v.var, v.value))
+                .filter(|v| !v.value.is_from_build_env())
+                .map(|v| format!("-o {}={}", v.var, v.value.as_pinned().unwrap()))
                 .collect::<Vec<String>>()
                 .join(" ")
         );
