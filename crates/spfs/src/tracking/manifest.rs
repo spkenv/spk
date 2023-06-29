@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::prelude::FileTypeExt;
 use std::pin::Pin;
@@ -143,6 +143,18 @@ impl<T> Manifest<T>
 where
     T: Clone,
 {
+    /// Same as list_dir() but instead,
+    /// lists the entries that exist inside the directory.
+    ///
+    /// None is also returned if the entry is not a directory.
+    pub fn list_entries_in_dir(&self, path: &str) -> Option<&HashMap<String, Entry<T>>> {
+        let entry = self.get_path(path)?;
+        match entry.kind {
+            EntryKind::Tree => Some(&entry.entries),
+            _ => None,
+        }
+    }
+
     /// Layer another manifest on top of this one
     pub fn update(&mut self, other: &Self) {
         self.root.update(&other.root)

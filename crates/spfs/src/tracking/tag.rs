@@ -66,6 +66,13 @@ impl Tag {
             self.name.clone()
         }
     }
+
+    pub fn username_without_org(&self) -> &str {
+        self.user
+            .split('@')
+            .next()
+            .expect("Always one item from str::split")
+    }
 }
 
 impl std::cmp::Ord for Tag {
