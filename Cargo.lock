@@ -542,14 +542,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cnproc"
-version = "0.2.1"
-source = "git+https://github.com/rydrman/cnproc-rs?branch=act-like-iterator#07184c89401cc0a49f15cd9a00552cbb003b82e5"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "colorchoice"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3142,7 +3134,6 @@ dependencies = [
  "caps",
  "chrono",
  "close-err",
- "cnproc",
  "colored",
  "config",
  "criterion",

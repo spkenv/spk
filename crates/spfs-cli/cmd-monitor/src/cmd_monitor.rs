@@ -18,9 +18,28 @@ use tokio::io::AsyncReadExt;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::timeout;
 
-// Managing sentry initialization manually in this command due to how it
-// daemonizes itself.
-cli::main!(CmdMonitor, sentry = false, sync = true, syslog = true);
+fn main() {
+    // because this function exits right away it does not
+    // properly handle destruction of data, so we put the actual
+    // logic into a separate function/scope
+    std::process::exit(main2())
+}
+fn main2() -> i32 {
+    let mut opt = CmdMonitor::parse();
+    opt.logging
+        .log_file
+        .get_or_insert("/tmp/spfs-runtime/monitor.log".into());
+
+    // This disables sentry (the first boolean literal), and enables
+    // syslog (the second literal). The sentry initialization is
+    // managed directly in this command due to how it daemonizes
+    // itself.
+    let (config, _empty_sentry_guard) = cli::configure!(opt, false, true);
+
+    let result = opt.run(&config);
+
+    spfs_cli_common::handle_result!(result)
+}
 
 /// Takes ownership of, and is responsible for monitoring an active runtime.
 ///
@@ -30,6 +49,14 @@ cli::main!(CmdMonitor, sentry = false, sync = true, syslog = true);
 pub struct CmdMonitor {
     #[clap(flatten)]
     pub logging: cli::Logging,
+
+    /// Do not change the current working directory to / when daemonizing
+    #[clap(long, env = "SPFS_MONITOR_NO_CHDIR")]
+    no_chdir: bool,
+
+    /// Do not close stdin, stdout, and stderr when daemonizing
+    #[clap(long, env = "SPFS_MONITOR_NO_CLOSE")]
+    no_close: bool,
 
     /// The address of the storage being used for runtimes
     #[clap(long)]
@@ -59,9 +86,7 @@ impl CmdMonitor {
         // clean up this runtime and all other threads before detaching
         drop(rt);
 
-        const NO_CHDIR: bool = false;
-        const NO_CLOSE: bool = false;
-        nix::unistd::daemon(NO_CHDIR, NO_CLOSE)
+        nix::unistd::daemon(self.no_chdir, self.no_close)
             .context("Failed to daemonize the monitor process")?;
 
         #[cfg(feature = "sentry")]
@@ -123,8 +148,10 @@ impl CmdMonitor {
         let repo = spfs::open_repository(&self.runtime_storage).await?;
         let storage = spfs::runtime::Storage::new(repo);
         let runtime = storage.read_runtime(&self.runtime).await?;
+        tracing::trace!("read runtime from storage repo");
 
         let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_monitor(runtime).await?;
+        tracing::trace!("upgraded to owned runtime, waiting for empty runtime");
 
         let fut = spfs::monitor::wait_for_empty_runtime(&owned);
         let res = tokio::select! {
@@ -138,6 +165,7 @@ impl CmdMonitor {
             _ = interrupt.recv() => Err(spfs::Error::String("Interrupt signal received, cleaning up runtime early".to_string())),
             _ = quit.recv() => Err(spfs::Error::String("Quit signal received, cleaning up runtime early".to_string())),
         };
+        tracing::trace!("runtime empty of processes ");
 
         // try to set the running to false to make this
         // runtime easier to identify as safe to delete
@@ -146,10 +174,12 @@ impl CmdMonitor {
         owned.status.running = false;
         let _ = owned.save_state_to_storage().await;
 
+        tracing::trace!("tearing down and exiting");
         if let Err(err) = spfs::exit_runtime(&owned).await {
             tracing::error!("failed to tear down runtime: {err:?}");
         }
 
+        tracing::trace!("deleting runtime data");
         if let Err(err) = owned.delete().await {
             tracing::error!("failed to clean up runtime data: {err:?}");
         }
