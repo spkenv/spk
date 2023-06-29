@@ -237,7 +237,7 @@ where
                                 .get_pkg_requests()
                                 .iter()
                                 .map(|r| r.format_request(
-                                    &r.pkg.repository_name,
+                                    r.pkg.repository_name.as_ref(),
                                     &r.pkg.name,
                                     &FormatChangeOptions {
                                         verbosity: self.verbosity,

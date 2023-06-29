@@ -481,7 +481,7 @@ impl Runtime {
     /// defined location.
     pub fn ensure_startup_scripts(
         &self,
-        tmpdir_value_for_child_process: &Option<String>,
+        tmpdir_value_for_child_process: Option<&String>,
     ) -> Result<()> {
         std::fs::write(
             &self.config.sh_startup_file,

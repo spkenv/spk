@@ -84,12 +84,9 @@ impl Run for CmdTest {
                 }
             };
 
-            let (recipe, filename) = flags::find_package_recipe_from_template_or_repo(
-                &Some(name.clone()),
-                &options,
-                &repos,
-            )
-            .await?;
+            let (recipe, filename) =
+                flags::find_package_recipe_from_template_or_repo(Some(&name), &options, &repos)
+                    .await?;
 
             for stage in stages {
                 tracing::info!("Testing {}@{stage}...", filename.display());

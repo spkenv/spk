@@ -209,7 +209,7 @@ impl CmdEnter {
                 }
             };
 
-            owned.ensure_startup_scripts(&self.enter.tmpdir)?;
+            owned.ensure_startup_scripts(self.enter.tmpdir.as_ref())?;
             std::env::set_var("SPFS_RUNTIME", owned.name());
 
             Ok(Some(owned))

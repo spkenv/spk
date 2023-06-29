@@ -32,9 +32,12 @@ impl Run for NumVariants {
             .map(|(_, r)| Arc::new(r))
             .collect::<Vec<_>>();
 
-        let (recipe, _) =
-            flags::find_package_recipe_from_template_or_repo(&self.package, &options, &repos)
-                .await?;
+        let (recipe, _) = flags::find_package_recipe_from_template_or_repo(
+            self.package.as_ref(),
+            &options,
+            &repos,
+        )
+        .await?;
 
         println!("{}", recipe.default_variants().len());
 

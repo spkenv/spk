@@ -59,7 +59,7 @@ pub trait FormatRequest {
     /// Create a canonical string to describe the combined request for a package.
     fn format_request(
         &self,
-        repository_name: &Option<RepositoryNameBuf>,
+        repository_name: Option<&RepositoryNameBuf>,
         name: &PkgName,
         format_settings: &FormatChangeOptions,
     ) -> String;

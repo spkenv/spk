@@ -131,7 +131,7 @@ impl View {
     }
 
     fn print_variants_info(&self, options: &OptionMap) -> Result<i32> {
-        let (_, template) = flags::find_package_template(&self.package)
+        let (_, template) = flags::find_package_template(self.package.as_ref())
             .context("find package template")?
             .must_be_found();
         let recipe = template.render(options)?;
