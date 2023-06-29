@@ -33,14 +33,12 @@ pub struct CmdJoin {
     /// The name or id of the runtime to join
     runtime: Option<String>,
 
-    /// The command to run after initialization
+    /// The command and extra arguments to run after initialization
     ///
-    /// If not given, run an interactive shell environment
+    /// If not given, run an interactive shell environment. If given, it must
+    /// be separated from the other arguments with `--`.
     #[arg(last = true)]
-    command: Option<OsString>,
-
-    /// Additional arguments to provide to the command
-    args: Vec<OsString>,
+    command: Vec<OsString>,
 }
 
 impl CommandName for CmdJoin {
@@ -120,10 +118,10 @@ impl CmdJoin {
     }
 
     fn exec_runtime_command(&mut self, rt: &spfs::runtime::Runtime) -> Result<i32> {
-        let cmd = match self.command.take() {
+        let cmd = match self.command.first() {
             Some(exe) if !exe.is_empty() => {
                 tracing::debug!("executing runtime command");
-                spfs::build_shell_initialized_command(rt, None, exe, self.args.drain(..))?
+                spfs::build_shell_initialized_command(rt, None, exe, self.command.iter().skip(1))?
             }
             _ => {
                 tracing::debug!("starting interactive shell environment");
