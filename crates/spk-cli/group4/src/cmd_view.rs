@@ -337,12 +337,13 @@ impl View {
     /// specification or recipe directly based on these rules about
     /// what is in the given package identifier.
     ///
+    /// ```txt
     /// spk info python <-- outputs the version spec for the latest python version
     /// spk info python/3 <!- error, no version spec for python/3 (show available versions)
     /// spk info python/3.7.3 <-- outputs the version spec
     /// spk info python/3.7.3/src <-- outputs the build spec
     /// spk info python/3.7.3/F4E632 <-- outputs the build spec
-    ///
+    /// ```
     async fn print_package_info(&self, package: &String) -> Result<i32> {
         let solver = self.solver.get_solver(&self.options).await?;
         let repos = solver.repositories();

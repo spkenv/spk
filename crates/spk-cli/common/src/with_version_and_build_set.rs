@@ -13,13 +13,13 @@ use spk_solve::{PkgRequest, RepositoryHandle};
 use crate::Error;
 
 /// Enum for the strategy to use to select the version in the
-/// WithVersionSet trait if the version is not set.
+/// [`WithVersionSet`] trait if the version is not set.
 pub enum DefaultVersionStrategy {
     Highest,
 }
 
 /// Enum for the strategy to use to select the build in the
-/// WithVersionAndBuildSet trait if the build is not set.
+/// [`WithVersionAndBuildSet`] trait if the build is not set.
 pub enum DefaultBuildStrategy {
     First,
     Last,
@@ -95,7 +95,7 @@ impl WithVersionAndBuildSet for PkgRequest {
         repos: &[Arc<RepositoryHandle>],
     ) -> Result<PkgRequest> {
         if self.pkg.build.is_some() {
-            Ok(self.clone())
+            return Ok(self.clone());
         } else {
             // Has no build, need to make sure it has a version first
             let mut new_request = self.with_version_or_else(select_version_by, repos).await?;
