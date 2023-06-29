@@ -415,7 +415,7 @@ impl Requests {
                             }
                             None => recipe.get_build_requirements(&options)?,
                         };
-                        out.extend(requirements);
+                        out.extend(requirements.into_owned());
                     }
 
                     TestStage::Install => {

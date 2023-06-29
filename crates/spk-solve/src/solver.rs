@@ -361,7 +361,14 @@ impl Solver {
         }
         for var_request in state.get_var_requests() {
             if !opts.contains_key(&var_request.var) {
-                opts.insert(var_request.var.clone(), var_request.value.clone());
+                opts.insert(
+                    var_request.var.clone(),
+                    var_request
+                        .value
+                        .as_pinned()
+                        .unwrap_or_default()
+                        .to_string(),
+                );
             }
         }
 
@@ -986,7 +993,11 @@ impl Solver {
         let state = self.get_initial_state();
 
         let build_options = recipe.resolve_options(state.get_option_map())?;
-        for req in recipe.get_build_requirements(&build_options)? {
+        for req in recipe
+            .get_build_requirements(&build_options)?
+            .iter()
+            .cloned()
+        {
             self.add_request(req)
         }
 

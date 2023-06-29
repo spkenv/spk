@@ -87,7 +87,7 @@ impl Ord for CompatRule {
 }
 
 /// Denotes whether or not something is compatible.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IncompatibleReason {
     ConflictingEmbeddedPackage(PkgNameBuf),
     Other(String),
@@ -109,7 +109,7 @@ impl std::fmt::Display for IncompatibleReason {
 
 /// Denotes whether or not something is compatible.
 #[must_use = "this `Compatibility` may be an `Incompatible` variant, which should be handled"]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Compatibility {
     Compatible,
     Incompatible(IncompatibleReason),
@@ -129,8 +129,8 @@ impl std::ops::Not for &'_ Compatibility {
 
     fn not(self) -> Self::Output {
         match self {
-            super::Compatibility::Compatible => false,
-            super::Compatibility::Incompatible(_) => true,
+            Compatibility::Compatible => false,
+            Compatibility::Incompatible(_) => true,
         }
     }
 }
@@ -142,6 +142,8 @@ impl Compatibility {
         ))
     }
 
+    /// Creates a compatibility instance denoting incompatibility
+    /// for the provided reason
     pub fn incompatible(message: impl ToString) -> Self {
         Compatibility::Incompatible(IncompatibleReason::Other(message.to_string()))
     }

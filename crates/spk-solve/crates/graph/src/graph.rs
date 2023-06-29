@@ -119,10 +119,13 @@ impl FormatChange for Change {
                 format!(
                     "{} {}{}",
                     Self::get_request_change_label(format_settings.level).blue(),
-                    option_map! {c.request.var.clone() => c.request.value.clone()}
+                    option_map! {c.request.var.clone() => c.request.value.as_pinned().unwrap_or_default()}
                         .format_option_map(),
                     if format_settings.verbosity > PkgRequest::SHOW_REQUEST_DETAILS {
-                        format!(" fromBuildEnv: {}", c.request.pin.to_string().cyan())
+                        format!(
+                            " fromBuildEnv: {}",
+                            c.request.value.is_from_build_env().to_string().cyan()
+                        )
                     } else {
                         "".to_string()
                     }
@@ -263,7 +266,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             let requester_ident: &BuildIdent = spec.ident();
             let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
             changes
-                .extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
+                .extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
             changes.extend(self.components_to_changes(spec.components(), requester_ident));
             changes.extend(self.embedded_to_changes(spec.embedded(), requester_ident));
             changes.push(Self::options_to_change(spec));
@@ -286,7 +289,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
 
         let requester_ident: &BuildIdent = spec.ident();
         let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
-        changes.extend(self.requirements_to_changes(spec.runtime_requirements(), &requested_by));
+        changes.extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
         changes.extend(self.components_to_changes(spec.components(), requester_ident));
         changes.extend(self.embedded_to_changes(spec.embedded(), requester_ident));
         changes.push(Self::options_to_change(&spec));
@@ -447,10 +450,9 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             spec.name().as_opt_name().to_owned(),
             spec.compat().render(spec.version()),
         );
-        for opt in spec.options() {
-            let value = opt.get_value(None);
+        for (name, value) in spec.option_values() {
             if !value.is_empty() {
-                let name = opt.full_name().with_default_namespace(spec.name());
+                let name = name.with_default_namespace(spec.name());
                 opts.insert(name, value);
             }
         }
@@ -891,7 +893,16 @@ impl RequestVar {
         }
         let options = SetOptions::compute_new_options(
             base,
-            vec![(&self.request.var, &self.request.value)].into_iter(),
+            vec![(
+                &self.request.var,
+                &self
+                    .request
+                    .value
+                    .as_pinned()
+                    .map(str::to_string)
+                    .unwrap_or_default(),
+            )]
+            .into_iter(),
             true,
         );
         Arc::new(base.with_var_requests_and_options(parent, new_requests, options))

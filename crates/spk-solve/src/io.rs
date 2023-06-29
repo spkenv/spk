@@ -267,7 +267,7 @@ where
                             node.state
                                 .get_var_requests()
                                 .iter()
-                                .map(|v| format!("{}: {}", v.var, v.value))
+                                .map(|v| format!("{}: {}", v.var, v.value.as_pinned().unwrap_or_default()))
                                 .collect::<Vec<String>>()
                                 .join(", ")
                         ));

@@ -712,8 +712,7 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
         solver.add_request(
             VarRequest {
                 var: opt_name!("python").to_owned(),
-                pin: false,
-                value: pyver.to_string(),
+                value: pyver.into(),
             }
             .into(),
         );
@@ -721,8 +720,11 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
         let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
         let resolved = solution.get("vnp3").unwrap();
-        let opt = resolved.spec.options().get(0).unwrap();
-        let value = opt.get_value(None);
+        let value = resolved
+            .spec
+            .option_values()
+            .remove(opt_name!("python"))
+            .unwrap();
 
         // Check the first digit component of the pyver value
         let expected = if pyver.starts_with('~') {

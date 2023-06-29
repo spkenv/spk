@@ -173,7 +173,7 @@ fn test_var_request_pinned_roundtrip() {
         "should be able to round-trip serialize a var request with pin"
     );
     assert!(
-        res.unwrap().into_var().unwrap().pin,
+        res.unwrap().into_var().unwrap().value.is_from_build_env(),
         "should preserve pin value"
     );
 }

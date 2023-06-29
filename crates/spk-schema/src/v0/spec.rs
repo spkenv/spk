@@ -193,10 +193,6 @@ impl Package for Spec<BuildIdent> {
         opts
     }
 
-    fn options(&self) -> &Vec<Opt> {
-        &self.build.options
-    }
-
     fn sources(&self) -> &Vec<SourceSpec> {
         &self.sources
     }
@@ -229,8 +225,56 @@ impl Package for Spec<BuildIdent> {
         &self.install.environment
     }
 
-    fn runtime_requirements(&self) -> &RequirementsList {
-        &self.install.requirements
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
+        Cow::Borrowed(&self.install.requirements)
+    }
+
+    fn downstream_build_requirements<'a>(
+        &self,
+        _components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        let requests = self
+            .build
+            .options
+            .iter()
+            .filter_map(|opt| match opt {
+                Opt::Var(v) => Some(v),
+                Opt::Pkg(_) => None,
+            })
+            .filter(|o| o.inheritance != Inheritance::Weak)
+            .map(|o| {
+                let var = o.var.with_default_namespace(self.name());
+                VarRequest {
+                    var,
+                    // we are assuming that the var here will have a value because
+                    // this is a built binary package
+                    value: o.get_value(None).unwrap_or_default().into(),
+                }
+            })
+            .map(Request::Var);
+        RequirementsList::try_from_iter(requests)
+            .map(Cow::Owned)
+            .expect("build opts do not contain duplicates")
+    }
+
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        _components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList> {
+        let requests = self
+            .build
+            .options
+            .iter()
+            .filter_map(|opt| match opt {
+                Opt::Var(v) => Some(v),
+                Opt::Pkg(_) => None,
+            })
+            .filter(|o| o.inheritance == Inheritance::Strong)
+            .map(|o| VarRequest::new(o.var.with_default_namespace(self.name())))
+            .map(Request::Var);
+        RequirementsList::try_from_iter(requests)
+            .map(Cow::Owned)
+            .expect("build opts do not contain duplicates")
     }
 
     fn validation(&self) -> &ValidationSpec {
@@ -239,6 +283,34 @@ impl Package for Spec<BuildIdent> {
 
     fn build_script(&self) -> String {
         self.build.script.join("\n")
+    }
+
+    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
+        let mut must_exist = given_options.package_options_without_global(self.name());
+        let given_options = given_options.package_options(self.name());
+        for option in self.build.options.iter() {
+            let value = given_options
+                .get(option.full_name().without_namespace())
+                .map(String::as_str);
+            let compat = option.validate(value);
+            if !compat.is_ok() {
+                return Compatibility::incompatible(format!(
+                    "invalid value for {}: {compat}",
+                    option.full_name(),
+                ));
+            }
+
+            must_exist.remove(option.full_name().without_namespace());
+        }
+
+        if !must_exist.is_empty() {
+            let missing = must_exist;
+            return Compatibility::incompatible(format!(
+                "Package does not define requested build options: {missing:?}",
+            ));
+        }
+
+        Compatibility::Compatible
     }
 }
 
@@ -289,14 +361,14 @@ impl Recipe for Spec<VersionIdent> {
         Ok(resolved)
     }
 
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
     where
         V: Variant,
     {
         let opts = self.build.opts_for_variant(variant)?;
         let options = self.resolve_options(variant)?;
         let build_digest = Build::Digest(options.digest());
-        let mut requests = Vec::new();
+        let mut requests = RequirementsList::default();
         for opt in opts {
             match opt {
                 Opt::Pkg(opt) => {
@@ -309,7 +381,7 @@ impl Recipe for Spec<VersionIdent> {
                         // inject the default component for this context if needed
                         req.pkg.components.insert(Component::default_for_build());
                     }
-                    requests.push(req.into());
+                    requests.insert_or_merge(req.into())?;
                 }
                 Opt::Var(opt) => {
                     // If no value was specified in the spec, there's
@@ -317,13 +389,13 @@ impl Recipe for Spec<VersionIdent> {
                     // find a var with an empty value.
                     if let Some(value) = options.get(&opt.var) {
                         if !value.is_empty() {
-                            requests.push(opt.to_request(Some(value)).into());
+                            requests.insert_or_merge(opt.to_request(Some(value)).into())?;
                         }
                     }
                 }
             }
         }
-        Ok(requests)
+        Ok(Cow::Owned(requests))
     }
 
     fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<TestSpec>>
@@ -379,33 +451,6 @@ impl Recipe for Spec<VersionIdent> {
             .into_iter()
             .map(|p| (p.name().to_owned(), p))
             .collect();
-        for (dep_name, dep_spec) in specs.iter() {
-            for opt in dep_spec.options().iter() {
-                if let Opt::Var(opt) = opt {
-                    if let Inheritance::Weak = opt.inheritance {
-                        continue;
-                    }
-                    let mut inherited_opt = opt.clone();
-                    if inherited_opt.var.namespace().is_none() {
-                        inherited_opt.var = inherited_opt.var.with_namespace(dep_name);
-                    }
-                    inherited_opt.inheritance = Inheritance::Weak;
-                    if let Inheritance::Strong = opt.inheritance {
-                        let mut req = VarRequest::new(inherited_opt.var.clone());
-                        req.pin = true;
-                        updated.install.upsert_requirement(Request::Var(req));
-                    }
-                    updated.build.upsert_opt(Opt::Var(inherited_opt));
-                }
-            }
-        }
-
-        for e in updated.install.embedded.iter() {
-            updated
-                .build
-                .options
-                .extend(e.options().clone().into_iter());
-        }
 
         for opt in updated.build.options.iter_mut() {
             match opt {
@@ -559,15 +604,16 @@ where
                 }
                 Compatibility::Compatible
             }
-            Some(Opt::Pkg(opt)) => opt.validate(Some(&var_request.value)),
+            Some(Opt::Pkg(opt)) => opt.validate(var_request.value.as_pinned()),
             Some(Opt::Var(opt)) => {
-                let exact = opt.get_value(Some(&var_request.value));
-                if exact.as_deref() != Some(&var_request.value) {
+                let request_value = var_request.value.as_pinned();
+                let exact = opt.get_value(request_value);
+                if exact.as_deref() != request_value {
                     Compatibility::incompatible(format!(
                         "Incompatible build option '{}': '{}' != '{}'",
                         var_request.var,
                         exact.unwrap_or_else(|| "None".to_string()),
-                        var_request.value
+                        request_value.unwrap_or_default()
                     ))
                 } else {
                     Compatibility::Compatible

@@ -3,9 +3,10 @@
 // https://github.com/imageworks/spk
 use std::cmp::min;
 use std::collections::BTreeMap;
-use std::fmt::{Pointer, Write};
+use std::fmt::Write;
 use std::marker::PhantomData;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
@@ -95,7 +96,7 @@ impl std::str::FromStr for InclusionPolicy {
 #[serde(untagged)]
 pub enum Request {
     Pkg(PkgRequest),
-    Var(VarRequest),
+    Var(VarRequest<PinnableValue>),
 }
 
 impl Request {
@@ -235,21 +236,11 @@ impl<'de> Deserialize<'de> for Request {
                         requested_by: Default::default(),
                     })),
                     (None, Some(var)) => {
-                        match self.value.as_ref() {
-                            Some(value) if self.pin.as_ref().map(PinValue::is_some).unwrap_or_default() => {
-                                Err(serde::de::Error::custom(
-                                    format!("request for `{var}` cannot specify a value `/{value}` when `fromBuildEnv` is true")
-                                ))
-                            }
-                            None if self.pin.is_none() => Err(serde::de::Error::custom(
-                                format!("request for `{var}` must specify a value (eg: {var}/<value>) when `fromBuildEnv` is false or omitted")
-                            )),
-                            _ => Ok(Request::Var(VarRequest {
-                                var,
-                                pin: self.pin.unwrap_or_default().into_var_pin()?,
-                                value: self.value.unwrap_or_default(),
-                            }))
-                        }
+                        let value = self.pin.unwrap_or_default().into_var_pin(&var, self.value.take())?;
+                        Ok(Request::Var(VarRequest {
+                            var,
+                            value,
+                        }))
                     },
                     (Some(_), Some(_)) => Err(serde::de::Error::custom(
                         "could not determine request type, it may only contain one of the `pkg` or `var` fields"
@@ -268,54 +259,62 @@ impl<'de> Deserialize<'de> for Request {
 
 /// A set of restrictions placed on selected packages' build options.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct VarRequest {
+pub struct VarRequest<T = PinnableValue> {
     pub var: OptNameBuf,
-    pub pin: bool,
-    pub value: String,
+    pub value: T,
 }
 
-#[derive(Serialize, Deserialize)]
-struct VarRequestSchema {
-    var: String,
-    #[serde(rename = "fromBuildEnv", default, skip_serializing_if = "is_false")]
-    pin: bool,
-}
-
-impl VarRequest {
+impl<T: Default> VarRequest<T> {
     /// Create a new empty request for the named variable
     pub fn new<S: Into<OptNameBuf>>(name: S) -> Self {
         Self {
             var: name.into(),
-            pin: false,
             value: Default::default(),
         }
     }
+}
 
+impl<T> VarRequest<T> {
     /// Create a new request for the named variable at the specified value
     pub fn new_with_value<N, V>(name: N, value: V) -> Self
     where
         N: Into<OptNameBuf>,
-        V: Into<String>,
+        V: Into<T>,
     {
         Self {
             var: name.into(),
-            pin: false,
             value: value.into(),
         }
     }
+}
 
-    /// Create a copy of this request with it's pin rendered out using 'var'.
-    pub fn render_pin<S: Into<String>>(&self, value: S) -> Result<VarRequest> {
-        if !self.pin {
+impl VarRequest<PinnableValue> {
+    /// Create a copy of this request with its pin rendered out using 'var'.
+    pub fn render_pin<S: Into<Arc<str>>>(&self, value: S) -> Result<VarRequest> {
+        if !self.value.is_from_build_env() {
             return Err(Error::String(
                 "Request has no pin to be rendered".to_string(),
             ));
         }
 
-        let mut new = self.clone();
-        new.pin = false;
-        new.value = value.into();
-        Ok(new)
+        Ok(VarRequest {
+            var: self.var.clone(),
+            value: PinnableValue::Pinned(value.into()),
+        })
+    }
+
+    /// Create a copy of this request with its pin rendered out using 'var'.
+    pub fn into_pinned<S: Into<String>>(self, value: S) -> Result<VarRequest<String>> {
+        if !self.value.is_from_build_env() {
+            return Err(Error::String(
+                "Request has no pin to be rendered".to_string(),
+            ));
+        }
+
+        Ok(VarRequest {
+            var: self.var,
+            value: value.into(),
+        })
     }
 
     /// Check if this package spec satisfies the given var request.
@@ -325,21 +324,121 @@ impl VarRequest {
     {
         spec.check_satisfies_request(self)
     }
+
+    /// True if this request is as least as restrictive as the other. In other words,
+    /// if satisfying this request would undoubtedly satisfy the other.
+    pub fn contains(&self, other: &Self) -> Compatibility {
+        if self.var.base_name() != other.var.base_name() {
+            return Compatibility::incompatible(format!(
+                "request is for a different var altogether [{} != {}]",
+                self.var, other.var
+            ));
+        }
+        let ns = self.var.namespace();
+        if ns.is_some() && ns != other.var.namespace() {
+            return Compatibility::incompatible(format!(
+                "request specifies a different namespace [{} != {}]",
+                self.var, other.var
+            ));
+        }
+        let (Some(self_value), Some(other_value)) = (&self.value.as_pinned(), &other.value.as_pinned()) else {
+            // we cannot consider a request that still needs to be pinned as
+            // containing any other because the ultimate value of this request
+            // is unknown
+            return Compatibility::incompatible(
+                "fromBuildEnv requests cannot be reasonably compared".to_string(),
+            );
+        };
+        if !other_value.is_empty() && self_value != other_value {
+            return Compatibility::incompatible(format!(
+                "requests require different values [{self_value:?} != {other_value:?}]",
+            ));
+        }
+        Compatibility::Compatible
+    }
 }
 
-impl Serialize for VarRequest {
+impl std::fmt::Display for VarRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // break apart to ensure that new fields are incorporated into this
+        // function if they are added in the future
+        let Self { var, value } = self;
+        f.write_str("var: ")?;
+        var.fmt(f)?;
+        match value.as_pinned() {
+            Some(v) => {
+                f.write_char('/')?;
+                v.fmt(f)?;
+            }
+            None => {
+                f.write_str("/<fromBuildEnv>")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Serialize for VarRequest<PinnableValue> {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let mut var = self.var.to_string();
-        if !self.value.is_empty() || !self.pin {
-            // serialize an empty value if not pinning, otherwise it
-            // wont be valid to load back in
-            var = format!("{}/{}", var, self.value);
+        use serde::ser::SerializeMap;
+
+        let mut map = serializer.serialize_map(Some(2))?;
+
+        match &self.value {
+            PinnableValue::FromBuildEnv => {
+                map.serialize_entry("var", &self.var)?;
+                map.serialize_entry("fromBuildEnv", &true)?;
+            }
+            PinnableValue::Pinned(v) => {
+                let var = format!("{}/{v}", self.var);
+                map.serialize_entry("var", &var)?;
+            }
         }
-        let out = VarRequestSchema { var, pin: self.pin };
-        out.serialize(serializer)
+        map.end()
+    }
+}
+
+/// A value that is either set to a string or requested
+/// to be pinned using the value at build time
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum PinnableValue {
+    FromBuildEnv,
+    Pinned(Arc<str>),
+}
+
+impl PinnableValue {
+    pub fn is_from_build_env(&self) -> bool {
+        matches!(self, Self::FromBuildEnv)
+    }
+
+    pub fn is_pinned(&self) -> bool {
+        matches!(self, Self::Pinned(_))
+    }
+
+    /// The current pinned value, if any
+    pub fn as_pinned(&self) -> Option<&str> {
+        match self {
+            Self::FromBuildEnv => None,
+            Self::Pinned(v) => Some(v),
+        }
+    }
+}
+
+impl Default for PinnableValue {
+    fn default() -> Self {
+        Self::Pinned(Arc::from(""))
+    }
+}
+
+impl<T> From<T> for PinnableValue
+where
+    T: Into<Arc<str>>,
+{
+    fn from(value: T) -> Self {
+        Self::Pinned(value.into())
     }
 }
 
@@ -579,7 +678,7 @@ impl PkgRequest {
         Ok(new)
     }
 
-    /// Create a copy of this request with it's pin rendered out using 'pkg'.
+    /// Create a copy of this request with its pin rendered out using 'pkg'.
     pub fn render_pin(&self, pkg: &BuildIdent) -> Result<PkgRequest> {
         match &self.pin {
             None => Err(Error::String(
@@ -635,6 +734,28 @@ impl PkgRequest {
         T: Satisfy<Self>,
     {
         satisfy.check_satisfies_request(self)
+    }
+
+    /// True if this request is as least as restrictive as the other. In other words,
+    /// if satisfying this request would undoubtedly satisfy the other.
+    pub fn contains(&self, other: &Self) -> Compatibility {
+        let compat = self.pkg.contains(&other.pkg);
+        if !compat.is_ok() {
+            return compat;
+        }
+        if self.prerelease_policy > other.prerelease_policy {
+            return Compatibility::incompatible(format!(
+                "prerelease policy {} is more inclusive than {}",
+                self.prerelease_policy, other.prerelease_policy
+            ));
+        }
+        if self.inclusion_policy > other.inclusion_policy {
+            return Compatibility::incompatible(format!(
+                "inclusion policy {} is more inclusive than {}",
+                self.inclusion_policy, other.inclusion_policy
+            ));
+        }
+        Compatibility::Compatible
     }
 
     /// Reduce the scope of this request to the intersection with another.
@@ -830,16 +951,30 @@ impl PinValue {
     }
 
     /// Transform this pin into the appropriate value for a var request, if possible
-    fn into_var_pin<E>(self) -> std::result::Result<bool, E>
+    fn into_var_pin<E>(
+        self,
+        var: &OptName,
+        value: Option<String>,
+    ) -> std::result::Result<PinnableValue, E>
     where
         E: serde::de::Error,
     {
-        match self {
-            Self::None => Ok(false),
-            Self::True => Ok(true),
-            Self::String(s) => Err(E::custom(format!(
-                "`fromBuildEnv` for var requests must be a boolean, found `{s}`"
-            ))),
+        match (value, self) {
+            (Some(value), Self::True)  => {
+                Err(E::custom(
+                    format!("request for `{var}` cannot specify a value `/{value}` when `fromBuildEnv` is true")
+                ))
+            }
+            (None, Self::None) => Err(E::custom(
+                format!("request for `{var}` must specify a value (eg: {var}/<value>) when `fromBuildEnv` is false or omitted")
+            )),
+            (Some(value), Self::None) => {
+                Ok(PinnableValue::Pinned(Arc::from(value)))
+            }
+            (None, Self::True) => Ok(PinnableValue::FromBuildEnv),
+            (_, Self::String(s)) => Err(E::custom(format!(
+                "`fromBuildEnv` for var request `{var}` must be a boolean, found `{s}`"
+            )))
         }
     }
 

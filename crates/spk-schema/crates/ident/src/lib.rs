@@ -28,6 +28,7 @@ pub use request::{
     is_false,
     InclusionPolicy,
     NameAndValue,
+    PinnableValue,
     PkgRequest,
     PreReleasePolicy,
     Request,

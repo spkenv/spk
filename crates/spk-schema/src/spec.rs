@@ -264,7 +264,7 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Vec<Request>>
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
     where
         V: Variant,
     {
@@ -487,12 +487,6 @@ impl Package for Spec {
         }
     }
 
-    fn options(&self) -> &Vec<super::Opt> {
-        match self {
-            Spec::V0Package(spec) => spec.options(),
-        }
-    }
-
     fn sources(&self) -> &Vec<super::SourceSpec> {
         match self {
             Spec::V0Package(spec) => spec.sources(),
@@ -527,7 +521,7 @@ impl Package for Spec {
         }
     }
 
-    fn runtime_requirements(&self) -> &super::RequirementsList {
+    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList> {
         match self {
             Spec::V0Package(spec) => spec.runtime_requirements(),
         }
@@ -542,6 +536,30 @@ impl Package for Spec {
     fn build_script(&self) -> String {
         match self {
             Spec::V0Package(spec) => spec.build_script(),
+        }
+    }
+
+    fn downstream_build_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, crate::RequirementsList> {
+        match self {
+            Spec::V0Package(spec) => spec.downstream_build_requirements(components),
+        }
+    }
+
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, crate::RequirementsList> {
+        match self {
+            Spec::V0Package(spec) => spec.downstream_runtime_requirements(components),
+        }
+    }
+
+    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
+        match self {
+            Spec::V0Package(spec) => spec.validate_options(given_options),
         }
     }
 }
