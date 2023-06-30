@@ -24,7 +24,7 @@ pub struct Debug {
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
 
-    /// Name of packages to have their src package added onto
+    /// Packages to fetch sources for (defaults to all packages in the environment)
     #[clap(name = "PKG NAME")]
     pub packages: Vec<String>,
 }
