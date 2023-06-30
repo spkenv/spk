@@ -1175,7 +1175,7 @@ impl DecisionFormatter {
             String::from("vars"),
             serde_json::json!(vars
                 .iter()
-                .map(|v| format!("{}: {:?}", v.var, v.value))
+                .map(|v| format!("{}: {}", v.var, v.value.as_pinned().unwrap_or_default()))
                 .collect::<Vec<String>>()),
         );
         data.insert(String::from("seconds"), serde_json::json!(seconds));
@@ -1186,8 +1186,10 @@ impl DecisionFormatter {
             "spk explain {} {}",
             requests.join(" "),
             vars.iter()
-                .filter(|v| !v.value.is_from_build_env())
-                .map(|v| format!("-o {}={}", v.var, v.value.as_pinned().unwrap()))
+                .filter_map(|v| v
+                    .value
+                    .as_pinned()
+                    .map(|value| format!("-o {}={}", v.var, value)))
                 .collect::<Vec<String>>()
                 .join(" ")
         );
