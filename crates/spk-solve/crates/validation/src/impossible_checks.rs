@@ -331,7 +331,7 @@ impl ImpossibleRequestsChecker {
                 target: IMPOSSIBLE_CHECKS_TARGET,
                 "Combined request: {combined_request} [{}]",
                 combined_request.format_request(
-                    &None,
+                    None,
                     &combined_request.pkg.name,
                     &REQUEST_FORMAT_OPTIONS
                 )

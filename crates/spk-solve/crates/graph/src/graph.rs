@@ -109,7 +109,7 @@ impl FormatChange for Change {
                     "{} {}",
                     Self::get_request_change_label(format_settings.level).blue(),
                     c.request.format_request(
-                        &c.request.pkg.repository_name,
+                        c.request.pkg.repository_name.as_ref(),
                         &c.request.pkg.name,
                         format_settings
                     )

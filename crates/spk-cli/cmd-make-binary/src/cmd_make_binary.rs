@@ -125,7 +125,7 @@ impl Run for MakeBinary {
 
         for package in packages {
             let (recipe, _) = flags::find_package_recipe_from_template_or_repo(
-                &package.as_ref().map(|p| p.get_specifier().to_owned()),
+                package.as_ref().map(|p| p.get_specifier()),
                 &options,
                 &repos,
             )

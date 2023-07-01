@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-pub fn source<T>(tmpdir: &Option<T>) -> String
+pub fn source<T>(tmpdir: Option<&T>) -> String
 where
     T: AsRef<str>,
 {

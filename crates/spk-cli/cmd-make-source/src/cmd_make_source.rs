@@ -66,7 +66,7 @@ impl MakeSource {
         let mut idents = Vec::new();
 
         for package in packages.into_iter() {
-            let template = match flags::find_package_template(&package)? {
+            let template = match flags::find_package_template(package.as_ref())? {
                 flags::FindPackageTemplateResult::NotFound(name) => {
                     // TODO:: load from given repos
                     Arc::new(SpecTemplate::from_file(name.as_ref())?)

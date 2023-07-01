@@ -136,7 +136,7 @@ impl SolvedRequest {
         // Pass zero verbosity to format_request(), via the format
         // change options, to stop it outputting the internal details.
         installed.format_request(
-            &repo_name,
+            repo_name.as_ref(),
             self.spec.name(),
             &FormatChangeOptions::default(),
         )

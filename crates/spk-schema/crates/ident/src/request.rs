@@ -563,7 +563,7 @@ pub struct PkgRequest {
 impl std::fmt::Display for PkgRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
-            let fmt = self.format_request(&None, &self.pkg.name, &FormatChangeOptions::default());
+            let fmt = self.format_request(None, &self.pkg.name, &FormatChangeOptions::default());
             f.write_str(&fmt)
         } else {
             self.pkg.fmt(f)
@@ -801,7 +801,7 @@ impl FormatRequest for PkgRequest {
 
     fn format_request(
         &self,
-        repository_name: &Option<spk_schema_foundation::name::RepositoryNameBuf>,
+        repository_name: Option<&spk_schema_foundation::name::RepositoryNameBuf>,
         name: &PkgName,
         format_settings: &spk_schema_foundation::format::FormatChangeOptions,
     ) -> String {

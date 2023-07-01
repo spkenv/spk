@@ -44,7 +44,7 @@ impl Run for MakeRecipe {
     async fn run(&mut self) -> Result<i32> {
         let options = self.options.get_options()?;
 
-        let template = match flags::find_package_template(&self.package)? {
+        let template = match flags::find_package_template(self.package.as_ref())? {
             flags::FindPackageTemplateResult::NotFound(name) => {
                 Arc::new(SpecTemplate::from_file(name.as_ref())?)
             }

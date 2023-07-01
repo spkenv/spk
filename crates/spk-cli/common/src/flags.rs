@@ -339,7 +339,7 @@ impl Requests {
 
             let path = std::path::Path::new(package);
             if path.is_file() {
-                let (_, template) = find_package_template(&Some(package))?.must_be_found();
+                let (_, template) = find_package_template(Some(&package))?.must_be_found();
                 let recipe = template.render(options)?;
                 idents.push(recipe.ident().to_any(None));
             } else {
@@ -501,7 +501,7 @@ pub async fn parse_stage_specifier(
             })?;
 
     let (spec, filename) =
-        find_package_recipe_from_template_or_repo(&Some(package), options, repos).await?;
+        find_package_recipe_from_template_or_repo(Some(&package), options, repos).await?;
 
     Ok((spec, filename, stage, build_variant))
 }
@@ -559,7 +559,7 @@ impl FindPackageTemplateResult {
 /// This function will use the current directory and the provided
 /// package name or filename to try and discover the matching
 /// yaml template file.
-pub fn find_package_template<S>(package: &Option<S>) -> Result<FindPackageTemplateResult>
+pub fn find_package_template<S>(package: Option<&S>) -> Result<FindPackageTemplateResult>
 where
     S: AsRef<str>,
 {
@@ -655,7 +655,7 @@ where
 /// the recipe published for that.
 ///
 pub async fn find_package_recipe_from_template_or_repo<S>(
-    package_name: &Option<S>,
+    package_name: Option<&S>,
     options: &OptionMap,
     repos: &[Arc<storage::RepositoryHandle>],
 ) -> Result<(Arc<SpecRecipe>, std::path::PathBuf)>
