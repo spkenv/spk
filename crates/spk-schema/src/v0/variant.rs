@@ -47,13 +47,17 @@ impl Variant {
             //
             // If it is not a valid package name, assume it is a var.
             let Ok(pkg_name) = PkgName::new(name) else {
-                requirements.insert_or_replace(VarRequest::new_with_value(name.clone(), value.clone()).into());
+                requirements.insert_or_replace(
+                    VarRequest::new_with_value(name.clone(), value.clone()).into()
+                );
                 continue;
             };
             // If the value is not a legal version range, assume it is
             // a var.
             let Ok(version_range) = VersionRange::from_str(value) else {
-                requirements.insert_or_replace(VarRequest::new_with_value(name.clone(), value.clone()).into());
+                requirements.insert_or_replace(
+                    VarRequest::new_with_value(name.clone(), value.clone()).into()
+                );
                 continue;
             };
             // It is a valid package name and the value is a legal
