@@ -21,6 +21,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_yaml = "0.8.17"
 serde_json = { workspace = true }
 spfs = { version = '0.34.6', path = "../spfs" }
+shellexpand = "3.1.0"
 spk-schema-foundation = { path = "./crates/foundation" }
 spk-schema-ident = { path = "./crates/ident" }
 spk-schema-validators = { path = "./crates/validators" }

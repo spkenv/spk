@@ -62,7 +62,9 @@ fn impl_proc_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
         }
 
         for field in &s.fields {
-            let Some(ident) = &field.ident else { continue; };
+            let Some(ident) = &field.ident else {
+                continue;
+            };
             if let syn::Type::Path(p) = &field.ty {
                 if let Some(field_type) = p.path.segments.last().map(|s| &s.ident) {
                     if field_type != "ProgressBar" {

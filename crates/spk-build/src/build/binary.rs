@@ -761,13 +761,36 @@ where
             }
         }
 
-        let startup_file_csh = startup_dir.join(format!("spk_{}.csh", package.name()));
-        let startup_file_sh = startup_dir.join(format!("spk_{}.sh", package.name()));
+        let mut startup_file_csh = startup_dir.join(format!("spk_{}.csh", package.name()));
+        let mut startup_file_sh = startup_dir.join(format!("spk_{}.sh", package.name()));
         let mut csh_file = std::fs::File::create(&startup_file_csh)
             .map_err(|err| Error::FileOpenError(startup_file_csh.to_owned(), err))?;
         let mut sh_file = std::fs::File::create(&startup_file_sh)
             .map_err(|err| Error::FileOpenError(startup_file_sh.to_owned(), err))?;
         for op in ops {
+            if !op.priority().is_empty() {
+                let original_startup_file_sh_name = startup_file_sh.clone();
+                let original_startup_file_csh_name = startup_file_csh.clone();
+
+                startup_file_sh.set_file_name(format!(
+                    "{}_spk_{}.sh",
+                    op.priority(),
+                    package.name()
+                ));
+                startup_file_csh.set_file_name(format!(
+                    "{}_spk_{}.csh",
+                    op.priority(),
+                    package.name()
+                ));
+
+                std::fs::rename(original_startup_file_sh_name, &startup_file_sh)
+                    .map_err(|err| Error::FileWriteError(startup_file_sh.to_owned(), err))?;
+                std::fs::rename(original_startup_file_csh_name, &startup_file_csh)
+                    .map_err(|err| Error::FileWriteError(startup_file_csh.to_owned(), err))?;
+
+                continue;
+            }
+
             csh_file
                 .write_fmt(format_args!("{}\n", op.tcsh_source()))
                 .map_err(|err| Error::FileWriteError(startup_file_csh.to_owned(), err))?;

@@ -14,15 +14,19 @@ const DEFAULT_VAR_SEP: &str = ";";
 const DEFAULT_VAR_SEP: &str = ":";
 
 const OP_APPEND: &str = "append";
+const OP_COMMENT: &str = "comment";
 const OP_PREPEND: &str = "prepend";
+const OP_PRIORITY: &str = "priority";
 const OP_SET: &str = "set";
-const OP_NAMES: &[&str] = &[OP_APPEND, OP_PREPEND, OP_SET];
+const OP_NAMES: &[&str] = &[OP_APPEND, OP_COMMENT, OP_PREPEND, OP_SET];
 
 /// The set of operation types for use in deserialization
 #[derive(Copy, Clone, Debug)]
 pub enum OpKind {
     Append,
+    Comment,
     Prepend,
+    Priority,
     Set,
 }
 
@@ -31,7 +35,9 @@ pub enum OpKind {
 #[serde(untagged)]
 pub enum EnvOp {
     Append(AppendEnv),
+    Comment(CommentEnv),
     Prepend(PrependEnv),
+    Priority(Priority),
     Set(SetEnv),
 }
 
@@ -39,7 +45,9 @@ impl EnvOp {
     pub fn kind(&self) -> OpKind {
         match self {
             EnvOp::Append(_) => OpKind::Append,
+            EnvOp::Comment(_) => OpKind::Comment,
             EnvOp::Prepend(_) => OpKind::Prepend,
+            EnvOp::Priority(_) => OpKind::Priority,
             EnvOp::Set(_) => OpKind::Set,
         }
     }
@@ -53,11 +61,23 @@ impl EnvOp {
         }
     }
 
+    pub fn priority(&self) -> String {
+        match self {
+            Self::Append(_) => String::from(""),
+            Self::Comment(_) => String::from(""),
+            Self::Prepend(_) => String::from(""),
+            Self::Priority(op) => op.priority(),
+            Self::Set(_) => String::from(""),
+        }
+    }
+
     /// Construct the bash source representation for this operation
     pub fn bash_source(&self) -> String {
         match self {
             Self::Append(op) => op.bash_source(),
+            Self::Comment(op) => op.bash_source(),
             Self::Prepend(op) => op.bash_source(),
+            Self::Priority(op) => op.bash_source(),
             Self::Set(op) => op.bash_source(),
         }
     }
@@ -66,7 +86,9 @@ impl EnvOp {
     pub fn tcsh_source(&self) -> String {
         match self {
             Self::Append(op) => op.tcsh_source(),
+            Self::Comment(op) => op.tcsh_source(),
             Self::Prepend(op) => op.tcsh_source(),
+            Self::Priority(op) => op.tcsh_source(),
             Self::Set(op) => op.tcsh_source(),
         }
     }
@@ -101,6 +123,14 @@ impl<'de> Deserialize<'de> for EnvOp {
                             self.op_and_var =
                                 Some((OpKind::Prepend, map.next_value::<Stringified>()?.0));
                         }
+                        OP_PRIORITY => {
+                            self.op_and_var =
+                                Some((OpKind::Priority, map.next_value::<Stringified>()?.0));
+                        }
+                        OP_COMMENT => {
+                            self.op_and_var =
+                                Some((OpKind::Comment, map.next_value::<Stringified>()?.0));
+                        }
                         OP_APPEND => {
                             self.op_and_var =
                                 Some((OpKind::Append, map.next_value::<Stringified>()?.0));
@@ -121,10 +151,19 @@ impl<'de> Deserialize<'de> for EnvOp {
                     }
                 }
 
-                let value = self
-                    .value
-                    .take()
-                    .ok_or_else(|| serde::de::Error::missing_field("value"))?;
+                // Comments don't have any values.
+                let value = match self.op_and_var.as_ref().unwrap().0 {
+                    OpKind::Comment | OpKind::Priority => String::from(""),
+                    _ => self
+                        .value
+                        .take()
+                        .ok_or_else(|| serde::de::Error::missing_field("value"))?,
+                };
+
+                // Expand env variables in value.
+                let value = shellexpand::env(&value)
+                    .unwrap_or(std::borrow::Cow::Borrowed(""))
+                    .to_string();
 
                 match self.op_and_var.take() {
                     Some((op, var)) => match op {
@@ -132,6 +171,9 @@ impl<'de> Deserialize<'de> for EnvOp {
                             prepend: var,
                             separator: self.separator.take(),
                             value
+                        })),
+                        OpKind::Priority => Ok(EnvOp::Priority(Priority{
+                            priority: var
                         })),
                         OpKind::Append => Ok(EnvOp::Append(AppendEnv{
                             append: var,
@@ -141,6 +183,9 @@ impl<'de> Deserialize<'de> for EnvOp {
                         OpKind::Set => Ok(EnvOp::Set(SetEnv{
                             set: var,
                             value
+                        })),
+                        OpKind::Comment => Ok(EnvOp::Comment(CommentEnv{
+                            comment: var
                         })),
                     },
                     None => Err(serde::de::Error::custom(format!(
@@ -200,6 +245,44 @@ impl AppendEnv {
             "endif".to_string(),
         ]
         .join("\n")
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct CommentEnv {
+    pub comment: String,
+}
+
+impl CommentEnv {
+    /// Construct the bash source representation for this operation
+    pub fn bash_source(&self) -> String {
+        format!("# {}", self.comment)
+    }
+    /// Construct the tcsh source representation for this operation
+    pub fn tcsh_source(&self) -> String {
+        // Both bash and tcsh source use the same comment syntax
+        self.bash_source()
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct Priority {
+    pub priority: String,
+}
+
+impl Priority {
+    /// Construct the bash source representation for this operation
+    pub fn bash_source(&self) -> String {
+        String::from("")
+    }
+
+    /// Construct the tcsh source representation for this operation
+    pub fn tcsh_source(&self) -> String {
+        String::from("")
+    }
+
+    pub fn priority(&self) -> String {
+        self.priority.clone()
     }
 }
 
