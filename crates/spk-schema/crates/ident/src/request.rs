@@ -341,7 +341,9 @@ impl VarRequest<PinnableValue> {
                 self.var, other.var
             ));
         }
-        let (Some(self_value), Some(other_value)) = (&self.value.as_pinned(), &other.value.as_pinned()) else {
+        let (Some(self_value), Some(other_value)) =
+            (&self.value.as_pinned(), &other.value.as_pinned())
+        else {
             // we cannot consider a request that still needs to be pinned as
             // containing any other because the ultimate value of this request
             // is unknown

@@ -285,8 +285,12 @@ pub fn configure_sentry(
 /// Drop the sentry guard if sentry has been initialized.
 #[cfg(feature = "sentry")]
 pub fn shutdown_sentry() {
-    let Some(Some(mutex)) = SENTRY_GUARD.get() else { return };
-    let Ok(mut opt_guard) = mutex.lock() else { return };
+    let Some(Some(mutex)) = SENTRY_GUARD.get() else {
+        return;
+    };
+    let Ok(mut opt_guard) = mutex.lock() else {
+        return;
+    };
     // Steal the guard, if there was one, dropping it.
     opt_guard.take();
 }
