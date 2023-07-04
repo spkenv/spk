@@ -1,5 +1,5 @@
 [package]
-authors = ["Ryan Bottriell <ryan@bottriell.ca>"]
+authors = { workspace = true }
 edition = { workspace = true }
 name = "parsedbuf"
 version = "0.1.0"

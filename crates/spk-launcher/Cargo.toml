@@ -1,5 +1,5 @@
 [package]
-authors = ["J Robert Ray <jrray@imageworks.com>"]
+authors = { workspace = true }
 name = "spk-launcher"
 version = "0.33.6"
 edition = { workspace = true }

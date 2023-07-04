@@ -1,8 +1,8 @@
 [package]
-authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 name = "spk-cmd-make-recipe"
-version = "0.36.0"
+version = { workspace = true }
 
 [dependencies]
 anyhow = "1.0"
