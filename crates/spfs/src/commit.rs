@@ -391,7 +391,6 @@ impl CommitReporter for ConsoleCommitReporter {
 #[derive(ProgressBar)]
 #[progress_bar(template = "      {spinner} {msg:<18.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")]
 struct ConsoleCommitReporterBars {
-    renderer: Option<std::thread::JoinHandle<()>>,
     #[progress_bar(message = "computing manifest")]
     entries: indicatif::ProgressBar,
     #[progress_bar(message = "committing blobs")]

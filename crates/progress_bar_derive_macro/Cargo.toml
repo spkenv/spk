@@ -9,7 +9,7 @@ proc-macro = true
 [dependencies]
 syn = "2.0"
 quote = "1.0"
+indicatif = { workspace = true }
 
 [dev-dependencies]
-indicatif = { workspace = true }
 tracing = { workspace = true }

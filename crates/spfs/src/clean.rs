@@ -952,7 +952,6 @@ impl CleanReporter for ConsoleCleanReporter {
     template = " {spinner} {msg:<17.green} {pos:>10.cyan} found {len:>10.yellow} to remove [{per_sec}]"
 )]
 struct ConsoleCleanReporterBars {
-    renderer: Option<std::thread::JoinHandle<()>>,
     #[progress_bar(message = "cleaning tags")]
     tags: indicatif::ProgressBar,
     #[progress_bar(message = "cleaning objects")]

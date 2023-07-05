@@ -595,7 +595,6 @@ impl SyncReporter for ConsoleSyncReporter {
 
 #[derive(ProgressBar)]
 struct ConsoleSyncReporterBars {
-    renderer: Option<std::thread::JoinHandle<()>>,
     #[progress_bar(
         message = "syncing layers",
         template = "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}"
