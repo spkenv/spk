@@ -70,8 +70,12 @@ impl CmdJoin {
                     .ok_or(anyhow!("pid not found"))?;
                 let mut runtimes = storage.iter_runtimes().await;
                 while let Some(runtime) = runtimes.next().await {
-                    let Ok(runtime) = runtime else { continue; };
-                    let Some(this_runtime_mount_ns) = &runtime.data().config.mount_namespace else { continue; };
+                    let Ok(runtime) = runtime else {
+                        continue;
+                    };
+                    let Some(this_runtime_mount_ns) = &runtime.data().config.mount_namespace else {
+                        continue;
+                    };
                     if *this_runtime_mount_ns == mount_ns {
                         return Ok(runtime);
                     }
