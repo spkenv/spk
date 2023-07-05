@@ -15,7 +15,10 @@ pub use storage::{
     local_repository,
     remote_repository,
     CachePolicy,
+    MemRepository,
     Repository,
     RepositoryHandle,
+    RuntimeRepository,
+    SPFSRepository,
     Storage,
 };
