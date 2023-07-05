@@ -3228,7 +3228,6 @@ dependencies = [
  "anyhow",
  "clap 4.3.0",
  "nix 0.26.2",
- "serde_json",
  "spfs",
  "spfs-cli-common",
  "tokio",
