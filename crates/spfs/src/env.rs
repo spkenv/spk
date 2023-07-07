@@ -824,6 +824,10 @@ pub(crate) struct OverlayMountOptions {
     /// spfs, since we rely on hardlinks for deduplication but
     /// expect that file to be able to appear in mutliple places
     /// as separate files that just so happen to share the same content.
+    ///
+    /// When disabled, there will be additional restrictions on
+    /// remounting the environment since the filesystem will hold
+    /// additional handles and may not unmount while files remain held
     break_hardlinks: bool,
     /// When true, overlayfs will use extended file attributes to avoid
     /// copying file data when only the metadata of a file has changed.
@@ -848,7 +852,7 @@ impl OverlayMountOptions {
         if self.read_only {
             opts.push(OVERLAY_ARGS_RO_PREFIX);
         }
-        if self.break_hardlinks && params.contains(OVERLAY_ARGS_INDEX) {
+        if !self.break_hardlinks && params.contains(OVERLAY_ARGS_INDEX) {
             opts.push(OVERLAY_ARGS_INDEX_ON);
         }
         if self.metadata_copy_up && params.contains(OVERLAY_ARGS_METACOPY) {
