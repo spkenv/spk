@@ -104,11 +104,22 @@ impl Publisher {
                     self.to.force_publish_recipe(&recipe).await?;
                 } else {
                     match self.to.publish_recipe(&recipe).await {
-                        Ok(_)
-                        | Err(spk_storage::Error::SpkValidatorsError(
+                        Ok(_) => {
+                            // Do nothing if no errors.
+                        }
+                        Err(spk_storage::Error::SpkValidatorsError(
                             spk_schema::validators::Error::VersionExistsError(_),
                         )) => {
-                            // It's cool if the version already exists
+                            match pkg.build() {
+                                Some(_) => (), // If build provided, we can silently fail.
+                                None => {
+                                    return Err(format!(
+                                        "Failed to publish recipe {}: Version exists",
+                                        recipe.ident(),
+                                    )
+                                    .into());
+                                }
+                            }
                         }
                         Err(err) => {
                             return Err(format!(
