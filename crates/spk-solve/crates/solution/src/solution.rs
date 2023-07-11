@@ -355,29 +355,32 @@ impl Solution {
         out.insert("SPK_ACTIVE_PREFIX".to_owned(), "/spfs".to_owned());
         for resolved in self.resolved.iter() {
             let spec = &resolved.spec;
-            out.insert(format!("SPK_PKG_{}", spec.name()), spec.ident().to_string());
             out.insert(
-                format!("SPK_PKG_{}_VERSION", spec.name()),
+                format!("SPK_PKG_{}", spec.env_name()),
+                spec.ident().to_string(),
+            );
+            out.insert(
+                format!("SPK_PKG_{}_VERSION", spec.env_name()),
                 spec.version().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_BUILD", spec.name()),
+                format!("SPK_PKG_{}_BUILD", spec.env_name()),
                 spec.ident().build().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_MAJOR", spec.name()),
+                format!("SPK_PKG_{}_VERSION_MAJOR", spec.env_name()),
                 spec.version().major().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_MINOR", spec.name()),
+                format!("SPK_PKG_{}_VERSION_MINOR", spec.env_name()),
                 spec.version().minor().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_PATCH", spec.name()),
+                format!("SPK_PKG_{}_VERSION_PATCH", spec.env_name()),
                 spec.version().patch().to_string(),
             );
             out.insert(
-                format!("SPK_PKG_{}_VERSION_BASE", spec.name()),
+                format!("SPK_PKG_{}_VERSION_BASE", spec.env_name()),
                 spec.version()
                     .parts
                     .iter()
