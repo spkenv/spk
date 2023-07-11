@@ -22,6 +22,12 @@ members = [
 ]
 
 [workspace.package]
+authors = [
+    "Ryan Bottriell <ryan@bottriell.ca>",
+    "J Robert Ray <jrray@imageworks.com>",
+    "David Gilligan-Cook <dcook@imageworks.com>",
+    "Nichol Yip <nyip@imageworks.com>",
+]
 edition = "2021"
 version = "0.36.0"
 

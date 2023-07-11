@@ -1,5 +1,5 @@
 [package]
-authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+authors = { workspace = true }
 edition = { workspace = true }
 name = "spk-schema"
 version = { workspace = true }

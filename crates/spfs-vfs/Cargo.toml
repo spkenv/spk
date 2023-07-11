@@ -1,5 +1,5 @@
 [package]
-authors = ["Ryan Bottriell <rbottriell@imageworks.com>"]
+authors = { workspace = true }
 edition = { workspace = true }
 name = "spfs-vfs"
 version = "0.34.6"
