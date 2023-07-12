@@ -6,13 +6,13 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::LitStr;
 
-/// Derive macro for generating boilerplate `Default` and `Drop` impls
-/// for a struct with `indicatif::ProgressBar` fields.
+/// Derive macro for generating boilerplate [`Default`] and [`Drop`] impls
+/// for a struct with [`indicatif::ProgressBar`] fields.
 ///
-/// The struct is required to have a field named `renderer` and one or more
-/// fields of type `indicatif::ProgressBar`. Each progress bar field requires
-/// a `#[progress_bar]` attribute with a `message` argument. A `template`
-/// argument is also required either at the struct level or the field level.
+/// The struct is required to have one or more fields of type [`indicatif::ProgressBar`].
+/// Each progress bar field requires a `#[progress_bar]` attribute with a `message`
+/// argument. A `template` argument is also required either at the struct level or
+/// the field level.
 ///
 /// # Example
 ///
@@ -20,7 +20,6 @@ use syn::LitStr;
 /// use progress_bar_derive_macro::ProgressBar;
 /// #[derive(ProgressBar)]
 /// struct MyStruct {
-///     renderer: Option<std::thread::JoinHandle<()>>,
 ///     #[progress_bar(
 ///         message = "processing widgets",
 ///         template = "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}"
@@ -120,6 +119,7 @@ fn impl_proc_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
                     bars.push(quote! {
                         let #ident_style = indicatif::ProgressStyle::default_bar()
                             .template(#template)
+                            .expect("Invalid progress bar template")
                             .tick_strings(TICK_STRINGS)
                             .progress_chars(PROGRESS_CHARS);
                         let #ident = bars.add(
@@ -143,26 +143,9 @@ fn impl_proc_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
 
                 let bars = indicatif::MultiProgress::new();
                 #(#bars)*
-                #(#progress_bar_field_names.enable_steady_tick(100);)*
-                // the progress bar must be awaited from some thread
-                // or nothing will be shown in the terminal
-                let renderer = Some(std::thread::spawn(move || {
-                    if let Err(err) = bars.join() {
-                        tracing::error!("Failed to render commit progress: {}", err);
-                    }
-                }));
+                #(#progress_bar_field_names.enable_steady_tick(std::time::Duration::from_millis(100));)*
                 Self {
                     #(#progress_bar_field_names,)*
-                    renderer,
-                }
-            }
-        }
-
-        impl Drop for #name {
-            fn drop(&mut self) {
-                #(self.#progress_bar_field_names.finish_and_clear();)*
-                if let Some(r) = self.renderer.take() {
-                    let _ = r.join();
                 }
             }
         }

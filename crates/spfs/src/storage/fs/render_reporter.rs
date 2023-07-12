@@ -100,7 +100,6 @@ impl RenderReporter for ConsoleRenderReporter {
 #[derive(ProgressBar)]
 #[progress_bar(template = "      {spinner} {msg:<16.green} [{bar:40.cyan/dim}] {pos:>8}/{len:6}")]
 struct ConsoleRenderReporterBars {
-    renderer: Option<std::thread::JoinHandle<()>>,
     #[progress_bar(message = "rendering layers")]
     layers: indicatif::ProgressBar,
     #[progress_bar(message = "rendering entries")]

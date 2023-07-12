@@ -597,7 +597,6 @@ impl CheckReporter for ConsoleCheckReporter {
 
 #[derive(ProgressBar)]
 struct ConsoleCheckReporterBars {
-    renderer: Option<std::thread::JoinHandle<()>>,
     #[progress_bar(
         message = "scanning objects",
         template = "      {spinner} {msg:<18.green} {pos:>9} reached in {elapsed:.cyan} [{per_sec}]"
