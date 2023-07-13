@@ -14,7 +14,6 @@ use anyhow::{Context, Result};
 use clap::{Args, Parser};
 #[cfg(feature = "sentry")]
 use cli::configure_sentry;
-use serde_json::json;
 use spfs::monitor::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
 use spfs::storage::fs::RenderSummary;
 use spfs_cli_common as cli;
@@ -245,15 +244,9 @@ impl CmdEnter {
             .context("Failed to execute runtime command")
     }
 
-    fn report_render_summary(&self, render_summary: RenderSummary, render_time: f64) {
+    #[cfg_attr(not(feature = "sentry"), allow(unused))]
+    fn report_render_summary(&self, _render_summary: RenderSummary, render_time: f64) {
         if self.enter.metrics_in_env {
-            // The render summary data is put into a json blob in a
-            // environment variable for other, non-spfs, programs to
-            // access.
-            std::env::set_var(
-                "SPFS_METRICS_RENDER_REPORT",
-                format!("{}", json!(render_summary)),
-            );
             // The render time is put into environment variables for
             // other, non-spfs, programs to access. If this command
             // has been run from spfs-run, then the sync time will
