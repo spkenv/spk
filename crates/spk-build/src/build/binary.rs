@@ -768,7 +768,7 @@ where
         let mut sh_file = std::fs::File::create(&startup_file_sh)
             .map_err(|err| Error::FileOpenError(startup_file_sh.to_owned(), err))?;
         for op in ops {
-            if !op.priority().is_empty() {
+            if op.priority().ne(&0) {
                 let original_startup_file_sh_name = startup_file_sh.clone();
                 let original_startup_file_csh_name = startup_file_csh.clone();
 

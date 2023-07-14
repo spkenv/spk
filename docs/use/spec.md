@@ -195,16 +195,21 @@ The install configuration specifies the environment that your package needs when
 
 #### Environment Variables
 
-Packages can append, prepend and set environment variables at runtime if needed. It's strongly encouraged to only modify variables that your package can reasonably take ownership for. For example, the `python` package should be the only one setting `PYTHON*` variables that affect the runtime of python. This is not an enforced rule, but if you find yourself setting `PYTHONPATH`, for example, then it might mean that you are installing to a non-standard location within spfs and breaking away from the intended consistency of spfs.
+Packages can append, prepend and set environment variables at runtime if needed. Furthermore, you are able to add comments and set the priority of the generated activation script. It's strongly encouraged to only modify variables that your package can reasonably take ownership for. For example, the `python` package should be the only one setting `PYTHON*` variables that affect the runtime of python. This is not an enforced rule, but if you find yourself setting `PYTHONPATH`, for example, then it might mean that you are installing to a non-standard location within spfs and breaking away from the intended consistency of spfs.
 
 ```yaml
 install:
   environment:
+    - priority: 99
+    - comment: START
     - set: MYPKG_VAR
       value: hello, world
     - append: PATH
       value: /spfs/opt/mypkg/bin
+    - comment: END
 ```
+
+The above example will generate the activation scripts `99_spk_{package_name}.csh` and `99_spk_{package_name}.sh`
 
 #### Requirements
 

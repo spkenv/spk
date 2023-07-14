@@ -32,7 +32,7 @@ pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
 pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};
 pub use embedded_packages_list::EmbeddedPackagesList;
-pub use environ::{AppendEnv, EnvOp, PrependEnv, SetEnv};
+pub use environ::{AppendEnv, EnvConfig, OpKind, PrependEnv, SetEnv};
 pub use error::{Error, Result};
 pub use install_spec::InstallSpec;
 pub use option::{Inheritance, Opt};

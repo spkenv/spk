@@ -21,7 +21,7 @@ const OP_SET: &str = "set";
 const OP_NAMES: &[&str] = &[OP_APPEND, OP_COMMENT, OP_PREPEND, OP_SET];
 
 /// The set of operation types for use in deserialization
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum OpKind {
     Append,
     Comment,
@@ -33,7 +33,7 @@ pub enum OpKind {
 /// An operation performed to the environment
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(untagged)]
-pub enum EnvOp {
+pub enum EnvConfig {
     Append(AppendEnv),
     Comment(CommentEnv),
     Prepend(PrependEnv),
@@ -41,14 +41,14 @@ pub enum EnvOp {
     Set(SetEnv),
 }
 
-impl EnvOp {
+impl EnvConfig {
     pub fn kind(&self) -> OpKind {
         match self {
-            EnvOp::Append(_) => OpKind::Append,
-            EnvOp::Comment(_) => OpKind::Comment,
-            EnvOp::Prepend(_) => OpKind::Prepend,
-            EnvOp::Priority(_) => OpKind::Priority,
-            EnvOp::Set(_) => OpKind::Set,
+            EnvConfig::Append(_) => OpKind::Append,
+            EnvConfig::Comment(_) => OpKind::Comment,
+            EnvConfig::Prepend(_) => OpKind::Prepend,
+            EnvConfig::Priority(_) => OpKind::Priority,
+            EnvConfig::Set(_) => OpKind::Set,
         }
     }
 
@@ -61,13 +61,13 @@ impl EnvOp {
         }
     }
 
-    pub fn priority(&self) -> String {
+    pub fn priority(&self) -> u8 {
         match self {
-            Self::Append(_) => String::from(""),
-            Self::Comment(_) => String::from(""),
-            Self::Prepend(_) => String::from(""),
+            Self::Append(_) => 0,
+            Self::Comment(_) => 0,
+            Self::Prepend(_) => 0,
             Self::Priority(op) => op.priority(),
-            Self::Set(_) => String::from(""),
+            Self::Set(_) => 0,
         }
     }
 
@@ -94,20 +94,42 @@ impl EnvOp {
     }
 }
 
-impl<'de> Deserialize<'de> for EnvOp {
+impl<'de> Deserialize<'de> for EnvConfig {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
+        #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+        enum ConfKind {
+            Priority(u8),
+            Operation(String),
+        }
+
+        impl ConfKind {
+            pub fn get_op(&self) -> String {
+                match self {
+                    ConfKind::Priority(_) => String::from(""),
+                    ConfKind::Operation(o) => o.clone(),
+                }
+            }
+
+            pub fn get_priority(&self) -> u8 {
+                match self {
+                    ConfKind::Priority(p) => *p,
+                    ConfKind::Operation(_) => 0,
+                }
+            }
+        }
+
         #[derive(Default)]
-        struct EnvOpVisitor {
-            op_and_var: Option<(OpKind, String)>,
+        struct EnvConfigVisitor {
+            op_and_var: Option<(OpKind, ConfKind)>,
             value: Option<String>,
             separator: Option<String>,
         }
 
-        impl<'de> serde::de::Visitor<'de> for EnvOpVisitor {
-            type Value = EnvOp;
+        impl<'de> serde::de::Visitor<'de> for EnvConfigVisitor {
+            type Value = EnvConfig;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("an environment operation")
@@ -120,26 +142,36 @@ impl<'de> Deserialize<'de> for EnvOp {
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
                         OP_PREPEND => {
-                            self.op_and_var =
-                                Some((OpKind::Prepend, map.next_value::<Stringified>()?.0));
+                            self.op_and_var = Some((
+                                OpKind::Prepend,
+                                ConfKind::Operation(map.next_value::<String>()?),
+                            ));
                         }
                         OP_PRIORITY => {
-                            self.op_and_var =
-                                Some((OpKind::Priority, map.next_value::<Stringified>()?.0));
+                            self.op_and_var = Some((
+                                OpKind::Priority,
+                                ConfKind::Priority(map.next_value::<u8>()?),
+                            ));
                         }
                         OP_COMMENT => {
-                            self.op_and_var =
-                                Some((OpKind::Comment, map.next_value::<Stringified>()?.0));
+                            self.op_and_var = Some((
+                                OpKind::Comment,
+                                ConfKind::Operation(map.next_value::<String>()?),
+                            ));
                         }
                         OP_APPEND => {
-                            self.op_and_var =
-                                Some((OpKind::Append, map.next_value::<Stringified>()?.0));
+                            self.op_and_var = Some((
+                                OpKind::Append,
+                                ConfKind::Operation(map.next_value::<String>()?),
+                            ));
                         }
                         OP_SET => {
-                            self.op_and_var =
-                                Some((OpKind::Set, map.next_value::<Stringified>()?.0));
+                            self.op_and_var = Some((
+                                OpKind::Set,
+                                ConfKind::Operation(map.next_value::<String>()?),
+                            ));
                         }
-                        "value" => self.value = Some(map.next_value::<Stringified>()?.0),
+                        "value" => self.value = Some(map.next_value::<String>()?),
                         "separator" => {
                             self.separator = map.next_value::<Option<Stringified>>()?.map(|s| s.0)
                         }
@@ -151,7 +183,7 @@ impl<'de> Deserialize<'de> for EnvOp {
                     }
                 }
 
-                // Comments don't have any values.
+                // Comments and priority configs don't have any values.
                 let value = match self.op_and_var.as_ref().unwrap().0 {
                     OpKind::Comment | OpKind::Priority => String::from(""),
                     _ => self
@@ -160,33 +192,32 @@ impl<'de> Deserialize<'de> for EnvOp {
                         .ok_or_else(|| serde::de::Error::missing_field("value"))?,
                 };
 
-                // Expand env variables in value.
                 let value = shellexpand::env(&value)
                     .unwrap_or(std::borrow::Cow::Borrowed(""))
                     .to_string();
 
                 match self.op_and_var.take() {
                     Some((op, var)) => match op {
-                        OpKind::Prepend => Ok(EnvOp::Prepend(PrependEnv{
-                            prepend: var,
+                        OpKind::Prepend => Ok(EnvConfig::Prepend(PrependEnv{
+                            prepend: var.get_op(),
                             separator: self.separator.take(),
                             value
                         })),
-                        OpKind::Priority => Ok(EnvOp::Priority(Priority{
-                            priority: var
-                        })),
-                        OpKind::Append => Ok(EnvOp::Append(AppendEnv{
-                            append: var,
+                        OpKind::Append => Ok(EnvConfig::Append(AppendEnv{
+                            append: var.get_op(),
                             separator: self.separator.take(),
                             value
                         })),
-                        OpKind::Set => Ok(EnvOp::Set(SetEnv{
-                            set: var,
+                        OpKind::Set => Ok(EnvConfig::Set(SetEnv{
+                            set: var.get_op(),
                             value
                         })),
-                        OpKind::Comment => Ok(EnvOp::Comment(CommentEnv{
-                            comment: var
+                        OpKind::Comment => Ok(EnvConfig::Comment(CommentEnv{
+                            comment: var.get_op()
                         })),
+                        OpKind::Priority => Ok(EnvConfig::Priority(Priority{
+                            priority: var.get_priority()
+                        }))
                     },
                     None => Err(serde::de::Error::custom(format!(
                         "missing field to define operation and variable, expected one of {OP_NAMES:?}",
@@ -194,8 +225,7 @@ impl<'de> Deserialize<'de> for EnvOp {
                 }
             }
         }
-
-        deserializer.deserialize_map(EnvOpVisitor::default())
+        deserializer.deserialize_map(EnvConfigVisitor::default())
     }
 }
 
@@ -267,7 +297,7 @@ impl CommentEnv {
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Priority {
-    pub priority: String,
+    pub priority: u8,
 }
 
 impl Priority {
@@ -281,8 +311,8 @@ impl Priority {
         String::from("")
     }
 
-    pub fn priority(&self) -> String {
-        self.priority.clone()
+    pub fn priority(&self) -> u8 {
+        self.priority
     }
 }
 

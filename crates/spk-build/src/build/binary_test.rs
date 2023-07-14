@@ -753,6 +753,27 @@ async fn test_build_add_startup_files(tmpdir: tempfile::TempDir) {
 
 #[rstest]
 #[tokio::test]
+#[should_panic]
+async fn test_build_multiple_priority_startup_files() {
+    let rt = spfs_runtime().await;
+    let recipe = recipe!(
+        {
+            "pkg": "testpkg",
+            "install": {
+                "environment": [
+                    {"priority": 99},
+                    {"priority": 10},
+                ]
+            },
+        }
+    );
+    rt.tmprepo.publish_recipe(&recipe).await.unwrap();
+
+    let _ = recipe.generate_binary_build(&option_map! {}, &Solution::default());
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir) {
     let rt = spfs_runtime().await;
     let recipe = recipe!(
@@ -760,7 +781,7 @@ async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir) {
             "pkg": "testpkg",
             "install": {
                 "environment": [
-                    {"priority": "99"},
+                    {"priority": 99},
                 ]
             },
         }

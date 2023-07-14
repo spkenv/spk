@@ -53,7 +53,7 @@ pub trait Package:
     fn components(&self) -> &super::ComponentSpecList;
 
     /// The set of operations to perform on the environment when running this package
-    fn runtime_environment(&self) -> &Vec<super::EnvOp>;
+    fn runtime_environment(&self) -> &Vec<super::EnvConfig>;
 
     /// Requests that must be met to use this package
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList>;
@@ -122,7 +122,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).components()
     }
 
-    fn runtime_environment(&self) -> &Vec<super::EnvOp> {
+    fn runtime_environment(&self) -> &Vec<super::EnvConfig> {
         (**self).runtime_environment()
     }
 
@@ -186,7 +186,7 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).components()
     }
 
-    fn runtime_environment(&self) -> &Vec<super::EnvOp> {
+    fn runtime_environment(&self) -> &Vec<super::EnvConfig> {
         (**self).runtime_environment()
     }
 
@@ -250,7 +250,7 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).components()
     }
 
-    fn runtime_environment(&self) -> &Vec<super::EnvOp> {
+    fn runtime_environment(&self) -> &Vec<super::EnvConfig> {
         (**self).runtime_environment()
     }
 
