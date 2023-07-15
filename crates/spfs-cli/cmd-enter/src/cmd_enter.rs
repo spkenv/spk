@@ -245,7 +245,7 @@ impl CmdEnter {
     }
 
     #[cfg_attr(not(feature = "sentry"), allow(unused))]
-    fn report_render_summary(&self, _render_summary: RenderSummary, render_time: f64) {
+    fn report_render_summary(&self, render_summary: RenderSummary, render_time: f64) {
         if self.enter.metrics_in_env {
             // The render time is put into environment variables for
             // other, non-spfs, programs to access. If this command
