@@ -620,6 +620,19 @@ where
                                         std::io::ErrorKind::AlreadyExists => {
                                             RenderBlobResult::PayloadAlreadyExists
                                         }
+                                        _ if err.raw_os_error()
+                                            == Some(nix::errno::Errno::EMLINK as i32) =>
+                                        {
+                                            // hard-linking can fail if we have reached the maximum number of links
+                                            // for the underlying file system. Often this number is arbitrarily large,
+                                            // but on some systems and filers, or at certain scales the possibility is
+                                            // very real. In these cases, our only real course of action other than failing
+                                            // is to fall back to a real copy of the file.
+                                            let _ = self
+                                                .render_blob(target_dir_fd, entry, RenderType::Copy)
+                                                .await?;
+                                            return Ok(RenderBlobResult::PayloadCopiedLinkLimit);
+                                        }
                                         _ => {
                                             return Err(Error::StorageWriteError(
                                                 "hard_link of payload to proxy path",
