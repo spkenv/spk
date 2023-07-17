@@ -144,7 +144,7 @@ impl<'de> Deserialize<'de> for EnvOp {
                         OP_PREPEND => {
                             self.op_and_var = Some((
                                 OpKind::Prepend,
-                                ConfKind::Operation(map.next_value::<String>()?),
+                                ConfKind::Operation(map.next_value::<Stringified>()?.0),
                             ));
                         }
                         OP_PRIORITY => {
@@ -156,22 +156,22 @@ impl<'de> Deserialize<'de> for EnvOp {
                         OP_COMMENT => {
                             self.op_and_var = Some((
                                 OpKind::Comment,
-                                ConfKind::Operation(map.next_value::<String>()?),
+                                ConfKind::Operation(map.next_value::<Stringified>()?.0),
                             ));
                         }
                         OP_APPEND => {
                             self.op_and_var = Some((
                                 OpKind::Append,
-                                ConfKind::Operation(map.next_value::<String>()?),
+                                ConfKind::Operation(map.next_value::<Stringified>()?.0),
                             ));
                         }
                         OP_SET => {
                             self.op_and_var = Some((
                                 OpKind::Set,
-                                ConfKind::Operation(map.next_value::<String>()?),
+                                ConfKind::Operation(map.next_value::<Stringified>()?.0),
                             ));
                         }
-                        "value" => self.value = Some(map.next_value::<String>()?),
+                        "value" => self.value = Some(map.next_value::<Stringified>()?.0),
                         "separator" => {
                             self.separator = map.next_value::<Option<Stringified>>()?.map(|s| s.0)
                         }
