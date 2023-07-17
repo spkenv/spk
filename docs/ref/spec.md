@@ -135,7 +135,7 @@ A test spec defines one test script that should be run against the package to va
 | requirements | _List[[Request](#request)]_             | The set of packages required at runtime, this list applies universally to all components.                                                                            |
 | embedded     | _List[[Spec](#spec)]_                   | A list of packages that come bundled in this one                                                                                                                     |
 | components   | _List[[ComponentSpec](#componentspec)]_ | The set of components that this package provides. If not otherwise specified, a `build` and `run` component are automatically generated and inserted into this list. |
-| environment  | _List[[EnvConfig](#envconfig)]_                 | Environment configurations to make at runtime                                                                                                                |
+| environment  | _List[[EnvOp](#envop)]_                 | Environment variable manipulations to make at runtime                                                                                                                |
 
 #### ComponentSpec
 
@@ -157,7 +157,7 @@ The component spec defines a single component of a package. Components can be in
 | All (default) | Matching files are always included                                                                      |
 | Remaining     | Matching files are only included if they haven't already been matched by a previously defined component |
 
-### EnvConfig
+### EnvOp
 
 Configurations made to the environment at runtime. Configurations include the environment operations such as [AppendEnv](#appendenv), [PrependEnv](#prependenv), [Comment](#comment) or [SetEnv](#setenv).
 Other configuration include setting the priority of the generated activation script. Can be set using [Priority](#priority).

@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use rstest::rstest;
 
-use super::EnvConfig;
+use super::EnvOp;
 
 #[rstest]
 #[case("{comment: This is a test}")]
@@ -11,7 +11,7 @@ use super::EnvConfig;
 #[case("{prepend: SPK_TEST_VAR, value: simple}")]
 #[case("{set: SPK_TEST_VAR, value: simple}")]
 fn test_valid_bash(#[case] op: &str) {
-    let op: EnvConfig = serde_yaml::from_str(op).unwrap();
+    let op: EnvOp = serde_yaml::from_str(op).unwrap();
     println!("source:\n{}", op.tcsh_source());
 
     let mut bash = std::process::Command::new("bash");
@@ -37,7 +37,7 @@ fn test_valid_bash(#[case] op: &str) {
 #[case("{prepend: SPK_TEST_VAR, value: simple}")]
 #[case("{set: SPK_TEST_VAR, value: simple}")]
 fn test_valid_tcsh(#[case] op: &str) {
-    let op: EnvConfig = serde_yaml::from_str(op).unwrap();
+    let op: EnvOp = serde_yaml::from_str(op).unwrap();
     println!("source:\n{}", op.tcsh_source());
 
     let mut tcsh = std::process::Command::new("tcsh");
@@ -62,9 +62,9 @@ fn test_valid_tcsh(#[case] op: &str) {
 #[case("{set: SPK_TEST_VAR, value: simple}")]
 #[case("{append: SPK_TEST_VAR, value: simple, separator: '+'}")]
 fn test_yaml_round_trip(#[case] op: &str) {
-    let op: EnvConfig = serde_yaml::from_str(op).unwrap();
+    let op: EnvOp = serde_yaml::from_str(op).unwrap();
     let yaml = serde_yaml::to_string(&op).unwrap();
-    let op2: EnvConfig = serde_yaml::from_str(&yaml).unwrap();
+    let op2: EnvOp = serde_yaml::from_str(&yaml).unwrap();
     assert_eq!(op2, op, "should be the same after sending through yaml");
 }
 
@@ -72,7 +72,7 @@ fn test_yaml_round_trip(#[case] op: &str) {
 #[case("{set: SPK_TEST_VAR, value: '${PWD}'}")]
 #[case("{set: SPK_TEST_VAR2, value: '$${PWD}}'}")]
 fn test_variable_substitution(#[case] op: &str) {
-    let op: EnvConfig = serde_yaml::from_str(op).unwrap();
+    let op: EnvOp = serde_yaml::from_str(op).unwrap();
     println!("source:\n{}", op.tcsh_source());
 
     let mut tcsh = std::process::Command::new("tcsh");

@@ -40,7 +40,7 @@ use crate::{
     Deprecate,
     DeprecateMut,
     EmbeddedPackagesList,
-    EnvConfig,
+    EnvOp,
     Error,
     Inheritance,
     InstallSpec,
@@ -221,7 +221,7 @@ impl Package for Spec<BuildIdent> {
         &self.install.components
     }
 
-    fn runtime_environment(&self) -> &Vec<EnvConfig> {
+    fn runtime_environment(&self) -> &Vec<EnvOp> {
         &self.install.environment
     }
 

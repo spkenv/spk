@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use spk_schema_ident::BuildIdent;
 
-use super::{ComponentSpecList, EmbeddedPackagesList, EnvConfig, OpKind, RequirementsList};
+use super::{ComponentSpecList, EmbeddedPackagesList, EnvOp, OpKind, RequirementsList};
 use crate::foundation::option_map::OptionMap;
 use crate::Result;
 
@@ -26,7 +26,7 @@ pub struct InstallSpec {
         deserialize_with = "deserialize_env_conf",
         skip_serializing_if = "Vec::is_empty"
     )]
-    pub environment: Vec<EnvConfig>,
+    pub environment: Vec<EnvOp>,
 }
 
 impl InstallSpec {
@@ -44,14 +44,14 @@ impl InstallSpec {
     }
 }
 
-fn deserialize_env_conf<'de, D>(deserializer: D) -> std::result::Result<Vec<EnvConfig>, D::Error>
+fn deserialize_env_conf<'de, D>(deserializer: D) -> std::result::Result<Vec<EnvOp>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
     struct EnvConfVisitor;
 
     impl<'de> serde::de::Visitor<'de> for EnvConfVisitor {
-        type Value = Vec<EnvConfig>;
+        type Value = Vec<EnvOp>;
 
         fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
             f.write_str("an environment configuration")
@@ -63,8 +63,8 @@ where
         {
             let mut vec = Vec::new();
 
-            while let Some(elem) = seq.next_element::<EnvConfig>()? {
-                if vec.iter().any(|x: &EnvConfig| x.kind() == OpKind::Priority)
+            while let Some(elem) = seq.next_element::<EnvOp>()? {
+                if vec.iter().any(|x: &EnvOp| x.kind() == OpKind::Priority)
                     && elem.kind() == OpKind::Priority
                 {
                     return Err(serde::de::Error::custom(

@@ -33,7 +33,7 @@ pub enum OpKind {
 /// An operation performed to the environment
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(untagged)]
-pub enum EnvConfig {
+pub enum EnvOp {
     Append(AppendEnv),
     Comment(CommentEnv),
     Prepend(PrependEnv),
@@ -41,14 +41,14 @@ pub enum EnvConfig {
     Set(SetEnv),
 }
 
-impl EnvConfig {
+impl EnvOp {
     pub fn kind(&self) -> OpKind {
         match self {
-            EnvConfig::Append(_) => OpKind::Append,
-            EnvConfig::Comment(_) => OpKind::Comment,
-            EnvConfig::Prepend(_) => OpKind::Prepend,
-            EnvConfig::Priority(_) => OpKind::Priority,
-            EnvConfig::Set(_) => OpKind::Set,
+            EnvOp::Append(_) => OpKind::Append,
+            EnvOp::Comment(_) => OpKind::Comment,
+            EnvOp::Prepend(_) => OpKind::Prepend,
+            EnvOp::Priority(_) => OpKind::Priority,
+            EnvOp::Set(_) => OpKind::Set,
         }
     }
 
@@ -94,7 +94,7 @@ impl EnvConfig {
     }
 }
 
-impl<'de> Deserialize<'de> for EnvConfig {
+impl<'de> Deserialize<'de> for EnvOp {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -122,14 +122,14 @@ impl<'de> Deserialize<'de> for EnvConfig {
         }
 
         #[derive(Default)]
-        struct EnvConfigVisitor {
+        struct EnvOpVisitor {
             op_and_var: Option<(OpKind, ConfKind)>,
             value: Option<String>,
             separator: Option<String>,
         }
 
-        impl<'de> serde::de::Visitor<'de> for EnvConfigVisitor {
-            type Value = EnvConfig;
+        impl<'de> serde::de::Visitor<'de> for EnvOpVisitor {
+            type Value = EnvOp;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("an environment operation")
@@ -198,24 +198,24 @@ impl<'de> Deserialize<'de> for EnvConfig {
 
                 match self.op_and_var.take() {
                     Some((op, var)) => match op {
-                        OpKind::Prepend => Ok(EnvConfig::Prepend(PrependEnv{
+                        OpKind::Prepend => Ok(EnvOp::Prepend(PrependEnv{
                             prepend: var.get_op(),
                             separator: self.separator.take(),
                             value
                         })),
-                        OpKind::Append => Ok(EnvConfig::Append(AppendEnv{
+                        OpKind::Append => Ok(EnvOp::Append(AppendEnv{
                             append: var.get_op(),
                             separator: self.separator.take(),
                             value
                         })),
-                        OpKind::Set => Ok(EnvConfig::Set(SetEnv{
+                        OpKind::Set => Ok(EnvOp::Set(SetEnv{
                             set: var.get_op(),
                             value
                         })),
-                        OpKind::Comment => Ok(EnvConfig::Comment(CommentEnv{
+                        OpKind::Comment => Ok(EnvOp::Comment(CommentEnv{
                             comment: var.get_op()
                         })),
-                        OpKind::Priority => Ok(EnvConfig::Priority(Priority{
+                        OpKind::Priority => Ok(EnvOp::Priority(Priority{
                             priority: var.get_priority()
                         }))
                     },
@@ -225,7 +225,7 @@ impl<'de> Deserialize<'de> for EnvConfig {
                 }
             }
         }
-        deserializer.deserialize_map(EnvConfigVisitor::default())
+        deserializer.deserialize_map(EnvOpVisitor::default())
     }
 }
 

@@ -515,7 +515,7 @@ impl Package for Spec {
         }
     }
 
-    fn runtime_environment(&self) -> &Vec<super::EnvConfig> {
+    fn runtime_environment(&self) -> &Vec<super::EnvOp> {
         match self {
             Spec::V0Package(spec) => spec.runtime_environment(),
         }
