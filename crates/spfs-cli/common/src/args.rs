@@ -331,48 +331,6 @@ macro_rules! configure_timestamp {
     };
 }
 
-macro_rules! configure_logging_layer {
-    ($tracing_layer:expr, $env_filter:expr) => {
-        #[cfg(not(feature = "sentry"))]
-        let sub = tracing_subscriber::registry().with(
-            configure_timestamp!($tracing_layer)
-                .with_filter($env_filter)
-                .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-                    // Don't log breadcrumbs to console, etc.
-                    !metadata.target().starts_with("sentry")
-                })),
-        );
-        #[cfg(feature = "sentry")]
-        let sub = {
-            let sentry_layer =
-                sentry_tracing::layer().with_filter(tracing_subscriber::filter::LevelFilter::INFO);
-
-            tracing_subscriber::registry()
-                .with(
-                    configure_timestamp!($tracing_layer)
-                        .and_then(sentry_tracing::layer().with_filter(
-                            tracing_subscriber::filter::filter_fn(|metadata| {
-                                // Don't log to sentry when the target is "nosentry".
-                                !metadata.target().starts_with("nosentry")
-                            }),
-                        ))
-                        .with_filter($env_filter)
-                        .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-                            // Don't log breadcrumbs to console, etc.
-                            !metadata.target().starts_with("sentry")
-                        })),
-                )
-                .with(
-                    sentry_layer.with_filter(tracing_subscriber::filter::filter_fn(
-                        // Only log breadcrumbs here.
-                        |metadata| metadata.target().starts_with("sentry"),
-                    )),
-                )
-        };
-        tracing::subscriber::set_global_default(sub).unwrap();
-    };
-}
-
 impl Logging {
     fn show_target(&self) -> bool {
         self.verbose > 2
@@ -405,21 +363,17 @@ impl Logging {
             let identity = std::ffi::CStr::from_bytes_with_nul(b"spfs\0")
                 .expect("identity value is valid CStr");
             let (options, facility) = Default::default();
-            let layer = fmt_layer()
-                .without_time()
-                .with_writer(
-                    syslog_tracing::Syslog::new(identity, options, facility)
-                        .expect("initialize Syslog"),
-                )
-                .with_filter(env_filter());
+            let layer = fmt_layer().with_writer(
+                syslog_tracing::Syslog::new(identity, options, facility)
+                    .expect("initialize Syslog"),
+            );
+            let layer = configure_timestamp!(layer).with_filter(env_filter());
             without_sentry_target!(layer)
         });
 
         let stderr_layer = {
-            let layer = fmt_layer()
-                .without_time()
-                .with_writer(std::io::stderr)
-                .with_filter(env_filter());
+            let layer = fmt_layer().with_writer(std::io::stderr);
+            let layer = configure_timestamp!(layer).with_filter(env_filter());
             without_sentry_target!(layer)
         };
 
@@ -435,7 +389,8 @@ impl Logging {
                     .ok()
             })
             .map(|log_file| {
-                let layer = fmt_layer().with_writer(log_file).with_filter(env_filter());
+                let layer = fmt_layer().with_writer(log_file);
+                let layer = configure_timestamp!(layer).with_filter(env_filter());
                 without_sentry_target!(layer)
             });
 
