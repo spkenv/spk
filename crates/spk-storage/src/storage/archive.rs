@@ -77,37 +77,89 @@ where
         to_transfer.insert(pkg.with_build(None));
     }
 
-    for pkg in to_transfer.into_iter() {
-        if pkg.is_embedded() {
+    for transfer_pkg in to_transfer.into_iter() {
+        if transfer_pkg.is_embedded() {
             // Don't attempt to export an embedded package; the stub
             // will be recreated if exporting its provider.
             continue;
         }
 
-        let local_err = match copy_any(pkg.clone(), &local_repo, &target_repo).await {
+        enum CopyResult {
+            VersionNotFound,
+            BuildNotFound,
+            Err(Error),
+        }
+
+        impl CopyResult {
+            fn or(self, other: CopyResult) -> Option<Error> {
+                if let CopyResult::Err(err) = self {
+                    Some(err)
+                } else if let CopyResult::Err(err) = other {
+                    Some(err)
+                } else {
+                    None
+                }
+            }
+        }
+
+        let local_err = match copy_any(transfer_pkg.clone(), &local_repo, &target_repo).await {
             Ok(_) => continue,
             Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(_),
-            )) => None,
-            Err(err) => Some(err),
+                spk_schema::validators::Error::PackageNotFoundError(ident),
+            )) => {
+                if ident.build().is_some() {
+                    CopyResult::BuildNotFound
+                } else {
+                    CopyResult::VersionNotFound
+                }
+            }
+            Err(err) => CopyResult::Err(err),
         };
         if remote_repo.is_err() {
             return remote_repo.map(|_| ());
         }
-        let remote_err =
-            match copy_any(pkg.clone(), remote_repo.as_ref().unwrap(), &target_repo).await {
-                Ok(_) => continue,
-                Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(_),
-                )) => None,
-                Err(err) => Some(err),
-            };
+        let remote_err = match copy_any(
+            transfer_pkg.clone(),
+            remote_repo.as_ref().unwrap(),
+            &target_repo,
+        )
+        .await
+        {
+            Ok(_) => continue,
+            Err(Error::SpkValidatorsError(
+                spk_schema::validators::Error::PackageNotFoundError(ident),
+            )) => {
+                if ident.build().is_some() {
+                    CopyResult::BuildNotFound
+                } else {
+                    CopyResult::VersionNotFound
+                }
+            }
+            Err(err) => CopyResult::Err(err),
+        };
+
+        // `list_package_builds` can return builds that only exist as spfs tags
+        // under `spk/spec`, meaning the build doesn't really exist. Ignore
+        // `PackageNotFoundError` about these ... unless the build was
+        // explicitly named to be archived.
+        //
+        // Consider changing `list_package_builds` so it doesn't do that
+        // anymore, although it has a comment that it is doing so
+        // intentionally. Maybe it should return a richer type that describes
+        // if only the "spec build" exists and that info could be used here.
+        if matches!(local_err, CopyResult::BuildNotFound)
+            && matches!(remote_err, CopyResult::BuildNotFound)
+            && pkg.build().is_none()
+        {
+            continue;
+        }
+
         // we will hide the remote_err in cases when both failed,
         // because the remote was always a fallback and fixing the
         // local error is preferred
-        return Err(local_err
-            .or(remote_err)
-            .unwrap_or_else(|| spk_schema::validators::Error::PackageNotFoundError(pkg).into()));
+        return Err(local_err.or(remote_err).unwrap_or_else(|| {
+            spk_schema::validators::Error::PackageNotFoundError(transfer_pkg).into()
+        }));
     }
 
     tracing::info!(path=?filename, "building archive");
