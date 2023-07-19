@@ -171,7 +171,7 @@ impl<'repo, Repo> Renderer<'repo, Repo, SilentRenderReporter> {
     pub fn new(repo: &'repo Repo) -> Self {
         Self {
             repo,
-            reporter: Arc::new(SilentRenderReporter::default()),
+            reporter: Arc::new(SilentRenderReporter),
             blob_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_BLOBS)),
             max_concurrent_branches: DEFAULT_MAX_CONCURRENT_BRANCHES,
         }

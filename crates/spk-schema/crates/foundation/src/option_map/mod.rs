@@ -308,7 +308,7 @@ impl<'de> Deserialize<'de> for Stringified {
     where
         D: serde::Deserializer<'de>,
     {
-        deserializer.deserialize_any(StringifyVisitor::default())
+        deserializer.deserialize_any(StringifyVisitor)
     }
 }
 
@@ -391,7 +391,5 @@ pub fn string_from_scalar<'de, D>(deserializer: D) -> std::result::Result<String
 where
     D: serde::Deserializer<'de>,
 {
-    deserializer
-        .deserialize_any(StringifyVisitor::default())
-        .map(|s| s.0)
+    deserializer.deserialize_any(StringifyVisitor).map(|s| s.0)
 }
