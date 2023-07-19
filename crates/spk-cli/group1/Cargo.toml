@@ -28,3 +28,5 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
+spk-solve-macros = { path = '../../spk-solve/crates/macros' }
+spk-solve-solution = { path = '../../spk-solve/crates/solution' }

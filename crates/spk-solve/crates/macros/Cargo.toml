@@ -1,0 +1,13 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+name = "spk-solve-macros"
+version = { workspace = true }
+
+[features]
+migration-to-components = []
+
+[dependencies]
+serde_json = { workspace = true }
+spfs = { path = "../../../spfs" }
+spk-schema = { path = "../../../spk-schema" }

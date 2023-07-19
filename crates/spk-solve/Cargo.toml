@@ -49,4 +49,5 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
+spk-solve-macros = { path = "./crates/macros" }
 strip-ansi-escapes = { workspace = true }
