@@ -309,6 +309,10 @@ pub struct Logging {
     /// Enables logging to syslog (for background processes)
     #[clap(skip)]
     pub syslog: bool,
+
+    /// Enables timestamp in logging
+    #[clap(long, global = true, env = "SPFS_LOG_TIMESTAMP")]
+    pub timestamp: bool,
 }
 
 /// Applies a filter to remove sentry log targets if sentry is enabled
@@ -322,8 +326,8 @@ macro_rules! without_sentry_target {
 }
 
 macro_rules! configure_timestamp {
-    ($tracing_layer:expr) => {
-        if std::env::var("SPFS_LOG_ENABLE_TIMESTAMP").is_ok() {
+    ($tracing_layer:expr, $timestamp:expr) => {
+        if $timestamp {
             $tracing_layer.boxed()
         } else {
             $tracing_layer.without_time().boxed()
@@ -367,13 +371,13 @@ impl Logging {
                 syslog_tracing::Syslog::new(identity, options, facility)
                     .expect("initialize Syslog"),
             );
-            let layer = configure_timestamp!(layer).with_filter(env_filter());
+            let layer = configure_timestamp!(layer, self.timestamp).with_filter(env_filter());
             without_sentry_target!(layer)
         });
 
         let stderr_layer = {
             let layer = fmt_layer().with_writer(std::io::stderr);
-            let layer = configure_timestamp!(layer).with_filter(env_filter());
+            let layer = configure_timestamp!(layer, self.timestamp).with_filter(env_filter());
             without_sentry_target!(layer)
         };
 
@@ -390,7 +394,7 @@ impl Logging {
             })
             .map(|log_file| {
                 let layer = fmt_layer().with_writer(log_file);
-                let layer = configure_timestamp!(layer).with_filter(env_filter());
+                let layer = configure_timestamp!(layer, self.timestamp).with_filter(env_filter());
                 without_sentry_target!(layer)
             });
 
