@@ -10,6 +10,10 @@ use colored::Colorize;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_storage::{self as storage};
 
+#[cfg(test)]
+#[path = "./cmd_export_test.rs"]
+mod cmd_export_test;
+
 /// Export a package as a tar file
 #[derive(Args)]
 pub struct Export {
