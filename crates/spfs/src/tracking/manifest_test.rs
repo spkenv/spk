@@ -109,7 +109,7 @@ async fn test_layer_manifests_removal() {
     a.mkfile("a_only").unwrap();
 
     let mut b = Manifest::default();
-    let mut node = b.mkfile("a_only").unwrap();
+    let node = b.mkfile("a_only").unwrap();
     node.kind = EntryKind::Mask;
 
     let mut c = Manifest::default();

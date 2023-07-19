@@ -53,7 +53,7 @@ where
             specs,
             packages: Arc::default(),
             embedded_stubs: Arc::default(),
-            _marker: std::marker::PhantomData::default(),
+            _marker: std::marker::PhantomData,
         }
     }
 }
