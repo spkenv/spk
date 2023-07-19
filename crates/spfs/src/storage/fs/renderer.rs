@@ -375,7 +375,7 @@ where
     }
 
     #[async_recursion::async_recursion]
-    pub async fn render_into_dir_fd<Fd>(
+    async fn render_into_dir_fd<Fd>(
         &self,
         root_dir_fd: Fd,
         tree: graph::Tree,
@@ -403,7 +403,6 @@ where
         let root_dir_fd = root_dir_fd.as_raw_fd();
         let mut stream = futures::stream::iter(entries)
             .then(move |entry| {
-                self.reporter.visit_entry(&entry);
                 let fut = async move {
                     let mut root_path = PathBuf::from(&entry.name);
                     match entry.kind {
