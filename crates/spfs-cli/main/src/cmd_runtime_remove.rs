@@ -35,7 +35,7 @@ pub struct CmdRuntimeRemove {
     ignore_monitor: bool,
 
     /// The name/id of the runtime to remove
-    name: String,
+    name: Vec<String>,
 }
 
 impl CmdRuntimeRemove {
@@ -48,37 +48,39 @@ impl CmdRuntimeRemove {
             None => config.get_runtime_storage().await?,
         };
 
-        let runtime = runtime_storage.read_runtime(&self.name).await?;
+        for runtime_name in self.name.iter() {
+            let runtime = runtime_storage.read_runtime(&runtime_name).await?;
 
-        let default_author = spfs::runtime::Author::default();
-        let is_same_author = runtime.author.user_name == default_author.user_name;
-        if !self.ignore_user && !is_same_author {
-            tracing::error!(
-                "Won't delete, this runtime belongs to '{}'",
-                runtime.author.user_name
-            );
-            tracing::error!(" > use --ignore-user to ignore this error");
-            return Ok(1);
+            let default_author = spfs::runtime::Author::default();
+            let is_same_author = runtime.author.user_name == default_author.user_name;
+            if !self.ignore_user && !is_same_author {
+                tracing::error!(
+                    "Won't delete, this runtime belongs to '{}'",
+                    runtime.author.user_name
+                );
+                tracing::error!(" > use --ignore-user to ignore this error");
+                return Ok(1);
+            }
+
+            let is_same_host = runtime.author.host_name == default_author.host_name;
+            if !self.ignore_host && !is_same_host {
+                tracing::error!(
+                    "Won't delete, this runtime was spawned on a different machine: '{}'",
+                    runtime.author.host_name
+                );
+                tracing::error!(" > use --ignore-host to ignore this error");
+                return Ok(1);
+            }
+
+            if !self.ignore_monitor && is_same_host && is_monitor_running(&runtime) {
+                tracing::error!("Won't delete, the monitor process appears to still be running",);
+                tracing::error!(" > terminating the command should trigger the cleanup process");
+                tracing::error!(" > use --ignore-monitor to ignore this error");
+                return Ok(1);
+            }
+
+            runtime_storage.remove_runtime(runtime.name()).await?;
         }
-
-        let is_same_host = runtime.author.host_name == default_author.host_name;
-        if !self.ignore_host && !is_same_host {
-            tracing::error!(
-                "Won't delete, this runtime was spawned on a different machine: '{}'",
-                runtime.author.host_name
-            );
-            tracing::error!(" > use --ignore-host to ignore this error");
-            return Ok(1);
-        }
-
-        if !self.ignore_monitor && is_same_host && is_monitor_running(&runtime) {
-            tracing::error!("Won't delete, the monitor process appears to still be running",);
-            tracing::error!(" > terminating the command should trigger the cleanup process");
-            tracing::error!(" > use --ignore-monitor to ignore this error");
-            return Ok(1);
-        }
-
-        runtime_storage.remove_runtime(runtime.name()).await?;
 
         Ok(0)
     }
