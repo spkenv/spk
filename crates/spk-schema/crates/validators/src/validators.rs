@@ -11,9 +11,8 @@ use spk_schema_ident::BuildIdent;
 
 use crate::{Error, Result};
 
-#[cfg(test)]
-#[path = "./validators_test.rs"]
-mod validators_test;
+// Tests for this module are in spk-schema/src/v0/validators_test.rs to avoid
+// a cyclic crate dependency (the tests need spk_schema::v0).
 
 /// Validates that all remaining build files are collected into at least one component
 pub fn must_collect_all_files<'a, Files>(

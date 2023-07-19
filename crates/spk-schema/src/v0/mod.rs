@@ -9,3 +9,7 @@ mod variant;
 pub use spec::Spec;
 pub use test_spec::TestSpec;
 pub use variant::Variant;
+
+#[cfg(test)]
+#[path = "./validators_test.rs"]
+mod validators_test;
