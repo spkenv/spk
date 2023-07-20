@@ -309,6 +309,10 @@ pub struct Logging {
     /// Enables logging to syslog (for background processes)
     #[clap(skip)]
     pub syslog: bool,
+
+    /// Enables timestamp in logging
+    #[clap(long, global = true, env = "SPFS_LOG_TIMESTAMP")]
+    pub timestamp: bool,
 }
 
 /// Applies a filter to remove sentry log targets if sentry is enabled
@@ -319,6 +323,16 @@ macro_rules! without_sentry_target {
             !metadata.target().starts_with("sentry")
         }))
     }};
+}
+
+macro_rules! configure_timestamp {
+    ($tracing_layer:expr, $timestamp:expr) => {
+        if $timestamp {
+            $tracing_layer.boxed()
+        } else {
+            $tracing_layer.without_time().boxed()
+        }
+    };
 }
 
 impl Logging {
@@ -353,21 +367,17 @@ impl Logging {
             let identity = std::ffi::CStr::from_bytes_with_nul(b"spfs\0")
                 .expect("identity value is valid CStr");
             let (options, facility) = Default::default();
-            let layer = fmt_layer()
-                .without_time()
-                .with_writer(
-                    syslog_tracing::Syslog::new(identity, options, facility)
-                        .expect("initialize Syslog"),
-                )
-                .with_filter(env_filter());
+            let layer = fmt_layer().with_writer(
+                syslog_tracing::Syslog::new(identity, options, facility)
+                    .expect("initialize Syslog"),
+            );
+            let layer = configure_timestamp!(layer, self.timestamp).with_filter(env_filter());
             without_sentry_target!(layer)
         });
 
         let stderr_layer = {
-            let layer = fmt_layer()
-                .without_time()
-                .with_writer(std::io::stderr)
-                .with_filter(env_filter());
+            let layer = fmt_layer().with_writer(std::io::stderr);
+            let layer = configure_timestamp!(layer, self.timestamp).with_filter(env_filter());
             without_sentry_target!(layer)
         };
 
@@ -383,7 +393,8 @@ impl Logging {
                     .ok()
             })
             .map(|log_file| {
-                let layer = fmt_layer().with_writer(log_file).with_filter(env_filter());
+                let layer = fmt_layer().with_writer(log_file);
+                let layer = configure_timestamp!(layer, self.timestamp).with_filter(env_filter());
                 without_sentry_target!(layer)
             });
 
