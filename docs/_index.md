@@ -7,7 +7,7 @@ chapter: true
 alt="SPK Logo" src="/images/spk_black.png"/>
 ---
 
-**Package management and a software runtime for studio environments**
+The **S**oftware **P**ackaging **K**it (SPK) provides package management and a software runtime for studio environments.
 
 <div style="text-align: center; width: 100%">{{% button href="/use" %}}Getting Started{{% /button %}} {{% button href="/ref/spec" %}}Yaml Reference{{% /button %}}</div>
 
