@@ -161,8 +161,9 @@ impl Runtime {
         // the run time for the current spk run before it is replaced.
         #[cfg(feature = "statsd")]
         {
-            let statsd_client = get_metrics_client();
-            statsd_client.record_duration_from_start(&SPK_RUN_TIME_METRIC);
+            if let Some(statsd_client) = get_metrics_client() {
+                statsd_client.record_duration_from_start(&SPK_RUN_TIME_METRIC);
+            }
         }
 
         nix::unistd::execvp(&spfs, args.as_slice())

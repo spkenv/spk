@@ -20,25 +20,28 @@ const STATSD_FORMAT: &str = "statsd";
 // https://github.com/prometheus/statsd_exporter#tagging-extensions
 const LIBRATO_FORMAT: &str = "statsd-exporter-librato";
 
-static METRICS_CLIENT: Lazy<MetricsClient> = Lazy::new(|| {
+static METRICS_CLIENT: Lazy<Option<MetricsClient>> = Lazy::new(|| {
     // TODO: add the default value to a config file, once spk has one
-    let host = String::from(env!("SPK_METRICS_STATSD_HOST"));
-
+    let Some(host) = option_env!("SPK_METRICS_STATSD_HOST") else {
+        return None;
+    };
     // TODO: add the default value to a config file, once spk has one
-    let port = String::from(env!("SPK_METRICS_STATSD_PORT"));
-
+    let Some(port) = option_env!("SPK_METRICS_STATSD_PORT") else {
+        return None;
+    };
     // TODO: add the default value to a config file, once spk has one
-    let prefix = String::from(env!("SPK_METRICS_STATSD_PREFIX"));
-
+    let Some(prefix) = option_env!("SPK_METRICS_STATSD_PREFIX") else {
+        return None;
+    };
     // TODO: add the default value to a config file, once spk has one
-    let statsd_format = match StatsdFormat::from_str(env!("SPK_METRICS_STATSD_FORMAT")) {
-        Ok(format) => format,
-        // Using panic! here instead of unwrap() gives a less noisy message
-        Err(err) => panic!("{err}"),
+    let Some(Ok(statsd_format)) =
+        option_env!("SPK_METRICS_STATSD_FORMAT").map(StatsdFormat::from_str)
+    else {
+        return None;
     };
 
     let host_port = format!("{host}:{port}");
-    let statsd_client = match Client::new(host_port.clone(), &prefix) {
+    let statsd_client = match Client::new(host_port.clone(), prefix) {
         Ok(c) => Some(c),
         Err(err) => {
             // If anything goes wrong, sending metrics to statsd is disabled.
@@ -58,7 +61,7 @@ static METRICS_CLIENT: Lazy<MetricsClient> = Lazy::new(|| {
         "".to_string()
     };
 
-    MetricsClient::new(command, statsd_format, statsd_client)
+    Some(MetricsClient::new(command, statsd_format, statsd_client))
 });
 
 // TODO: add the default value to a config file, once spk has one
@@ -290,6 +293,6 @@ impl MetricsClient {
 }
 
 /// Return a configured metrics statsd client
-pub fn get_metrics_client() -> &'static MetricsClient {
-    &METRICS_CLIENT
+pub fn get_metrics_client() -> Option<&'static MetricsClient> {
+    METRICS_CLIENT.as_ref()
 }
