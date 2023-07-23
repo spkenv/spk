@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use once_cell::sync::Lazy;
 use rstest::fixture;
 use tracing_capture::{CaptureLayer, SharedStorage};
 use tracing_subscriber::prelude::*;
 
-lazy_static::lazy_static! {
-    static ref TRACING_STORAGE: SharedStorage = SharedStorage::default();
-}
+static TRACING_STORAGE: Lazy<SharedStorage> = Lazy::new(SharedStorage::default);
 
 /// Initialize tracing logs for testing.
 ///

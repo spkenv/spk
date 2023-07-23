@@ -6,6 +6,7 @@ use std::convert::TryInto;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
+use once_cell::sync::Lazy;
 use rstest::fixture;
 use spfs::config::Remote;
 use spfs::prelude::*;
@@ -15,9 +16,7 @@ use tokio::sync::{Mutex, MutexGuard};
 
 use crate as storage;
 
-lazy_static::lazy_static! {
-    static ref SPFS_RUNTIME_LOCK: Mutex<()> = Mutex::new(());
-}
+static SPFS_RUNTIME_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 pub struct RuntimeLock {
     config: Arc<spfs::Config>,

@@ -8,8 +8,8 @@ version = { workspace = true }
 migration-to-components = ["spk-schema-foundation/migration-to-components"]
 
 [dependencies]
-lazy_static = "1.4"
 format_serde_error = {version = "0.3", default_features = false, features = ["colored"]}
+once_cell = { workspace = true }
 regex = "1.6.0"
 serde = "1.0"
 serde_json = "1.0"

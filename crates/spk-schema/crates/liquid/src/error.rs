@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 #[cfg(test)]
@@ -21,10 +21,10 @@ impl std::fmt::Display for ParsedError {
 impl Error for ParsedError {}
 
 pub fn to_error_types(err: liquid::Error) -> format_serde_error::ErrorTypes {
-    lazy_static! {
-        static ref RE: Regex = Regex::new(r"(?ms)liquid:  --> (\d+):(\d+)\n.*^\s+= (.*)")
-            .expect("a valid regular expression");
-    }
+    static RE: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"(?ms)liquid:  --> (\d+):(\d+)\n.*^\s+= (.*)")
+            .expect("a valid regular expression")
+    });
     let mut message = err.to_string();
     let mut line = Option::<usize>::None;
     let mut column = Option::<usize>::None;
