@@ -19,4 +19,4 @@ pub mod version;
 pub mod version_range;
 
 pub use fixtures::*;
-pub use from_yaml::FromYaml;
+pub use from_yaml::{FromYaml, SerdeYamlError};

@@ -12,6 +12,7 @@ use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::Component;
+use spk_schema_foundation::SerdeYamlError;
 use spk_schema_ident::{BuildIdent, VersionIdent};
 
 use crate::foundation::name::{PkgName, PkgNameBuf};
@@ -127,19 +128,6 @@ macro_rules! spec {
     }};
 }
 
-/// Convert a serde_yaml::Error into a SerdeError.
-fn serde_yaml_error_to_serde_error(input: String, err: serde_yaml::Error) -> SerdeError {
-    let location = err.location();
-    SerdeError::new(
-        input,
-        (
-            Box::new(err) as Box<dyn std::error::Error>,
-            location.as_ref().map(|l| l.line()),
-            location.as_ref().map(|l| l.column() - 1),
-        ),
-    )
-}
-
 /// A generic, structured data object that can be turned into a recipe
 /// when provided with the necessary option values
 pub struct SpecTemplate {
@@ -192,9 +180,10 @@ impl TemplateExt for SpecTemplate {
         // though we will need to re-process it again later on
         let template_value: serde_yaml::Mapping = match serde_yaml::from_str(&template) {
             Err(err) => {
-                return Err(Error::InvalidYaml(serde_yaml_error_to_serde_error(
-                    template, err,
-                )));
+                return Err(Error::InvalidYaml(SerdeError::new(
+                    template,
+                    SerdeYamlError(err),
+                )))
             }
             Ok(v) => v,
         };
@@ -372,7 +361,7 @@ impl FromYaml for SpecRecipe {
             // to understand that we only pass ownership of 'yaml' if
             // the function is returning
             Err(err) => {
-                return Err(serde_yaml_error_to_serde_error(yaml, err));
+                return Err(SerdeError::new(yaml, SerdeYamlError(err)));
             }
             Ok(m) => m,
         };
@@ -380,7 +369,7 @@ impl FromYaml for SpecRecipe {
         match with_version.api {
             ApiVersion::V0Package => {
                 let inner = serde_yaml::from_str(&yaml)
-                    .map_err(|err| serde_yaml_error_to_serde_error(yaml, err))?;
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Package(inner))
             }
         }
@@ -622,7 +611,7 @@ impl FromYaml for Spec {
             // to understand that we only pass ownership of 'yaml' if
             // the function is returning
             Err(err) => {
-                return Err(serde_yaml_error_to_serde_error(yaml, err));
+                return Err(SerdeError::new(yaml, SerdeYamlError(err)));
             }
             Ok(m) => m,
         };
@@ -630,7 +619,7 @@ impl FromYaml for Spec {
         match with_version.api {
             ApiVersion::V0Package => {
                 let inner = serde_yaml::from_str(&yaml)
-                    .map_err(|err| serde_yaml_error_to_serde_error(yaml, err))?;
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Package(inner))
             }
         }
