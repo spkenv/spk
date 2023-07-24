@@ -4,6 +4,7 @@
 
 //! Low-level digraph representation and manipulation for data storage.
 
+mod annotation;
 mod blob;
 mod database;
 mod entry;
@@ -18,6 +19,11 @@ mod tree;
 
 use std::cell::RefCell;
 
+pub use annotation::{
+    Annotation,
+    AnnotationValue,
+    DEFAULT_SPFS_ANNOTATION_LAYER_MAX_STRING_VALUE_SIZE,
+};
 pub use blob::Blob;
 pub use database::{
     Database,
@@ -28,7 +34,7 @@ pub use database::{
 };
 pub use entry::Entry;
 pub use kind::{HasKind, Kind, ObjectKind};
-pub use layer::Layer;
+pub use layer::{KeyAnnotationValuePair, Layer};
 pub use manifest::Manifest;
 pub use object::{FlatObject, Object, ObjectProto};
 pub use platform::Platform;

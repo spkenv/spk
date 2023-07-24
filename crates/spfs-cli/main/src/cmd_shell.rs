@@ -7,6 +7,7 @@ use miette::Result;
 use spfs_cli_common as cli;
 
 use super::cmd_run;
+use super::cmd_run::Annotation;
 
 /// Enter a subshell in a configured spfs environment
 #[derive(Debug, Args)]
@@ -48,6 +49,9 @@ pub struct CmdShell {
     #[clap(short, long, env = "SPFS_KEEP_RUNTIME")]
     pub keep_runtime: bool,
 
+    #[clap(flatten)]
+    pub annotation: Annotation,
+
     /// The tag or id of the desired runtime
     ///
     /// Use '-' or nothing to request an empty environment
@@ -67,6 +71,7 @@ impl CmdShell {
             runtime_name: self.runtime_name.clone(),
             reference: self.reference.clone(),
             keep_runtime: self.keep_runtime,
+            annotation: self.annotation.clone(),
             command: Default::default(),
         };
         run_cmd.run(config).await

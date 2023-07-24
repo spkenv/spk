@@ -10,7 +10,7 @@ use encoding::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::error::{ObjectError, ObjectResult};
-use super::{Blob, DatabaseView, HasKind, Kind, Layer, Manifest, ObjectKind, Platform};
+use super::{Annotation, Blob, DatabaseView, HasKind, Kind, Layer, Manifest, ObjectKind, Platform};
 use crate::encoding;
 use crate::storage::RepositoryHandle;
 
@@ -157,8 +157,14 @@ impl Object {
                         }
                     }
                     Enum::Layer(object) => {
-                        let item = repo.read_object(*object.manifest()).await?;
-                        next_iter_objects.push(item);
+                        if let Some(manifest_digest) = object.manifest() {
+                            let item = repo.read_object(*manifest_digest).await?;
+                            next_iter_objects.push(item);
+                        }
+                        for entry in object.annotations() {
+                            let annotation: Annotation = entry.into();
+                            total_size += annotation.size();
+                        }
                     }
                     Enum::Manifest(object) => {
                         for node in object.to_tracking_manifest().walk_abs("/spfs") {

@@ -9,6 +9,7 @@ use colored::*;
 use miette::Result;
 use spfs::env::SPFS_DIR;
 use spfs::find_path::ObjectPathEntry;
+use spfs::graph::Annotation;
 use spfs::io::{self, DigestFormat, Pluralize};
 use spfs::prelude::*;
 use spfs::{self};
@@ -19,6 +20,9 @@ use spfs_cli_common as cli;
 pub struct CmdInfo {
     #[clap(flatten)]
     logging: cli::Logging,
+
+    #[clap(flatten)]
+    annotation: cli::AnnotationViewing,
 
     /// Lists file sizes in human readable format
     #[clap(long, short = 'H')]
@@ -139,10 +143,28 @@ impl CmdInfo {
                 println!(
                     " {} {}",
                     "manifest:".bright_blue(),
-                    self.format_digest(*obj.manifest(), repo).await?
+                    match obj.manifest() {
+                        None => "None".to_string(),
+                        Some(manifest_digest) => self.format_digest(*manifest_digest, repo).await?,
+                    }
                 );
+
+                let annotations = obj.annotations();
+                if annotations.is_empty() {
+                    println!(" {} none", "annotations:".bright_blue());
+                } else {
+                    for data in annotations {
+                        let annotation: Annotation = data.into();
+                        println!(" {}", "annotations:".bright_blue());
+                        println!("  {} {}", "key:".bright_blue(), annotation.key());
+                        println!("  {} {}", "value:".bright_blue(), annotation.value());
+                    }
+                }
+
                 if self.follow {
-                    self.to_process.push_back(obj.manifest().to_string());
+                    if let Some(manifest_digest) = obj.manifest() {
+                        self.to_process.push_back(manifest_digest.to_string());
+                    }
                 }
             }
 
@@ -198,6 +220,10 @@ impl CmdInfo {
     /// Display the status of the current runtime.
     async fn print_global_info(&self, repo: &spfs::storage::RepositoryHandle) -> Result<()> {
         let runtime = spfs::active_runtime().await?;
+
+        if self.annotation.get_all || self.annotation.get.is_some() {
+            return self.annotation.print_data(&runtime).await;
+        }
 
         println!("{}:", "Active Runtime".green());
         println!(" {}: {}", "id".bright_blue(), runtime.name());

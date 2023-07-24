@@ -48,7 +48,11 @@ impl ResolvedLayers {
                         let object = repo.read_object(resolved_layer.digest).await?;
                         match object.into_enum() {
                             Enum::Layer(obj) => {
-                                match repo.read_object(*obj.manifest()).await?.into_enum() {
+                                let manifest_digest = match obj.manifest() {
+                                    None => continue,
+                                    Some(m) => m
+                                };
+                                match repo.read_object(*manifest_digest).await?.into_enum() {
                                     Enum::Manifest(obj) => obj,
                                     _ => continue,
                                 }

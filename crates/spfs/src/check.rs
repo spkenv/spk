@@ -12,6 +12,7 @@ use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
 use tokio::sync::Semaphore;
 
+use crate::graph::AnnotationValue;
 use crate::prelude::*;
 use crate::sync::{SyncObjectResult, SyncPayloadResult, SyncPolicy};
 use crate::{encoding, graph, storage, tracking, Error, Result};
@@ -333,10 +334,33 @@ where
     ///
     /// To also check if the layer object exists, use [`Self::check_digest`]
     pub async fn check_layer(&self, layer: graph::Layer) -> Result<CheckLayerResult> {
-        let result = self.check_digest(*layer.manifest()).await?;
+        let manifest_result = if let Some(manifest_digest) = layer.manifest() {
+            self.check_digest(*manifest_digest).await?
+        } else {
+            // This layer has no manifest, don't worry about it
+            CheckObjectResult::Ignorable
+        };
+        let annotations = layer.annotations();
+        let annotation_results = if annotations.is_empty() {
+            vec![CheckObjectResult::Annotation(
+                CheckAnnotationResult::InternalValue,
+            )]
+        } else {
+            let mut results = Vec::new();
+            for entry in annotations {
+                results.push(CheckObjectResult::Annotation(
+                    self.check_annotation(entry.into()).await?,
+                ));
+            }
+            results
+        };
+
+        let mut results = vec![manifest_result];
+        results.extend(annotation_results);
+
         let res = CheckLayerResult {
             layer,
-            result,
+            results,
             repaired: false,
         };
         Ok(res)
@@ -358,6 +382,26 @@ where
             manifest: manifest.to_owned(),
             results,
             repaired: false,
+        };
+        Ok(res)
+    }
+
+    /// Validate that the identified annotation layer's value exists.
+    pub async fn check_annotation(
+        &self,
+        annotation: graph::Annotation<'_>,
+    ) -> Result<CheckAnnotationResult> {
+        let res = match annotation.value() {
+            AnnotationValue::String(_) => CheckAnnotationResult::InternalValue,
+            AnnotationValue::Blob(d) => {
+                let blob = self.repo.read_blob(d).await?;
+                let result = unsafe { self.check_blob(&blob).await? };
+                CheckAnnotationResult::Checked {
+                    digest: d,
+                    result,
+                    repaired: false,
+                }
+            }
         };
         Ok(res)
     }
@@ -801,6 +845,7 @@ pub enum CheckObjectResult {
     Layer(Box<CheckLayerResult>),
     Blob(CheckBlobResult),
     Manifest(CheckManifestResult),
+    Annotation(CheckAnnotationResult),
 }
 
 impl CheckObjectResult {
@@ -815,6 +860,7 @@ impl CheckObjectResult {
             CheckObjectResult::Layer(r) => r.set_repaired(),
             CheckObjectResult::Blob(r) => r.set_repaired(),
             CheckObjectResult::Manifest(r) => r.set_repaired(),
+            CheckObjectResult::Annotation(r) => r.set_repaired(),
         }
     }
 
@@ -831,6 +877,7 @@ impl CheckObjectResult {
             Layer(res) => res.summary(),
             Blob(res) => res.summary(),
             Manifest(res) => res.summary(),
+            Annotation(res) => res.summary(),
         }
     }
 }
@@ -862,7 +909,7 @@ impl CheckPlatformResult {
 pub struct CheckLayerResult {
     pub repaired: bool,
     pub layer: graph::Layer,
-    pub result: CheckObjectResult,
+    pub results: Vec<CheckObjectResult>,
 }
 
 impl CheckLayerResult {
@@ -872,7 +919,7 @@ impl CheckLayerResult {
     }
 
     pub fn summary(&self) -> CheckSummary {
-        let mut summary = self.result.summary();
+        let mut summary: CheckSummary = self.results.iter().map(|r| r.summary()).sum();
         summary += CheckSummary::checked_one_object();
         if self.repaired {
             summary.repaired_objects += 1;
@@ -901,6 +948,34 @@ impl CheckManifestResult {
             summary.repaired_objects += 1;
         }
         summary
+    }
+}
+
+#[derive(Debug)]
+pub enum CheckAnnotationResult {
+    /// The annotation was stored directly in the layer and did not
+    /// need checking
+    InternalValue,
+    /// The annotation was stored in a blob and was checked
+    Checked {
+        digest: encoding::Digest,
+        result: CheckBlobResult,
+        repaired: bool,
+    },
+}
+
+impl CheckAnnotationResult {
+    fn set_repaired(&mut self) {
+        if let Self::Checked { repaired, .. } = self {
+            *repaired = true;
+        }
+    }
+
+    pub fn summary(&self) -> CheckSummary {
+        match self {
+            Self::InternalValue => CheckSummary::default(),
+            Self::Checked { result, .. } => result.summary(),
+        }
     }
 }
 

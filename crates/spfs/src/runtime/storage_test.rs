@@ -10,12 +10,16 @@ use std::str::FromStr;
 
 use futures::TryStreamExt;
 use rstest::rstest;
+use spfs_encoding::Digestible;
 
 use super::{makedirs_with_perms, Data, Storage};
 use crate::encoding;
 use crate::fixtures::*;
+use crate::graph::object::EncodingFormat;
+use crate::graph::{AnnotationValue, Layer, Platform};
 use crate::runtime::storage::{LiveLayerApiVersion, LiveLayerContents};
-use crate::runtime::{BindMount, LiveLayer, LiveLayerFile};
+use crate::runtime::{BindMount, KeyValuePair, LiveLayer, LiveLayerFile};
+use crate::storage::prelude::Database;
 
 #[rstest]
 fn test_bindmount_creation() {
@@ -170,6 +174,287 @@ async fn test_storage_create_runtime(tmpdir: tempfile::TempDir) {
         .create_named_runtime(runtime.name(), durable, live_layers)
         .await
         .is_err());
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_storage_runtime_with_annotation(tmpdir: tempfile::TempDir) {
+    let root = tmpdir.path().to_string_lossy().to_string();
+    let repo = crate::storage::RepositoryHandle::from(
+        crate::storage::fs::FsRepository::create(root)
+            .await
+            .unwrap(),
+    );
+    let storage = Storage::new(repo).unwrap();
+    let limit: usize = 16 * 1024;
+
+    let keep_runtime = false;
+    let live_layers = Vec::new();
+    let mut runtime = storage
+        .create_named_runtime("test-with-annotation-data", keep_runtime, live_layers)
+        .await
+        .expect("failed to create runtime in storage");
+
+    // Test - insert data
+    let key = "somefield".to_string();
+    let value = "some value".to_string();
+    assert!(runtime
+        .add_annotation(key.clone(), value.clone(), limit)
+        .await
+        .is_ok());
+
+    // Test - insert some more data
+    let value2 = "someothervalue".to_string();
+    assert!(runtime
+        .add_annotation(key.clone(), value2, limit)
+        .await
+        .is_ok());
+
+    // Test - retrieve data - the first inserted data should be the
+    // what is retrieved because of how adding to the runtime stack
+    // works.
+    if EncodingFormat::default() == EncodingFormat::Legacy {
+        if (runtime.annotation(&key).await).is_ok() {
+            panic!("This should fail when EncodingFormat::Legacy is the default")
+        }
+        // Don't run the rest of the test when EncodingFormat::Legacy is used
+        return;
+    };
+
+    let result = runtime.annotation(&key).await.unwrap();
+    assert!(result.is_some());
+
+    assert!(value == *result.unwrap());
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_storage_runtime_add_annotations_list(tmpdir: tempfile::TempDir) {
+    let root = tmpdir.path().to_string_lossy().to_string();
+    let repo = crate::storage::RepositoryHandle::from(
+        crate::storage::fs::FsRepository::create(root)
+            .await
+            .unwrap(),
+    );
+    let storage = Storage::new(repo).unwrap();
+    let limit: usize = 16 * 1024;
+
+    let keep_runtime = false;
+    let live_layers = Vec::new();
+    let mut runtime = storage
+        .create_named_runtime("test-with-annotation-data", keep_runtime, live_layers)
+        .await
+        .expect("failed to create runtime in storage");
+
+    // Test - insert data
+    let key = "somefield".to_string();
+    let value = "some value".to_string();
+    let key2 = "someotherfield".to_string();
+    let value2 = "some other value".to_string();
+
+    let annotations: Vec<KeyValuePair> =
+        vec![(key.clone(), value.clone()), (key2.clone(), value2.clone())];
+
+    assert!(runtime.add_annotations(annotations, limit).await.is_ok());
+
+    // Test - retrieve data both pieces of data
+    let result = runtime.annotation(&key).await.unwrap();
+    if EncodingFormat::default() == EncodingFormat::Legacy {
+        assert!(
+            result.is_none(),
+            "No annotation should be found under Legacy encoding"
+        );
+    } else {
+        assert!(result.is_some());
+        assert!(value == *result.unwrap());
+    }
+
+    let result2 = runtime.annotation(&key2).await.unwrap();
+    if EncodingFormat::default() == EncodingFormat::Legacy {
+        assert!(
+            result2.is_none(),
+            "No annotation should be found under Legacy encoding"
+        );
+    } else {
+        assert!(result2.is_some());
+        assert!(value2 == *result2.unwrap());
+    }
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_storage_runtime_with_nested_annotation(tmpdir: tempfile::TempDir) {
+    // Setup the objects needed for the runtime used in the test
+    let root = tmpdir.path().to_string_lossy().to_string();
+    let repo = crate::storage::RepositoryHandle::from(
+        crate::storage::fs::FsRepository::create(root)
+            .await
+            .unwrap(),
+    );
+
+    // make an annotation layer
+    let key = "somefield".to_string();
+    let value = "somevalue".to_string();
+    let annotation_value = AnnotationValue::String(value.clone());
+    let layer = Layer::new_with_annotation(key.clone(), annotation_value);
+    repo.write_object(&layer).await.unwrap();
+
+    // make a platform that contains the annotation layer
+    let layers: Vec<encoding::Digest> = vec![layer.digest().unwrap()];
+    let platform = Platform::from_iter(layers);
+    repo.write_object(&platform.clone()).await.unwrap();
+
+    // put the platform into a runtime
+    let storage = Storage::new(repo).unwrap();
+    let keep_runtime = false;
+    let live_layers = Vec::new();
+    let mut runtime = storage
+        .create_named_runtime("test-with-annotation-nested", keep_runtime, live_layers)
+        .await
+        .expect("failed to create runtime in storage");
+    runtime.push_digest(platform.digest().unwrap());
+
+    if EncodingFormat::default() == EncodingFormat::Legacy {
+        if (runtime.annotation(&key).await).is_ok() {
+            panic!("This should fail when EncodingFormat::Legacy is the default")
+        }
+        // Don't run the rest of the test when EncodingFormat::Legacy is used
+        return;
+    };
+
+    // Test - retrieve the data even though it is nested inside a
+    // platform object in the runtime.
+    let result = runtime.annotation(&key).await.unwrap();
+    assert!(result.is_some());
+
+    assert!(value == *result.unwrap());
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_storage_runtime_with_annotation_all(tmpdir: tempfile::TempDir) {
+    let root = tmpdir.path().to_string_lossy().to_string();
+    let repo = crate::storage::RepositoryHandle::from(
+        crate::storage::fs::FsRepository::create(root)
+            .await
+            .unwrap(),
+    );
+    let storage = Storage::new(repo).unwrap();
+    let limit: usize = 16 * 1024;
+
+    let keep_runtime = false;
+    let live_layers = Vec::new();
+    let mut runtime = storage
+        .create_named_runtime("test-with-annotation-all", keep_runtime, live_layers)
+        .await
+        .expect("failed to create runtime in storage");
+
+    // Test - insert two distinct data values
+    let key = "somefield".to_string();
+    let value = "somevalue".to_string();
+
+    assert!(runtime
+        .add_annotation(key.clone(), value.clone(), limit)
+        .await
+        .is_ok());
+
+    let key2 = "somefield2".to_string();
+    let value2 = "somevalue2".to_string();
+    assert!(runtime
+        .add_annotation(key2.clone(), value2.clone(), limit)
+        .await
+        .is_ok());
+
+    // Test - get all the data back out
+    if EncodingFormat::default() == EncodingFormat::Legacy {
+        if (runtime.all_annotations().await).is_ok() {
+            panic!("This should fail when EncodingFormat::Legacy is the default")
+        }
+        // Don't run the rest of the test when EncodingFormat::Legacy is used
+        return;
+    };
+
+    let result = runtime.all_annotations().await.unwrap();
+
+    assert!(result.len() == 2);
+    for (expected_key, expected_value) in [(key, value), (key2, value2)].iter() {
+        assert!(result.get(expected_key).is_some());
+        match result.get(expected_key) {
+            Some(v) => {
+                assert!(v == expected_value);
+            }
+            None => panic!("Value missing for {expected_key} when getting all annotation"),
+        }
+    }
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_storage_runtime_with_nested_annotation_all(tmpdir: tempfile::TempDir) {
+    // setup the objects needed for the runtime used in the test
+    let root = tmpdir.path().to_string_lossy().to_string();
+    let repo = crate::storage::RepositoryHandle::from(
+        crate::storage::fs::FsRepository::create(root)
+            .await
+            .unwrap(),
+    );
+
+    // make two distinct data values
+    let key = "somefield".to_string();
+    let value = "somevalue".to_string();
+    let annotation_value = AnnotationValue::String(value.clone());
+    let layer = Layer::new_with_annotation(key.clone(), annotation_value);
+    repo.write_object(&layer.clone()).await.unwrap();
+
+    let key2 = "somefield2".to_string();
+    let value2 = "somevalue2".to_string();
+    let annotation_value2 = AnnotationValue::String(value2.clone());
+    let layer2 = Layer::new_with_annotation(key2.clone(), annotation_value2);
+    repo.write_object(&layer2.clone()).await.unwrap();
+
+    // make a platform with one annotation layer
+    let layers: Vec<encoding::Digest> = vec![layer.digest().unwrap()];
+    let platform = Platform::from_iter(layers);
+    repo.write_object(&platform.clone()).await.unwrap();
+
+    // make another platform with the first platform and the other
+    // annotation layer. this second platform is in the runtime
+    let layers2: Vec<encoding::Digest> = vec![platform.digest().unwrap(), layer2.digest().unwrap()];
+    let platform2 = Platform::from_iter(layers2);
+    repo.write_object(&platform2.clone()).await.unwrap();
+
+    // finally set up the runtime
+    let storage = Storage::new(repo).unwrap();
+
+    let keep_runtime = false;
+    let live_layers = Vec::new();
+    let mut runtime = storage
+        .create_named_runtime("test-with-annotation-all-nested", keep_runtime, live_layers)
+        .await
+        .expect("failed to create runtime in storage");
+    runtime.push_digest(platform2.digest().unwrap());
+
+    // Test - get all the data back out even thought it is nested at
+    // different levels in different platform objects in the runtime
+    if EncodingFormat::default() == EncodingFormat::Legacy {
+        if (runtime.all_annotations().await).is_ok() {
+            panic!("This should fail when EncodingFormat::Legacy is the default")
+        }
+        // Don't run the rest of the test when EncodingFormat::Legacy is used
+        return;
+    };
+
+    let result = runtime.all_annotations().await.unwrap();
+    assert!(result.len() == 2);
+    for (expected_key, expected_value) in [(key, value), (key2, value2)].iter() {
+        assert!(result.get(expected_key).is_some());
+        match result.get(expected_key) {
+            Some(v) => {
+                assert!(v == expected_value);
+            }
+            None => panic!("Value missing for {expected_key} when getting all annotations"),
+        }
+    }
 }
 
 #[rstest]

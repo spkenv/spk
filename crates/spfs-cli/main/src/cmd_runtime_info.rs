@@ -4,6 +4,7 @@
 
 use clap::Args;
 use miette::{Context, IntoDiagnostic, Result};
+use spfs_cli_common as cli;
 
 /// Show the complete state of a runtime
 #[derive(Debug, Args)]
@@ -11,6 +12,9 @@ pub struct CmdRuntimeInfo {
     /// Load a runtime in a remote or alternate repository
     #[clap(short, long)]
     remote: Option<String>,
+
+    #[clap(flatten)]
+    annotation: cli::AnnotationViewing,
 
     /// The name/id of the runtime to remove
     #[clap(env = "SPFS_RUNTIME")]
@@ -28,6 +32,12 @@ impl CmdRuntimeInfo {
         };
 
         let runtime = runtime_storage.read_runtime(&self.name).await?;
+
+        if self.annotation.get_all || self.annotation.get.is_some() {
+            self.annotation.print_data(&runtime).await?;
+            return Ok(0);
+        }
+
         serde_json::to_writer_pretty(std::io::stdout(), runtime.data())
             .into_diagnostic()
             .wrap_err("Failed to generate json output")?;

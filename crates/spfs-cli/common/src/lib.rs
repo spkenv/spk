@@ -11,6 +11,6 @@ pub mod __private {
     pub use {libc, spfs};
 }
 
-pub use args::{capture_if_relevant, CommandName, Logging, Render, Sync};
+pub use args::{capture_if_relevant, AnnotationViewing, CommandName, Logging, Render, Sync};
 #[cfg(feature = "sentry")]
 pub use args::{configure_sentry, shutdown_sentry};

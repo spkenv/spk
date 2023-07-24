@@ -597,11 +597,17 @@ async fn test_build_package_source_cleanup() {
     let config = spfs::get_config().unwrap();
     let repo = config.get_local_repository().await.unwrap();
     let layer = repo.read_layer(digest).await.unwrap();
+
+    let manifest_digest = match layer.manifest() {
+        None => panic!("This layer should have a manifest digest!"),
+        Some(d) => d,
+    };
     let manifest = repo
-        .read_manifest(*layer.manifest())
+        .read_manifest(*manifest_digest)
         .await
         .unwrap()
         .to_tracking_manifest();
+
     let entry = manifest.get_path(data_path(src_pkg.ident()));
     assert!(
         entry.is_none() || entry.unwrap().entries.is_empty(),
@@ -687,8 +693,13 @@ async fn test_build_filters_reset_files() {
         let config = spfs::get_config().unwrap();
         let repo = config.get_local_repository().await.unwrap();
         let layer = repo.read_layer(digest).await.unwrap();
+
+        let manifest_digest = match layer.manifest() {
+            None => panic!("This layer should have a manifest digest!"),
+            Some(d) => d,
+        };
         let manifest = repo
-            .read_manifest(*layer.manifest())
+            .read_manifest(*manifest_digest)
             .await
             .unwrap()
             .to_tracking_manifest();

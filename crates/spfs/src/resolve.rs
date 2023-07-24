@@ -155,12 +155,14 @@ pub async fn compute_environment_manifest(
     let layers = resolve_stack_to_layers(&stack, Some(repo)).await?;
     let mut manifest = tracking::Manifest::default();
     for layer in layers {
-        manifest.update(
-            &repo
-                .read_manifest(*layer.manifest())
-                .await?
-                .to_tracking_manifest(),
-        )
+        if let Some(manifest_digest) = layer.manifest() {
+            manifest.update(
+                &repo
+                    .read_manifest(*manifest_digest)
+                    .await?
+                    .to_tracking_manifest(),
+            )
+        }
     }
     Ok(manifest)
 }
@@ -170,16 +172,24 @@ pub async fn compute_object_manifest(
     repo: &storage::RepositoryHandle,
 ) -> Result<tracking::Manifest> {
     match obj.into_enum() {
-        graph::object::Enum::Layer(obj) => Ok(repo
-            .read_manifest(*obj.manifest())
-            .await?
-            .to_tracking_manifest()),
+        graph::object::Enum::Layer(obj) => {
+            if let Some(manifest_digest) = obj.manifest() {
+                Ok(repo
+                    .read_manifest(*manifest_digest)
+                    .await?
+                    .to_tracking_manifest())
+            } else {
+                Ok(tracking::Manifest::default())
+            }
+        }
         graph::object::Enum::Platform(obj) => {
             let layers = resolve_stack_to_layers(&obj.to_stack(), Some(repo)).await?;
             let mut manifest = tracking::Manifest::default();
             for layer in layers.iter() {
-                let layer_manifest = repo.read_manifest(*layer.manifest()).await?;
-                manifest.update(&layer_manifest.to_tracking_manifest());
+                if let Some(manifest_digest) = layer.manifest() {
+                    let layer_manifest = repo.read_manifest(*manifest_digest).await?;
+                    manifest.update(&layer_manifest.to_tracking_manifest());
+                }
             }
             Ok(manifest)
         }
@@ -247,10 +257,12 @@ where
     let layers = resolve_stack_to_layers_with_repo(&runtime.status.stack, &repo).await?;
     let mut manifests = Vec::with_capacity(layers.len());
     for (index, layer) in layers.iter().enumerate() {
-        manifests.push(ResolvedManifest::Existing {
-            order: index,
-            manifest: repo.read_manifest(*layer.manifest()).await?,
-        });
+        if let Some(manifest_digest) = layer.manifest() {
+            manifests.push(ResolvedManifest::Existing {
+                order: index,
+                manifest: repo.read_manifest(*manifest_digest).await?,
+            });
+        }
     }
 
     // Determine if layers need to be combined to stay within the length limits

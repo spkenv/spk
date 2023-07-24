@@ -203,8 +203,15 @@ impl TryFrom<super::Platform> for graph::Platform {
 
 impl From<&graph::Layer> for super::Layer {
     fn from(source: &graph::Layer) -> Self {
+        let mut annotations: Vec<super::Annotation> = Vec::new();
+        for a in source.annotations() {
+            let annotation: graph::Annotation = a.into();
+            annotations.push((&annotation).into());
+        }
+
         Self {
-            manifest: Some(source.manifest().into()),
+            manifest: source.manifest().map(|m| m.into()),
+            annotations,
         }
     }
 }
@@ -212,7 +219,36 @@ impl From<&graph::Layer> for super::Layer {
 impl TryFrom<super::Layer> for graph::Layer {
     type Error = Error;
     fn try_from(source: super::Layer) -> Result<Self> {
-        Ok(Self::new(convert_digest(source.manifest)?))
+        let digest = Some(convert_digest(source.manifest)?);
+
+        if let Some(manifest_digest) = digest {
+            if !source.annotations.is_empty() {
+                let mut annotations: Vec<graph::KeyAnnotationValuePair> = Vec::new();
+                for a in source.annotations.into_iter() {
+                    annotations.push((a.key.clone(), a.value.try_into()?));
+                }
+                // A spfs filesystem layer with some annotations
+                Ok(Self::new_with_manifest_and_annotations(
+                    manifest_digest,
+                    annotations,
+                ))
+            } else {
+                // A typical filesystem layer
+                Ok(Self::new(manifest_digest))
+            }
+        } else if !source.annotations.is_empty() {
+            let mut annotations: Vec<graph::KeyAnnotationValuePair> = Vec::new();
+            for a in source.annotations.into_iter() {
+                annotations.push((a.key.clone(), a.value.try_into()?));
+            }
+
+            // An annotation only layer
+            Ok(Self::new_with_annotations(annotations))
+        } else {
+            Err(Error::String(
+                "Creating a graph::Layer requires at least one of: a manifest digest, or an annotation".to_string(),
+            ))
+        }
     }
 }
 
@@ -292,6 +328,31 @@ impl TryFrom<super::Manifest> for graph::Manifest {
         }
         .into_manifest()
         .expect("known to be a manifest"))
+    }
+}
+
+impl From<&graph::Annotation<'_>> for super::Annotation {
+    fn from(source: &graph::Annotation) -> Self {
+        use super::annotation::Value;
+        Self {
+            key: source.key().to_string(),
+            value: match source.value() {
+                graph::AnnotationValue::String(s) => Some(Value::Data(s.clone())),
+                graph::AnnotationValue::Blob(d) => Some(Value::Digest(d.into())),
+            },
+        }
+    }
+}
+
+impl TryFrom<Option<super::annotation::Value>> for graph::AnnotationValue {
+    type Error = Error;
+    fn try_from(source: Option<super::annotation::Value>) -> Result<Self> {
+        use super::annotation::Value;
+        match source {
+            Some(Value::Data(s)) => Ok(graph::AnnotationValue::String(s.clone())),
+            Some(Value::Digest(d)) => Ok(graph::AnnotationValue::Blob(convert_digest(Some(d))?)),
+            None => Ok(graph::AnnotationValue::String(Default::default())),
+        }
     }
 }
 

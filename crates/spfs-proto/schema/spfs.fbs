@@ -20,7 +20,9 @@ table Platform {
 }
 
 table Layer {
-    manifest:Digest (required);
+    manifest:Digest;
+    // Can be empty
+    annotations:[Annotation] (required);
 }
 
 table Manifest {
@@ -32,6 +34,26 @@ table Manifest {
 table Blob {
     size:uint64;
     payload:Digest (required);
+}
+
+/// Annotation data that is small enough is stored as a string in the
+/// layer, large data is stored outside the layer in a blob object
+/// pointed at by a digest
+union AnnotationValue { AnnotationString, AnnotationDigest }
+
+/// Needed because unions have to contain tables
+table AnnotationString {
+   data:string;
+}
+/// Needed because unions have to contain tables
+table AnnotationDigest {
+   digest:Digest;
+}
+
+/// Annotation data held in a layer for use by external tools run inside a runtime
+table Annotation {
+   key:string (required);
+   data:AnnotationValue (required);
 }
 
 /// Digest is the result of a hashing operation over binary data.

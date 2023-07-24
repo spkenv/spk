@@ -75,7 +75,7 @@ impl std::ops::Deref for TempRepo {
 
 /// Returns an empty spfs layer object for easy testing
 pub fn empty_layer() -> spfs::graph::Layer {
-    spfs::graph::Layer::new(spfs::encoding::EMPTY_DIGEST.into())
+    spfs::graph::Layer::new(Default::default())
 }
 
 /// Returns the digest for an empty spfs layer.

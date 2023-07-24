@@ -30,11 +30,20 @@ message Platform {
 
 message Layer {
     Digest manifest = 1;
+    repeated Annotation annotations = 2;
 }
 
 message Manifest {
     Tree root = 1;
     repeated Tree trees = 2;
+}
+
+message Annotation {
+    string key = 1;
+    oneof value {
+        string data = 2;
+        Digest digest = 3;
+    }
 }
 
 message Tree {

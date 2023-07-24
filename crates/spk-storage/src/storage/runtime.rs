@@ -490,12 +490,14 @@ async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding
 
     let layers = spfs::resolve_stack_to_layers(&runtime.status.stack, Some(&repo)).await?;
     for layer in layers.iter().rev() {
-        let manifest = repo
-            .read_manifest(*layer.manifest())
-            .await?
-            .to_tracking_manifest();
-        if manifest.get_path(&path).is_some() {
-            return Ok(layer.digest()?);
+        if let Some(manifest_digest) = layer.manifest() {
+            let manifest = repo
+                .read_manifest(*manifest_digest)
+                .await?
+                .to_tracking_manifest();
+            if manifest.get_path(&path).is_some() {
+                return Ok(layer.digest()?);
+            }
         }
     }
     Err(spfs::Error::UnknownReference(path.as_ref().into()).into())
@@ -525,8 +527,13 @@ async fn find_layers_by_filenames<S: AsRef<str>>(
 
     let layers = spfs::resolve_stack_to_layers(&runtime.status.stack, Some(&repo)).await?;
     for layer in layers.iter().rev() {
+        let manifest_digest = match layer.manifest() {
+            None => continue,
+            Some(d) => d,
+        };
+
         let manifest = repo
-            .read_manifest(*layer.manifest())
+            .read_manifest(*manifest_digest)
             .await?
             .to_tracking_manifest();
 
