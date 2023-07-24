@@ -475,10 +475,10 @@ where
 
         Ok(())
     }
+
     /// Renders the file into a path on disk, changing its permissions
     /// as necessary / appropriate
-    #[async_recursion::async_recursion]
-    async fn render_blob<'a, Fd>(
+    async fn render_blob<Fd>(
         &self,
         dir_fd: Fd,
         entry: &graph::Entry,
@@ -492,6 +492,28 @@ where
             .acquire()
             .await
             .expect("semaphore should remain open");
+        // Safety: this function does not acquire a permit but we just got one
+        unsafe {
+            self.render_blob_without_permit(dir_fd, entry, render_type)
+                .await
+        }
+    }
+
+    /// Render a single blob onto disk
+    ///
+    /// # Safety:
+    /// This function does not acquire a permit from the [`Self::blob_semaphore`]
+    /// and so should only be executed if a permit is already held.
+    #[async_recursion::async_recursion]
+    async unsafe fn render_blob_without_permit<Fd>(
+        &self,
+        dir_fd: Fd,
+        entry: &graph::Entry,
+        render_type: RenderType,
+    ) -> Result<RenderBlobResult>
+    where
+        Fd: std::os::fd::AsRawFd + Send,
+    {
         // Note that opening the payload, even if the return value is not
         // used, has a possible side effect of repairing a missing payload,
         // depending on repository implementation.
@@ -627,9 +649,16 @@ where
                                             // but on some systems and filers, or at certain scales the possibility is
                                             // very real. In these cases, our only real course of action other than failing
                                             // is to fall back to a real copy of the file.
-                                            let _ = self
-                                                .render_blob(target_dir_fd, entry, RenderType::Copy)
-                                                .await?;
+                                            unsafe {
+                                                // Safety: we are recursing into this function again
+                                                // so the safety declaration still holds for the caller
+                                                self.render_blob_without_permit(
+                                                    target_dir_fd,
+                                                    entry,
+                                                    RenderType::Copy,
+                                                )
+                                                .await?
+                                            };
                                             return Ok(RenderBlobResult::PayloadCopiedLinkLimit);
                                         }
                                         _ => {
@@ -780,7 +809,16 @@ where
                                 // but on some systems and filers, or at certain scales the possibility is
                                 // very real. In these cases, our only real course of action other than failing
                                 // is to fall back to a real copy of the file.
-                                let _ = self.render_blob(dir_fd, entry, RenderType::Copy).await?;
+                                unsafe {
+                                    // Safety: we are recursing into this function again
+                                    // so the safety declaration still holds for the caller
+                                    self.render_blob_without_permit(
+                                        dir_fd,
+                                        entry,
+                                        RenderType::Copy,
+                                    )
+                                    .await?;
+                                }
                                 RenderBlobResult::PayloadCopiedLinkLimit
                             }
                             _ if matches!(render_type, RenderType::HardLink) => {
