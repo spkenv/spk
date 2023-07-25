@@ -61,6 +61,7 @@ impl CmdRun {
 
         let start_time = Instant::now();
         runtime.config.mount_backend = config.filesystem.backend;
+        runtime.config.secondary_repositories = config.get_secondary_runtime_repositories();
         if self.reference.is_empty() && !self.no_edit {
             self.edit = true;
         } else if runtime.config.mount_backend.requires_localization() {
@@ -85,7 +86,6 @@ impl CmdRun {
                 runtime.push_digest(digest);
             }
         } else {
-            runtime.config.secondary_repositories = config.get_secondary_runtime_repositories();
             let proxy_config = spfs::storage::proxy::Config {
                 primary: repo.address().to_string(),
                 secondary: runtime
