@@ -55,7 +55,7 @@ impl Run for Render {
         let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
 
         let solution = build_required_packages(&solution).await?;
-        let stack = resolve_runtime_layers(&solution).await?;
+        let stack = resolve_runtime_layers(true, &solution).await?;
         std::fs::create_dir_all(&self.target).context("Failed to create output directory")?;
         if std::fs::read_dir(&self.target)
             .context("Failed to validate output directory")?

@@ -253,6 +253,8 @@ where
         runtime.status.editable = true;
         runtime.status.stack.clear();
 
+        let requires_localization = runtime.config.mount_backend.requires_localization();
+
         let variant_options = variant.options();
         tracing::debug!("variant options: {variant_options}");
         let all_options = self.recipe.resolve_options(&variant)?;
@@ -264,7 +266,7 @@ where
             runtime
                 .status
                 .stack
-                .extend(resolve_runtime_layers(&solution).await?);
+                .extend(resolve_runtime_layers(requires_localization, &solution).await?);
         };
 
         tracing::debug!("Resolving build environment");
@@ -284,8 +286,11 @@ where
         let resolved_layers = solution_to_resolved_runtime_layers(&solution)?;
 
         let resolved_layers_copy = resolved_layers.clone();
-        let pull_task =
-            tokio::spawn(async move { pull_resolved_runtime_layers(&resolved_layers_copy).await });
+        let pull_task = if requires_localization {
+            tokio::spawn(async move { pull_resolved_runtime_layers(&resolved_layers_copy).await })
+        } else {
+            tokio::spawn(async move { Ok(resolved_layers_copy.layers()) })
+        };
 
         // Warn about possibly unexpected shadowed files in the layer stack.
         let mut warning_found = false;

@@ -90,6 +90,8 @@ impl<'a> PackageSourceTester<'a> {
         rt.status.editable = true;
         rt.status.stack.clear();
 
+        let requires_localization = rt.config.mount_backend.requires_localization();
+
         let mut solver = Solver::default();
         solver.set_binary_only(true);
         solver.update_options(self.options.clone());
@@ -116,7 +118,7 @@ impl<'a> PackageSourceTester<'a> {
 
         let (solution, _) = self.env_resolver.solve(&solver).await?;
 
-        for layer in resolve_runtime_layers(&solution).await? {
+        for layer in resolve_runtime_layers(requires_localization, &solution).await? {
             rt.push_digest(layer);
         }
         rt.save_state_to_storage().await?;
