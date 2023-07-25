@@ -166,6 +166,9 @@ struct BlobSemaphore(Arc<Semaphore>);
 struct BlobSemaphorePermit<'a>(tokio::sync::SemaphorePermit<'a>);
 
 impl BlobSemaphore {
+    /// Acquires a permit from the blob semaphore.
+    ///
+    /// Wrapper around [`tokio::sync::Semaphore::acquire`].
     async fn acquire(&self) -> BlobSemaphorePermit<'_> {
         BlobSemaphorePermit(
             self.0
