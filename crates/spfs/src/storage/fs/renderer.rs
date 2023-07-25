@@ -159,11 +159,28 @@ impl FSRepository {
     }
 }
 
+/// A semaphore for limiting the concurrency of blob renders.
+struct BlobSemaphore(Arc<Semaphore>);
+
+/// A newtype to represent holding the permit specifically for the blob semaphore.
+struct BlobSemaphorePermit<'a>(tokio::sync::SemaphorePermit<'a>);
+
+impl BlobSemaphore {
+    async fn acquire(&self) -> BlobSemaphorePermit<'_> {
+        BlobSemaphorePermit(
+            self.0
+                .acquire()
+                .await
+                .expect("semaphore should remain open"),
+        )
+    }
+}
+
 /// Renders manifest data to a directory on disk
 pub struct Renderer<'repo, Repo, Reporter: RenderReporter = SilentRenderReporter> {
     repo: &'repo Repo,
     reporter: Arc<Reporter>,
-    blob_semaphore: Arc<Semaphore>,
+    blob_semaphore: BlobSemaphore,
     max_concurrent_branches: usize,
 }
 
@@ -172,7 +189,7 @@ impl<'repo, Repo> Renderer<'repo, Repo, SilentRenderReporter> {
         Self {
             repo,
             reporter: Arc::new(SilentRenderReporter),
-            blob_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_BLOBS)),
+            blob_semaphore: BlobSemaphore(Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_BLOBS))),
             max_concurrent_branches: DEFAULT_MAX_CONCURRENT_BRANCHES,
         }
     }
@@ -199,7 +216,7 @@ where
 
     /// Set how many blobs should be processed at once.
     pub fn with_max_concurrent_blobs(mut self, max_concurrent_blobs: usize) -> Self {
-        self.blob_semaphore = Arc::new(Semaphore::new(max_concurrent_blobs));
+        self.blob_semaphore = BlobSemaphore(Arc::new(Semaphore::new(max_concurrent_blobs)));
         self
     }
 
@@ -487,31 +504,23 @@ where
     where
         Fd: std::os::fd::AsRawFd + Send,
     {
-        let _permit = self
-            .blob_semaphore
-            .acquire()
+        let permit = self.blob_semaphore.acquire().await;
+        self.render_blob_with_permit(dir_fd, entry, render_type, permit)
             .await
-            .expect("semaphore should remain open");
-        // Safety: this function does not acquire a permit but we just got one
-        unsafe {
-            self.render_blob_without_permit(dir_fd, entry, render_type)
-                .await
-        }
     }
 
     /// Render a single blob onto disk
-    ///
-    /// # Safety:
-    /// This function does not acquire a permit from the [`Self::blob_semaphore`]
-    /// and so should only be executed if a permit is already held.
     #[async_recursion::async_recursion]
-    async unsafe fn render_blob_without_permit<Fd>(
+    #[allow(clippy::only_used_in_recursion)]
+    async fn render_blob_with_permit<'a, Fd>(
         &self,
         dir_fd: Fd,
         entry: &graph::Entry,
         render_type: RenderType,
+        permit: BlobSemaphorePermit<'a>,
     ) -> Result<RenderBlobResult>
     where
+        'a: 'async_recursion,
         Fd: std::os::fd::AsRawFd + Send,
     {
         // Note that opening the payload, even if the return value is not
@@ -649,16 +658,13 @@ where
                                             // but on some systems and filers, or at certain scales the possibility is
                                             // very real. In these cases, our only real course of action other than failing
                                             // is to fall back to a real copy of the file.
-                                            unsafe {
-                                                // Safety: we are recursing into this function again
-                                                // so the safety declaration still holds for the caller
-                                                self.render_blob_without_permit(
-                                                    target_dir_fd,
-                                                    entry,
-                                                    RenderType::Copy,
-                                                )
-                                                .await?
-                                            };
+                                            self.render_blob_with_permit(
+                                                target_dir_fd,
+                                                entry,
+                                                RenderType::Copy,
+                                                permit,
+                                            )
+                                            .await?;
                                             return Ok(RenderBlobResult::PayloadCopiedLinkLimit);
                                         }
                                         _ => {
@@ -809,16 +815,13 @@ where
                                 // but on some systems and filers, or at certain scales the possibility is
                                 // very real. In these cases, our only real course of action other than failing
                                 // is to fall back to a real copy of the file.
-                                unsafe {
-                                    // Safety: we are recursing into this function again
-                                    // so the safety declaration still holds for the caller
-                                    self.render_blob_without_permit(
-                                        dir_fd,
-                                        entry,
-                                        RenderType::Copy,
-                                    )
-                                    .await?;
-                                }
+                                self.render_blob_with_permit(
+                                    dir_fd,
+                                    entry,
+                                    RenderType::Copy,
+                                    permit,
+                                )
+                                .await?;
                                 RenderBlobResult::PayloadCopiedLinkLimit
                             }
                             _ if matches!(render_type, RenderType::HardLink) => {
