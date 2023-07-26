@@ -483,7 +483,7 @@ where
                         }
                     }
                 }
-                let downstream_runtime = spec.downstream_build_requirements([component]);
+                let downstream_runtime = spec.downstream_runtime_requirements([component]);
                 for request in downstream_runtime.iter() {
                     match runtime_requirements.contains_request(request) {
                         Compatibility::Compatible => continue,
