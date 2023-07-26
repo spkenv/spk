@@ -32,6 +32,7 @@ use crate::ident::{
     VarRequest,
 };
 use crate::meta::Meta;
+use crate::option::VarOpt;
 use crate::{
     BuildEnv,
     BuildSpec,
@@ -442,6 +443,8 @@ impl Recipe for Spec<VersionIdent> {
         E: BuildEnv<Package = P>,
         P: Package,
     {
+        let build_requirements = self.get_build_requirements(variant)?.into_owned();
+
         let build_options = variant.options();
         let mut updated = self.clone();
         updated.build.options = self.build.opts_for_variant(variant)?;
@@ -486,6 +489,72 @@ impl Recipe for Spec<VersionIdent> {
         updated
             .install
             .render_all_pins(&build_options, specs.values().map(|p| p.ident()))?;
+
+        let mut missing_build_requirements = HashMap::new();
+        let mut missing_runtime_requirements = HashMap::new();
+
+        for (_, spec) in specs {
+            let downstream_build = spec.downstream_build_requirements([]);
+            for request in downstream_build.iter() {
+                match build_requirements.contains_request(request) {
+                    Compatibility::Compatible => continue,
+                    Compatibility::Incompatible(_) => match request {
+                        Request::Pkg(_) => continue,
+                        Request::Var(var) => {
+                            let Some(value) = var.value.as_pinned() else {
+                                continue;
+                            };
+                            match missing_build_requirements.entry(var.var.clone()) {
+                                std::collections::hash_map::Entry::Occupied(entry) => {
+                                    if entry.get() != value {
+                                        return Err(Error::String(format!("Multiple conflicting downstream build requirements found for {}: {} and {}", var.var, entry.get(), value)));
+                                    }
+                                }
+                                std::collections::hash_map::Entry::Vacant(vacant) => {
+                                    vacant.insert(value.to_string());
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+            let downstream_runtime = spec.downstream_runtime_requirements([]);
+            for request in downstream_runtime.iter() {
+                match updated.install.requirements.contains_request(request) {
+                    Compatibility::Compatible => continue,
+                    Compatibility::Incompatible(_) => match request {
+                        Request::Pkg(_) => continue,
+                        Request::Var(var) => {
+                            let Some(value) = var.value.as_pinned() else {
+                                continue;
+                            };
+                            match missing_runtime_requirements.entry(var.var.clone()) {
+                                std::collections::hash_map::Entry::Occupied(entry) => {
+                                    if entry.get() != value {
+                                        return Err(Error::String(format!("Multiple conflicting downstream runtime requirements found for {}: {} and {}", var.var, entry.get(), value)));
+                                    }
+                                }
+                                std::collections::hash_map::Entry::Vacant(vacant) => {
+                                    vacant.insert(value.to_string());
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+        }
+
+        for req in missing_build_requirements {
+            let mut var = VarOpt::new(req.0)?;
+            var.set_value(req.1)?;
+            updated.build.options.push(Opt::Var(var));
+        }
+        for req in missing_runtime_requirements {
+            updated
+                .install
+                .requirements
+                .insert_or_merge(Request::Var(VarRequest::new_with_value(req.0, req.1)))?;
+        }
 
         // Calculate the digest from the non-updated spec so it isn't affected
         // by `build_env`. The digest is expected to be based solely on the
