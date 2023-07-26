@@ -107,9 +107,11 @@ impl<'a> PackageBuildTester<'a> {
         rt.status.editable = true;
         rt.status.stack.clear();
 
+        let requires_localization = rt.config.mount_backend.requires_localization();
+
         if let BuildSource::SourcePackage(pkg) = self.source.clone() {
             let solution = self.resolve_source_package(&pkg.try_into()?).await?;
-            for layer in resolve_runtime_layers(&solution).await? {
+            for layer in resolve_runtime_layers(requires_localization, &solution).await? {
                 rt.push_digest(layer);
             }
         }
@@ -127,7 +129,7 @@ impl<'a> PackageBuildTester<'a> {
 
         let (solution, _) = self.build_resolver.solve(&solver).await?;
 
-        for layer in resolve_runtime_layers(&solution).await? {
+        for layer in resolve_runtime_layers(requires_localization, &solution).await? {
             rt.push_digest(layer);
         }
         rt.save_state_to_storage().await?;

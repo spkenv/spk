@@ -66,6 +66,11 @@ impl ResolvedLayers {
             }
         }
     }
+
+    /// Return the resolved layers as a list of digests.
+    pub fn layers(&self) -> Vec<Digest> {
+        self.0.iter().map(|l| l.digest).collect()
+    }
 }
 
 /// Return the necessary layers to have all solution packages.
@@ -128,9 +133,18 @@ pub fn solution_to_resolved_runtime_layers(solution: &Solution) -> Result<Resolv
     Ok(ResolvedLayers(stack))
 }
 
-/// Pull and list the necessary layers to have all solution packages.
-pub async fn resolve_runtime_layers(solution: &Solution) -> Result<Vec<Digest>> {
-    pull_resolved_runtime_layers(&solution_to_resolved_runtime_layers(solution)?).await
+/// List the necessary layers to have all solution packages, pulling them if
+/// required by the given runtime.
+pub async fn resolve_runtime_layers(
+    requires_localization: bool,
+    solution: &Solution,
+) -> Result<Vec<Digest>> {
+    let resolved = solution_to_resolved_runtime_layers(solution)?;
+    if requires_localization {
+        pull_resolved_runtime_layers(&resolved).await
+    } else {
+        Ok(resolved.layers())
+    }
 }
 
 /// Pull and return the specified resolved layers.
@@ -176,7 +190,8 @@ pub async fn setup_current_runtime(solution: &Solution) -> Result<()> {
 }
 
 pub async fn setup_runtime(rt: &mut spfs::runtime::Runtime, solution: &Solution) -> Result<()> {
-    let stack = resolve_runtime_layers(solution).await?;
+    let stack =
+        resolve_runtime_layers(rt.config.mount_backend.requires_localization(), solution).await?;
     rt.status.stack = stack;
     rt.save_state_to_storage().await?;
     spfs::remount_runtime(rt).await?;
