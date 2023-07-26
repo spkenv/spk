@@ -270,7 +270,7 @@ where
         };
 
         tracing::debug!("Resolving build environment");
-        let (build_requirements, solution) = self
+        let (_, solution) = self
             .resolve_build_environment(&all_options, &variant)
             .await?;
         self.environment
@@ -369,7 +369,7 @@ where
         let package = self
             .recipe
             .generate_binary_build(&full_variant, &solution)?;
-        self.validate_generated_package(&build_requirements, &solution, &package)?;
+        self.validate_generated_package(&solution, &package)?;
         let components = self
             .build_and_commit_artifacts(&package, full_variant.options())
             .await?;
@@ -461,10 +461,10 @@ where
 
     fn validate_generated_package(
         &self,
-        build_requirements: &RequirementsList,
         solution: &Solution,
         package: &Recipe::Output,
     ) -> Result<()> {
+        let build_requirements = package.get_build_requirements()?;
         let runtime_requirements = package.runtime_requirements();
         let solved_packages = solution.items().map(|r| Arc::clone(&r.spec));
         let all_components = package.components();

@@ -226,6 +226,35 @@ impl Package for Spec<BuildIdent> {
         &self.install.environment
     }
 
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
+        let mut requests = RequirementsList::default();
+        for opt in self.build.options.iter() {
+            match opt {
+                Opt::Pkg(opt) => {
+                    let mut req =
+                        opt.to_request(None, RequestedBy::BinaryBuild(self.ident().clone()))?;
+                    if req.pkg.components.is_empty() {
+                        // inject the default component for this context if needed
+                        req.pkg.components.insert(Component::default_for_build());
+                    }
+                    requests.insert_or_merge(req.into())?;
+                }
+                Opt::Var(opt) => {
+                    // If no value was specified in the spec, there's
+                    // no need to turn that into a requirement to
+                    // find a var with an empty value.
+                    if let Some(value) = opt.get_value(None) {
+                        if !value.is_empty() {
+                            requests
+                                .insert_or_merge(opt.to_request(Some(value.as_str())).into())?;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(Cow::Owned(requests))
+    }
+
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
         Cow::Borrowed(&self.install.requirements)
     }
