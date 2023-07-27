@@ -216,3 +216,67 @@ fn test_strong_inheritance_injection() {
         "didn't find inherited install requirement"
     );
 }
+
+#[rstest]
+fn test_strong_inheritance_injection_transitivity() {
+    struct TestBuildEnv();
+
+    impl BuildEnv for TestBuildEnv {
+        type Package = Spec<BuildIdent>;
+
+        fn build_env(&self) -> Vec<Self::Package> {
+            vec![serde_yaml::from_str(
+                r#"
+                api: v0/package
+                pkg: base/1.0.0/3TCOOP2W
+                build:
+                  options:
+                    - var: inherit-me/1.2.3
+                      static: 1.2.3
+                      inheritance: Strong
+            "#,
+            )
+            .unwrap()]
+        }
+    }
+
+    let build_env = TestBuildEnv();
+
+    // Unlike `test_strong_inheritance_injection`, this spec does not have a
+    // build dependency on "base".
+    let spec: Spec<VersionIdent> = serde_yaml::from_str(
+        r#"
+        api: v0/package
+        pkg: test-pkg/1.0.0
+    "#,
+    )
+    .unwrap();
+
+    let built_package = spec
+        .generate_binary_build(&option_map! {}, &build_env)
+        .unwrap();
+
+    // Check that the built_package has inherited a build option on "inherit-me"
+    // as well as an install requirement, even though "test-pkg" does not depend
+    // on "base".
+    assert!(
+        built_package.build.options.iter().any(|opt| match opt {
+            Opt::Pkg(_) => false,
+            Opt::Var(var) =>
+                var.var == "base.inherit-me" && var.get_value(None) == Some("1.2.3".into()),
+        }),
+        "didn't find inherited build option"
+    );
+    assert!(
+        built_package
+            .install
+            .requirements
+            .iter()
+            .any(|request| match request {
+                spk_schema_ident::Request::Pkg(_) => false,
+                spk_schema_ident::Request::Var(var) =>
+                    var.var == "base.inherit-me" && var.value == "1.2.3".into(),
+            }),
+        "didn't find inherited install requirement"
+    );
+}
