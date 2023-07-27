@@ -148,6 +148,12 @@ pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSum
         }
         #[cfg(feature = "fuse-backend")]
         runtime::MountBackend::OverlayFsWithFuse => {
+            // Switch to using a different lower_dir otherwise if we use the
+            // same one as the previous runtime when it lazy unmounts it will
+            // unmount our active lower_dir.
+            rt.rotate_lower_dir().await?;
+            rt.save_state_to_storage().await?;
+
             with_root.mount_fuse_lower_dir(rt).await?;
             with_root
                 .mount_env_overlayfs(rt, &render_result.paths_rendered)
