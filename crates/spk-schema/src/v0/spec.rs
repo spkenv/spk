@@ -139,6 +139,35 @@ impl Spec<BuildIdent> {
             Request::Var(request) => Satisfy::check_satisfies_request(self, &request),
         }
     }
+
+    /// Return downstream var requirements that match the given filter.
+    fn downstream_requirements<F>(&self, filter: F) -> Cow<'_, RequirementsList>
+    where
+        F: FnMut(&&VarOpt) -> bool,
+    {
+        let requests = self
+            .build
+            .options
+            .iter()
+            .filter_map(|opt| match opt {
+                Opt::Var(v) => Some(v),
+                Opt::Pkg(_) => None,
+            })
+            .filter(filter)
+            .map(|o| {
+                let var = o.var.with_default_namespace(self.name());
+                VarRequest {
+                    var,
+                    // we are assuming that the var here will have a value because
+                    // this is a built binary package
+                    value: o.get_value(None).unwrap_or_default().into(),
+                }
+            })
+            .map(Request::Var);
+        RequirementsList::try_from_iter(requests)
+            .map(Cow::Owned)
+            .expect("build opts do not contain duplicates")
+    }
 }
 
 impl<Ident: Named> Named for Spec<Ident> {
@@ -263,48 +292,14 @@ impl Package for Spec<BuildIdent> {
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        let requests = self
-            .build
-            .options
-            .iter()
-            .filter_map(|opt| match opt {
-                Opt::Var(v) => Some(v),
-                Opt::Pkg(_) => None,
-            })
-            .filter(|o| o.inheritance != Inheritance::Weak)
-            .map(|o| {
-                let var = o.var.with_default_namespace(self.name());
-                VarRequest {
-                    var,
-                    // we are assuming that the var here will have a value because
-                    // this is a built binary package
-                    value: o.get_value(None).unwrap_or_default().into(),
-                }
-            })
-            .map(Request::Var);
-        RequirementsList::try_from_iter(requests)
-            .map(Cow::Owned)
-            .expect("build opts do not contain duplicates")
+        self.downstream_requirements(|o| o.inheritance != Inheritance::Weak)
     }
 
     fn downstream_runtime_requirements<'a>(
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        let requests = self
-            .build
-            .options
-            .iter()
-            .filter_map(|opt| match opt {
-                Opt::Var(v) => Some(v),
-                Opt::Pkg(_) => None,
-            })
-            .filter(|o| o.inheritance == Inheritance::Strong)
-            .map(|o| VarRequest::new(o.var.with_default_namespace(self.name())))
-            .map(Request::Var);
-        RequirementsList::try_from_iter(requests)
-            .map(Cow::Owned)
-            .expect("build opts do not contain duplicates")
+        self.downstream_requirements(|o| o.inheritance == Inheritance::Strong)
     }
 
     fn validation(&self) -> &ValidationSpec {

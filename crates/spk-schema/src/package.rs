@@ -148,7 +148,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
+        (**self).downstream_runtime_requirements(components)
     }
 
     fn validation(&self) -> &super::ValidationSpec {
@@ -216,7 +216,7 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
+        (**self).downstream_runtime_requirements(components)
     }
 
     fn validation(&self) -> &super::ValidationSpec {
@@ -284,7 +284,7 @@ impl<T: Package + Send + Sync> Package for &T {
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
+        (**self).downstream_runtime_requirements(components)
     }
 
     fn validation(&self) -> &super::ValidationSpec {
