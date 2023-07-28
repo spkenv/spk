@@ -1,5 +1,5 @@
 ---
-title: Mogrations
+title: Migrations
 ---
 
 # Repository Migrations
