@@ -32,7 +32,6 @@ use spk_schema::{
     ComponentSpecList,
     Package,
     PackageMut,
-    RequirementsList,
     Variant,
     VariantExt,
 };
@@ -270,7 +269,7 @@ where
         };
 
         tracing::debug!("Resolving build environment");
-        let (_, solution) = self
+        let solution = self
             .resolve_build_environment(&all_options, &variant)
             .await?;
         self.environment
@@ -438,7 +437,7 @@ where
         &mut self,
         options: &OptionMap,
         variant: &V,
-    ) -> Result<(RequirementsList, Solution)>
+    ) -> Result<Solution>
     where
         V: Variant,
     {
@@ -456,7 +455,7 @@ where
 
         let (solution, graph) = self.build_resolver.solve(&self.solver).await?;
         self.last_solve_graph = graph;
-        Ok((build_requirements, solution))
+        Ok(solution)
     }
 
     fn validate_generated_package(
