@@ -7,7 +7,7 @@ use anyhow::Result;
 use clap::Args;
 use spk_cli_common::{CommandArgs, Publisher, Run};
 use spk_schema::AnyIdent;
-use spk_storage::{self as storage};
+use spk_storage as storage;
 
 /// Publish a package into a shared repository
 #[derive(Args)]

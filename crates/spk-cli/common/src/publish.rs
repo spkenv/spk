@@ -7,7 +7,7 @@ use std::sync::Arc;
 use spk_schema::foundation::format::{FormatComponents, FormatIdent};
 use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::{AnyIdent, BuildIdent, Package, Recipe};
-use spk_storage::{self as storage};
+use spk_storage as storage;
 use storage::{with_cache_policy, CachePolicy};
 
 use crate::{Error, Result};

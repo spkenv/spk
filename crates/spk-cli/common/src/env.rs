@@ -14,7 +14,7 @@ use spk_schema::{Package, VersionIdent};
 use spk_solve::package_iterator::BUILD_SORT_TARGET;
 use spk_solve::solution::{PackageSource, Solution};
 use spk_solve::validation::IMPOSSIBLE_CHECKS_TARGET;
-use spk_storage::{self as storage};
+use spk_storage as storage;
 use tracing_subscriber::prelude::*;
 
 use crate::Error;

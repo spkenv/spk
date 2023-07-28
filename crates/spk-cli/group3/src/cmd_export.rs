@@ -8,7 +8,7 @@ use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_storage::{self as storage};
+use spk_storage as storage;
 
 #[cfg(test)]
 #[path = "./cmd_export_test.rs"]

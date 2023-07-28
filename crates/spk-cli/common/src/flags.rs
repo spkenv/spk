@@ -17,10 +17,9 @@ use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{parse_ident, AnyIdent, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage, VariantExt};
-use spk_solve::{self as solve};
 #[cfg(feature = "statsd")]
 use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
-use spk_storage::{self as storage};
+use {spk_solve as solve, spk_storage as storage};
 
 use crate::parsing::{stage_specifier, VariantIndex};
 use crate::Error;

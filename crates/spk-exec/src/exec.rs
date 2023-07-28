@@ -17,7 +17,7 @@ use spk_schema::prelude::*;
 use spk_schema::Spec;
 use spk_solve::solution::{PackageSource, Solution};
 use spk_solve::RepositoryHandle;
-use spk_storage::{self as storage};
+use spk_storage as storage;
 
 use crate::{Error, Result};
 

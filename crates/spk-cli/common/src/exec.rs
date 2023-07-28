@@ -8,7 +8,7 @@ use spk_build::BinaryPackageBuilder;
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::Package;
 use spk_solve::solution::{PackageSource, Solution};
-use spk_storage::{self as storage};
+use spk_storage as storage;
 
 use crate::Result;
 

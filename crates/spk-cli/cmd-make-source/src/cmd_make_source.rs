@@ -13,7 +13,7 @@ use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::LocatedBuildIdent;
 use spk_schema::{Package, Recipe, SpecTemplate, Template, TemplateExt};
-use spk_storage::{self as storage};
+use spk_storage as storage;
 
 /// Build a source package from a spec file.
 #[derive(Args)]

@@ -16,7 +16,7 @@ use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, Reque
 use spk_schema::{AnyIdent, Recipe, SpecRecipe};
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
-use spk_storage::{self as storage};
+use spk_storage as storage;
 
 use super::Tester;
 

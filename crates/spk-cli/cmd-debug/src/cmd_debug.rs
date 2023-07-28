@@ -11,7 +11,7 @@ use futures::TryFutureExt;
 use spk_cli_common::{current_env, flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident_build::Build;
-use spk_storage::{self as storage};
+use spk_storage as storage;
 
 /// Install source packages of the packages in the current environment
 #[derive(Args)]
