@@ -584,10 +584,11 @@ impl PkgOpt {
     }
 }
 
-struct PkgNameWithComponents {
-    name: PkgNameBuf,
-    components: ComponentBTreeSet,
-    default: Option<String>,
+#[derive(Debug)]
+pub struct PkgNameWithComponents {
+    pub name: PkgNameBuf,
+    pub components: ComponentBTreeSet,
+    pub default: Option<String>,
 }
 
 impl<'de> Deserialize<'de> for PkgNameWithComponents {

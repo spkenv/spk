@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 use strum::Display;
 
-use super::foundation::option_map::OptionMap;
 use super::{v0, Opt, ValidationSpec};
 use crate::name::{OptName, OptNameBuf};
 use crate::option::VarOpt;
@@ -277,7 +276,7 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
             where
                 A: serde::de::MapAccess<'de>,
             {
-                let mut variants = Vec::<OptionMap>::new();
+                let mut variants = Vec::<v0::VariantSpec>::new();
                 let mut unchecked = BuildSpec::default();
                 while let Some(key) = map.next_key::<Stringified>()? {
                     match key.as_str() {
@@ -321,8 +320,9 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                 // build options have been loaded
                 unchecked.variants = variants
                     .into_iter()
-                    .map(|o| v0::Variant::from_options(o, &unchecked.options))
-                    .collect();
+                    .map(|o| v0::Variant::from_spec(o, &unchecked.options))
+                    .collect::<Result<Vec<_>>>()
+                    .map_err(serde::de::Error::custom)?;
 
                 Ok(UncheckedBuildSpec(unchecked))
             }
