@@ -31,15 +31,15 @@ impl Entry {
     }
 
     pub fn is_symlink(&self) -> bool {
-        (libc::S_IFMT & self.mode) == libc::S_IFLNK
+        unix_mode::is_symlink(self.mode)
     }
 
     pub fn is_dir(&self) -> bool {
-        (libc::S_IFMT & self.mode) == libc::S_IFDIR
+        unix_mode::is_dir(self.mode)
     }
 
     pub fn is_regular_file(&self) -> bool {
-        (libc::S_IFMT & self.mode) == libc::S_IFREG
+        unix_mode::is_file(self.mode)
     }
 }
 
