@@ -41,6 +41,8 @@ EOF
 
 payload_inode=$(stat --format="%i" $SPFS_STORAGE_ROOT/payloads/$digest_part1/$digest_part2)
 
+ls -laR $SPFS_STORAGE_ROOT/renders
+
 # we expect the proxy file for user1 to share the same inode as the payload
 # (be a hard link to it)
 user1_proxy_inode=$(stat --format="%i" $SPFS_STORAGE_ROOT/renders/user1/proxy/$digest_part1/$digest_part2/33206)
@@ -49,3 +51,4 @@ test $payload_inode -eq $user1_proxy_inode
 # we expect the proxy file for user2 to be a different inode (a copy)
 user2_proxy_inode=$(stat --format="%i" $SPFS_STORAGE_ROOT/renders/user2/proxy/$digest_part1/$digest_part2/33206)
 test $payload_inode -ne $user2_proxy_inode
+

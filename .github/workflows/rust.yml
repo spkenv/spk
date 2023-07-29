@@ -32,23 +32,24 @@ jobs:
           rustup component add clippy
           rustup component add rustfmt --toolchain nightly
       - uses: Swatinem/rust-cache@v2
-      - name: Build Default
-        run: make debug
-      - name: Build Server
-        run: make debug FEATURES=server
+        # Use the same FEATURES in these different steps to avoid recompiling
+        # as much as possible and make the most use out of rust-cache. Consider
+        # using a separate workflow with its own cache if there is a need to
+        # test building with a different set of features enabled.
+      - name: Build
+        run: make debug FEATURES=server,spfs/server
       - name: Install Debug Binaries
-        run: make install-debug-spfs FEATURES=server
+        run: make install-debug-spfs FEATURES=server,spfs/server
       - name: Setup a local origin repo
         run: SPFS_REMOTE_origin_ADDRESS="${SPFS_REMOTE_origin_ADDRESS}?create=true" spfs ls-tags -r origin
         # Run test before lint, lint takes a while and it is useful to know that
         # the tests are failing before knowing if the lints are passing.
       - name: Run Unit Tests
-        run: make test
+        run: make test FEATURES=server,spfs/server
       - name: Lint
-        run: make lint
+        run: make lint FEATURES=server,spfs/server
       - name: Lint Package Specs
         run: |
-          cargo build --bin spk
           export PATH="$PWD/target/debug:$PATH"
           make packages.lint
       - name: SPFS Integration Tests - Regular User
