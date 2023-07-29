@@ -39,7 +39,7 @@ use spk_schema::{
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, ResolverCallback, Solver};
-use spk_storage::{self as storage};
+use spk_storage as storage;
 use tokio::pin;
 
 use crate::{Error, Result};

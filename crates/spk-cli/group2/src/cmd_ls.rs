@@ -16,7 +16,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::ident::{parse_ident, AnyIdent};
 use spk_schema::ident_ops::parsing::{ident_parts, IdentParts, KNOWN_REPOSITORY_NAMES};
 use spk_schema::{Deprecate, Package, Spec};
-use spk_storage::{self as storage};
+use spk_storage as storage;
 
 #[cfg(test)]
 #[path = "./cmd_ls_test.rs"]

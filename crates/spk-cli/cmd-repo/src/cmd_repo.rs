@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 use spk_cli_common::{CommandArgs, Run};
-use spk_storage::{self as storage};
+use spk_storage as storage;
 use storage::Repository;
 
 /// Perform repository-level actions and maintenance

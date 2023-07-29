@@ -11,7 +11,7 @@ use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::{parse_ident, AnyIdent};
 use spk_schema::{Deprecate, DeprecateMut, Package, Recipe, Spec, SpecRecipe};
-use spk_storage::{self as storage};
+use spk_storage as storage;
 
 #[cfg(test)]
 #[path = "./cmd_deprecate_test.rs"]
