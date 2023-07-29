@@ -1100,7 +1100,9 @@ impl DecisionFormatter {
 
     #[cfg(feature = "statsd")]
     fn send_solver_start_metrics(&self, runtime: &SolverRuntime) {
-        let statsd_client = get_metrics_client();
+        let Some(statsd_client) = get_metrics_client() else {
+            return;
+        };
 
         statsd_client.incr(&SPK_SOLVER_RUN_COUNT_METRIC);
 
@@ -1111,13 +1113,17 @@ impl DecisionFormatter {
 
     #[cfg(feature = "statsd")]
     fn send_solver_end_metrics(&self, solve_time: Duration) {
-        let statsd_client = get_metrics_client();
+        let Some(statsd_client) = get_metrics_client() else {
+            return;
+        };
         statsd_client.timer(&SPK_SOLVER_RUN_TIME_METRIC, solve_time);
     }
 
     #[cfg(feature = "statsd")]
     fn send_solution_metrics(&self, solution: &Solution) {
-        let statsd_client = get_metrics_client();
+        let Some(statsd_client) = get_metrics_client() else {
+            return;
+        };
         let pipeline = statsd_client.start_a_pipeline();
 
         // If the metrics client didn't make a statsd connection, it

@@ -56,7 +56,9 @@ impl Opt {
         #[cfg(feature = "statsd")]
         let statsd_client = {
             let client = get_metrics_client();
-            client.incr(&SPK_RUN_COUNT_METRIC);
+            if let Some(client) = client {
+                client.incr(&SPK_RUN_COUNT_METRIC)
+            }
             client
         };
 
@@ -64,7 +66,9 @@ impl Opt {
         if let Err(err) = res {
             eprintln!("{}", err.to_string().red());
             #[cfg(feature = "statsd")]
-            statsd_client.incr(&SPK_ERROR_COUNT_METRIC);
+            if let Some(client) = statsd_client {
+                client.incr(&SPK_ERROR_COUNT_METRIC)
+            }
             return Ok(1);
         }
 
@@ -74,7 +78,9 @@ impl Opt {
         let result = self.cmd.run().await;
 
         #[cfg(feature = "statsd")]
-        statsd_client.record_duration_from_start(&SPK_RUN_TIME_METRIC);
+        if let Some(client) = statsd_client {
+            client.record_duration_from_start(&SPK_RUN_TIME_METRIC)
+        }
 
         #[cfg(feature = "sentry")]
         if let Err(ref err) = result {
@@ -134,7 +140,9 @@ impl Opt {
 
         #[cfg(feature = "statsd")]
         if result.is_err() {
-            statsd_client.incr(&SPK_ERROR_COUNT_METRIC);
+            if let Some(client) = statsd_client {
+                client.incr(&SPK_ERROR_COUNT_METRIC)
+            }
         }
 
         result

@@ -92,8 +92,9 @@ impl Run for Env {
         // possibly long running, command/env (e.g. shell or application).
         #[cfg(feature = "statsd")]
         {
-            let statsd_client = get_metrics_client();
-            statsd_client.record_duration_from_start(&SPK_RUN_TIME_METRIC);
+            if let Some(statsd_client) = get_metrics_client() {
+                statsd_client.record_duration_from_start(&SPK_RUN_TIME_METRIC);
+            }
         }
 
         command
