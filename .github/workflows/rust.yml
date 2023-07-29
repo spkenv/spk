@@ -37,6 +37,11 @@ jobs:
         run: |
           mkdir -p .cargo
           cat << EOF > .cargo/config.toml
+          [build]
+          # Disable incremental compilation to lower disk usage, and sccache
+          # can't cache incremental compiles.
+          incremental = false
+
           [profile.dev]
           # Disable debug information to lower disk usage.
           debug = false
