@@ -9,19 +9,33 @@ set -o errexit
 # some simple tests to ensure that runtimes are properly cleaned up
 
 assert_runtime_count() {
-    # give any runtimes created by other tests a chance to expire
-    # this number relates to the 2.5s poll interval
-    sleep 6
-
     count=$(spfs runtime list -q | wc -l)
     test $count -eq $1
 }
 
+get_spfs_monitor_count() {
+    # Don't count any defunct processes; on github actions there is an issue
+    # with the init process not reaping processes.
+    count=$(ps -ef | grep spfs-monitor | grep -v grep | grep -v defunct | wc -l)
+    echo $count
+}
+
+wait_for_spfs_monitor_count() {
+    set +x
+    if test $(get_spfs_monitor_count) -ne $1; then
+        echo waiting for monitors...
+    fi
+    until test $(get_spfs_monitor_count) -eq $1; do sleep 2; done
+    sleep 2;
+    set -x
+}
 
 # there's a runtime inside but not once exited
+wait_for_spfs_monitor_count 0
 assert_runtime_count 0
 inner_count=$(spfs run - -- spfs runtime list -q | wc -l)
 test $inner_count -eq 1
+wait_for_spfs_monitor_count 0
 assert_runtime_count 0
 
 # many runtimes at once
@@ -29,8 +43,10 @@ spfs run - -- sleep 6 &
 spfs run - -- sleep 6 &
 spfs run - -- sleep 6 &
 spfs run - -- sleep 6 &
+# wait for them all to spin up
+sleep 4
 assert_runtime_count 4
-wait
+wait_for_spfs_monitor_count 0
 assert_runtime_count 0
 
 # many runtimes launched recursively
@@ -40,9 +56,11 @@ spfs run - -- spfs run - -- spfs run - -- spfs run - -- sleep 8 &
 # and can be cleaned up immediately
 sleep 4
 assert_runtime_count 1
-wait
+wait_for_spfs_monitor_count 0
 assert_runtime_count 0
 
 # fast runtime doesn't linger
 spfs run - true
+wait_for_spfs_monitor_count 0
 assert_runtime_count 0
+
