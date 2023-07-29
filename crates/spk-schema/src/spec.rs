@@ -521,6 +521,12 @@ impl Package for Spec {
         }
     }
 
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
+        match self {
+            Spec::V0Package(spec) => spec.get_build_requirements(),
+        }
+    }
+
     fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList> {
         match self {
             Spec::V0Package(spec) => spec.runtime_requirements(),

@@ -32,7 +32,6 @@ use spk_schema::{
     ComponentSpecList,
     Package,
     PackageMut,
-    RequirementsList,
     Variant,
     VariantExt,
 };
@@ -270,7 +269,7 @@ where
         };
 
         tracing::debug!("Resolving build environment");
-        let (build_requirements, solution) = self
+        let solution = self
             .resolve_build_environment(&all_options, &variant)
             .await?;
         self.environment
@@ -369,7 +368,7 @@ where
         let package = self
             .recipe
             .generate_binary_build(&full_variant, &solution)?;
-        self.validate_generated_package(&build_requirements, &solution, &package)?;
+        self.validate_generated_package(&solution, &package)?;
         let components = self
             .build_and_commit_artifacts(&package, full_variant.options())
             .await?;
@@ -438,7 +437,7 @@ where
         &mut self,
         options: &OptionMap,
         variant: &V,
-    ) -> Result<(RequirementsList, Solution)>
+    ) -> Result<Solution>
     where
         V: Variant,
     {
@@ -456,15 +455,15 @@ where
 
         let (solution, graph) = self.build_resolver.solve(&self.solver).await?;
         self.last_solve_graph = graph;
-        Ok((build_requirements, solution))
+        Ok(solution)
     }
 
     fn validate_generated_package(
         &self,
-        build_requirements: &RequirementsList,
         solution: &Solution,
         package: &Recipe::Output,
     ) -> Result<()> {
+        let build_requirements = package.get_build_requirements()?;
         let runtime_requirements = package.runtime_requirements();
         let solved_packages = solution.items().map(|r| Arc::clone(&r.spec));
         let all_components = package.components();
@@ -483,7 +482,7 @@ where
                         }
                     }
                 }
-                let downstream_runtime = spec.downstream_build_requirements([component]);
+                let downstream_runtime = spec.downstream_runtime_requirements([component]);
                 for request in downstream_runtime.iter() {
                     match runtime_requirements.contains_request(request) {
                         Compatibility::Compatible => continue,

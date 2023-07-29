@@ -32,6 +32,7 @@ use crate::ident::{
     VarRequest,
 };
 use crate::meta::Meta;
+use crate::option::VarOpt;
 use crate::{
     BuildEnv,
     BuildSpec,
@@ -138,6 +139,35 @@ impl Spec<BuildIdent> {
             Request::Var(request) => Satisfy::check_satisfies_request(self, &request),
         }
     }
+
+    /// Return downstream var requirements that match the given filter.
+    fn downstream_requirements<F>(&self, filter: F) -> Cow<'_, RequirementsList>
+    where
+        F: FnMut(&&VarOpt) -> bool,
+    {
+        let requests = self
+            .build
+            .options
+            .iter()
+            .filter_map(|opt| match opt {
+                Opt::Var(v) => Some(v),
+                Opt::Pkg(_) => None,
+            })
+            .filter(filter)
+            .map(|o| {
+                let var = o.var.with_default_namespace(self.name());
+                VarRequest {
+                    var,
+                    // we are assuming that the var here will have a value because
+                    // this is a built binary package
+                    value: o.get_value(None).unwrap_or_default().into(),
+                }
+            })
+            .map(Request::Var);
+        RequirementsList::try_from_iter(requests)
+            .map(Cow::Owned)
+            .expect("build opts do not contain duplicates")
+    }
 }
 
 impl<Ident: Named> Named for Spec<Ident> {
@@ -225,6 +255,35 @@ impl Package for Spec<BuildIdent> {
         &self.install.environment
     }
 
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
+        let mut requests = RequirementsList::default();
+        for opt in self.build.options.iter() {
+            match opt {
+                Opt::Pkg(opt) => {
+                    let mut req =
+                        opt.to_request(None, RequestedBy::BinaryBuild(self.ident().clone()))?;
+                    if req.pkg.components.is_empty() {
+                        // inject the default component for this context if needed
+                        req.pkg.components.insert(Component::default_for_build());
+                    }
+                    requests.insert_or_merge(req.into())?;
+                }
+                Opt::Var(opt) => {
+                    // If no value was specified in the spec, there's
+                    // no need to turn that into a requirement to
+                    // find a var with an empty value.
+                    if let Some(value) = opt.get_value(None) {
+                        if !value.is_empty() {
+                            requests
+                                .insert_or_merge(opt.to_request(Some(value.as_str())).into())?;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(Cow::Owned(requests))
+    }
+
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
         Cow::Borrowed(&self.install.requirements)
     }
@@ -233,48 +292,14 @@ impl Package for Spec<BuildIdent> {
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        let requests = self
-            .build
-            .options
-            .iter()
-            .filter_map(|opt| match opt {
-                Opt::Var(v) => Some(v),
-                Opt::Pkg(_) => None,
-            })
-            .filter(|o| o.inheritance != Inheritance::Weak)
-            .map(|o| {
-                let var = o.var.with_default_namespace(self.name());
-                VarRequest {
-                    var,
-                    // we are assuming that the var here will have a value because
-                    // this is a built binary package
-                    value: o.get_value(None).unwrap_or_default().into(),
-                }
-            })
-            .map(Request::Var);
-        RequirementsList::try_from_iter(requests)
-            .map(Cow::Owned)
-            .expect("build opts do not contain duplicates")
+        self.downstream_requirements(|o| o.inheritance != Inheritance::Weak)
     }
 
     fn downstream_runtime_requirements<'a>(
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        let requests = self
-            .build
-            .options
-            .iter()
-            .filter_map(|opt| match opt {
-                Opt::Var(v) => Some(v),
-                Opt::Pkg(_) => None,
-            })
-            .filter(|o| o.inheritance == Inheritance::Strong)
-            .map(|o| VarRequest::new(o.var.with_default_namespace(self.name())))
-            .map(Request::Var);
-        RequirementsList::try_from_iter(requests)
-            .map(Cow::Owned)
-            .expect("build opts do not contain duplicates")
+        self.downstream_requirements(|o| o.inheritance == Inheritance::Strong)
     }
 
     fn validation(&self) -> &ValidationSpec {
@@ -442,6 +467,8 @@ impl Recipe for Spec<VersionIdent> {
         E: BuildEnv<Package = P>,
         P: Package,
     {
+        let build_requirements = self.get_build_requirements(variant)?.into_owned();
+
         let build_options = variant.options();
         let mut updated = self.clone();
         updated.build.options = self.build.opts_for_variant(variant)?;
@@ -486,6 +513,72 @@ impl Recipe for Spec<VersionIdent> {
         updated
             .install
             .render_all_pins(&build_options, specs.values().map(|p| p.ident()))?;
+
+        let mut missing_build_requirements = HashMap::new();
+        let mut missing_runtime_requirements = HashMap::new();
+
+        for (_, spec) in specs {
+            let downstream_build = spec.downstream_build_requirements([]);
+            for request in downstream_build.iter() {
+                match build_requirements.contains_request(request) {
+                    Compatibility::Compatible => continue,
+                    Compatibility::Incompatible(_) => match request {
+                        Request::Pkg(_) => continue,
+                        Request::Var(var) => {
+                            let Some(value) = var.value.as_pinned() else {
+                                continue;
+                            };
+                            match missing_build_requirements.entry(var.var.clone()) {
+                                std::collections::hash_map::Entry::Occupied(entry) => {
+                                    if entry.get() != value {
+                                        return Err(Error::String(format!("Multiple conflicting downstream build requirements found for {}: {} and {}", var.var, entry.get(), value)));
+                                    }
+                                }
+                                std::collections::hash_map::Entry::Vacant(vacant) => {
+                                    vacant.insert(value.to_string());
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+            let downstream_runtime = spec.downstream_runtime_requirements([]);
+            for request in downstream_runtime.iter() {
+                match updated.install.requirements.contains_request(request) {
+                    Compatibility::Compatible => continue,
+                    Compatibility::Incompatible(_) => match request {
+                        Request::Pkg(_) => continue,
+                        Request::Var(var) => {
+                            let Some(value) = var.value.as_pinned() else {
+                                continue;
+                            };
+                            match missing_runtime_requirements.entry(var.var.clone()) {
+                                std::collections::hash_map::Entry::Occupied(entry) => {
+                                    if entry.get() != value {
+                                        return Err(Error::String(format!("Multiple conflicting downstream runtime requirements found for {}: {} and {}", var.var, entry.get(), value)));
+                                    }
+                                }
+                                std::collections::hash_map::Entry::Vacant(vacant) => {
+                                    vacant.insert(value.to_string());
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+        }
+
+        for req in missing_build_requirements {
+            let mut var = VarOpt::new(req.0)?;
+            var.set_value(req.1)?;
+            updated.build.options.push(Opt::Var(var));
+        }
+        for req in missing_runtime_requirements {
+            updated
+                .install
+                .requirements
+                .insert_or_merge(Request::Var(VarRequest::new_with_value(req.0, req.1)))?;
+        }
 
         // Calculate the digest from the non-updated spec so it isn't affected
         // by `build_env`. The digest is expected to be based solely on the

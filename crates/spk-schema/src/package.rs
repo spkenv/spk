@@ -55,6 +55,9 @@ pub trait Package:
     /// The set of operations to perform on the environment when running this package
     fn runtime_environment(&self) -> &Vec<super::EnvOp>;
 
+    /// Identify the requirements for a build of this package.
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>>;
+
     /// Requests that must be met to use this package
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList>;
 
@@ -126,6 +129,10 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).runtime_environment()
     }
 
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
+        (**self).get_build_requirements()
+    }
+
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
         (**self).runtime_requirements()
     }
@@ -141,7 +148,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
+        (**self).downstream_runtime_requirements(components)
     }
 
     fn validation(&self) -> &super::ValidationSpec {
@@ -190,6 +197,10 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).runtime_environment()
     }
 
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
+        (**self).get_build_requirements()
+    }
+
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
         (**self).runtime_requirements()
     }
@@ -205,7 +216,7 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
+        (**self).downstream_runtime_requirements(components)
     }
 
     fn validation(&self) -> &super::ValidationSpec {
@@ -254,6 +265,10 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).runtime_environment()
     }
 
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
+        (**self).get_build_requirements()
+    }
+
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
         (**self).runtime_requirements()
     }
@@ -269,7 +284,7 @@ impl<T: Package + Send + Sync> Package for &T {
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
+        (**self).downstream_runtime_requirements(components)
     }
 
     fn validation(&self) -> &super::ValidationSpec {

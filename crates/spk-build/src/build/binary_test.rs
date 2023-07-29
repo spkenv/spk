@@ -563,9 +563,10 @@ async fn test_build_package_downstream_build_requests() {
                 matches!(&request, Request::Var(v) if v.var.as_str() == "base.inherited" && v.value.as_pinned() == Some("val")),
                 "{request}"
             );
+            panic!("missing downstream build request should have been injected")
         }
         Err(err) => panic!("Expected Error::MissingDownstreamBuildRequest, got {err:?}"),
-        Ok(_) => panic!("should error when downstream package does not define inherited opt"),
+        Ok(_) => (),
     }
 }
 
@@ -623,9 +624,10 @@ async fn test_build_package_downstream_runtime_request() {
                 matches!(&request, Request::Var(v) if v.var.as_str() == "base.inherited" && v.value.as_pinned() == Some("val")),
                 "{request}"
             );
+            panic!("missing downstream runtime request should have been injected")
         }
         Err(err) => panic!("Expected Error::MissingDownstreamRuntimeRequest, got {err}"),
-        Ok(_) => panic!("should error when downstream package does not define inherited opt"),
+        Ok(_) => (),
     }
 }
 
