@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use spk_schema::v0;
+use spk_schema_validators::{must_install_something, must_not_alter_existing_files};
 
-use super::{must_install_something, must_not_alter_existing_files};
+use crate::v0;
 use crate::validators::must_collect_all_files;
 
 #[test]

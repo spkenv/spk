@@ -3477,6 +3477,8 @@ dependencies = [
  "spk-cli-common",
  "spk-schema",
  "spk-solve",
+ "spk-solve-macros",
+ "spk-solve-solution",
  "spk-storage",
  "strip-ansi-escapes",
  "tokio",
@@ -3876,7 +3878,6 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "spfs",
- "spk-schema",
  "spk-schema-foundation",
  "spk-schema-ident",
  "sys-info",
@@ -3910,6 +3911,7 @@ dependencies = [
  "spk-config",
  "spk-schema",
  "spk-solve-graph",
+ "spk-solve-macros",
  "spk-solve-package-iterator",
  "spk-solve-solution",
  "spk-solve-validation",
@@ -3949,6 +3951,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "spk-solve-macros"
+version = "0.36.0"
+dependencies = [
+ "serde_json",
+ "spfs",
+ "spk-schema",
+]
+
+[[package]]
 name = "spk-solve-package-iterator"
 version = "0.36.0"
 dependencies = [
@@ -3959,7 +3970,7 @@ dependencies = [
  "once_cell",
  "rstest",
  "spk-schema",
- "spk-solve",
+ "spk-solve-macros",
  "spk-solve-solution",
  "spk-storage",
  "thiserror",
@@ -3993,8 +4004,8 @@ dependencies = [
  "serde_yaml",
  "spfs",
  "spk-schema",
- "spk-solve",
  "spk-solve-graph",
+ "spk-solve-macros",
  "spk-solve-solution",
  "spk-storage",
  "thiserror",

@@ -22,21 +22,13 @@ use spk_schema::ident::{
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::prelude::*;
 use spk_schema::{recipe, v0};
+use spk_solve_macros::{make_build, make_build_and_components, make_repo, request};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 
 use super::{ErrorDetails, Solver};
 use crate::io::DecisionFormatterBuilder;
-use crate::{
-    make_build,
-    make_build_and_components,
-    make_repo,
-    option_map,
-    request,
-    spec,
-    Error,
-    Result,
-};
+use crate::{option_map, spec, Error, Result};
 
 #[fixture]
 fn solver() -> Solver {

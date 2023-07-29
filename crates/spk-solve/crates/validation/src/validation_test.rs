@@ -8,8 +8,8 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::opt_name;
 use spk_schema::ident::{build_ident, version_ident, PkgRequest, Request, RequestedBy};
 use spk_schema::{spec, FromYaml};
-use spk_solve::recipe;
 use spk_solve_graph::State;
+use spk_solve_macros::recipe;
 use spk_solve_solution::PackageSource;
 
 use super::{default_validators, OptionsValidator, ValidatorT, VarRequirementsValidator};

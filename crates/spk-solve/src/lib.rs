@@ -7,7 +7,6 @@
 
 mod error;
 mod io;
-mod macros;
 #[cfg(feature = "statsd")]
 mod metrics;
 mod search_space;

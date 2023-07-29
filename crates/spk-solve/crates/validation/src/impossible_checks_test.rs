@@ -10,7 +10,7 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::ident::{version_ident, PkgRequest, RequestedBy};
 use spk_schema::name::PkgNameBuf;
 use spk_schema::spec;
-use spk_solve::{make_build, make_repo};
+use spk_solve_macros::{make_build, make_repo};
 
 use super::ImpossibleRequestsChecker;
 

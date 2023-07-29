@@ -5,7 +5,7 @@
 use rstest::rstest;
 use spk_schema::ident::parse_version_ident;
 use spk_schema::Deprecate;
-use spk_solve::make_repo;
+use spk_solve_macros::make_repo;
 
 use super::{change_deprecation_state, ChangeAction};
 

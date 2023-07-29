@@ -26,4 +26,4 @@ tracing = { workspace = true }
 [dev-dependencies]
 itertools = "0.10"
 rstest = { workspace = true }
-spk-solve = { path = "../.." }
+spk-solve-macros = { path = "../macros" }
