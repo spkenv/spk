@@ -33,6 +33,14 @@ jobs:
           rustup install nightly
           rustup component add clippy
           rustup component add rustfmt --toolchain nightly
+      - name: Configure cargo
+        run: |
+          mkdir -p .cargo
+          cat << EOF > .cargo/config.toml
+          [profile.dev]
+          # Disable debug information to lower disk usage.
+          debug = false
+          EOF
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.3
         # Use the same FEATURES in these different steps to avoid recompiling
