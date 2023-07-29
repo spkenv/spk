@@ -3187,6 +3187,7 @@ dependencies = [
  "tonic-build",
  "tracing",
  "tracing-subscriber",
+ "ulid",
  "url",
  "uuid",
  "walkdir",
@@ -4592,6 +4593,15 @@ name = "ucd-trie"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89570599c4fe5585de2b388aab47e99f7fa4e9238a1399f707a02e356058141c"
+
+[[package]]
+name = "ulid"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13a3aaa69b04e5b66cc27309710a569ea23593612387d67daaf102e73aa974fd"
+dependencies = [
+ "rand 0.8.5",
+]
 
 [[package]]
 name = "uname"

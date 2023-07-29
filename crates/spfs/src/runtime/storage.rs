@@ -496,12 +496,16 @@ impl Runtime {
         Ok(())
     }
 
-    pub async fn ensure_required_directories(&self) -> Result<()> {
-        let mut result = makedirs_with_perms(&self.config.lower_dir, 0o777);
-        if let Err(err) = result {
+    async fn ensure_lower_dir(&self) -> Result<()> {
+        if let Err(err) = makedirs_with_perms(&self.config.lower_dir, 0o777) {
             return Err(err.wrap(format!("Failed to create {:?}", self.config.lower_dir)));
         }
-        result = makedirs_with_perms(&self.config.upper_dir, 0o777);
+        Ok(())
+    }
+
+    pub async fn ensure_required_directories(&self) -> Result<()> {
+        self.ensure_lower_dir().await?;
+        let mut result = makedirs_with_perms(&self.config.upper_dir, 0o777);
         if let Err(err) = result {
             return Err(err.wrap(format!("Failed to create {:?}", self.config.upper_dir)));
         }
@@ -529,6 +533,18 @@ impl Runtime {
     /// Save the current state of this runtime to the underlying storage
     pub async fn save_state_to_storage(&self) -> Result<()> {
         self.storage.save_runtime(self).await
+    }
+
+    /// Update the runtime's lower_dir to a new unique directory.
+    pub async fn rotate_lower_dir(&mut self) -> Result<()> {
+        self.config.lower_dir = self
+            .config
+            .lower_dir
+            .parent()
+            .ok_or_else(|| Error::String("upper_dir had no parent directory".into()))?
+            .join(format!("{}-{}", Config::LOWER_DIR, ulid::Ulid::new()));
+        self.ensure_lower_dir().await?;
+        Ok(())
     }
 }
 
