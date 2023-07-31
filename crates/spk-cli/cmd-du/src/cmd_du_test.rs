@@ -27,11 +27,11 @@ struct OutputToVec {
 
 impl Output for OutputToVec {
     fn println(&self, line: Arguments) {
-        self.vec.try_lock().unwrap().push(line);
+        self.vec.try_lock().unwrap().push(line.to_string());
     }
 
     fn warn(&self, line: Arguments) {
-        self.warnings.try_lock().unwrap().push(line);
+        self.warnings.try_lock().unwrap().push(line.to_string());
     }
 }
 
