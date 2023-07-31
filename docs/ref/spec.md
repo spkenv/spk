@@ -193,9 +193,9 @@ Other configuration include setting the priority of the generated activation scr
 
 #### Priority
 
-| Field    | Type | Description                                                    |
-| -------- | ---- | ------------------------------------------------------------   |
-| priority | _u8_ | The priority value to be added onto the filename               |
+| Field    | Type | Description                                                                       |
+| -------- | ---- | --------------------------------------------------------------------------------  |
+| priority | _u8_ | The priority value to be added onto the filename, only the last priority is used  |
 
 ### Request
 
