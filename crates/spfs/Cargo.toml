@@ -31,7 +31,7 @@ dirs = { workspace = true }
 faccess = "0.2.3"
 futures = { workspace = true }
 gitignore = "1.0"
-glob = "0.3.0"
+glob = { workspace = true }
 hyper = { version = "0.14.16", features = ["client"] }
 indicatif = { workspace = true }
 itertools = "0.10.3"
