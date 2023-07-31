@@ -754,6 +754,109 @@ async fn test_build_add_startup_files(tmpdir: tempfile::TempDir) {
 }
 
 #[rstest]
+#[tokio::test]
+#[should_panic]
+async fn test_build_multiple_priority_startup_files() {
+    let rt = spfs_runtime().await;
+    let recipe = recipe!(
+        {
+            "pkg": "testpkg",
+            "install": {
+                "environment": [
+                    {"priority": 99},
+                    {"priority": 10},
+                ]
+            },
+        }
+    );
+    rt.tmprepo.publish_recipe(&recipe).await.unwrap();
+
+    let _ = recipe.generate_binary_build(&option_map! {}, &Solution::default());
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir) {
+    let rt = spfs_runtime().await;
+    let recipe = recipe!(
+        {
+            "pkg": "testpkg",
+            "install": {
+                "environment": [
+                    {"priority": 99},
+                ]
+            },
+        }
+    );
+    rt.tmprepo.publish_recipe(&recipe).await.unwrap();
+
+    let spec = recipe
+        .generate_binary_build(&option_map! {}, &Solution::default())
+        .unwrap();
+    BinaryPackageBuilder::from_recipe(recipe)
+        .with_prefix(tmpdir.path().into())
+        .generate_startup_scripts(&spec)
+        .unwrap();
+
+    let bash_file = tmpdir.path().join("etc/spfs/startup.d/99_spk_testpkg.sh");
+    assert!(bash_file.exists());
+    let tcsh_file = tmpdir.path().join("etc/spfs/startup.d/99_spk_testpkg.csh");
+    assert!(tcsh_file.exists());
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_dependant_variable_substitution_in_startup_files(tmpdir: tempfile::TempDir) {
+    let rt = spfs_runtime().await;
+
+    std::env::set_var("TEST", "This is a test");
+
+    let recipe = recipe!(
+        {
+            "pkg": "testpkg",
+            "install": {
+                "environment": [
+                    {"set": "TESTPKG", "value": "${TEST}"},
+                    {"set": "DEPENDANT_TESTPKG", "value": "$${TESTPKG}"},
+                ]
+            },
+        }
+    );
+    rt.tmprepo.publish_recipe(&recipe).await.unwrap();
+
+    let spec = recipe
+        .generate_binary_build(&option_map! {}, &Solution::default())
+        .unwrap();
+    BinaryPackageBuilder::from_recipe(recipe)
+        .with_prefix(tmpdir.path().into())
+        .generate_startup_scripts(&spec)
+        .unwrap();
+
+    let bash_file = tmpdir.path().join("etc/spfs/startup.d/spk_testpkg.sh");
+    assert!(bash_file.exists());
+    let tcsh_file = tmpdir.path().join("etc/spfs/startup.d/spk_testpkg.csh");
+    assert!(tcsh_file.exists());
+
+    let bash_value = std::process::Command::new("bash")
+        .args(["--norc", "-c"])
+        .arg(format!("source {bash_file:?}; printenv DEPENDANT_TESTPKG"))
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(String::from_utf8_lossy(&bash_value), "This is a test\n");
+
+    let tcsh_value = std::process::Command::new("tcsh")
+        .arg("-fc")
+        .arg(format!("source {tcsh_file:?}; printenv DEPENDANT_TESTPKG"))
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(String::from_utf8_lossy(&tcsh_value), "This is a test\n");
+}
+
+#[rstest]
 fn test_path_and_parents() {
     use relative_path::RelativePathBuf;
     let path = RelativePathBuf::from("some/deep/path");

@@ -159,7 +159,8 @@ The component spec defines a single component of a package. Components can be in
 
 ### EnvOp
 
-An operation made to the environment at runtime. Can be one of [AppendEnv](#appendenv), [PrependEnv](#prependenv) or [SetEnv](#setenv).
+Configurations made to the environment at runtime. Configurations include the environment operations such as [AppendEnv](#appendenv), [PrependEnv](#prependenv), [Comment](#comment) or [SetEnv](#setenv).
+Other configuration include setting the priority of the generated activation script. Can be set using [Priority](#priority).
 
 #### AppendEnv
 
@@ -183,6 +184,18 @@ An operation made to the environment at runtime. Can be one of [AppendEnv](#appe
 | ----- | ----- | ------------------------------- |
 | set   | _str_ | The environment variable to set |
 | value | _str_ | The value to set                |
+
+#### Comment
+
+| Field   | Type  | Description                       |
+| ------- | ----- | -------------------------------   |
+| comment | _str_ | The comment to add                |
+
+#### Priority
+
+| Field    | Type | Description                                                                       |
+| -------- | ---- | --------------------------------------------------------------------------------  |
+| priority | _u8_ | The priority value to be added onto the filename, only the last priority is used  |
 
 ### Request
 
