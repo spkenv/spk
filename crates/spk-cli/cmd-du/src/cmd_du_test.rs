@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::fmt::Arguments;
 use std::sync::Mutex;
 
 use clap::Parser;
@@ -25,11 +26,11 @@ struct OutputToVec {
 }
 
 impl Output for OutputToVec {
-    fn println(&self, line: String) {
+    fn println(&self, line: Arguments) {
         self.vec.try_lock().unwrap().push(line);
     }
 
-    fn warn(&self, line: String) {
+    fn warn(&self, line: Arguments) {
         self.warnings.try_lock().unwrap().push(line);
     }
 }

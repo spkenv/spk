@@ -11,23 +11,25 @@ use spfs::encoding::Digest;
 
 pub const LEVEL_SEPARATOR: char = '/';
 
+/// Calculates the disk usage starting from a given entry returning an EntryDiskUsage type
 pub trait DiskUsage {
     fn walk(&self) -> Pin<Box<dyn Stream<Item = Result<EntryDiskUsage>> + Send + Sync + '_>>;
 }
 
+/// Disk usage of a entry
 #[derive(Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
 pub struct EntryDiskUsage {
-    path: Vec<Arc<String>>,
+    path: Vec<Arc<str>>,
     size: u64,
     digest: Digest,
 }
 
 impl EntryDiskUsage {
-    pub fn new(path: Vec<Arc<String>>, size: u64, digest: Digest) -> Self {
+    pub fn new(path: Vec<Arc<str>>, size: u64, digest: Digest) -> Self {
         Self { path, size, digest }
     }
 
-    pub fn path(&self) -> &Vec<Arc<String>> {
+    pub fn path(&self) -> &Vec<Arc<str>> {
         &self.path
     }
 

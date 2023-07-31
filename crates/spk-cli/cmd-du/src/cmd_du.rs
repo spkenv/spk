@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::collections::{HashMap, HashSet};
+use std::fmt::Arguments;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -19,7 +20,7 @@ use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::ident::parse_ident;
 use spk_schema::ident_build::Build;
 use spk_schema::ident_component::Component;
-use spk_schema::name::PkgNameBuf;
+use spk_schema::name::{PkgName, PkgNameBuf};
 use spk_schema::version::Version;
 use spk_schema::{BuildIdent, Deprecate, Package, Spec};
 
@@ -34,22 +35,22 @@ mod cmd_du_test;
 /// Used for testing to compare the output of the results
 pub trait Output: Default + Send + Sync {
     /// A line of output to display.
-    fn println(&self, line: String);
+    fn println(&self, line: Arguments);
 
     /// A line of output to display as a warning.
-    fn warn(&self, line: String);
+    fn warn(&self, line: Arguments);
 }
 
 #[derive(Default)]
 pub struct Console {}
 
 impl Output for Console {
-    fn println(&self, line: String) {
+    fn println(&self, line: Arguments) {
         println!("{line}");
     }
 
-    fn warn(&self, line: String) {
-        tracing::warn!("{line}");
+    fn warn(&self, line: Arguments) {
+        tracing::warn!(line);
     }
 }
 
@@ -192,8 +193,10 @@ impl<T: Output> Du<T> {
 
     fn print_total(&self, total: u64) {
         if self.total {
-            self.output
-                .println(format!("{:>WIDTH$}    total", self.human_readable(total)));
+            self.output.println(format_args!(
+                "{:>WIDTH$}    total",
+                self.human_readable(total)
+            ));
         }
     }
 
@@ -220,7 +223,7 @@ impl<T: Output> Du<T> {
                 0
             };
 
-            self.output.println(format!(
+            self.output.println(format_args!(
                 "{size:>WIDTH$}    {joined_path} {deprecate}",
                 size = self.human_readable(entry_size),
             ));
@@ -254,7 +257,7 @@ impl<T: Output> Du<T> {
             // the existing path is finished calculating and is ready to print.
             if !grouped_entries.contains_key(&partial_path) && !grouped_entries.is_empty() {
                 for (path, (size, deprecate_status)) in grouped_entries.drain().take(1) {
-                    self.output.println(format!(
+                    self.output.println(format_args!(
                         "{size:>WIDTH$}    {path} {deprecate}",
                         size = self.human_readable(size),
                         deprecate = deprecate_status.red(),
@@ -271,7 +274,7 @@ impl<T: Output> Du<T> {
 
         // Need to clear the last object inside grouped_entries.
         for (path, (size, deprecate_status)) in grouped_entries.iter() {
-            self.output.println(format!(
+            self.output.println(format_args!(
                 "{size:>WIDTH$}    {path} {deprecate}",
                 size = self.human_readable(*size),
                 deprecate = deprecate_status.red(),
@@ -354,8 +357,8 @@ impl<T: Output> Du<T> {
                                                     }
                                                 }
                                             }
-                                            Object::Tree(_) => self.output.warn("Tree object cannot have disk usage generated".to_string()),
-                                            Object::Blob(_) => self.output.warn("Blob object cannot have disk usage generated".to_string()),
+                                            Object::Tree(_) => self.output.warn(format_args!("Tree object cannot have disk usage generated")),
+                                            Object::Blob(_) => self.output.warn(format_args!("Blob object cannot have disk usage generated")),
                                             Object::Mask => ()
                                         }
                                     }
@@ -392,7 +395,7 @@ impl<T: Output> Du<T> {
 
     fn walk_versions<'a>(
         &'a self,
-        pkg: &'a PkgNameBuf,
+        pkg: &'a PkgName,
         repo_index: usize,
         input: Option<&'a str>,
     ) -> impl Stream<Item = Result<Arc<Version>>> + 'a {
@@ -415,7 +418,7 @@ impl<T: Output> Du<T> {
 
     fn walk_specs<'a>(
         &'a self,
-        pkg_with_version: &'a String,
+        pkg_with_version: &'a str,
         repo_index: usize,
         input: Option<&'a str>,
     ) -> impl Stream<Item = Result<Arc<Spec>>> + 'a {
@@ -475,14 +478,14 @@ impl DiskUsage for Entry {
     fn walk(&self) -> Pin<Box<dyn Stream<Item = Result<EntryDiskUsage>> + Send + Sync + '_>> {
         fn walk_nested_entries(
             root_entry: &Entry,
-            parent_paths: Vec<Arc<String>>,
+            parent_paths: Vec<Arc<str>>,
         ) -> Pin<Box<dyn Stream<Item = Result<EntryDiskUsage>> + Send + Sync + '_>> {
             Box::pin(try_stream! {
                 for (path, entry) in root_entry.entries.iter() {
 
                     // Update path
                     let mut updated_paths = parent_paths.clone();
-                    updated_paths.push(Arc::new(path.clone()));
+                    updated_paths.push(Arc::from(path.as_str()));
 
                     // Base case. We can start traversing back up.
                     if entry.kind.is_blob() {
@@ -506,7 +509,7 @@ impl DiskUsage for Entry {
         Box::pin(try_stream! {
             // Sets up the initial paths before recursively walking all child entries.
             for (path, entry) in self.entries.iter().sorted_by_key(|(k, _)| *k) {
-                for await du in walk_nested_entries(entry, vec![Arc::new(path.clone())]) {
+                for await du in walk_nested_entries(entry, vec![Arc::from(path.as_str())]) {
                     yield du?;
                 }
             }
