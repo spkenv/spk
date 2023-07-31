@@ -93,8 +93,6 @@ impl CmdInfo {
         repo: &spfs::storage::RepositoryHandle,
         verbosity: usize,
     ) -> Result<()> {
-        // The header lines only include the digests when more than
-        // one ref was given on the command line.
         match obj {
             Object::Platform(obj) => {
                 println!(
