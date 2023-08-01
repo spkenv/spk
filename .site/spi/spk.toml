@@ -1,3 +1,8 @@
 # Example spk config file as used by SPI
 [solver]
 build_key_name_order = "gcc,python"
+
+[statsd]
+host = "statsd.k8s.spimageworks.com"
+port = 30111
+format = "statsd-exporter-librato"

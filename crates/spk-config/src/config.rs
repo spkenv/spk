@@ -61,6 +61,22 @@ pub struct Solver {
     pub build_key_name_order: String,
 }
 
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Statsd {
+    /// Host name of the statsd server
+    pub host: String,
+
+    /// Port number of the statsd server
+    pub port: u16,
+
+    /// Prefix to add to all statsd metrics
+    pub prefix: String,
+
+    /// Format to use for statsd metrics
+    pub format: String,
+}
+
 /// Configuration values for spk.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
@@ -69,6 +85,7 @@ pub struct Config {
     // values within them, otherwise they become impossible to address
     // with environment variables.
     pub solver: Solver,
+    pub statsd: Statsd,
 }
 
 impl Config {
