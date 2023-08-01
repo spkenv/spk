@@ -232,6 +232,6 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
 fn test_promote_names(#[case] patterns: &str, #[case] input: &[&str], #[case] expected: &[&str]) {
     let patterns = BuildKeyPromotionPatterns::new(patterns);
     let mut subject = input.to_owned();
-    patterns.promote_names(subject.as_mut_slice());
+    patterns.promote_names(subject.as_mut_slice(), |n| n);
     assert_eq!(subject, expected)
 }

@@ -16,5 +16,6 @@ pub use package_iterator::{
     PackageIterator,
     RepositoryPackageIterator,
     SortedBuildIterator,
+    BUILD_KEY_NAME_ORDER,
     BUILD_SORT_TARGET,
 };

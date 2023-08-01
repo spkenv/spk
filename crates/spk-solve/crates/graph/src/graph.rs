@@ -30,7 +30,7 @@ use spk_schema::{
     Spec,
     SpecRecipe,
 };
-use spk_solve_package_iterator::PackageIterator;
+use spk_solve_package_iterator::{PackageIterator, BUILD_KEY_NAME_ORDER};
 use spk_solve_solution::{PackageSource, Solution};
 use thiserror::Error;
 
@@ -860,6 +860,11 @@ impl RequestPackage {
             // will be added to the merged request when this package is
             // next selected by the solver.
             new_requests.push(Arc::new(self.request.clone().into()));
+
+            // Apply the configured request priority ordering to the request
+            // list.
+            BUILD_KEY_NAME_ORDER
+                .promote_names(new_requests.as_mut_slice(), |req| req.pkg.name().as_str());
         }
 
         if self.prioritize {

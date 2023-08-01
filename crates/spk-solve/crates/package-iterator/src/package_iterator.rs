@@ -27,7 +27,7 @@ use crate::{Error, Result};
 #[path = "./package_iterator_test.rs"]
 mod package_iterator_test;
 
-struct BuildKeyPromotionPatterns(Vec<Pattern>);
+pub struct BuildKeyPromotionPatterns(Vec<Pattern>);
 
 impl BuildKeyPromotionPatterns {
     /// Parse a comma-separated string into a list of patterns.
@@ -40,21 +40,22 @@ impl BuildKeyPromotionPatterns {
         )
     }
 
-    /// Sort the given list of names by moving any that match the list of
+    /// Sort the given list by moving any entries that match the list of
     /// promoted names to the front, but otherwise preserving the original
-    /// order.
+    /// order. The function `f` is used to extract the name to compare to for
+    /// each element of the list.
     ///
     /// Entries that match are ordered based on the order of the patterns,
     /// where patterns at a lower index are prioritized.
-    fn promote_names<N>(&self, names: &mut [N])
+    pub fn promote_names<N, F>(&self, names: &mut [N], f: F)
     where
-        N: AsRef<str>,
+        F: Fn(&N) -> &str,
     {
         names.sort_by_cached_key(|name| {
             self.0
                 .iter()
                 .enumerate()
-                .find(|(_, pattern)| pattern.matches(name.as_ref()))
+                .find(|(_, pattern)| pattern.matches(f(name)))
                 .map(|(index, _)| index)
                 .unwrap_or(usize::MAX)
         })
@@ -73,7 +74,7 @@ impl BuildKeyPromotionPatterns {
 /// the package name `"spi-platform"`.
 //
 // TODO: add the default value to a config file, once spk has one
-static BUILD_KEY_NAME_ORDER: Lazy<BuildKeyPromotionPatterns> = Lazy::new(|| {
+pub static BUILD_KEY_NAME_ORDER: Lazy<BuildKeyPromotionPatterns> = Lazy::new(|| {
     BuildKeyPromotionPatterns::new(
         std::env::var_os("SPK_BUILD_OPTION_KEY_ORDER")
             .unwrap_or_else(|| OsString::from("*platform*,gcc,python"))
@@ -648,7 +649,7 @@ impl SortedBuildIterator {
         // BUILD_KEY_NAME_ORDER to ensure they fall in the correct
         // position for a site's spk setup.
         let mut ordered_names = key_entry_names.clone();
-        BUILD_KEY_NAME_ORDER.promote_names(ordered_names.as_mut_slice());
+        BUILD_KEY_NAME_ORDER.promote_names(ordered_names.as_mut_slice(), |n| n);
 
         // Sort the builds by their generated keys generated from the
         // ordered names and values worth including.
