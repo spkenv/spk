@@ -17,6 +17,22 @@ static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(default)]
+pub struct Sentry {
+    /// Sentry DSN
+    pub dsn: String,
+
+    /// Sentry environment
+    pub environment: Option<String>,
+
+    /// Environment variable name to use as sentry username, if set.
+    ///
+    /// This is useful in CI if the CI system has a variable that contains
+    /// the username of the person who triggered the build.
+    pub username_override_var: Option<String>,
+}
+
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
 pub struct Solver {
     /// If true, the solver will run impossible request checks on the initial requests
     pub check_impossible_initial: bool,
@@ -84,6 +100,7 @@ pub struct Config {
     // These sub-types should aim to only have one level of
     // values within them, otherwise they become impossible to address
     // with environment variables.
+    pub sentry: Sentry,
     pub solver: Solver,
     pub statsd: Statsd,
 }

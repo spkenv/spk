@@ -35,9 +35,6 @@ Package manager and a software runtime for studio environments
 export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install
 source ~/.bashrc
-export SENTRY_DSN=http://4506b47108ac4b648fdf18a8d803f403@sentry.spimageworks.com/25
-export SENTRY_ENVIRONMENT=production
-export SENTRY_USERNAME_OVERRIDE_VAR=GITLAB_USER_LOGIN
 # Include `--all` to also build spk-launcher
 dev env -- cargo build --release --features "migration-to-components,sentry,spfs/protobuf-src,statsd,fuse-backend-rhel-7-6" --all
 

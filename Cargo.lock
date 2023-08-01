@@ -3411,6 +3411,7 @@ dependencies = [
  "serde_yaml 0.9.25",
  "spfs",
  "spk-build",
+ "spk-config",
  "spk-exec",
  "spk-schema",
  "spk-solve",

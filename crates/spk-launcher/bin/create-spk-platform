@@ -21,9 +21,6 @@ mkdir -p build
 export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install Rust
 source ~/.bashrc
-export SENTRY_DSN=http://4506b47108ac4b648fdf18a8d803f403@sentry.spimageworks.com/25
-export SENTRY_ENVIRONMENT=production
-export SENTRY_USERNAME_OVERRIDE_VAR=GITLAB_USER_LOGIN
 dev env -- cargo build --release --features "sentry, migration-to-components, statsd"
 
 # 2. create a new spfs layer

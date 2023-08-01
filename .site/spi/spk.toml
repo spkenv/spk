@@ -1,4 +1,9 @@
 # Example spk config file as used by SPI
+[sentry]
+dsn = "http://4506b47108ac4b648fdf18a8d803f403@sentry.spimageworks.com/25"
+environment = "production"
+username_override_var = "GITLAB_USER_LOGIN"
+
 [solver]
 build_key_name_order = "gcc,python"
 
