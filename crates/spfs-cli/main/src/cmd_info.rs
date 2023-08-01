@@ -212,8 +212,16 @@ impl CmdInfo {
         verbosity: usize,
         number_refs: usize,
     ) -> Result<()> {
-        let (in_a_runtime, found) =
-            spfs::find_path::find_path_providers_in_spfs_runtime(filepath, repo).await?;
+        let mut in_a_runtime = true;
+        let found = match spfs::find_path::find_path_providers_in_spfs_runtime(filepath, repo).await
+        {
+            Ok(f) => f,
+            Err(spfs::Error::NoActiveRuntime) => {
+                in_a_runtime = false;
+                Vec::new()
+            }
+            Err(err) => return Err(err.into()),
+        };
 
         if found.is_empty() {
             println!("{filepath}: {}", "not found".yellow());

@@ -50,9 +50,8 @@ pub type ObjectPath = Vec<ObjectPathEntry>;
 pub async fn find_path_providers_in_spfs_runtime(
     filepath: &str,
     repo: &storage::RepositoryHandle,
-) -> Result<(bool, Vec<ObjectPath>)> {
+) -> Result<Vec<ObjectPath>> {
     let mut found: Vec<ObjectPath> = Vec::new();
-    let mut in_a_runtime = true;
 
     if let Ok(runtime) = status::active_runtime().await {
         for digest in runtime.status.stack.iter() {
@@ -63,10 +62,10 @@ pub async fn find_path_providers_in_spfs_runtime(
             }
         }
     } else {
-        in_a_runtime = false;
+        return Err(Error::NoActiveRuntime);
     }
 
-    Ok((in_a_runtime, found))
+    Ok(found)
 }
 
 /// Returns a list of spfs object paths (as lists) from the given spfs
