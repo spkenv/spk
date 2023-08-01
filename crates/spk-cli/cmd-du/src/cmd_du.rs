@@ -50,7 +50,7 @@ impl Output for Console {
     }
 
     fn warn(&self, line: Arguments) {
-        tracing::warn!(line);
+        tracing::warn!("{line}");
     }
 }
 
@@ -317,12 +317,22 @@ impl<T: Output> Du<T> {
                         pkg_du_with_version.version = version;
                         let pkg_with_version = format!("{}/{}", pkg_du_with_version.pkg, &pkg_du_with_version.version);
                         let mut specs = self.walk_specs(&pkg_with_version, repo_index, input_to_eval.pop());
-                        while let Some(spec) = specs.try_next().await? {
+                        while let Some(spec_res) = specs.try_next().await? {
+                            let spec = match spec_res {
+                                Some(s) => s,
+                                None => continue
+                            };
+
                             let mut pkg_du_with_build = pkg_du_with_version.clone();
                             pkg_du_with_build.build = spec.ident().build().clone();
                             pkg_du_with_build.deprecated = spec.is_deprecated();
                             let mut components = self.walk_components(spec.ident(), repo_index, input_to_eval.pop());
-                            while let Some((component, digest)) = components.try_next().await? {
+                            while let Some(component_res) = components.try_next().await? {
+                                let (component, digest) = match component_res {
+                                    Some((c,d)) => (c,d),
+                                    None => continue
+                                };
+
                                 let mut pkg_du_with_component = pkg_du_with_build.clone();
                                 pkg_du_with_component.component = component;
 
@@ -421,29 +431,35 @@ impl<T: Output> Du<T> {
         pkg_with_version: &'a str,
         repo_index: usize,
         input: Option<&'a str>,
-    ) -> impl Stream<Item = Result<Arc<Spec>>> + 'a {
+    ) -> impl Stream<Item = Result<Option<Arc<Spec>>>> + 'a {
         Box::pin(try_stream! {
             let pkg_ident = parse_ident(pkg_with_version)?;
-
             let repos = self.repos.get_repos_for_non_destructive_operation().await?;
             let (_, repo) = repos.get(repo_index).unwrap();
 
-            let builds = repo.list_package_builds(pkg_ident.as_version()).await?;
-            for build in builds.iter().sorted_by_key(|k| *k) {
-                if build.is_embedded() {
-                    continue;
-                }
-                let spec = repo.read_package(build).await?;
-                if !self.deprecated && spec.is_deprecated() {
-                    continue;
-                }
-                match input {
-                    Some(input_build) => {
-                        if spec.ident().build().to_string() == input_build {
-                            yield spec
+            match repo.list_package_builds(pkg_ident.as_version()).await {
+                Ok(builds) => {
+                    for build in builds.iter().sorted_by_key(|k| *k) {
+                        if build.is_embedded() {
+                            continue;
+                        }
+                        let spec = repo.read_package(build).await?;
+                        if !self.deprecated && spec.is_deprecated() {
+                            continue;
+                        }
+                        match input {
+                            Some(input_build) => {
+                                if spec.ident().build().to_string() == input_build {
+                                    yield Some(spec)
+                                }
+                            }
+                            None => yield Some(spec)
                         }
                     }
-                    None => yield spec
+                },
+                Err(e) => {
+                    self.output.warn(format_args!("{e}"));
+                    yield None
                 }
             }
         })
@@ -454,22 +470,29 @@ impl<T: Output> Du<T> {
         ident: &'a BuildIdent,
         repo_index: usize,
         input: Option<&'a str>,
-    ) -> impl Stream<Item = Result<(Component, Digest)>> + 'a {
+    ) -> impl Stream<Item = Result<Option<(Component, Digest)>>> + 'a {
         Box::pin(try_stream! {
             let repos = self.repos.get_repos_for_non_destructive_operation().await?;
             let (_, repo) = repos.get(repo_index).unwrap();
 
-            let components = repo.read_components(ident).await?;
-            for (component, digest) in components.iter().sorted_by_key(|(k, _)| *k) {
-                match input {
-                    Some(input_component) => {
-                        if input_component.contains(&component.to_string()) {
-                            yield (component.clone(), digest.clone())
+            match repo.read_components(ident).await {
+                Ok(c) => {
+                    for (component, digest) in c.iter().sorted_by_key(|(k, _)| *k) {
+                        match input {
+                            Some(input_component) => {
+                                if input_component.contains(&component.to_string()) {
+                                    yield Some((component.clone(), digest.clone()))
+                                }
+                            }
+                            None => yield Some((component.clone(), digest.clone()))
                         }
                     }
-                    None => yield (component.clone(), digest.clone())
+                },
+                Err(e) => {
+                    self.output.warn(format_args!("{e}"));
+                    yield None
                 }
-            }
+            };
         })
     }
 }

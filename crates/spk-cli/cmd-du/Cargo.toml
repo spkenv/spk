@@ -1,5 +1,5 @@
 [package]
-authors = ["Nichol Yip <nyip@imageworks.com>"]
+authors = { workspace = true }
 edition = { workspace = true }
 name = "spk-cmd-du"
 version = { workspace = true }
