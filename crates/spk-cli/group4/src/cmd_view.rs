@@ -197,7 +197,15 @@ impl View {
         // contain this file. Each of them should contain at least a
         // layer and the filepath entry, but might contain other spfs
         // objects.
-        let (in_a_runtime, found) = spk_storage::find_path_providers(filepath).await?;
+        let mut in_a_runtime = true;
+        let found = match spk_storage::find_path_providers(filepath).await {
+            Ok(f) => f,
+            Err(spk_storage::Error::SPFS(spfs::Error::NoActiveRuntime)) => {
+                in_a_runtime = false;
+                Vec::new()
+            }
+            Err(err) => return Err(err.into()),
+        };
 
         if found.is_empty() {
             println!("{filepath}: {}", "not found".yellow());
@@ -279,7 +287,7 @@ impl View {
                     println!(
                         " {}",
                         solved_request.request.format_request(
-                            &solved_request.repo_name(),
+                            solved_request.repo_name().as_ref(),
                             &solved_request.request.pkg.name,
                             &FormatChangeOptions {
                                 verbosity: DONT_SHOW_DETAILED_SETTINGS,

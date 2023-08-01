@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
-use spfs::find_path::ObjectPathEntry;
+use spfs::find_path::ObjectPath;
 use spfs::io::DigestFormat;
 use spfs::prelude::*;
 use spk_schema::foundation::ident_build::parse_build;
@@ -577,7 +577,7 @@ async fn find_layers_by_filenames<S: AsRef<str>>(
 
 /// Return a list of spfs object lists that lead to the given
 /// filepath in the runtime repo.
-pub async fn find_path_providers(filepath: &str) -> Result<(bool, Vec<Vec<ObjectPathEntry>>)> {
+pub async fn find_path_providers(filepath: &str) -> Result<Vec<ObjectPath>> {
     let config = spfs::get_config()?;
     let repo = config.get_local_repository_handle().await?;
 
@@ -587,10 +587,7 @@ pub async fn find_path_providers(filepath: &str) -> Result<(bool, Vec<Vec<Object
 }
 
 /// Print out a spfs object list down to the given filepath
-pub async fn pretty_print_filepath(
-    filepath: &str,
-    objectpath: &Vec<ObjectPathEntry>,
-) -> Result<()> {
+pub async fn pretty_print_filepath(filepath: &str, objectpath: &ObjectPath) -> Result<()> {
     let config = spfs::get_config()?;
     let repo = config.get_local_repository_handle().await?;
 
