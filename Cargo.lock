@@ -3958,6 +3958,7 @@ dependencies = [
  "itertools",
  "once_cell",
  "rstest",
+ "spk-config",
  "spk-schema",
  "spk-solve-macros",
  "spk-solve-solution",

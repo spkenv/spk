@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::collections::{HashMap, VecDeque};
-use std::ffi::OsString;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -36,13 +35,11 @@ mod package_iterator_test;
 ///
 /// Wildcard globs are supported, such as `"*platform*"` will match
 /// the package name `"spi-platform"`.
-//
-// TODO: add the default value to a config file, once spk has one
 static BUILD_KEY_NAME_ORDER: Lazy<PromotionPatterns> = Lazy::new(|| {
     PromotionPatterns::new(
-        std::env::var_os("SPK_BUILD_OPTION_KEY_ORDER")
-            .unwrap_or_else(|| OsString::from("gcc,python"))
-            .to_string_lossy()
+        spk_config::get_config()
+            .map(|c| c.solver.build_key_name_order.clone())
+            .unwrap_or_else(|_| "".to_string())
             .as_ref(),
     )
 });

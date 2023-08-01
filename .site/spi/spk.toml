@@ -1,0 +1,3 @@
+# Example spk config file as used by SPI
+[solver]
+build_key_name_order = "gcc,python"

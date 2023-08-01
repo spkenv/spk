@@ -55,6 +55,10 @@ pub struct Solver {
     /// Set the limit for how many of the most frequent errors are
     /// displayed in solve stats reports
     pub max_frequent_errors: usize,
+
+    /// Comma-separated list of option names to promote to the front of the
+    /// build key order.
+    pub build_key_name_order: String,
 }
 
 /// Configuration values for spk.
