@@ -2347,7 +2347,7 @@ version = "0.36.0"
 dependencies = [
  "indicatif",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
  "tracing",
 ]
 

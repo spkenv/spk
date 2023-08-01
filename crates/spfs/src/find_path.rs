@@ -40,6 +40,8 @@ impl ObjectPathEntry {
     }
 }
 
+pub type ObjectPath = Vec<ObjectPathEntry>;
+
 /// Finds all the spfs object paths to the objects that provide the
 /// entry for the given filepaths in the current spfs runtime.
 /// Returns tuple of a boolean for whether we are in an active spfs
@@ -48,8 +50,8 @@ impl ObjectPathEntry {
 pub async fn find_path_providers_in_spfs_runtime(
     filepath: &str,
     repo: &storage::RepositoryHandle,
-) -> Result<(bool, Vec<Vec<ObjectPathEntry>>)> {
-    let mut found: Vec<Vec<ObjectPathEntry>> = Vec::new();
+) -> Result<(bool, Vec<ObjectPath>)> {
+    let mut found: Vec<ObjectPath> = Vec::new();
     let mut in_a_runtime = true;
 
     if let Ok(runtime) = status::active_runtime().await {
@@ -76,8 +78,8 @@ async fn find_path_in_spfs_item(
     filepath: &str,
     obj: &Object,
     repo: &storage::RepositoryHandle,
-) -> Result<Vec<Vec<ObjectPathEntry>>> {
-    let mut paths: Vec<Vec<ObjectPathEntry>> = Vec::new();
+) -> Result<Vec<ObjectPath>> {
+    let mut paths: Vec<ObjectPath> = Vec::new();
 
     match obj {
         Object::Platform(obj) => {
@@ -85,7 +87,7 @@ async fn find_path_in_spfs_item(
                 let item = repo.read_object(*reference).await?;
                 let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
                 for path in paths_to_file {
-                    let mut new_path: Vec<ObjectPathEntry> = Vec::new();
+                    let mut new_path: ObjectPath = Vec::new();
                     new_path.push(ObjectPathEntry::Parent(Object::Platform(obj.clone())));
                     new_path.extend(path);
                     paths.push(new_path);
@@ -97,7 +99,7 @@ async fn find_path_in_spfs_item(
             let item = repo.read_object(obj.manifest).await?;
             let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
             for path in paths_to_file {
-                let mut new_path: Vec<ObjectPathEntry> = Vec::new();
+                let mut new_path: ObjectPath = Vec::new();
                 new_path.push(ObjectPathEntry::Parent(Object::Layer(obj.clone())));
                 new_path.extend(path);
                 paths.push(new_path);
@@ -120,7 +122,9 @@ async fn find_path_in_spfs_item(
         }
 
         Object::Blob(_) | Object::Tree(_) | Object::Mask => {
-            // These are ignored when searching for items that contain the filepath
+            // These are not examined here when searching for the
+            // filepath because the filepath will be found by walking
+            // Manifest objects.
         }
     };
 

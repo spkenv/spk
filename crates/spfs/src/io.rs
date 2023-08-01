@@ -5,7 +5,7 @@
 use colored::*;
 use spfs_encoding::Encodable;
 
-use crate::find_path::ObjectPathEntry;
+use crate::find_path::{ObjectPath, ObjectPathEntry};
 use crate::graph::Object;
 use crate::{encoding, storage, tracking, Result};
 
@@ -145,10 +145,10 @@ pub fn format_size(size: u64) -> String {
     format!("{size:3.1} Pi")
 }
 
-/// Display a pretty printed and indented list of ObjectPathEntry items
+/// Display a pretty printed and indented list of ['ObjectPathEntry'] items
 pub async fn pretty_print_filepath(
     file: &str,
-    object_path: &Vec<ObjectPathEntry>,
+    object_path: &ObjectPath,
     digest_format: DigestFormat<'_>,
 ) -> Result<()> {
     let mut indent: usize = 0;
@@ -158,38 +158,21 @@ pub async fn pretty_print_filepath(
 
         match item {
             ObjectPathEntry::Parent(obj) => {
-                match obj {
-                    Object::Platform(obj) => {
-                        println!(
-                            "{}{} {}",
-                            " ".repeat(indent),
-                            "platform:".bright_blue(),
-                            format_digest(obj.digest()?, digest_format.clone()).await?
-                        );
-                    }
+                let name = match obj {
+                    Object::Platform(_) => "platform",
+                    Object::Layer(_) => "layer",
+                    Object::Manifest(_) => "manifest",
+                    Object::Blob(_) => "blob",
+                    Object::Tree(_) => "tree",
+                    Object::Mask => "mask",
+                };
 
-                    Object::Layer(obj) => {
-                        println!(
-                            "{}{} {}",
-                            " ".repeat(indent),
-                            "layer:".bright_blue(),
-                            format_digest(obj.digest()?, digest_format.clone()).await?
-                        );
-                    }
-
-                    Object::Manifest(obj) => {
-                        println!(
-                            "{}{} {}",
-                            " ".repeat(indent),
-                            "manifest:".bright_blue(),
-                            format_digest(obj.digest()?, digest_format.clone()).await?
-                        );
-                    }
-
-                    Object::Blob(_) | Object::Tree(_) | Object::Mask => {
-                        // Ignores these
-                    }
-                }
+                println!(
+                    "{}{}: {}",
+                    " ".repeat(indent),
+                    name.bright_blue(),
+                    format_digest(obj.digest()?, digest_format.clone()).await?
+                );
             }
 
             ObjectPathEntry::FilePath(entry) => {
@@ -208,10 +191,10 @@ pub async fn pretty_print_filepath(
     Ok(())
 }
 
-/// Display all the given lists of ObjectPathEntrys
+/// Display all the given lists of ['ObjectPathEntrys']
 pub async fn pretty_print_filepaths(
     file: &str,
-    info_paths: Vec<Vec<ObjectPathEntry>>,
+    info_paths: Vec<ObjectPath>,
     verbosity: usize,
     digest_format: DigestFormat<'_>,
 ) -> Result<()> {
