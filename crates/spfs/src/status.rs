@@ -76,13 +76,17 @@ pub async fn exit_runtime(rt: &runtime::Runtime) -> Result<()> {
     }
 }
 
-/// Calculate the file manifest for the layers in the given runtime.
+/// Get the repository that is being used as the backing storage for the given
+/// runtime.
 ///
-/// The returned manifest DOES NOT include any active changes to the runtime.
-pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manifest> {
+/// This is usually the local repository but it may be a remote repository
+/// depending on the configuration of the spfs filesystem backend.
+pub async fn get_runtime_backing_repo(
+    rt: &runtime::Runtime,
+) -> Result<crate::storage::RepositoryHandle> {
     let config = get_config()?;
-    let repo = if rt.config.mount_backend.requires_localization() {
-        config.get_local_repository_handle().await?
+    if rt.config.mount_backend.requires_localization() {
+        config.get_local_repository_handle().await
     } else {
         let proxy_config = crate::storage::proxy::Config {
             primary: config.storage.root.to_string_lossy().to_string(),
@@ -93,12 +97,18 @@ pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking:
                 .map(ToString::to_string)
                 .collect(),
         };
-        crate::storage::ProxyRepository::from_config(proxy_config)
+        Ok(crate::storage::ProxyRepository::from_config(proxy_config)
             .await?
-            .into()
-    };
+            .into())
+    }
+}
+
+/// Calculate the file manifest for the layers in the given runtime.
+///
+/// The returned manifest DOES NOT include any active changes to the runtime.
+pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manifest> {
     let spec = rt.status.stack.iter().cloned().collect();
-    super::compute_environment_manifest(&spec, &repo).await
+    super::compute_environment_manifest(&spec, &get_runtime_backing_repo(rt).await?).await
 }
 
 /// Return the currently active runtime
