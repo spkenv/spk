@@ -66,6 +66,7 @@ pub use status::{
     active_runtime,
     compute_runtime_manifest,
     exit_runtime,
+    get_runtime_backing_repo,
     initialize_runtime,
     make_active_runtime_editable,
     reinitialize_runtime,
