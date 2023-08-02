@@ -170,7 +170,23 @@ impl Bake {
             PackageSource::Repository {
                 repo: _,
                 components,
-            } => components.clone(),
+            } => {
+                let mut requested_components = resolved.request.pkg.components.clone();
+                if requested_components.remove(&Component::All) {
+                    components.clone()
+                } else {
+                    components
+                        .iter()
+                        .filter_map(|(c, l)| {
+                            if requested_components.contains(c) {
+                                Some((c.clone(), *l))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<HashMap<Component, Digest>>()
+                }
+            }
             PackageSource::SpkInternalTest => {
                 // Internal test builds don't have a layer of
                 // their own so they can be skipped over.
