@@ -1,0 +1,22 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+name = "spk-cmd-du"
+version = { workspace = true }
+
+[dependencies]
+anyhow = { workspace = true }
+async-stream = "0.3"
+async-trait = { workspace = true }
+clap = { workspace = true }
+colored = { workspace = true }
+futures = "0.3.9"
+itertools = "0.10"
+spfs = { version = '0.34.6', path = "../../spfs" }
+spk-build = { path = '../../spk-build' }
+spk-cli-common = { path = '../common' }
+spk-solve = { path = '../../spk-solve' }
+spk-storage = { path = '../../spk-storage' }
+spk-schema = { path = '../../spk-schema' }
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["rt"] }
