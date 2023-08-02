@@ -496,9 +496,8 @@ async fn get_all_filenames<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<Str
 }
 
 async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding::Digest> {
-    let config = spfs::get_config()?;
-    let (runtime, repo) =
-        tokio::try_join!(spfs::active_runtime(), config.get_local_repository_handle())?;
+    let runtime = spfs::active_runtime().await?;
+    let repo = spfs::get_runtime_backing_repo(&runtime).await?;
 
     let layers = spfs::resolve_stack_to_layers(runtime.status.stack.iter(), Some(&repo)).await?;
     for layer in layers.iter().rev() {
@@ -527,9 +526,8 @@ async fn find_layers_by_filenames<S: AsRef<str>>(
         return Ok(Vec::new());
     }
 
-    let config = spfs::get_config()?;
-    let (runtime, repo) =
-        tokio::try_join!(spfs::active_runtime(), config.get_local_repository_handle())?;
+    let runtime = spfs::active_runtime().await?;
+    let repo = spfs::get_runtime_backing_repo(&runtime).await?;
 
     let mut paths = paths.iter().map(Some).enumerate().collect::<Vec<_>>();
 
