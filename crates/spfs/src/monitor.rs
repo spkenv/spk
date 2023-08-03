@@ -71,7 +71,7 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
     }
 
     cmd.spawn()
-        .map_err(|err| Error::process_spawn_error("spfs-monitor".to_owned(), err, None))
+        .map_err(|err| Error::process_spawn_error("spfs-monitor", err, None))
 }
 
 /// When provided an active runtime, wait until all contained processes exit

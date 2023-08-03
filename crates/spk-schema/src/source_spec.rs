@@ -130,7 +130,7 @@ impl LocalSource {
             .status()
             .map_err(|err| {
                 Error::ProcessSpawnError(spfs::Error::process_spawn_error(
-                    "rsync".to_owned(),
+                    "rsync",
                     err,
                     Some(dirname.to_owned()),
                 ))
@@ -196,7 +196,7 @@ impl GitSource {
                 .status()
                 .map_err(|err| {
                     Error::ProcessSpawnError(spfs::Error::process_spawn_error(
-                        "git".to_owned(),
+                        "git",
                         err,
                         Some(dirname.to_owned()),
                     ))
@@ -243,7 +243,7 @@ impl TarSource {
                 .status()
                 .map_err(|err| {
                     Error::ProcessSpawnError(spfs::Error::process_spawn_error(
-                        "wget".to_owned(),
+                        "wget",
                         err,
                         Some(tmpdir.path().to_owned()),
                     ))
@@ -273,7 +273,7 @@ impl TarSource {
             .status()
             .map_err(|err| {
                 Error::ProcessSpawnError(spfs::Error::process_spawn_error(
-                    "tar".to_owned(),
+                    "tar",
                     err,
                     Some(dirname.to_owned()),
                 ))
@@ -327,7 +327,7 @@ impl ScriptSource {
         tracing::debug!("running sources script");
         let mut child = bash.spawn().map_err(|err| {
             Error::ProcessSpawnError(spfs::Error::process_spawn_error(
-                "bash".to_owned(),
+                "bash",
                 err,
                 Some(dirname.to_owned()),
             ))

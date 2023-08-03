@@ -158,11 +158,14 @@ impl Error {
     }
 
     /// Create an `Error:ProcessSpawnError` with context.
-    pub fn process_spawn_error(
-        process_description: String,
+    pub fn process_spawn_error<S>(
+        process_description: S,
         err: std::io::Error,
         current_dir: Option<std::path::PathBuf>,
-    ) -> Error {
+    ) -> Error
+    where
+        S: std::fmt::Display + Into<String>,
+    {
         // A common problem with launching a sub-process is that the specified
         // current working directory doesn't exist.
         match (err.kind(), current_dir) {
@@ -177,7 +180,7 @@ impl Error {
             }
             _ => {}
         }
-        Error::ProcessSpawnError(process_description, err)
+        Error::ProcessSpawnError(process_description.into(), err)
     }
 }
 

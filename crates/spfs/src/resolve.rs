@@ -48,7 +48,7 @@ async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<Option<RenderR
     let output = cmd
         .output()
         .await
-        .map_err(|err| Error::process_spawn_error("spfs-render".to_owned(), err, None))?;
+        .map_err(|err| Error::process_spawn_error("spfs-render", err, None))?;
     let res = match output.status.code() {
         Some(0) => {
             if let Ok(render_result) =
@@ -63,7 +63,7 @@ async fn render_via_subcommand(spec: tracking::EnvSpec) -> Result<Option<RenderR
             }
         }
         _ => Err(Error::process_spawn_error(
-            "spfs-render".to_owned(),
+            "spfs-render",
             std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "process exited with non-zero status",
