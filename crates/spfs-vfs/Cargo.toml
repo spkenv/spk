@@ -5,8 +5,8 @@ name = "spfs-vfs"
 version = "0.34.6"
 
 [features]
-default = ["fuser/abi-7-22"]
-fuse-backend = ["spfs/fuse-backend"]
+default = ["fuse-backend-abi-7-22"]
+fuse-backend = ["spfs/fuse-backend", "dep:fuser"]
 fuse-backend-abi-7-22 = ["fuse-backend", "fuser/abi-7-22"]
 fuse-backend-abi-7-25 = ["fuse-backend-abi-7-22", "fuser/abi-7-25"]
 fuse-backend-abi-7-28 = ["fuse-backend-abi-7-25", "fuser/abi-7-28"]
@@ -18,10 +18,12 @@ fuse-backend-rhel-7-9 = ["fuse-backend-abi-7-31"]
 anyhow = { workspace = true }
 clap = { workspace = true }
 dashmap = { workspace = true }
-fuser = { workspace = true }
 nix = { workspace = true, features = ["process"] }
 libc = "0.2"
 spfs = { path = "../spfs" }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }
 url = "2.2"
+
+[target.'cfg(unix)'.dependencies]
+fuser = { workspace = true, optional = true }
