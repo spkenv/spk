@@ -24,7 +24,7 @@ itertools = "0.10"
 once_cell = { workspace = true }
 priority-queue = "1.2"
 serde_json = { workspace = true }
-spfs = { version = '0.34.6', path = "../../../spfs" }
+spfs = { path = "../../../spfs" }
 spk-solve-package-iterator = { path = "../package-iterator" }
 spk-solve-solution = { path = "../solution" }
 spk-schema = { path = "../../../spk-schema" }

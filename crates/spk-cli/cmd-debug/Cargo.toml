@@ -9,7 +9,7 @@ anyhow = "1.0"
 async-trait = "0.1"
 clap = { workspace = true, features = ["derive", "env"] }
 futures = { workspace = true }
-spfs = { version = '0.34.6', path = "../../spfs" }
+spfs = { path = "../../spfs" }
 spk-cli-common = { path = '../common' }
 spk-exec = { path = '../../spk-exec' }
 spk-schema = { path = '../../spk-schema' }

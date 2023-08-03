@@ -12,7 +12,7 @@ colored = { workspace = true }
 itertools = "0.10"
 nom = { workspace = true }
 nom-supreme = { workspace = true }
-spfs = { version = '0.34.6', path = "../../spfs" }
+spfs = { path = "../../spfs" }
 spk-cli-common = { path = '../common' }
 spk-solve = { path = '../../spk-solve' }
 spk-schema = { path = '../../spk-schema' }

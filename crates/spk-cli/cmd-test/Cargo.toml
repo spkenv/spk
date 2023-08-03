@@ -8,7 +8,7 @@ version = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true }
-spfs = { version = '0.34.6', path = "../../spfs" }
+spfs = { path = "../../spfs" }
 spk-build = { path = '../../spk-build' }
 spk-cli-common = { path = '../common' }
 spk-exec = { path = '../../spk-exec' }
