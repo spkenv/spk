@@ -9,7 +9,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use dyn_clone::DynClone;
-use glob::Pattern;
 use once_cell::sync::Lazy;
 use spk_schema::foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_schema::foundation::option_map::OptionMap;
@@ -21,46 +20,11 @@ use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 
 use crate::build_key::BuildKey;
-use crate::{Error, Result};
+use crate::{Error, PromotionPatterns, Result};
 
 #[cfg(test)]
 #[path = "./package_iterator_test.rs"]
 mod package_iterator_test;
-
-pub struct BuildKeyPromotionPatterns(Vec<Pattern>);
-
-impl BuildKeyPromotionPatterns {
-    /// Parse a comma-separated string into a list of patterns.
-    fn new(comma_separated_patterns: &str) -> Self {
-        Self(
-            comma_separated_patterns
-                .split(',')
-                .filter_map(|p| Pattern::new(p).ok())
-                .collect(),
-        )
-    }
-
-    /// Sort the given list by moving any entries that match the list of
-    /// promoted names to the front, but otherwise preserving the original
-    /// order. The function `f` is used to extract the name to compare to for
-    /// each element of the list.
-    ///
-    /// Entries that match are ordered based on the order of the patterns,
-    /// where patterns at a lower index are prioritized.
-    pub fn promote_names<N, F>(&self, names: &mut [N], f: F)
-    where
-        F: Fn(&N) -> &str,
-    {
-        names.sort_by_cached_key(|name| {
-            self.0
-                .iter()
-                .enumerate()
-                .find(|(_, pattern)| pattern.matches(f(name)))
-                .map(|(index, _)| index)
-                .unwrap_or(usize::MAX)
-        })
-    }
-}
 
 /// Allows control of the order option names are using in build key
 /// generation. Names in this list will be put at the front of the
@@ -74,10 +38,10 @@ impl BuildKeyPromotionPatterns {
 /// the package name `"spi-platform"`.
 //
 // TODO: add the default value to a config file, once spk has one
-pub static BUILD_KEY_NAME_ORDER: Lazy<BuildKeyPromotionPatterns> = Lazy::new(|| {
-    BuildKeyPromotionPatterns::new(
+static BUILD_KEY_NAME_ORDER: Lazy<PromotionPatterns> = Lazy::new(|| {
+    PromotionPatterns::new(
         std::env::var_os("SPK_BUILD_OPTION_KEY_ORDER")
-            .unwrap_or_else(|| OsString::from("*platform*,gcc,python"))
+            .unwrap_or_else(|| OsString::from("gcc,python"))
             .to_string_lossy()
             .as_ref(),
     )

@@ -8,6 +8,7 @@
 mod build_key;
 mod error;
 mod package_iterator;
+mod promotion_patterns;
 
 pub use error::{Error, Result};
 pub use package_iterator::{
@@ -16,6 +17,6 @@ pub use package_iterator::{
     PackageIterator,
     RepositoryPackageIterator,
     SortedBuildIterator,
-    BUILD_KEY_NAME_ORDER,
     BUILD_SORT_TARGET,
 };
+pub use promotion_patterns::PromotionPatterns;

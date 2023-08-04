@@ -13,13 +13,7 @@ use spk_schema::foundation::version::Compatibility;
 use spk_schema::{recipe, spec, BuildIdent, Package, Spec};
 use spk_solve_macros::{make_build, make_repo};
 
-use super::{
-    BuildIterator,
-    BuildKeyPromotionPatterns,
-    PackageIterator,
-    RepositoryPackageIterator,
-    SortedBuildIterator,
-};
+use super::{BuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator};
 
 #[rstest]
 #[tokio::test]
@@ -222,16 +216,4 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
             }
         }
     }
-}
-
-#[rstest]
-#[case("gcc", &["a", "b", "gcc"], &["gcc", "a", "b"])]
-#[case::pattern_order_matters_1("gcc,python", &["a", "python", "b", "gcc"], &["gcc", "python", "a", "b"])]
-#[case::pattern_order_matters_2("python,gcc", &["a", "python", "b", "gcc"], &["python", "gcc", "a", "b"])]
-#[case::pattern_glob("*platform*,python,gcc", &["a", "python", "b", "gcc", "spi-platform"], &["spi-platform", "python", "gcc", "a", "b"])]
-fn test_promote_names(#[case] patterns: &str, #[case] input: &[&str], #[case] expected: &[&str]) {
-    let patterns = BuildKeyPromotionPatterns::new(patterns);
-    let mut subject = input.to_owned();
-    patterns.promote_names(subject.as_mut_slice(), |n| n);
-    assert_eq!(subject, expected)
 }
