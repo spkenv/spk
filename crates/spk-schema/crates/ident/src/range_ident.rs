@@ -7,6 +7,7 @@ use std::fmt::Write;
 use std::str::FromStr;
 
 use itertools::Itertools;
+use nom::combinator::all_consuming;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::{Component, Components};
@@ -310,12 +311,14 @@ impl FromStr for RangeIdent {
     type Err = crate::Error;
 
     fn from_str(s: &str) -> crate::Result<Self> {
-        crate::parsing::range_ident::<nom_supreme::error::ErrorTree<_>>(&KNOWN_REPOSITORY_NAMES, s)
-            .map(|(_, ident)| ident)
-            .map_err(|err| match err {
-                nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
-                nom::Err::Incomplete(_) => unreachable!(),
-            })
+        all_consuming(crate::parsing::range_ident::<
+            nom_supreme::error::ErrorTree<_>,
+        >(&KNOWN_REPOSITORY_NAMES))(s)
+        .map(|(_, ident)| ident)
+        .map_err(|err| match err {
+            nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
+            nom::Err::Incomplete(_) => unreachable!(),
+        })
     }
 }
 

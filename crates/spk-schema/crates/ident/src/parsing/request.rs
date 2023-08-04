@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 
 use nom::character::complete::char;
-use nom::combinator::{all_consuming, cut, map, opt};
+use nom::combinator::{cut, map, opt};
 use nom::error::{ContextError, FromExternalError, ParseError};
 use nom::sequence::preceded;
 use nom::IResult;
@@ -57,8 +57,7 @@ where
 /// filter expression.
 pub fn range_ident<'a, 'b, E>(
     known_repositories: &'a HashSet<&str>,
-    input: &'b str,
-) -> IResult<&'b str, RangeIdent, E>
+) -> impl FnMut(&'b str) -> IResult<&'b str, RangeIdent, E> + 'a
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>
@@ -69,27 +68,29 @@ where
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {
-    let (input, repository_name) = opt(repo_name_in_ident(
-        known_repositories,
-        range_ident_pkg_name,
-        range_ident_version_filter,
-        version_filter_and_build,
-    ))(input)?;
-    let (input, (name, components)) = range_ident_pkg_name(input)?;
-    let (input, (version, build)) = all_consuming(map(
-        opt(preceded(char('/'), cut(version_filter_and_build))),
-        |v_and_b| v_and_b.unwrap_or_default(),
-    ))(input)?;
-    Ok((
-        input,
-        RangeIdent {
-            repository_name: repository_name.map(ToOwned::to_owned),
-            name: name.to_owned(),
-            components,
-            version,
-            build,
-        },
-    ))
+    move |input: &str| {
+        let (input, repository_name) = opt(repo_name_in_ident(
+            known_repositories,
+            range_ident_pkg_name,
+            range_ident_version_filter,
+            version_filter_and_build,
+        ))(input)?;
+        let (input, (name, components)) = range_ident_pkg_name(input)?;
+        let (input, (version, build)) = map(
+            opt(preceded(char('/'), cut(version_filter_and_build))),
+            |v_and_b| v_and_b.unwrap_or_default(),
+        )(input)?;
+        Ok((
+            input,
+            RangeIdent {
+                repository_name: repository_name.map(ToOwned::to_owned),
+                name: name.to_owned(),
+                components,
+                version,
+                build,
+            },
+        ))
+    }
 }
 
 /// Parse a version filter and optional build in the context of a

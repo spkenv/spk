@@ -521,7 +521,7 @@ proptest! {
 #[test]
 fn parse_range_ident_with_basic_errors() {
     let empty = HashSet::new();
-    let r = crate::parsing::range_ident::<(_, ErrorKind)>(&empty, "pkg-name");
+    let r = crate::parsing::range_ident::<(_, ErrorKind)>(&empty)("pkg-name");
     assert!(r.is_ok(), "{}", r.unwrap_err());
 }
 
