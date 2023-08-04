@@ -77,7 +77,7 @@ pub enum BuildSource {
     LocalPath(PathBuf),
 }
 
-/// A pair of packages that are in conlict for some reason,
+/// A pair of packages that are in conflict for some reason,
 /// e.g. because they both provide one or more of the same files.
 #[derive(Eq, Hash, PartialEq)]
 struct ConflictingPackagePair(BuildIdent, BuildIdent);

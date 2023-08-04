@@ -19,6 +19,10 @@ jobs:
     container:
       image: xd009642/tarpaulin:0.26.0
       options: --security-opt seccomp=unconfined --privileged
+    env:
+      # Enable sccache for rust
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     steps:
       - name: Setup spfs repos
         run: |
@@ -39,10 +43,23 @@ jobs:
           # spfs "custom build command" needs rustfmt? (protobufs?)
           rustup component add rustfmt
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v2
-      - name: Install spfs
+      - name: Configure cargo
         run: |
-          make install-debug-spfs
+          mkdir -p .cargo
+          cat << EOF > .cargo/config.toml
+          [build]
+          # Disable incremental compilation to lower disk usage, and sccache
+          # can't cache incremental compiles.
+          incremental = false
+
+          [profile.dev]
+          # Disable debug information to lower disk usage.
+          debug = false
+          EOF
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
+      - name: Install spfs
+        run: make install-debug-spfs FEATURES=server,spfs/server
       - name: Generate code coverage
         run: |
           # Enable migration-to-components feature here so that the test suite
