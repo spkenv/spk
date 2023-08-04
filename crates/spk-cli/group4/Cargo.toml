@@ -11,7 +11,7 @@ clap = { workspace = true }
 colored = { workspace = true }
 futures = { workspace = true }
 serde_yaml = "0.8.17"
-spfs = { version = '0.34.6', path = "../../spfs" }
+spfs = { path = "../../spfs" }
 spk-cli-common = { path = '../common' }
 spk-schema = { path = '../../spk-schema' }
 tokio = { workspace = true, features = ["rt"] }

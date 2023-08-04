@@ -34,7 +34,7 @@ rug = "1.17.0"
 serde_json = { workspace = true }
 sentry = { workspace = true, optional = true }
 signal-hook = "0.3"
-spfs = { version = '0.34.6', path = "../spfs" }
+spfs = { path = "../spfs" }
 spk-config = { path = "../spk-config" }
 spk-solve-graph = { path = "./crates/graph" }
 spk-solve-package-iterator = { path = "./crates/package-iterator" }

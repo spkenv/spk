@@ -30,7 +30,7 @@ serde_yaml = "0.8.17"
 sentry = { workspace = true, optional = true }
 sentry-anyhow = { workspace = true, optional = true }
 sentry-tracing = { workspace = true, optional = true }
-spfs = { version = '0.34.6', path = "../../spfs" }
+spfs = { path = "../../spfs" }
 spk-build = { path = '../../spk-build' }
 spk-exec = { path = '../../spk-exec' }
 spk-solve = { path = '../../spk-solve' }

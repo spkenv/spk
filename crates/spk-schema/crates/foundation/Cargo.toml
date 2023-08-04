@@ -27,7 +27,7 @@ ring = "0.16.15"
 rstest = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml = "0.8.17"
-spfs = { version = '0.34.6', path = "../../../spfs" }
+spfs = { path = "../../../spfs" }
 sys-info = "0.9.0"
 tempfile = { workspace = true }
 thiserror = { workspace = true }

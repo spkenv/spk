@@ -19,7 +19,7 @@ enum_dispatch = "0.3.8"
 futures = { workspace = true }
 itertools = "0.10"
 once_cell = { workspace = true }
-spfs = { version = '0.34.6', path = "../../../spfs" }
+spfs = { path = "../../../spfs" }
 spk-solve-graph = { path = "../graph" }
 spk-solve-solution = { path = "../solution" }
 spk-schema = { path = "../../../spk-schema" }
