@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use anyhow::Result;
+use chrono::Local;
 use clap::Args;
 use colored::*;
 use futures::StreamExt;
@@ -34,7 +35,7 @@ impl CmdLog {
                 tag.target.to_string()[..10].yellow(),
                 spec_str.bold(),
                 tag.user.bright_blue(),
-                tag.time.to_string().green(),
+                tag.time.with_timezone(&Local).to_string().green(),
             );
         }
         Ok(0)
