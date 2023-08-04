@@ -707,10 +707,13 @@ impl TagLock {
                     break Ok(TagLock(lock_file));
                 }
                 Err(err) => {
-                    if std::time::Instant::now() < timeout {
-                        continue;
-                    }
                     break match err.raw_os_error() {
+                        Some(libc::EEXIST) if std::time::Instant::now() < timeout => {
+                            // Wait up until the timeout to acquire the lock,
+                            // but fail immediately for other [non-temporary]
+                            // problems, like the directory not existing.
+                            continue;
+                        }
                         Some(libc::EEXIST) => Err("Tag already locked, cannot edit".into()),
                         _ => Err(Error::StorageWriteError(
                             "open tag lock file for write exclusively",
