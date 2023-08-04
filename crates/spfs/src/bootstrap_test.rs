@@ -149,6 +149,7 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempf
     assert_eq!(out.stdout, "\n".as_bytes());
 }
 
+#[cfg(unix)]
 #[rstest(shell, case("bash"), case("tcsh"))]
 #[tokio::test]
 #[serial_test::serial] // env manipulation must be reliable
@@ -170,6 +171,7 @@ async fn test_find_alternate_bash(shell: &str, tmpdir: tempfile::TempDir) {
     std::env::set_var("SHELL", original_shell);
 }
 
+#[cfg(unix)]
 fn make_exe(path: &std::path::Path) {
     use std::os::unix::fs::PermissionsExt;
     let file = std::fs::File::create(path).unwrap();

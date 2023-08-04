@@ -54,7 +54,7 @@ impl CmdJoin {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
-            .map_err(|err| Error::process_spawn_error("new_current_thread()".into(), err, None))?;
+            .map_err(|err| Error::process_spawn_error("new_current_thread()", err, None))?;
         let spfs_runtime = rt.block_on(async {
             let storage = config.get_runtime_storage().await?;
 
@@ -136,7 +136,7 @@ impl CmdJoin {
         tracing::debug!("{:?}", proc);
         Ok(proc
             .status()
-            .map_err(|err| Error::process_spawn_error("exec_runtime_command".into(), err, None))?
+            .map_err(|err| Error::process_spawn_error("exec_runtime_command", err, None))?
             .code()
             .unwrap_or(1))
     }

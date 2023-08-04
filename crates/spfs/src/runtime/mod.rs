@@ -4,11 +4,15 @@
 
 //! Handles the setup and initialization of runtime environments
 
+#[cfg(unix)]
 pub mod overlayfs;
 mod startup_csh;
 mod startup_sh;
 mod storage;
+#[cfg(windows)]
+pub mod winfsp;
 
+#[cfg(unix)]
 pub use overlayfs::is_removed_entry;
 pub use storage::{
     makedirs_with_perms,
@@ -22,3 +26,5 @@ pub use storage::{
     Storage,
     STARTUP_FILES_LOCATION,
 };
+#[cfg(windows)]
+pub use winfsp::is_removed_entry;

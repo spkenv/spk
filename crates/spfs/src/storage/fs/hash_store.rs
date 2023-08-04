@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::io::ErrorKind;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -331,6 +332,7 @@ impl FSHashStore {
         // won't change. For example, writing a payload and then hard linking
         // to that payload in a render that expects the file to have a certain
         // permissions.
+        #[cfg(unix)]
         if created_new_file {
             if let Err(err) = tokio::fs::set_permissions(
                 &path,

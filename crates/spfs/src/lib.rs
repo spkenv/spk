@@ -12,16 +12,18 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg(test)]
 pub mod fixtures;
 
-mod bootstrap;
+pub mod bootstrap;
 pub mod check;
 pub mod clean;
 pub mod commit;
 pub mod config;
 mod diff;
+#[cfg_attr(windows, path = "./env_win.rs")]
 pub mod env;
 mod error;
 pub mod graph;
 pub mod io;
+#[cfg_attr(windows, path = "./monitor_win.rs")]
 pub mod monitor;
 pub mod prelude;
 pub mod proto;

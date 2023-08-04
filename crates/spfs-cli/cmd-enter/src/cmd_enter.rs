@@ -122,6 +122,7 @@ impl CmdEnter {
         }
     }
 
+    #[cfg(unix)]
     pub async fn setup_runtime(
         &mut self,
         config: &spfs::Config,
@@ -213,6 +214,14 @@ impl CmdEnter {
 
             Ok(Some(owned))
         }
+    }
+
+    #[cfg(windows)]
+    pub async fn setup_runtime(
+        &mut self,
+        config: &spfs::Config,
+    ) -> Result<Option<spfs::runtime::OwnedRuntime>> {
+        todo!()
     }
 
     async fn load_runtime(&self, config: &spfs::Config) -> Result<spfs::runtime::Runtime> {

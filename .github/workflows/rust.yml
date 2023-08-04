@@ -8,7 +8,26 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  build-windows:
+    name: Windows Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.71.0
+          target: x86_64-pc-windows-gnu
+          override: true
+      - name: Install Cross
+        uses: brndnmtthws/rust-action-cargo-binstall@v1
+        with:
+          packages: cross
+      - name: Build SPFS
+        run: |
+          make debug-spfs PLATFORM=windows
+
   build-and-test:
+    name: Linux Build and Test
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:

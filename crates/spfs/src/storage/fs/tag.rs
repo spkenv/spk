@@ -5,6 +5,7 @@
 use std::convert::TryInto;
 use std::ffi::OsStr;
 use std::mem::size_of;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -385,9 +386,12 @@ async fn write_tags_to_path(filepath: &PathBuf, tags: &[tracking::Tag]) -> Resul
         ));
     }
 
-    let perms = std::fs::Permissions::from_mode(0o666);
-    if let Err(err) = tokio::fs::set_permissions(&filepath, perms).await {
-        tracing::warn!(?err, ?filepath, "Failed to set tag permissions");
+    #[cfg(unix)]
+    {
+        let perms = std::fs::Permissions::from_mode(0o666);
+        if let Err(err) = tokio::fs::set_permissions(&filepath, perms).await {
+            tracing::warn!(?err, ?filepath, "Failed to set tag permissions");
+        }
     }
     Ok(())
 }

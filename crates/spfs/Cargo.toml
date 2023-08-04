@@ -5,7 +5,7 @@ name = "spfs"
 version = "0.34.6"
 
 [features]
-default = ["fuse-backend"]
+default = []
 
 # If enabled, will create the "local" repository in a subdirectory
 # of the standard storage root, named "ci/pipeline_${CI_PIPELINE_ID}".
@@ -21,7 +21,6 @@ async-trait = "0.1.52"
 async-recursion = "1.0"
 async-stream = "0.3"
 cached = { workspace = true }
-caps = "0.5.3"
 chrono = { workspace = true }
 close-err = "1.0"
 colored = "2.0"
@@ -29,7 +28,6 @@ config = { workspace = true }
 dashmap = { workspace = true }
 data-encoding = "2.3"
 dirs = { workspace = true }
-fuser = { workspace = true, optional = true }
 faccess = "0.2.3"
 futures = { workspace = true }
 gitignore = "1.0"
@@ -42,7 +40,6 @@ nix = { workspace = true }
 nonempty = "0.8.1"
 once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
-procfs = { workspace = true }
 progress_bar_derive_macro = { workspace = true }
 prost = "0.11"
 rand = "0.8.5"
@@ -80,6 +77,15 @@ uuid = { version = "1.1", features = ["v4"] }
 walkdir = "2.3"
 whoami = { workspace = true }
 thiserror = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+fuser = { workspace = true, optional = true }
+procfs = { workspace = true }
+caps = "0.5.3"
+
+[target.'cfg(windows)'.dependencies.windows]
+version = "0.48"
+features = ["Win32_Storage_FileSystem", "Win32_Foundation"]
 
 [build-dependencies]
 protobuf-src = { version = "1.0.5", optional = true } # protoc @ 3.19.3

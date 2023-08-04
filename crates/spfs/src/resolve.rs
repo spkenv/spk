@@ -237,6 +237,7 @@ pub(crate) async fn resolve_overlay_dirs(
 
     // Determine if layers need to be combined to stay within the length limits
     // of mount args.
+    #[cfg(unix)]
     loop {
         let mut overlay_dirs = Vec::with_capacity(manifests.len());
         for manifest in &manifests {

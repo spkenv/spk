@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::ffi::{CString, OsStr, OsString};
-use std::os::unix::prelude::OsStringExt;
 use std::path::{Path, PathBuf};
 
 use super::resolve::{which, which_spfs};
@@ -56,8 +55,10 @@ impl Command {
     /// Upon success, this function will never return. Upon
     /// error, the current process' environment will have been updated
     /// to that of this command, and caution should be taken.
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     pub fn exec(self) -> Result<std::convert::Infallible> {
+        use std::os::unix::prelude::OsStringExt;
+
         tracing::debug!("{self:#?}");
         // ensure that all components of this command are utilized
         let Self {
@@ -76,6 +77,46 @@ impl Command {
             std::env::set_var(name, value);
         }
         nix::unistd::execv(&argv[0], argv.as_slice()).map_err(crate::Error::from)
+    }
+
+    /// Execute this command, replacing the current program.
+    ///
+    /// Upon success, this function will never return. Upon
+    /// error, the current process' environment will have been updated
+    /// to that of this command, and caution should be taken.
+    #[cfg(windows)]
+    pub fn exec(self) -> Result<std::convert::Infallible> {
+        use std::os::windows::prelude::OsStrExt;
+
+        tracing::debug!("{self:#?}");
+        // ensure that all components of this command are utilized
+        let Self {
+            executable,
+            args,
+            vars,
+        } = self;
+        let exe: Vec<_> = executable.encode_wide().collect();
+        let mut argv = Vec::with_capacity(args.len() + 1);
+        argv.push(exe[0] as *const u16);
+        let args = args
+            .into_iter()
+            .map(|a| a.encode_wide().collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+        argv.extend(args.iter().map(|a| &a[0] as *const u16));
+        for (name, value) in vars {
+            // set the environment to be inherited by the new process
+            std::env::set_var(name, value);
+        }
+        unsafe {
+            // Safety: this is a low-level operating system call but we
+            // trust that source OsStrings will be valid for this call
+            libc::wexecv(argv[0], &argv[0] as *const *const u16);
+        }
+        Err(Error::process_spawn_error(
+            "exec'd runtime process",
+            std::io::Error::last_os_error(),
+            None,
+        ))
     }
 }
 

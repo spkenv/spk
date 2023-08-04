@@ -5,7 +5,10 @@
 //! Definition and persistent storage of runtimes.
 
 use std::collections::HashSet;
+#[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -205,13 +208,17 @@ pub enum MountBackend {
     /// Renders each layer to a folder on disk, before mounting
     /// the whole stack as lower directories in overlayfs. Edits
     /// are stored in the overlayfs upper directory.
-    #[default]
+    #[cfg_attr(unix, default)]
     OverlayFsWithRenders,
     // Mounts a since fuse filesystem as the lower directory to
     // overlayfs, using the overlayfs upper directory for edits
     OverlayFsWithFuse,
     // Mounts a fuse filesystem directly
     FuseOnly,
+    /// Leverages the win file system protocol system to present
+    /// dynamic file system entries to runtime processes
+    #[cfg_attr(windows, default)]
+    WinFsp,
 }
 
 impl MountBackend {
@@ -227,6 +234,10 @@ impl MountBackend {
         matches!(self, Self::FuseOnly)
     }
 
+    pub fn is_winfsp(&self) -> bool {
+        matches!(self, Self::WinFsp)
+    }
+
     /// Reports whether this mount backend requires that all
     /// data be synced to the local repository before being executed
     pub fn requires_localization(&self) -> bool {
@@ -234,6 +245,7 @@ impl MountBackend {
             Self::OverlayFsWithRenders => true,
             Self::OverlayFsWithFuse => false,
             Self::FuseOnly => false,
+            Self::WinFsp => false,
         }
     }
 }
@@ -435,14 +447,23 @@ impl Runtime {
 
     /// Return true if the upper dir of this runtime has changes.
     pub fn is_dirty(&self) -> bool {
-        match std::fs::metadata(&self.config.upper_dir) {
-            Ok(meta) => meta.size() != 0,
-            Err(err) => {
-                // Treating other error types as dirty is not strictly
-                // accurate, but it is not worth the trouble of needing
-                // to return an error from this function
-                !matches!(err.kind(), std::io::ErrorKind::NotFound)
+        match self.config.mount_backend {
+            MountBackend::OverlayFsWithFuse | MountBackend::OverlayFsWithRenders => {
+                match std::fs::metadata(&self.config.upper_dir) {
+                    #[cfg(unix)]
+                    Ok(meta) => meta.size() != 0,
+                    #[cfg(windows)]
+                    Ok(meta) => meta.file_size() != 0,
+                    Err(err) => {
+                        // Treating other error types as dirty is not strictly
+                        // accurate, but it is not worth the trouble of needing
+                        // to return an error from this function
+                        !matches!(err.kind(), std::io::ErrorKind::NotFound)
+                    }
+                }
             }
+            MountBackend::FuseOnly => false,
+            MountBackend::WinFsp => todo!(),
         }
     }
 
@@ -726,6 +747,7 @@ fn runtime_tag<S: std::fmt::Display>(
 /// Recursively create the given directory with the appropriate permissions.
 pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> Result<()> {
     let dirname = dirname.as_ref();
+    #[cfg(unix)]
     let perms = std::fs::Permissions::from_mode(perms);
     let mut path = PathBuf::from("/");
     for component in dirname.components() {
@@ -755,6 +777,7 @@ pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> Result<()>
                 }
                 // not fatal, so it's worth allowing things to continue
                 // even though it could cause permission issues later on
+                #[cfg(unix)]
                 let _ = std::fs::set_permissions(&path, perms.clone());
             }
         }
