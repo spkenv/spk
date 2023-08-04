@@ -54,8 +54,15 @@ spfs run - -- spfs run - -- spfs run - -- spfs run - -- sleep 8 &
 # when runtimes are stacked, the commands each move into
 # a new namespace and so the outer runtimes become empty
 # and can be cleaned up immediately
+
+# wait for them all to spin up
 sleep 4
+
+# the outer runtimes are cleaned up
+wait_for_spfs_monitor_count 1
 assert_runtime_count 1
+
+# then the one remaining runtime is cleaned up
 wait_for_spfs_monitor_count 0
 assert_runtime_count 0
 
