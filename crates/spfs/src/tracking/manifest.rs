@@ -3,8 +3,10 @@
 // https://github.com/imageworks/spk
 
 use std::collections::{HashMap, HashSet};
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
-use std::os::unix::prelude::FileTypeExt;
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -181,7 +183,7 @@ where
     T: Default,
 {
     /// Add a new directory entry to this manifest
-    pub fn mkdir<P: AsRef<str>>(&mut self, path: P) -> Result<&mut Entry<T>> {
+    pub fn mkdir<P: AsRef<str>>(&mut self, path: P) -> MkResult<&mut Entry<T>> {
         let entry = Entry::default();
         self.mknod(path, entry)
     }
@@ -191,11 +193,11 @@ where
     /// Entries that do not exist are created with a reasonable default
     /// file mode, but can and should be replaced by a new entry in the
     /// case where this is not desired.
-    pub fn mkdirs<P: AsRef<str>>(&mut self, path: P) -> Result<&mut Entry<T>> {
+    pub fn mkdirs<P: AsRef<str>>(&mut self, path: P) -> MkResult<&mut Entry<T>> {
         const TRIM_PAT: &[char] = &['/', '.'];
         let path = path.as_ref().trim_start_matches(TRIM_PAT);
         if path.is_empty() {
-            return Err(nix::errno::Errno::EEXIST.into());
+            return Err(MkError::AlreadyExists(path.into()));
         }
         let path = RelativePathBuf::from(path).normalize();
         let mut entry = &mut self.root;
@@ -208,7 +210,7 @@ where
                     }
                     entry = entries.get_mut(step).unwrap();
                     if !entry.kind.is_tree() {
-                        return Err(nix::errno::Errno::ENOTDIR.into());
+                        return Err(MkError::NotADirectory(path));
                     }
                 }
                 // do not expect any other components after normalizing
@@ -219,7 +221,7 @@ where
     }
 
     /// Make a new file entry in this manifest
-    pub fn mkfile<'m>(&'m mut self, path: &str) -> Result<&'m mut Entry<T>> {
+    pub fn mkfile<'m>(&'m mut self, path: &str) -> MkResult<&'m mut Entry<T>> {
         let entry = Entry {
             kind: EntryKind::Blob,
             ..Default::default()
@@ -229,13 +231,17 @@ where
 }
 
 impl<T> Manifest<T> {
-    pub fn mknod<P: AsRef<str>>(&mut self, path: P, new_entry: Entry<T>) -> Result<&mut Entry<T>> {
+    pub fn mknod<P: AsRef<str>>(
+        &mut self,
+        path: P,
+        new_entry: Entry<T>,
+    ) -> MkResult<&mut Entry<T>> {
         use relative_path::Component;
         const TRIM_PAT: &[char] = &['/', '.'];
 
         let path = path.as_ref().trim_start_matches(TRIM_PAT);
         if path.is_empty() {
-            return Err(nix::errno::Errno::EEXIST.into());
+            return Err(MkError::AlreadyExists(path.into()));
         }
         let path = RelativePathBuf::from(path).normalize();
         let mut entry = &mut self.root;
@@ -244,12 +250,10 @@ impl<T> Manifest<T> {
         for step in components {
             match step {
                 Component::Normal(step) => match entry.entries.get_mut(step) {
-                    None => {
-                        return Err(nix::errno::Errno::ENOENT.into());
-                    }
+                    None => return Err(MkError::NotFound(path)),
                     Some(e) => {
                         if !e.kind.is_tree() {
-                            return Err(nix::errno::Errno::ENOTDIR.into());
+                            return Err(MkError::NotADirectory(path));
                         }
                         entry = e;
                     }
@@ -259,15 +263,29 @@ impl<T> Manifest<T> {
             }
         }
         match last {
-            None => Err(nix::errno::Errno::ENOENT.into()),
+            None => Err(MkError::NotFound(path)),
             Some(Component::Normal(step)) => {
                 entry.entries.insert(step.to_string(), new_entry);
                 Ok(entry.entries.get_mut(step).unwrap())
             }
-            _ => Err(nix::errno::Errno::EIO.into()),
+            _ => Err(MkError::InvalidFilename(path)),
         }
     }
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum MkError {
+    #[error("Entry already exists in manifest {0}")]
+    AlreadyExists(RelativePathBuf),
+    #[error("Invalid filename for manifest entry {0}")]
+    InvalidFilename(RelativePathBuf),
+    #[error("Manifest entry is not a parent {0}")]
+    NotADirectory(RelativePathBuf),
+    #[error("Entry does not exist {0}")]
+    NotFound(RelativePathBuf),
+}
+
+pub type MkResult<T> = std::result::Result<T, MkError>;
 
 /// Walks all entries in a manifest depth-first
 pub struct ManifestWalker<'m, T = ()> {
@@ -569,20 +587,20 @@ where
         let stat_result = match tokio::fs::symlink_metadata(&path).await {
             Ok(r) => r,
             Err(lstat_err) if lstat_err.kind() == std::io::ErrorKind::NotFound => {
-                // Heuristic: if lstat fails with ENOENT, but `dir_entry` exists,
                 // then the directory entry exists but it might be a whiteout file.
                 // Assume so if `dir_entry` says it is a character device.
-                match dir_entry.file_type().await {
-                    Ok(ft) if ft.is_char_device() => {
+                match dir_entry.metadata().await {
+                    Ok(meta) if crate::runtime::is_removed_entry(&meta) => {
                         // XXX: mode and size?
                         entry.kind = EntryKind::Mask;
                         entry.object = encoding::NULL_DIGEST.into();
                         self.reporter.computed_entry(&entry);
                         return Ok(entry);
                     }
-                    Ok(_) => {
+                    Ok(meta) => {
                         return Err(Error::String(format!(
-                            "Unexpected non-char device file: {}",
+                            "Unexpected directory file type {:?}: {}",
+                            meta.file_type(),
                             path.as_ref().display()
                         )))
                     }
@@ -604,8 +622,18 @@ where
             }
         };
 
-        entry.mode = stat_result.mode();
-        entry.size = stat_result.size();
+        #[cfg(unix)]
+        {
+            entry.mode = stat_result.mode();
+            entry.size = stat_result.size();
+        }
+        #[cfg(windows)]
+        {
+            entry.size = stat_result.file_size();
+            // use the same default posix permissions as git uses
+            // for files created on windows
+            entry.mode = 0o644;
+        }
 
         let file_type = stat_result.file_type();
         if file_type.is_symlink() {
