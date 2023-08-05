@@ -97,10 +97,7 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
         .expect("failed to render manifest");
     let rendered_symlink = rendered_dir.join(symlink_path);
     let rendered_mode = rendered_symlink.symlink_metadata().unwrap().mode();
-    assert!(
-        (libc::S_IFMT & rendered_mode) == libc::S_IFLNK,
-        "should be a symlink"
-    );
+    assert!(unix_mode::is_symlink(rendered_mode), "should be a symlink");
 
     let symlink_entry = manifest
         .get_path(symlink_path)
@@ -108,7 +105,7 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
     let symlink_blob = tmprepo.payloads.build_digest_path(&symlink_entry.object);
     let blob_mode = symlink_blob.symlink_metadata().unwrap().mode();
     assert!(
-        (libc::S_IFMT & blob_mode) != libc::S_IFLNK,
+        !unix_mode::is_symlink(blob_mode),
         "stored blob should not be a symlink"
     )
 }
