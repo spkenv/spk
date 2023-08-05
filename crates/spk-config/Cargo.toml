@@ -9,7 +9,7 @@ migration-to-components = []
 
 [dependencies]
 config = { workspace = true }
-expanduser = { workspace = true }
+dirs = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 once_cell = { workspace = true }

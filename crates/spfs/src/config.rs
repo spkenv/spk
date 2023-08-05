@@ -15,7 +15,7 @@ use crate::{runtime, storage, Result};
 #[path = "./config_test.rs"]
 mod config_test;
 
-const DEFAULT_STORAGE_ROOT: &str = "~/.local/share/spfs";
+const DEFAULT_USER_STORAGE: &str = "spfs";
 const FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
 
 static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
@@ -49,8 +49,9 @@ pub struct Storage {
 impl Default for Storage {
     fn default() -> Self {
         Self {
-            root: expanduser::expanduser(DEFAULT_STORAGE_ROOT)
-                .unwrap_or_else(|_| PathBuf::from(FALLBACK_STORAGE_ROOT)),
+            root: dirs::data_local_dir()
+                .map(|data| data.join(DEFAULT_USER_STORAGE))
+                .unwrap_or_else(|| PathBuf::from(FALLBACK_STORAGE_ROOT)),
             allow_payload_sharing_between_users: false,
         }
     }
@@ -362,9 +363,14 @@ pub fn load_config() -> Result<Config> {
     use config::FileFormat::Ini;
     use config::{Config as RawConfig, Environment, File};
 
-    let user_config_dir = "~/.config/spfs/spfs";
-    let user_config = expanduser::expanduser(user_config_dir)
-        .map_err(|err| crate::Error::InvalidPath(user_config_dir.into(), err))?;
+    const USER_CONFIG_BASE: &str = "spfs/spfs";
+    let user_config = dirs::config_local_dir()
+        .map(|config| config.join(USER_CONFIG_BASE))
+        .ok_or_else(|| {
+            crate::Error::String(
+                "User config area could not be found, this platform may not be supported".into(),
+            )
+        })?;
 
     let config = RawConfig::builder()
         // for backwards compatibility we also support .conf as an ini extension

@@ -111,9 +111,14 @@ pub fn get_config() -> Result<Arc<Config>> {
 pub fn load_config() -> Result<Config> {
     use config::{Config as RawConfig, File};
 
-    let user_config_dir = "~/.config/spk/spk";
-    let user_config = expanduser::expanduser(user_config_dir)
-        .map_err(|err| crate::Error::InvalidPath(user_config_dir.into(), err))?;
+    const USER_CONFIG_BASE: &str = "spk/spk";
+    let user_config = dirs::config_local_dir()
+        .map(|config| config.join(USER_CONFIG_BASE))
+        .ok_or_else(|| {
+            crate::Error::Config(config::ConfigError::NotFound(
+                "User config area could not be found, this platform may not be supported".into(),
+            ))
+        })?;
 
     let mut config_builder = RawConfig::builder()
         // the system config can also be in any support format: toml, yaml, json, ini, etc

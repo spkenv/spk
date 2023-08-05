@@ -28,7 +28,7 @@ colored = "2.0"
 config = { workspace = true }
 dashmap = { workspace = true }
 data-encoding = "2.3"
-expanduser = { workspace = true }
+dirs = { workspace = true }
 fuser = { workspace = true, optional = true }
 faccess = "0.2.3"
 futures = { workspace = true }
