@@ -6,12 +6,24 @@ CARGO_TARGET_DIR := $(shell \
 	then (grep target-dir .cargo/config.toml || echo target) | sed -sE 's|.*"(.*)".*|\1|'; \
 	else echo target; \
 	fi)
+CARGO ?= cargo
+
+spfs_packages = spfs,spfs-cli-main,spfs-cli-clean,spfs-cli-enter,spfs-cli-join,spfs-cli-render
+
+export PLATFORM ?= unix
+ifeq ($(PLATFORM),windows)
+CARGO_ARGS += --target x86_64-pc-windows-gnu
+# swap cargo for cross when building for other platforms
+CARGO = cross
+else
+spfs_packages := $(spfs_packages),spfs-cli-fuse,spfs-cli-monitor
+endif
 
 comma := ,
 cargo_features_arg = $(if $(FEATURES),--features $(FEATURES))
 cargo_packages_arg := $(if $(CRATES),-p=$(CRATES))
 cargo_packages_arg := $(subst $(comma), -p=,$(cargo_packages_arg))
-
+cargo_packages_arg := $(if $(cargo_packages_arg),$(cargo_packages_arg),--workspace)
 
 # Create a file called "config.mak" to configure variables.
 -include config.mak
@@ -41,37 +53,35 @@ clean: packages.clean
 .PHONY: lint
 lint: FEATURES?=server,spfs/server
 lint:
-	cargo +nightly fmt --check
-	cargo clippy --tests $(cargo_features_arg) $(cargo_packages_arg) -- -Dwarnings
+	$(CARGO) +nightly fmt --check
+	$(CARGO) clippy --tests $(cargo_features_arg) $(cargo_packages_arg) -- -Dwarnings
 	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps $(cargo_features_arg) $(cargo_packages_arg)
 
 .PHONY: format
 format:
-	cargo +nightly fmt
+	$(CARGO) +nightly fmt
 
 .PHONY: build
 build: debug
 
 debug:
 	cd $(SOURCE_ROOT)
-	cargo build --workspace $(cargo_features_arg)
+	$(CARGO) build $(cargo_packages_arg) $(cargo_features_arg) $(CARGO_ARGS)
 
 debug-spfs:
-	cd $(SOURCE_ROOT)
-	cargo build -p spfs -p spfs-cli-fuse -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render $(cargo_features_arg)
+	$(MAKE) debug CRATES=$(spfs_packages)
 
 release:
 	cd $(SOURCE_ROOT)
-	cargo build --workspace --release $(cargo_features_arg)
+	$(CARGO) build --release $(cargo_packages_arg) $(cargo_features_arg) $(CARGO_ARGS)
 
 release-spfs:
-	cd $(SOURCE_ROOT)
-	cargo build --release -p spfs -p spfs-cli-fuse -p spfs-cli-main -p spfs-cli-clean -p spfs-cli-enter -p spfs-cli-join -p spfs-cli-monitor -p spfs-cli-render $(cargo_features_arg)
+	$(MAKE) release CRATES=$(spfs_packages)
 
 .PHONY: test
 test: FEATURES?=server,spfs/server
 test:
-	spfs run - -- cargo test --workspace $(cargo_features_arg) $(cargo_packages_arg)
+	spfs run - -- cargo test $(cargo_features_arg) $(cargo_packages_arg)
 
 .PHONY: converters
 converters:

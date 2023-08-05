@@ -86,7 +86,7 @@ impl CmdRuntimeRemove {
     }
 }
 
-fn is_monitor_running(rt: &spfs::runtime::Runtime) -> bool {
+pub(crate) fn is_monitor_running(rt: &spfs::runtime::Runtime) -> bool {
     if let Some(pid) = rt.status.monitor {
         // we are blatantly ignoring the fact that this pid might
         // have been reused and is not the monitor anymore. Given
@@ -99,9 +99,23 @@ fn is_monitor_running(rt: &spfs::runtime::Runtime) -> bool {
     }
 }
 
+#[cfg(unix)]
 fn is_process_running(pid: u32) -> bool {
     // sending a null signal to the pid just allows us to check
     // if the process actually exists without affecting it
     let pid = nix::unistd::Pid::from_raw(pid as i32);
     nix::sys::signal::kill(pid, None).is_ok()
+}
+
+#[cfg(windows)]
+fn is_process_running(pid: u32) -> bool {
+    // PROCESS_SYNCHRONIZE seems like the most limited access we can request,
+    // which simply allows us to wait on the PID
+    let access = windows::Win32::System::Threading::PROCESS_SYNCHRONIZE;
+    let result = unsafe { windows::Win32::System::Threading::OpenProcess(access, false, pid) };
+    let Ok(handle) = result else {
+        return false;
+    };
+    let _ = unsafe { windows::Win32::Foundation::CloseHandle(handle) };
+    true
 }

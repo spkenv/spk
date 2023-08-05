@@ -34,6 +34,10 @@ enum PidEvent {
 /// The monitor command will spawn but immediately fail
 /// if there is already a monitor registered to this runtime
 pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process::Child> {
+    if rt.config.mount_backend.is_winfsp() {
+        todo!("No monitor implementation for winfsp mounts");
+    }
+
     let exe = match super::resolve::which_spfs("monitor") {
         None => return Err(Error::MissingBinary("spfs")),
         Some(exe) => exe,
@@ -58,6 +62,7 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
         cmd.stderr(std::process::Stdio::null());
     }
 
+    #[cfg(unix)]
     unsafe {
         // Avoid creating zombie processes by moving the monitor into a
         // separate process group. Use `daemon` to reparent it to pid 1 in
@@ -71,7 +76,7 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
     }
 
     cmd.spawn()
-        .map_err(|err| Error::process_spawn_error("spfs-monitor".to_owned(), err, None))
+        .map_err(|err| Error::process_spawn_error("spfs-monitor", err, None))
 }
 
 /// When provided an active runtime, wait until all contained processes exit

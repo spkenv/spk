@@ -155,38 +155,27 @@ async fn run_external_subcommand(args: Vec<String>) -> Result<i32> {
             Some(cmd) => cmd,
             None => {
                 let mut p = std::env::current_exe()
-                    .map_err(|err| Error::process_spawn_error("current_exe()".into(), err, None))?;
+                    .map_err(|err| Error::process_spawn_error("current_exe()", err, None))?;
                 p.set_file_name(&command);
                 p
             }
         };
-        let command_cstr = match std::ffi::CString::new(cmd_path.to_string_lossy().to_string()) {
-            Ok(s) => s,
-            Err(_) => {
-                tracing::error!("Invalid subcommand, not a valid string");
-                return Ok(1);
-            }
+
+        let cmd = spfs::bootstrap::Command {
+            executable: cmd_path.into(),
+            args: args.into_iter().skip(1).map(Into::into).collect(),
+            vars: Vec::new(),
         };
-        let mut args_cstr = Vec::with_capacity(args.len());
-        args_cstr.push(command_cstr.clone());
-        for arg in args.iter().skip(1) {
-            args_cstr.push(match std::ffi::CString::new(arg.clone()) {
-                Ok(s) => s,
-                Err(_) => {
-                    tracing::error!("Invalid argument, not a valid string");
-                    return Ok(1);
-                }
-            })
-        }
-        if let Err(err) = nix::unistd::execvp(command_cstr.as_c_str(), args_cstr.as_slice()) {
-            match err {
-                nix::errno::Errno::ENOENT => {
+
+        match cmd.exec() {
+            Ok(o) => match o {},
+            Err(err) => match err.raw_os_error() {
+                Some(libc::ENOENT) => {
                     tracing::error!("{command} not found in PATH, was it properly installed?")
                 }
                 _ => tracing::error!("subcommand failed: {err:?}"),
-            }
-            return Ok(1);
+            },
         }
-        Ok(0)
+        Ok(1)
     }
 }

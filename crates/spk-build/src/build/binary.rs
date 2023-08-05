@@ -729,7 +729,7 @@ where
             .status()
             .map_err(|err| {
                 Error::ProcessSpawnError(spfs::Error::process_spawn_error(
-                    "build script".to_owned(),
+                    "build script",
                     err,
                     Some(source_dir.to_owned()),
                 ))

@@ -21,12 +21,14 @@ sentry = ["spfs-cli-common/sentry"]
 anyhow = { workspace = true }
 clap = { workspace = true }
 dashmap = { workspace = true }
-fuser = { workspace = true }
 spfs-vfs = { path = "../../spfs-vfs" }
 nix = { workspace = true, features = ["process"] }
 libc = "0.2"
-spfs = { path = "../../spfs" }
+spfs = { path = "../../spfs", features = ["fuse-backend"] }
 spfs-cli-common = { path = "../common" }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }
 url = "2.2"
+
+[target.'cfg(unix)'.dependencies]
+fuser = { workspace = true }

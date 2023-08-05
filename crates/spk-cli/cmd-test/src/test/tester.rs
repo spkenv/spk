@@ -61,7 +61,7 @@ pub trait Tester: Send {
             .status()
             .map_err(|err| {
                 Error::ProcessSpawnError(spfs::Error::process_spawn_error(
-                    "bash".to_owned(),
+                    "bash",
                     err,
                     Some(source_dir.to_owned()),
                 ))

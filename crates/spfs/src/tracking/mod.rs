@@ -8,7 +8,7 @@ pub mod blob_reader;
 mod diff;
 mod entry;
 mod env;
-mod manifest;
+pub mod manifest;
 mod object;
 mod tag;
 

@@ -43,6 +43,8 @@ pub enum Error {
     #[error(transparent)]
     SPFS(#[from] spfs::Error),
     #[error(transparent)]
+    BuildManifest(#[from] spfs::tracking::manifest::MkError),
+    #[error(transparent)]
     SpkExecError(#[from] spk_exec::Error),
     #[error(transparent)]
     SpkIdentError(#[from] spk_schema::ident::Error),

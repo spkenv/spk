@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+#[cfg(unix)]
 use std::os::unix::prelude::PermissionsExt;
 use std::path::PathBuf;
 
@@ -38,12 +39,15 @@ impl CmdWrite {
                 let handle = tokio::fs::File::open(&file)
                     .await
                     .map_err(|err| Error::RuntimeWriteError(file.clone(), err))?;
+                #[cfg(unix)]
                 let mode = handle
                     .metadata()
                     .await
                     .map_err(|err| Error::RuntimeWriteError(file.clone(), err))?
                     .permissions()
                     .mode();
+                #[cfg(windows)]
+                let mode = 0o644;
                 Box::pin(tokio::io::BufReader::new(handle).with_permissions(mode))
             }
             None => Box::pin(tokio::io::BufReader::new(tokio::io::stdin())),

@@ -432,7 +432,7 @@ where
         cmd.arg("none");
         cmd.arg(SPFS_DIR);
         match cmd.status().await {
-            Err(err) => Err(Error::process_spawn_error("mount".to_owned(), err, None)),
+            Err(err) => Err(Error::process_spawn_error("mount", err, None)),
             Ok(status) => match status.code() {
                 Some(0) => Ok(()),
                 _ => Err("Failed to mount overlayfs".into()),
@@ -480,7 +480,7 @@ where
             cmd.stdout(std::process::Stdio::null());
             tracing::debug!("{cmd:?}");
             match cmd.status() {
-                Err(err) => return Err(Error::process_spawn_error("mount".to_owned(), err, None)),
+                Err(err) => return Err(Error::process_spawn_error("mount", err, None)),
                 Ok(status) if status.code() == Some(0) => {}
                 Ok(status) => {
                     return Err(Error::String(format!(
@@ -636,8 +636,8 @@ where
         self.unmount_env_fuse(rt, lazy).await?;
 
         match rt.config.mount_backend {
-            runtime::MountBackend::FuseOnly => {
-                // a fuse-only runtime cannot be unmounted this way
+            runtime::MountBackend::FuseOnly | runtime::MountBackend::WinFsp => {
+                // a vfs-only runtime cannot be unmounted this way
                 // and should already be handled by a previous call to
                 // unmount_env_fuse
                 return Ok(());
@@ -667,7 +667,9 @@ where
         let mount_path = match rt.config.mount_backend {
             runtime::MountBackend::OverlayFsWithFuse => rt.config.lower_dir.as_path(),
             runtime::MountBackend::FuseOnly => std::path::Path::new(SPFS_DIR),
-            runtime::MountBackend::OverlayFsWithRenders => return Ok(()),
+            runtime::MountBackend::OverlayFsWithRenders | runtime::MountBackend::WinFsp => {
+                return Ok(())
+            }
         };
         tracing::debug!(%lazy, "unmounting existing fuse env @ {mount_path:?}...");
 

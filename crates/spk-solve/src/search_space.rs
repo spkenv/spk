@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use rug::Integer;
+use num_bigint::BigUint;
 use spk_schema::ident::PkgRequest;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::{BuildIdent, Deprecate, Package, Spec, VersionIdent};
@@ -197,14 +197,15 @@ fn show_total_stats(
     verbosity: u8,
 ) {
     let mut calc: String = "1".to_string();
-    let mut total: Integer = Integer::new() + 1;
-    let mut total_builds = Integer::new();
-    let mut avg_branches = Integer::new();
-    let mut previous_num_nodes: Integer = Integer::new() + 1;
+    let mut total = BigUint::from(1u32);
+    let mut total_builds = BigUint::default();
+    let mut avg_branches = BigUint::default();
+    let mut previous_num_nodes = BigUint::from(1u32);
 
     for pkg in packages {
         let name = pkg.name();
         if let Some(number) = counters.get(name) {
+            let number = *number;
             total_builds += number;
             avg_branches += number;
 
@@ -226,16 +227,8 @@ fn show_total_stats(
     }
 
     let num_digits = total.to_string().len();
-    let display_total: String = if num_digits > DIGITS_LIMIT {
-        format!("{total:5.4e}").replace('e', " x 10^")
-    } else {
-        // TODO: it would be nice to format these large numbers using
-        // something like the num-format crate, but the bignum's
-        // (rug::Integer) used to hold the large numbers in these
-        // calculations would need to support or be wrapped to
-        // implement num-format's required traits.
-        total.to_string()
-    };
+    use num_format::ToFormattedString;
+    let display_total = total.to_formatted_string(&num_format::Locale::en);
     tracing::info!("Total number of nodes in unconstrained decision tree: {display_total}");
     if num_digits > DIGITS_LIMIT && verbosity > SHOW_FULL_DIGITS_LEVEL {
         tracing::info!("The full number of nodes is: {total}");

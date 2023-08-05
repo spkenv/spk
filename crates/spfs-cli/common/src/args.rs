@@ -306,7 +306,7 @@ pub struct Logging {
     #[clap(long, global = true, env = "SPFS_LOG_FILE")]
     pub log_file: Option<std::path::PathBuf>,
 
-    /// Enables logging to syslog (for background processes)
+    /// Enables logging to syslog (for background processes, unix only)
     #[clap(skip)]
     pub syslog: bool,
 
@@ -363,6 +363,7 @@ impl Logging {
         let env_filter = move || tracing_subscriber::filter::EnvFilter::from(config.clone());
         let fmt_layer = || tracing_subscriber::fmt::layer().with_target(self.show_target());
 
+        #[cfg(unix)]
         let syslog_layer = self.syslog.then(|| {
             let identity = std::ffi::CStr::from_bytes_with_nul(b"spfs\0")
                 .expect("identity value is valid CStr");
@@ -374,6 +375,8 @@ impl Logging {
             let layer = configure_timestamp!(layer, self.timestamp).with_filter(env_filter());
             without_sentry_target!(layer)
         });
+        #[cfg(windows)]
+        let syslog_layer = false.then(fmt_layer);
 
         let stderr_layer = {
             let layer = fmt_layer().with_writer(std::io::stderr);

@@ -12,6 +12,7 @@ use crate::encoding;
 pub enum Error {
     #[error("{0}")]
     String(String),
+    #[cfg(unix)]
     #[error(transparent)]
     Nix(#[from] nix::Error),
     #[error("[ERRNO {1}] {0}")]
@@ -30,6 +31,7 @@ pub enum Error {
     InvalidDateTime(#[from] chrono::ParseError),
     #[error("Invalid path {0}")]
     InvalidPath(std::path::PathBuf, #[source] io::Error),
+    #[cfg(unix)]
     #[error(transparent)]
     Caps(#[from] caps::errors::CapsError),
     #[error(transparent)]
@@ -102,7 +104,7 @@ pub enum Error {
     #[error("Command, arguments or environment contained a nul byte, this is not supported")]
     CommandHasNul(#[source] std::ffi::NulError),
 
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     #[error("OverlayFS kernel module does not appear to be installed")]
     OverlayFSNotInstalled,
 
@@ -120,6 +122,7 @@ impl Error {
         Error::Errno(msg, errno)
     }
 
+    #[cfg(unix)]
     pub fn wrap_nix<E: Into<String>>(err: nix::Error, prefix: E) -> Error {
         let err = Self::from(err);
         err.wrap(prefix)
@@ -152,17 +155,21 @@ impl Error {
             Error::StorageReadError(_, _, err) => handle_io_error(err),
             Error::StorageWriteError(_, _, err) => handle_io_error(err),
             Error::Errno(_, errno) => Some(*errno),
+            #[cfg(unix)]
             Error::Nix(err) => Some(*err as i32),
             _ => None,
         }
     }
 
     /// Create an `Error:ProcessSpawnError` with context.
-    pub fn process_spawn_error(
-        process_description: String,
+    pub fn process_spawn_error<S>(
+        process_description: S,
         err: std::io::Error,
         current_dir: Option<std::path::PathBuf>,
-    ) -> Error {
+    ) -> Error
+    where
+        S: std::fmt::Display + Into<String>,
+    {
         // A common problem with launching a sub-process is that the specified
         // current working directory doesn't exist.
         match (err.kind(), current_dir) {
@@ -177,7 +184,7 @@ impl Error {
             }
             _ => {}
         }
-        Error::ProcessSpawnError(process_description, err)
+        Error::ProcessSpawnError(process_description.into(), err)
     }
 }
 

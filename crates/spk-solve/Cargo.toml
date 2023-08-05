@@ -30,7 +30,8 @@ futures = { workspace = true }
 itertools = "0.10"
 once_cell = { workspace = true }
 priority-queue = "1.2"
-rug = "1.17.0"
+num-bigint = "0.4.3"
+num-format = { version = "0.4.4", features = ["with-num-bigint"] }
 serde_json = { workspace = true }
 sentry = { workspace = true, optional = true }
 signal-hook = "0.3"

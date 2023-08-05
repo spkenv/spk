@@ -7,6 +7,8 @@ use chrono::{Duration, Utc};
 use clap::Args;
 use tokio_stream::StreamExt;
 
+use super::cmd_runtime_remove::is_monitor_running;
+
 /// Find and remove runtimes from the repository based on a pruning strategy
 #[derive(Debug, Args)]
 pub struct CmdRuntimePrune {
@@ -51,6 +53,7 @@ impl CmdRuntimePrune {
 
         let default_author = spfs::runtime::Author::default();
 
+        #[cfg(unix)]
         let boot_time = match procfs::Uptime::new() {
             Ok(uptime) => {
                 Utc::now()
@@ -63,6 +66,12 @@ impl CmdRuntimePrune {
                 return Ok(1);
             }
         };
+        #[cfg(windows)]
+        let boot_time = Utc::now()
+            - Duration::milliseconds(unsafe {
+                // Safety: this is a raw system API, but seems infallible nontheless
+                windows::Win32::System::SystemInformation::GetTickCount64() as i64
+            });
 
         let mut runtimes = runtime_storage.iter_runtimes().await;
         while let Some(runtime) = runtimes.next().await {
@@ -128,24 +137,4 @@ impl CmdRuntimePrune {
 
         Ok(0)
     }
-}
-
-fn is_monitor_running(rt: &spfs::runtime::Runtime) -> bool {
-    if let Some(pid) = rt.status.monitor {
-        // we are blatantly ignoring the fact that this pid might
-        // have been reused and is not the monitor anymore. Given
-        // that there will always be a race condition to this effect
-        // even if we did try to check the command line args for this
-        // process. So we stick on the extra conservative side
-        is_process_running(pid)
-    } else {
-        false
-    }
-}
-
-fn is_process_running(pid: u32) -> bool {
-    // sending a null signal to the pid just allows us to check
-    // if the process actually exists without affecting it
-    let pid = nix::unistd::Pid::from_raw(pid as i32);
-    nix::sys::signal::kill(pid, None).is_ok()
 }

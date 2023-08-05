@@ -10,6 +10,8 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::fn_params_excessive_bools)]
 
+#[cfg(unix)]
 mod fuse;
 
+#[cfg(unix)]
 pub use fuse::{Config, Session};

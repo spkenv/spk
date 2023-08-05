@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+#[cfg(unix)]
 use std::fs::Permissions;
 use std::io::Write;
+#[cfg(unix)]
 use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
 
@@ -369,19 +371,22 @@ fn write_version_file<P: AsRef<Path>>(root: P, version: &semver::Version) -> Res
             err,
         )
     })?;
-    // This file can be read only. It will be replaced by a new file
-    // if the contents need to be changed. But for interop with older
-    // versions of spfs that need to write to it, enable write.
-    temp_version_file
-        .as_file()
-        .set_permissions(Permissions::from_mode(0o666))
-        .map_err(|err| {
-            Error::StorageWriteError(
-                "set_permissions on version file temp file",
-                temp_version_file.path().to_owned(),
-                err,
-            )
-        })?;
+    #[cfg(unix)]
+    {
+        // This file can be read only. It will be replaced by a new file
+        // if the contents need to be changed. But for interop with older
+        // versions of spfs that need to write to it, enable write.
+        temp_version_file
+            .as_file()
+            .set_permissions(Permissions::from_mode(0o666))
+            .map_err(|err| {
+                Error::StorageWriteError(
+                    "set_permissions on version file temp file",
+                    temp_version_file.path().to_owned(),
+                    err,
+                )
+            })?;
+    }
     temp_version_file
         .write_all(version.to_string().as_bytes())
         .map_err(|err| {
