@@ -3930,6 +3930,7 @@ dependencies = [
  "serde_json",
  "serde_yaml 0.9.25",
  "spfs",
+ "spk-config",
  "spk-schema",
  "spk-solve-package-iterator",
  "spk-solve-solution",

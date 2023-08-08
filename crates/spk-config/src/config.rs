@@ -75,6 +75,10 @@ pub struct Solver {
     /// Comma-separated list of option names to promote to the front of the
     /// build key order.
     pub build_key_name_order: String,
+
+    /// Comma-separated list of option names to promote to the front of the
+    /// resolve order.
+    pub request_priority_order: String,
 }
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]

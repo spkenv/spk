@@ -6,6 +6,7 @@ username_override_var = "GITLAB_USER_LOGIN"
 
 [solver]
 build_key_name_order = "gcc,python"
+request_priority_order = "*platform*"
 
 [statsd]
 host = "statsd.k8s.spimageworks.com"
