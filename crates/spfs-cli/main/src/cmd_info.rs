@@ -5,6 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 use colored::*;
+use spfs::graph::Object;
 use spfs::io::{self, DigestFormat};
 use spfs::prelude::*;
 use spfs::{self};
@@ -15,6 +16,10 @@ use spfs_cli_common as cli;
 pub struct CmdInfo {
     #[clap(flatten)]
     logging: cli::Logging,
+
+    /// Lists file sizes in human readable format
+    #[clap(long, short = 'H')]
+    human_readable: bool,
 
     /// Operate on a remote repository instead of the local one
     ///
@@ -72,7 +77,6 @@ impl CmdInfo {
         repo: &spfs::storage::RepositoryHandle,
         verbosity: usize,
     ) -> Result<()> {
-        use spfs::graph::Object;
         match obj {
             Object::Platform(obj) => {
                 println!("{}", "platform:".green());
@@ -156,7 +160,8 @@ impl CmdInfo {
         );
         println!("{}", "stack".bright_blue());
         for digest in runtime.status.stack.iter() {
-            println!("  - {}", self.format_digest(*digest, repo).await?);
+            print!("  - {}, ", self.format_digest(*digest, repo).await?);
+            self.calculate_layer_size(repo, *digest).await?;
         }
         println!();
 
@@ -165,6 +170,60 @@ impl CmdInfo {
         } else {
             println!("{}", "Run 'spfs diff' for active changes".bright_blue());
         }
+        Ok(())
+    }
+
+    /// Displays human readable size
+    fn human_readable(&self, size: u64) -> String {
+        if self.human_readable {
+            spfs::io::format_size(size)
+        } else {
+            size.to_string()
+        }
+    }
+
+    /// Display the size of a layer.
+    async fn calculate_layer_size(
+        &self,
+        repo: &spfs::storage::RepositoryHandle,
+        digest: spfs::encoding::Digest,
+    ) -> Result<()> {
+        let mut total_size: u64 = 0;
+        let mut item = repo.read_ref(digest.to_string().as_str()).await?;
+        let mut items_to_process: Vec<spfs::graph::Object> = vec![item];
+
+        while !items_to_process.is_empty() {
+            let mut next_iter_objects: Vec<spfs::graph::Object> = Vec::new();
+            for object in items_to_process.iter() {
+                match object {
+                    Object::Platform(object) => {
+                        for reference in object.stack.iter() {
+                            item = repo.read_ref(reference.to_string().as_str()).await?;
+                            next_iter_objects.push(item);
+                        }
+                    }
+                    Object::Layer(object) => {
+                        item = repo.read_ref(object.manifest.to_string().as_str()).await?;
+                        next_iter_objects.push(item);
+                    }
+                    Object::Manifest(object) => {
+                        for node in object.to_tracking_manifest().walk_abs("/spfs") {
+                            total_size += node.entry.size
+                        }
+                    }
+                    Object::Tree(object) => {
+                        for entry in object.entries.iter() {
+                            total_size += entry.size
+                        }
+                    }
+                    Object::Blob(object) => total_size += object.size,
+                    Object::Mask => (),
+                }
+            }
+            items_to_process = std::mem::take(&mut next_iter_objects);
+        }
+        println!("Size: {}", self.human_readable(total_size));
+
         Ok(())
     }
 }
