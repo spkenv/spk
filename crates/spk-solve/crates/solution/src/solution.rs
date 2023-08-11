@@ -26,7 +26,7 @@ use spk_storage::RepositoryHandle;
 
 use crate::{Error, Result};
 
-const SOLUTION_FORMAT_EMPTY_REPORT: &str = "Nothing Installed";
+pub const SOLUTION_FORMAT_EMPTY_REPORT: &str = "Nothing Installed";
 const SOLUTION_FORMAT_HEADING: &str = "Installed Packages:\n";
 const SOLUTION_FORMAT_FOOTER: &str = "Number of Packages:";
 

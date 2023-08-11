@@ -3504,6 +3504,7 @@ dependencies = [
  "clap 4.3.0",
  "colored",
  "futures",
+ "itertools",
  "serde_json",
  "serde_yaml 0.9.25",
  "spfs",

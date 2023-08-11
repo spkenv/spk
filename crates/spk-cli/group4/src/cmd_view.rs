@@ -60,6 +60,10 @@ pub struct View {
     #[clap(flatten)]
     solver: flags::Solver,
 
+    /// Sorts packages listed inside runtime
+    #[clap(short = 's', long)]
+    sort: bool,
+
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
 
