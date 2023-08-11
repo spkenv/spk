@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 #[cfg(feature = "sentry")]
 use std::panic::catch_unwind;
@@ -10,9 +11,16 @@ use std::sync::Arc;
 use miette::{Context, IntoDiagnostic, Result};
 use once_cell::sync::Lazy;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
+use spk_schema::ident_ops::NormalizedTagStrategy;
 use spk_schema::{Package, VersionIdent};
 use spk_solve::package_iterator::BUILD_SORT_TARGET;
-use spk_solve::solution::{PackageSource, Solution};
+use spk_solve::solution::{
+    PackageSolveData,
+    PackageSource,
+    PackagesToSolveData,
+    Solution,
+    SPK_SOLVE_EXTRA_DATA_KEY,
+};
 use spk_solve::validation::IMPOSSIBLE_CHECKS_TARGET;
 use spk_storage as storage;
 use tracing_subscriber::prelude::*;
@@ -21,13 +29,13 @@ use crate::Error;
 
 /// Load the current environment from the spfs file system.
 pub async fn current_env() -> crate::Result<Solution> {
-    match spfs::active_runtime().await {
+    let runtime = match spfs::active_runtime().await {
         Err(spfs::Error::NoActiveRuntime) => {
             return Err(Error::NoEnvironment);
         }
         Err(err) => return Err(err.into()),
-        Ok(_) => {}
-    }
+        Ok(rt) => rt,
+    };
 
     let repo = Arc::new(storage::RepositoryHandle::Runtime(Default::default()));
     let mut packages_in_runtime_f = Vec::new();
@@ -82,18 +90,79 @@ pub async fn current_env() -> crate::Result<Solution> {
         "return value from read_components_bulk expected to match input length"
     );
 
+    // Pull the stored packages to solve data out of the runtime
+    let solve_data: PackagesToSolveData =
+        if let Some(json_data) = runtime.annotation(SPK_SOLVE_EXTRA_DATA_KEY).await? {
+            serde_json::from_str(&json_data).map_err(|err| Error::String(err.to_string()))?
+        } else {
+            // Fallback for older runtimes without any requested by extra data.
+            Default::default()
+        };
+
+    // For tracking source repos that we have seen before in the loop below.
+    let mut source_repos = HashMap::new();
+
+    // Used below when there is no entry for a resolved package in the
+    // requested_by_map. When used, it causes the first() requester
+    // below to fallback to RequestedBy::CurrentEnvironment
+    let no_package_solve_data: PackageSolveData = Default::default();
+
     for (spec, components) in packages_in_runtime
         .into_iter()
         .zip(components_in_runtime.into_iter())
     {
         let range_ident = RangeIdent::equals(&spec.ident().to_any(), components.keys().cloned());
-        let mut request = PkgRequest::new(range_ident, RequestedBy::CurrentEnvironment);
+
+        let package_solve_data = if let Some(data) = solve_data.get(spec.ident()) {
+            data
+        } else {
+            &no_package_solve_data
+        };
+        // The first requester is used in the PkgRequest constructor,
+        // and the rest are added to the new object after that.
+        let first_requester = match package_solve_data.requested_by.first() {
+            Some(r) => r.clone(),
+            None => RequestedBy::CurrentEnvironment,
+        };
+
+        let mut request = PkgRequest::new(range_ident, first_requester);
+        for requester in package_solve_data.requested_by.iter().skip(1) {
+            request.add_requester(requester.clone());
+        }
+
         request.prerelease_policy = Some(PreReleasePolicy::IncludeAll);
-        let repo = repo.clone();
+
+        let source_repo = match &package_solve_data.source_repo_name {
+            Some(name) => match source_repos.get(&name) {
+                Some(r) => Arc::clone(r),
+                None => {
+                    // TODO: this code is repeated in few places in spk-cli
+                    let r = match name.as_str() {
+                        "local" => Arc::new(storage::local_repository().await?.into()),
+                        name => Arc::new(
+                            storage::remote_repository::<_, NormalizedTagStrategy>(name)
+                                .await?
+                                .into(),
+                        ),
+                    };
+                    // Store it, so we don't recreate it for any
+                    // further resolved packages that came from the
+                    // same named repo.
+                    source_repos.insert(name, Arc::clone(&r));
+                    r
+                }
+            },
+            // Falls back to using the current 'runtime' repo as the source repo.
+            None => repo.clone(),
+        };
+
         solution.add(
             request,
             spec,
-            PackageSource::Repository { repo, components },
+            PackageSource::Repository {
+                repo: source_repo,
+                components,
+            },
         );
     }
 
