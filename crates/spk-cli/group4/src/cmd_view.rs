@@ -60,7 +60,7 @@ pub struct View {
     #[clap(flatten)]
     solver: flags::Solver,
 
-    /// Sorts packages listed inside runtime
+    /// Sorts packages by package name in ascending order
     #[clap(short = 's', long)]
     sort: bool,
 

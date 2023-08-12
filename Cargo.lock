@@ -3982,6 +3982,7 @@ version = "0.36.0"
 dependencies = [
  "colored",
  "console",
+ "itertools",
  "spfs",
  "spk-schema",
  "spk-storage",
