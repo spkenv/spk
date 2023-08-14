@@ -477,19 +477,29 @@ impl Requests {
 
         Ok(out)
     }
+
+    pub fn any_build_stage_requests<I, S>(&self, requests: I) -> Result<bool>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        for r in requests.into_iter() {
+            let r = r.as_ref();
+            if r.contains('@') {
+                let (_, stage, _) = parse_package_stage_and_variant(r)?;
+                if stage == TestStage::Build {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
 }
 
-/// Returns the spec, filename and stage for the given specifier
-pub async fn parse_stage_specifier(
+/// Returns the package, stage, and build variant for the given specifier
+fn parse_package_stage_and_variant(
     specifier: &str,
-    options: &OptionMap,
-    repos: &[Arc<storage::RepositoryHandle>],
-) -> Result<(
-    Arc<SpecRecipe>,
-    std::path::PathBuf,
-    TestStage,
-    Option<crate::parsing::VariantIndex>,
-)> {
+) -> Result<(&str, TestStage, Option<crate::parsing::VariantIndex>)> {
     use nom::combinator::all_consuming;
 
     let (package, stage, build_variant) =
@@ -500,6 +510,21 @@ pub async fn parse_stage_specifier(
                 nom::Err::Incomplete(_) => unreachable!(),
             })?;
 
+    Ok((package, stage, build_variant))
+}
+
+/// Returns the spec, filename, stage, and build variant for the given specifier
+pub async fn parse_stage_specifier(
+    specifier: &str,
+    options: &OptionMap,
+    repos: &[Arc<storage::RepositoryHandle>],
+) -> Result<(
+    Arc<SpecRecipe>,
+    std::path::PathBuf,
+    TestStage,
+    Option<crate::parsing::VariantIndex>,
+)> {
+    let (package, stage, build_variant) = parse_package_stage_and_variant(specifier)?;
     let (spec, filename) =
         find_package_recipe_from_template_or_repo(Some(&package), options, repos).await?;
 
