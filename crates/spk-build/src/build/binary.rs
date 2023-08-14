@@ -463,7 +463,7 @@ where
         let source_build = RequestedBy::SourceBuild(package.clone().try_into()?);
         let ident_range = package.with_components([Component::Source]);
         let request = PkgRequest::new(ident_range, source_build)
-            .with_prerelease(PreReleasePolicy::IncludeAll)
+            .with_prerelease(Some(PreReleasePolicy::IncludeAll))
             .with_pin(None)
             .with_compat(None);
 

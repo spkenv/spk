@@ -22,7 +22,7 @@ fn test_prerelease_policy() {
 
     a.restrict(&b).unwrap();
     match a.prerelease_policy {
-        PreReleasePolicy::ExcludeAll => (),
+        Some(PreReleasePolicy::ExcludeAll) => (),
         _ => panic!("expected restricted prerelease policy"),
     }
 }

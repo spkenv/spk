@@ -168,7 +168,7 @@ impl<'a> PackageBuildTester<'a> {
 
         let ident_range = RangeIdent::equals(package, [Component::Source]);
         let request = PkgRequest::new(ident_range, RequestedBy::BuildTest(package.clone()))
-            .with_prerelease(PreReleasePolicy::IncludeAll)
+            .with_prerelease(Some(PreReleasePolicy::IncludeAll))
             .with_pin(None)
             .with_compat(None);
 

@@ -305,7 +305,7 @@ impl<'de> Deserialize<'de> for Request {
                     },
                     (Some(pkg), None) => Ok(Request::Pkg(PkgRequest {
                         pkg,
-                        prerelease_policy: self.prerelease_policy.unwrap_or_default(),
+                        prerelease_policy: self.prerelease_policy,
                         inclusion_policy: self.inclusion_policy.unwrap_or_default(),
                         pin_policy: self.pin_policy.unwrap_or_default(),
                         pin: self.pin.unwrap_or_default().into_pkg_pin(),
@@ -612,9 +612,9 @@ pub struct PkgRequest {
     #[serde(
         rename = "prereleasePolicy",
         default,
-        skip_serializing_if = "PreReleasePolicy::is_default"
+        skip_serializing_if = "Option::is_none"
     )]
-    pub prerelease_policy: PreReleasePolicy,
+    pub prerelease_policy: Option<PreReleasePolicy>,
     #[serde(
         rename = "include",
         default,
@@ -752,7 +752,7 @@ impl PkgRequest {
         Self::new(ri, requester)
     }
 
-    pub fn with_prerelease(mut self, prerelease_policy: PreReleasePolicy) -> Self {
+    pub fn with_prerelease(mut self, prerelease_policy: Option<PreReleasePolicy>) -> Self {
         self.prerelease_policy = prerelease_policy;
         self
     }
@@ -822,7 +822,10 @@ impl PkgRequest {
     /// versions that are not going to satisfy the request without
     /// needing to load the whole package spec.
     pub fn is_version_applicable(&self, version: &Version) -> Compatibility {
-        if self.prerelease_policy == PreReleasePolicy::ExcludeAll && !version.pre.is_empty() {
+        if (self.prerelease_policy.is_none()
+            || self.prerelease_policy == Some(PreReleasePolicy::ExcludeAll))
+            && !version.pre.is_empty()
+        {
             Compatibility::incompatible("prereleases not allowed".to_owned())
         } else {
             self.pkg.version.is_applicable(version)
@@ -844,10 +847,17 @@ impl PkgRequest {
         if !compat.is_ok() {
             return compat;
         }
+
+        // TODO: does this need to change to consider None and
+        // ExcludeAll as equivalent or invest the >'s?
         if self.prerelease_policy > other.prerelease_policy {
             return Compatibility::incompatible(format!(
                 "prerelease policy {} is more inclusive than {}",
-                self.prerelease_policy, other.prerelease_policy
+                self.prerelease_policy
+                    .map_or_else(|| String::from("None"), |p| p.to_string()),
+                other
+                    .prerelease_policy
+                    .map_or_else(|| String::from("None"), |p| p.to_string()),
             ));
         }
         if self.inclusion_policy > other.inclusion_policy {
@@ -861,7 +871,28 @@ impl PkgRequest {
 
     /// Reduce the scope of this request to the intersection with another.
     pub fn restrict(&mut self, other: &PkgRequest) -> Result<()> {
-        self.prerelease_policy = min(self.prerelease_policy, other.prerelease_policy);
+        // The default is None. It acts like ExcludeAll, but both
+        // IncludeAll and ExcludeAll take precedence over it, see:
+        // https://github.com/imageworks/spk/issues/839
+        self.prerelease_policy = match (self.prerelease_policy, other.prerelease_policy) {
+            (None, Some(PreReleasePolicy::IncludeAll)) => Some(PreReleasePolicy::IncludeAll),
+            (Some(PreReleasePolicy::IncludeAll), None) => Some(PreReleasePolicy::IncludeAll),
+            (Some(PreReleasePolicy::IncludeAll), Some(PreReleasePolicy::IncludeAll)) => {
+                Some(PreReleasePolicy::IncludeAll)
+            }
+            (None, Some(PreReleasePolicy::ExcludeAll)) => Some(PreReleasePolicy::ExcludeAll),
+            (Some(PreReleasePolicy::ExcludeAll), None) => Some(PreReleasePolicy::ExcludeAll),
+            (Some(PreReleasePolicy::IncludeAll), Some(PreReleasePolicy::ExcludeAll)) => {
+                Some(PreReleasePolicy::ExcludeAll)
+            }
+            (Some(PreReleasePolicy::ExcludeAll), Some(PreReleasePolicy::IncludeAll)) => {
+                Some(PreReleasePolicy::ExcludeAll)
+            }
+            (Some(PreReleasePolicy::ExcludeAll), Some(PreReleasePolicy::ExcludeAll)) => {
+                Some(PreReleasePolicy::ExcludeAll)
+            }
+            (None, None) => None,
+        };
         self.inclusion_policy = min(self.inclusion_policy, other.inclusion_policy);
         // Allow otherwise impossible to satisfy combinations of requests
         // to be merged if the combined inclusion policy is `IfAlreadyPresent`.
@@ -928,10 +959,12 @@ impl FormatRequest for PkgRequest {
             let show_full_value = format_settings.level == Self::INITIAL_REQUESTS_LEVEL
                 && format_settings.verbosity > Self::SHOW_INITIAL_REQUESTS_FULL_VALUES;
 
-            if show_full_value || !self.prerelease_policy.is_default() {
+            if show_full_value || self.prerelease_policy.is_some() {
                 differences.push(format!(
                     "PreReleasePolicy: {}",
-                    self.prerelease_policy.to_string().cyan()
+                    self.prerelease_policy
+                        .map_or_else(|| String::from("None"), |p| p.to_string())
+                        .cyan()
                 ));
             }
             if show_full_value || !self.inclusion_policy.is_default() {

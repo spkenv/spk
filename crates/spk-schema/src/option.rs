@@ -288,7 +288,7 @@ impl<'de> Deserialize<'de> for Opt {
                     (Some(pkg), None) => Ok(Opt::Pkg(PkgOpt {
                         pkg: pkg.name,
                         components: pkg.components,
-                        prerelease_policy: self.prerelease_policy.unwrap_or_default(),
+                        prerelease_policy: self.prerelease_policy,
                         required_compat: Default::default(),
                         default: self.default.unwrap_or_default(),
                         value: self.value,
@@ -478,7 +478,7 @@ pub struct PkgOpt {
     pub pkg: PkgNameBuf,
     pub components: ComponentBTreeSet,
     pub default: String,
-    pub prerelease_policy: PreReleasePolicy,
+    pub prerelease_policy: Option<PreReleasePolicy>,
     pub required_compat: Option<CompatRule>,
     value: Option<String>,
 }
@@ -489,7 +489,7 @@ impl PkgOpt {
             pkg: name,
             components: Default::default(),
             default: String::default(),
-            prerelease_policy: PreReleasePolicy::default(),
+            prerelease_policy: None,
             value: None,
             required_compat: None,
         })
@@ -661,9 +661,9 @@ struct PkgOptSchema {
     #[serde(
         default,
         rename = "prereleasePolicy",
-        skip_serializing_if = "PreReleasePolicy::is_default"
+        skip_serializing_if = "Option::is_none"
     )]
-    prerelease_policy: PreReleasePolicy,
+    prerelease_policy: Option<PreReleasePolicy>,
     #[serde(default, rename = "static", skip_serializing_if = "String::is_empty")]
     value: String,
 }

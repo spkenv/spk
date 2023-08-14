@@ -609,7 +609,8 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
             }
         }
 
-        if pkg_request.prerelease_policy == PreReleasePolicy::ExcludeAll
+        if (pkg_request.prerelease_policy.is_none()
+            || pkg_request.prerelease_policy == Some(PreReleasePolicy::ExcludeAll))
             && !self.version().pre.is_empty()
         {
             return Compatibility::incompatible("prereleases not allowed".to_string());
