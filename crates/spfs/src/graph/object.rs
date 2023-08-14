@@ -7,9 +7,10 @@ use std::io::BufRead;
 use strum::Display;
 
 use super::{Blob, Layer, Manifest, Platform, Tree};
+use crate::storage::RepositoryHandle;
 use crate::{encoding, Error};
 
-#[derive(Debug, Display, Eq, PartialEq)]
+#[derive(Debug, Display, Eq, PartialEq, Clone)]
 pub enum Object {
     Platform(Platform),
     Layer(Layer),
@@ -46,6 +47,44 @@ impl Object {
     /// Return true if this Object kind also has a payload
     pub fn has_payload(&self) -> bool {
         matches!(self, Self::Blob(_))
+    }
+
+    /// Calculates the total size of the object
+    pub async fn calculate_object_size(&self, repo: &RepositoryHandle) -> crate::Result<u64> {
+        let mut total_size: u64 = 0;
+        let mut items_to_process: Vec<Object> = vec![self.clone()];
+
+        while !items_to_process.is_empty() {
+            let mut next_iter_objects: Vec<Object> = Vec::new();
+            for object in items_to_process.iter() {
+                match object {
+                    Object::Platform(object) => {
+                        for reference in object.stack.iter() {
+                            let item = repo.read_ref(reference.to_string().as_str()).await?;
+                            next_iter_objects.push(item);
+                        }
+                    }
+                    Object::Layer(object) => {
+                        let item = repo.read_ref(object.manifest.to_string().as_str()).await?;
+                        next_iter_objects.push(item);
+                    }
+                    Object::Manifest(object) => {
+                        for node in object.to_tracking_manifest().walk_abs("/spfs") {
+                            total_size += node.entry.size
+                        }
+                    }
+                    Object::Tree(object) => {
+                        for entry in object.entries.iter() {
+                            total_size += entry.size
+                        }
+                    }
+                    Object::Blob(object) => total_size += object.size,
+                    Object::Mask => (),
+                }
+            }
+            items_to_process = std::mem::take(&mut next_iter_objects);
+        }
+        Ok(total_size)
     }
 }
 
