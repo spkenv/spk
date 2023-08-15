@@ -6,8 +6,10 @@ use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};
 use std::convert::TryInto;
 use std::path::Path;
+use std::sync::Arc;
 
 use itertools::Itertools;
+use run_script::ScriptOptions;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::Stringified;
@@ -80,6 +82,8 @@ pub struct Spec<Ident> {
     pub tests: Vec<TestSpec>,
     #[serde(default, skip_serializing_if = "InstallSpec::is_default")]
     pub install: InstallSpec,
+    #[serde(default, skip_serializing_if = "str::is_empty")]
+    pub executable: Arc<str>,
 }
 
 impl<Ident> Spec<Ident> {
@@ -94,6 +98,7 @@ impl<Ident> Spec<Ident> {
             build: BuildSpec::default(),
             tests: Vec::new(),
             install: InstallSpec::default(),
+            executable: Arc::from(""),
         }
     }
 
@@ -111,6 +116,7 @@ impl<Ident> Spec<Ident> {
             build: self.build,
             tests: self.tests,
             install: self.install,
+            executable: self.executable,
         }
     }
 
@@ -515,6 +521,30 @@ impl Recipe for Spec<VersionIdent> {
             .install
             .render_all_pins(&build_options, specs.values().map(|p| p.ident()))?;
 
+        // Update metadata fields from the output of the executable.
+        if !updated.executable.to_string().is_empty() {
+            let options = ScriptOptions::new();
+            let args = vec![];
+
+            let (code, output, error) =
+                run_script::run(&format!("{}", updated.executable), &args, &options)
+                    .unwrap_or_default();
+            if code != 0 {
+                tracing::warn!("{error}");
+            } else {
+                let mut list_of_data = output.split('\n').collect_vec();
+                list_of_data.retain(|c| !c.is_empty());
+                for metadata in list_of_data.iter() {
+                    let data = metadata.split(':').collect_vec();
+                    tracing::info!("{}:{}", data[0], data[1]);
+                    updated
+                        .meta
+                        .labels
+                        .insert(data[0].trim().to_string(), data[1].trim().to_string());
+                }
+            }
+        }
+
         let mut missing_build_requirements = HashMap::new();
         let mut missing_runtime_requirements = HashMap::new();
 
@@ -778,6 +808,7 @@ struct SpecVisitor<B, T> {
     tests: Option<Vec<TestSpec>>,
     install: Option<InstallSpec>,
     check_build_spec: bool,
+    executable: Option<Arc<str>>,
 }
 
 impl<B, T> Default for SpecVisitor<B, T> {
@@ -792,6 +823,7 @@ impl<B, T> Default for SpecVisitor<B, T> {
             tests: None,
             install: None,
             check_build_spec: true,
+            executable: None,
         }
     }
 }
@@ -840,6 +872,7 @@ where
                 "build" => self.build = Some(map.next_value::<UncheckedBuildSpec>()?),
                 "tests" => self.tests = Some(map.next_value::<Vec<TestSpec>>()?),
                 "install" => self.install = Some(map.next_value::<InstallSpec>()?),
+                "executable" => self.executable = Some(map.next_value::<Arc<str>>()?),
                 _ => {
                     // ignore any unrecognized field, but consume the value anyway
                     // TODO: could we warn about fields that look like typos?
@@ -870,6 +903,7 @@ where
             },
             tests: self.tests.take().unwrap_or_default(),
             install: self.install.take().unwrap_or_default(),
+            executable: self.executable.take().unwrap_or_else(|| Arc::from("")),
             pkg,
         })
     }
