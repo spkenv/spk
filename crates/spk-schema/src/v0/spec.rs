@@ -6,10 +6,11 @@ use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};
 use std::convert::TryInto;
 use std::path::Path;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
 
+use execute::Execute;
 use itertools::Itertools;
-use run_script::ScriptOptions;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::Stringified;
@@ -522,26 +523,35 @@ impl Recipe for Spec<VersionIdent> {
             .render_all_pins(&build_options, specs.values().map(|p| p.ident()))?;
 
         // Update metadata fields from the output of the executable.
-        if !updated.executable.to_string().is_empty() {
-            let options = ScriptOptions::new();
-            let args = vec![];
+        let executable = updated.executable.to_string();
+        if !executable.is_empty() {
+            let mut command = Command::new(executable);
 
-            let (code, output, error) =
-                run_script::run(&format!("{}", updated.executable), &args, &options)
-                    .unwrap_or_default();
-            if code != 0 {
-                tracing::warn!("{error}");
-            } else {
-                let mut list_of_data = output.split('\n').collect_vec();
-                list_of_data.retain(|c| !c.is_empty());
-                for metadata in list_of_data.iter() {
-                    let data = metadata.split(':').collect_vec();
-                    tracing::info!("{}:{}", data[0], data[1]);
-                    updated
-                        .meta
-                        .labels
-                        .insert(data[0].trim().to_string(), data[1].trim().to_string());
+            command.stdout(Stdio::piped());
+            command.stderr(Stdio::piped());
+
+            match command.execute_output() {
+                Ok(out) => {
+                    if let Some(exit_code) = out.status.code() {
+                        if exit_code == 0 {
+                            let stdout = std::str::from_utf8(&out.stdout).unwrap();
+                            let mut list_of_data = stdout.split('\n').collect_vec();
+                            list_of_data.retain(|c| !c.is_empty());
+                            for metadata in list_of_data.iter() {
+                                let data = metadata.split(':').collect_vec();
+                                tracing::info!("{}:{}", data[0], data[1]);
+                                updated
+                                    .meta
+                                    .labels
+                                    .insert(data[0].trim().to_string(), data[1].trim().to_string());
+                            }
+                        } else {
+                            let stderr = std::str::from_utf8(&out.stderr).unwrap();
+                            tracing::warn!("{stderr}")
+                        }
+                    }
                 }
+                Err(e) => tracing::warn!("{e}"),
             }
         }
 
