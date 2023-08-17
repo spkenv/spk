@@ -12,6 +12,8 @@ jobs:
     name: Windows Build
     runs-on: ubuntu-latest
     steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
@@ -42,6 +44,8 @@ jobs:
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"
     steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
       - uses: actions/checkout@v2
       - name: Prepare Container
         run: |
