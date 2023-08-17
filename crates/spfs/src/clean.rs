@@ -580,6 +580,17 @@ where
         let renders_for_all_users = repo.renders_for_all_users()?;
 
         for (username, sub_repo) in renders_for_all_users.iter() {
+            // Some users are missing a "renders/<username>/proxy" subdirectory,
+            // making `get_render_storage` return `Err(NoRenderStorage)`,
+            // therefore failing the whole clean attempt before any work is
+            // performed. The missing proxy directory is likely a symptom of
+            // some other problem elsewhere.
+            if !sub_repo.has_renders() {
+                #[cfg(feature = "sentry")]
+                tracing::error!(target: "sentry", %username, "Skipping clean of user's renders (NoRenderStorage)");
+                continue;
+            }
+
             result += self
                 .remove_unvisited_renders_and_proxies_for_storage(Some(username.clone()), sub_repo)
                 .await?;
