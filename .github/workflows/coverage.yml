@@ -12,7 +12,6 @@ on:
       - "src/**.rs"
       - "crates/**.rs"
 
-
 name: Code Coverage
 jobs:
   codecov:
