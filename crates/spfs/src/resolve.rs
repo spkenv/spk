@@ -173,18 +173,21 @@ pub async fn compute_object_manifest(
     }
 }
 
-/// Compile the set of directories to be overlayed for a runtime.
+/// Compile the set of directories to be overlaid for a runtime.
 ///
 /// These are returned as a list, from bottom to top.
 ///
 /// If `skip_runtime_save` is true, the runtime will not be saved, even if
 /// the `flattened_layers` property is modified. Only pass true here if the
 /// runtime is unconditionally saved shortly after calling this function.
-pub(crate) async fn resolve_overlay_dirs(
+pub(crate) async fn resolve_overlay_dirs<R>(
     runtime: &mut runtime::Runtime,
-    repo: &storage::fs::FSRepository,
+    repo: R,
     skip_runtime_save: bool,
-) -> Result<Vec<graph::Manifest>> {
+) -> Result<Vec<graph::Manifest>>
+where
+    R: Repository + ManifestRenderPath,
+{
     enum ResolvedManifest {
         Existing {
             order: usize,
@@ -226,7 +229,7 @@ pub(crate) async fn resolve_overlay_dirs(
         }
     }
 
-    let layers = resolve_stack_to_layers_with_repo(runtime.status.stack.iter(), repo).await?;
+    let layers = resolve_stack_to_layers_with_repo(runtime.status.stack.iter(), &repo).await?;
     let mut manifests = Vec::with_capacity(layers.len());
     for (index, layer) in layers.iter().enumerate() {
         manifests.push(ResolvedManifest::Existing {
