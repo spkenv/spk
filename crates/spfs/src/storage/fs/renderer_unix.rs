@@ -23,7 +23,7 @@ use tokio::sync::Semaphore;
 use crate::encoding::{self, Encodable};
 use crate::runtime::makedirs_with_perms;
 use crate::storage::fs::render_reporter::RenderBlobResult;
-use crate::storage::fs::{FSRepository, RenderReporter, SilentRenderReporter};
+use crate::storage::fs::{FSRepository, ManifestRenderPath, RenderReporter, SilentRenderReporter};
 use crate::storage::prelude::*;
 use crate::storage::LocalRepository;
 use crate::{get_config, graph, tracking, Error, Result};
@@ -73,13 +73,6 @@ impl FSRepository {
                 yield digest?;
             }
         })
-    }
-
-    /// Return the path that the manifest would be rendered to.
-    pub fn manifest_render_path(&self, manifest: &graph::Manifest) -> Result<PathBuf> {
-        Ok(self
-            .get_render_storage()?
-            .build_digest_path(&manifest.digest()?))
     }
 
     pub fn proxy_path(&self) -> Option<&std::path::Path> {
@@ -156,6 +149,14 @@ impl FSRepository {
 
         self.remove_rendered_manifest(digest).await?;
         Ok(true)
+    }
+}
+
+impl ManifestRenderPath for FSRepository {
+    fn manifest_render_path(&self, manifest: &graph::Manifest) -> Result<PathBuf> {
+        Ok(self
+            .get_render_storage()?
+            .build_digest_path(&manifest.digest()?))
     }
 }
 

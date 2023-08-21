@@ -12,7 +12,7 @@ use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 
 use super::config::get_config;
-use crate::storage::fs::RenderSummary;
+use crate::storage::fs::{ManifestRenderPath, RenderSummary};
 use crate::storage::prelude::*;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 

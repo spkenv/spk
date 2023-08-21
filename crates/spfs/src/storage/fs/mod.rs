@@ -6,6 +6,7 @@
 
 mod database;
 mod hash_store;
+mod manifest_render_path;
 mod payloads;
 mod render_summary;
 mod renderer;
@@ -16,6 +17,7 @@ pub mod migrations;
 mod render_reporter;
 
 pub use hash_store::FSHashStore;
+pub use manifest_render_path::ManifestRenderPath;
 pub use render_reporter::{
     ConsoleRenderReporter,
     MultiReporter,
