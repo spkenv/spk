@@ -12,6 +12,7 @@ use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::Component;
+use spk_schema_foundation::SerdeYamlError;
 use spk_schema_ident::{BuildIdent, VersionIdent};
 
 use crate::foundation::name::{PkgName, PkgNameBuf};
@@ -178,7 +179,12 @@ impl TemplateExt for SpecTemplate {
         // validate that the template is still a valid yaml mapping even
         // though we will need to re-process it again later on
         let template_value: serde_yaml::Mapping = match serde_yaml::from_str(&template) {
-            Err(err) => return Err(Error::InvalidYaml(SerdeError::new(template, err))),
+            Err(err) => {
+                return Err(Error::InvalidYaml(SerdeError::new(
+                    template,
+                    SerdeYamlError(err),
+                )))
+            }
             Ok(v) => v,
         };
 
@@ -354,14 +360,16 @@ impl FromYaml for SpecRecipe {
             // we cannot simply use map_err because we need the compiler
             // to understand that we only pass ownership of 'yaml' if
             // the function is returning
-            Err(err) => return Err(SerdeError::new(yaml, err)),
+            Err(err) => {
+                return Err(SerdeError::new(yaml, SerdeYamlError(err)));
+            }
             Ok(m) => m,
         };
 
         match with_version.api {
             ApiVersion::V0Package => {
-                let inner =
-                    serde_yaml::from_str(&yaml).map_err(|err| SerdeError::new(yaml, err))?;
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Package(inner))
             }
         }
@@ -602,14 +610,16 @@ impl FromYaml for Spec {
             // we cannot simply use map_err because we need the compiler
             // to understand that we only pass ownership of 'yaml' if
             // the function is returning
-            Err(err) => return Err(SerdeError::new(yaml, err)),
+            Err(err) => {
+                return Err(SerdeError::new(yaml, SerdeYamlError(err)));
+            }
             Ok(m) => m,
         };
 
         match with_version.api {
             ApiVersion::V0Package => {
-                let inner =
-                    serde_yaml::from_str(&yaml).map_err(|err| SerdeError::new(yaml, err))?;
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Package(inner))
             }
         }

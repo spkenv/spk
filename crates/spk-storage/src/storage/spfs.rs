@@ -321,11 +321,11 @@ impl Storage for SPFSRepository {
         let tag_path = self.build_spec_tag(ident);
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
 
-        let payload = serde_yaml::to_vec(&spec)
+        let payload = serde_yaml::to_string(&spec)
             .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
         let digest = self
             .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .commit_blob(Box::pin(std::io::Cursor::new(payload.into_bytes())))
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
@@ -369,11 +369,11 @@ impl Storage for SPFSRepository {
         // TODO: dedupe this part with force_publish_recipe
         let tag_path = self.build_spec_tag(package.ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
-        let payload = serde_yaml::to_vec(&package)
+        let payload = serde_yaml::to_string(&package)
             .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
         let digest = self
             .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .commit_blob(Box::pin(std::io::Cursor::new(payload.into_bytes())))
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
@@ -398,11 +398,11 @@ impl Storage for SPFSRepository {
             ));
         }
 
-        let payload = serde_yaml::to_vec(&spec)
+        let payload = serde_yaml::to_string(&spec)
             .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
         let digest = self
             .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload)))
+            .commit_blob(Box::pin(std::io::Cursor::new(payload.into_bytes())))
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();

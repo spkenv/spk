@@ -35,4 +35,4 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
-serde_yaml = "0.8.17"
+serde_yaml = { workspace = true }

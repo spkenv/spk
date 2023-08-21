@@ -62,7 +62,7 @@ fn test_yaml_error_ambiguous() {
     let expected = r#"
    | - var: os/linux
  2 | - var: hello
-   |      ^ .[1]: could not determine option type, it may only contain one of the `pkg` or `var` fields at line 2 column 6
+   |   ^ .[1]: could not determine option type, it may only contain one of the `pkg` or `var` fields at line 2 column 3
    |   pkg: hello
 "#;
     let message = err.to_string();
@@ -83,7 +83,7 @@ fn test_yaml_error_undetermined() {
     let expected = r#"
    | - var: os/linux
  2 | - static: value
-   |         ^ .[1]: could not determine option type, it must include either a `pkg` or `var` field at line 2 column 9
+   |   ^ .[1]: could not determine option type, it must include either a `pkg` or `var` field at line 2 column 3
    |   prereleasePolicy: IncludeAll
 "#;
     let message = err.to_string();

@@ -56,7 +56,7 @@ fn test_yaml_error_unchecked_to_checked() {
  1 | - options:
    | ^ Error: Multiple variants would produce the same build:
   - {opt: a} (GHDY5K3J)
-  - {opt: a} (GHDY5K3J) at line 1 column 1
+  - {opt: a} (GHDY5K3J)
    |     - var: opt
    |   script: echo "hello, world!"
    |   variants:

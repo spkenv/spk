@@ -60,6 +60,7 @@ sentry-anyhow = { version = "0.27.0" }
 sentry-tracing = { version = "0.27.0" }
 serde = "1.0"
 serde_json = "1.0"
+serde_yaml = "0.9.25"
 strip-ansi-escapes = "0.1.1"
 thiserror = "1.0"
 tempfile = "3.3"
