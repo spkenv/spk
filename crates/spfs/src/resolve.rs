@@ -12,6 +12,7 @@ use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 
 use super::config::get_config;
+use crate::storage::fallback::FallbackProxy;
 use crate::storage::fs::{ManifestRenderPath, RenderSummary};
 use crate::storage::prelude::*;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
@@ -337,9 +338,10 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
     skip_runtime_save: bool,
 ) -> Result<RenderResult> {
     let config = get_config()?;
-    let repo = config.get_local_repository().await?;
+    let (repo, remotes) = tokio::try_join!(config.get_local_repository(), config.list_remotes())?;
+    let fallback_repo = FallbackProxy::new(repo, remotes);
 
-    let manifests = resolve_overlay_dirs(runtime, &repo, skip_runtime_save).await?;
+    let manifests = resolve_overlay_dirs(runtime, &fallback_repo, skip_runtime_save).await?;
     let to_render = manifests.iter().map(|m| m.digest()).try_collect()?;
     match render_via_subcommand(to_render).await? {
         Some(render_result) => Ok(render_result),
@@ -348,7 +350,7 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
             // the paths rendered here.
             let paths_rendered = manifests
                 .iter()
-                .map(|m| repo.manifest_render_path(m))
+                .map(|m| fallback_repo.manifest_render_path(m))
                 .try_collect()?;
             Ok(RenderResult {
                 paths_rendered,
