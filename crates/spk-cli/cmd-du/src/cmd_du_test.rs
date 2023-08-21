@@ -84,11 +84,10 @@ async fn test_du_trivially_works() {
     for output in opt.du.output.vec.lock().unwrap().iter() {
         let mut generated_output = output.clone();
         generated_output.retain(|c| !c.is_whitespace());
-        let index = expected_output
-            .iter()
-            .position(|x| *x == generated_output)
-            .unwrap();
-        expected_output.remove(index);
+        match expected_output.iter().position(|x| *x == generated_output) {
+            Some(index) => expected_output.remove(index),
+            None => panic!("Unexpected output: {generated_output}"),
+        };
     }
 
     assert_eq!(expected_output.len(), 0);
@@ -393,11 +392,10 @@ async fn test_du_summarize_output_is_not_enabled() {
     for output in opt.du.output.vec.lock().unwrap().iter() {
         let mut generated_output = output.clone();
         generated_output.retain(|c| !c.is_whitespace());
-        let index = expected_output
-            .iter()
-            .position(|x| *x == generated_output)
-            .unwrap();
-        expected_output.remove(index);
+        match expected_output.iter().position(|x| *x == generated_output) {
+            Some(index) => expected_output.remove(index),
+            None => panic!("Unexpected output: {generated_output}"),
+        };
     }
     assert_eq!(expected_output.len(), 0);
 }
