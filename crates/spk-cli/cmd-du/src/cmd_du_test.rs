@@ -72,7 +72,7 @@ async fn test_du_trivially_works() {
 
     let mut expected_output = vec![
         "2local/my-pkg/1.0.0/3I42H3S6/:build/spk/pkg/my-pkg/1.0.0/3I42H3S6/options.json",
-        "192local/my-pkg/1.0.0/3I42H3S6/:build/spk/pkg/my-pkg/1.0.0/3I42H3S6/spec.yaml",
+        "160local/my-pkg/1.0.0/3I42H3S6/:build/spk/pkg/my-pkg/1.0.0/3I42H3S6/spec.yaml",
         "0local/my-pkg/1.0.0/3I42H3S6/:build/spk/pkg/my-pkg/1.0.0/3I42H3S6/build.cmpt",
         "17local/my-pkg/1.0.0/3I42H3S6/:build/spk/pkg/my-pkg/1.0.0/3I42H3S6/build.sh",
         "0local/my-pkg/1.0.0/3I42H3S6/:run/spk/pkg/my-pkg/1.0.0/3I42H3S6/options.json",
@@ -344,7 +344,7 @@ async fn test_du_summarize_output_enabled() {
     let mut opt = Opt::try_parse_from(["du", "local/my-pkg", "-s"]).unwrap();
     opt.du.run().await.unwrap();
 
-    let expected_output = format!("211local/my-pkg/{}", "".red());
+    let expected_output = format!("179local/my-pkg/{}", "".red());
     let mut generated_output = opt.du.output.vec.lock().unwrap()[0].clone();
     generated_output.retain(|c| !c.is_whitespace());
 
@@ -383,7 +383,7 @@ async fn test_du_summarize_output_is_not_enabled() {
         "2local/my-pkg/1.0.0/3I42H3S6/:build/spk/pkg/my-pkg/1.0.0/3I42H3S6/options.json",
         "0local/my-pkg/1.0.0/3I42H3S6/:build/spk/pkg/my-pkg/1.0.0/3I42H3S6/build.cmpt",
         "17local/my-pkg/1.0.0/3I42H3S6/:build/spk/pkg/my-pkg/1.0.0/3I42H3S6/build.sh",
-        "192local/my-pkg/1.0.0/3I42H3S6/:build/spk/pkg/my-pkg/1.0.0/3I42H3S6/spec.yaml",
+        "160local/my-pkg/1.0.0/3I42H3S6/:build/spk/pkg/my-pkg/1.0.0/3I42H3S6/spec.yaml",
         "0local/my-pkg/1.0.0/3I42H3S6/:run/spk/pkg/my-pkg/1.0.0/3I42H3S6/spec.yaml",
         "0local/my-pkg/1.0.0/3I42H3S6/:run/spk/pkg/my-pkg/1.0.0/3I42H3S6/options.json",
         "0local/my-pkg/1.0.0/3I42H3S6/:run/spk/pkg/my-pkg/1.0.0/3I42H3S6/run.cmpt",
@@ -442,7 +442,7 @@ async fn test_deprecate_flag() {
 
     let mut opt_with_deprecate_flag = Opt::try_parse_from(["du", "local/my-pkg", "-ds"]).unwrap();
     opt_with_deprecate_flag.du.run().await.unwrap();
-    let expected_output = format!("228local/my-pkg/{}", "DEPRECATED".red());
+    let expected_output = format!("196local/my-pkg/{}", "DEPRECATED".red());
     let mut generated_output = opt_with_deprecate_flag.du.output.vec.lock().unwrap()[0].clone();
     generated_output.retain(|c| !c.is_whitespace());
     assert_eq!(expected_output, generated_output);

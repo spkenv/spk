@@ -10,7 +10,7 @@ async-trait = { workspace = true }
 clap = { workspace = true }
 colored = { workspace = true }
 futures = { workspace = true }
-serde_yaml = "0.8.17"
+serde_yaml = { workspace = true }
 spfs = { path = "../../spfs" }
 spk-cli-common = { path = '../common' }
 spk-schema = { path = '../../spk-schema' }

@@ -13,7 +13,7 @@ fn test_yaml_error_empty() {
 
     let message = err.to_string();
     assert_eq!(
-        message, "EOF while parsing a value\n",
+        message, "missing field `pkg`\n",
         "should explain that the yaml ended prematurely"
     );
 }
@@ -26,7 +26,7 @@ fn test_yaml_short() {
 
     let expected = r#"
  1 | short and wrong
-   | ^ invalid type: string "short and wrong", expected struct YamlMapping at line 1 column 1
+   | ^ invalid type: string "short and wrong", expected struct YamlMapping
 "#;
 
     let message = err.to_string();

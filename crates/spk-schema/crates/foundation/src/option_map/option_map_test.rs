@@ -54,7 +54,7 @@ fn test_yaml_error_context() {
     let err = OptionMap::from_yaml(YAML).expect_err("expected yaml parsing to fail");
     let expected = r#"
  1 | {option1: value, option2: oops: value}
-   |                               ^ while parsing a flow mapping, did not find expected ',' or '}' at line 1 column 31
+   |                               ^ did not find expected ',' or '}' at line 1 column 31, while parsing a flow mapping
 "#;
     let message = err.to_string();
     assert_eq!(message, expected);

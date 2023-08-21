@@ -218,7 +218,7 @@ fn test_yaml_error_ambiguous() {
     let expected = r#"
    | - var: os/linux
  2 | - var: hello
-   |      ^ .[1]: could not determine request type, it may only contain one of the `pkg` or `var` fields at line 2 column 6
+   |   ^ .[1]: could not determine request type, it may only contain one of the `pkg` or `var` fields at line 2 column 3
    |   pkg: hello
 "#;
     let message = err.to_string();
@@ -239,7 +239,7 @@ fn test_yaml_error_undetermined() {
     let expected = r#"
    | - var: os/linux
  2 | - pin: true
-   |      ^ .[1]: could not determine request type, it must include either a `pkg` or `var` field at line 2 column 6
+   |   ^ .[1]: could not determine request type, it must include either a `pkg` or `var` field at line 2 column 3
    |   value: default
 "#;
     let message = err.to_string();
@@ -257,7 +257,7 @@ fromBuildEnv: true
     let err = Request::from_yaml(YAML).expect_err("expected yaml parsing to fail");
     let expected = r#"
  1 | var: option/my-value
-   |    ^ request for `option` cannot specify a value `/my-value` when `fromBuildEnv` is true at line 1 column 4
+   | ^ request for `option` cannot specify a value `/my-value` when `fromBuildEnv` is true
    | fromBuildEnv: true
 "#;
     let message = err.to_string();
@@ -275,7 +275,7 @@ fromBuildEnv: true
     let err = Request::from_yaml(YAML).expect_err("expected yaml parsing to fail");
     let expected = r#"
  1 | pkg: python/3
-   |    ^ request for `python` cannot specify a value `/3` when `fromBuildEnv` is specified at line 1 column 4
+   | ^ request for `python` cannot specify a value `/3` when `fromBuildEnv` is specified
    | fromBuildEnv: true
 "#;
     let message = err.to_string();
