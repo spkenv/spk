@@ -10,6 +10,8 @@ jobs:
   rpms:
     runs-on: ubuntu-latest
     steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
       - uses: actions/checkout@v2
       - name: install dependencies
         run: |
@@ -29,6 +31,8 @@ jobs:
     # it is manually triggered by someone
     if: github.event_name == 'workflow_dispatch'
     steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
       - uses: actions/checkout@v2
       - name: Download Deps
         uses: dawidd6/action-download-artifact@v2
