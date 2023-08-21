@@ -8,7 +8,6 @@ mod database;
 mod hash_store;
 mod payloads;
 mod render_summary;
-#[cfg_attr(windows, path = "./renderer_win.rs")]
 mod renderer;
 mod repository;
 mod tag;

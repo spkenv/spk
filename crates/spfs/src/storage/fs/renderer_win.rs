@@ -11,9 +11,9 @@ use chrono::{DateTime, Utc};
 use futures::{Stream, TryFutureExt, TryStreamExt};
 use tokio::sync::Semaphore;
 
-use super::{FSRepository, RenderReporter, SilentRenderReporter};
 use crate::encoding::{self, Encodable};
 use crate::runtime::makedirs_with_perms;
+use crate::storage::fs::{FSRepository, RenderReporter, SilentRenderReporter};
 use crate::storage::prelude::*;
 use crate::storage::LocalRepository;
 use crate::{graph, tracking, Error, Result};
@@ -38,7 +38,7 @@ pub enum RenderType {
 }
 
 impl FSRepository {
-    fn get_render_storage(&self) -> Result<&super::FSHashStore> {
+    fn get_render_storage(&self) -> Result<&crate::storage::fs::FSHashStore> {
         match &self.renders {
             Some(render_store) => Ok(&render_store.renders),
             None => Err(Error::NoRenderStorage(self.address())),
