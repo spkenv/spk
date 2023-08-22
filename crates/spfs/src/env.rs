@@ -450,6 +450,7 @@ where
         self.mount_fuse_onto(rt, SPFS_DIR).await
     }
 
+    #[cfg(feature = "fuse-backend")]
     async fn mount_fuse_onto<P>(&self, rt: &runtime::Runtime, path: P) -> Result<()>
     where
         P: AsRef<std::ffi::OsStr>,
