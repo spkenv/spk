@@ -50,8 +50,6 @@ impl Run for Env {
             .runtime
             .ensure_active_runtime(&["env", "run", "shell"])
             .await?;
-        rt.status.editable =
-            self.runtime.editable() || self.requests.any_build_stage_requests(&self.requested)?;
 
         let mut solver = self.solver.get_solver(&self.options).await?;
 
@@ -67,6 +65,9 @@ impl Run for Env {
         let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
 
         let solution = build_required_packages(&solution).await?;
+
+        rt.status.editable =
+            self.runtime.editable() || self.requests.any_build_stage_requests(&self.requested)?;
         setup_runtime(&mut rt, &solution).await?;
 
         let env = solution.to_environment(Some(std::env::vars()));

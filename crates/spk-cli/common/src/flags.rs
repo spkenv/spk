@@ -478,6 +478,8 @@ impl Requests {
         Ok(out)
     }
 
+    /// Returns Ok(true) if the requests contain any request with a
+    /// @build stage specified, otherwise it returns Ok(false).
     pub fn any_build_stage_requests<I, S>(&self, requests: I) -> Result<bool>
     where
         I: IntoIterator<Item = S>,
