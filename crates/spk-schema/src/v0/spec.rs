@@ -97,6 +97,12 @@ pub struct Spec<Ident> {
     pub install: InstallSpec,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize)]
+pub struct LintedSpec<Ident> {
+    spec: Spec<Ident>,
+    lints: Vec<String>,
+}
+
 impl<Ident> Spec<Ident> {
     /// Create an empty spec for the identified package
     pub fn new(ident: Ident) -> Self {
@@ -922,6 +928,57 @@ where
     }
 }
 
+impl<'de> Deserialize<'de> for LintedSpec<VersionIdent>
+where
+    VersionIdent: serde::de::DeserializeOwned,
+{
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(SpecVisitor::recipe()).into()
+    }
+}
+
+impl<'de> Deserialize<'de> for LintedSpec<AnyIdent>
+where
+    AnyIdent: serde::de::DeserializeOwned,
+{
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let mut spec: LintedSpec<AnyIdent> = deserializer.deserialize_map(SpecVisitor::default()).into();
+        if spec.spec.pkg.is_source() {
+            // for backward-compatibility with older publishes, prune out anything
+            // that is not relevant to a source package, since now source packages
+            // can technically have their own requirements, etc.
+            spec.spec.prune_for_source_build();
+        }
+        Ok(spec)
+    }
+}
+
+impl<'de> Deserialize<'de> for LintedSpec<BuildIdent>
+where
+    BuildIdent: serde::de::DeserializeOwned,
+{
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let mut spec: LintedSpec<BuildIdent> = deserializer.deserialize_map(SpecVisitor::package()).into();
+        if spec.spec.pkg.is_source() {
+            // for backward-compatibility with older publishes, prune out anything
+            // that is not relevant to a source package, since now source packages
+            // can technically have their own requirements, etc.
+            spec.spec.prune_for_source_build();
+        }
+
+        Ok(spec)
+    }
+}
+
 struct SpecVisitor<B, T> {
     pkg: Option<Ident<B, T>>,
     meta: Option<Meta>,
@@ -932,6 +989,7 @@ struct SpecVisitor<B, T> {
     tests: Option<Vec<TestSpec>>,
     install: Option<InstallSpec>,
     check_build_spec: bool,
+    lints: Vec<String>,
 }
 
 impl<B, T> SpecVisitor<B, T> {
@@ -946,6 +1004,7 @@ impl<B, T> SpecVisitor<B, T> {
             build: None,
             tests: None,
             install: None,
+            lints: None,
             check_build_spec,
         }
     }
