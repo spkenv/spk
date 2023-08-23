@@ -5,6 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 use colored::*;
+use spfs::graph::Object;
 use spfs::io::{self, DigestFormat};
 use spfs::prelude::*;
 use spfs::{self};
@@ -15,6 +16,10 @@ use spfs_cli_common as cli;
 pub struct CmdInfo {
     #[clap(flatten)]
     logging: cli::Logging,
+
+    /// Lists file sizes in human readable format
+    #[clap(long, short = 'H')]
+    human_readable: bool,
 
     /// Operate on a remote repository instead of the local one
     ///
@@ -72,7 +77,6 @@ impl CmdInfo {
         repo: &spfs::storage::RepositoryHandle,
         verbosity: usize,
     ) -> Result<()> {
-        use spfs::graph::Object;
         match obj {
             Object::Platform(obj) => {
                 println!("{}", "platform:".green());
@@ -156,7 +160,12 @@ impl CmdInfo {
         );
         println!("{}", "stack".bright_blue());
         for digest in runtime.status.stack.iter() {
-            println!("  - {}", self.format_digest(*digest, repo).await?);
+            print!("  - {}, ", self.format_digest(*digest, repo).await?);
+            let object = repo.read_ref(digest.to_string().as_str()).await?;
+            println!(
+                "Size: {}",
+                self.human_readable(object.calculate_object_size(repo).await?),
+            );
         }
         println!();
 
@@ -166,5 +175,14 @@ impl CmdInfo {
             println!("{}", "Run 'spfs diff' for active changes".bright_blue());
         }
         Ok(())
+    }
+
+    /// Displays human readable size
+    fn human_readable(&self, size: u64) -> String {
+        if self.human_readable {
+            spfs::io::format_size(size)
+        } else {
+            size.to_string()
+        }
     }
 }
