@@ -91,6 +91,78 @@ impl std::str::FromStr for InclusionPolicy {
     }
 }
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, PartialOrd, Ord, Default)]
+pub enum PinPolicy {
+    #[default]
+    #[serde(rename = "false")]
+    Required,
+    #[serde(rename = "true")]
+    IfPresentInBuildEnv,
+}
+
+impl PinPolicy {
+    #[inline]
+    pub fn is_default(&self) -> bool {
+        self == &PinPolicy::default()
+    }
+}
+
+impl std::fmt::Display for PinPolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            PinPolicy::IfPresentInBuildEnv => true.fmt(f),
+            PinPolicy::Required => false.fmt(f),
+        }
+    }
+}
+
+impl std::str::FromStr for PinPolicy {
+    type Err = crate::Error;
+    fn from_str(value: &str) -> crate::Result<Self> {
+        serde_yaml::from_str(value).map_err(Error::InvalidPinPolicy)
+    }
+}
+
+impl<'de> Deserialize<'de> for PinPolicy {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct PinPolicyVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for PinPolicyVisitor {
+            type Value = PinPolicy;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a string or boolean (e.g., 'true', true, 'false', false)")
+            }
+
+            fn visit_bool<E>(self, v: bool) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match v {
+                    true => Ok(PinPolicy::IfPresentInBuildEnv),
+                    false => Ok(PinPolicy::Required),
+                }
+            }
+
+            fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match v.to_lowercase().as_str() {
+                    "true" => Ok(PinPolicy::IfPresentInBuildEnv),
+                    "false" => Ok(PinPolicy::Required),
+                    _ => Err(E::custom(format!("invalid value for PinPolicy: {v}"))),
+                }
+            }
+        }
+
+        deserializer.deserialize_any(PinPolicyVisitor)
+    }
+}
+
 /// Represents a constraint added to a resolved environment.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(untagged)]
@@ -175,6 +247,7 @@ impl<'de> Deserialize<'de> for Request {
             pkg: Option<RangeIdent>,
             prerelease_policy: Option<PreReleasePolicy>,
             inclusion_policy: Option<InclusionPolicy>,
+            pin_policy: Option<PinPolicy>,
 
             // VarRequest
             var: Option<OptNameBuf>,
@@ -200,6 +273,9 @@ impl<'de> Deserialize<'de> for Request {
                         "pkg" => self.pkg = Some(map.next_value::<RangeIdent>()?),
                         "prereleasePolicy" => {
                             self.prerelease_policy = Some(map.next_value::<PreReleasePolicy>()?)
+                        }
+                        "ifPresentInBuildEnv" => {
+                            self.pin_policy = Some(map.next_value::<PinPolicy>()?)
                         }
                         "include" => {
                             self.inclusion_policy = Some(map.next_value::<InclusionPolicy>()?)
@@ -231,6 +307,7 @@ impl<'de> Deserialize<'de> for Request {
                         pkg,
                         prerelease_policy: self.prerelease_policy.unwrap_or_default(),
                         inclusion_policy: self.inclusion_policy.unwrap_or_default(),
+                        pin_policy: self.pin_policy.unwrap_or_default(),
                         pin: self.pin.unwrap_or_default().into_pkg_pin(),
                         required_compat: None,
                         requested_by: Default::default(),
@@ -535,6 +612,12 @@ pub struct PkgRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub pin: Option<String>,
+    #[serde(
+        rename = "ifPresentInBuildEnv",
+        default,
+        skip_serializing_if = "PinPolicy::is_default"
+    )]
+    pub pin_policy: PinPolicy,
     #[serde(skip)]
     pub required_compat: Option<CompatRule>,
     // The 'requested_by' field is a BTreeMap to keep all the
@@ -601,8 +684,9 @@ impl PkgRequest {
         let key = pkg.to_string();
         Self {
             pkg,
-            prerelease_policy: PreReleasePolicy::ExcludeAll,
-            inclusion_policy: InclusionPolicy::Always,
+            prerelease_policy: Default::default(),
+            inclusion_policy: Default::default(),
+            pin_policy: Default::default(),
             pin: Default::default(),
             required_compat: Some(CompatRule::Binary),
             requested_by: BTreeMap::from([(key, vec![requester])]),

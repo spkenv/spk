@@ -12,6 +12,8 @@ pub enum Error {
     InvalidPreReleasePolicy(#[source] serde_yaml::Error),
     #[error("Invalid InclusionPolicy: {0}")]
     InvalidInclusionPolicy(#[source] serde_yaml::Error),
+    #[error("Invalid PinPolicy: {0}")]
+    InvalidPinPolicy(#[source] serde_yaml::Error),
     #[error(transparent)]
     SpkIdentBuildError(#[from] spk_schema_foundation::ident_build::Error),
     #[error(transparent)]
