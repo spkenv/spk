@@ -9,29 +9,29 @@ use crate::Variant;
 
 /// A trait that implements [`Variant`] but also provides a reference to the
 /// variant that should be used when calculating the build digest.
-pub trait VariantForBuildDigest: Variant {
+pub trait InputVariant: Variant {
     type Output: Variant;
 
-    fn variant_for_build_digest(&self) -> &Self::Output;
+    fn input_variant(&self) -> &Self::Output;
 }
 
-impl VariantForBuildDigest for OptionMap {
+impl InputVariant for OptionMap {
     type Output = OptionMap;
 
     #[inline]
-    fn variant_for_build_digest(&self) -> &Self::Output {
+    fn input_variant(&self) -> &Self::Output {
         self
     }
 }
 
-impl<T> VariantForBuildDigest for Override<T>
+impl<T> InputVariant for Override<T>
 where
     T: Variant,
 {
     type Output = Self;
 
     #[inline]
-    fn variant_for_build_digest(&self) -> &Self::Output {
+    fn input_variant(&self) -> &Self::Output {
         self
     }
 }

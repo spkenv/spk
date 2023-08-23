@@ -12,6 +12,7 @@ mod deprecate;
 mod embedded_packages_list;
 mod environ;
 mod error;
+mod input_variant;
 mod install_spec;
 mod meta;
 mod option;
@@ -26,7 +27,6 @@ mod test;
 pub mod v0;
 mod validation;
 pub mod variant;
-mod variant_for_build_digest;
 
 pub use build_spec::{BuildSpec, Script};
 pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
@@ -35,6 +35,7 @@ pub use deprecate::{Deprecate, DeprecateMut};
 pub use embedded_packages_list::EmbeddedPackagesList;
 pub use environ::{AppendEnv, EnvOp, OpKind, PrependEnv, SetEnv};
 pub use error::{Error, Result};
+pub use input_variant::InputVariant;
 pub use install_spec::InstallSpec;
 pub use option::{Inheritance, Opt};
 pub use package::{Package, PackageMut};
@@ -61,7 +62,6 @@ pub use template::{Template, TemplateData, TemplateExt};
 pub use test::{Test, TestStage};
 pub use validation::{default_validators, ValidationSpec, Validator};
 pub use variant::{Variant, VariantExt};
-pub use variant_for_build_digest::VariantForBuildDigest;
 pub use {serde_json, spk_schema_validators as validators};
 
 #[cfg(test)]

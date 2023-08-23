@@ -30,11 +30,11 @@ use spk_schema::{
     BuildIdent,
     ComponentFileMatchMode,
     ComponentSpecList,
+    InputVariant,
     Package,
     PackageMut,
     Variant,
     VariantExt,
-    VariantForBuildDigest,
 };
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
@@ -105,7 +105,7 @@ where
     }
 }
 
-impl<V1, V2> VariantForBuildDigest for VariantPair<V1, V2>
+impl<V1, V2> InputVariant for VariantPair<V1, V2>
 where
     V1: Variant,
     V2: Variant,
@@ -113,7 +113,7 @@ where
     type Output = V1;
 
     #[inline]
-    fn variant_for_build_digest(&self) -> &Self::Output {
+    fn input_variant(&self) -> &Self::Output {
         &self.input_variant
     }
 }

@@ -27,6 +27,7 @@ use crate::{
     DeprecateMut,
     Error,
     FromYaml,
+    InputVariant,
     Package,
     PackageMut,
     Recipe,
@@ -37,7 +38,6 @@ use crate::{
     Test,
     TestStage,
     Variant,
-    VariantForBuildDigest,
 };
 
 #[cfg(test)]
@@ -301,7 +301,7 @@ impl Recipe for SpecRecipe {
 
     fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
-        V: VariantForBuildDigest,
+        V: InputVariant,
         E: BuildEnv<Package = P>,
         P: Package,
     {

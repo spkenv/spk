@@ -9,7 +9,7 @@ use spk_schema_ident::VersionIdent;
 
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
-use crate::{Package, RequirementsList, Result, TestStage, Variant, VariantForBuildDigest};
+use crate::{InputVariant, Package, RequirementsList, Result, TestStage, Variant};
 
 /// Return the resolved packages from a solution.
 pub trait BuildEnv {
@@ -63,7 +63,7 @@ pub trait Recipe:
     /// Create a new binary package from this recipe and the given parameters.
     fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
-        V: VariantForBuildDigest,
+        V: InputVariant,
         E: BuildEnv<Package = P>,
         P: Package;
 }
@@ -111,7 +111,7 @@ where
 
     fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
-        V: VariantForBuildDigest,
+        V: InputVariant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
@@ -162,7 +162,7 @@ where
 
     fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
-        V: VariantForBuildDigest,
+        V: InputVariant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
