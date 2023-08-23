@@ -159,6 +159,11 @@ impl RequirementsList {
                         None => options.clone(),
                     };
                     match opts.get(var_request.var.without_namespace()) {
+                        None if var_request.value.is_from_build_env_if_present() => {
+                            // This variable was not in the build environment,
+                            // but the pin policy allows this.
+                            None
+                        }
                         None => {
                             Some(Err(Error::String(
                                 format!("Cannot resolve variable using 'fromBuildEnv', variable not set: {}\nIs it missing from the package build options?", var_request.var)

@@ -247,7 +247,6 @@ impl<'de> Deserialize<'de> for Request {
             pkg: Option<RangeIdent>,
             prerelease_policy: Option<PreReleasePolicy>,
             inclusion_policy: Option<InclusionPolicy>,
-            pin_policy: Option<PinPolicy>,
 
             // VarRequest
             var: Option<OptNameBuf>,
@@ -255,6 +254,7 @@ impl<'de> Deserialize<'de> for Request {
 
             // Both
             pin: Option<PinValue>,
+            pin_policy: Option<PinPolicy>,
         }
 
         impl<'de> serde::de::Visitor<'de> for RequestVisitor {
@@ -313,7 +313,10 @@ impl<'de> Deserialize<'de> for Request {
                         requested_by: Default::default(),
                     })),
                     (None, Some(var)) => {
-                        let value = self.pin.unwrap_or_default().into_var_pin(&var, self.value.take())?;
+                        let mut value = self.pin.unwrap_or_default().into_var_pin(&var, self.value.take())?;
+                        if !value.is_pinned() && matches!(self.pin_policy, Some(PinPolicy::IfPresentInBuildEnv)) {
+                            value = PinnableValue::FromBuildEnvIfPresent;
+                        }
                         Ok(Request::Var(VarRequest {
                             var,
                             value,
@@ -471,6 +474,11 @@ impl Serialize for VarRequest<PinnableValue> {
                 map.serialize_entry("var", &self.var)?;
                 map.serialize_entry("fromBuildEnv", &true)?;
             }
+            PinnableValue::FromBuildEnvIfPresent => {
+                map.serialize_entry("var", &self.var)?;
+                map.serialize_entry("fromBuildEnv", &true)?;
+                map.serialize_entry("ifPresentInBuildEnv", &true)?;
+            }
             PinnableValue::Pinned(v) => {
                 let var = format!("{}/{v}", self.var);
                 map.serialize_entry("var", &var)?;
@@ -485,12 +493,19 @@ impl Serialize for VarRequest<PinnableValue> {
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum PinnableValue {
     FromBuildEnv,
+    FromBuildEnvIfPresent,
     Pinned(Arc<str>),
 }
 
 impl PinnableValue {
     pub fn is_from_build_env(&self) -> bool {
-        matches!(self, Self::FromBuildEnv)
+        matches!(self, Self::FromBuildEnv | Self::FromBuildEnvIfPresent)
+    }
+
+    /// Return true if this value is to be taken from the build environment,
+    /// only if it exists in the build environment.
+    pub fn is_from_build_env_if_present(&self) -> bool {
+        matches!(self, Self::FromBuildEnvIfPresent)
     }
 
     pub fn is_pinned(&self) -> bool {
@@ -500,7 +515,7 @@ impl PinnableValue {
     /// The current pinned value, if any
     pub fn as_pinned(&self) -> Option<&str> {
         match self {
-            Self::FromBuildEnv => None,
+            Self::FromBuildEnv | Self::FromBuildEnvIfPresent => None,
             Self::Pinned(v) => Some(v),
         }
     }
