@@ -49,7 +49,7 @@ impl Object {
         matches!(self, Self::Blob(_))
     }
 
-    /// Calculates the total size of the object
+    /// Calculates the total size of the object and all children, recursively
     pub async fn calculate_object_size(&self, repo: &RepositoryHandle) -> crate::Result<u64> {
         let mut total_size: u64 = 0;
         let mut items_to_process: Vec<Object> = vec![self.clone()];
