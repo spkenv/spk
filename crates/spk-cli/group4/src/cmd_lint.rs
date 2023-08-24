@@ -8,7 +8,8 @@ use clap::Args;
 use colored::Colorize;
 use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_schema::{SpecTemplate, Template, TemplateExt};
+use spk_schema::v0::LintedSpec;
+use spk_schema::{AnyIdent, Error};
 
 /// Validate spk yaml files
 #[derive(Args)]
@@ -28,9 +29,26 @@ impl Run for Lint {
         let options = self.options.get_options()?;
         let mut out = 0;
         for spec in self.packages.iter() {
-            let result = SpecTemplate::from_file(spec).and_then(|t| t.render(&options));
+            let file_path = spec
+                .canonicalize()
+                .map_err(|err| Error::InvalidPath(spec.to_owned(), err))?;
+            let file = std::fs::File::open(&file_path)
+                .map_err(|err| Error::FileOpenError(file_path.to_owned(), err))?;
+            let rdr = std::io::BufReader::new(file);
+
+            let result: std::result::Result<LintedSpec<AnyIdent>, serde_yaml::Error> =
+                serde_yaml::from_reader(rdr);
+
             match result {
-                Ok(_) => println!("{} {}", "OK".green(), spec.display()),
+                Ok(s) => match s.lints.is_empty() {
+                    true => println!("{} {}", "OK".green(), spec.display()),
+                    false => {
+                        for lint in s.lints {
+                            tracing::error!(lint);
+                        }
+                        out = 1;
+                    }
+                },
                 Err(err) => {
                     println!(
                         "{} {}:\n{} {err}",

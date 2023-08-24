@@ -9,6 +9,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use itertools::Itertools;
+use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
@@ -870,7 +871,9 @@ where
     where
         D: serde::de::Deserializer<'de>,
     {
-        Ok(std::convert::Into::<Spec<VersionIdent>>::into(deserializer.deserialize_map(SpecVisitor::recipe())?))
+        Ok(std::convert::Into::<Spec<VersionIdent>>::into(
+            deserializer.deserialize_map(SpecVisitor::recipe())?,
+        ))
     }
 }
 
@@ -901,7 +904,8 @@ where
     where
         D: serde::de::Deserializer<'de>,
     {
-        let mut spec: Spec<BuildIdent> = deserializer.deserialize_map(SpecVisitor::package())?.into();
+        let mut spec: Spec<BuildIdent> =
+            deserializer.deserialize_map(SpecVisitor::package())?.into();
         if spec.pkg.is_source() {
             // for backward-compatibility with older publishes, prune out anything
             // that is not relevant to a source package, since now source packages
@@ -921,7 +925,9 @@ where
     where
         D: serde::de::Deserializer<'de>,
     {
-        Ok(std::convert::Into::<LintedSpec<VersionIdent>>::into(deserializer.deserialize_map(SpecVisitor::recipe())?))
+        Ok(std::convert::Into::<LintedSpec<VersionIdent>>::into(
+            deserializer.deserialize_map(SpecVisitor::recipe())?,
+        ))
     }
 }
 
@@ -933,7 +939,8 @@ where
     where
         D: serde::de::Deserializer<'de>,
     {
-        let mut spec: LintedSpec<AnyIdent> = deserializer.deserialize_map(SpecVisitor::default())?.into();
+        let mut spec: LintedSpec<AnyIdent> =
+            deserializer.deserialize_map(SpecVisitor::default())?.into();
         if spec.spec.pkg.is_source() {
             // for backward-compatibility with older publishes, prune out anything
             // that is not relevant to a source package, since now source packages
@@ -952,7 +959,8 @@ where
     where
         D: serde::de::Deserializer<'de>,
     {
-        let mut spec: LintedSpec<BuildIdent> = deserializer.deserialize_map(SpecVisitor::package())?.into();
+        let mut spec: LintedSpec<BuildIdent> =
+            deserializer.deserialize_map(SpecVisitor::package())?.into();
         if spec.spec.pkg.is_source() {
             // for backward-compatibility with older publishes, prune out anything
             // that is not relevant to a source package, since now source packages
@@ -999,7 +1007,7 @@ impl<B, T> From<SpecVisitor<B, T>> for LintedSpec<Ident<B, T>>
 where
     Ident<B, T>: serde::de::DeserializeOwned,
 {
-    fn from(mut value: SpecVisitor<B, T>) -> Self {   
+    fn from(mut value: SpecVisitor<B, T>) -> Self {
         Self {
             spec: Spec {
                 pkg: value.pkg.expect("Missing field: pkg"),
@@ -1015,18 +1023,16 @@ where
                         // Safety: see the SpecVisitor::package constructor
                         unsafe { build_spec.into_inner() }
                     }
-                    Some(build_spec) => {
-                        match build_spec.try_into() {
-                            Ok(b) => b,
-                            Err(_) => BuildSpec::default(),
-                        }
+                    Some(build_spec) => match build_spec.try_into() {
+                        Ok(b) => b,
+                        Err(_) => BuildSpec::default(),
                     },
                     None => Default::default(),
                 },
                 tests: value.tests.take().unwrap_or_default(),
                 install: value.install.take().unwrap_or_default(),
             },
-            lints: value.lints
+            lints: value.lints,
         }
     }
 }
@@ -1035,7 +1041,7 @@ impl<B, T> From<SpecVisitor<B, T>> for Spec<Ident<B, T>>
 where
     Ident<B, T>: serde::de::DeserializeOwned,
 {
-    fn from(mut value: SpecVisitor<B, T>) -> Self {   
+    fn from(mut value: SpecVisitor<B, T>) -> Self {
         Self {
             pkg: value.pkg.expect("Missing field pkg"),
             meta: value.meta.take().unwrap_or_default(),
@@ -1050,11 +1056,9 @@ where
                     // Safety: see the SpecVisitor::package constructor
                     unsafe { build_spec.into_inner() }
                 }
-                Some(build_spec) => {
-                    match build_spec.try_into() {
-                        Ok(b) => b,
-                        Err(_) => BuildSpec::default(),
-                    }
+                Some(build_spec) => match build_spec.try_into() {
+                    Ok(b) => b,
+                    Err(_) => BuildSpec::default(),
                 },
                 None => Default::default(),
             },
@@ -1110,8 +1114,33 @@ where
                 "build" => self.build = Some(map.next_value::<UncheckedBuildSpec>()?),
                 "tests" => self.tests = Some(map.next_value::<Vec<TestSpec>>()?),
                 "install" => self.install = Some(map.next_value::<InstallSpec>()?),
-                unrecognized_string => {
-                    self.lints.push(format!("unrecognized string {unrecognized_string}"));
+                "api" => {
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                }
+                unknown_config => {
+                    self.lints.push(format!("Unknown config: {unknown_config}"));
+                    let mut corpus = CorpusBuilder::new().finish();
+
+                    corpus.add_text("pkg");
+                    corpus.add_text("meta");
+                    corpus.add_text("compat");
+                    corpus.add_text("deprecated");
+                    corpus.add_text("sources");
+                    corpus.add_text("build");
+                    corpus.add_text("tests");
+                    corpus.add_text("install");
+                    corpus.add_text("api");
+
+                    let results = corpus.search(unknown_config, 0.6);
+                    let no_match = format!("No similar config found for: {}", unknown_config);
+                    let top_match = match results.first() {
+                        Some(s) => &s.text,
+                        None => &no_match,
+                    };
+
+                    self.lints
+                        .push(format!("The most similar config is: {}", top_match));
+
                     // ignore any unrecognized field, but consume the value anyway
                     // TODO: could we warn about fields that look like typos?
                     map.next_value::<serde::de::IgnoredAny>()?;
@@ -1119,16 +1148,11 @@ where
             }
         }
 
-        self.pkg.as_ref().ok_or_else(|| serde::de::Error::missing_field("pkg"))?;
-        // match self.build {
-        //     Some(build_spec) if !self.check_build_spec => {
-        //         // Safety: see the SpecVisitor::package constructor
-        //         unsafe { build_spec.into_inner(); }
-        //     },
-        //     Some(build_spec) => build_spec.try_into().map_err(serde::de::Error::custom)?,
-        //     _ => (),
-        // }
-        Ok(self.into())
+        self.pkg
+            .as_ref()
+            .ok_or_else(|| serde::de::Error::missing_field("pkg"))?;
+
+        Ok(self)
 
         // let pkg = self
         //     .pkg
@@ -1156,4 +1180,3 @@ where
         // })
     }
 }
-

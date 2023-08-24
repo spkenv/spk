@@ -10,6 +10,7 @@ mod variant_spec;
 
 pub use platform::Platform;
 pub use spec::Spec;
+pub use spec::{LintedSpec, Spec};
 pub use test_spec::TestSpec;
 pub use variant::Variant;
 pub use variant_spec::VariantSpec;
