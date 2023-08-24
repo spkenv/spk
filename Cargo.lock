@@ -2090,6 +2090,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ngrammatic"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c6f2f987e82da7fb8a290e959bba528638bc0e2629e38647591e845ecb5f6fe"
+
+[[package]]
 name = "nix"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4374,6 +4380,7 @@ dependencies = [
  "is_default_derive_macro",
  "itertools 0.12.0",
  "miette",
+ "ngrammatic",
  "nom",
  "nom-supreme",
  "proptest",
