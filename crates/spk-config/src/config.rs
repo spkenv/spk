@@ -31,6 +31,11 @@ pub struct Sentry {
     pub username_override_var: Option<String>,
 }
 
+pub struct Executable {
+    /// Path to the executable
+    pub path: String,
+}
+
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Solver {
@@ -107,6 +112,7 @@ pub struct Config {
     pub sentry: Sentry,
     pub solver: Solver,
     pub statsd: Statsd,
+    pub executable: Executable,
 }
 
 impl Config {
