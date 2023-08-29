@@ -15,6 +15,7 @@ server = ["spfs/server", "dep:hyper", "dep:tonic", "dep:url"]
 fuse = ["spfs/fuse-backend"]
 
 [dependencies]
+async-recursion = "1.0.2"
 anyhow = { workspace = true }
 clap = { workspace = true }
 chrono = { workspace = true }

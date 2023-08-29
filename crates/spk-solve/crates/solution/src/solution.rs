@@ -7,6 +7,7 @@ use std::iter::FromIterator;
 use std::sync::Arc;
 
 use colored::Colorize;
+use spfs::Digest;
 use spk_schema::foundation::format::{
     FormatChangeOptions,
     FormatOptionMap,
@@ -159,6 +160,107 @@ impl SolvedRequest {
         let options = self.spec.option_values();
         options.format_option_map()
     }
+
+    /// Returns the spfs layers in a resolved request, from its source
+    /// repo, in a mapping of components to layers. This results in an
+    /// error for packages without a source repo: an
+    /// EmbeddedHasNoComponentLayers error if the package is embedded,
+    /// a String error if the package is a source package, and a
+    /// SpkInternalTestHasNoComponentLayers error if the package comes
+    /// from an internal test.
+    pub fn component_layers(&self) -> Result<HashMap<Component, Digest>> {
+        let spfs_layers = match &self.source {
+            PackageSource::Embedded { .. } => {
+                // Embedded builds are provided by another package in
+                // the solve. They do not have a layer of their own.
+                return Err(Error::EmbeddedHasNoComponentLayers);
+            }
+            PackageSource::BuildFromSource { .. } => {
+                // Packages that need building do not have layers yet.
+                return Err(Error::String(format!("Cannot bake, solution requires packages that need building - Request for: {}, Resolved to: {}", self.request.pkg, self.spec.ident())));
+            }
+            PackageSource::Repository {
+                repo: _,
+                components,
+            } => {
+                let mut requested_components = self.request.pkg.components.clone();
+                if requested_components.remove(&Component::All) {
+                    components.clone()
+                } else {
+                    components
+                        .iter()
+                        .filter_map(|(c, l)| {
+                            if requested_components.contains(c) {
+                                Some((c.clone(), *l))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<HashMap<Component, Digest>>()
+                }
+            }
+            PackageSource::SpkInternalTest => {
+                // Internal test builds don't have a layer of
+                // their own so they can be skipped over.
+                return Err(Error::SpkInternalTestHasNoComponentLayers);
+            }
+        };
+
+        Ok(spfs_layers)
+    }
+
+    /// Get the name of the repo for this solved request, if it comes
+    /// from a repo, otherwise return None.
+    pub fn repo_name(&self) -> Option<RepositoryNameBuf> {
+        match &self.source {
+            PackageSource::Embedded { .. } => {
+                // These do not come directly from a repo. Their
+                // parent/containing package might, but that's not
+                // available here yet.
+                None
+            }
+            PackageSource::BuildFromSource { .. } => {
+                // Packages that need building are not in a repo yet.
+                None
+            }
+            PackageSource::Repository {
+                repo,
+                components: _,
+            } => Some(repo.name().into()),
+            PackageSource::SpkInternalTest => None,
+        }
+    }
+}
+
+/// A pairing of a solved request and a list of the components (names)
+/// it provides.
+pub struct LayerPackageAndComponents<'a>(pub &'a SolvedRequest, pub Vec<Component>);
+
+/// Helper to get a mapping from spfs layers (digests) to packages and
+/// their components' names, for the given list of solved requests.
+pub fn get_spfs_layers_to_packages<'a>(
+    //resolved_items: &Vec<SolvedRequest>,
+    resolved_items: &'a std::slice::Iter<'a, SolvedRequest>,
+) -> Result<HashMap<Digest, LayerPackageAndComponents<'a>>> {
+    // The layer(s) for the packages come from their source repos
+    let mut layers_to_packages: HashMap<Digest, LayerPackageAndComponents> = HashMap::new();
+    for resolved in resolved_items.clone() {
+        let spfs_layers = match resolved.component_layers() {
+            Ok(layers) => layers,
+            Err(Error::EmbeddedHasNoComponentLayers) => continue,
+            Err(Error::SpkInternalTestHasNoComponentLayers) => continue,
+            Err(err) => return Err(err),
+        };
+
+        for (component, layer) in spfs_layers.iter() {
+            let entry = layers_to_packages
+                .entry(*layer)
+                .or_insert(LayerPackageAndComponents(resolved, vec![]));
+            entry.1.push(component.clone());
+        }
+    }
+
+    Ok(layers_to_packages)
 }
 
 /// Represents a set of resolved packages.
@@ -288,24 +390,6 @@ impl Solution {
         out
     }
 
-    /// Helper to find the highest version number for package across
-    /// all the given repositories.
-    pub async fn find_highest_package_version(
-        &self,
-        name: PkgNameBuf,
-        repos: &[Arc<RepositoryHandle>],
-    ) -> Result<Arc<Version>> {
-        let mut max_version = Arc::new(Version::default());
-        for repo in repos.iter() {
-            if let Some(highest_version) = repo.highest_package_version(&name).await? {
-                if highest_version > max_version {
-                    max_version = highest_version;
-                }
-            };
-        }
-        Ok(max_version)
-    }
-
     /// Helper to get the highest versions of all packages in this `Solution` in all the
     /// given repositories.
     pub async fn get_all_highest_package_versions(
@@ -315,9 +399,7 @@ impl Solution {
         let mut highest_versions: HashMap<PkgNameBuf, Arc<Version>> = HashMap::new();
 
         for name in self.resolved.iter().map(|r| r.request.pkg.name.clone()) {
-            let max_version = self
-                .find_highest_package_version(name.clone(), repos)
-                .await?;
+            let max_version = find_highest_package_version(name.clone(), repos).await?;
             highest_versions.insert(name.clone(), max_version);
         }
         Ok(highest_versions)
@@ -472,4 +554,20 @@ impl FormatSolution for Solution {
 
         self.format_solution_without_padding_or_highest(verbosity)
     }
+}
+
+/// Helper for finding the highest version number of a package in a list of repositories
+pub async fn find_highest_package_version(
+    name: PkgNameBuf,
+    repos: &[Arc<RepositoryHandle>],
+) -> Result<Arc<Version>> {
+    let mut max_version = Arc::new(Version::default());
+    for repo in repos.iter() {
+        if let Some(highest_version) = repo.highest_package_version(&name).await? {
+            if highest_version > max_version {
+                max_version = highest_version;
+            }
+        };
+    }
+    Ok(max_version)
 }
