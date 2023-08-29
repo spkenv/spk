@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::IsDefault;
@@ -23,7 +24,7 @@ const OP_COMMENT: &str = "comment";
 const OP_PREPEND: &str = "prepend";
 const OP_PRIORITY: &str = "priority";
 const OP_SET: &str = "set";
-const OP_NAMES: &[&str] = &[OP_APPEND, OP_COMMENT, OP_PREPEND, OP_SET];
+const OP_NAMES: &[&str] = &[OP_APPEND, OP_COMMENT, OP_PREPEND, OP_SET, OP_PRIORITY];
 
 /// Some item that contains a list of [`EnvOp`] operations
 pub trait RuntimeEnvironment {
@@ -243,6 +244,7 @@ impl<'de> Deserialize<'de> for EnvOp {
             op_and_var: Option<(OpKind, ConfKind)>,
             value: Option<String>,
             separator: Option<String>,
+            lints: Vec<String>,
         }
 
         impl<'de> serde::de::Visitor<'de> for EnvOpVisitor {
@@ -317,7 +319,24 @@ impl<'de> Deserialize<'de> for EnvOp {
                         "separator" => {
                             self.separator = map.next_value::<Option<Stringified>>()?.map(|s| s.0)
                         }
-                        _ => {
+                        unknown_config => {
+                            self.lints
+                                .push(format!("Unknown config: {unknown_config}. "));
+                            let mut corpus = CorpusBuilder::new().finish();
+                            for op_name in OP_NAMES.iter() {
+                                corpus.add_text(op_name);
+                            }
+
+                            match corpus.search(unknown_config, 0.6).first() {
+                                Some(s) => self
+                                    .lints
+                                    .push(format!("The most similar config is: {}", s.text)),
+                                None => self.lints.push(format!(
+                                    "No similar config found for: {}.",
+                                    unknown_config
+                                )),
+                            };
+
                             // ignore any unknown field for the sake of
                             // forward compatibility
                             map.next_value::<serde::de::IgnoredAny>()?;
@@ -341,17 +360,17 @@ impl<'de> Deserialize<'de> for EnvOp {
 
                 match self.op_and_var.take() {
                     Some((op, var)) => match op {
-                        OpKind::Prepend => Ok(EnvOp::Prepend(PrependEnv{
+                        OpKind::Prepend => Ok(EnvOp::Prepend(PrependEnv {
                             prepend: var.get_op(),
                             separator: self.separator.take(),
                             value: value.unwrap_or_default()
                         })),
-                        OpKind::Append => Ok(EnvOp::Append(AppendEnv{
+                        OpKind::Append => Ok(EnvOp::Append(AppendEnv {
                             append: var.get_op(),
                             separator: self.separator.take(),
                             value: value.unwrap_or_default()
                         })),
-                        OpKind::Set => Ok(EnvOp::Set(SetEnv{
+                        OpKind::Set => Ok(EnvOp::Set(SetEnv {
                             set: var.get_op(),
                             value: value.unwrap_or_default()
                         })),
@@ -362,9 +381,13 @@ impl<'de> Deserialize<'de> for EnvOp {
                             priority: var.get_priority()
                         }))
                     },
-                    None => Err(serde::de::Error::custom(format!(
-                        "missing field to define operation and variable, expected one of {OP_NAMES:?}",
-                    ))),
+                    None => {
+                        let mut err_msg = String::from("");
+                        for lint in self.lints.iter() {
+                            err_msg = err_msg + lint;
+                        }
+                        Err(serde::de::Error::custom(err_msg))
+                    }
                 }
             }
         }

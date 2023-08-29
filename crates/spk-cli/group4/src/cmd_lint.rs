@@ -8,8 +8,8 @@ use clap::Args;
 use colored::Colorize;
 use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_schema::v0::LintedSpec;
-use spk_schema::{AnyIdent, Error};
+use spk_schema::v0::Spec;
+use spk_schema::{AnyIdent, Error, LintedItem};
 
 /// Validate spk yaml files
 #[derive(Args)]
@@ -36,15 +36,16 @@ impl Run for Lint {
                 .map_err(|err| Error::FileOpenError(file_path.to_owned(), err))?;
             let rdr = std::io::BufReader::new(file);
 
-            let result: std::result::Result<LintedSpec<AnyIdent>, serde_yaml::Error> =
+            let result: std::result::Result<LintedItem<Spec<AnyIdent>>, serde_yaml::Error> =
                 serde_yaml::from_reader(rdr);
 
             match result {
                 Ok(s) => match s.lints.is_empty() {
                     true => println!("{} {}", "OK".green(), spec.display()),
                     false => {
+                        println!("{} {}:", "Failed".red(), spec.display());
                         for lint in s.lints {
-                            tracing::error!(lint);
+                            println!("{} {}", "----->".red(), lint.message());
                         }
                         out = 1;
                     }

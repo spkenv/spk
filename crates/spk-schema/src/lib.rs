@@ -13,6 +13,7 @@ mod error;
 mod input_variant;
 mod install_spec;
 mod metadata;
+mod lints;
 mod option;
 mod package;
 pub mod prelude;
@@ -46,6 +47,7 @@ pub use environ::{
 pub use error::{Error, Result};
 pub use input_variant::InputVariant;
 pub use install_spec::InstallSpec;
+pub use lints::{InstallSpecKey, LintKind, LintMessage, LintedItem, Lints, V0SpecKey};
 pub use option::{Inheritance, Opt};
 pub use package::{Package, PackageMut};
 pub use recipe::{BuildEnv, Recipe};

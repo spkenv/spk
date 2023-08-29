@@ -1,12 +1,14 @@
 // Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
+use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::spec_ops::Named;
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{BuildIdent, OptVersionIdent};
+use spk_schema_foundation::option_map::Stringified;
 
 use crate::component_embedded_packages::ComponentEmbeddedPackage;
 use crate::foundation::option_map::OptionMap;
@@ -15,6 +17,10 @@ use crate::{
     EmbeddedPackagesList,
     EnvOp,
     EnvOpList,
+    InstallSpecKey,
+    LintMessage,
+    LintedItem,
+    Lints,
     OpKind,
     Package,
     RequirementsList,
@@ -49,6 +55,42 @@ pub struct InstallSpec {
     pub components: ComponentSpecList,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub environment: EnvOpList,
+}
+
+impl<D> Lints for RawInstallSpecVisitor<D>
+where
+    D: Default,
+{
+    fn lints(&mut self) -> Vec<LintMessage> {
+        std::mem::take(&mut self.lints)
+    }
+}
+
+#[derive(Default)]
+struct RawInstallSpecVisitor<D>
+where
+    D: Default,
+{
+    requirements: RequirementsList,
+    embedded: EmbeddedPackagesList,
+    components: ComponentSpecList,
+    environment: EnvOpList,
+    lints: Vec<LintMessage>,
+    _phantom: PhantomData<D>,
+}
+
+impl<D> From<RawInstallSpecVisitor<D>> for InstallSpec
+where
+    D: Default,
+{
+    fn from(value: RawInstallSpecVisitor<D>) -> Self {
+        Self {
+            requirements: value.requirements,
+            embedded: value.embedded,
+            components: value.components,
+            environment: value.environment,
+        }
+    }
 }
 
 impl InstallSpec {
@@ -162,8 +204,6 @@ impl From<RawInstallSpec> for InstallSpec {
     }
 }
 
-/// A raw, unvalidated install spec.
-#[derive(Deserialize)]
 struct RawInstallSpec {
     #[serde(default)]
     requirements: RequirementsList,
@@ -173,6 +213,24 @@ struct RawInstallSpec {
     components: ComponentSpecList,
     #[serde(default, deserialize_with = "deserialize_env_conf")]
     environment: EnvOpList,
+}
+
+impl<'de> Deserialize<'de> for RawInstallSpec {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(RawInstallSpecVisitor::<RawInstallSpec>::default())
+    }
+}
+
+impl<'de> Deserialize<'de> for LintedItem<RawInstallSpec> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(RawInstallSpecVisitor::<LintedItem<RawInstallSpec>>::default())
+    }
 }
 
 fn deserialize_env_conf<'de, D>(deserializer: D) -> std::result::Result<EnvOpList, D::Error>
@@ -208,4 +266,35 @@ where
         }
     }
     deserializer.deserialize_seq(EnvConfVisitor)
+}
+
+
+impl<'de, D> serde::de::Visitor<'de> for RawInstallSpecVisitor<D>
+where
+    D: Default + From<RawInstallSpecVisitor<D>>,
+{
+    type Value = D;
+
+    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while let Some(key) = map.next_key::<Stringified>()? {
+            match key.as_str() {
+                "requirements" => self.requirements = map.next_value::<RequirementsList>()?,
+                "embedded" => self.embedded = map.next_value::<EmbeddedPackagesList>()?,
+                "components" => self.components = map.next_value::<ComponentSpecList>()?,
+                "environment" => self.environment = map.next_value::<EnvOpList>()?,
+                unknown_config => {
+                    self.lints
+                        .push(LintMessage::UnknownInstallSpecKey(InstallSpecKey::new(
+                            unknown_config,
+                        )));
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                }
+            }
+        }
+
+        Ok(self.into())
+    }
 }
