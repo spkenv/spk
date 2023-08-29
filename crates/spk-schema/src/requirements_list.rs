@@ -27,6 +27,12 @@ mod requirements_list_test;
 #[serde(transparent)]
 pub struct RequirementsList(Vec<Request>);
 
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct LintedRequirementsList {
+    pub requirements: Vec<Request>,
+    pub lints: Vec<String>,
+}
+
 impl std::ops::Deref for RequirementsList {
     type Target = Vec<Request>;
     fn deref(&self) -> &Self::Target {
