@@ -1,5 +1,7 @@
 use crate::{runtime, Result};
 
+pub const SPFS_DIR: &str = "todo!";
+
 /// Manages the configuration of an spfs runtime environment.
 ///
 /// Specifically thing like, privilege escalation, mount namespace,

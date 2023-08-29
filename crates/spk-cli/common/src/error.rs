@@ -28,12 +28,6 @@ pub enum Error {
     #[error(transparent)]
     SpkStorageError(#[from] spk_storage::Error),
 
-    // Bake Errors
-    #[error("Skip embedded")]
-    SkipEmbedded,
-    #[error("Skip spk internal test package source")]
-    SkipSpkInternalTest,
-
     // IO Errors
     #[error("Failed to write file {0}")]
     FileWriteError(std::path::PathBuf, #[source] std::io::Error),
