@@ -297,6 +297,14 @@ impl Data {
     pub fn is_durable(&self) -> bool {
         self.config.durable
     }
+
+    /// Set whether to keep the runtime when the process exits. Note:
+    /// this does not change the runtime into a durable runtime. It is
+    /// a helper method used during the process of changing the
+    /// runtime into a durable runtime.
+    pub fn set_keep_runtime(&mut self, value: bool) {
+        self.config.durable = value;
+    }
 }
 
 #[derive(Debug)]
@@ -564,8 +572,8 @@ impl Runtime {
         Ok(())
     }
 
-    pub async fn ensure_required_directories(&self) -> Result<()> {
-        self.ensure_lower_dir().await?;
+    /// Creates the upper dir and work dir for this runtime, if they do not exit.
+    pub async fn ensure_upper_dirs(&self) -> Result<()> {
         let mut result = makedirs_with_perms(&self.config.upper_dir, 0o777);
         if let Err(err) = result {
             return Err(err.wrap(format!("Failed to create {:?}", self.config.upper_dir)));
@@ -575,6 +583,34 @@ impl Runtime {
             return Err(err.wrap(format!("Failed to create {:?}", self.config.work_dir)));
         }
         Ok(())
+    }
+
+    pub async fn ensure_required_directories(&self) -> Result<()> {
+        self.ensure_lower_dir().await?;
+        self.ensure_upper_dirs().await?;
+        Ok(())
+    }
+
+    /// Sets up a durable upper dir (and work dir) for the runtime
+    /// based on the runtime's name. This will error if the upper dir
+    /// cannot be created or is already in use by another runtime.
+    pub async fn setup_durable_upper_dir(&mut self) -> Result<PathBuf> {
+        // The runtime's name is used in the identifying token in the
+        // durable upper dir's root path. This is stored in the local
+        // repo in a known location so they are durable across invocations.
+        let name = String::from(self.name());
+        let durable_path = self.storage.durable_path(name.clone()).await?;
+        self.storage
+            .check_upper_path_in_existing_runtimes(name, durable_path.clone())
+            .await?;
+
+        // The durable_path must not be on NFS or else the mount
+        // operation will fail.
+        self.data.config.upper_dir = durable_path.join(Config::UPPER_DIR);
+        // The workdir has to be in the same filesystem/path root
+        // as the upperdir, for overlayfs.
+        self.data.config.work_dir = durable_path.join(Config::WORK_DIR);
+        Ok(durable_path)
     }
 
     /// Modify the root directory where runtime data is stored
@@ -809,20 +845,7 @@ impl Storage {
         rt.data.config.durable = durable;
         if durable {
             // Keeping a runtime also activates a durable upperdir.
-            // The runtime's name is used the identifying token in the
-            // durable upper dir's root path, which is stored in the
-            // local repo in a known location to make them durable
-            // across invocations.
-            let durable_path = self.durable_path(name.clone()).await?;
-            self.check_upper_path_in_existing_runtimes(name, durable_path.clone())
-                .await?;
-
-            // The durable_path must not be on NFS or else the mount
-            // operation will fail.
-            rt.data.config.upper_dir = durable_path.join(Config::UPPER_DIR);
-            // The workdir has to be in the same filesystem/path root
-            // as the upperdir, for overlayfs.
-            rt.data.config.work_dir = durable_path.join(Config::WORK_DIR);
+            rt.setup_durable_upper_dir().await?;
         }
 
         self.save_runtime(&rt).await?;

@@ -67,11 +67,13 @@ pub use resolve::{
 pub use spfs_encoding as encoding;
 pub use status::{
     active_runtime,
+    change_to_durable_runtime,
     compute_runtime_manifest,
     exit_runtime,
     get_runtime_backing_repo,
     initialize_runtime,
     make_active_runtime_editable,
+    make_runtime_durable,
     reinitialize_runtime,
     remount_runtime,
 };

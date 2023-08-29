@@ -15,6 +15,19 @@ pub async fn exit_runtime(_rt: &runtime::Runtime) -> Result<()> {
     todo!()
 }
 
+/// Turn the given runtime into a durable runtime, this should only
+/// ever be called with the active runtime
+pub async fn make_runtime_durable(rt: &runtime::Runtime) -> Result<()> {
+    todo!()
+}
+/// Reinitialize the current spfs runtime as a durable rt (after runtime config changes).
+///
+/// This function will run blocking IO on the current thread. Although this is not ideal,
+/// the mount namespacing operated per-thread and so restricts our ability to move execution.
+pub async fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
+    todo!()
+}
+
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).
 ///
 /// This function will run blocking IO on the current thread. Although this is not ideal,

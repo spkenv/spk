@@ -285,6 +285,27 @@ pub(crate) fn build_spfs_exit_command(rt: &runtime::Runtime) -> Result<Command> 
     })
 }
 
+pub(crate) fn build_spfs_change_to_durable_command(rt: &runtime::Runtime) -> Result<Command> {
+    let exe = match which_spfs("enter") {
+        None => return Err(Error::MissingBinary("spfs-enter")),
+        Some(exe) => exe,
+    };
+
+    let args = vec![
+        "--change-to-durable".into(),
+        "--runtime-storage".into(),
+        rt.storage().address().to_string().into(),
+        "--runtime".into(),
+        rt.name().into(),
+        "--".into(),
+    ];
+    Ok(Command {
+        executable: exe.into(),
+        args,
+        vars: vec![],
+    })
+}
+
 fn build_spfs_enter_command<E, A, S>(rt: &runtime::Runtime, command: E, args: A) -> Result<Command>
 where
     E: Into<OsString>,
