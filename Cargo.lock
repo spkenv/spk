@@ -945,7 +945,7 @@ checksum = "55a9a55d1dab3b07854648d48e366f684aefe2ac78ae28cec3bf65e3cd53d9a3"
 dependencies = [
  "execute-command-tokens",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.12",
 ]
 
 [[package]]
