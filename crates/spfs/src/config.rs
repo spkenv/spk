@@ -18,6 +18,34 @@ mod config_test;
 const DEFAULT_USER_STORAGE: &str = "spfs";
 const FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
 
+fn default_fuse_worker_threads() -> usize {
+    let num_cpu = num_cpus::get();
+    // typically fuse does not need a huge number of threads
+    // and we want to allow for many spfs fuse instances running
+    // on a host without quickly consuming the thread limit
+    std::cmp::min(num_cpu, 8)
+}
+
+const fn default_fuse_max_blocking_threads() -> usize {
+    // the current default for tokio as of writing
+    512
+}
+
+fn default_monitor_worker_threads() -> usize {
+    let num_cpu = num_cpus::get();
+    // typically fuse does not need a huge number of threads
+    // and we want to allow for many spfs fuse instances running
+    // on a host without quickly consuming the thread limit
+    std::cmp::min(num_cpu, 2)
+}
+
+const fn default_monitor_max_blocking_threads() -> usize {
+    // the monitor runs in the background and does
+    // minimal work over time. It does not need a lot of
+    // blocking threads as it will work through things in time
+    2
+}
+
 static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -179,6 +207,44 @@ impl Filesystem {
     }
 }
 
+/// Configuration options for the fuse filesystem process
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Fuse {
+    #[serde(default = "default_fuse_worker_threads")]
+    pub worker_threads: usize,
+    #[serde(default = "default_fuse_max_blocking_threads")]
+    pub max_blocking_threads: usize,
+}
+
+impl Default for Fuse {
+    fn default() -> Self {
+        Self {
+            worker_threads: default_fuse_worker_threads(),
+            max_blocking_threads: default_fuse_max_blocking_threads(),
+        }
+    }
+}
+
+/// Configuration options for the monitor process
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Monitor {
+    #[serde(default = "default_monitor_worker_threads")]
+    pub worker_threads: usize,
+    #[serde(default = "default_monitor_max_blocking_threads")]
+    pub max_blocking_threads: usize,
+}
+
+impl Default for Monitor {
+    fn default() -> Self {
+        Self {
+            worker_threads: default_monitor_worker_threads(),
+            max_blocking_threads: default_monitor_max_blocking_threads(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
@@ -186,6 +252,8 @@ pub struct Config {
     pub storage: Storage,
     pub filesystem: Filesystem,
     pub remote: std::collections::HashMap<String, Remote>,
+    pub fuse: Fuse,
+    pub monitor: Monitor,
 }
 
 impl Config {

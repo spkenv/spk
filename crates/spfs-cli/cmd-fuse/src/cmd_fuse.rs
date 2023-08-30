@@ -92,7 +92,7 @@ impl cli::CommandName for CmdFuse {
 }
 
 impl CmdFuse {
-    pub fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
+    pub fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let calling_uid = nix::unistd::geteuid();
         let calling_gid = nix::unistd::getegid();
 
@@ -209,6 +209,8 @@ impl CmdFuse {
         // cannot know if the full configuration of the filesystem is correct,
         // and there may be errors which only appear at runtime.
         let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(config.fuse.worker_threads)
+            .max_blocking_threads(config.fuse.max_blocking_threads)
             .enable_all()
             .build()
             .context("Failed to establish runtime")?;
