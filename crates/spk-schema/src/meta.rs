@@ -72,14 +72,11 @@ impl Meta {
 
                 let json: serde_json::Value =
                     serde_json::from_str(stdout).expect("Failed to read json output");
-                match json.as_object() {
-                    Some(map) => {
-                        for (k, v) in map {
-                            v.as_str()
-                                .and_then(|val| self.labels.insert(k.clone(), val.to_string()));
-                        }
+                if let Some(map) = json.as_object() {
+                    for (k, v) in map {
+                        v.as_str()
+                            .and_then(|val| self.labels.insert(k.clone(), val.to_string()));
                     }
-                    None => (),
                 }
             }
             Err(e) => return Err(Error::String(format!("Failed to execute command: {e}"))),
