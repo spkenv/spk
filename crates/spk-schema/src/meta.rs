@@ -5,8 +5,6 @@
 use std::collections::BTreeMap;
 use std::process::{Command, Stdio};
 
-use execute::Execute;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
@@ -49,30 +47,42 @@ impl Meta {
         "Unlicensed".into()
     }
 
-    pub fn update_metadata(&mut self, executable: &String) -> Result<i32> {
-        let mut command = Command::new(executable);
+    pub fn update_metadata(&mut self, cmd: &String, args: &Option<Vec<String>>) -> Result<i32> {
+        let mut command = Command::new(cmd);
+        match args {
+            Some(a) => {
+                command.args(a);
+            }
+            None => (),
+        }
 
         command.stdout(Stdio::piped());
         command.stderr(Stdio::piped());
 
-        match command.execute_output() {
+        match command
+            .spawn()
+            .map_err(|err| Error::ProcessSpawnError(format!("command error: {err}").into()))?
+            .wait_with_output()
+        {
             Ok(out) => {
                 let stdout = match std::str::from_utf8(&out.stdout) {
                     Ok(s) => s,
                     Err(e) => return Err(Error::String(e.to_string())),
                 };
-                let mut list_of_data = stdout.split('\n').collect_vec();
-                list_of_data.retain(|c| !c.is_empty());
-                for metadata in list_of_data.iter() {
-                    let data = metadata.split(':').collect_vec();
-                    tracing::debug!("{}:{}", data[0], data[1]);
-                    self.labels
-                        .insert(data[0].trim().to_string(), data[1].trim().to_string());
+
+                let json: serde_json::Value =
+                    serde_json::from_str(stdout).expect("Failed to read json output");
+                match json.as_object() {
+                    Some(map) => {
+                        for (k, v) in map {
+                            v.as_str()
+                                .and_then(|val| self.labels.insert(k.clone(), val.to_string()));
+                        }
+                    }
+                    None => (),
                 }
             }
-            Err(e) => {
-                tracing::warn!("Failed to execute executable: {e}")
-            }
+            Err(e) => return Err(Error::String(format!("Failed to execute command: {e}"))),
         }
         Ok(0)
     }

@@ -516,15 +516,20 @@ impl Recipe for Spec<VersionIdent> {
             .render_all_pins(&build_options, specs.values().map(|p| p.ident()))?;
 
         // Update metadata fields from the output of the executable.
-        let exec_path = spk_config::get_config()
-            .map(|c| c.executable.path.clone())
-            .unwrap_or_else(|_| "".to_string());
+        let config = match spk_config::get_config() {
+            Ok(c) => c,
+            Err(err) => return Err(Error::String(format!("Failed to load spk config: {err}"))),
+        };
 
-        if !exec_path.is_empty() {
-            match updated.meta.update_metadata(&exec_path) {
+        match &config.custom_metadata.command {
+            Some(command) => match updated
+                .meta
+                .update_metadata(command, &config.custom_metadata.args)
+            {
                 Ok(_) => tracing::info!("Successfully updated metadata"),
                 Err(e) => return Err(Error::String(format!("Failed to update metadata: {e}"))),
-            };
+            },
+            None => (),
         }
 
         let mut missing_build_requirements = HashMap::new();

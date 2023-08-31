@@ -31,9 +31,14 @@ pub struct Sentry {
     pub username_override_var: Option<String>,
 }
 
-pub struct Executable {
-    /// Path to the executable
-    pub path: String,
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct CustomMetadata {
+    /// The path to the command to run
+    pub command: Option<String>,
+
+    /// Arguments to run with the command
+    pub args: Option<Vec<String>>,
 }
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
@@ -112,7 +117,7 @@ pub struct Config {
     pub sentry: Sentry,
     pub solver: Solver,
     pub statsd: Statsd,
-    pub executable: Executable,
+    pub custom_metadata: CustomMetadata,
 }
 
 impl Config {

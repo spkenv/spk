@@ -10,7 +10,6 @@ migration-to-components = ["spk-schema-foundation/migration-to-components"]
 [dependencies]
 data-encoding = "2.3"
 enum_dispatch = "0.3.8"
-execute = "0.2.12"
 format_serde_error = { version = "0.3", default_features = false, features = [
     "serde_yaml",
     "colored",
