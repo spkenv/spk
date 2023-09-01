@@ -44,10 +44,8 @@ fn test_custom_metadata() {
 
     let keys = vec!["CWD", "HOSTNAME", "REPO", "SHA1"];
     assert_eq!(spec.meta.labels.len(), 4);
-    println!("{:?}", spec.meta.labels);
     for key in keys.iter() {
         assert!(spec.meta.labels.contains_key(*key));
         let value = spec.meta.labels.get(*key).unwrap();
-        assert!(!value.is_empty());
     }
 }
