@@ -36,3 +36,12 @@ fn test_package_meta_basic() {
     assert!(meta.homepage.is_none());
     assert!(meta.labels.contains_key("department"));
 }
+
+
+#[rstest]
+fn test_custom_metadata() {
+    let mut spec = v0::Spec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
+    spec.meta.update_metadata("crates/spk-schema/src/meta/capture_metadata.sh", None).unwrap();
+
+    println!("{:?}", spec.meta.labels);
+}
