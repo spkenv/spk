@@ -1010,11 +1010,7 @@ checksum = "e5837b8e6a4001f99fe4746767fb7379e8510c508a843caa136cc12ed9c0bad0"
 dependencies = [
  "colored",
  "serde",
-<<<<<<< HEAD
  "serde_yaml 0.8.25",
-=======
- "serde_yaml",
->>>>>>> 78854be4 (Changed method to envoke executable to use crate execute and std::process::Command)
 ]
 
 [[package]]

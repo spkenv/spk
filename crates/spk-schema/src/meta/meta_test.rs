@@ -3,8 +3,7 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spk_schema_ident::VersionIdent;
-
+use spk_schema_ident::{AnyIdent, VersionIdent};
 use crate::v0;
 
 #[rstest]
@@ -40,8 +39,14 @@ fn test_package_meta_basic() {
 
 #[rstest]
 fn test_custom_metadata() {
-    let mut spec = v0::Spec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
-    spec.meta.update_metadata("crates/spk-schema/src/meta/capture_metadata.sh", None).unwrap();
+    let mut spec: v0::Spec<AnyIdent> = v0::Spec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
+    spec.meta.update_metadata(&String::from("src/meta/capture_metadata.sh"), &None).unwrap();
 
-    println!("{:?}", spec.meta.labels);
+    let keys = vec!["CWD", "HOSTNAME", "REPO", "SHA1"];
+    assert_eq!(spec.meta.labels.len(), 4);
+    for key in keys.iter() {
+        assert!(spec.meta.labels.contains_key(*key));
+        let value = spec.meta.labels.get(*key).unwrap();
+        assert!(!value.is_empty());
+    }
 }
