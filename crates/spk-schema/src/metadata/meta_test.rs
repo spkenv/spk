@@ -4,6 +4,7 @@
 
 use rstest::rstest;
 use spk_schema_ident::{AnyIdent, VersionIdent};
+
 use crate::v0;
 
 #[rstest]
@@ -16,7 +17,7 @@ fn test_package_meta_missing() {
     assert!(spec.is_ok());
     assert_eq!(
         spec.unwrap().meta.license,
-        crate::meta::Meta::default_license()
+        crate::metadata::Meta::default_license()
     );
 }
 
@@ -30,22 +31,22 @@ fn test_package_meta_basic() {
     "#,
     )
     .unwrap();
-    assert_eq!(meta.license, crate::meta::Meta::default_license());
+    assert_eq!(meta.license, crate::metadata::Meta::default_license());
     assert!(meta.description.is_some());
     assert!(meta.homepage.is_none());
     assert!(meta.labels.contains_key("department"));
 }
 
-
 #[rstest]
 fn test_custom_metadata() {
     let mut spec: v0::Spec<AnyIdent> = v0::Spec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
-    spec.meta.update_metadata(&String::from("src/meta/capture_metadata.sh"), &None).unwrap();
+    spec.meta
+        .update_metadata(&String::from("src/meta/capture_metadata.sh"), &None)
+        .unwrap();
 
     let keys = vec!["CWD", "HOSTNAME", "REPO", "SHA1"];
     assert_eq!(spec.meta.labels.len(), 4);
     for key in keys.iter() {
         assert!(spec.meta.labels.contains_key(*key));
-        let value = spec.meta.labels.get(*key).unwrap();
     }
 }

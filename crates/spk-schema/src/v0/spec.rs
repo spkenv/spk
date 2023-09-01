@@ -31,7 +31,7 @@ use crate::ident::{
     Satisfy,
     VarRequest,
 };
-use crate::meta::Meta;
+use crate::metadata::Meta;
 use crate::option::VarOpt;
 use crate::{
     BuildEnv,
