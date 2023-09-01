@@ -41,7 +41,7 @@ fn test_package_meta_basic() {
 fn test_custom_metadata() {
     let mut spec: v0::Spec<AnyIdent> = v0::Spec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
     spec.meta
-        .update_metadata(&String::from("src/meta/capture_metadata.sh"), &None)
+        .update_metadata(&String::from("src/metadata/capture_metadata.sh"), &None)
         .unwrap();
 
     let keys = vec!["CWD", "HOSTNAME", "REPO", "SHA1"];
