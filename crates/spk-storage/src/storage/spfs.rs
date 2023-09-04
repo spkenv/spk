@@ -239,7 +239,7 @@ impl Storage for SPFSRepository {
 
         let builds: HashSet<_> = spec_tags
             .into_iter()
-            .chain(package_tags.into_iter())
+            .chain(package_tags)
             .filter_map(|entry| match entry {
                 Ok(EntryType::Tag(name))
                     if !name.starts_with(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX) =>

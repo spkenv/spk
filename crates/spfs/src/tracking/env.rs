@@ -249,7 +249,7 @@ impl std::iter::FromIterator<EnvSpec> for EnvSpec {
 
 impl<I: Into<EnvSpecItem>> From<Vec<I>> for EnvSpec {
     fn from(value: Vec<I>) -> Self {
-        Self::from_iter(value.into_iter())
+        Self::from_iter(value)
     }
 }
 

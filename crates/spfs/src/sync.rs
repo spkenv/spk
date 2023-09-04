@@ -335,7 +335,7 @@ where
         self.reporter.visit_manifest(&manifest);
         let _permit = self.manifest_semaphore.acquire().await;
         debug_assert!(
-            matches!(_permit, Ok(_)),
+            _permit.is_ok(),
             "We never close the semaphore and so should never see errors"
         );
 
@@ -453,7 +453,7 @@ where
         self.reporter.visit_payload(digest);
         let _permit = self.payload_semaphore.acquire().await;
         debug_assert!(
-            matches!(_permit, Ok(_)),
+            _permit.is_ok(),
             "We never close the semaphore and so should never see errors"
         );
         let (mut payload, _) = self.src.open_payload(digest).await?;

@@ -240,7 +240,7 @@ pub fn configure_logging(verbosity: u8) -> Result<()> {
     // 'spk' target in the directives above. They can be re-enabled by
     // setting them in "SPK_LOG" as needed, e.g.
     // env SPK_LOG="spk_solve::impossible_checks=debug" spk explain ...
-    let tracing_targets = vec![BUILD_SORT_TARGET, IMPOSSIBLE_CHECKS_TARGET];
+    let tracing_targets = [BUILD_SORT_TARGET, IMPOSSIBLE_CHECKS_TARGET];
     let defaults = tracing_targets
         .iter()
         .map(ToString::to_string)

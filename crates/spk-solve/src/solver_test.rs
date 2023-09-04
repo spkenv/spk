@@ -160,7 +160,7 @@ async fn test_solver_package_with_no_recipe(mut solver: Solver) {
     // Test
     let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(
-        matches!(res, Ok(_)),
+        res.is_ok(),
         "'{res:?}' should be an Ok(_) solution not an error.')"
     );
 }
@@ -241,7 +241,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(mut solver: Solver) {
     // Test
     let res = run_and_print_resolve_for_tests(&solver).await;
     assert!(
-        matches!(res, Ok(_)),
+        res.is_ok(),
         "'{res:?}' should be an Ok(_) solution not an error.')"
     );
 }
@@ -289,7 +289,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
         // because the initial request is turned into my-pkg:run,
         // which will pass validation
         assert!(
-            matches!(res, Ok(_)),
+            res.is_ok(),
             "'{res:?}' should be an Ok(_) solution not an error.')",
         );
     }

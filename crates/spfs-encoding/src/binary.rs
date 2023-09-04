@@ -132,5 +132,5 @@ pub fn read_string(reader: &mut impl BufRead) -> Result<String> {
             }
         }
     }
-    Ok(String::from_iter(r.into_iter()))
+    Ok(String::from_iter(r))
 }

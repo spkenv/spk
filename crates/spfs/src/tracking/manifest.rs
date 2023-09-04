@@ -639,7 +639,7 @@ where
         if file_type.is_symlink() {
             let _permit = self.blob_semaphore.acquire().await;
             debug_assert!(
-                matches!(_permit, Ok(_)),
+                _permit.is_ok(),
                 "We never close the semaphore and so should never see errors"
             );
             tracing::trace!(" > symlink: {:?}", path.as_ref());
@@ -669,7 +669,7 @@ where
         } else {
             let _permit = self.blob_semaphore.acquire().await;
             debug_assert!(
-                matches!(_permit, Ok(_)),
+                _permit.is_ok(),
                 "We never close the semaphore and so should never see errors"
             );
             tracing::trace!(" >    file: {:?}", path.as_ref());

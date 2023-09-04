@@ -23,7 +23,7 @@ pub fn default_parser() -> liquid::Parser {
         .filter(filter_compare_version::CompareVersion)
         .filter(filter_replace_regex::ReplaceRegex)
         .build();
-    debug_assert!(matches!(res, Ok(_)), "default template parser is valid");
+    debug_assert!(res.is_ok(), "default template parser is valid");
     res.unwrap()
 }
 

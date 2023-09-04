@@ -129,7 +129,7 @@ impl<'de> Deserialize<'de> for FileMatcher {
                 while let Some(element) = seq.next_element::<String>()? {
                     rules.push(element);
                 }
-                FileMatcher::new(rules.into_iter()).map_err(serde::de::Error::custom)
+                FileMatcher::new(rules).map_err(serde::de::Error::custom)
             }
         }
 

@@ -109,7 +109,7 @@ async fn test_sources_subdir(_tmpdir: tempfile::TempDir) {
 async fn test_sources_environment(_tmpdir: tempfile::TempDir) {
     let rt = spfs_runtime().await;
     let mut spec = v0::Spec::new(build_ident!("sources-test/0.1.0/src"));
-    let expected = vec![
+    let expected = [
         "SPK_PKG=sources-test/0.1.0/src",
         "SPK_PKG_NAME=sources-test",
         "SPK_PKG_VERSION=0.1.0",
