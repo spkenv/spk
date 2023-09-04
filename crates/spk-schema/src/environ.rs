@@ -261,7 +261,7 @@ impl AppendEnv {
     pub fn tcsh_source(&self) -> String {
         // tcsh will complain if we use a variable that is not defined
         // so there is extra login in here to define it as needed
-        vec![
+        [
             format!("if ( $?{} ) then", self.append),
             format!(
                 "setenv {} \"${{{}}}{}{}\"",
@@ -348,7 +348,7 @@ impl PrependEnv {
     pub fn tcsh_source(&self) -> String {
         // tcsh will complain if we use a variable that is not defined
         // so there is extra login in here to define it as needed
-        vec![
+        [
             format!("if ( $?{} ) then", self.prepend),
             format!(
                 "setenv {} \"{}{}${{{}}}\"",
