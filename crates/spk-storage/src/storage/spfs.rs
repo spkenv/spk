@@ -542,6 +542,9 @@ impl Storage for SPFSRepository {
         // the only failures otherwise was `PackageNotFoundError`, then return
         // success. Since something was deleted then the package was
         // technically "found."
+        //
+        // Allow manual_try_fold since this logic can't short-circuit all errors.
+        #[allow(clippy::manual_try_fold)]
         [
             component_tags_result,
             build_recipe_tags_result,
