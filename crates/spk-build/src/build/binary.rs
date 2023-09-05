@@ -30,6 +30,7 @@ use spk_schema::{
     BuildIdent,
     ComponentFileMatchMode,
     ComponentSpecList,
+    InputVariant,
     Package,
     PackageMut,
     Variant,
@@ -81,6 +82,41 @@ pub enum BuildSource {
 /// e.g. because they both provide one or more of the same files.
 #[derive(Eq, Hash, PartialEq)]
 struct ConflictingPackagePair(BuildIdent, BuildIdent);
+
+/// A struct with the two variants needed to calculate a build digest for a
+/// package as well as build the package.
+struct VariantPair<V1, V2> {
+    input_variant: V1,
+    resolved_variant: V2,
+}
+
+impl<V1, V2> Variant for VariantPair<V1, V2>
+where
+    V2: Variant,
+{
+    #[inline]
+    fn options(&self) -> std::borrow::Cow<'_, OptionMap> {
+        self.resolved_variant.options()
+    }
+
+    #[inline]
+    fn additional_requirements(&self) -> std::borrow::Cow<'_, spk_schema::RequirementsList> {
+        self.resolved_variant.additional_requirements()
+    }
+}
+
+impl<V1, V2> InputVariant for VariantPair<V1, V2>
+where
+    V1: Variant,
+    V2: Variant,
+{
+    type Output = V1;
+
+    #[inline]
+    fn input_variant(&self) -> &Self::Output {
+        &self.input_variant
+    }
+}
 
 /// Builds a binary package.
 ///
@@ -224,7 +260,7 @@ where
         repo: &R,
     ) -> Result<(Recipe::Output, HashMap<Component, spfs::encoding::Digest>)>
     where
-        V: Variant,
+        V: Variant + Clone,
         R: std::ops::Deref<Target = T>,
         T: storage::Repository<Recipe = Recipe> + ?Sized,
         <T as storage::Storage>::Package: PackageMut,
@@ -244,7 +280,7 @@ where
         variant: V,
     ) -> Result<(Recipe::Output, HashMap<Component, spfs::encoding::Digest>)>
     where
-        V: Variant,
+        V: Variant + Clone,
     {
         self.environment.clear();
         let mut runtime = spfs::active_runtime().await?;
@@ -276,6 +312,7 @@ where
             .extend(solution.to_environment(Some(std::env::vars())));
 
         let full_variant = variant
+            .clone()
             .with_overrides(solution.options().clone())
             // original options to be reapplied. It feels like this
             // shouldn't be necessary but I've not been able to isolate what
@@ -365,9 +402,13 @@ where
         runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
 
-        let package = self
-            .recipe
-            .generate_binary_build(&full_variant, &solution)?;
+        let package = self.recipe.generate_binary_build(
+            &VariantPair {
+                input_variant: &variant,
+                resolved_variant: &full_variant,
+            },
+            &solution,
+        )?;
         self.validate_generated_package(&solution, &package)?;
         let components = self
             .build_and_commit_artifacts(&package, full_variant.options())

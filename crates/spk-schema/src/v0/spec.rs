@@ -44,6 +44,7 @@ use crate::{
     EnvOp,
     Error,
     Inheritance,
+    InputVariant,
     InstallSpec,
     LocalSource,
     Opt,
@@ -463,7 +464,7 @@ impl Recipe for Spec<VersionIdent> {
 
     fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
-        V: Variant,
+        V: InputVariant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
@@ -583,7 +584,7 @@ impl Recipe for Spec<VersionIdent> {
         // Calculate the digest from the non-updated spec so it isn't affected
         // by `build_env`. The digest is expected to be based solely on the
         // input options and recipe.
-        let digest = self.resolve_options(variant)?.digest();
+        let digest = self.resolve_options(variant.input_variant())?.digest();
         Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
     }
 }
