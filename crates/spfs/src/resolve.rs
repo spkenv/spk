@@ -12,7 +12,8 @@ use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 
 use super::config::get_config;
-use crate::storage::fs::RenderSummary;
+use crate::storage::fallback::FallbackProxy;
+use crate::storage::fs::{ManifestRenderPath, RenderSummary};
 use crate::storage::prelude::*;
 use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
 
@@ -173,18 +174,21 @@ pub async fn compute_object_manifest(
     }
 }
 
-/// Compile the set of directories to be overlayed for a runtime.
+/// Compile the set of directories to be overlaid for a runtime.
 ///
 /// These are returned as a list, from bottom to top.
 ///
 /// If `skip_runtime_save` is true, the runtime will not be saved, even if
 /// the `flattened_layers` property is modified. Only pass true here if the
 /// runtime is unconditionally saved shortly after calling this function.
-pub(crate) async fn resolve_overlay_dirs(
+pub(crate) async fn resolve_overlay_dirs<R>(
     runtime: &mut runtime::Runtime,
-    repo: &storage::fs::FSRepository,
+    repo: R,
     skip_runtime_save: bool,
-) -> Result<Vec<graph::Manifest>> {
+) -> Result<Vec<graph::Manifest>>
+where
+    R: Repository + ManifestRenderPath,
+{
     enum ResolvedManifest {
         Existing {
             order: usize,
@@ -226,7 +230,7 @@ pub(crate) async fn resolve_overlay_dirs(
         }
     }
 
-    let layers = resolve_stack_to_layers_with_repo(runtime.status.stack.iter(), repo).await?;
+    let layers = resolve_stack_to_layers_with_repo(runtime.status.stack.iter(), &repo).await?;
     let mut manifests = Vec::with_capacity(layers.len());
     for (index, layer) in layers.iter().enumerate() {
         manifests.push(ResolvedManifest::Existing {
@@ -334,9 +338,10 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
     skip_runtime_save: bool,
 ) -> Result<RenderResult> {
     let config = get_config()?;
-    let repo = config.get_local_repository().await?;
+    let (repo, remotes) = tokio::try_join!(config.get_local_repository(), config.list_remotes())?;
+    let fallback_repo = FallbackProxy::new(repo, remotes);
 
-    let manifests = resolve_overlay_dirs(runtime, &repo, skip_runtime_save).await?;
+    let manifests = resolve_overlay_dirs(runtime, &fallback_repo, skip_runtime_save).await?;
     let to_render = manifests.iter().map(|m| m.digest()).try_collect()?;
     match render_via_subcommand(to_render).await? {
         Some(render_result) => Ok(render_result),
@@ -345,7 +350,7 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
             // the paths rendered here.
             let paths_rendered = manifests
                 .iter()
-                .map(|m| repo.manifest_render_path(m))
+                .map(|m| fallback_repo.manifest_render_path(m))
                 .try_collect()?;
             Ok(RenderResult {
                 paths_rendered,

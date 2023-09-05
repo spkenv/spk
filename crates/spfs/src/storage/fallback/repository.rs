@@ -10,7 +10,7 @@ use relative_path::RelativePath;
 
 use crate::config::ToAddress;
 use crate::prelude::*;
-use crate::storage::fs::{FSHashStore, FSRepository, RenderStore};
+use crate::storage::fs::{FSHashStore, FSRepository, ManifestRenderPath, RenderStore};
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{EntryType, LocalRepository};
 use crate::tracking::BlobRead;
@@ -351,5 +351,11 @@ impl LocalRepository for FallbackProxy {
     #[inline]
     fn render_store(&self) -> Result<&RenderStore> {
         self.primary.render_store()
+    }
+}
+
+impl ManifestRenderPath for FallbackProxy {
+    fn manifest_render_path(&self, manifest: &graph::Manifest) -> Result<std::path::PathBuf> {
+        self.primary.manifest_render_path(manifest)
     }
 }
