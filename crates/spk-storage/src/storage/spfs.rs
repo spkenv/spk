@@ -239,7 +239,7 @@ impl Storage for SPFSRepository {
 
         let builds: HashSet<_> = spec_tags
             .into_iter()
-            .chain(package_tags.into_iter())
+            .chain(package_tags)
             .filter_map(|entry| match entry {
                 Ok(EntryType::Tag(name))
                     if !name.starts_with(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX) =>
@@ -542,6 +542,9 @@ impl Storage for SPFSRepository {
         // the only failures otherwise was `PackageNotFoundError`, then return
         // success. Since something was deleted then the package was
         // technically "found."
+        //
+        // Allow manual_try_fold since this logic can't short-circuit all errors.
+        #[allow(clippy::manual_try_fold)]
         [
             component_tags_result,
             build_recipe_tags_result,

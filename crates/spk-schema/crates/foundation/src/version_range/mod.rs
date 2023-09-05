@@ -445,7 +445,7 @@ impl Ranged for WildcardRange {
             .into_iter()
             .map(|p| p.unwrap_or(0))
             .collect_vec();
-        Some(Version::from_parts(parts.into_iter()))
+        Some(Version::from_parts(parts))
     }
 
     fn less_than(&self) -> Option<Version> {
@@ -481,7 +481,7 @@ impl Ranged for WildcardRange {
         if new_parts.is_empty() {
             None
         } else {
-            Some(Version::from_parts(new_parts.into_iter()))
+            Some(Version::from_parts(new_parts))
         }
     }
 

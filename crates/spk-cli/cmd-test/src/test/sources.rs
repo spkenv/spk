@@ -52,7 +52,7 @@ impl<'a> PackageSourceTester<'a> {
         &mut self,
         repos: impl IntoIterator<Item = Arc<storage::RepositoryHandle>>,
     ) -> &mut Self {
-        self.repos.extend(repos.into_iter());
+        self.repos.extend(repos);
         self
     }
 

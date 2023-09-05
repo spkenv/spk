@@ -261,7 +261,7 @@ pub trait Repository: Storage + Sync {
         let concrete_builds = self.get_concrete_package_builds(pkg);
         let embedded_builds = self.get_embedded_package_builds(pkg);
         let (mut concrete, embedded) = tokio::try_join!(concrete_builds, embedded_builds)?;
-        concrete.extend(embedded.into_iter());
+        concrete.extend(embedded);
         Ok(concrete.into_iter().collect())
     }
 

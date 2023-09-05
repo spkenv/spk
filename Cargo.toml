@@ -20,6 +20,7 @@ members = [
     "crates/spk-storage",
     "crates/spk",
 ]
+resolver = "2"
 
 [workspace.package]
 authors = [

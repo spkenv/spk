@@ -496,7 +496,7 @@ pub fn parse_version<S: AsRef<str>>(version: S) -> Result<Version> {
         }
     }
 
-    let mut v = Version::from_parts(parts.into_iter());
+    let mut v = Version::from_parts(parts);
     v.pre = parse_tag_set(pre)?;
     v.post = parse_tag_set(post)?;
     Ok(v)

@@ -386,7 +386,7 @@ impl Solution {
             );
         }
 
-        out.extend(self.options.to_environment().into_iter());
+        out.extend(self.options.to_environment());
         out
     }
 
