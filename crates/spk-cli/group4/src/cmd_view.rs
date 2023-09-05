@@ -60,6 +60,10 @@ pub struct View {
     #[clap(flatten)]
     solver: flags::Solver,
 
+    /// Sorts packages by package name in ascending order
+    #[clap(short, long)]
+    sort: bool,
+
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
 
@@ -171,7 +175,11 @@ impl View {
         println!(
             "{}",
             solution
-                .format_solution_with_highest_versions(self.verbose, solver.repositories())
+                .format_solution_with_highest_versions(
+                    self.verbose,
+                    solver.repositories(),
+                    self.sort
+                )
                 .await?
         );
         Ok(0)

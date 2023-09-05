@@ -7,6 +7,7 @@ use std::iter::FromIterator;
 use std::sync::Arc;
 
 use colored::Colorize;
+use itertools::Itertools;
 use spfs::Digest;
 use spk_schema::foundation::format::{
     FormatChangeOptions,
@@ -411,13 +412,14 @@ impl Solution {
         &self,
         verbosity: u8,
         repos: &[Arc<RepositoryHandle>],
+        sort: bool,
     ) -> Result<String> {
         if self.is_empty() {
             return Ok(SOLUTION_FORMAT_EMPTY_REPORT.to_string());
         }
         let highest_versions = self.get_all_highest_package_versions(repos).await?;
 
-        Ok(self.format_solution_with_padding_and_highest(verbosity, &highest_versions))
+        Ok(self.format_solution_with_padding_and_highest(verbosity, &highest_versions, sort))
     }
 
     fn format_solution_without_padding_or_highest(&self, verbosity: u8) -> String {
@@ -454,12 +456,17 @@ impl Solution {
         &self,
         verbosity: u8,
         highest_versions: &HashMap<PkgNameBuf, Arc<Version>>,
+        sort: bool,
     ) -> String {
         let mut out = SOLUTION_FORMAT_HEADING.to_string();
+        let required_items = if sort {
+            self.items().sorted_by_key(|item| item.spec.name())
+        } else {
+            // Convert back to vec once so that we can get an into_iter type
+            self.items().collect_vec().into_iter()
+        };
 
-        let required_items = self.items();
         let number_of_packages = required_items.len();
-
         let mut max_widths: Vec<usize> = vec![0, 0, 0, 0];
         let mut data: Vec<Vec<(usize, String)>> = Vec::with_capacity(number_of_packages);
 

@@ -1052,7 +1052,8 @@ impl DecisionFormatter {
                     self.settings.heading_prefix,
                     s.format_solution_with_highest_versions(
                         self.settings.verbosity,
-                        runtime.solver.repositories()
+                        runtime.solver.repositories(),
+                        false,
                     )
                     .await?
                 ));
