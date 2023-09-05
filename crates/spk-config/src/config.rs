@@ -17,6 +17,22 @@ static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(default)]
+pub struct Sentry {
+    /// Sentry DSN
+    pub dsn: String,
+
+    /// Sentry environment
+    pub environment: Option<String>,
+
+    /// Environment variable name to use as sentry username, if set.
+    ///
+    /// This is useful in CI if the CI system has a variable that contains
+    /// the username of the person who triggered the build.
+    pub username_override_var: Option<String>,
+}
+
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
 pub struct Solver {
     /// If true, the solver will run impossible request checks on the initial requests
     pub check_impossible_initial: bool,
@@ -55,6 +71,30 @@ pub struct Solver {
     /// Set the limit for how many of the most frequent errors are
     /// displayed in solve stats reports
     pub max_frequent_errors: usize,
+
+    /// Comma-separated list of option names to promote to the front of the
+    /// build key order.
+    pub build_key_name_order: String,
+
+    /// Comma-separated list of option names to promote to the front of the
+    /// resolve order.
+    pub request_priority_order: String,
+}
+
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Statsd {
+    /// Host name of the statsd server
+    pub host: String,
+
+    /// Port number of the statsd server
+    pub port: u16,
+
+    /// Prefix to add to all statsd metrics
+    pub prefix: String,
+
+    /// Format to use for statsd metrics
+    pub format: String,
 }
 
 /// Configuration values for spk.
@@ -64,7 +104,9 @@ pub struct Config {
     // These sub-types should aim to only have one level of
     // values within them, otherwise they become impossible to address
     // with environment variables.
+    pub sentry: Sentry,
     pub solver: Solver,
+    pub statsd: Statsd,
 }
 
 impl Config {

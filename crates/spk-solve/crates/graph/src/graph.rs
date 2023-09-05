@@ -4,7 +4,6 @@
 
 use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-use std::ffi::OsString;
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -48,9 +47,9 @@ const BRANCH_ALREADY_ATTEMPTED: &str = "Branch already attempted";
 /// front of the request list.
 static REQUESTS_PRIORITY_ORDER: Lazy<PromotionPatterns> = Lazy::new(|| {
     PromotionPatterns::new(
-        std::env::var_os("SPK_REQUEST_PRIORITY_ORDER")
-            .unwrap_or_else(|| OsString::from("*platform*"))
-            .to_string_lossy()
+        spk_config::get_config()
+            .map(|c| c.solver.request_priority_order.clone())
+            .unwrap_or_else(|_| "".to_string())
             .as_ref(),
     )
 });

@@ -21,27 +21,21 @@ const STATSD_FORMAT: &str = "statsd";
 const LIBRATO_FORMAT: &str = "statsd-exporter-librato";
 
 static METRICS_CLIENT: Lazy<Option<MetricsClient>> = Lazy::new(|| {
-    // TODO: add the default value to a config file, once spk has one
-    let Some(host) = option_env!("SPK_METRICS_STATSD_HOST") else {
+    let Ok(config) = spk_config::get_config() else {
         return None;
     };
-    // TODO: add the default value to a config file, once spk has one
-    let Some(port) = option_env!("SPK_METRICS_STATSD_PORT") else {
-        return None;
-    };
-    // TODO: add the default value to a config file, once spk has one
-    let Some(prefix) = option_env!("SPK_METRICS_STATSD_PREFIX") else {
-        return None;
-    };
-    // TODO: add the default value to a config file, once spk has one
-    let Some(Ok(statsd_format)) =
-        option_env!("SPK_METRICS_STATSD_FORMAT").map(StatsdFormat::from_str)
-    else {
+    let statsd_config = &config.statsd;
+
+    let Ok(statsd_format) = StatsdFormat::from_str(&statsd_config.format) else {
         return None;
     };
 
-    let host_port = format!("{host}:{port}");
-    let statsd_client = match Client::new(host_port.clone(), prefix) {
+    let host_port = format!(
+        "{host}:{port}",
+        host = statsd_config.host,
+        port = statsd_config.port
+    );
+    let statsd_client = match Client::new(host_port.clone(), &statsd_config.prefix) {
         Ok(c) => Some(c),
         Err(err) => {
             // If anything goes wrong, sending metrics to statsd is disabled.
@@ -129,7 +123,7 @@ impl FromStr for StatsdFormat {
                     .map(ToString::to_string)
                     .collect::<Vec<String>>()
                     .join(", ");
-                Err(Error::String(format!("Unsupported statsd metric format: {input}. Please specify SPK_METRICS_STATSD_FORMAT, before re-compiling spk, as one of: {valid_values}")))
+                Err(Error::String(format!("Unsupported statsd metric format: {input}. Please specify SPK_STATSD_FORMAT as one of: {valid_values}")))
             }
         }
     }

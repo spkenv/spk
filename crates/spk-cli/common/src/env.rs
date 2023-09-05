@@ -102,18 +102,31 @@ pub async fn current_env() -> crate::Result<Solution> {
 
 #[cfg(feature = "sentry")]
 pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
-    // Call this before `sentry::init` to avoid potential `SIGSEGV`.
-    let username = get_username_for_sentry();
+    let Ok(config) = spk_config::get_config() else {
+        return None;
+    };
 
-    // When using the sentry feature it is expected that the DSN
-    // and other configuration is provided at *compile* time.
+    let username = config
+        .sentry
+        .username_override_var
+        .as_ref()
+        .map(std::env::var)
+        .and_then(Result::ok)
+        .unwrap_or_else(|| {
+            // Call this before `sentry::init` to avoid potential `SIGSEGV`.
+            whoami::username()
+        });
+
     let guard = match catch_unwind(|| {
         sentry::init((
-            option_env!("SENTRY_DSN"),
+            config.sentry.dsn.as_str(),
             sentry::ClientOptions {
                 release: sentry::release_name!(),
-                environment: option_env!("SENTRY_ENVIRONMENT")
-                    .map(ToString::to_string)
+                environment: config
+                    .sentry
+                    .environment
+                    .as_ref()
+                    .map(ToOwned::to_owned)
                     .map(std::borrow::Cow::Owned),
                 before_send: Some(std::sync::Arc::new(|mut event| {
                     // Remove ansi color codes from the event message
@@ -167,23 +180,6 @@ pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
     });
 
     Some(guard)
-}
-
-#[cfg(feature = "sentry")]
-fn get_username_for_sentry() -> String {
-    // If this is being run from an automated process run by a
-    // non-human user, e.g. gitlab CI job, then use the configured env
-    // var name to get the username of the person that triggered the
-    // job. Otherwise get the username of the person who ran this spk
-    // instance.
-    let username_override_var = option_env!("SENTRY_USERNAME_OVERRIDE_VAR");
-    username_override_var
-        .map(std::env::var)
-        .and_then(Result::ok)
-        .unwrap_or_else(|| {
-            // Call this before `sentry::init` to avoid potential `SIGSEGV`.
-            whoami::username()
-        })
 }
 
 #[cfg(feature = "sentry")]
