@@ -61,7 +61,7 @@ pub struct View {
     solver: flags::Solver,
 
     /// Sorts packages by package name in ascending order
-    #[clap(short = 's', long)]
+    #[clap(short, long)]
     sort: bool,
 
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
