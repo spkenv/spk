@@ -7,8 +7,8 @@ use std::iter::FromIterator;
 use std::sync::Arc;
 
 use colored::Colorize;
-use spfs::Digest;
 use itertools::Itertools;
+use spfs::Digest;
 use spk_schema::foundation::format::{
     FormatChangeOptions,
     FormatOptionMap,

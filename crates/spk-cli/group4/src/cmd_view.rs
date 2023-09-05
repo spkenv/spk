@@ -175,7 +175,11 @@ impl View {
         println!(
             "{}",
             solution
-                .format_solution_with_highest_versions(self.verbose, solver.repositories())
+                .format_solution_with_highest_versions(
+                    self.verbose,
+                    solver.repositories(),
+                    self.sort
+                )
                 .await?
         );
         Ok(0)
