@@ -7,7 +7,7 @@ use std::fmt::Write;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::version::Compatibility;
-use spk_schema_ident::BuildIdent;
+use spk_schema_ident::{BuildIdent, PinPolicy};
 
 use crate::foundation::option_map::OptionMap;
 use crate::ident::Request;
@@ -125,46 +125,57 @@ impl RequirementsList {
         for pkg in resolved {
             by_name.insert(pkg.name(), pkg);
         }
-        for request in self.0.iter_mut() {
-            match request {
-                Request::Pkg(request) => {
-                    if request.pin.is_none() {
-                        continue;
-                    }
-                    match by_name.get(request.pkg.name()) {
+        self.0 = std::mem::take(&mut self.0).into_iter().filter_map(|request| {
+            match &request {
+                Request::Pkg(pkg_request) => {
+                    match by_name.get(pkg_request.pkg.name()) {
+                        None if pkg_request.pin.is_none() && pkg_request.pin_policy == PinPolicy::IfPresentInBuildEnv => {
+                            None
+                        }
+                        _ if pkg_request.pin.is_none() => {
+                            Some(Ok(request))
+                        }
+                        None if pkg_request.pin_policy == PinPolicy::IfPresentInBuildEnv => {
+                            // This package was not in the build environment,
+                            // but the pin policy allows this.
+                            None
+                        }
                         None => {
-                            return Err(Error::String(
-                                format!("Cannot resolve package using 'fromBuildEnv', package not present: {}\nIs it missing from your package build options?", request.pkg.name)
-                            ));
+                            Some(Err(Error::String(
+                                format!("Cannot resolve package using 'fromBuildEnv', package not present: {}\nIs it missing from your package build options?", pkg_request.pkg.name)
+                            )))
                         }
                         Some(resolved) => {
-                            let rendered = request.render_pin(resolved)?;
-                            let _ = std::mem::replace(request, rendered);
+                            Some(pkg_request.render_pin(resolved).map_err(Into::into).map(Request::Pkg))
                         }
                     }
                 }
-                Request::Var(request) => {
-                    if !request.value.is_from_build_env() {
-                        continue;
+                Request::Var(var_request) => {
+                    if !var_request.value.is_from_build_env() {
+                        return Some(Ok(request));
                     }
-                    let opts = match request.var.namespace() {
+                    let opts = match var_request.var.namespace() {
                         Some(ns) => options.package_options(ns),
                         None => options.clone(),
                     };
-                    match opts.get(request.var.without_namespace()) {
+                    match opts.get(var_request.var.without_namespace()) {
+                        None if var_request.value.is_from_build_env_if_present() => {
+                            // This variable was not in the build environment,
+                            // but the pin policy allows this.
+                            None
+                        }
                         None => {
-                            return Err(Error::String(
-                                format!("Cannot resolve variable using 'fromBuildEnv', variable not set: {}\nIs it missing from the package build options?", request.var)
-                            ));
+                            Some(Err(Error::String(
+                                format!("Cannot resolve variable using 'fromBuildEnv', variable not set: {}\nIs it missing from the package build options?", var_request.var)
+                            )))
                         }
                         Some(opt) => {
-                            let rendered = request.render_pin(opt.as_str())?;
-                            let _ = std::mem::replace(request, rendered);
+                            Some(var_request.render_pin(opt.as_str()).map_err(Into::into).map(Request::Var))
                         }
                     }
                 }
             }
-        }
+        }).collect::<Result<Vec<_>>>()?;
         Ok(())
     }
 

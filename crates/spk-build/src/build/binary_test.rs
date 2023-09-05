@@ -238,6 +238,199 @@ async fn test_build_package_pinning() {
 
 #[rstest]
 #[tokio::test]
+async fn test_build_package_pinning_optional_requirement() {
+    let rt = spfs_runtime().await;
+    let dep1_spec = recipe!(
+        {"pkg": "dep1/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
+    );
+    let dep2_spec = recipe!(
+        {"pkg": "dep2/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
+    );
+    let spec = recipe!(
+        {
+            "pkg": "top/1.0.0",
+            "build": {
+                "script": [
+                    "touch /spfs/top-file",
+                ],
+                "variants": [
+                    { "dep1": "1.0.0" },
+                    { "dep2": "1.0.0" },
+                ],
+            },
+            "install": {"requirements": [
+                {"pkg": "dep1", "fromBuildEnv": true, "ifPresentInBuildEnv": true},
+                {"pkg": "dep2", "fromBuildEnv": true, "ifPresentInBuildEnv": true},
+            ]},
+        }
+    );
+
+    for dep_spec in [dep1_spec, dep2_spec] {
+        rt.tmprepo.publish_recipe(&dep_spec).await.unwrap();
+
+        BinaryPackageBuilder::from_recipe(dep_spec)
+            .with_source(BuildSource::LocalPath(".".into()))
+            .with_repository(rt.tmprepo.clone())
+            .build_and_publish(option_map! {}, &*rt.tmprepo)
+            .await
+            .unwrap();
+    }
+
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
+
+    let default_variants = spec.default_variants();
+    for (variant, expected_dep) in default_variants.iter().zip(["dep1", "dep2"].iter()) {
+        let (spec, _) = BinaryPackageBuilder::from_recipe(spec.clone())
+            .with_source(BuildSource::LocalPath(".".into()))
+            .with_repository(rt.tmprepo.clone())
+            .build_and_publish(variant, &*rt.tmprepo)
+            .await
+            .unwrap();
+
+        let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
+        let req = spec.runtime_requirements().first().unwrap().clone();
+        match req {
+            Request::Pkg(req) => {
+                assert_eq!(req.pkg.to_string(), format!("{expected_dep}/Binary:1.0.0"));
+            }
+            _ => panic!("expected a package request"),
+        }
+    }
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_package_pinning_optional_requirement_without_frombuildenv() {
+    let rt = spfs_runtime().await;
+    let dep1_spec = recipe!(
+        {"pkg": "dep1/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
+    );
+    let dep2_spec = recipe!(
+        {"pkg": "dep2/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
+    );
+    let spec = recipe!(
+        {
+            "pkg": "top/1.0.0",
+            "build": {
+                "script": [
+                    "touch /spfs/top-file",
+                ],
+                "variants": [
+                    { "dep1": "1.0.0" },
+                    { "dep2": "1.0.0" },
+                ],
+            },
+            "install": {"requirements": [
+                {"pkg": "dep1", "ifPresentInBuildEnv": true},
+                {"pkg": "dep2", "ifPresentInBuildEnv": true},
+            ]},
+        }
+    );
+
+    for dep_spec in [dep1_spec, dep2_spec] {
+        rt.tmprepo.publish_recipe(&dep_spec).await.unwrap();
+
+        BinaryPackageBuilder::from_recipe(dep_spec)
+            .with_source(BuildSource::LocalPath(".".into()))
+            .with_repository(rt.tmprepo.clone())
+            .build_and_publish(option_map! {}, &*rt.tmprepo)
+            .await
+            .unwrap();
+    }
+
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
+
+    let default_variants = spec.default_variants();
+    for (variant, expected_dep) in default_variants.iter().zip(["dep1", "dep2"].iter()) {
+        let (spec, _) = BinaryPackageBuilder::from_recipe(spec.clone())
+            .with_source(BuildSource::LocalPath(".".into()))
+            .with_repository(rt.tmprepo.clone())
+            .build_and_publish(variant, &*rt.tmprepo)
+            .await
+            .unwrap();
+
+        let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
+        let req = spec.runtime_requirements().first().unwrap().clone();
+        match req {
+            Request::Pkg(req) => {
+                assert_eq!(req.pkg.to_string(), *expected_dep);
+            }
+            _ => panic!("expected a package request"),
+        }
+    }
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_var_pinning_optional_requirement() {
+    let rt = spfs_runtime().await;
+    let dep2_spec = recipe!(
+        {"pkg": "dep2/1.0.0", "build": {
+           "options": [{"var": "color"}],
+           "script": "touch /spfs/dep-file"}
+        }
+    );
+    let spec = recipe!(
+        {
+            "pkg": "top/1.0.0",
+            "build": {
+                "script": [
+                    "touch /spfs/top-file",
+                ],
+                "variants": [
+                    { "dep2": "1.0.0" },
+                    { "dep2": "1.0.0", "dep2.color": "blue" },
+                ],
+            },
+            "install": {"requirements": [
+                {"pkg": "dep2", "fromBuildEnv": true},
+                {"var": "dep2.color", "fromBuildEnv": true, "ifPresentInBuildEnv": true},
+            ]},
+        }
+    );
+
+    for dep_spec in [dep2_spec] {
+        rt.tmprepo.publish_recipe(&dep_spec).await.unwrap();
+
+        BinaryPackageBuilder::from_recipe(dep_spec)
+            .with_source(BuildSource::LocalPath(".".into()))
+            .with_repository(rt.tmprepo.clone())
+            .build_and_publish(option_map! {}, &*rt.tmprepo)
+            .await
+            .unwrap();
+    }
+
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
+
+    let default_variants = spec.default_variants();
+    for (variant, expected_dep) in default_variants.iter().zip(
+        [
+            // first variant should not have any var requirements
+            None,
+            // second variant does
+            Some("var: dep2.color/blue".to_string()),
+        ]
+        .into_iter(),
+    ) {
+        let (spec, _) = BinaryPackageBuilder::from_recipe(spec.clone())
+            .with_source(BuildSource::LocalPath(".".into()))
+            .with_repository(rt.tmprepo.clone())
+            .build_and_publish(variant, &*rt.tmprepo)
+            .await
+            .unwrap();
+
+        let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
+        let req = spec
+            .runtime_requirements()
+            .iter()
+            .find(|r| matches!(r, Request::Var(_)))
+            .map(ToString::to_string);
+        assert_eq!(req, expected_dep);
+    }
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_build_package_missing_deps() {
     let rt = spfs_runtime().await;
     let spec = recipe!(
