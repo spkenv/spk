@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::collections::{HashMap, VecDeque};
-use std::convert::TryFrom;
 use std::ffi::OsString;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -21,7 +20,7 @@ use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 
 use crate::build_key::BuildKey;
-use crate::{Error, Result};
+use crate::{Error, PromotionPatterns, Result};
 
 #[cfg(test)]
 #[path = "./package_iterator_test.rs"]
@@ -30,21 +29,22 @@ mod package_iterator_test;
 /// Allows control of the order option names are using in build key
 /// generation. Names in this list will be put at the front of the
 /// list of option names used to generate keys for ordering builds
-/// during a solve step. This does not have contain all the possible
+/// during a solve step. This does not have to contain all the possible
 /// option names. But names not in this list will come after these
 /// ones, in alphabetical order so their relative ordering is
 /// consistent across packages.
+///
+/// Wildcard globs are supported, such as `"*platform*"` will match
+/// the package name `"spi-platform"`.
 //
 // TODO: add the default value to a config file, once spk has one
-static BUILD_KEY_NAME_ORDER: Lazy<Vec<OptNameBuf>> = Lazy::new(|| {
-    std::env::var_os("SPK_BUILD_OPTION_KEY_ORDER")
-        .unwrap_or_else(|| OsString::from("gcc,python"))
-        .to_string_lossy()
-        .to_string()
-        .split(',')
-        .map(|n| OptNameBuf::try_from(n).map_err(crate::Error::from))
-        .filter_map(Result::ok)
-        .collect()
+static BUILD_KEY_NAME_ORDER: Lazy<PromotionPatterns> = Lazy::new(|| {
+    PromotionPatterns::new(
+        std::env::var_os("SPK_BUILD_OPTION_KEY_ORDER")
+            .unwrap_or_else(|| OsString::from("gcc,python"))
+            .to_string_lossy()
+            .as_ref(),
+    )
 });
 
 type BuildWithRepos = HashMap<RepositoryNameBuf, (Arc<Spec>, PackageSource)>;
@@ -603,11 +603,6 @@ impl SortedBuildIterator {
         // build keys. This gives them a bigger impact on how the
         // builds are ordered when they are sorted. Only names in both
         // BUILD_KEY_NAME_ORDER and key_entry_names are added here.
-        let mut ordered_names: Vec<_> = BUILD_KEY_NAME_ORDER
-            .iter()
-            .filter(|name| key_entry_names.contains(name))
-            .cloned()
-            .collect::<Vec<_>>();
 
         // The rest of the names not already mentioned in the
         // important BUILD_KEY_NAME_ORDER are added next. They are
@@ -617,11 +612,8 @@ impl SortedBuildIterator {
         // names should be added to the configuration
         // BUILD_KEY_NAME_ORDER to ensure they fall in the correct
         // position for a site's spk setup.
-        for name in key_entry_names {
-            if !BUILD_KEY_NAME_ORDER.contains(&name) {
-                ordered_names.push(name.clone());
-            }
-        }
+        let mut ordered_names = key_entry_names.clone();
+        BUILD_KEY_NAME_ORDER.promote_names(ordered_names.as_mut_slice(), |n| n);
 
         // Sort the builds by their generated keys generated from the
         // ordered names and values worth including.

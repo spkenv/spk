@@ -4,6 +4,7 @@
 
 use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+use std::ffi::OsString;
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -30,7 +31,7 @@ use spk_schema::{
     Spec,
     SpecRecipe,
 };
-use spk_solve_package_iterator::PackageIterator;
+use spk_solve_package_iterator::{PackageIterator, PromotionPatterns};
 use spk_solve_solution::{PackageSource, Solution};
 use thiserror::Error;
 
@@ -41,6 +42,18 @@ mod graph_test;
 pub static DEAD_STATE: Lazy<Arc<State>> = Lazy::new(State::default_state);
 
 const BRANCH_ALREADY_ATTEMPTED: &str = "Branch already attempted";
+
+/// Allow the request order found as defined in package specs to be reordered,
+/// moving package names that match entries in this list of patterns to the
+/// front of the request list.
+static REQUESTS_PRIORITY_ORDER: Lazy<PromotionPatterns> = Lazy::new(|| {
+    PromotionPatterns::new(
+        std::env::var_os("SPK_REQUEST_PRIORITY_ORDER")
+            .unwrap_or_else(|| OsString::from("*platform*"))
+            .to_string_lossy()
+            .as_ref(),
+    )
+});
 
 #[derive(Debug, Error)]
 #[allow(clippy::large_enum_variant)]
@@ -860,6 +873,11 @@ impl RequestPackage {
             // will be added to the merged request when this package is
             // next selected by the solver.
             new_requests.push(Arc::new(self.request.clone().into()));
+
+            // Apply the configured request priority ordering to the request
+            // list.
+            REQUESTS_PRIORITY_ORDER
+                .promote_names(new_requests.as_mut_slice(), |req| req.pkg.name().as_str());
         }
 
         if self.prioritize {

@@ -15,6 +15,7 @@ migration-to-components = [
 async-trait = { workspace = true }
 dyn-clone = { workspace = true }
 futures = { workspace = true }
+glob = { workspace = true }
 once_cell = { workspace = true }
 spk-solve-solution = { path = "../solution" }
 spk-schema = { path = "../../../spk-schema" }
