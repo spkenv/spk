@@ -117,8 +117,6 @@ pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
             whoami::username()
         });
 
-    // When using the sentry feature it is expected that the DSN
-    // and other configuration is provided at *compile* time.
     let guard = match catch_unwind(|| {
         sentry::init((
             config.sentry.dsn.as_str(),
