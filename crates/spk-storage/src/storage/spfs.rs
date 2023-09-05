@@ -569,7 +569,15 @@ impl Storage for SPFSRepository {
             (Err(err), _) => Err(err),
             (_, Err(err)) => Err(err),
         })
-        .map(|_| ())
+        .and_then(|deleted_something| {
+            if deleted_something {
+                Ok(())
+            } else {
+                Err(Error::SpkValidatorsError(
+                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
+                ))
+            }
+        })
     }
 }
 
