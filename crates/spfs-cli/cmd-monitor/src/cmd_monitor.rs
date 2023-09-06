@@ -102,8 +102,8 @@ impl CmdMonitor {
         }
 
         let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(config.monitor.worker_threads)
-            .max_blocking_threads(config.monitor.max_blocking_threads)
+            .worker_threads(config.monitor.worker_threads.get())
+            .max_blocking_threads(config.monitor.max_blocking_threads.get())
             .enable_all()
             .build()
             .context("Failed to establish async runtime")?;

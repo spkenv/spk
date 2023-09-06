@@ -209,8 +209,8 @@ impl CmdFuse {
         // cannot know if the full configuration of the filesystem is correct,
         // and there may be errors which only appear at runtime.
         let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(config.fuse.worker_threads)
-            .max_blocking_threads(config.fuse.max_blocking_threads)
+            .worker_threads(config.fuse.worker_threads.get())
+            .max_blocking_threads(config.fuse.max_blocking_threads.get())
             .enable_all()
             .build()
             .context("Failed to establish runtime")?;
