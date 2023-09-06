@@ -35,7 +35,7 @@ pub use environ::{AppendEnv, EnvComment, EnvOp, EnvPriority, OpKind, PrependEnv,
 pub use error::{Error, Result};
 pub use input_variant::InputVariant;
 pub use install_spec::InstallSpec;
-pub use lints::{InstallSpecKey, LintKind, LintMessage, LintedItem, Lints, V0SpecKey};
+pub use lints::{EnvOpKey, InstallSpecKey, LintKind, LintMessage, LintedItem, Lints, V0SpecKey};
 pub use option::{Inheritance, Opt};
 pub use package::{Package, PackageMut};
 pub use recipe::{BuildEnv, Recipe};
