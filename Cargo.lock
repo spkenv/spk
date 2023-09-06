@@ -3118,6 +3118,7 @@ dependencies = [
  "libc",
  "nix 0.26.2",
  "nonempty",
+ "num_cpus",
  "once_cell",
  "pin-project-lite",
  "procfs",

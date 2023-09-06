@@ -1,6 +1,8 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
@@ -17,6 +19,38 @@ mod config_test;
 
 const DEFAULT_USER_STORAGE: &str = "spfs";
 const FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
+
+fn default_fuse_worker_threads() -> NonZeroUsize {
+    let num_cpu = num_cpus::get();
+    // typically fuse does not need a huge number of threads
+    // and we want to allow for many spfs fuse instances running
+    // on a host without quickly consuming the thread limit
+    // Safety: num_cpus never returns a value of zero
+    unsafe { NonZeroUsize::new_unchecked(std::cmp::min(num_cpu, 8)) }
+}
+
+const fn default_fuse_max_blocking_threads() -> NonZeroUsize {
+    // the current default for tokio as of writing
+    // Safety: this is a hard-coded non-zero value
+    unsafe { NonZeroUsize::new_unchecked(512) }
+}
+
+fn default_monitor_worker_threads() -> NonZeroUsize {
+    let num_cpu = num_cpus::get();
+    // typically fuse does not need a huge number of threads
+    // and we want to allow for many spfs fuse instances running
+    // on a host without quickly consuming the thread limit
+    // Safety: num_cpus never returns a value of zero
+    unsafe { NonZeroUsize::new_unchecked(std::cmp::min(num_cpu, 2)) }
+}
+
+const fn default_monitor_max_blocking_threads() -> NonZeroUsize {
+    // the monitor runs in the background and does
+    // minimal work over time. It does not need a lot of
+    // blocking threads as it will work through things in time
+    // Safety: this is a hard-coded non-zero value
+    unsafe { NonZeroUsize::new_unchecked(2) }
+}
 
 static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
 
@@ -179,6 +213,44 @@ impl Filesystem {
     }
 }
 
+/// Configuration options for the fuse filesystem process
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Fuse {
+    #[serde(default = "default_fuse_worker_threads")]
+    pub worker_threads: NonZeroUsize,
+    #[serde(default = "default_fuse_max_blocking_threads")]
+    pub max_blocking_threads: NonZeroUsize,
+}
+
+impl Default for Fuse {
+    fn default() -> Self {
+        Self {
+            worker_threads: default_fuse_worker_threads(),
+            max_blocking_threads: default_fuse_max_blocking_threads(),
+        }
+    }
+}
+
+/// Configuration options for the monitor process
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Monitor {
+    #[serde(default = "default_monitor_worker_threads")]
+    pub worker_threads: NonZeroUsize,
+    #[serde(default = "default_monitor_max_blocking_threads")]
+    pub max_blocking_threads: NonZeroUsize,
+}
+
+impl Default for Monitor {
+    fn default() -> Self {
+        Self {
+            worker_threads: default_monitor_worker_threads(),
+            max_blocking_threads: default_monitor_max_blocking_threads(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
@@ -186,6 +258,8 @@ pub struct Config {
     pub storage: Storage,
     pub filesystem: Filesystem,
     pub remote: std::collections::HashMap<String, Remote>,
+    pub fuse: Fuse,
+    pub monitor: Monitor,
 }
 
 impl Config {

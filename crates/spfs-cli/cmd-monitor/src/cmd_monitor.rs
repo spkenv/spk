@@ -74,10 +74,13 @@ impl CommandName for CmdMonitor {
 }
 
 impl CmdMonitor {
-    pub fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
+    pub fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         // create an initial runtime that will wait for the
         // caller to signal that we are ready to start processing
         let rt = tokio::runtime::Builder::new_current_thread()
+            // this runtime only ever needs to wait for one io stream
+            // from the parent, and will then be shutdown in favor
+            // of a new runtime created after daemonization
             .max_blocking_threads(1)
             .enable_all()
             .build()
@@ -99,7 +102,8 @@ impl CmdMonitor {
         }
 
         let rt = tokio::runtime::Builder::new_multi_thread()
-            .max_blocking_threads(2)
+            .worker_threads(config.monitor.worker_threads.get())
+            .max_blocking_threads(config.monitor.max_blocking_threads.get())
             .enable_all()
             .build()
             .context("Failed to establish async runtime")?;
