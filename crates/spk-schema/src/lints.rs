@@ -8,12 +8,14 @@ use serde::{Deserialize, Serialize};
 pub enum LintKind {
     UnknownV0SpecKey,
     UnknownInstallSpecKey,
+    UnknownEnvOpKey,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Deserialize, Serialize)]
 pub enum LintMessage {
     UnknownV0SpecKey(V0SpecKey),
     UnknownInstallSpecKey(InstallSpecKey),
+    UnknownEnvOpKey(EnvOpKey),
 }
 
 impl LintMessage {
@@ -21,6 +23,7 @@ impl LintMessage {
         match self {
             Self::UnknownV0SpecKey(key) => key.message.clone(),
             Self::UnknownInstallSpecKey(key) => key.message.clone(),
+            Self::UnknownEnvOpKey(key) => key.message.clone(),
         }
     }
 }
@@ -53,6 +56,36 @@ impl V0SpecKey {
             }
         };
 
+        Self {
+            key: std::mem::take(&mut unknown_key.to_string()),
+            message: message.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Deserialize, Serialize)]
+pub struct EnvOpKey {
+    key: String,
+    message: String,
+}
+
+impl EnvOpKey {
+    pub fn new(unknown_key: &str) -> Self {
+        let mut message = format!("Unrecognized EnvOp key: {unknown_key}. ");
+        let mut corpus = CorpusBuilder::new().finish();
+
+        corpus.add_text("append");
+        corpus.add_text("comment");
+        corpus.add_text("prepend");
+        corpus.add_text("priority");
+        corpus.add_text("set");
+
+        match corpus.search(unknown_key, 0.6).first() {
+            Some(s) => message.push_str(format!("(Did you mean: '{}'?)", s.text).as_str()),
+            None => {
+                message.push_str(format!("(No similar keys found for: {}.)", unknown_key).as_str())
+            }
+        };
         Self {
             key: std::mem::take(&mut unknown_key.to_string()),
             message: message.to_string(),

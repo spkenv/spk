@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 use std::marker::PhantomData;
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::spec_ops::Named;
@@ -62,6 +63,9 @@ where
     D: Default,
 {
     fn lints(&mut self) -> Vec<LintMessage> {
+        for env in self.environment.iter_mut() {
+            self.lints.extend(std::mem::take(&mut env.lints));
+        }
         std::mem::take(&mut self.lints)
     }
 }
@@ -74,7 +78,7 @@ where
     requirements: RequirementsList,
     embedded: EmbeddedPackagesList,
     components: ComponentSpecList,
-    environment: EnvOpList,
+    environment: LintedItem<EnvOpList>,
     lints: Vec<LintMessage>,
     _phantom: PhantomData<D>,
 }
@@ -88,7 +92,11 @@ where
             requirements: value.requirements,
             embedded: value.embedded,
             components: value.components,
-            environment: value.environment,
+            environment: value
+                .environment
+                .iter()
+                .map(|l| l.item.clone())
+                .collect_vec(),
         }
     }
 }
@@ -284,7 +292,7 @@ where
                 "requirements" => self.requirements = map.next_value::<RequirementsList>()?,
                 "embedded" => self.embedded = map.next_value::<EmbeddedPackagesList>()?,
                 "components" => self.components = map.next_value::<ComponentSpecList>()?,
-                "environment" => self.environment = map.next_value::<EnvOpList>()?,
+                "environment" => self.environment = map.next_value::<LintedItem<EnvOpList>>()?,
                 unknown_config => {
                     self.lints
                         .push(LintMessage::UnknownInstallSpecKey(InstallSpecKey::new(
