@@ -79,8 +79,7 @@ pub struct Storage {
     /// is owned by a different user than the current user. Only applies to
     /// payloads readable by "other".
     pub allow_payload_sharing_between_users: bool,
-    // This name avoids underscores to allow it to be set from the env.
-    pub tagnamespace: Option<PathBuf>,
+    pub tag_namespace: Option<PathBuf>,
 }
 
 impl Storage {
@@ -100,7 +99,7 @@ impl Default for Storage {
                 .map(|data| data.join(DEFAULT_USER_STORAGE))
                 .unwrap_or_else(|| PathBuf::from(FALLBACK_STORAGE_ROOT)),
             allow_payload_sharing_between_users: false,
-            tagnamespace: None,
+            tag_namespace: None,
         }
     }
 }
@@ -402,7 +401,7 @@ impl Config {
             source,
         })?;
 
-        local_repo.set_tag_namespace(self.storage.tagnamespace.clone());
+        local_repo.set_tag_namespace(self.storage.tag_namespace.clone());
 
         Ok(local_repo)
     }
