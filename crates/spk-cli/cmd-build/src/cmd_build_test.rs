@@ -233,3 +233,59 @@ build:
         .expect_err("Expected build to fail");
     }
 }
+
+#[rstest]
+#[tokio::test]
+async fn test_package_with_circular_dep_can_build_major_version_change(tmpdir: tempfile::TempDir) {
+    // A package that depends on itself should be able to build a new major
+    // version of itself, as in something not compatible with the version
+    // being brought in via the circular dependency.
+    let _rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/1.0.0
+
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/version.txt
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+pkg: middle/1.0.0
+
+build:
+  options:
+    - pkg: circ
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: circ
+      fromBuildEnv: true
+"#,
+    );
+
+    // Attempt to build a 2.0.0 version of circ, which shouldn't prevent
+    // middle from being able to resolve the 1.0.0 version of circ.
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/2.0.0
+
+build:
+  options:
+    - pkg: middle
+  script:
+    - echo "2.0.0" > $PREFIX/version.txt
+"#,
+    );
+}
