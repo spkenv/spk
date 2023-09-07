@@ -140,7 +140,7 @@ async fn test_build_with_circular_dependency(
     let _rt = spfs_runtime().await;
 
     // Start out with a package with no dependencies.
-    let (_, r) = try_build_package!(
+    let r = try_build_package!(
         tmpdir,
         "one.spk.yaml",
         br#"
@@ -149,7 +149,7 @@ pkg: one/1.0.0
 build:
   script:
     - "true"
-"#
+"#,
         "--solver-to-run",
         solver_to_run
     );
@@ -157,7 +157,7 @@ build:
     r.expect("Expected initial build of one to succeed");
 
     // Build a package that depends on "one".
-    let (_, r) = try_build_package!(
+    let r = try_build_package!(
         tmpdir,
         "two.spk.yaml",
         br#"
@@ -181,7 +181,7 @@ install:
     r.expect("Expected build of two to succeed");
 
     // Now build a newer version of "one" that depends on "two".
-    let (_, r) = try_build_package!(
+    let r = try_build_package!(
         tmpdir,
         "one.spk.yaml",
         br#"
@@ -218,7 +218,7 @@ async fn test_build_with_circular_dependency_allow_with_flag(
     let _rt = spfs_runtime().await;
 
     // Start out with a package with no dependencies.
-    let (_, r) = try_build_package!(
+    let r = try_build_package!(
         tmpdir,
         "one.spk.yaml",
         br#"
@@ -227,7 +227,7 @@ pkg: one/1.0.0
 build:
   script:
     - "true"
-"#
+"#,
         "--solver-to-run",
         solver_to_run
     );
@@ -235,7 +235,7 @@ build:
     r.expect("Expected initial build of one to succeed");
 
     // Build a package that depends on "one".
-    let (_, r) = try_build_package!(
+    let r = try_build_package!(
         tmpdir,
         "two.spk.yaml",
         br#"
@@ -259,7 +259,7 @@ install:
     r.expect("Expected build of two to succeed");
 
     // Now build a newer version of "one" that depends on "two".
-    let (_, r) = try_build_package!(
+    let r = try_build_package!(
         tmpdir,
         "one.spk.yaml",
         br#"
