@@ -13,8 +13,8 @@ pub struct BuildOpt {
 }
 
 #[macro_export]
-macro_rules! build_package {
-    ($tmpdir:ident, $filename:literal, $recipe:literal $(,)? $($extra_build_args:literal),*) => {{
+macro_rules! try_build_package {
+    ($tmpdir:ident, $filename:literal, $recipe:expr, $($extra_build_args:literal),*) => {{
         // Leak `filename` for convenience.
         let filename = Box::leak(Box::new($tmpdir.path().join($filename)));
         {
@@ -24,7 +24,16 @@ macro_rules! build_package {
 
         let filename_str = filename.as_os_str().to_str().unwrap();
 
-        $crate::build_package!($tmpdir, filename_str, $($extra_build_args),*)
+        $crate::try_build_package!($tmpdir, filename_str, $($extra_build_args),*)
+    }};
+
+    ($tmpdir:ident, $filename:literal, $recipe:literal $(,)? $($extra_build_args:literal),*) => {{
+        $crate::try_build_package!(
+            $tmpdir,
+            $filename,
+            $recipe,
+            $($extra_build_args,)*
+        )
     }};
 
     ($tmpdir:ident, $filename:ident $(,)? $($extra_build_args:literal),*) => {{
@@ -39,8 +48,14 @@ macro_rules! build_package {
             $filename,
         ])
         .unwrap();
-        opt.build.run().await.unwrap();
 
-        $filename
+        opt.build.run().await.map(|_| $filename)
+    }};
+}
+
+#[macro_export]
+macro_rules! build_package {
+    ($($args:tt)*) => {{
+        $crate::try_build_package!($($args)*).unwrap()
     }};
 }
