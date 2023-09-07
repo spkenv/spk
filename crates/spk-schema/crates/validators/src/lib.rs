@@ -13,4 +13,6 @@ pub use validators::{
     must_collect_all_files,
     must_install_something,
     must_not_alter_existing_files,
+    ValidationErrorFilterResult,
+    Validator,
 };

@@ -2,14 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use spk_schema_validators::{must_install_something, must_not_alter_existing_files};
+use spk_schema_validators::{
+    must_install_something,
+    must_not_alter_existing_files,
+    ValidationErrorFilterResult,
+};
 
 use crate::v0;
 use crate::validators::must_collect_all_files;
 
 #[test]
 fn test_validate_build_changeset_nothing() {
-    let res = must_install_something(&[], "/spfs");
+    let res = must_install_something(&[], "/spfs", |_, _| ValidationErrorFilterResult::Stop);
     assert!(res.is_err())
 }
 
@@ -24,6 +28,7 @@ fn test_validate_build_changeset_modified() {
             ),
         }],
         "/spfs",
+        |_, _| ValidationErrorFilterResult::Stop,
     );
     assert!(res.is_err())
 }
@@ -43,6 +48,7 @@ fn test_validate_build_changeset_collected() {
                 spfs::tracking::Entry::empty_file_with_open_perms(),
             ),
         }],
+        |_, _| ValidationErrorFilterResult::Stop,
     );
     assert!(
         res.is_err(),

@@ -9,9 +9,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use relative_path::RelativePathBuf;
+use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::*;
-use spfs::tracking::{DiffMode, EntryKind};
+use spfs::tracking::{Diff, DiffMode, EntryKind, PathFilter};
 use spk_exec::{
     pull_resolved_runtime_layers,
     resolve_runtime_layers,
@@ -36,6 +36,7 @@ use spk_schema::{
     Variant,
     VariantExt,
 };
+use spk_schema_validators::ValidationErrorFilterResult;
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, ResolverCallback, Solver};
@@ -658,21 +659,41 @@ where
 
         tracing::info!("Validating package contents...");
 
-        let changed_files = package
+        // Simplify this for use during the validation errors and to
+        // avoid having to pass ResolvedLayers down into the validation.
+        let files_to_packages: HashMap<RelativePathBuf, BuildIdent> = self
+            .files_to_layers
+            .iter()
+            .map(|(f, l)| (f.clone(), l.spec.ident().clone()))
+            .collect();
+
+        let mut changed_files = package
             .validation()
-            .validate_build_changeset(package)
+            .validate_build_changeset(package, |validator, diff| {
+                match validator {
+                    spk_schema_validators::Validator::MustInstallSomething => (),
+                    spk_schema_validators::Validator::MustNotAlterExistingFiles => {
+                        if let Some(package_owning_file_altered) =
+                            files_to_packages.get(&diff.unwrap().path)
+                        {
+                            if package_owning_file_altered.name() == package.ident().name() {
+                                // This file is owned by the same
+                                // package as the one being built,
+                                // by virtue of some circular
+                                // dependency. Allow it to alter
+                                // "itself" as a special case.
+                                return ValidationErrorFilterResult::Continue;
+                            }
+                        }
+                    }
+                    spk_schema_validators::Validator::MustCollectAllFiles => (),
+                };
+                ValidationErrorFilterResult::Stop
+            })
             .await
             .map_err(|err| {
                 let err_message = match err {
                     spk_schema::Error::InvalidBuildChangeSetError(validator_name, source_err) => {
-                        // Simplify this for use during the validation errors and to
-                        // avoid having to pass ResolvedLayers down into the validation.
-                        let files_to_packages: HashMap<RelativePathBuf, BuildIdent> = self
-                            .files_to_layers
-                            .iter()
-                            .map(|(f, l)| (f.clone(), l.spec.ident().clone()))
-                            .collect();
-
                         format!(
                             "{}: {}",
                             validator_name,
@@ -689,8 +710,78 @@ where
                 BuildError::new_error(format_args!("Invalid Build: {err_message}"))
             })?;
 
+        // Filter out entries in the diff that are removals of files belonging
+        // to a circular dependency.
+        let mut removed_files = HashSet::new();
+        changed_files.retain(|change| match change.mode {
+            DiffMode::Removed(_) => {
+                // Skip this if change.path belongs to a circular dependency.
+                if let Some(package_owning_file_altered) = files_to_packages.get(&change.path) {
+                    if package_owning_file_altered.name() == package.ident().name() {
+                        removed_files.insert(change.path.clone());
+                        false
+                    } else {
+                        true
+                    }
+                } else {
+                    true
+                }
+            }
+            _ => true,
+        });
+
+        #[derive(Debug, Default)]
+        struct DiffFilter(HashSet<RelativePathBuf>);
+
+        impl DiffFilter {
+            fn new(files: &[Diff]) -> Self {
+                let mut r = Self::default();
+                for diff in files {
+                    r.insert(&diff.path);
+                }
+                r
+            }
+
+            fn insert(&mut self, mut path: &RelativePath) {
+                self.0.insert(path.to_owned());
+
+                // Insert all parents too, so when checking if a parent
+                // directory of one of the members of this set should be
+                // visited, it is in this set too.
+                while let Some(parent) = path.parent() {
+                    self.0.insert(parent.to_owned());
+                    path = parent;
+                }
+            }
+        }
+
+        impl PathFilter for DiffFilter {
+            fn should_include_path(&self, path: &RelativePath) -> bool {
+                if self.0.contains(path) {
+                    return true;
+                }
+                false
+            }
+        }
+
+        let mut changed_files = DiffFilter::new(&changed_files);
+
+        // Was this a build containing a circular dependency?
+        for (path, layer) in self.files_to_layers.iter() {
+            if layer.spec.ident().name() != package.ident().name() {
+                continue;
+            }
+            // Add this file to `changed_files` so this file doesn't get
+            // filtered out when walking the upper_dir.
+            // But don't add back files that were detected as removed.
+            if removed_files.contains(path) {
+                continue;
+            }
+            changed_files.insert(path);
+        }
+
         tracing::info!("Committing package contents...");
-        commit_component_layers(package, &mut runtime, changed_files.as_slice()).await
+        commit_component_layers(package, &mut runtime, changed_files).await
     }
 
     async fn build_artifacts<O>(&mut self, package: &Recipe::Output, options: O) -> Result<()>

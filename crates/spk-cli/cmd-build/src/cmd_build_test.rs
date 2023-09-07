@@ -10,6 +10,7 @@ use rstest::rstest;
 use spk_cli_common::Run;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::ident::version_ident;
+use spk_schema::ident_component::Component;
 use spk_storage::fixtures::*;
 
 use super::Build;
@@ -282,4 +283,367 @@ install:
     );
 
     r.expect("Expected build of one to succeed");
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_package_with_circular_dep_can_modify_files(tmpdir: tempfile::TempDir) {
+    // A package that depends on itself should be able to modify files
+    // belonging to itself.
+    let _rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "other.spk.yaml",
+        br#"
+pkg: other/1.0.0
+
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/a.txt
+    - echo "1.0.0" > $PREFIX/z.txt
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/1.0.0
+
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/version.txt
+"#
+    );
+
+    // Force middle to pick up exactly 1.0.0 so for the multiple builds below
+    // it doesn't pick up an already-built 1.0.1 of circ and the contents of
+    // version.txt will still be "1.0.0" during the build of circ.
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+pkg: middle/1.0.0
+
+build:
+  options:
+    - pkg: circ/=1.0.0
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: circ/=1.0.0
+"#,
+    );
+
+    // Attempt to build a newer version of circ, but now it depends on `middle`
+    // creating a circular dependency. This build should succeed even though it
+    // modifies a file belonging to "existing files" because the file it
+    // modifies belongs to [a different version of] the same package as is
+    // being built.
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/1.0.1
+
+build:
+  options:
+    - pkg: middle
+  script:
+    # this test is only valid if $PREFIX/version.txt exists already
+    - test -f $PREFIX/version.txt
+    - echo "1.0.1" > $PREFIX/version.txt
+"#,
+        "--allow-circular-dependencies"
+    );
+
+    for other_file in ["a", "z"] {
+        // Attempt to build a new version of circ but also modify a file belonging
+        // to some other package. This should still be caught as an illegal
+        // operation.
+        //
+        // We attempt this twice with two different filenames, one that sorts
+        // before "version.txt" and one that sorts after, to exercise the case
+        // where modifying the file from our own package is encountered first,
+        // to prove that even though it allows the first modification, it still
+        // checks for more.
+        try_build_package!(
+            tmpdir,
+            "circ.spk.yaml",
+            format!(
+                r#"
+pkg: circ/1.0.1
+
+build:
+  options:
+    - pkg: middle
+    - pkg: other
+  script:
+    # this test is only valid if $PREFIX/version.txt exists already
+    - test -f $PREFIX/version.txt
+    - echo "1.0.1" > $PREFIX/version.txt
+    # try to modify a file belonging to 'other' too
+    - echo "1.0.1" > $PREFIX/{other_file}.txt
+"#
+            )
+            .as_bytes(),
+            "--allow-circular-dependencies"
+        )
+        .expect_err("Expected build to fail");
+    }
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_package_with_circular_dep_can_build_major_version_change(tmpdir: tempfile::TempDir) {
+    // A package that depends on itself should be able to build a new major
+    // version of itself, as in something not compatible with the version
+    // being brought in via the circular dependency.
+    let _rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/1.0.0
+
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/version.txt
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+pkg: middle/1.0.0
+
+build:
+  options:
+    - pkg: circ
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: circ
+      fromBuildEnv: true
+"#,
+    );
+
+    // Attempt to build a 2.0.0 version of circ, which shouldn't prevent
+    // middle from being able to resolve the 1.0.0 version of circ.
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/2.0.0
+
+build:
+  options:
+    - pkg: middle
+  script:
+    - echo "2.0.0" > $PREFIX/version.txt
+"#,
+        "--allow-circular-dependencies"
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_package_with_circular_dep_collects_all_files(tmpdir: tempfile::TempDir) {
+    // Building a new version of a package that depends on itself should
+    // produce a package containing all the expected files, even if the new
+    // build creates files with the same content as the previous build.
+    let rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/1.0.0
+
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/version.txt
+    - echo "hello world" > $PREFIX/hello.txt
+    - echo "unchanged" > $PREFIX/unchanged.txt
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+pkg: middle/1.0.0
+
+build:
+  options:
+    - pkg: circ
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: circ
+      fromBuildEnv: true
+"#,
+    );
+
+    // This build overwrites a file from the previous build, but it has the same
+    // contents. It should still be detected as a file that needs to be part of
+    // the newly made package.
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/2.0.0
+
+build:
+  options:
+    - pkg: middle
+  script:
+    - echo "2.0.0" > $PREFIX/version.txt
+    - echo "hello world" > $PREFIX/hello.txt
+"#,
+        "--allow-circular-dependencies"
+    );
+
+    let build = rt
+        .tmprepo
+        .list_package_builds(&version_ident!("circ/2.0.0"))
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|b| !b.is_source())
+        .unwrap();
+
+    let digest = *rt
+        .tmprepo
+        .read_components(&build)
+        .await
+        .unwrap()
+        .get(&Component::Run)
+        .unwrap();
+
+    let spk_storage::RepositoryHandle::SPFS(repo) = &*rt.tmprepo else {
+        panic!("Expected SPFS repo");
+    };
+
+    let layer = repo.read_layer(digest).await.unwrap();
+
+    let manifest = repo
+        .read_manifest(layer.manifest)
+        .await
+        .unwrap()
+        .to_tracking_manifest();
+
+    let entry = manifest.get_path("hello.txt");
+    assert!(
+        entry.is_some(),
+        "should capture file created in build but unmodified from previous build"
+    );
+    let entry = manifest.get_path("unchanged.txt");
+    assert!(
+        entry.is_none(),
+        "should not capture file from old build that was not modified in new build"
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_package_with_circular_dep_does_not_collect_file_removals(tmpdir: tempfile::TempDir) {
+    // Building a new version of a package that depends on itself should not
+    // collect "negative files" (e.g., files that were removed in the new
+    // build).
+    let rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/1.0.0
+
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/version.txt
+    - echo "hello world" > $PREFIX/hello.txt
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+pkg: middle/1.0.0
+
+build:
+  options:
+    - pkg: circ
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: circ
+      fromBuildEnv: true
+"#,
+    );
+
+    // This build deletes a file that is owned by the previous build. It should
+    // not be collected as part of the new build.
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/2.0.0
+
+build:
+  options:
+    - pkg: middle
+  script:
+    - echo "2.0.0" > $PREFIX/version.txt
+    - rm $PREFIX/hello.txt
+"#,
+        "--allow-circular-dependencies"
+    );
+
+    let build = rt
+        .tmprepo
+        .list_package_builds(&version_ident!("circ/2.0.0"))
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|b| !b.is_source())
+        .unwrap();
+
+    let digest = *rt
+        .tmprepo
+        .read_components(&build)
+        .await
+        .unwrap()
+        .get(&Component::Run)
+        .unwrap();
+
+    let spk_storage::RepositoryHandle::SPFS(repo) = &*rt.tmprepo else {
+        panic!("Expected SPFS repo");
+    };
+
+    let layer = repo.read_layer(digest).await.unwrap();
+
+    let manifest = repo
+        .read_manifest(layer.manifest)
+        .await
+        .unwrap()
+        .to_tracking_manifest();
+
+    let entry = manifest.get_path("hello.txt");
+    assert!(
+        entry.is_none(),
+        "should not capture file deleted in new build"
+    );
 }

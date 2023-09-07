@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use spfs::tracking::{Diff, DiffMode};
+use spk_schema_validators::ValidationErrorFilterResult;
 
 use crate::validators::{
     must_collect_all_files,
@@ -30,23 +31,30 @@ pub enum Validator {
 
 impl Validator {
     /// Validate the set of changes to spfs according to this validator
-    pub fn validate<Package, P>(
+    pub fn validate<Package, P, F>(
         &self,
         pkg: &Package,
         diffs: &[spfs::tracking::Diff],
         prefix: P,
+        validation_error_filter: F,
     ) -> spk_schema_validators::Result<()>
     where
         Package: crate::Package,
         P: AsRef<std::path::Path>,
+        F: Fn(spk_schema_validators::Validator, Option<&Diff>) -> ValidationErrorFilterResult,
     {
         match self {
-            Self::MustInstallSomething => must_install_something(diffs, prefix),
-            Self::MustNotAlterExistingFiles => must_not_alter_existing_files(diffs, prefix),
+            Self::MustInstallSomething => {
+                must_install_something(diffs, prefix, validation_error_filter)
+            }
+            Self::MustNotAlterExistingFiles => {
+                must_not_alter_existing_files(diffs, prefix, validation_error_filter)
+            }
             Self::MustCollectAllFiles => must_collect_all_files(
                 pkg.ident(),
                 pkg.components().iter().map(|c| &c.files),
                 diffs,
+                validation_error_filter,
             ),
         }
     }
@@ -85,9 +93,14 @@ impl ValidationSpec {
     }
 
     /// Validate the current set of spfs changes as a build of this package
-    pub async fn validate_build_changeset<Package>(&self, package: &Package) -> Result<Vec<Diff>>
+    pub async fn validate_build_changeset<Package, F>(
+        &self,
+        package: &Package,
+        validation_error_filter: F,
+    ) -> Result<Vec<Diff>>
     where
         Package: crate::Package,
+        F: Fn(spk_schema_validators::Validator, Option<&Diff>) -> ValidationErrorFilterResult,
     {
         static SPFS: &str = "/spfs";
 
@@ -98,7 +111,7 @@ impl ValidationSpec {
         reset_permissions(&mut diffs, SPFS)?;
 
         for validator in self.configured_validators().iter() {
-            if let Err(err) = validator.validate(package, &diffs, SPFS) {
+            if let Err(err) = validator.validate(package, &diffs, SPFS, &validation_error_filter) {
                 return Err(crate::Error::InvalidBuildChangeSetError(
                     format!("{validator:?}"),
                     err,

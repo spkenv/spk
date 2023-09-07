@@ -18,7 +18,7 @@ use tokio::fs::DirEntry;
 use tokio::sync::Semaphore;
 
 use super::entry::{Entry, EntryKind};
-use super::{BlobRead, BlobReadExt, Diff};
+use super::{BlobRead, BlobReadExt};
 use crate::{encoding, runtime, Error, Result};
 
 #[cfg(test)]
@@ -395,17 +395,6 @@ where
 {
     fn should_include_path(&self, path: &RelativePath) -> bool {
         (self)(path)
-    }
-}
-
-impl PathFilter for &[Diff] {
-    fn should_include_path(&self, path: &RelativePath) -> bool {
-        for diff in self.iter() {
-            if diff.path == path || diff.path.starts_with(path) {
-                return true;
-            }
-        }
-        false
     }
 }
 
