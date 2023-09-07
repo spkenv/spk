@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use nonempty::NonEmpty;
+use spfs::tracking::Diff;
 use thiserror::Error;
 
 #[cfg(test)]
@@ -66,5 +68,29 @@ impl Error {
     /// Wraps an error message with a prefix, creating a contextual error
     pub fn wrap_io<S: AsRef<str>>(prefix: S, err: std::io::Error) -> Error {
         Error::String(format!("{}: {:?}", prefix.as_ref(), err))
+    }
+}
+
+/// A custom error type to return possibly more than one validation error when
+/// validating a changeset.
+pub enum ValidateBuildChangesetError {
+    /// Validation errors were found but the spfs diff is still available.
+    ValidationErrorsFound {
+        spfs_changes: Vec<Diff>,
+        errors: NonEmpty<Error>,
+    },
+    /// Some other non-validation error occurred while validating.
+    Other(Error),
+}
+
+impl From<spfs::Error> for ValidateBuildChangesetError {
+    fn from(err: spfs::Error) -> Self {
+        Self::Other(err.into())
+    }
+}
+
+impl From<Error> for ValidateBuildChangesetError {
+    fn from(err: Error) -> Self {
+        Self::Other(err)
     }
 }

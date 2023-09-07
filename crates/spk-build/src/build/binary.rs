@@ -33,6 +33,7 @@ use spk_schema::{
     InputVariant,
     Package,
     PackageMut,
+    ValidateBuildChangesetError,
     Variant,
     VariantExt,
 };
@@ -644,36 +645,74 @@ where
 
         tracing::info!("Validating package contents...");
 
-        let changed_files = package
-            .validation()
-            .validate_build_changeset(package)
-            .await
-            .map_err(|err| {
-                let err_message = match err {
-                    spk_schema::Error::InvalidBuildChangeSetError(validator_name, source_err) => {
-                        // Simplify this for use during the validation errors and to
-                        // avoid having to pass ResolvedLayers down into the validation.
-                        let files_to_packages: HashMap<RelativePathBuf, BuildIdent> = self
-                            .files_to_layers
-                            .iter()
-                            .map(|(f, l)| (f.clone(), l.spec.ident().clone()))
-                            .collect();
+        let changed_files = match package.validation().validate_build_changeset(package).await {
+            Ok(diff) => Ok(diff),
+            Err(err) => match err {
+                ValidateBuildChangesetError::Other(err) => Err(err),
+                ValidateBuildChangesetError::ValidationErrorsFound {
+                    spfs_changes,
+                    errors,
+                } => {
+                    // Simplify this for use during the validation errors and to
+                    // avoid having to pass ResolvedLayers down into the validation.
+                    let files_to_packages: HashMap<RelativePathBuf, BuildIdent> = self
+                        .files_to_layers
+                        .iter()
+                        .map(|(f, l)| (f.clone(), l.spec.ident().clone()))
+                        .collect();
 
-                        format!(
-                            "{}: {}",
-                            validator_name,
-                            self.assemble_error_message(
+                    // Check if any of the validation errors can be ignored
+                    // because of special cases.
+                    for err in errors {
+                        let err_message = match err {
+                            spk_schema::Error::InvalidBuildChangeSetError(
+                                validator_name,
                                 source_err,
-                                &files_to_packages,
-                                &self.conflicting_packages,
-                            )
-                        )
-                    }
-                    _ => format!("{err}"),
-                };
+                            ) => {
+                                if let spk_schema_validators::Error::ExistingFileAltered(
+                                    _,
+                                    filepath,
+                                ) = &source_err
+                                {
+                                    if let Some(package_owning_file_altered) =
+                                        files_to_packages.get(filepath)
+                                    {
+                                        if package_owning_file_altered.name()
+                                            == package.ident().name()
+                                        {
+                                            // This file is owned by the same
+                                            // package as the one being built,
+                                            // by virtue of some circular
+                                            // dependency. Allow it to alter
+                                            // "itself" as a special case.
+                                            continue;
+                                        }
+                                    }
+                                };
+                                format!(
+                                    "{}: {}",
+                                    validator_name,
+                                    self.assemble_error_message(
+                                        source_err,
+                                        &files_to_packages,
+                                        &self.conflicting_packages,
+                                    )
+                                )
+                            }
+                            _ => {
+                                format!("{err}")
+                            }
+                        };
 
-                BuildError::new_error(format_args!("Invalid Build: {err_message}"))
-            })?;
+                        return Err(BuildError::new_error(format_args!(
+                            "Invalid Build: {err_message}"
+                        )));
+                    }
+
+                    Ok(spfs_changes)
+                }
+            },
+        }?;
 
         tracing::info!("Committing package contents...");
         commit_component_layers(package, &mut runtime, changed_files.as_slice()).await

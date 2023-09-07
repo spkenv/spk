@@ -10,11 +10,15 @@ migration-to-components = ["spk-schema-foundation/migration-to-components"]
 [dependencies]
 data-encoding = "2.3"
 enum_dispatch = "0.3.8"
-format_serde_error = {version = "0.3", default_features = false, features = ["serde_yaml", "colored"]}
+format_serde_error = { version = "0.3", default_features = false, features = [
+    "serde_yaml",
+    "colored",
+] }
 ignore = "0.4.18"
 indexmap = "1.7"
 itertools = "0.10"
 nom = { workspace = true }
+nonempty = { workspace = true }
 regex = "1.5"
 relative-path = "1.3"
 serde = { workspace = true, features = ["derive"] }

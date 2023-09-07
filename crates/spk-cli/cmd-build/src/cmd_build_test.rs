@@ -13,7 +13,7 @@ use spk_schema::ident::version_ident;
 use spk_storage::fixtures::*;
 
 use super::Build;
-use crate::build_package;
+use crate::{build_package, try_build_package};
 
 #[derive(Parser)]
 struct Opt {
@@ -125,4 +125,111 @@ build:
         .filter(|b| !b.is_source());
 
     assert_eq!(non_src_builds.count(), 1, "Expected one build");
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_package_with_circular_dep_can_modify_files(tmpdir: tempfile::TempDir) {
+    // A package that depends on itself should be able to modify files
+    // belonging to itself.
+    let _rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "other.spk.yaml",
+        br#"
+pkg: other/1.0.0
+
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/a.txt
+    - echo "1.0.0" > $PREFIX/z.txt
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/1.0.0
+
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/version.txt
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+pkg: middle/1.0.0
+
+build:
+  options:
+    - pkg: circ
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: circ
+      fromBuildEnv: true
+"#,
+    );
+
+    // Attempt to build a newer version of circ, but now it depends on `middle`
+    // creating a circular dependency. This build should succeed even though it
+    // modifies a file belonging to "existing files" because the file it
+    // modifies belongs to [a different version of] the same package as is
+    // being built.
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/1.0.1
+
+build:
+  options:
+    - pkg: middle
+  script:
+    # this test is only valid if $PREFIX/version.txt exists already
+    - test -f $PREFIX/version.txt
+    - echo "1.0.1" > $PREFIX/version.txt
+"#,
+    );
+
+    for other_file in ["a", "z"] {
+        // Attempt to build a new version of circ but also modify a file belonging
+        // to some other package. This should still be caught as an illegal
+        // operation.
+        //
+        // We attempt this twice with two different filenames, one that sorts
+        // before "version.txt" and one that sorts after, to exercise the case
+        // where modifying the file from our own package is encountered first,
+        // to prove that even though it allows the first modification, it still
+        // checks for more.
+        try_build_package!(
+            tmpdir,
+            "circ.spk.yaml",
+            format!(
+                r#"
+pkg: circ/1.0.1
+
+build:
+  options:
+    - pkg: middle
+    - pkg: other
+  script:
+    # this test is only valid if $PREFIX/version.txt exists already
+    - test -f $PREFIX/version.txt
+    - echo "1.0.1" > $PREFIX/version.txt
+    # try to modify a file belonging to 'other' too
+    - echo "1.0.1" > $PREFIX/{other_file}.txt
+"#
+            )
+            .as_bytes(),
+        )
+        .expect_err("Expected build to fail");
+    }
 }

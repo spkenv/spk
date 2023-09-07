@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::iter::FromIterator;
 use std::path::PathBuf;
 
+use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 use spfs::tracking::{Diff, DiffMode};
 
@@ -14,7 +15,7 @@ use crate::validators::{
     must_install_something,
     must_not_alter_existing_files,
 };
-use crate::{Error, Result};
+use crate::{Error, Result, ValidateBuildChangesetError};
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]
@@ -85,7 +86,10 @@ impl ValidationSpec {
     }
 
     /// Validate the current set of spfs changes as a build of this package
-    pub async fn validate_build_changeset<Package>(&self, package: &Package) -> Result<Vec<Diff>>
+    pub async fn validate_build_changeset<Package>(
+        &self,
+        package: &Package,
+    ) -> std::result::Result<Vec<Diff>, ValidateBuildChangesetError>
     where
         Package: crate::Package,
     {
@@ -97,9 +101,11 @@ impl ValidationSpec {
         // fails to handle permission-only changes on files...
         reset_permissions(&mut diffs, SPFS)?;
 
+        let mut validation_errors = Vec::new();
+
         for validator in self.configured_validators().iter() {
             if let Err(err) = validator.validate(package, &diffs, SPFS) {
-                return Err(crate::Error::InvalidBuildChangeSetError(
+                validation_errors.push(crate::Error::InvalidBuildChangeSetError(
                     format!("{validator:?}"),
                     err,
                 ));
@@ -111,6 +117,14 @@ impl ValidationSpec {
         // as changed by the build. For example, renaming a file to a
         // different name and back to its original name.
         diffs.retain(|diff| !diff.mode.is_unchanged());
+
+        if !validation_errors.is_empty() {
+            // Safety: validation_errors is not empty.
+            return Err(ValidateBuildChangesetError::ValidationErrorsFound {
+                spfs_changes: diffs,
+                errors: unsafe { NonEmpty::from_vec(validation_errors).unwrap_unchecked() },
+            });
+        }
 
         Ok(diffs)
     }

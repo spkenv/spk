@@ -34,7 +34,7 @@ pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};
 pub use embedded_packages_list::EmbeddedPackagesList;
 pub use environ::{AppendEnv, EnvOp, OpKind, PrependEnv, SetEnv};
-pub use error::{Error, Result};
+pub use error::{Error, Result, ValidateBuildChangesetError};
 pub use input_variant::InputVariant;
 pub use install_spec::InstallSpec;
 pub use option::{Inheritance, Opt};

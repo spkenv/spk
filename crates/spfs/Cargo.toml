@@ -37,7 +37,7 @@ indicatif = { workspace = true }
 itertools = "0.10.3"
 libc = { workspace = true }
 nix = { workspace = true }
-nonempty = "0.8.1"
+nonempty = { workspace = true }
 num_cpus = "1.13.1"
 once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
