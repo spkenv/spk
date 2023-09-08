@@ -26,6 +26,7 @@ const OP_COMMENT: &str = "comment";
 const OP_PREPEND: &str = "prepend";
 const OP_PRIORITY: &str = "priority";
 const OP_SET: &str = "set";
+const OP_NAMES: &[&str] = &[OP_APPEND, OP_COMMENT, OP_PREPEND, OP_SET];
 
 /// Some item that contains a list of [`EnvOp`] operations
 pub trait RuntimeEnvironment {
@@ -72,6 +73,7 @@ pub enum OpKind {
     Prepend,
     Priority,
     Set,
+    UnrecognizedKey,
 }
 
 /// An operation performed to the environment
@@ -251,29 +253,31 @@ impl Lints for EnvOpVisitor {
 
 impl From<EnvOpVisitor> for EnvOp {
     fn from(mut value: EnvOpVisitor) -> Self {
-        match value.op_and_var.take() {
-            Some((op, var)) => match op {
-                OpKind::Prepend => EnvOp::Prepend(PrependEnv {
-                    prepend: var.get_op(),
-                    separator: value.separator.take(),
-                    value: value.value.expect("an environment value"),
-                }),
-                OpKind::Append => EnvOp::Append(AppendEnv {
-                    append: var.get_op(),
-                    separator: value.separator.take(),
-                    value: value.value.expect("an environment value"),
-                }),
-                OpKind::Set => EnvOp::Set(SetEnv {
-                    set: var.get_op(),
-                    value: value.value.expect("an environment value"),
-                }),
-                OpKind::Comment => EnvOp::Comment(CommentEnv {
-                    comment: var.get_op(),
-                }),
-                OpKind::Priority => EnvOp::Priority(Priority {
-                    priority: var.get_priority(),
-                }),
-            },
+        let (op, var) = value.op_and_var.expect("an operation and variable");
+        match op {
+            OpKind::Prepend => EnvOp::Prepend(PrependEnv {
+                prepend: var.get_op(),
+                separator: value.separator.take(),
+                value: value.value.expect("an environment value"),
+            }),
+            OpKind::Append => EnvOp::Append(AppendEnv {
+                append: var.get_op(),
+                separator: value.separator.take(),
+                value: value.value.expect("an environment value"),
+            }),
+            OpKind::Set => EnvOp::Set(SetEnv {
+                set: var.get_op(),
+                value: value.value.expect("an environment value"),
+            }),
+            OpKind::Comment => EnvOp::Comment(CommentEnv {
+                comment: var.get_op(),
+            }),
+            OpKind::Priority => EnvOp::Priority(Priority {
+                priority: var.get_priority(),
+            }),
+            OpKind::UnrecognizedKey => EnvOp::UnrecognizedKey(UnrecognizedKey {
+                error: var.get_op(),
+            }),
         }
     }
 }
@@ -372,9 +376,13 @@ impl<'de> serde::de::Visitor<'de> for EnvOpVisitor {
                 "separator" => {
                     self.separator = map.next_value::<Option<Stringified>>()?.map(|s| s.0)
                 }
-                unknown_config => {
+                unknown_key => {
                     self.lints
-                        .push(LintMessage::UnknownEnvOpKey(EnvOpKey::new(unknown_config)));
+                        .push(LintMessage::UnknownEnvOpKey(EnvOpKey::new(unknown_key)));
+                    self.op_and_var = Some((
+                        OpKind::UnrecognizedKey,
+                        ConfKind::Operation(format!("missing field to define operation and variable, expected one of {OP_NAMES:?}")),
+                    ));
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }
@@ -383,7 +391,7 @@ impl<'de> serde::de::Visitor<'de> for EnvOpVisitor {
         // Comments and priority configs don't have any values.
         let value = match self.op_and_var.as_ref() {
             Some(v) => match v.0 {
-                OpKind::Comment | OpKind::Priority => String::from(""),
+                OpKind::Comment | OpKind::Priority | OpKind::UnrecognizedKey => String::from(""),
                 _ => self
                     .value
                     .take()
