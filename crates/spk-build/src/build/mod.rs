@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 mod binary;
+mod resolved_layer_file_index;
 mod sources;
 
 pub use binary::{
@@ -16,4 +17,5 @@ pub use binary::{
     BuildError,
     BuildSource,
 };
+pub use resolved_layer_file_index::{PathEntry, ResolvedLayerFileIndex};
 pub use sources::{validate_source_changeset, CollectionError, SourcePackageBuilder};

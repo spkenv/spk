@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::{hash_map, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::io::Write;
 use std::path::PathBuf;
@@ -16,7 +16,6 @@ use spk_exec::{
     pull_resolved_runtime_layers,
     resolve_runtime_layers,
     solution_to_resolved_runtime_layers,
-    ResolvedLayer,
 };
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::format::FormatIdent;
@@ -43,6 +42,8 @@ use spk_solve::{BoxedResolverCallback, ResolverCallback, Solver};
 use spk_storage as storage;
 use tokio::pin;
 
+use super::ResolvedLayerFileIndex;
+use crate::build::PathEntry;
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -144,7 +145,7 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
     last_solve_graph: Arc<tokio::sync::RwLock<Graph>>,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     interactive: bool,
-    files_to_layers: HashMap<RelativePathBuf, ResolvedLayer>,
+    files_to_layers: ResolvedLayerFileIndex,
     conflicting_packages: HashMap<ConflictingPackagePair, HashSet<RelativePathBuf>>,
 }
 
@@ -344,8 +345,8 @@ where
             if !matches!(entry.kind, EntryKind::Blob) {
                 continue;
             }
-            match self.files_to_layers.entry(path.clone()) {
-                hash_map::Entry::Occupied(entry) => {
+            match self.files_to_layers.path_entry(path.clone()) {
+                PathEntry::Occupied(entry) => {
                     // This file has already been seen by a lower layer.
                     //
                     // Ignore when the shadowing is from different components
@@ -380,7 +381,7 @@ where
                         .or_insert_with(HashSet::new);
                     counter.insert(path.clone());
                 }
-                hash_map::Entry::Vacant(entry) => {
+                PathEntry::Vacant(entry) => {
                     // This is the first layer that has this file.
                     entry.insert(resolved_layer.clone());
                 }
@@ -546,7 +547,7 @@ where
     fn assemble_error_message(
         &self,
         error: spk_schema_validators::Error,
-        files_to_packages: &HashMap<RelativePathBuf, BuildIdent>,
+        files_to_packages: &ResolvedLayerFileIndex,
         conflicting_packages: &HashMap<ConflictingPackagePair, HashSet<RelativePathBuf>>,
     ) -> String {
         match error {
@@ -587,7 +588,7 @@ where
                     // Then the file is only in a single package, not
                     // in a pair of conflicting packages.
                     let package = files_to_packages
-                        .get(&filepath)
+                        .get_ident_by_path(&filepath)
                         .map(|ident| ident.to_string())
                         .unwrap_or_else(|| {
                             "an unknown package, so something went wrong.".to_string()
@@ -653,14 +654,6 @@ where
                     spfs_changes,
                     errors,
                 } => {
-                    // Simplify this for use during the validation errors and to
-                    // avoid having to pass ResolvedLayers down into the validation.
-                    let files_to_packages: HashMap<RelativePathBuf, BuildIdent> = self
-                        .files_to_layers
-                        .iter()
-                        .map(|(f, l)| (f.clone(), l.spec.ident().clone()))
-                        .collect();
-
                     // Check if any of the validation errors can be ignored
                     // because of special cases.
                     for err in errors {
@@ -675,7 +668,7 @@ where
                                 ) = &source_err
                                 {
                                     if let Some(package_owning_file_altered) =
-                                        files_to_packages.get(filepath)
+                                        self.files_to_layers.get_ident_by_path(filepath)
                                     {
                                         if package_owning_file_altered.name()
                                             == package.ident().name()
@@ -694,7 +687,7 @@ where
                                     validator_name,
                                     self.assemble_error_message(
                                         source_err,
-                                        &files_to_packages,
+                                        &self.files_to_layers,
                                         &self.conflicting_packages,
                                     )
                                 )
@@ -751,13 +744,15 @@ where
         let mut changed_files = DiffFilter::new(&changed_files);
 
         // Was this a build containing a circular dependency?
-        for (path, layer) in self.files_to_layers.iter() {
-            if layer.spec.ident().name() != package.ident().name() {
-                continue;
+        if let Some(iter) = self
+            .files_to_layers
+            .iter_files_for_pkg_name(package.ident())
+        {
+            for path in iter {
+                // Add this file to `changed_files` so this file doesn't get
+                // filtered out when walking the upper_dir.
+                changed_files.insert(path);
             }
-            // Add this file to `changed_files` so this file doesn't get
-            // filtered out when walking the upper_dir.
-            changed_files.insert(path);
         }
 
         tracing::info!("Committing package contents...");
