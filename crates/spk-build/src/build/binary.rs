@@ -9,9 +9,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use relative_path::RelativePathBuf;
+use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::*;
-use spfs::tracking::{DiffMode, EntryKind};
+use spfs::tracking::{Diff, DiffMode, EntryKind, PathFilter};
 use spk_exec::{
     pull_resolved_runtime_layers,
     resolve_runtime_layers,
@@ -714,8 +714,54 @@ where
             },
         }?;
 
+        #[derive(Debug, Default)]
+        struct DiffFilter(HashSet<RelativePathBuf>);
+
+        impl DiffFilter {
+            fn new(files: &[Diff]) -> Self {
+                let mut r = Self::default();
+                for diff in files {
+                    r.insert(&diff.path);
+                }
+                r
+            }
+
+            fn insert(&mut self, mut path: &RelativePath) {
+                self.0.insert(path.to_owned());
+
+                // Insert all parents too, so when checking if a parent
+                // directory of one of the members of this set should be
+                // visited, it is in this set too.
+                while let Some(parent) = path.parent() {
+                    self.0.insert(parent.to_owned());
+                    path = parent;
+                }
+            }
+        }
+
+        impl PathFilter for DiffFilter {
+            fn should_include_path(&self, path: &RelativePath) -> bool {
+                if self.0.contains(path) {
+                    return true;
+                }
+                false
+            }
+        }
+
+        let mut changed_files = DiffFilter::new(&changed_files);
+
+        // Was this a build containing a circular dependency?
+        for (path, layer) in self.files_to_layers.iter() {
+            if layer.spec.ident().name() != package.ident().name() {
+                continue;
+            }
+            // Add this file to `changed_files` so this file doesn't get
+            // filtered out when walking the upper_dir.
+            changed_files.insert(path);
+        }
+
         tracing::info!("Committing package contents...");
-        commit_component_layers(package, &mut runtime, changed_files.as_slice()).await
+        commit_component_layers(package, &mut runtime, changed_files).await
     }
 
     async fn build_artifacts<O>(&mut self, package: &Recipe::Output, options: O) -> Result<()>

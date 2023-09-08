@@ -10,6 +10,7 @@ use rstest::rstest;
 use spk_cli_common::Run;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::ident::version_ident;
+use spk_schema::ident_component::Component;
 use spk_storage::fixtures::*;
 
 use super::Build;
@@ -289,5 +290,105 @@ build:
   script:
     - echo "2.0.0" > $PREFIX/version.txt
 "#,
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_package_with_circular_dep_collects_all_files(tmpdir: tempfile::TempDir) {
+    // Building a new version of a package that depends on itself should
+    // produce a package containing all the expected files, even if the new
+    // build creates files with the same content as the previous build.
+    let rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/1.0.0
+
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/version.txt
+    - echo "hello world" > $PREFIX/hello.txt
+    - echo "unchanged" > $PREFIX/unchanged.txt
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+pkg: middle/1.0.0
+
+build:
+  options:
+    - pkg: circ
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: circ
+      fromBuildEnv: true
+"#,
+    );
+
+    // This build overwrites a file from the previous build, but it has the same
+    // contents. It should still be detected as a file that needs to be part of
+    // the newly make package.
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+pkg: circ/2.0.0
+
+build:
+  options:
+    - pkg: middle
+  script:
+    - echo "2.0.0" > $PREFIX/version.txt
+    - echo "hello world" > $PREFIX/hello.txt
+"#,
+    );
+
+    let build = rt
+        .tmprepo
+        .list_package_builds(&version_ident!("circ/2.0.0"))
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|b| !b.is_source())
+        .unwrap();
+
+    let digest = *rt
+        .tmprepo
+        .read_components(&build)
+        .await
+        .unwrap()
+        .get(&Component::Run)
+        .unwrap();
+
+    let spk_storage::RepositoryHandle::SPFS(repo) = &*rt.tmprepo else {
+        panic!("Expected SPFS repo");
+    };
+
+    let layer = repo.read_layer(digest).await.unwrap();
+
+    let manifest = repo
+        .read_manifest(layer.manifest)
+        .await
+        .unwrap()
+        .to_tracking_manifest();
+
+    let entry = manifest.get_path("hello.txt");
+    assert!(
+        entry.is_some(),
+        "should capture file created in build but unmodified from previous build"
+    );
+    let entry = manifest.get_path("unchanged.txt");
+    assert!(
+        entry.is_none(),
+        "should not capture file from old build that was not modified in new build"
     );
 }
