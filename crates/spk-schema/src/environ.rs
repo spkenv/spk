@@ -24,6 +24,7 @@ const OP_COMMENT: &str = "comment";
 const OP_PREPEND: &str = "prepend";
 const OP_PRIORITY: &str = "priority";
 const OP_SET: &str = "set";
+const OP_NAMES: &[&str] = &[OP_APPEND, OP_COMMENT, OP_PREPEND, OP_SET];
 
 /// The set of operation types for use in deserialization
 #[derive(Copy, Clone, Debug, PartialEq, strum::Display)]
@@ -33,8 +34,8 @@ pub enum OpKind {
     Comment,
     Prepend,
     Priority,
-    NoOp,
     Set,
+    UnrecognizedKey,
 }
 
 /// An operation performed to the environment
@@ -46,7 +47,7 @@ pub enum EnvOp {
     Prepend(PrependEnv),
     Priority(EnvPriority),
     Set(SetEnv),
-    NoOp(NoOp),
+    UnrecognizedKey(UnrecognizedKey),
 }
 
 impl EnvOp {
@@ -57,7 +58,18 @@ impl EnvOp {
             EnvOp::Prepend(_) => OpKind::Prepend,
             EnvOp::Priority(_) => OpKind::Priority,
             EnvOp::Set(_) => OpKind::Set,
-            EnvOp::NoOp(_) => OpKind::NoOp,
+            EnvOp::UnrecognizedKey(_) => OpKind::UnrecognizedKey,
+        }
+    }
+
+    pub fn error(&self) -> &str {
+        match self {
+            EnvOp::Append(_) => "",
+            EnvOp::Comment(_) => "",
+            EnvOp::Prepend(_) => "",
+            EnvOp::Priority(_) => "",
+            EnvOp::Set(_) => "",
+            EnvOp::UnrecognizedKey(e) => e.error.as_str(),
         }
     }
 
@@ -135,7 +147,7 @@ impl EnvOp {
             Self::Prepend(op) => op.bash_source(),
             Self::Priority(op) => op.bash_source(),
             Self::Set(op) => op.bash_source(),
-            Self::NoOp(op) => op.bash_source(),
+            Self::UnrecognizedKey(op) => op.bash_source(),
         }
     }
 
@@ -147,7 +159,7 @@ impl EnvOp {
             Self::Prepend(op) => op.tcsh_source(),
             Self::Priority(op) => op.tcsh_source(),
             Self::Set(op) => op.tcsh_source(),
-            Self::NoOp(op) => op.tcsh_source(),
+            Self::UnrecognizedKey(op) => op.tcsh_source(),
         }
     }
 
@@ -195,31 +207,31 @@ impl Lints for EnvOpVisitor {
 
 impl From<EnvOpVisitor> for EnvOp {
     fn from(mut value: EnvOpVisitor) -> Self {
-        match value.op_and_var.take() {
-            Some((op, var)) => match op {
-                OpKind::Prepend => EnvOp::Prepend(PrependEnv {
-                    prepend: var.get_op(),
-                    separator: value.separator.take(),
-                    value: value.value.expect("an environment value"),
-                }),
-                OpKind::Append => EnvOp::Append(AppendEnv {
-                    append: var.get_op(),
-                    separator: value.separator.take(),
-                    value: value.value.expect("an environment value"),
-                }),
-                OpKind::Set => EnvOp::Set(SetEnv {
-                    set: var.get_op(),
-                    value: value.value.expect("an environment value"),
-                }),
-                OpKind::Comment => EnvOp::Comment(CommentEnv {
-                    comment: var.get_op(),
-                }),
-                OpKind::Priority => EnvOp::Priority(Priority {
-                    priority: var.get_priority(),
-                }),
-                OpKind::NoOp => EnvOp::NoOp(NoOp),
-            },
-            None => EnvOp::NoOp(NoOp),
+        let (op, var) = value.op_and_var.expect("an operation and variable");
+        match op {
+            OpKind::Prepend => EnvOp::Prepend(PrependEnv {
+                prepend: var.get_op(),
+                separator: value.separator.take(),
+                value: value.value.expect("an environment value"),
+            }),
+            OpKind::Append => EnvOp::Append(AppendEnv {
+                append: var.get_op(),
+                separator: value.separator.take(),
+                value: value.value.expect("an environment value"),
+            }),
+            OpKind::Set => EnvOp::Set(SetEnv {
+                set: var.get_op(),
+                value: value.value.expect("an environment value"),
+            }),
+            OpKind::Comment => EnvOp::Comment(CommentEnv {
+                comment: var.get_op(),
+            }),
+            OpKind::Priority => EnvOp::Priority(Priority {
+                priority: var.get_priority(),
+            }),
+            OpKind::UnrecognizedKey => EnvOp::UnrecognizedKey(UnrecognizedKey {
+                error: var.get_op(),
+            }),
         }
     }
 }
@@ -318,9 +330,13 @@ impl<'de> serde::de::Visitor<'de> for EnvOpVisitor {
                 "separator" => {
                     self.separator = map.next_value::<Option<Stringified>>()?.map(|s| s.0)
                 }
-                unknown_config => {
+                unknown_key => {
                     self.lints
-                        .push(LintMessage::UnknownEnvOpKey(EnvOpKey::new(unknown_config)));
+                        .push(LintMessage::UnknownEnvOpKey(EnvOpKey::new(unknown_key)));
+                    self.op_and_var = Some((
+                        OpKind::UnrecognizedKey,
+                        ConfKind::Operation(format!("missing field to define operation and variable, expected one of {OP_NAMES:?}")),
+                    ));
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }
@@ -329,7 +345,7 @@ impl<'de> serde::de::Visitor<'de> for EnvOpVisitor {
         // Comments and priority configs don't have any values.
         let value = match self.op_and_var.as_ref() {
             Some(v) => match v.0 {
-                OpKind::Comment | OpKind::Priority => String::from(""),
+                OpKind::Comment | OpKind::Priority | OpKind::UnrecognizedKey => String::from(""),
                 _ => self
                     .value
                     .take()
@@ -503,15 +519,18 @@ impl SetEnv {
     }
 }
 
+/// Stores the error message of the unrecognized key
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct NoOp;
+pub struct UnrecognizedKey {
+    pub error: String,
+}
 
-/// Returns empty string from methods when the operation is not found in deserialize
-impl NoOp {
+impl UnrecognizedKey {
+    /// Empty bash source
     pub fn bash_source(&self) -> String {
         String::from("")
     }
-
+    /// Empty tcsh source
     pub fn tcsh_source(&self) -> String {
         String::from("")
     }

@@ -16,14 +16,6 @@ pub enum LintMessage {
     UnknownV0SpecKey(V0SpecKey),
     UnknownInstallSpecKey(InstallSpecKey),
     UnknownEnvOpKey(EnvOpKey),
-}
-
-impl LintMessage {
-    pub fn message(&self) -> String {
-        match self {
-            Self::UnknownV0SpecKey(key) => key.message.clone(),
-            Self::UnknownInstallSpecKey(key) => key.message.clone(),
-            Self::UnknownEnvOpKey(key) => key.message.clone(),
         }
     }
 }

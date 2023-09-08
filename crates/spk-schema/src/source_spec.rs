@@ -8,8 +8,20 @@ use std::path::{Path, PathBuf};
 
 use relative_path::RelativePathBuf;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::option_map::Stringified;
 
-use crate::{Error, Result, Script};
+use crate::{
+    Error,
+    GitSourceKey,
+    LintMessage,
+    LintedItem,
+    Lints,
+    LocalSourceKey,
+    Result,
+    Script,
+    ScriptSourceKey,
+    TarSourceKey,
+};
 
 #[cfg(test)]
 #[path = "./source_spec_test.rs"]
@@ -47,10 +59,19 @@ impl SourceSpec {
             SourceSpec::Script(source) => source.collect(dirname, env),
         }
     }
+
+    // pub fn lints(&self) -> Vec<LintMessage> {
+    //     match self {
+    //         SourceSpec::Local(source) => source.lints.clone(),
+    //         SourceSpec::Git(source) => source.lints.clone(),
+    //         SourceSpec::Tar(source) => source.lints.clone(),
+    //         SourceSpec::Script(source) => source.lints.clone(),
+    //     }
+    // }
 }
 
 /// Package source files in a local directory or file path.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct LocalSource {
     pub path: PathBuf,
     #[serde(
@@ -75,6 +96,97 @@ impl Default for LocalSource {
             filter: Self::default_filter(),
             subdir: None,
         }
+    }
+}
+
+#[derive(Default, Debug)]
+struct LocalSourceVisitor {
+    path: PathBuf,
+    exclude: Vec<String>,
+    filter: Vec<String>,
+    subdir: Option<String>,
+    lints: Vec<LintMessage>,
+}
+
+impl Lints for LocalSourceVisitor {
+    fn lints(&mut self) -> Vec<LintMessage> {
+        std::mem::take(&mut self.lints)
+    }
+}
+
+impl From<LocalSourceVisitor> for LocalSource {
+    fn from(value: LocalSourceVisitor) -> Self {
+        Self {
+            path: value.path,
+            exclude: value.exclude,
+            filter: value.filter,
+            subdir: value.subdir,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for LocalSource {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(LocalSourceVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> Deserialize<'de> for LintedItem<LocalSource> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(LocalSourceVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for LocalSourceVisitor {
+    type Value = LocalSourceVisitor;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a local source spec")
+    }
+
+    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "path" => self.path = map.next_value::<PathBuf>()?,
+                "exclude" => {
+                    self.exclude = map
+                        .next_value::<Vec<Stringified>>()?
+                        .into_iter()
+                        .map(|s| s.0)
+                        .collect()
+                }
+                "filter" => {
+                    self.filter = map
+                        .next_value::<Vec<Stringified>>()?
+                        .into_iter()
+                        .map(|s| s.0)
+                        .collect()
+                }
+                "subdir" => self.subdir = Some(map.next_value::<Stringified>()?.0),
+                unknown_key => {
+                    self.lints
+                        .push(LintMessage::UnknownLocalSourceKey(LocalSourceKey::new(
+                            unknown_key,
+                        )));
+
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                }
+            }
+        }
+        Ok(self)
     }
 }
 
@@ -153,7 +265,7 @@ impl LocalSource {
 }
 
 /// Package source files from a remote git repository.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct GitSource {
     pub git: String,
     #[serde(default, rename = "ref", skip_serializing_if = "String::is_empty")]
@@ -165,6 +277,85 @@ pub struct GitSource {
     pub depth: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subdir: Option<String>,
+}
+
+#[derive(Default, Debug)]
+struct GitSourceVisitor {
+    git: String,
+    reference: String,
+    depth: u32,
+    subdir: Option<String>,
+    lints: Vec<LintMessage>,
+}
+
+impl Lints for GitSourceVisitor {
+    fn lints(&mut self) -> Vec<LintMessage> {
+        std::mem::take(&mut self.lints)
+    }
+}
+
+impl From<GitSourceVisitor> for GitSource {
+    fn from(value: GitSourceVisitor) -> Self {
+        Self {
+            git: value.git,
+            reference: value.reference,
+            depth: value.depth,
+            subdir: value.subdir,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for GitSource {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(GitSourceVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> Deserialize<'de> for LintedItem<GitSource> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(GitSourceVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for GitSourceVisitor {
+    type Value = GitSourceVisitor;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a git source spec")
+    }
+
+    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "git" => self.git = map.next_value::<Stringified>()?.0,
+                "reference" => self.reference = map.next_value::<Stringified>()?.0,
+                "depth" => self.depth = map.next_value::<u32>()?,
+                "subdir" => self.subdir = Some(map.next_value::<Stringified>()?.0),
+                unknown_key => {
+                    self.lints
+                        .push(LintMessage::UnknownGitSourceKey(GitSourceKey::new(
+                            unknown_key,
+                        )));
+
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                }
+            }
+        }
+        Ok(self)
+    }
 }
 
 impl GitSource {
@@ -215,11 +406,84 @@ impl GitSource {
 }
 
 /// Package source files from a local or remote tar archive.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct TarSource {
     pub tar: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subdir: Option<String>,
+}
+
+#[derive(Default, Debug)]
+struct TarSourceVisitor {
+    tar: String,
+    subdir: Option<String>,
+    lints: Vec<LintMessage>,
+}
+
+impl Lints for TarSourceVisitor {
+    fn lints(&mut self) -> Vec<LintMessage> {
+        std::mem::take(&mut self.lints)
+    }
+}
+
+impl From<TarSourceVisitor> for TarSource {
+    fn from(value: TarSourceVisitor) -> Self {
+        Self {
+            tar: value.tar,
+            subdir: value.subdir,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for TarSource {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(TarSourceVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> Deserialize<'de> for LintedItem<TarSource> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(TarSourceVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for TarSourceVisitor {
+    type Value = TarSourceVisitor;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a tar source spec")
+    }
+
+    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "tar" => self.tar = map.next_value::<Stringified>()?.0,
+                "subdir" => self.subdir = Some(map.next_value::<Stringified>()?.0),
+                unknown_key => {
+                    self.lints
+                        .push(LintMessage::UnknownTarSourceKey(TarSourceKey::new(
+                            unknown_key,
+                        )));
+
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                }
+            }
+        }
+        Ok(self)
+    }
 }
 
 impl TarSource {
@@ -287,11 +551,94 @@ impl TarSource {
 }
 
 /// Package source files collected via arbitrary shell script.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct ScriptSource {
     pub script: Script,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subdir: Option<String>,
+}
+
+#[derive(Debug)]
+struct ScriptSourceVisitor {
+    script: Script,
+    subdir: Option<String>,
+    lints: Vec<LintMessage>,
+}
+
+impl Default for ScriptSourceVisitor {
+    fn default() -> Self {
+        Self {
+            script: Script::new(vec![""]),
+            subdir: None,
+            lints: Vec::default(),
+        }
+    }
+}
+
+impl Lints for ScriptSourceVisitor {
+    fn lints(&mut self) -> Vec<LintMessage> {
+        std::mem::take(&mut self.lints)
+    }
+}
+
+impl From<ScriptSourceVisitor> for ScriptSource {
+    fn from(value: ScriptSourceVisitor) -> Self {
+        Self {
+            script: value.script,
+            subdir: value.subdir,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ScriptSource {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(ScriptSourceVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> Deserialize<'de> for LintedItem<ScriptSource> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(ScriptSourceVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for ScriptSourceVisitor {
+    type Value = ScriptSourceVisitor;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a script source spec")
+    }
+
+    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "script" => self.script = map.next_value::<Script>()?,
+                "subdir" => self.subdir = Some(map.next_value::<Stringified>()?.0),
+                unknown_key => {
+                    self.lints
+                        .push(LintMessage::UnknownScriptSourceKey(ScriptSourceKey::new(
+                            unknown_key,
+                        )));
+
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                }
+            }
+        }
+        Ok(self)
+    }
 }
 
 impl ScriptSource {
