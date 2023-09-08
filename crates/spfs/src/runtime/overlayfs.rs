@@ -28,8 +28,13 @@ pub fn is_removed_entry(meta: &std::fs::Metadata) -> bool {
 #[cached::proc_macro::once(sync_writes = true)]
 pub fn overlayfs_available_options() -> HashSet<String> {
     query_overlayfs_available_options().unwrap_or_else(|err| {
-        tracing::warn!("Failed to detect supported overlayfs params: {err}");
-        tracing::warn!(" > Falling back to the most conservative set, which is undesirable");
+        if std::env::var("SPFS_SUPPRESS_OVERLAYFS_PARAMS_WARNING").is_err() {
+            tracing::warn!("Failed to detect supported overlayfs params: {err}");
+            tracing::warn!(" > Falling back to the most conservative set, which is undesirable");
+            tracing::warn!(
+                " > To suppress this warning, set SPFS_SUPPRESS_OVERLAYFS_PARAMS_WARNING=1"
+            );
+        }
         Default::default()
     })
 }

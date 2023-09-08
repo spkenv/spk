@@ -25,6 +25,9 @@ cargo_packages_arg := $(if $(CRATES),-p=$(CRATES))
 cargo_packages_arg := $(subst $(comma), -p=,$(cargo_packages_arg))
 cargo_packages_arg := $(if $(cargo_packages_arg),$(cargo_packages_arg),--workspace)
 
+# Suppress this warning to not muddle the test output.
+export SPFS_SUPPRESS_OVERLAYFS_PARAMS_WARNING = 1
+
 # Create a file called "config.mak" to configure variables.
 -include config.mak
 

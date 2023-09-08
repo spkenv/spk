@@ -40,6 +40,7 @@ jobs:
       SPFS_MONITOR_DISABLE_CNPROC: "1"
       # Define a local origin repo for tests to use
       SPFS_REMOTE_origin_ADDRESS: "file:///tmp/spfs-repos/origin"
+      SPFS_SUPPRESS_OVERLAYFS_PARAMS_WARNING: "1"
       # Enable sccache for rust
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"

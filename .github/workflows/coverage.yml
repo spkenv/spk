@@ -20,6 +20,7 @@ jobs:
       image: xd009642/tarpaulin:0.26.0
       options: --security-opt seccomp=unconfined --privileged
     env:
+      SPFS_SUPPRESS_OVERLAYFS_PARAMS_WARNING: "1"
       # Enable sccache for rust
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"
