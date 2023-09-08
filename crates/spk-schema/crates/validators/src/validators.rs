@@ -4,12 +4,13 @@
 
 use std::path::Path;
 
+use nonempty::NonEmpty;
 use spfs::tracking::{Diff, DiffMode};
 use spk_schema_foundation::env::data_path;
 use spk_schema_foundation::spec_ops::FileMatcher;
 use spk_schema_ident::BuildIdent;
 
-use crate::{Error, Result};
+use crate::{Error, ValidateError};
 
 // Tests for this module are in spk-schema/src/v0/validators_test.rs to avoid
 // a cyclic crate dependency (the tests need spk_schema::v0).
@@ -19,7 +20,7 @@ pub fn must_collect_all_files<'a, Files>(
     pkg: &BuildIdent,
     files: Files,
     diffs: &[Diff],
-) -> Result<()>
+) -> std::result::Result<(), ValidateError>
 where
     Files: IntoIterator<Item = &'a FileMatcher>,
 {
@@ -44,22 +45,24 @@ where
             return Ok(());
         }
     }
-    Err(Error::SomeFilesNotCollected(
-        diffs.into_iter().map(|d| d.path.to_string()).collect(),
-    ))
+    Err(ValidateError::ValidationErrorsFound(NonEmpty::new(
+        Error::SomeFilesNotCollected(diffs.into_iter().map(|d| d.path.to_string()).collect()),
+    )))
 }
 
 /// Validates that something was installed for the package
-pub fn must_install_something<P: AsRef<Path>>(diffs: &[Diff], prefix: P) -> Result<()> {
+pub fn must_install_something<P: AsRef<Path>>(
+    diffs: &[Diff],
+    prefix: P,
+) -> std::result::Result<(), ValidateError> {
     let changes = diffs
         .iter()
         .filter(|diff| !diff.mode.is_unchanged())
         .count();
 
     if changes == 0 {
-        Err(Error::BuildMadeNoFilesToInstall(format!(
-            "{:?}",
-            prefix.as_ref()
+        Err(ValidateError::ValidationErrorsFound(NonEmpty::new(
+            Error::BuildMadeNoFilesToInstall(format!("{:?}", prefix.as_ref())),
         )))
     } else {
         Ok(())
@@ -68,7 +71,11 @@ pub fn must_install_something<P: AsRef<Path>>(diffs: &[Diff], prefix: P) -> Resu
 
 /// Validates that the install process did not change
 /// a file that belonged to a build dependency
-pub fn must_not_alter_existing_files<P: AsRef<Path>>(diffs: &[Diff], _prefix: P) -> Result<()> {
+pub fn must_not_alter_existing_files<P: AsRef<Path>>(
+    diffs: &[Diff],
+    _prefix: P,
+) -> std::result::Result<(), ValidateError> {
+    let mut errors = Vec::new();
     for diff in diffs.iter() {
         match &diff.mode {
             DiffMode::Added(_) | DiffMode::Unchanged(_) => continue,
@@ -83,10 +90,16 @@ pub fn must_not_alter_existing_files<P: AsRef<Path>>(diffs: &[Diff], _prefix: P)
                 }
             }
         }
-        return Err(Error::ExistingFileAltered(
+        errors.push(Error::ExistingFileAltered(
             Box::new(diff.mode.clone()),
             diff.path.clone(),
         ));
+    }
+    if !errors.is_empty() {
+        // Safety: errors is not empty.
+        return Err(ValidateError::ValidationErrorsFound(unsafe {
+            NonEmpty::from_vec(errors).unwrap_unchecked()
+        }));
     }
     Ok(())
 }

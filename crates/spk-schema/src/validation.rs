@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 use spfs::tracking::{Diff, DiffMode};
+use spk_schema_validators::ValidateError;
 
 use crate::validators::{
     must_collect_all_files,
@@ -36,7 +37,7 @@ impl Validator {
         pkg: &Package,
         diffs: &[spfs::tracking::Diff],
         prefix: P,
-    ) -> spk_schema_validators::Result<()>
+    ) -> std::result::Result<(), ValidateError>
     where
         Package: crate::Package,
         P: AsRef<std::path::Path>,
@@ -104,12 +105,19 @@ impl ValidationSpec {
         let mut validation_errors = Vec::new();
 
         for validator in self.configured_validators().iter() {
-            if let Err(err) = validator.validate(package, &diffs, SPFS) {
-                validation_errors.push(crate::Error::InvalidBuildChangeSetError(
-                    format!("{validator:?}"),
-                    err,
-                ));
-            }
+            match validator.validate(package, &diffs, SPFS) {
+                Ok(_) => continue,
+                Err(ValidateError::ValidationErrorsFound(errors)) => {
+                    validation_errors.extend(errors.into_iter().map(|err| {
+                        crate::Error::InvalidBuildChangeSetError(format!("{validator:?}"), err)
+                    }))
+                }
+                Err(ValidateError::Other(err)) => {
+                    return Err(ValidateBuildChangesetError::Other(
+                        crate::Error::InvalidBuildChangeSetError(format!("{validator:?}"), err),
+                    ));
+                }
+            };
         }
 
         // Remove any "unchanged" entries from `diffs`; this list can be used

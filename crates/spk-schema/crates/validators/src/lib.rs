@@ -8,7 +8,7 @@
 mod error;
 mod validators;
 
-pub use error::{Error, Result};
+pub use error::{Error, Result, ValidateError};
 pub use validators::{
     must_collect_all_files,
     must_install_something,

@@ -159,6 +159,9 @@ build:
 "#
     );
 
+    // Force middle to pick up exactly 1.0.0 so for the multiple builds below
+    // it doesn't pick up an already-built 1.0.1 of circ and the contents of
+    // version.txt will still be "1.0.0" during the build of circ.
     build_package!(
         tmpdir,
         "middle.spk.yaml",
@@ -167,14 +170,13 @@ pkg: middle/1.0.0
 
 build:
   options:
-    - pkg: circ
+    - pkg: circ/=1.0.0
   script:
     - "true"
 
 install:
   requirements:
-    - pkg: circ
-      fromBuildEnv: true
+    - pkg: circ/=1.0.0
 "#,
     );
 

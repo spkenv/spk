@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use nonempty::NonEmpty;
 use relative_path::RelativePathBuf;
 use spfs::tracking::DiffMode;
 use spk_schema_ident::{AnyIdent, VersionIdent};
@@ -50,4 +51,13 @@ impl Error {
     pub fn is_package_not_found(&self) -> bool {
         matches!(self, Error::PackageNotFoundError(_))
     }
+}
+
+/// A custom error type to return possibly more than one validation error when
+/// validating a package.
+pub enum ValidateError {
+    /// Validation errors were found.
+    ValidationErrorsFound(NonEmpty<Error>),
+    /// Some other non-validation error occurred while validating.
+    Other(Error),
 }
