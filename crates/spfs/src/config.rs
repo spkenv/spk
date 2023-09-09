@@ -396,7 +396,7 @@ impl Config {
     }
 
     pub fn get_secondary_runtime_repositories(&self) -> Vec<url::Url> {
-        let mut addrs = Vec::new();
+        let mut addresses = Vec::new();
         for name in self.filesystem.secondary_repositories.iter() {
             let Some(remote) = self.remote.get(name) else {
                 tracing::warn!("Unknown secondary runtime repository: {name}");
@@ -406,9 +406,9 @@ impl Config {
                 tracing::warn!("Cannot construct a valid address for remote: {name}");
                 continue;
             };
-            addrs.push(addr);
+            addresses.push(addr);
         }
-        addrs
+        addresses
     }
 }
 

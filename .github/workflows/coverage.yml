@@ -61,9 +61,15 @@ jobs:
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.3
       - name: Install spfs
-        run: make install-debug-spfs FEATURES=server,spfs/server
+        run: |
+          make install-debug-spfs FEATURES=server,spfs/server
+          # free up space before compiling the instrumented version
+          cargo clean
       - name: Generate code coverage
         run: |
+          # Save some disk space by not including spk-launcher in the workspace.
+          cat Cargo.toml | grep -v spk-launcher > Cargo.toml.new
+          mv Cargo.toml.new Cargo.toml
           # Enable migration-to-components feature here so that the test suite
           # is run with that feature enabled. Not specifically for coverage
           # purposes, but because there wouldn't otherwise be a run of the
