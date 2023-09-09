@@ -8,7 +8,7 @@ use std::time::Instant;
 use anyhow::{Context, Result};
 use clap::{ArgGroup, Args};
 use spfs::storage::FromConfig;
-use spfs::tracking::{EnvSpec, EnvSpecItem};
+use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
 
 /// Run a program in a configured spfs environment
@@ -97,14 +97,7 @@ impl CmdRun {
 
             let start_time = Instant::now();
             let origin = config.get_remote("origin").await?;
-            let references_to_sync = EnvSpec::from(
-                runtime
-                    .status
-                    .stack
-                    .iter()
-                    .map(|d| EnvSpecItem::Digest(*d))
-                    .collect::<Vec<_>>(),
-            );
+            let references_to_sync = EnvSpec::from_iter(runtime.status.stack.iter().copied());
             let _synced = self
                 .sync
                 .get_syncer(&origin, &repo)
@@ -121,11 +114,7 @@ impl CmdRun {
                         .create_named_runtime(name, self.keep_runtime)
                         .await?
                 }
-                None => {
-                    runtimes
-                        .create_runtime_with_keep_runtime(self.keep_runtime)
-                        .await?
-                }
+                None => runtimes.create_runtime(self.keep_runtime).await?,
             };
             tracing::debug!(
                 "created new runtime: {} [keep={}]",

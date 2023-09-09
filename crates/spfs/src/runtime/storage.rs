@@ -33,6 +33,10 @@ pub const STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
 /// The environment variable that can be used to specify the runtime fs size
 const SPFS_FILESYSTEM_TMPFS_SIZE: &str = "SPFS_FILESYSTEM_TMPFS_SIZE";
 
+// For durable paramater of create_runtime()
+#[cfg(test)]
+const TRANSIENT: bool = false;
+
 /// Information about the source of a runtime
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Author {
@@ -730,24 +734,23 @@ impl Storage {
     }
 
     /// Create a runtime with a generated name that will not be kept
-    pub async fn create_runtime(&self) -> Result<Runtime> {
+    pub async fn create_transient_runtime(&self) -> Result<Runtime> {
         let uuid = uuid::Uuid::new_v4().to_string();
         let keep_runtime = false;
         self.create_named_runtime(uuid, keep_runtime).await
     }
 
-    /// Create a new runtime with a generated name that will be kept
-    /// or not based on the the given keep_runtime value.
-    pub async fn create_runtime_with_keep_runtime(&self, keep_runtime: bool) -> Result<Runtime> {
+    /// Create a new runtime with a generated name
+    pub async fn create_runtime(&self, durable: bool) -> Result<Runtime> {
         let uuid = uuid::Uuid::new_v4().to_string();
-        self.create_named_runtime(uuid, keep_runtime).await
+        self.create_named_runtime(uuid, durable).await
     }
 
     /// Create a new runtime that is owned by this process and
     /// will be deleted upon drop
     #[cfg(test)]
     pub async fn create_owned_runtime(&self) -> Result<OwnedRuntime> {
-        let rt = self.create_runtime().await?;
+        let rt = self.create_runtime(TRANSIENT).await?;
         OwnedRuntime::upgrade_as_owner(rt).await
     }
 
@@ -779,10 +782,10 @@ impl Storage {
                 continue;
             };
             if sample_upper_dir == *runtime.upper_dir() {
-                return Err(Error::RuntimeUpperDirAlreadyInUse(
+                return Err(Error::RuntimeUpperDirAlreadyInUse {
                     upper_name,
-                    runtime.name().to_string(),
-                ));
+                    runtime_name: runtime.name().to_string(),
+                });
             }
         }
         Ok(())

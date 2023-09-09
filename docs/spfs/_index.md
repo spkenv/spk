@@ -127,7 +127,7 @@ By default, when you run a command or enter into a shell with an existing spfs i
 In edit mode, the spfs system stores changes that you make in a new area, layered on top of the existing files. This means that you are never actually modifying any files previously committed to spfs. There is no way to change a committed layer or platform, only update the tag to point to a newly committed set of files that are different (just like a git branch).
 
 {{% notice tip %}}
-In normally edit mode, all changes are stored in memory and are lost when you exit the runtime. One way to save these changes is to commit them as a layer or platform before exiting, the other is start spfs with the `--keep-runtime` flag before beginning any editing.
+Normally in edit mode, all changes are stored in memory and are lost when you exit the runtime. One way to save these changes is to commit them as a layer or platform before exiting, the other is start spfs with the `--keep-runtime` flag before beginning any editing.
 {{% /notice %}}
 
 Using `--keep-runtime` with `spfs run` will tell spfs to make a durable runtime. The runtime and any edits made while it is running will be kept around until you delete the runtime, see `spfs runtime rm -h`. It is worth using `--runtime-name <NAME>` to give the runtime a memorable name when you are use `--keep-runtime`. The default runtime names are uuids that do not provide any useful insight above what is in the runtime. You can use `--runtime-name <NAME>` without `--keep-time` as well.

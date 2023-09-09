@@ -71,7 +71,7 @@ mkdir -p /path/to/remote/spfs-storage/{objects,payloads,tags}
 Above these core layers sits the main spfs API layer, which provides high level functions that deal with syncing data between two repositories, cleaning orphaned objects from a repository, creating new layers from an active filesystem, and orchestrating with the runtime environment.
 
 
-### Spfs processes involved in running a /spfs environment
+### Spfs processes involved in running an spfs environment
 
 These spfs commands are involved in setting up, making available, and
 tearing down a /spfs environment:

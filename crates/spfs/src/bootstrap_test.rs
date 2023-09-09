@@ -43,7 +43,9 @@ async fn test_shell_initialization_startup_scripts(
     );
     let storage = runtime::Storage::new(repo);
 
-    let mut rt = storage.create_runtime().await.unwrap();
+    let mut rt = runtime::Storage::create_transient_runtime(&storage)
+        .await
+        .unwrap();
     rt.set_runtime_dir(tmpdir.path()).await.unwrap();
 
     let setenv = |cmd: &mut std::process::Command| {
@@ -115,7 +117,7 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempf
     );
     let storage = runtime::Storage::new(repo);
 
-    let mut rt = storage.create_runtime().await.unwrap();
+    let mut rt = storage.create_transient_runtime().await.unwrap();
     rt.set_runtime_dir(tmpdir.path()).await.unwrap();
 
     let setenv = |cmd: &mut std::process::Command| {

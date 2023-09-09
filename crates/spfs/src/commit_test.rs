@@ -20,7 +20,7 @@ async fn test_commit_empty(tmpdir: tempfile::TempDir) {
             .unwrap(),
     ));
     let storage = crate::runtime::Storage::new(repo.clone());
-    let mut rt = storage.create_runtime().await.unwrap();
+    let mut rt = storage.create_transient_runtime().await.unwrap();
     rt.ensure_required_directories().await.unwrap();
     let committer = Committer::new(&repo);
     match committer.commit_layer(&mut rt).await {

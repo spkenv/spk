@@ -848,7 +848,6 @@ impl OverlayMountOptions {
     fn new(rt: &runtime::Runtime) -> Self {
         Self {
             read_only: !rt.status.editable,
-            // !rt.config.keep_runtime,
             break_hardlinks: true,
             metadata_copy_up: true,
         }
