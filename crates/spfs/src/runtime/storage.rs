@@ -145,7 +145,7 @@ pub struct Config {
 
     /// Whether to keep the runtime around once the process using it exits.
     #[serde(default)]
-    pub keep_runtime: bool,
+    pub durable: bool,
 }
 
 impl Default for Config {
@@ -185,7 +185,7 @@ impl Config {
             mount_namespace: None,
             mount_backend: MountBackend::OverlayFsWithRenders,
             secondary_repositories: Vec::new(),
-            keep_runtime: false,
+            durable: false,
         }
     }
 
@@ -295,7 +295,7 @@ impl Data {
 
     /// Whether to keep the runtime when the process is exits
     pub fn keep_runtime(&self) -> bool {
-        self.config.keep_runtime
+        self.config.durable
     }
 }
 
@@ -429,8 +429,8 @@ impl Runtime {
     }
 
     /// Reset parts of the runtime's state so it can be reused in
-    /// another process run. Note: this saves the runtime to storage.
-    pub async fn reinit_for_reuse(&mut self) -> Result<()> {
+    /// another process run.
+    pub async fn reinit_for_reuse_and_save_to_storage(&mut self) -> Result<()> {
         // Reset the durable runtime's owner, monitor, and
         // namespace fields so the runtime can be rerun in future.
         self.status.owner = None;
@@ -639,11 +639,9 @@ impl Storage {
         // Remove the durable path associated with the runtime first, if there is one.
         let durable_path = self.durable_path(name.as_ref().to_string()).await?;
         if durable_path.exists() {
-            // Removing the durable upper path requires elevated privileges
-            // so 'spfs-clean --remove-durable RUNTIME_NAAME' is run to do it.
-            //
-            // Assumes it is in the local repo, because can't get the storage
-            // name because repohandle's don't have keep their names
+            // Removing the durable upper path requires elevated privileges so:
+            // 'spfs-clean --remove-durable RUNTIME_NAAME --runtime-storage STORAGE_URL'
+            // is run to do it.
             let mut cmd = bootstrap::build_spfs_remove_durable_command(
                 name.as_ref().to_string(),
                 self.inner.address(),
@@ -808,7 +806,7 @@ impl Storage {
         }
 
         let mut rt = Runtime::new(name.clone(), self.clone());
-        rt.data.config.keep_runtime = keep_runtime;
+        rt.data.config.durable = keep_runtime;
         if keep_runtime {
             // Keeping a runtime also activates a durable upperdir.
             // The runtime's name is used the identifying token in the

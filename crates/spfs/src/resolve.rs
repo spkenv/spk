@@ -52,7 +52,7 @@ async fn render_via_subcommand(
         // of overlayfs. To avoid any issues editing files and
         // hardlinks the rendering for them switches to Copy.
         cmd.arg("--strategy");
-        cmd.arg("Copy");
+        cmd.arg::<&str>(crate::storage::fs::RenderType::Copy.into());
     }
     cmd.arg(spec.to_string());
     tracing::debug!("{:?}", cmd);
@@ -354,7 +354,7 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
 
     let manifests = resolve_overlay_dirs(runtime, &fallback_repo, skip_runtime_save).await?;
     let to_render = manifests.iter().map(|m| m.digest()).try_collect()?;
-    match render_via_subcommand(to_render, runtime.config.keep_runtime).await? {
+    match render_via_subcommand(to_render, runtime.config.durable).await? {
         Some(render_result) => Ok(render_result),
         None => {
             // If we couldn't parse the value printed by spfs-render, calculate

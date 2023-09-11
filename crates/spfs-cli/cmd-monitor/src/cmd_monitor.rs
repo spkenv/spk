@@ -197,7 +197,7 @@ impl CmdMonitor {
             // called because that command relies on the
             // mount_namespace value, which this resets, to teardown
             // the runtime.
-            let _ = owned.reinit_for_reuse().await;
+            let _ = owned.reinit_for_reuse_and_save_to_storage().await;
         } else if let Err(err) = owned.delete().await {
             tracing::error!("failed to clean up runtime data: {err:?}")
         }

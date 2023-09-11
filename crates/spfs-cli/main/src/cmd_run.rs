@@ -92,7 +92,7 @@ impl CmdRun {
                 // went wrong when the runtime last exited.  The
                 // --force flag allows runtimes left in a strange
                 // state to be reset and rerun.
-                runtime.reinit_for_reuse().await?;
+                runtime.reinit_for_reuse_and_save_to_storage().await?;
             }
 
             let start_time = Instant::now();

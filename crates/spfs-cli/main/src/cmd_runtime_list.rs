@@ -101,7 +101,7 @@ impl CmdRuntimeList {
                             (None, None, _) => {
                                 // There's no owner or monitor but the
                                 // durable runtime remains
-                                if runtime.config.keep_runtime {
+                                if runtime.config.durable {
                                     "saved"
                                 } else {
                                     "unknown"
