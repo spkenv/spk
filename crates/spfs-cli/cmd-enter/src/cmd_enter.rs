@@ -162,7 +162,7 @@ impl CmdEnter {
 
             let mut monitor_stdin = match spfs::monitor::spawn_monitor_for_runtime(&owned) {
                 Err(err) => {
-                    if !owned.keep_runtime() {
+                    if !owned.is_durable() {
                         if let Err(err) = owned.delete().await {
                             tracing::error!(
                                 ?err,

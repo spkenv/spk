@@ -185,13 +185,13 @@ impl CmdMonitor {
 
         tracing::trace!(
             "{} runtime data",
-            if owned.keep_runtime() {
+            if owned.is_durable() {
                 "keeping"
             } else {
                 "deleting"
             }
         );
-        if owned.keep_runtime() {
+        if owned.is_durable() {
             // Reset the runtime can be rerun in future.  This has to
             // be done after the exit_runtime/spfs enter --exit is
             // called because that command relies on the

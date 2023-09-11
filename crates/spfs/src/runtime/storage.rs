@@ -294,7 +294,7 @@ impl Data {
     }
 
     /// Whether to keep the runtime when the process is exits
-    pub fn keep_runtime(&self) -> bool {
+    pub fn is_durable(&self) -> bool {
         self.config.durable
     }
 }
@@ -424,8 +424,8 @@ impl Runtime {
         &self.storage
     }
 
-    pub fn keep_runtime(&self) -> bool {
-        self.data.keep_runtime()
+    pub fn is_durable(&self) -> bool {
+        self.data.is_durable()
     }
 
     /// Reset parts of the runtime's state so it can be reused in
@@ -734,8 +734,8 @@ impl Storage {
     /// Create a runtime with a generated name that will not be kept
     pub async fn create_transient_runtime(&self) -> Result<Runtime> {
         let uuid = uuid::Uuid::new_v4().to_string();
-        let keep_runtime = false;
-        self.create_named_runtime(uuid, keep_runtime).await
+        let durable = false;
+        self.create_named_runtime(uuid, durable).await
     }
 
     /// Create a new runtime with a generated name
@@ -790,12 +790,12 @@ impl Storage {
     }
 
     /// Create a new runtime with a specific name that will be kept or
-    /// not based on the given keep_runtime flag. If the runtime is kept,
+    /// not based on the given durable flag. If the runtime is kept,
     /// it will use a durable upper root path for its upper/work dirs.
     pub async fn create_named_runtime<S: Into<String>>(
         &self,
         name: S,
-        keep_runtime: bool,
+        durable: bool,
     ) -> Result<Runtime> {
         let name = name.into();
         let runtime_tag = runtime_tag(RuntimeDataType::Metadata, &name)?;
@@ -806,8 +806,8 @@ impl Storage {
         }
 
         let mut rt = Runtime::new(name.clone(), self.clone());
-        rt.data.config.durable = keep_runtime;
-        if keep_runtime {
+        rt.data.config.durable = durable;
+        if durable {
             // Keeping a runtime also activates a durable upperdir.
             // The runtime's name is used the identifying token in the
             // durable upper dir's root path, which is stored in the

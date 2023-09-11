@@ -83,7 +83,7 @@ impl CmdRuntimeRemove {
                 return Ok(1);
             }
 
-            if runtime.keep_runtime() && !self.remove_durable {
+            if runtime.is_durable() && !self.remove_durable {
                 tracing::error!("Won't delete, the runtime is marked as durable and");
                 tracing::error!(" > '--remove-durable' was not specified");
                 tracing::error!(" > use --remove-durable to remove a durable runtime");

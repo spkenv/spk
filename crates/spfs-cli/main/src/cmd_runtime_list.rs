@@ -122,7 +122,7 @@ impl CmdRuntimeList {
                                 .map(|pid| pid.to_string())
                                 .unwrap_or_else(|| "unknown".to_string()),
                             runtime.status.editable,
-                            runtime.keep_runtime(),
+                            runtime.is_durable(),
                         )
                     }
                     println!("{message}");
