@@ -12,6 +12,7 @@ use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::Object;
+use spfs::io::Pluralize;
 use spfs::Digest;
 use spk_cli_common::with_version_and_build_set::WithVersionSet;
 use spk_cli_common::{current_env, flags, CommandArgs, DefaultVersionStrategy, Run};
@@ -434,7 +435,7 @@ impl View {
                         return Ok(0);
                     }
                     Err(err) => {
-                        tracing::trace!("Unable to read recipe from {}: {err}", repo.name());
+                        tracing::debug!("Unable to read recipe from {}: {err}", repo.name());
 
                         // Older repos can contain builds for a version, and have build specs,
                         // but not have a version recipe in the repo. In those cases, we show
@@ -444,7 +445,10 @@ impl View {
                                 let build_ident = &builds[0];
                                 match repo.read_package(build_ident).await {
                                     Ok(package_spec) => {
-                                        return self.print_build_spec(package_spec);
+                                        let result = self.print_build_spec(package_spec);
+                                        let number = builds.len();
+                                        tracing::info!("No version recipe exists. But found {number} {}. Output a build spec instead.", "build".pluralize(number));
+                                        return result;
                                     }
                                     Err(err) => {
                                         tracing::trace!("Unable to read package for build: {err}")
