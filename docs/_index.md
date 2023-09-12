@@ -17,7 +17,7 @@ Driven by the unique requirements of the film, vfx, and animation industries, SP
 - Recipe and Source Publication
 - Fast, Dynamic Build and Runtime Environments
 - Reliable and Natural Definition of Platforms and Constraints
-- _More details on these goals can be found [here](/develop/design)_
+- _More details on these goals can be found [here]({{< ref "develop/design" >}})_
 
 Additionally, SPK is built on top of a technology called SPFS, which lends a few superpowers to the whole system:
 
@@ -25,4 +25,4 @@ Additionally, SPK is built on top of a technology called SPFS, which lends a few
 - A single, consistent file path for all software at runtime
 - File-level de-duplication of package data
 - Efficient sync, transfer and localization of software
-- _More about spfs [here](/spfs)_
+- _More about spfs [here]({{< ref "spfs" >}})_

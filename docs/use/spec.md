@@ -4,7 +4,7 @@ summary: Write package spec files for creating packages.
 weight: 20
 ---
 
-The package specification (spec) file is a yaml or json file which follows the structure detailed below. See the [Package Spec Schema](/ref/spec) for a more complete set of available fields.
+The package specification (spec) file is a yaml or json file which follows the structure detailed below. See the [Package Spec Schema]({{< ref "ref/spec" >}}) for a more complete set of available fields.
 
 ### Name and Version
 
@@ -475,7 +475,7 @@ Additionally, this tag can be used to set defaults in nested structures. Often, 
 
 **compare_version**
 
-The `compare_version` allows for comparing spk versions using any of the [version comparison operators](/use/versioning). It takes one or two arguments, depending on the data that you have to give. In all cases, the arguments are concatenated together and parsed as a version range. For example, the following assignments to py_3 all end up checking the same statement.
+The `compare_version` allows for comparing spk versions using any of the [version comparison operators]({{< ref "use/versioning" >}}). It takes one or two arguments, depending on the data that you have to give. In all cases, the arguments are concatenated together and parsed as a version range. For example, the following assignments to py_3 all end up checking the same statement.
 
 ```liquid
 {% assign is_py3 = python.version | compare_version: ">=3" %}

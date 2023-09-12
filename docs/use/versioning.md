@@ -45,9 +45,9 @@ Post-releases come after the normal release of the same number, and must come af
 
 ### Version Ranges
 
-The version range specifiers are largely based on those from Rust's Cargo toolchain ([source](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html)). The main difference is the support of package [compatibility specifications](../spec#Compatibility)
+The version range specifiers are largely based on those from Rust's Cargo toolchain ([source](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html)). The main difference is the support of package [compatibility specifications]({{< ref "use/spec#compatibility" >}})
 
-#### Default Compatbility
+#### Default Compatibility
 
 When a version number is specified with none of the operators below, it is assumes to follow the requested packages compatibility specification. In this case the given version number reresents a minimum version required, allowing newer version only if the requested package recognizes it as compatible with the desired minumum.
 
