@@ -188,31 +188,38 @@ impl TemplateExt for SpecTemplate {
             Ok(v) => v,
         };
 
-        let pkg = template_value
-            .get(&serde_yaml::Value::String("pkg".to_string()))
-            .ok_or_else(|| {
-                crate::Error::String(format!("Missing pkg field in spec file: {file_path:?}"))
-            })?;
-        let pkg = pkg.as_str().ok_or_else(|| {
-            crate::Error::String(format!(
-                "Invalid value for 'pkg' field: expected string, got {pkg:?} in {file_path:?}"
-            ))
-        })?;
-        let name = PkgNameBuf::from_str(
-            // it should never be possible for split to return 0 results
-            // but this trick avoids the use of unwrap
-            pkg.split('/').next().unwrap_or(pkg),
-        )?;
+        let api = template_value.get(&serde_yaml::Value::String("api".to_string()));
 
-        if template_value
-            .get(&serde_yaml::Value::String("api".to_string()))
-            .is_none()
-        {
+        if api.is_none() {
             tracing::warn!(
                 "Spec file is missing the 'api' field, this may be an error in the future"
             );
             tracing::warn!(" > for specs in the original spk format, add 'api: v0/package'");
         }
+
+        let name_field = match api {
+            _ => "pkg",
+        };
+
+        let pkg = template_value
+            .get(&serde_yaml::Value::String(name_field.to_string()))
+            .ok_or_else(|| {
+                crate::Error::String(format!(
+                    "Missing {name_field} field in spec file: {file_path:?}"
+                ))
+            })?;
+
+        let pkg = pkg.as_str().ok_or_else(|| {
+            crate::Error::String(format!(
+                "Invalid value for 'pkg' field: expected string, got {pkg:?} in {file_path:?}"
+            ))
+        })?;
+
+        let name = PkgNameBuf::from_str(
+            // it should never be possible for split to return 0 results
+            // but this trick avoids the use of unwrap
+            pkg.split('/').next().unwrap_or(pkg),
+        )?;
 
         Ok(Self {
             file_path,
