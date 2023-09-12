@@ -116,6 +116,13 @@ impl RequirementsList {
         Compatibility::incompatible(format!("No request exists for {}", theirs.name()))
     }
 
+    /// Remove a requirement in this list.
+    ///
+    /// If a request exists for the same name, it is removed from the list.
+    pub fn remove(&mut self, request: &Request) {
+        self.0.retain(|existing| existing.name() != request.name());
+    }
+
     /// Render all requests with a package pin using the given resolved packages.
     pub fn render_all_pins(
         &mut self,
