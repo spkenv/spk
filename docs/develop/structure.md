@@ -23,11 +23,6 @@ options{{options}} -.-> generate_b
 build_env{{build environment}} -.-> generate_b
 generate_s ==> sp[Package]
 generate_b ==> bp[Package]
-
-classDef input fill:#DDD,stroke:#888;
-classDef process fill:#CEF,stroke:#6BF;
-class vars,root,options,build_env input;
-class render,generate_b,generate_s process;
 ```
 
 ### Metadata vs Payloads
@@ -51,7 +46,7 @@ At the top of this graph are the `spk`, `build` and `test` modules. `spk` define
 
 ### Environment Solver
 
-Underpinning all of the high level logic is the spk `solve` module, which contains the implmentation of the spk solver. The solver is responsible for all of the dependency and environment resolution in spk - the real meat and potatoes of what spk provides as a package manager. The solver architecture is covered in more detail [here](../solver.md).
+Underpinning all of the high level logic is the spk `solve` module, which contains the implementation of the spk solver. The solver is responsible for all of the dependency and environment resolution in spk - the real meat and potatoes of what spk provides as a package manager. The solver architecture is covered in more detail [here]({{< ref "develop/solver" >}}).
 
 At the time of writing, you will also find a `legacy` solver implementation which represents the codebase before some refactoring was done to clean up the structure and maintainability of the solver code. This is kept around as a regression testing baseline, but could reasonably be removed in a future release.
 

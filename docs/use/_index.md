@@ -18,7 +18,7 @@ $ which python
 $ spk env python/2 -- python
 ```
 
-Check the [Version Semantics](versioning) for help on how to request packages.
+Check the [Version Semantics]({{< ref "use/versioning" >}}) for help on how to request packages.
 
 ### Create a Package
 
@@ -33,10 +33,10 @@ $ spk build
 $ spk env --local my-pkg
 ```
 
-Use the [Package Definition Guide](spec) for more details.
+Use the [Package Definition Guide]({{< ref "use/spec" >}}) for more details.
 Check the included [examples](https://github.com/imageworks/spk/tree/main/examples) for additional help.
 
-For more detailed information on the build process, check the [Package Build Process](build)
+For more detailed information on the build process, check the [Package Build Process]({{< ref "use/build" >}})
 
 ### Publish a Package
 

@@ -6,7 +6,7 @@ weight: 100
 
 The `spk env` creates a brand new environment with some set of packages installed into it. Once you are in an environment, the `spk install` command can be used to add additional packages or upgrade existing packages in the current environment.
 
-Both of these operations take a set of package requests and try to figure out the best way to satisfy them all (more info on [package requests](../versioning)). The solver is responsible for taking the set of requested packages and ensuring that all dependencies are pulled in and all packages are compatible in the final environment. If this is deeped not possible, then you will see an error related to why the requests could not be satisfied.
+Both of these operations take a set of package requests and try to figure out the best way to satisfy them all (more info on [package requests]({{< ref "use/versioning" >}})). The solver is responsible for taking the set of requested packages and ensuring that all dependencies are pulled in and all packages are compatible in the final environment. If this is deeped not possible, then you will see an error related to why the requests could not be satisfied.
 
 ## Understanding Solver Errors
 

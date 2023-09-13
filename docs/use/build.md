@@ -11,7 +11,7 @@ The `spk build` command runs in two distinct phases, each with a small number of
 1. make the source package
 1. load the package spec
 1. setup a source directory under `/spfs/spk/pkg/<name>/<version>/src/`
-1. collect the source files defined in the [package yaml file](../spec#Sources)
+1. collect the source files defined in the [package yaml file]({{< ref "use/spec#sources" >}})
 1. validate the collected source files
 1. store the source package and it's spec in the local repository
 1. make the binary package
@@ -28,7 +28,7 @@ By default, spk generates a source package for every package that you build. Sou
 
 Source packages consist of a single directory under `/spfs` based on the package name and version. For example, `my-package/1.0.0/src` will have the directory `/spfs/spk/pkg/my-package/1.0.0/src/`. This directory will contain all the source files for that package version.
 
-Source files are gathered based on the [sources](../spec#sources) section of the package specification.
+Source files are gathered based on the [sources]({{< ref "use/spec#sources" >}}) section of the package specification.
 
 ## Binary Package Generation
 
