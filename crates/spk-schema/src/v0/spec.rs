@@ -968,12 +968,12 @@ where
 
 struct SpecVisitor<B, T> {
     pkg: Option<Ident<B, T>>,
-    meta: Option<Meta>,
+    meta: Option<LintedItem<Meta>>,
     compat: Option<Compat>,
     deprecated: Option<bool>,
     sources: Option<Vec<LintedItem<SourceSpec>>>,
     build: Option<LintedItem<UncheckedBuildSpec>>,
-    tests: Option<Vec<TestSpec>>,
+    tests: Option<Vec<LintedItem<TestSpec>>>,
     install: Option<LintedItem<InstallSpec>>,
     check_build_spec: bool,
     lints: Vec<LintMessage>,
@@ -1002,6 +1002,30 @@ impl<B, T> Lints for SpecVisitor<B, T> {
         if let Some(l) = self.install.as_mut() {
             self.lints.extend(std::mem::take(&mut l.lints));
         }
+<<<<<<< HEAD
+=======
+
+        if let Some(l) = self.build.as_mut() {
+            self.lints.extend(std::mem::take(&mut l.lints));
+        }
+
+        if let Some(l) = self.meta.as_mut() {
+            self.lints.extend(std::mem::take(&mut l.lints));
+        }
+
+        if let Some(sources) = self.sources.as_mut() {
+            for source in sources.iter_mut() {
+                self.lints.extend(std::mem::take(&mut source.lints));
+            }
+        }
+
+        if let Some(tests) = self.tests.as_mut() {
+            for test in tests.iter_mut() {
+                self.lints.extend(std::mem::take(&mut test.lints));
+            }
+        }
+
+>>>>>>> 790deb97 (Implemented linting feature for test spec and meta spec)
         std::mem::take(&mut self.lints)
     }
 }
@@ -1013,7 +1037,7 @@ where
     fn from(mut value: SpecVisitor<B, T>) -> Self {
         Self {
             pkg: value.pkg.expect("Missing field pkg"),
-            meta: value.meta.take().unwrap_or_default(),
+            meta: value.meta.take().unwrap_or_default().item,
             compat: value.compat.take().unwrap_or_default(),
             deprecated: value.deprecated.take().unwrap_or_default(),
             sources: value
@@ -1034,7 +1058,13 @@ where
                 },
                 None => Default::default(),
             },
-            tests: value.tests.take().unwrap_or_default(),
+            tests: value
+                .tests
+                .take()
+                .unwrap_or_default()
+                .iter()
+                .map(|l| l.item.clone())
+                .collect_vec(),
             install: value.install.take().unwrap_or_default().item,
         }
     }
@@ -1079,12 +1109,12 @@ where
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
                 "pkg" => self.pkg = Some(map.next_value::<Ident<B, T>>()?),
-                "meta" => self.meta = Some(map.next_value::<Meta>()?),
+                "meta" => self.meta = Some(map.next_value::<LintedItem<Meta>>()?),
                 "compat" => self.compat = Some(map.next_value::<Compat>()?),
                 "deprecated" => self.deprecated = Some(map.next_value::<bool>()?),
                 "sources" => self.sources = Some(map.next_value::<Vec<LintedItem<SourceSpec>>>()?),
                 "build" => self.build = Some(map.next_value::<LintedItem<UncheckedBuildSpec>>()?),
-                "tests" => self.tests = Some(map.next_value::<Vec<TestSpec>>()?),
+                "tests" => self.tests = Some(map.next_value::<Vec<LintedItem<TestSpec>>>()?),
                 "install" => self.install = Some(map.next_value::<LintedItem<InstallSpec>>()?),
                 "api" => {
                     map.next_value::<serde::de::IgnoredAny>()?;

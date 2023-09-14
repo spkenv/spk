@@ -93,7 +93,7 @@ pub struct InstallSpecKey {
 
 impl InstallSpecKey {
     pub fn new(unknown_key: &str) -> Self {
-        let mut message = format!("Unrecognized InstallSpec key: {unknown_key}. ");
+        let mut message = format!("Unrecognized Install Spec key: {unknown_key}. ");
         let mut corpus = CorpusBuilder::new().finish();
 
         corpus.add_text("requirements");
