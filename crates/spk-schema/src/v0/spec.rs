@@ -63,7 +63,6 @@ use crate::{
     LintMessage,
     LintedItem,
     Lints,
-    LocalSource,
     Opt,
     Package,
     PackageMut,
@@ -987,8 +986,8 @@ struct SpecVisitor<B, T> {
     meta: Option<Meta>,
     compat: Option<Compat>,
     deprecated: Option<bool>,
-    sources: Option<Vec<SourceSpec>>,
-    build: Option<UncheckedBuildSpec>,
+    sources: Option<Vec<LintedItem<SourceSpec>>>,
+    build: Option<LintedItem<UncheckedBuildSpec>>,
     tests: Option<Vec<TestSpec>>,
     install: Option<LintedItem<InstallSpec>>,
     check_build_spec: bool,
@@ -1035,7 +1034,10 @@ where
             sources: value
                 .sources
                 .take()
-                .unwrap_or_else(|| vec![SourceSpec::Local(LocalSource::default())]),
+                .unwrap_or_default()
+                .iter()
+                .map(|l| l.item.clone())
+                .collect_vec(),
             build: match value.build.take() {
                 Some(build_spec) if !value.check_build_spec => {
                     // Safety: see the SpecVisitor::package constructor
@@ -1095,8 +1097,8 @@ where
                 "meta" => self.meta = Some(map.next_value::<Meta>()?),
                 "compat" => self.compat = Some(map.next_value::<Compat>()?),
                 "deprecated" => self.deprecated = Some(map.next_value::<bool>()?),
-                "sources" => self.sources = Some(map.next_value::<Vec<SourceSpec>>()?),
-                "build" => self.build = Some(map.next_value::<UncheckedBuildSpec>()?),
+                "sources" => self.sources = Some(map.next_value::<Vec<LintedItem<SourceSpec>>>()?),
+                "build" => self.build = Some(map.next_value::<LintedItem<UncheckedBuildSpec>>()?),
                 "tests" => self.tests = Some(map.next_value::<Vec<TestSpec>>()?),
                 "install" => self.install = Some(map.next_value::<LintedItem<InstallSpec>>()?),
                 "api" => {
