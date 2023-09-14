@@ -13,7 +13,15 @@ use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::{OptionMap, Stringified};
 use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
 use spk_schema_foundation::version::Version;
-use spk_schema_ident::{BuildIdent, Ident, InclusionPolicy, Request, VersionIdent};
+use spk_schema_ident::{
+    BuildIdent,
+    Ident,
+    InclusionPolicy,
+    PkgRequest,
+    Request,
+    RequestedBy,
+    VersionIdent,
+};
 
 use super::{Spec, TestSpec};
 use crate::foundation::version::Compat;
@@ -74,8 +82,6 @@ impl PlatformRequirements {
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        // TODO: Add base requirements, if any, first.
-
         match self {
             PlatformRequirements::BareAdd(add) => {
                 self.process_add(&mut spec.install.requirements, add);
@@ -108,6 +114,8 @@ pub struct Platform<Ident> {
     pub compat: Compat,
     #[serde(default, skip_serializing_if = "is_false")]
     pub deprecated: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base: Option<Ident>,
     pub requirements: PlatformRequirements,
 }
 
@@ -167,13 +175,23 @@ impl Recipe for Platform<VersionIdent> {
         Ok(OptionMap::default())
     }
 
-    fn get_build_requirements<V>(&self, _variant: &V) -> Result<Cow<'_, RequirementsList>>
+    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
     where
         V: Variant,
     {
-        // TODO: This should include 'base'
+        let options = self.resolve_options(variant)?;
+        let build_digest = Build::Digest(options.digest());
 
-        Ok(Cow::Owned(RequirementsList::default()))
+        let mut requirements = RequirementsList::default();
+
+        if let Some(base) = self.base.as_ref() {
+            requirements.insert_or_merge(Request::Pkg(PkgRequest::from_ident(
+                base.clone().into_any(None),
+                RequestedBy::BinaryBuild(self.ident().to_build(build_digest.clone())),
+            )))?;
+        }
+
+        Ok(Cow::Owned(requirements))
     }
 
     fn get_tests<V>(&self, _stage: TestStage, _variant: &V) -> Result<Vec<Self::Test>>
@@ -207,6 +225,25 @@ impl Recipe for Platform<VersionIdent> {
             script: Script::new(["true"]),
             ..Default::default()
         };
+
+        // Add base requirements, if any, first.
+        if let Some(base) = self.base.as_ref() {
+            let build_env = build_env.build_env();
+            let base = build_env
+                .iter()
+                .find(|package| package.name() == base.name())
+                .ok_or_else(|| {
+                    crate::Error::String(format!(
+                        "base platform '{}' not found in build environment",
+                        base.name()
+                    ))
+                })?;
+            for requirement in base.runtime_requirements().iter() {
+                spec.install
+                    .requirements
+                    .insert_or_replace(requirement.clone());
+            }
+        }
 
         self.requirements
             .update_spec_for_binary_build(&mut spec, build_env)?;
@@ -407,6 +444,7 @@ where
             compat: self.compat.take().unwrap_or_default(),
             deprecated: self.deprecated.take().unwrap_or_default(),
             platform,
+            base: self.base.take(),
             requirements: requirements.into(),
         })
     }
