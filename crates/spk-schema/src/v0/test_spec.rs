@@ -4,16 +4,17 @@
 
 use serde::{Deserialize, Serialize};
 use spk_schema_ident::{RequestedBy, VersionIdent};
+use spk_schema_foundation::option_map::Stringified;
 
 use crate::ident::Request;
-use crate::{Script, TestStage};
+use crate::{LintMessage, LintedItem, Lints, Script, TestSpecKey, TestStage};
 
 #[cfg(test)]
 #[path = "./test_spec_test.rs"]
 mod test_spec_test;
 
 /// A set of structured inputs used to build a package.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct TestSpec {
     pub stage: TestStage,
@@ -51,5 +52,88 @@ impl crate::Test for TestSpec {
 
     fn additional_requirements(&self) -> Vec<Request> {
         self.requirements.clone()
+    }
+}
+
+#[derive(Default)]
+struct TestSpecVisitor {
+    stage: Option<TestStage>,
+    script: Option<Script>,
+    selectors: Vec<OptionMap>,
+    requirements: Vec<Request>,
+    lints: Vec<LintMessage>,
+}
+
+impl Lints for TestSpecVisitor {
+    fn lints(&mut self) -> Vec<LintMessage> {
+        std::mem::take(&mut self.lints)
+    }
+}
+
+impl From<TestSpecVisitor> for TestSpec {
+    fn from(value: TestSpecVisitor) -> Self {
+        Self {
+            stage: value.stage.expect("a stage"),
+            script: value.script.expect("a script"),
+            selectors: value.selectors,
+            requirements: value.requirements,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for TestSpec {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(TestSpecVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> Deserialize<'de> for LintedItem<TestSpec> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(TestSpecVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for TestSpecVisitor {
+    type Value = TestSpecVisitor;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a test specification")
+    }
+
+    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while let Some(key) = map.next_key::<Stringified>()? {
+            match key.as_str() {
+                "stage" => self.stage = Some(map.next_value::<TestStage>()?),
+                "script" => self.script = Some(map.next_value::<Script>()?),
+                "selectors" => self.selectors = map.next_value::<Vec<OptionMap>>()?,
+                "requirements" => self.requirements = map.next_value::<Vec<Request>>()?,
+                unknown_key => {
+                    self.lints
+                        .push(LintMessage::UnknownTestSpecKey(TestSpecKey::new(
+                            unknown_key,
+                        )));
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                }
+            }
+        }
+
+        if self.stage.is_none() || self.script.is_none() {
+            return Err(serde::de::Error::custom("Unknown key found"));
+        }
+
+        Ok(self)
     }
 }
