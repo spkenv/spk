@@ -17,7 +17,7 @@ use progress_bar_derive_macro::ProgressBar;
 
 use super::prune::PruneParameters;
 use crate::runtime::makedirs_with_perms;
-use crate::storage::fs::FSRepository;
+use crate::storage::fs::OpenFsRepository;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
@@ -572,9 +572,10 @@ where
         let storage::RepositoryHandle::FS(repo) = self.repo else {
             return Ok(result);
         };
+        let repo = repo.opened().await?;
 
         result += self
-            .remove_unvisited_renders_and_proxies_for_storage(None, repo)
+            .remove_unvisited_renders_and_proxies_for_storage(None, &repo)
             .await?;
 
         let renders_for_all_users = repo.renders_for_all_users()?;
@@ -601,7 +602,7 @@ where
     async fn remove_unvisited_renders_and_proxies_for_storage(
         &self,
         username: Option<String>,
-        repo: &storage::fs::FSRepository,
+        repo: &storage::fs::OpenFsRepository,
     ) -> Result<CleanResult> {
         let mut result = CleanResult::default();
         let mut stream = repo
@@ -699,7 +700,7 @@ where
                 let future = async move {
                     if !self.dry_run {
                         tracing::trace!(?path, "removing proxy render");
-                        FSRepository::remove_dir_atomically(&path, &workdir).await?;
+                        OpenFsRepository::remove_dir_atomically(&path, &workdir).await?;
                     }
                     Ok(digest)
                 };

@@ -338,7 +338,8 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
     skip_runtime_save: bool,
 ) -> Result<RenderResult> {
     let config = get_config()?;
-    let (repo, remotes) = tokio::try_join!(config.get_local_repository(), config.list_remotes())?;
+    let (repo, remotes) =
+        tokio::try_join!(config.get_opened_local_repository(), config.list_remotes())?;
     let fallback_repo = FallbackProxy::new(repo, remotes);
 
     let manifests = resolve_overlay_dirs(runtime, &fallback_repo, skip_runtime_save).await?;

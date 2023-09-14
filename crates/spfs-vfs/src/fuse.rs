@@ -354,6 +354,10 @@ impl Filesystem {
         for repo in self.repos.iter() {
             match &**repo {
                 spfs::storage::RepositoryHandle::FS(fs_repo) => {
+                    let Ok(fs_repo) = fs_repo.opened().await else {
+                        reply.error(libc::ENOENT);
+                        return;
+                    };
                     let payload_path = fs_repo.payloads.build_digest_path(digest);
                     match std::fs::OpenOptions::new().read(true).open(payload_path) {
                         Ok(file) => {

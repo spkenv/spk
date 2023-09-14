@@ -16,6 +16,7 @@ server = ["hyper/server", "tokio-util/codec", "tokio-util/io-util"]
 fuse-backend = ["dep:fuser"]
 
 [dependencies]
+arc-swap = { workspace = true }
 async-compression = { version = "0.3.15", features = ["tokio", "bzip2"] }
 async-trait = "0.1.52"
 async-recursion = "1.0"

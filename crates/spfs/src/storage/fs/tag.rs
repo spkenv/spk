@@ -13,26 +13,82 @@ use std::task::Poll;
 
 use close_err::Closable;
 use encoding::{Decodable, Encodable};
-use futures::{Future, Stream};
+use futures::future::ready;
+use futures::{Future, Stream, StreamExt, TryFutureExt};
 use relative_path::RelativePath;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
-use tokio_stream::StreamExt;
 
-use super::FSRepository;
+use super::{FSRepository, OpenFsRepository};
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
 use crate::storage::TagStorage;
 use crate::{encoding, tracking, Error, Result};
 
 const TAG_EXT: &str = "tag";
 
-impl FSRepository {
+#[async_trait::async_trait]
+impl TagStorage for FSRepository {
+    fn ls_tags(
+        &self,
+        path: &RelativePath,
+    ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
+        let path = path.to_owned();
+        self.opened()
+            .map_ok(move |opened| opened.ls_tags(&path))
+            .try_flatten_stream()
+            .boxed()
+    }
+
+    /// Find tags that point to the given digest.
+    ///
+    /// This is an O(n) operation based on the number of all
+    /// tag versions in each tag stream.
+    fn find_tags(
+        &self,
+        digest: &encoding::Digest,
+    ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
+        let digest = *digest;
+        self.opened()
+            .map_ok(move |opened| opened.find_tags(&digest))
+            .try_flatten_stream()
+            .boxed()
+    }
+
+    /// Iterate through the available tags in this storage.
+    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
+        self.opened()
+            .and_then(|opened| ready(Ok(opened.iter_tag_streams())))
+            .try_flatten_stream()
+            .boxed()
+    }
+
+    async fn read_tag(
+        &self,
+        tag: &tracking::TagSpec,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
+        self.opened().await?.read_tag(tag).await
+    }
+
+    async fn insert_tag(&self, tag: &tracking::Tag) -> Result<()> {
+        self.opened().await?.insert_tag(tag).await
+    }
+
+    async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
+        self.opened().await?.remove_tag_stream(tag).await
+    }
+
+    async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
+        self.opened().await?.remove_tag(tag).await
+    }
+}
+
+impl OpenFsRepository {
     fn tags_root(&self) -> PathBuf {
         self.root().join("tags")
     }
 }
 
 #[async_trait::async_trait]
-impl TagStorage for FSRepository {
+impl TagStorage for OpenFsRepository {
     fn ls_tags(
         &self,
         path: &RelativePath,

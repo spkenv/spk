@@ -7,13 +7,14 @@ use std::ffi::{CString, OsStr, OsString};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
 use nix::unistd::execv;
 use spfs::encoding::Digest;
 use spfs::prelude::*;
 use spfs::storage::fallback::FallbackProxy;
-use spfs::storage::fs::FSRepository;
+use spfs::storage::fs::OpenFsRepository;
 use spfs::storage::RepositoryHandle;
 use spfs::tracking::EnvSpec;
 
@@ -99,7 +100,7 @@ impl<'a> Dynamic<'a> {
         &self,
         tag: &str,
         platform_digest: &Digest,
-        local: FSRepository,
+        local: Arc<OpenFsRepository>,
         remote: RepositoryHandle,
     ) -> Result<OsString> {
         let digest_string = platform_digest.to_string();
@@ -203,9 +204,9 @@ impl<'a> Dynamic<'a> {
 
         let config = spfs::load_config().expect("loaded spfs config");
         let local_repo = config
-            .get_local_repository()
+            .get_opened_local_repository()
             .await
-            .context("opened local spfs repo")?;
+            .context("open local spfs repo")?;
         let remote_repo = config
             .get_remote(ORIGIN)
             .await
@@ -235,7 +236,7 @@ impl<'a> Dynamic<'a> {
                     .check_or_install(
                         &spfs_tag,
                         &platform.digest().context("get platform context")?,
-                        local_repo,
+                        local_repo.into(),
                         remote_repo,
                     )
                     .await

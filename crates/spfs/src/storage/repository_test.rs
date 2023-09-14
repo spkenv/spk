@@ -86,12 +86,12 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
         .expect("failed to commit dir");
 
     // Safety: tmprepo was created as an FSRepository
-    let tmprepo = match unsafe { &*Arc::into_raw(tmprepo) } {
-        RepositoryHandle::FS(fs) => fs,
+    let tmprepo = match &*tmprepo {
+        RepositoryHandle::FS(fs) => fs.opened().await.unwrap(),
         _ => panic!("Unexpected tmprepo type!"),
     };
 
-    let rendered_dir = fs::Renderer::new(tmprepo)
+    let rendered_dir = fs::Renderer::new(&*tmprepo)
         .render_manifest(&Manifest::from(&manifest), None)
         .await
         .expect("failed to render manifest");

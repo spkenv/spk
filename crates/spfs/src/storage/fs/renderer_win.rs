@@ -13,7 +13,7 @@ use tokio::sync::Semaphore;
 
 use crate::encoding::{self, Encodable};
 use crate::runtime::makedirs_with_perms;
-use crate::storage::fs::{FSRepository, RenderReporter, SilentRenderReporter};
+use crate::storage::fs::{OpenFsRepository, RenderReporter, SilentRenderReporter};
 use crate::storage::prelude::*;
 use crate::storage::LocalRepository;
 use crate::{graph, tracking, Error, Result};
@@ -37,7 +37,7 @@ pub enum RenderType {
     Copy,
 }
 
-impl FSRepository {
+impl OpenFsRepository {
     fn get_render_storage(&self) -> Result<&crate::storage::fs::FSHashStore> {
         match &self.renders {
             Some(render_store) => Ok(&render_store.renders),

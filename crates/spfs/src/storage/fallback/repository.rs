@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::pin::Pin;
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use futures::Stream;
@@ -10,7 +11,7 @@ use relative_path::RelativePath;
 
 use crate::config::ToAddress;
 use crate::prelude::*;
-use crate::storage::fs::{FSHashStore, FSRepository, ManifestRenderPath, RenderStore};
+use crate::storage::fs::{FSHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{EntryType, LocalRepository};
 use crate::tracking::BlobRead;
@@ -70,13 +71,19 @@ pub struct FallbackProxy {
     // It needs to be something that implements LocalRepository so this
     // struct can implement it too. RepositoryHandle can't implement that
     // trait.
-    primary: FSRepository,
+    primary: Arc<OpenFsRepository>,
     secondary: Vec<crate::storage::RepositoryHandle>,
 }
 
 impl FallbackProxy {
-    pub fn new(primary: FSRepository, secondary: Vec<crate::storage::RepositoryHandle>) -> Self {
-        Self { primary, secondary }
+    pub fn new<P: Into<Arc<OpenFsRepository>>>(
+        primary: P,
+        secondary: Vec<crate::storage::RepositoryHandle>,
+    ) -> Self {
+        Self {
+            primary: primary.into(),
+            secondary,
+        }
     }
 }
 

@@ -317,8 +317,8 @@ impl Config {
         futures.collect().await
     }
 
-    /// Get the local repository instance as configured.
-    pub async fn get_local_repository(&self) -> Result<storage::fs::FSRepository> {
+    /// Get the local repository instance as configured, creating it if needed.
+    pub async fn get_opened_local_repository(&self) -> Result<storage::fs::OpenFsRepository> {
         // Possibly use a different path for the local repository, depending
         // on enabled features.
         #[allow(unused_mut)]
@@ -330,7 +330,7 @@ impl Config {
                 Some(self.storage.root.join("ci").join(format!("pipeline_{id}")));
         }
 
-        storage::fs::FSRepository::create(
+        storage::fs::OpenFsRepository::create(
             use_ci_isolated_storage_path
                 .as_ref()
                 .unwrap_or(&self.storage.root),
@@ -338,7 +338,18 @@ impl Config {
         .await
     }
 
-    /// Get the local repository handle as configured.
+    /// Get the local repository instance as configured, creating it if needed.
+    ///
+    /// The returned repo is guaranteed to be created, valid and open already. Ie
+    /// the local repository is not allowed to be lazily opened.
+    pub async fn get_local_repository(&self) -> Result<storage::fs::FSRepository> {
+        self.get_opened_local_repository().await.map(Into::into)
+    }
+
+    /// Get the local repository handle as configured,  creating it if needed.
+    ///
+    /// The returned repo is guaranteed to be created, valid and open already. Ie
+    /// the local repository is not allowed to be lazily opened.
     pub async fn get_local_repository_handle(&self) -> Result<storage::RepositoryHandle> {
         Ok(self.get_local_repository().await?.into())
     }

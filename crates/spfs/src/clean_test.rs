@@ -252,8 +252,9 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         RepositoryHandle::FS(fs) => fs,
         _ => panic!("Unexpected tmprepo type!"),
     };
+    let fs_repo = fs_repo.opened().await.unwrap();
 
-    storage::fs::Renderer::new(fs_repo)
+    storage::fs::Renderer::new(&*fs_repo)
         .render_manifest(&graph::Manifest::from(&manifest), None)
         .await
         .unwrap();
