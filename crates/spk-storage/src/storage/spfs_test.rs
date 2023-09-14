@@ -7,7 +7,7 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::version::Version;
 use spk_schema::BuildIdent;
 
-use super::SPFSRepository;
+use super::SpfsRepository;
 use crate::storage::{CachePolicy, Repository};
 
 #[rstest]
@@ -27,9 +27,9 @@ fn test_repo_version_is_valid() {
 async fn test_metadata_io(tmpdir: tempfile::TempDir) {
     init_logging();
     let repo_root = tmpdir.path();
-    let repo = SPFSRepository::try_from((
+    let repo = SpfsRepository::try_from((
         "test-repo",
-        spfs::storage::fs::FSRepository::create(repo_root)
+        spfs::storage::fs::FsRepository::create(repo_root)
             .await
             .unwrap(),
     ))
@@ -47,9 +47,9 @@ async fn test_upgrade_sets_version(tmpdir: tempfile::TempDir) {
     init_logging();
     let current_version = Version::from_str(super::REPO_VERSION).unwrap();
     let repo_root = tmpdir.path();
-    let repo = SPFSRepository::try_from((
+    let repo = SpfsRepository::try_from((
         "test-repo",
-        spfs::storage::fs::FSRepository::create(repo_root)
+        spfs::storage::fs::FsRepository::create(repo_root)
             .await
             .unwrap(),
     ))
@@ -70,10 +70,10 @@ async fn test_upgrade_sets_version(tmpdir: tempfile::TempDir) {
 async fn test_upgrade_changes_tags(tmpdir: tempfile::TempDir) {
     init_logging();
     let repo_root = tmpdir.path();
-    let spfs_repo = spfs::storage::fs::FSRepository::create(repo_root)
+    let spfs_repo = spfs::storage::fs::FsRepository::create(repo_root)
         .await
         .unwrap();
-    let repo = SPFSRepository::new("test-repo", &format!("file://{}", repo_root.display()))
+    let repo = SpfsRepository::new("test-repo", &format!("file://{}", repo_root.display()))
         .await
         .unwrap();
 

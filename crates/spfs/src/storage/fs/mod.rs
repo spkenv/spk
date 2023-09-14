@@ -16,7 +16,7 @@ mod tag;
 pub mod migrations;
 mod render_reporter;
 
-pub use hash_store::FSHashStore;
+pub use hash_store::FsHashStore;
 pub use manifest_render_path::ManifestRenderPath;
 pub use render_reporter::{
     ConsoleRenderReporter,
@@ -34,7 +34,7 @@ pub use renderer::{
 pub use repository::{
     read_last_migration_version,
     Config,
-    FSRepository,
+    FsRepository,
     OpenFsRepository,
     RenderStore,
 };

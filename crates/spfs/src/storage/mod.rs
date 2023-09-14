@@ -34,7 +34,7 @@ pub use self::config::{FromConfig, FromUrl};
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
-    FS(fs::FSRepository),
+    FS(fs::FsRepository),
     Tar(tar::TarRepository),
     Rpc(rpc::RpcRepository),
     FallbackProxy(Box<fallback::FallbackProxy>),
@@ -79,8 +79,8 @@ impl std::ops::DerefMut for RepositoryHandle {
     }
 }
 
-impl From<fs::FSRepository> for RepositoryHandle {
-    fn from(repo: fs::FSRepository) -> Self {
+impl From<fs::FsRepository> for RepositoryHandle {
+    fn from(repo: fs::FsRepository) -> Self {
         RepositoryHandle::FS(repo)
     }
 }

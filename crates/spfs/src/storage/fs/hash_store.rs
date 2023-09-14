@@ -35,7 +35,7 @@ pub(crate) enum PersistableObject {
     },
 }
 
-pub struct FSHashStore {
+pub struct FsHashStore {
     root: PathBuf,
     /// permissions used when creating new directories
     pub directory_permissions: u32,
@@ -43,7 +43,7 @@ pub struct FSHashStore {
     pub file_permissions: u32,
 }
 
-impl FSHashStore {
+impl FsHashStore {
     pub fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
         let root = root.as_ref();
         Ok(Self::open_unchecked(

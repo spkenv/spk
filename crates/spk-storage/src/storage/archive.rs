@@ -6,7 +6,7 @@ use std::path::Path;
 
 use spk_schema::{AnyIdent, BuildIdent, VersionIdent};
 
-use super::{Repository, SPFSRepository};
+use super::{Repository, SpfsRepository};
 use crate::{Error, Result};
 
 pub async fn export_package<I, P>(pkg: I, filename: P) -> Result<()>
@@ -42,7 +42,7 @@ where
         super::remote_repository("origin"),
     );
     let local_repo = local_repo?;
-    let mut target_repo = super::SPFSRepository::try_from((
+    let mut target_repo = super::SpfsRepository::try_from((
         "archive",
         spfs::storage::RepositoryHandle::from(
             spfs::storage::tar::TarRepository::create(&filename).await?,
@@ -172,8 +172,8 @@ where
 
 async fn copy_any(
     pkg: AnyIdent,
-    src_repo: &SPFSRepository,
-    dst_repo: &SPFSRepository,
+    src_repo: &SpfsRepository,
+    dst_repo: &SpfsRepository,
 ) -> Result<()> {
     match pkg.into_inner() {
         (base, None) => copy_recipe(&base, src_repo, dst_repo).await,
@@ -185,8 +185,8 @@ async fn copy_any(
 
 async fn copy_recipe(
     pkg: &VersionIdent,
-    src_repo: &SPFSRepository,
-    dst_repo: &SPFSRepository,
+    src_repo: &SpfsRepository,
+    dst_repo: &SpfsRepository,
 ) -> Result<()> {
     let spec = src_repo.read_recipe(pkg).await?;
     tracing::info!(%pkg, "exporting");
@@ -196,8 +196,8 @@ async fn copy_recipe(
 
 async fn copy_package(
     pkg: &BuildIdent,
-    src_repo: &SPFSRepository,
-    dst_repo: &SPFSRepository,
+    src_repo: &SpfsRepository,
+    dst_repo: &SpfsRepository,
 ) -> Result<()> {
     let spec = src_repo.read_package(pkg).await?;
     let components = src_repo.read_components(pkg).await?;

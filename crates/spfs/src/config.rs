@@ -177,7 +177,7 @@ impl RemoteConfig {
     /// Open a handle to a repository using this configuration
     pub async fn open(&self) -> Result<storage::RepositoryHandle> {
         Ok(match self.clone() {
-            Self::Fs(config) => storage::fs::FSRepository::from_config(config).await?.into(),
+            Self::Fs(config) => storage::fs::FsRepository::from_config(config).await?.into(),
             Self::Tar(config) => storage::tar::TarRepository::from_config(config)
                 .await?
                 .into(),
@@ -342,7 +342,7 @@ impl Config {
     ///
     /// The returned repo is guaranteed to be created, valid and open already. Ie
     /// the local repository is not allowed to be lazily opened.
-    pub async fn get_local_repository(&self) -> Result<storage::fs::FSRepository> {
+    pub async fn get_local_repository(&self) -> Result<storage::fs::FsRepository> {
         self.get_opened_local_repository().await.map(Into::into)
     }
 

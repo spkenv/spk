@@ -44,7 +44,7 @@ pub fn commit_benchmark(c: &mut Criterion) {
         .expect("create a temp directory for spfs repo");
     let repo: Arc<RepositoryHandle> = Arc::new(
         tokio_runtime
-            .block_on(spfs::storage::fs::FSRepository::create(
+            .block_on(spfs::storage::fs::FsRepository::create(
                 repo_path.path().join("repo"),
             ))
             .expect("create spfs repo")

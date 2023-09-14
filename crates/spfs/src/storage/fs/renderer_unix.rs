@@ -53,7 +53,7 @@ pub enum RenderType {
 }
 
 impl OpenFsRepository {
-    fn get_render_storage(&self) -> Result<&crate::storage::fs::FSHashStore> {
+    fn get_render_storage(&self) -> Result<&crate::storage::fs::FsHashStore> {
         match &self.renders {
             Some(render_store) => Ok(&render_store.renders),
             None => Err(Error::NoRenderStorage(self.address())),

@@ -335,7 +335,7 @@ where
 
         while let Some(entry) = entries.next().await {
             let (path, entry, resolved_layer) = match entry {
-                Err(spk_exec::Error::NonSPFSLayerInResolvedLayers) => continue,
+                Err(spk_exec::Error::NonSpfsLayerInResolvedLayers) => continue,
                 Err(err) => return Err(err.into()),
                 Ok(entry) => entry,
             };

@@ -39,7 +39,7 @@ async fn test_config_get_remote() {
         .tempdir()
         .unwrap();
     let remote = tmpdir.path().join("remote");
-    let _ = crate::storage::fs::FSRepository::create(&remote)
+    let _ = crate::storage::fs::FsRepository::create(&remote)
         .await
         .unwrap();
 

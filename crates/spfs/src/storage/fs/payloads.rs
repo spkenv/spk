@@ -8,13 +8,13 @@ use std::pin::Pin;
 use futures::future::ready;
 use futures::{Stream, StreamExt, TryFutureExt};
 
-use super::{FSRepository, OpenFsRepository};
+use super::{FsRepository, OpenFsRepository};
 use crate::storage::prelude::*;
 use crate::tracking::BlobRead;
 use crate::{encoding, Error, Result};
 
 #[async_trait::async_trait]
-impl crate::storage::PayloadStorage for FSRepository {
+impl crate::storage::PayloadStorage for FsRepository {
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
         let Ok(opened) = self.opened().await else {
             return false;

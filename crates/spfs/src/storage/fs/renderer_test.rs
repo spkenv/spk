@@ -10,7 +10,7 @@ use super::was_render_completed;
 use crate::encoding::Encodable;
 use crate::fixtures::*;
 use crate::graph::Manifest;
-use crate::storage::fs::{FSRepository, OpenFsRepository};
+use crate::storage::fs::{FsRepository, OpenFsRepository};
 use crate::storage::{Repository, RepositoryHandle};
 use crate::tracking;
 
@@ -54,7 +54,7 @@ async fn test_render_manifest(tmpdir: tempfile::TempDir) {
 #[tokio::test]
 async fn test_render_manifest_with_repo(tmpdir: tempfile::TempDir) {
     let tmprepo = Arc::new(
-        FSRepository::create(tmpdir.path().join("repo"))
+        FsRepository::create(tmpdir.path().join("repo"))
             .await
             .unwrap()
             .into(),
@@ -71,7 +71,7 @@ async fn test_render_manifest_with_repo(tmpdir: tempfile::TempDir) {
         .unwrap();
     let manifest = Manifest::from(&expected_manifest);
 
-    // Safety: tmprepo was created as an FSRepository
+    // Safety: tmprepo was created as an FsRepository
     let tmprepo = match &*tmprepo {
         RepositoryHandle::FS(fs) => fs.opened().await.unwrap(),
         _ => panic!("Unexpected tmprepo type!"),

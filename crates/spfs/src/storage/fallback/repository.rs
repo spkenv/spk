@@ -11,7 +11,7 @@ use relative_path::RelativePath;
 
 use crate::config::ToAddress;
 use crate::prelude::*;
-use crate::storage::fs::{FSHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
+use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{EntryType, LocalRepository};
 use crate::tracking::BlobRead;
@@ -351,7 +351,7 @@ impl Repository for FallbackProxy {
 
 impl LocalRepository for FallbackProxy {
     #[inline]
-    fn payloads(&self) -> &FSHashStore {
+    fn payloads(&self) -> &FsHashStore {
         self.primary.payloads()
     }
 

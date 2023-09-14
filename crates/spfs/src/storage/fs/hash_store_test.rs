@@ -14,7 +14,7 @@ use crate::storage::fs::hash_store::PersistableObject;
 #[tokio::test]
 async fn test_hash_store_iter_states(tmpdir: tempfile::TempDir) {
     init_logging();
-    let store = super::FSHashStore::open(tmpdir.path()).unwrap();
+    let store = super::FsHashStore::open(tmpdir.path()).unwrap();
     let mut stream = Box::pin(store.iter());
     while stream.next().await.is_some() {
         panic!("empty hash store should not yield any digests");
@@ -33,7 +33,7 @@ macro_rules! digest {
 #[tokio::test]
 async fn test_hash_store_find_digest(tmpdir: tempfile::TempDir) {
     init_logging();
-    let store = super::FSHashStore::open(tmpdir.path()).unwrap();
+    let store = super::FsHashStore::open(tmpdir.path()).unwrap();
     let content = ["AAA", "ABC", "ABD", "BBB", "BCD", "CCC", "EEE"];
     for s in content {
         store

@@ -118,7 +118,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
     let tmpdir = tmpdir();
     match kind {
         "fs" => {
-            let repo = spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
+            let repo = spfs::storage::fs::FsRepository::create(tmpdir.path().join("repo"))
                 .await
                 .unwrap()
                 .into();
@@ -135,7 +135,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
         "rpc" => {
             use crate::storage::prelude::*;
             let repo = std::sync::Arc::new(spfs::storage::RepositoryHandle::FS(
-                spfs::storage::fs::FSRepository::create(tmpdir.path().join("repo"))
+                spfs::storage::fs::FsRepository::create(tmpdir.path().join("repo"))
                     .await
                     .unwrap(),
             ));
