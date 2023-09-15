@@ -42,6 +42,10 @@ use crate::{
     Variant,
 };
 
+#[cfg(test)]
+#[path = "./platform_test.rs"]
+mod platform_test;
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize)]
 pub struct PlatformRequirementsPatch {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -116,7 +120,8 @@ pub struct Platform<Ident> {
     pub deprecated: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base: Option<Ident>,
-    pub requirements: PlatformRequirements,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requirements: Option<PlatformRequirements>,
 }
 
 impl<Ident> Deprecate for Platform<Ident> {
@@ -245,8 +250,9 @@ impl Recipe for Platform<VersionIdent> {
             }
         }
 
-        self.requirements
-            .update_spec_for_binary_build(&mut spec, build_env)?;
+        if let Some(requirements) = self.requirements.as_ref() {
+            requirements.update_spec_for_binary_build(&mut spec, build_env)?;
+        }
 
         spec.generate_binary_build(variant, build_env)
     }
@@ -434,18 +440,13 @@ where
             .take()
             .ok_or_else(|| serde::de::Error::missing_field("platform"))?;
 
-        let requirements = self
-            .requirements
-            .take()
-            .ok_or_else(|| serde::de::Error::missing_field("requirements"))?;
-
         Ok(Platform {
             meta: self.meta.take().unwrap_or_default(),
             compat: self.compat.take().unwrap_or_default(),
             deprecated: self.deprecated.take().unwrap_or_default(),
             platform,
             base: self.base.take(),
-            requirements: requirements.into(),
+            requirements: self.requirements.take().map(Into::into),
         })
     }
 }
