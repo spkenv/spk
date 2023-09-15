@@ -8,6 +8,9 @@ use std::io::Write;
 #[cfg(unix)]
 use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use arc_swap::ArcSwap;
 
 use super::hash_store::PROXY_DIRNAME;
 use super::FSHashStore;
@@ -44,6 +47,8 @@ impl ToAddress for Config {
 pub struct Params {
     #[serde(default)]
     pub create: bool,
+    #[serde(default)]
+    pub lazy: bool,
 }
 
 #[async_trait::async_trait]
@@ -86,8 +91,111 @@ impl Clone for RenderStore {
         }
     }
 }
+
 /// A pure filesystem-based repository of spfs data.
-pub struct FSRepository {
+///
+/// This instance can be already validated and open or
+/// lazily evaluated on the each request until successful.
+///
+/// An [`OpenFsRepository`] is more useful than this one, but
+/// can also be easily retrieved via the [`Self::opened`].
+#[derive(Clone)]
+pub struct FSRepository(Arc<ArcSwap<InnerFSRepository>>);
+
+enum InnerFSRepository {
+    Closed(Config),
+    Open(Arc<OpenFsRepository>),
+}
+
+impl From<OpenFsRepository> for FSRepository {
+    fn from(value: OpenFsRepository) -> Self {
+        Arc::new(value).into()
+    }
+}
+
+impl From<Arc<OpenFsRepository>> for FSRepository {
+    fn from(value: Arc<OpenFsRepository>) -> Self {
+        Self(Arc::new(ArcSwap::new(Arc::new(InnerFSRepository::Open(
+            value,
+        )))))
+    }
+}
+
+#[async_trait::async_trait]
+impl FromConfig for FSRepository {
+    type Config = Config;
+
+    async fn from_config(config: Self::Config) -> Result<Self> {
+        if config.params.lazy {
+            Ok(Self(Arc::new(ArcSwap::new(Arc::new(
+                InnerFSRepository::Closed(config),
+            )))))
+        } else {
+            Ok(OpenFsRepository::from_config(config).await?.into())
+        }
+    }
+}
+
+impl FSRepository {
+    /// Open a filesystem repository, creating it if necessary
+    pub async fn create<P: AsRef<Path>>(root: P) -> Result<Self> {
+        Ok(Self(Arc::new(ArcSwap::new(Arc::new(
+            InnerFSRepository::Open(Arc::new(OpenFsRepository::create(root).await?)),
+        )))))
+    }
+
+    // Open a repository over the given directory, which must already
+    // exist and be properly setup as a repository
+    pub async fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
+        Ok(Self(Arc::new(ArcSwap::new(Arc::new(
+            InnerFSRepository::Open(Arc::new(OpenFsRepository::open(root).await?)),
+        )))))
+    }
+
+    /// Get the opened version of this repository, performing
+    /// any required opening and validation as needed
+    pub fn opened(&self) -> impl futures::Future<Output = Result<Arc<OpenFsRepository>>> + 'static {
+        let inner = Arc::clone(&self.0);
+        async move {
+            match &**inner.load() {
+                InnerFSRepository::Closed(config) => {
+                    let config = config.clone();
+                    let opened = Arc::new(OpenFsRepository::from_config(config).await?);
+                    inner.rcu(|_| InnerFSRepository::Open(Arc::clone(&opened)));
+                    Ok(opened)
+                }
+                InnerFSRepository::Open(o) => Ok(Arc::clone(o)),
+            }
+        }
+    }
+
+    /// The filesystem root path of this repository
+    pub fn root(&self) -> PathBuf {
+        match &**self.0.load() {
+            InnerFSRepository::Closed(config) => config.path.clone(),
+            InnerFSRepository::Open(o) => o.root(),
+        }
+    }
+}
+
+impl BlobStorage for FSRepository {}
+impl ManifestStorage for FSRepository {}
+impl LayerStorage for FSRepository {}
+impl PlatformStorage for FSRepository {}
+impl Repository for FSRepository {
+    fn address(&self) -> url::Url {
+        url::Url::from_directory_path(self.root()).unwrap()
+    }
+}
+
+impl std::fmt::Debug for FSRepository {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("FSRepository @ {:?}", self.root()))
+    }
+}
+
+/// A validated and opened fs repository.
+pub struct OpenFsRepository {
     root: PathBuf,
     /// stores the actual file data/payloads of this repo
     pub payloads: FSHashStore,
@@ -98,7 +206,7 @@ pub struct FSRepository {
 }
 
 #[async_trait::async_trait]
-impl FromConfig for FSRepository {
+impl FromConfig for OpenFsRepository {
     type Config = Config;
 
     async fn from_config(config: Self::Config) -> Result<Self> {
@@ -110,7 +218,43 @@ impl FromConfig for FSRepository {
     }
 }
 
-impl FSRepository {
+impl Clone for OpenFsRepository {
+    fn clone(&self) -> Self {
+        let root = self.root.clone();
+        Self {
+            objects: FSHashStore::open_unchecked(root.join("objects")),
+            payloads: FSHashStore::open_unchecked(root.join("payloads")),
+            renders: self.renders.clone(),
+            root,
+        }
+    }
+}
+
+impl LocalRepository for OpenFsRepository {
+    #[inline]
+    fn payloads(&self) -> &FSHashStore {
+        &self.payloads
+    }
+
+    #[inline]
+    fn render_store(&self) -> Result<&RenderStore> {
+        self.renders
+            .as_ref()
+            .ok_or_else(|| Error::NoRenderStorage(self.address()))
+    }
+}
+
+impl OpenFsRepository {
+    /// The address of this repository that can be used to re-open it
+    pub fn address(&self) -> url::Url {
+        url::Url::from_directory_path(self.root()).unwrap()
+    }
+
+    /// The filesystem root path of this repository
+    pub fn root(&self) -> PathBuf {
+        self.root.clone()
+    }
+
     /// Establish a new filesystem repository
     pub async fn create<P: AsRef<Path>>(root: P) -> Result<Self> {
         makedirs_with_perms(&root, 0o777)?;
@@ -189,10 +333,7 @@ impl FSRepository {
         })
     }
 
-    pub fn root(&self) -> PathBuf {
-        self.root.clone()
-    }
-
+    /// The lastest repository version that this was migrated to.
     pub async fn last_migration(&self) -> Result<semver::Version> {
         Ok(read_last_migration_version(self.root())
             .await?
@@ -202,48 +343,13 @@ impl FSRepository {
             }))
     }
 
+    /// Sets the latest version of this repository.
+    ///
+    /// Should only be modified once a migration has completed successfully.
     pub async fn set_last_migration(&self, version: semver::Version) -> Result<()> {
         set_last_migration(self.root(), Some(version)).await
     }
-}
 
-impl Clone for FSRepository {
-    fn clone(&self) -> Self {
-        let root = self.root.clone();
-        Self {
-            objects: FSHashStore::open_unchecked(root.join("objects")),
-            payloads: FSHashStore::open_unchecked(root.join("payloads")),
-            renders: self.renders.clone(),
-            root,
-        }
-    }
-}
-
-impl BlobStorage for FSRepository {}
-impl ManifestStorage for FSRepository {}
-impl LayerStorage for FSRepository {}
-impl PlatformStorage for FSRepository {}
-impl Repository for FSRepository {
-    fn address(&self) -> url::Url {
-        url::Url::from_directory_path(self.root()).unwrap()
-    }
-}
-
-impl LocalRepository for FSRepository {
-    #[inline]
-    fn payloads(&self) -> &FSHashStore {
-        &self.payloads
-    }
-
-    #[inline]
-    fn render_store(&self) -> Result<&RenderStore> {
-        self.renders
-            .as_ref()
-            .ok_or_else(|| Error::NoRenderStorage(self.address()))
-    }
-}
-
-impl FSRepository {
     /// True if this repo is setup to generate local manifest renders.
     pub fn has_renders(&self) -> bool {
         self.renders.is_some()
@@ -284,7 +390,7 @@ impl FSRepository {
 
         Ok(render_dirs
             .into_iter()
-            .map(|(username, dir)| -> (String, FSRepository) {
+            .map(|(username, dir)| -> (String, Self) {
                 (
                     username,
                     Self {
@@ -302,9 +408,19 @@ impl FSRepository {
     }
 }
 
-impl std::fmt::Debug for FSRepository {
+impl BlobStorage for OpenFsRepository {}
+impl ManifestStorage for OpenFsRepository {}
+impl LayerStorage for OpenFsRepository {}
+impl PlatformStorage for OpenFsRepository {}
+impl Repository for OpenFsRepository {
+    fn address(&self) -> url::Url {
+        url::Url::from_directory_path(self.root()).unwrap()
+    }
+}
+
+impl std::fmt::Debug for OpenFsRepository {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("FSRepository @ {:?}", self.root()))
+        f.write_fmt(format_args!("OpenFsRepository @ {:?}", self.root()))
     }
 }
 

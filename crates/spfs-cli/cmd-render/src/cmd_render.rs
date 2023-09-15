@@ -53,7 +53,7 @@ impl CmdRender {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let env_spec = spfs::tracking::EnvSpec::parse(&self.reference)?;
         let (repo, origin, remotes) = tokio::try_join!(
-            config.get_local_repository(),
+            config.get_opened_local_repository(),
             config.get_remote("origin"),
             config.list_remotes()
         )?;

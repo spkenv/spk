@@ -40,9 +40,9 @@ async fn test_auto_merge_layers(tmpdir: tempfile::TempDir) {
     // This test must use the "local" repository for spfs-render to succeed.
     let config = crate::get_config().expect("get config");
     let fs_repo = config
-        .get_local_repository()
+        .get_opened_local_repository()
         .await
-        .expect("get local repository");
+        .expect("open local repository");
     let repo = Arc::new(fs_repo.clone().into());
     let mut layers = Vec::with_capacity(NUM_LAYERS);
     for num in 0..NUM_LAYERS {

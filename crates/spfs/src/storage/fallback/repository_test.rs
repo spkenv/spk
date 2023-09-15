@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::sync::Arc;
+
 use rstest::rstest;
 
 use crate::fixtures::*;
@@ -12,12 +14,16 @@ use crate::prelude::*;
 async fn test_proxy_payload_repair(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::FSRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
-    let secondary = crate::storage::fs::FSRepository::create(tmpdir.path().join("secondary"))
-        .await
-        .unwrap();
+    let primary = Arc::new(
+        crate::storage::fs::OpenFsRepository::create(tmpdir.path().join("primary"))
+            .await
+            .unwrap(),
+    );
+    let secondary = Arc::new(
+        crate::storage::fs::OpenFsRepository::create(tmpdir.path().join("secondary"))
+            .await
+            .unwrap(),
+    );
 
     let digest = primary
         .commit_blob(Box::pin(b"some data".as_slice()))

@@ -69,7 +69,7 @@ impl Run for Render {
         tracing::info!("Rendering into dir: {path:?}");
         let config = spfs::load_config().context("Failed to load spfs config")?;
         let local = config
-            .get_local_repository()
+            .get_opened_local_repository()
             .await
             .context("Failed to open local spfs repo")?;
 

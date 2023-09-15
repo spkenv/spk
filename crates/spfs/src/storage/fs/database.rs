@@ -9,7 +9,7 @@ use std::pin::Pin;
 use chrono::{DateTime, Utc};
 use close_err::Closable;
 use encoding::{Decodable, Encodable};
-use futures::Stream;
+use futures::{Stream, StreamExt, TryFutureExt};
 use graph::DatabaseView;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -18,6 +18,67 @@ use crate::{encoding, graph, Error, Result};
 
 #[async_trait::async_trait]
 impl DatabaseView for super::FSRepository {
+    async fn has_object(&self, digest: encoding::Digest) -> bool {
+        let Ok(opened) = self.opened().await else {
+            return false;
+        };
+        opened.has_object(digest).await
+    }
+
+    async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
+        self.opened().await?.read_object(digest).await
+    }
+
+    fn find_digests(
+        &self,
+        search_criteria: graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        self.opened()
+            .map_ok(|opened| opened.find_digests(search_criteria))
+            .try_flatten_stream()
+            .boxed()
+    }
+
+    fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
+        graph::DatabaseIterator::new(self)
+    }
+
+    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
+        graph::DatabaseWalker::new(self, *root)
+    }
+
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+    ) -> Result<encoding::Digest> {
+        self.opened().await?.resolve_full_digest(partial).await
+    }
+}
+
+#[async_trait::async_trait]
+impl graph::Database for super::FSRepository {
+    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
+        self.opened().await?.write_object(obj).await
+    }
+
+    async fn remove_object(&self, digest: encoding::Digest) -> crate::Result<()> {
+        self.opened().await?.remove_object(digest).await
+    }
+
+    async fn remove_object_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> crate::Result<bool> {
+        self.opened()
+            .await?
+            .remove_object_if_older_than(older_than, digest)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl DatabaseView for super::OpenFsRepository {
     async fn has_object(&self, digest: encoding::Digest) -> bool {
         let filepath = self.objects.build_digest_path(&digest);
         tokio::fs::symlink_metadata(filepath).await.is_ok()
@@ -63,7 +124,7 @@ impl DatabaseView for super::FSRepository {
 }
 
 #[async_trait::async_trait]
-impl graph::Database for super::FSRepository {
+impl graph::Database for super::OpenFsRepository {
     async fn write_object(&self, obj: &graph::Object) -> Result<()> {
         let digest = obj.digest()?;
         let filepath = self.objects.build_digest_path(&digest);

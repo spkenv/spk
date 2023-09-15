@@ -18,6 +18,8 @@ pub mod proxy;
 pub mod rpc;
 pub mod tar;
 
+use std::sync::Arc;
+
 pub use blob::BlobStorage;
 pub use layer::LayerStorage;
 pub use manifest::ManifestStorage;
@@ -80,6 +82,16 @@ impl std::ops::DerefMut for RepositoryHandle {
 impl From<fs::FSRepository> for RepositoryHandle {
     fn from(repo: fs::FSRepository) -> Self {
         RepositoryHandle::FS(repo)
+    }
+}
+impl From<fs::OpenFsRepository> for RepositoryHandle {
+    fn from(repo: fs::OpenFsRepository) -> Self {
+        RepositoryHandle::FS(repo.into())
+    }
+}
+impl From<Arc<fs::OpenFsRepository>> for RepositoryHandle {
+    fn from(repo: Arc<fs::OpenFsRepository>) -> Self {
+        RepositoryHandle::FS(repo.into())
     }
 }
 impl From<tar::TarRepository> for RepositoryHandle {

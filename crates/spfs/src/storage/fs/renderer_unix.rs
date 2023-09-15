@@ -23,7 +23,12 @@ use tokio::sync::Semaphore;
 use crate::encoding::{self, Encodable};
 use crate::runtime::makedirs_with_perms;
 use crate::storage::fs::render_reporter::RenderBlobResult;
-use crate::storage::fs::{FSRepository, ManifestRenderPath, RenderReporter, SilentRenderReporter};
+use crate::storage::fs::{
+    ManifestRenderPath,
+    OpenFsRepository,
+    RenderReporter,
+    SilentRenderReporter,
+};
 use crate::storage::prelude::*;
 use crate::storage::LocalRepository;
 use crate::{get_config, graph, tracking, Error, Result};
@@ -47,7 +52,7 @@ pub enum RenderType {
     Copy,
 }
 
-impl FSRepository {
+impl OpenFsRepository {
     fn get_render_storage(&self) -> Result<&crate::storage::fs::FSHashStore> {
         match &self.renders {
             Some(render_store) => Ok(&render_store.renders),
@@ -152,7 +157,7 @@ impl FSRepository {
     }
 }
 
-impl ManifestRenderPath for FSRepository {
+impl ManifestRenderPath for OpenFsRepository {
     fn manifest_render_path(&self, manifest: &graph::Manifest) -> Result<PathBuf> {
         Ok(self
             .get_render_storage()?

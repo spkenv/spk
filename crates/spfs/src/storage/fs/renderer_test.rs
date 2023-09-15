@@ -10,14 +10,14 @@ use super::was_render_completed;
 use crate::encoding::Encodable;
 use crate::fixtures::*;
 use crate::graph::Manifest;
-use crate::storage::fs::FSRepository;
+use crate::storage::fs::{FSRepository, OpenFsRepository};
 use crate::storage::{Repository, RepositoryHandle};
 use crate::tracking;
 
 #[rstest]
 #[tokio::test]
 async fn test_render_manifest(tmpdir: tempfile::TempDir) {
-    let storage = FSRepository::create(tmpdir.path().join("storage"))
+    let storage = OpenFsRepository::create(tmpdir.path().join("storage"))
         .await
         .unwrap();
 
@@ -72,8 +72,8 @@ async fn test_render_manifest_with_repo(tmpdir: tempfile::TempDir) {
     let manifest = Manifest::from(&expected_manifest);
 
     // Safety: tmprepo was created as an FSRepository
-    let tmprepo = match unsafe { &*Arc::into_raw(tmprepo) } {
-        RepositoryHandle::FS(fs) => fs,
+    let tmprepo = match &*tmprepo {
+        RepositoryHandle::FS(fs) => fs.opened().await.unwrap(),
         _ => panic!("Unexpected tmprepo type!"),
     };
 
@@ -84,7 +84,7 @@ async fn test_render_manifest_with_repo(tmpdir: tempfile::TempDir) {
         .renders
         .build_digest_path(&manifest.digest().unwrap());
     assert!(!render.exists(), "render should NOT be seen as existing");
-    super::Renderer::new(tmprepo)
+    super::Renderer::new(&*tmprepo)
         .render_manifest(&manifest, None)
         .await
         .unwrap();
