@@ -75,7 +75,7 @@ async fn test_manifest_parity(
     diffs.retain(|d| !d.mode.is_unchanged());
 
     for diff in diffs.iter() {
-        println!("{diff}, {:?}", diff.mode);
+        println!("{diff}, {:#?}", diff.mode);
     }
     assert!(diffs.is_empty(), "Should read out the way it went in");
 }

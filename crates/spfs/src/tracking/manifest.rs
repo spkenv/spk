@@ -33,9 +33,20 @@ pub const DEFAULT_MAX_CONCURRENT_BLOBS: usize = 1000;
 /// See: [`ManifestBuilder::with_max_concurrent_branches`]
 pub const DEFAULT_MAX_CONCURRENT_BRANCHES: usize = 5;
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Manifest<T = ()> {
     root: Entry<T>,
+}
+
+impl<T> Default for Manifest<T>
+where
+    T: Default,
+{
+    fn default() -> Self {
+        Self {
+            root: Entry::empty_dir_with_open_perms(),
+        }
+    }
 }
 
 impl<T> std::fmt::Debug for Manifest<T>
@@ -184,7 +195,7 @@ where
 {
     /// Add a new directory entry to this manifest
     pub fn mkdir<P: AsRef<str>>(&mut self, path: P) -> MkResult<&mut Entry<T>> {
-        let entry = Entry::default();
+        let entry = Entry::empty_dir_with_open_perms();
         self.mknod(path, entry)
     }
 
@@ -206,7 +217,7 @@ where
                 relative_path::Component::Normal(step) => {
                     let entries = &mut entry.entries;
                     if entries.get_mut(step).is_none() {
-                        entries.insert(step.to_string(), Entry::default());
+                        entries.insert(step.to_string(), Entry::empty_dir_with_open_perms());
                     }
                     entry = entries.get_mut(step).unwrap();
                     if !entry.kind.is_tree() {
@@ -222,10 +233,7 @@ where
 
     /// Make a new file entry in this manifest
     pub fn mkfile<'m>(&'m mut self, path: &str) -> MkResult<&'m mut Entry<T>> {
-        let entry = Entry {
-            kind: EntryKind::Blob,
-            ..Default::default()
-        };
+        let entry = Entry::empty_file_with_open_perms();
         self.mknod(path, entry)
     }
 }
@@ -517,14 +525,11 @@ where
         path: P,
     ) -> Result<Manifest> {
         tracing::trace!("computing manifest for {:?}", path.as_ref());
-        let mut manifest = Manifest::default();
-        manifest.root = self
-            .compute_tree_node(
-                Arc::new(path.as_ref().to_owned()),
-                path.as_ref(),
-                manifest.root,
-            )
-            .await?;
+        let manifest = Manifest {
+            root: self
+                .compute_tree_node(Arc::new(path.as_ref().to_owned()), path.as_ref())
+                .await?,
+        };
         Ok(manifest)
     }
 
@@ -533,9 +538,8 @@ where
         &self,
         root: Arc<std::path::PathBuf>,
         dirname: P,
-        mut tree_node: Entry,
     ) -> Result<Entry> {
-        tree_node.kind = EntryKind::Tree;
+        let mut tree_node = Entry::empty_dir_with_open_perms();
         let base = dirname.as_ref();
         let read_dir = tokio::fs::read_dir(base).await.map_err(|err| {
             Error::StorageReadError("read_dir of tree node", base.to_owned(), err)
@@ -562,7 +566,7 @@ where
                 let dir_entry = Arc::clone(&dir_entry);
                 let file_name = dir_entry.file_name().to_string_lossy().to_string();
                 ready(Ok(Some(
-                    self.compute_node(root, path, dir_entry, Entry::default())
+                    self.compute_node(root, path, dir_entry)
                         .map_ok(|e| (file_name, e))
                         .boxed(),
                 )))
@@ -581,7 +585,6 @@ where
         root: Arc<std::path::PathBuf>,
         path: P,
         dir_entry: Arc<DirEntry>,
-        mut entry: Entry,
     ) -> Result<Entry> {
         self.reporter.visit_entry(path.as_ref());
         let stat_result = match tokio::fs::symlink_metadata(&path).await {
@@ -591,9 +594,7 @@ where
                 // Assume so if `dir_entry` says it is a character device.
                 match dir_entry.metadata().await {
                     Ok(meta) if crate::runtime::is_removed_entry(&meta) => {
-                        // XXX: mode and size?
-                        entry.kind = EntryKind::Mask;
-                        entry.object = encoding::NULL_DIGEST.into();
+                        let entry = Entry::mask();
                         self.reporter.computed_entry(&entry);
                         return Ok(entry);
                     }
@@ -622,19 +623,7 @@ where
             }
         };
 
-        #[cfg(unix)]
-        {
-            entry.mode = stat_result.mode();
-            entry.size = stat_result.size();
-        }
-        #[cfg(windows)]
-        {
-            entry.size = stat_result.file_size();
-            // use the same default posix permissions as git uses
-            // for files created on windows
-            entry.mode = 0o644;
-        }
-
+        let mut entry: Entry;
         let file_type = stat_result.file_type();
         if file_type.is_symlink() {
             let _permit = self.blob_semaphore.acquire().await;
@@ -654,16 +643,15 @@ where
                     crate::Error::String("Symlinks must point to a valid utf-8 path".to_string())
                 })?
                 .into_bytes();
-            entry.kind = EntryKind::Blob;
+            entry = Entry::empty_symlink();
             entry.object = self
                 .hasher
                 .hash_blob(Box::pin(std::io::Cursor::new(link_target)))
                 .await?;
         } else if file_type.is_dir() {
-            entry = self.compute_tree_node(root, path, entry).await?;
+            entry = self.compute_tree_node(root, path).await?;
         } else if runtime::is_removed_entry(&stat_result) {
-            entry.kind = EntryKind::Mask;
-            entry.object = encoding::NULL_DIGEST.into();
+            entry = Entry::mask();
         } else if !stat_result.is_file() {
             return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
         } else {
@@ -673,7 +661,7 @@ where
                 "We never close the semaphore and so should never see errors"
             );
             tracing::trace!(" >    file: {:?}", path.as_ref());
-            entry.kind = EntryKind::Blob;
+            entry = Entry::empty_file_with_open_perms();
             let reader =
                 tokio::io::BufReader::new(tokio::fs::File::open(&path).await.map_err(|err| {
                     Error::StorageReadError("open of blob", path.as_ref().to_owned(), err)
@@ -682,6 +670,20 @@ where
 
             entry.object = self.hasher.hash_blob(Box::pin(reader)).await?;
         }
+
+        #[cfg(unix)]
+        {
+            entry.mode = stat_result.mode();
+            entry.size = stat_result.size();
+        }
+        #[cfg(windows)]
+        {
+            entry.size = stat_result.file_size();
+            // use the same default posix permissions as git uses
+            // for files created on windows
+            entry.mode = 0o644;
+        }
+
         self.reporter.computed_entry(&entry);
         Ok(entry)
     }

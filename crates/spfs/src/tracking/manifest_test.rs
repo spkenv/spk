@@ -108,11 +108,11 @@ async fn test_layer_manifests_removal() {
     let mut a = Manifest::<()>::default();
     a.mkfile("a_only").unwrap();
 
-    let mut b = Manifest::default();
+    let mut b = Manifest::<()>::default();
     let node = b.mkfile("a_only").unwrap();
     node.kind = EntryKind::Mask;
 
-    let mut c = Manifest::default();
+    let mut c = Manifest::<()>::default();
     c.update(&a);
     assert!(c.get_path("/a_only").unwrap().kind.is_blob());
     c.update(&b);
