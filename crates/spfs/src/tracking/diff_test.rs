@@ -7,14 +7,14 @@ use rstest::rstest;
 
 use super::{compute_diff, Diff, DiffMode};
 use crate::fixtures::*;
-use crate::tracking::{compute_manifest, Manifest};
+use crate::tracking::{compute_manifest, Entry, Manifest};
 
 #[rstest]
 fn test_diff_str() {
     let display = format!(
         "{}",
         Diff {
-            mode: DiffMode::Added(Default::default()),
+            mode: DiffMode::Added(Entry::<()>::empty_dir_with_open_perms()),
             path: "some_path".into(),
         }
     );

@@ -144,7 +144,7 @@ impl Manifest {
 
     /// Convert this manifest into a more workable form for editing.
     pub fn to_tracking_manifest(&self) -> tracking::Manifest {
-        let mut root = tracking::Entry::default();
+        let mut root = tracking::Entry::empty_dir_with_open_perms();
 
         fn iter_tree(source: &Manifest, tree: &Tree, parent: &mut tracking::Entry) {
             for entry in tree.entries.iter() {
@@ -152,9 +152,12 @@ impl Manifest {
                     kind: entry.kind,
                     mode: entry.mode,
                     size: entry.size,
-                    ..Default::default()
+                    entries: Default::default(),
+                    object: entry.object,
+                    user_data: (),
                 };
                 if let tracking::EntryKind::Tree = entry.kind {
+                    new_entry.object = encoding::NULL_DIGEST.into();
                     iter_tree(
                         source,
                         source
@@ -162,8 +165,6 @@ impl Manifest {
                             .expect("manifest is internally inconsistent (missing child tree)"),
                         &mut new_entry,
                     )
-                } else {
-                    new_entry.object = entry.object;
                 }
                 parent.entries.insert(entry.name.clone(), new_entry);
             }

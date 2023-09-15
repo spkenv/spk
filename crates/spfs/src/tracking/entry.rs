@@ -8,6 +8,10 @@ use std::string::ToString;
 
 use crate::{encoding, Error, Result};
 
+#[cfg(test)]
+#[path = "./entry_test.rs"]
+mod entry_test;
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum EntryKind {
     /// directory / node
@@ -94,22 +98,6 @@ pub struct Entry<T = ()> {
     pub user_data: T,
 }
 
-impl<T> Default for Entry<T>
-where
-    T: Default,
-{
-    fn default() -> Self {
-        Self {
-            kind: EntryKind::Tree,
-            object: encoding::NULL_DIGEST.into(),
-            mode: 0o777,
-            size: 0,
-            entries: Default::default(),
-            user_data: T::default(),
-        }
-    }
-}
-
 impl<T> std::fmt::Debug for Entry<T>
 where
     T: std::fmt::Debug,
@@ -168,6 +156,61 @@ impl PartialOrd for Entry {
             (EntryKind::Tree, _) => Some(std::cmp::Ordering::Greater),
             (_, EntryKind::Tree) => Some(std::cmp::Ordering::Less),
             _ => None,
+        }
+    }
+}
+
+impl<T> Entry<T>
+where
+    T: Default,
+{
+    /// Create an entry that represents a masked file
+    pub fn mask() -> Self {
+        Self {
+            kind: EntryKind::Mask,
+            object: encoding::NULL_DIGEST.into(),
+            mode: 0o0777, // for backwards-compatible hashing
+            size: 0,
+            entries: Default::default(),
+            user_data: T::default(),
+        }
+    }
+
+    /// Create an entry that represents an empty symlink
+    pub fn empty_symlink() -> Self {
+        Self {
+            kind: EntryKind::Blob,
+            object: encoding::EMPTY_DIGEST.into(),
+            mode: 0o0120777,
+            size: 0,
+            entries: Default::default(),
+            user_data: T::default(),
+        }
+    }
+
+    /// Create an entry that represents an empty
+    /// directory with fully open permissions
+    pub fn empty_dir_with_open_perms() -> Self {
+        Self {
+            kind: EntryKind::Tree,
+            object: encoding::NULL_DIGEST.into(),
+            mode: 0o0040777,
+            size: 0,
+            entries: Default::default(),
+            user_data: T::default(),
+        }
+    }
+
+    /// Create an entry that represents an empty
+    /// directory with fully open permissions
+    pub fn empty_file_with_open_perms() -> Self {
+        Self {
+            kind: EntryKind::Blob,
+            object: encoding::EMPTY_DIGEST.into(),
+            mode: 0o0100777,
+            size: 0,
+            entries: Default::default(),
+            user_data: T::default(),
         }
     }
 }

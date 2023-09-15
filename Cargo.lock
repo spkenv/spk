@@ -3136,6 +3136,7 @@ dependencies = [
  "serde_qs",
  "serial_test",
  "spfs-encoding",
+ "static_assertions",
  "strum",
  "tar",
  "tempfile",

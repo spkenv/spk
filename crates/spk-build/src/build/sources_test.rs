@@ -20,7 +20,10 @@ fn test_validate_sources_changeset_not_in_dir() {
     let res = validate_source_changeset(
         vec![spfs::tracking::Diff {
             path: "/file.txt".into(),
-            mode: spfs::tracking::DiffMode::Changed(Default::default(), Default::default()),
+            mode: spfs::tracking::DiffMode::Changed(
+                spfs::tracking::Entry::empty_file_with_open_perms(),
+                spfs::tracking::Entry::empty_file_with_open_perms(),
+            ),
         }],
         "/some/dir",
     );
@@ -32,7 +35,9 @@ fn test_validate_sources_changeset_ok() {
     let res = validate_source_changeset(
         vec![spfs::tracking::Diff {
             path: "/some/dir/file.txt".into(),
-            mode: spfs::tracking::DiffMode::Added(Default::default()),
+            mode: spfs::tracking::DiffMode::Added(
+                spfs::tracking::Entry::empty_file_with_open_perms(),
+            ),
         }],
         "/some/dir",
     );
