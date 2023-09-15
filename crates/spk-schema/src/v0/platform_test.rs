@@ -4,10 +4,12 @@
 
 use rstest::rstest;
 use spk_schema_foundation::option_map;
+use spk_schema_foundation::option_map::host_options;
 use spk_schema_ident::{BuildIdent, InclusionPolicy, Request, VersionIdent};
 
 use super::Platform;
 use crate::v0::Spec;
+use crate::Opt::Var;
 use crate::{BuildEnv, Recipe};
 
 #[rstest]
@@ -57,6 +59,20 @@ fn test_platform_add_pkg_requirement(#[case] spec: &str) {
     let build = spec
         .generate_binary_build(&option_map! {}, &build_env)
         .unwrap();
+
+    let host_options = host_options().unwrap();
+    let build_options = build
+        .build
+        .options
+        .iter()
+        .filter_map(|o| match o {
+            Var(varopt) => Some(varopt.var.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for (name, _value) in host_options.iter() {
+        assert!(build_options.contains(name));
+    }
 
     assert_eq!(build.install.requirements.len(), 1);
     assert!(

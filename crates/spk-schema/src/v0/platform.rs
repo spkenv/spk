@@ -10,7 +10,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::name::PkgName;
-use spk_schema_foundation::option_map::{OptionMap, Stringified};
+use spk_schema_foundation::option_map::{host_options, OptionMap, Stringified};
 use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
 use spk_schema_foundation::version::Version;
 use spk_schema_ident::{
@@ -27,12 +27,14 @@ use super::{Spec, TestSpec};
 use crate::foundation::version::Compat;
 use crate::ident::is_false;
 use crate::meta::Meta;
+use crate::option::VarOpt;
 use crate::{
     BuildEnv,
     BuildSpec,
     Deprecate,
     DeprecateMut,
     InputVariant,
+    Opt,
     Package,
     Recipe,
     RequirementsList,
@@ -225,9 +227,16 @@ impl Recipe for Platform<VersionIdent> {
         // Platforms have no sources
         spec.sources = Vec::new();
 
-        // Supply a safe no-op build script
+        // Supply a safe no-op build script and standard host/os
+        // related option names but leave the values for the later
+        // steps of building to fill in.
+        let mut build_host_options = Vec::new();
+        for (name, _value) in host_options()?.iter() {
+            build_host_options.push(Opt::Var(VarOpt::new(name)?));
+        }
         spec.build = BuildSpec {
             script: Script::new(["true"]),
+            options: build_host_options,
             ..Default::default()
         };
 
