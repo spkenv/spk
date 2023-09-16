@@ -39,7 +39,7 @@ const REPO_METADATA_TAG: &str = "spk/repo";
 const REPO_VERSION: &str = "1.0.0";
 
 #[derive(Debug)]
-pub struct SPFSRepository {
+pub struct SpfsRepository {
     address: url::Url,
     name: RepositoryNameBuf,
     inner: spfs::storage::RepositoryHandle,
@@ -47,33 +47,33 @@ pub struct SPFSRepository {
     caches: CachesForAddress,
 }
 
-impl std::hash::Hash for SPFSRepository {
+impl std::hash::Hash for SpfsRepository {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.address.hash(state);
     }
 }
 
-impl Ord for SPFSRepository {
+impl Ord for SpfsRepository {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.address.cmp(&other.address)
     }
 }
 
-impl PartialOrd for SPFSRepository {
+impl PartialOrd for SpfsRepository {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for SPFSRepository {
+impl PartialEq for SpfsRepository {
     fn eq(&self, other: &Self) -> bool {
         self.address == other.address
     }
 }
 
-impl Eq for SPFSRepository {}
+impl Eq for SpfsRepository {}
 
-impl std::ops::Deref for SPFSRepository {
+impl std::ops::Deref for SpfsRepository {
     type Target = spfs::storage::RepositoryHandle;
 
     fn deref(&self) -> &Self::Target {
@@ -81,13 +81,13 @@ impl std::ops::Deref for SPFSRepository {
     }
 }
 
-impl std::ops::DerefMut for SPFSRepository {
+impl std::ops::DerefMut for SpfsRepository {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> TryFrom<(S, T)> for SPFSRepository {
+impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> TryFrom<(S, T)> for SpfsRepository {
     type Error = crate::Error;
 
     fn try_from(name_and_repo: (S, T)) -> Result<Self> {
@@ -103,7 +103,7 @@ impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> TryFrom<(S, T)> fo
     }
 }
 
-impl SPFSRepository {
+impl SpfsRepository {
     pub async fn new(name: &str, address: &str) -> Result<Self> {
         let inner = spfs::open_repository(address).await?;
         let address = inner.address();
@@ -117,7 +117,7 @@ impl SPFSRepository {
     }
 }
 
-impl std::ops::Drop for SPFSRepository {
+impl std::ops::Drop for SpfsRepository {
     fn drop(&mut self) {
         // Safety: We only put valid `Box` pointers into `self.cache_policy`.
         unsafe {
@@ -215,7 +215,7 @@ impl std::fmt::Debug for CachesForAddress {
 }
 
 #[async_trait::async_trait]
-impl Storage for SPFSRepository {
+impl Storage for SpfsRepository {
     type Recipe = SpecRecipe;
     type Package = Spec;
 
@@ -582,7 +582,7 @@ impl Storage for SPFSRepository {
 }
 
 #[async_trait::async_trait]
-impl Repository for SPFSRepository {
+impl Repository for SpfsRepository {
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -835,7 +835,7 @@ impl Repository for SPFSRepository {
     }
 }
 
-impl SPFSRepository {
+impl SpfsRepository {
     fn cached_result_permitted(&self) -> bool {
         // Safety: We only put valid `Box` pointers into `self.cache_policy`.
         unsafe { *self.cache_policy.load(Ordering::Relaxed) }.cached_result_permitted()
@@ -1057,12 +1057,12 @@ impl StoredPackage {
 }
 
 /// Return the local packages repository used for development.
-pub async fn local_repository() -> Result<SPFSRepository> {
+pub async fn local_repository() -> Result<SpfsRepository> {
     let config = spfs::get_config()?;
     let repo = config.get_local_repository().await?;
     let inner: spfs::prelude::RepositoryHandle = repo.into();
     let address = inner.address();
-    Ok(SPFSRepository {
+    Ok(SpfsRepository {
         caches: CachesForAddress::new(&address),
         address,
         name: "local".try_into()?,
@@ -1074,11 +1074,11 @@ pub async fn local_repository() -> Result<SPFSRepository> {
 /// Return the remote repository of the given name.
 ///
 /// If not name is specified, return the default spfs repository.
-pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SPFSRepository> {
+pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SpfsRepository> {
     let config = spfs::get_config()?;
     let inner = config.get_remote(&name).await?;
     let address = inner.address();
-    Ok(SPFSRepository {
+    Ok(SpfsRepository {
         caches: CachesForAddress::new(&address),
         address,
         name: name.as_ref().try_into()?,

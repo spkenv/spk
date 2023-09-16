@@ -13,7 +13,7 @@ use std::sync::Arc;
 use arc_swap::ArcSwap;
 
 use super::hash_store::PROXY_DIRNAME;
-use super::FSHashStore;
+use super::FsHashStore;
 use crate::config::ToAddress;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
@@ -70,15 +70,15 @@ impl FromUrl for Config {
 
 /// Renders need a place for proxy files and the rendered hard links.
 pub struct RenderStore {
-    pub proxy: FSHashStore,
-    pub renders: FSHashStore,
+    pub proxy: FsHashStore,
+    pub renders: FsHashStore,
 }
 
 impl RenderStore {
     pub fn for_user<P: AsRef<Path>>(root: &Path, username: P) -> Result<Self> {
         let renders_dir = root.join("renders").join(username.as_ref());
-        FSHashStore::open(renders_dir.join(PROXY_DIRNAME)).and_then(|proxy| {
-            FSHashStore::open(&renders_dir).map(|renders| RenderStore { proxy, renders })
+        FsHashStore::open(renders_dir.join(PROXY_DIRNAME)).and_then(|proxy| {
+            FsHashStore::open(&renders_dir).map(|renders| RenderStore { proxy, renders })
         })
     }
 }
@@ -86,8 +86,8 @@ impl RenderStore {
 impl Clone for RenderStore {
     fn clone(&self) -> Self {
         Self {
-            proxy: FSHashStore::open_unchecked(self.proxy.root()),
-            renders: FSHashStore::open_unchecked(self.renders.root()),
+            proxy: FsHashStore::open_unchecked(self.proxy.root()),
+            renders: FsHashStore::open_unchecked(self.renders.root()),
         }
     }
 }
@@ -100,35 +100,35 @@ impl Clone for RenderStore {
 /// An [`OpenFsRepository`] is more useful than this one, but
 /// can also be easily retrieved via the [`Self::opened`].
 #[derive(Clone)]
-pub struct FSRepository(Arc<ArcSwap<InnerFSRepository>>);
+pub struct FsRepository(Arc<ArcSwap<InnerFsRepository>>);
 
-enum InnerFSRepository {
+enum InnerFsRepository {
     Closed(Config),
     Open(Arc<OpenFsRepository>),
 }
 
-impl From<OpenFsRepository> for FSRepository {
+impl From<OpenFsRepository> for FsRepository {
     fn from(value: OpenFsRepository) -> Self {
         Arc::new(value).into()
     }
 }
 
-impl From<Arc<OpenFsRepository>> for FSRepository {
+impl From<Arc<OpenFsRepository>> for FsRepository {
     fn from(value: Arc<OpenFsRepository>) -> Self {
-        Self(Arc::new(ArcSwap::new(Arc::new(InnerFSRepository::Open(
+        Self(Arc::new(ArcSwap::new(Arc::new(InnerFsRepository::Open(
             value,
         )))))
     }
 }
 
 #[async_trait::async_trait]
-impl FromConfig for FSRepository {
+impl FromConfig for FsRepository {
     type Config = Config;
 
     async fn from_config(config: Self::Config) -> Result<Self> {
         if config.params.lazy {
             Ok(Self(Arc::new(ArcSwap::new(Arc::new(
-                InnerFSRepository::Closed(config),
+                InnerFsRepository::Closed(config),
             )))))
         } else {
             Ok(OpenFsRepository::from_config(config).await?.into())
@@ -136,11 +136,11 @@ impl FromConfig for FSRepository {
     }
 }
 
-impl FSRepository {
+impl FsRepository {
     /// Open a filesystem repository, creating it if necessary
     pub async fn create<P: AsRef<Path>>(root: P) -> Result<Self> {
         Ok(Self(Arc::new(ArcSwap::new(Arc::new(
-            InnerFSRepository::Open(Arc::new(OpenFsRepository::create(root).await?)),
+            InnerFsRepository::Open(Arc::new(OpenFsRepository::create(root).await?)),
         )))))
     }
 
@@ -148,7 +148,7 @@ impl FSRepository {
     // exist and be properly setup as a repository
     pub async fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
         Ok(Self(Arc::new(ArcSwap::new(Arc::new(
-            InnerFSRepository::Open(Arc::new(OpenFsRepository::open(root).await?)),
+            InnerFsRepository::Open(Arc::new(OpenFsRepository::open(root).await?)),
         )))))
     }
 
@@ -158,13 +158,13 @@ impl FSRepository {
         let inner = Arc::clone(&self.0);
         async move {
             match &**inner.load() {
-                InnerFSRepository::Closed(config) => {
+                InnerFsRepository::Closed(config) => {
                     let config = config.clone();
                     let opened = Arc::new(OpenFsRepository::from_config(config).await?);
-                    inner.rcu(|_| InnerFSRepository::Open(Arc::clone(&opened)));
+                    inner.rcu(|_| InnerFsRepository::Open(Arc::clone(&opened)));
                     Ok(opened)
                 }
-                InnerFSRepository::Open(o) => Ok(Arc::clone(o)),
+                InnerFsRepository::Open(o) => Ok(Arc::clone(o)),
             }
         }
     }
@@ -172,25 +172,25 @@ impl FSRepository {
     /// The filesystem root path of this repository
     pub fn root(&self) -> PathBuf {
         match &**self.0.load() {
-            InnerFSRepository::Closed(config) => config.path.clone(),
-            InnerFSRepository::Open(o) => o.root(),
+            InnerFsRepository::Closed(config) => config.path.clone(),
+            InnerFsRepository::Open(o) => o.root(),
         }
     }
 }
 
-impl BlobStorage for FSRepository {}
-impl ManifestStorage for FSRepository {}
-impl LayerStorage for FSRepository {}
-impl PlatformStorage for FSRepository {}
-impl Repository for FSRepository {
+impl BlobStorage for FsRepository {}
+impl ManifestStorage for FsRepository {}
+impl LayerStorage for FsRepository {}
+impl PlatformStorage for FsRepository {}
+impl Repository for FsRepository {
     fn address(&self) -> url::Url {
         url::Url::from_directory_path(self.root()).unwrap()
     }
 }
 
-impl std::fmt::Debug for FSRepository {
+impl std::fmt::Debug for FsRepository {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("FSRepository @ {:?}", self.root()))
+        f.write_fmt(format_args!("FsRepository @ {:?}", self.root()))
     }
 }
 
@@ -198,9 +198,9 @@ impl std::fmt::Debug for FSRepository {
 pub struct OpenFsRepository {
     root: PathBuf,
     /// stores the actual file data/payloads of this repo
-    pub payloads: FSHashStore,
+    pub payloads: FsHashStore,
     /// stores all digraph object data for this repo
-    pub objects: FSHashStore,
+    pub objects: FsHashStore,
     /// stores rendered file system layers for use in overlayfs
     pub renders: Option<RenderStore>,
 }
@@ -222,8 +222,8 @@ impl Clone for OpenFsRepository {
     fn clone(&self) -> Self {
         let root = self.root.clone();
         Self {
-            objects: FSHashStore::open_unchecked(root.join("objects")),
-            payloads: FSHashStore::open_unchecked(root.join("payloads")),
+            objects: FsHashStore::open_unchecked(root.join("objects")),
+            payloads: FsHashStore::open_unchecked(root.join("payloads")),
             renders: self.renders.clone(),
             root,
         }
@@ -232,7 +232,7 @@ impl Clone for OpenFsRepository {
 
 impl LocalRepository for OpenFsRepository {
     #[inline]
-    fn payloads(&self) -> &FSHashStore {
+    fn payloads(&self) -> &FsHashStore {
         &self.payloads
     }
 
@@ -326,8 +326,8 @@ impl OpenFsRepository {
         let root = root.as_ref();
         let username = whoami::username();
         Ok(Self {
-            objects: FSHashStore::open(root.join("objects"))?,
-            payloads: FSHashStore::open(root.join("payloads"))?,
+            objects: FsHashStore::open(root.join("objects"))?,
+            payloads: FsHashStore::open(root.join("payloads"))?,
             renders: RenderStore::for_user(root, username).ok(),
             root: root.to_owned(),
         })
@@ -394,8 +394,8 @@ impl OpenFsRepository {
                 (
                     username,
                     Self {
-                        objects: FSHashStore::open_unchecked(self.root.join("objects")),
-                        payloads: FSHashStore::open_unchecked(self.root.join("payloads")),
+                        objects: FsHashStore::open_unchecked(self.root.join("objects")),
+                        payloads: FsHashStore::open_unchecked(self.root.join("payloads")),
                         renders: self
                             .renders
                             .as_ref()

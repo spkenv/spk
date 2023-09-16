@@ -47,7 +47,7 @@ fn query_overlayfs_available_options() -> Result<HashSet<String>> {
         .map_err(|err| Error::process_spawn_error("/sbin/modinfo", err, None))?;
 
     if output.status.code().unwrap_or(1) != 0 {
-        return Err(Error::OverlayFSNotInstalled);
+        return Err(Error::OverlayFsNotInstalled);
     }
 
     parse_modinfo_params(&mut BufReader::new(output.stdout.as_slice()))

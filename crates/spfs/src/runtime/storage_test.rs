@@ -26,7 +26,7 @@ fn test_config_serialization() {
 async fn test_storage_create_runtime(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::FSRepository::create(root)
+        crate::storage::fs::FsRepository::create(root)
             .await
             .unwrap(),
     );
@@ -46,7 +46,7 @@ async fn test_storage_create_runtime(tmpdir: tempfile::TempDir) {
 async fn test_storage_remove_runtime(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::FSRepository::create(root)
+        crate::storage::fs::FsRepository::create(root)
             .await
             .unwrap(),
     );
@@ -67,7 +67,7 @@ async fn test_storage_remove_runtime(tmpdir: tempfile::TempDir) {
 async fn test_storage_iter_runtimes(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::FSRepository::create(root)
+        crate::storage::fs::FsRepository::create(root)
             .await
             .unwrap(),
     );
@@ -119,7 +119,7 @@ async fn test_storage_iter_runtimes(tmpdir: tempfile::TempDir) {
 async fn test_runtime_reset(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::FSRepository::create(root)
+        crate::storage::fs::FsRepository::create(root)
             .await
             .unwrap(),
     );

@@ -11,7 +11,7 @@ type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
 #[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
-    SPFS(super::SPFSRepository),
+    SPFS(super::SpfsRepository),
     Mem(super::MemRepository<SpecRecipe>),
     Runtime(super::RuntimeRepository),
 }
@@ -73,8 +73,8 @@ impl std::ops::DerefMut for RepositoryHandle {
     }
 }
 
-impl From<super::SPFSRepository> for RepositoryHandle {
-    fn from(repo: super::SPFSRepository) -> Self {
+impl From<super::SpfsRepository> for RepositoryHandle {
+    fn from(repo: super::SpfsRepository) -> Self {
         RepositoryHandle::SPFS(repo)
     }
 }

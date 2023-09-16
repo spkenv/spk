@@ -12,10 +12,10 @@ use crate::prelude::*;
 async fn test_proxy_payload_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::FSRepository::create(tmpdir.path().join("primary"))
+    let primary = crate::storage::fs::FsRepository::create(tmpdir.path().join("primary"))
         .await
         .unwrap();
-    let secondary = crate::storage::fs::FSRepository::create(tmpdir.path().join("secondary"))
+    let secondary = crate::storage::fs::FsRepository::create(tmpdir.path().join("secondary"))
         .await
         .unwrap();
 
@@ -40,10 +40,10 @@ async fn test_proxy_payload_read_through(tmpdir: tempfile::TempDir) {
 async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::FSRepository::create(tmpdir.path().join("primary"))
+    let primary = crate::storage::fs::FsRepository::create(tmpdir.path().join("primary"))
         .await
         .unwrap();
-    let secondary = crate::storage::fs::FSRepository::create(tmpdir.path().join("secondary"))
+    let secondary = crate::storage::fs::FsRepository::create(tmpdir.path().join("secondary"))
         .await
         .unwrap();
 
@@ -68,10 +68,10 @@ async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
 async fn test_proxy_tag_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::FSRepository::create(tmpdir.path().join("primary"))
+    let primary = crate::storage::fs::FsRepository::create(tmpdir.path().join("primary"))
         .await
         .unwrap();
-    let secondary = crate::storage::fs::FSRepository::create(tmpdir.path().join("secondary"))
+    let secondary = crate::storage::fs::FsRepository::create(tmpdir.path().join("secondary"))
         .await
         .unwrap();
 

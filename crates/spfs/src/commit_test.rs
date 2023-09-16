@@ -15,7 +15,7 @@ use crate::Error;
 async fn test_commit_empty(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = Arc::new(crate::storage::RepositoryHandle::from(
-        crate::storage::fs::FSRepository::create(root)
+        crate::storage::fs::FsRepository::create(root)
             .await
             .unwrap(),
     ));

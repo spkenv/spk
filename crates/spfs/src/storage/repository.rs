@@ -9,7 +9,7 @@ use encoding::Encodable;
 use graph::Blob;
 use tokio_stream::StreamExt;
 
-use super::fs::{FSHashStore, RenderStore};
+use super::fs::{FsHashStore, RenderStore};
 use crate::tracking::{self, BlobRead};
 use crate::{encoding, graph, Error, Result};
 
@@ -123,7 +123,7 @@ impl<T: Repository> Repository for &T {
 /// payloads and renders, e.g., local repositories.
 pub trait LocalRepository {
     /// Return the payload storage type
-    fn payloads(&self) -> &FSHashStore;
+    fn payloads(&self) -> &FsHashStore;
 
     /// If supported, returns the type responsible for locally rendered manifests
     ///

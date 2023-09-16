@@ -65,7 +65,7 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
     init_logging();
     let dir = tmpdir.path();
     let tmprepo = Arc::new(
-        fs::FSRepository::create(dir.join("repo"))
+        fs::FsRepository::create(dir.join("repo"))
             .await
             .unwrap()
             .into(),
@@ -85,7 +85,7 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
         .await
         .expect("failed to commit dir");
 
-    // Safety: tmprepo was created as an FSRepository
+    // Safety: tmprepo was created as an FsRepository
     let tmprepo = match &*tmprepo {
         RepositoryHandle::FS(fs) => fs.opened().await.unwrap(),
         _ => panic!("Unexpected tmprepo type!"),

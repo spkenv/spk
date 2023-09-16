@@ -225,7 +225,7 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
 async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
     init_logging();
     let tmprepo = Arc::new(
-        storage::fs::FSRepository::create(tmpdir.path())
+        storage::fs::FsRepository::create(tmpdir.path())
             .await
             .unwrap()
             .into(),

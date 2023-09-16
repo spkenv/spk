@@ -106,7 +106,7 @@ pub enum Error {
 
     #[cfg(unix)]
     #[error("OverlayFS kernel module does not appear to be installed")]
-    OverlayFSNotInstalled,
+    OverlayFsNotInstalled,
 
     #[error("{}, and {} more errors during clean", errors.get(0).unwrap(), errors.len() - 1)]
     IncompleteClean { errors: Vec<Self> },

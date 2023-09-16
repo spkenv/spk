@@ -17,7 +17,7 @@ use crate::graph::Object;
 use crate::{encoding, graph, Error, Result};
 
 #[async_trait::async_trait]
-impl DatabaseView for super::FSRepository {
+impl DatabaseView for super::FsRepository {
     async fn has_object(&self, digest: encoding::Digest) -> bool {
         let Ok(opened) = self.opened().await else {
             return false;
@@ -56,7 +56,7 @@ impl DatabaseView for super::FSRepository {
 }
 
 #[async_trait::async_trait]
-impl graph::Database for super::FSRepository {
+impl graph::Database for super::FsRepository {
     async fn write_object(&self, obj: &graph::Object) -> Result<()> {
         self.opened().await?.write_object(obj).await
     }

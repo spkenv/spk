@@ -10,7 +10,7 @@ use rstest::rstest;
 use tokio_stream::StreamExt;
 
 use crate::fixtures::*;
-use crate::storage::fs::FSRepository;
+use crate::storage::fs::FsRepository;
 use crate::storage::{EntryType, TagStorage};
 use crate::{encoding, tracking, Result};
 
@@ -109,7 +109,7 @@ async fn test_tag_no_duplication(
 #[rstest]
 #[tokio::test]
 async fn test_tag_permissions(tmpdir: tempfile::TempDir) {
-    let storage = FSRepository::create(tmpdir.path().join("repo"))
+    let storage = FsRepository::create(tmpdir.path().join("repo"))
         .await
         .unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();

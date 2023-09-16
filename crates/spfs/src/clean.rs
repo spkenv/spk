@@ -657,7 +657,7 @@ where
         let removed = result.removed_proxies.entry(username).or_default();
 
         // the hash store is used to nicely iterate all stored digests
-        let proxy_storage = storage::fs::FSHashStore::open_unchecked(proxy_path);
+        let proxy_storage = storage::fs::FsHashStore::open_unchecked(proxy_path);
         let mut stream = proxy_storage
             .iter()
             .try_filter_map(|digest| {
