@@ -48,7 +48,7 @@ where
     // durable runtime upperdir edits.
     tar_repo.remove_durable_dir().await?;
 
-    let mut target_repo = super::SPFSRepository::try_from((
+    let mut target_repo = super::SpfsRepository::try_from((
         "archive",
         spfs::storage::RepositoryHandle::from(tar_repo),
     ))?;
