@@ -148,7 +148,7 @@ build:
   script:
     - mkdir -p build; cd build
     - CONFIG=Release
-    - if [ "${SPK_OPT_debug}" == "on" ] CONFIG=Debug
+    - if [ "${SPK_OPT_debug}" == "on" ]; then CONFIG=Debug; fi
     - cmake ..
       -DCMAKE_BUILD_TYPE=$CONFIG
       -DCMAKE_PREFIX_PATH=/spfs
