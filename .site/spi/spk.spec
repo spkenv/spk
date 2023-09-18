@@ -1,5 +1,5 @@
 Name: spk
-Version: 0.36.0
+Version: 0.38.0
 Release: 1
 Summary: Package manager and a software runtime for studio environments
 License: NONE

@@ -2299,7 +2299,7 @@ dependencies = [
 
 [[package]]
 name = "progress_bar_derive_macro"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "indicatif",
  "quote",
@@ -3341,7 +3341,7 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "spk"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3379,7 +3379,7 @@ dependencies = [
 
 [[package]]
 name = "spk-build"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "futures",
  "relative-path",
@@ -3402,7 +3402,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cli-common"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3438,7 +3438,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cli-group1"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3464,7 +3464,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cli-group2"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3486,7 +3486,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cli-group3"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3507,7 +3507,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cli-group4"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3529,7 +3529,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-build"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3546,7 +3546,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-convert"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3557,7 +3557,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-debug"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3574,7 +3574,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-du"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -3595,7 +3595,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-env"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3612,7 +3612,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-explain"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3623,7 +3623,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-install"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3638,7 +3638,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-make-binary"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3657,7 +3657,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-make-recipe"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3670,7 +3670,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-make-source"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3685,7 +3685,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-render"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3700,7 +3700,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-repo"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3712,7 +3712,7 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-test"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3733,7 +3733,7 @@ dependencies = [
 
 [[package]]
 name = "spk-config"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "config",
  "dirs",
@@ -3748,7 +3748,7 @@ dependencies = [
 
 [[package]]
 name = "spk-exec"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "async-stream",
  "futures",
@@ -3774,7 +3774,7 @@ dependencies = [
 
 [[package]]
 name = "spk-schema"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "data-encoding",
  "enum_dispatch",
@@ -3804,7 +3804,7 @@ dependencies = [
 
 [[package]]
 name = "spk-schema-foundation"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "colored",
  "data-encoding",
@@ -3833,7 +3833,7 @@ dependencies = [
 
 [[package]]
 name = "spk-schema-ident"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "colored",
  "data-encoding",
@@ -3852,7 +3852,7 @@ dependencies = [
 
 [[package]]
 name = "spk-schema-liquid"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "format_serde_error",
  "liquid",
@@ -3868,7 +3868,7 @@ dependencies = [
 
 [[package]]
 name = "spk-schema-validators"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "data-encoding",
  "ignore",
@@ -3892,7 +3892,7 @@ dependencies = [
 
 [[package]]
 name = "spk-solve"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "async-recursion",
  "async-stream",
@@ -3930,7 +3930,7 @@ dependencies = [
 
 [[package]]
 name = "spk-solve-graph"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "async-recursion",
  "async-stream",
@@ -3958,7 +3958,7 @@ dependencies = [
 
 [[package]]
 name = "spk-solve-macros"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "serde_json",
  "spfs",
@@ -3967,7 +3967,7 @@ dependencies = [
 
 [[package]]
 name = "spk-solve-package-iterator"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -3988,7 +3988,7 @@ dependencies = [
 
 [[package]]
 name = "spk-solve-solution"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "colored",
  "console",
@@ -4001,7 +4001,7 @@ dependencies = [
 
 [[package]]
 name = "spk-solve-validation"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "colored",
  "dashmap",
@@ -4024,7 +4024,7 @@ dependencies = [
 
 [[package]]
 name = "spk-storage"
-version = "0.36.0"
+version = "0.38.0"
 dependencies = [
  "async-trait",
  "colored",

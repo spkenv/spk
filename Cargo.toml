@@ -30,7 +30,7 @@ authors = [
     "Nichol Yip <nyip@imageworks.com>",
 ]
 edition = "2021"
-version = "0.36.0"
+version = "0.38.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
