@@ -14,6 +14,7 @@ sentry = ["dep:sentry"]
 server = ["hyper/server", "tokio-util/codec", "tokio-util/io-util"]
 "protobuf-src" = ["dep:protobuf-src"]
 fuse-backend = ["dep:fuser"]
+winfsp-backend = []
 
 [dependencies]
 arc-swap = { workspace = true }
@@ -86,7 +87,7 @@ procfs = { workspace = true }
 caps = "0.5.3"
 
 [target.'cfg(windows)'.dependencies.windows]
-version = "0.48"
+version = "0.51"
 features = ["Win32_Storage_FileSystem", "Win32_Foundation"]
 
 [build-dependencies]

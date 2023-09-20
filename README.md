@@ -198,6 +198,14 @@ cargo build
 tests/integration/run_all.sh
 ```
 
+### Windows
+
+To build and run on windows, you need a couple of dependencies that are easiest to install via chocolatey.
+
+```
+choco install protoc llvm winfsp
+```
+
 ### Benchmarks
 
 Benchmark tests can be found in `benches/`. All benchmark tests can be run with `cargo bench`, but in order to successfully pass `criterion`-specific options to the `criterion`-based benchmarks, those types of benchmarks need to be filtered for.

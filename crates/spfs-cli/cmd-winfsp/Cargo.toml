@@ -1,0 +1,50 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+name = "spfs-cli-winfsp"
+version = "0.34.6"
+
+[[bin]]
+name = "spfs-winfsp"
+path = "src/cmd_winfsp.rs"
+
+[features]
+sentry = ["spfs-cli-common/sentry"]
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+dashmap = { workspace = true }
+spfs-vfs = { path = "../../spfs-vfs" }
+nix = { workspace = true, features = ["process"] }
+libc = "0.2"
+spfs = { path = "../../spfs", features = ["winfsp-backend"] }
+spfs-cli-common = { path = "../common" }
+tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
+tracing = { workspace = true }
+url = "2.2"
+
+[dependencies.windows]
+version = "0.51"
+features = [
+    "Win32_Storage_FileSystem",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_System_Registry",
+]
+
+
+[dependencies.winfsp]
+version = "0.9.3"
+default-features = false
+features = ["notify", "delayload", "system"]
+
+[dependencies.winfsp-sys]
+version = "0.2"
+
+[build-dependencies]
+winfsp = { version = "0.8", default-features = false, features = [
+    "build",
+    "delayload",
+] }
