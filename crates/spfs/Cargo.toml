@@ -32,6 +32,7 @@ data-encoding = "2.3"
 dirs = { workspace = true }
 faccess = "0.2.3"
 futures = { workspace = true }
+futures-core = { workspace = true }
 gitignore = "1.0"
 glob = { workspace = true }
 hyper = { version = "0.14.16", features = ["client"] }
@@ -44,7 +45,7 @@ num_cpus = "1.13.1"
 once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
 progress_bar_derive_macro = { workspace = true }
-prost = "0.11"
+prost = { workspace = true }
 rand = "0.8.5"
 relative-path = "1.3"
 ring = "0.16.15"
@@ -71,7 +72,7 @@ tokio = { version = "1.20", features = [
 tokio-retry = { workspace = true }
 tokio-stream = { version = "0.1", features = ["net", "fs"] }
 tokio-util = { version = "0.7.3", features = ["compat", "io"] }
-tonic = "0.8"
+tonic = { workspace = true }
 tracing = { workspace = true }
 ulid = "1.0"
 unix_mode = "0.1.3"
