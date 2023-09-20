@@ -1,0 +1,14 @@
+// Copyright (c) Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+syntax = "proto3";
+
+package spfs_vfs;
+
+message ShutdownRequest{}
+message ShutdownResponse{}
+
+service VfsService {
+    // shut down the mounted filesystem and all running environments
+    rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+}

@@ -2,21 +2,27 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::net::SocketAddr;
+use std::os::windows::process::CommandExt;
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{Args, Parser, Subcommand};
 use libc::c_void;
+use proto::vfs_service_server::VfsService;
 use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
+use spfs_vfs::proto;
+use tonic::{async_trait, Request, Response, Status};
 use tracing::instrument;
-use windows::Win32::System::SystemInformation::GetSystemTimeAsFileTime;
-use windows::Win32::{
-    Foundation::STATUS_NONCONTINUABLE_EXCEPTION,
-    Security::{
-        Authorization::{ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1},
-        PSECURITY_DESCRIPTOR,
-    },
-    Storage::FileSystem::FILE_ATTRIBUTE_DIRECTORY,
+use windows::Win32::Security::Authorization::{
+    ConvertStringSecurityDescriptorToSecurityDescriptorW,
+    SDDL_REVISION_1,
 };
+use windows::Win32::Security::PSECURITY_DESCRIPTOR;
+use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_DIRECTORY;
+use windows::Win32::System::SystemInformation::GetSystemTimeAsFileTime;
+use windows::Win32::System::Threading::DETACHED_PROCESS;
 use winfsp::filesystem::{DirBuffer, ModificationDescriptor};
 use winfsp_sys::FILE_ACCESS_RIGHTS;
 //use spfs_vfs::{Config, Session};
@@ -45,54 +51,28 @@ fn main2() -> i32 {
         }
         Ok(config) => config,
     };
+
     let result = opt.run(&config);
 
     spfs_cli_common::handle_result!(result)
 }
 
-/// Run a fuse
+/// Run a virtual filesystem backed by winfsp
 #[derive(Debug, Parser)]
 #[clap(name = "spfs-winfsp")]
 pub struct CmdWinFsp {
     #[clap(flatten)]
     logging: cli::Logging,
 
-    /// Do not daemonize the filesystem, run it in the foreground instead
-    #[clap(long, short)]
-    foreground: bool,
+    #[clap(subcommand)]
+    command: Command,
+}
 
-    /// Do not disconnect the filesystem logs from stderr
-    ///
-    /// Although the filesystem will still daemonize, the logs will
-    /// still appear in the stderr of the calling process/shell
-    #[clap(long, short, env = "SPFS_FUSE_LOG_FOREGROUND")]
-    log_foreground: bool,
-
-    /// Options for the mount in the form opt1,opt2=value
-    ///
-    /// In addition to all existing fuse mount options, the following custom
-    /// options are also supported:
-    ///
-    ///  uid    - the user id that should own all files in the mount, defaults to
-    ///           the effective user id of the caller. Only allowed when running
-    ///           as root/sudo.
-    ///  gid    - the group id that should own all files in the mount, defaults to
-    ///           the effective user id of the caller. Only allowed when running
-    ///           as root/sudo.
-    ///  remote - additional remote repository to read data from, can be given more
-    ///           than once
-    #[clap(long, short, value_delimiter = ',')]
-    options: Vec<String>,
-
-    /// The tag or id of the files to mount
-    ///
-    /// Use '-' or nothing to request an empty environment
-    #[clap(name = "REF")]
-    reference: EnvSpec,
-
-    /// The location where to mount the spfs runtime
-    #[clap(default_value = "/spfs")]
-    mountpoint: std::path::PathBuf,
+#[derive(Debug, Subcommand)]
+#[clap(name = "spfs-winfsp")]
+enum Command {
+    Service(CmdService),
+    Mount(CmdMount),
 }
 
 impl cli::CommandName for CmdWinFsp {
@@ -102,31 +82,194 @@ impl cli::CommandName for CmdWinFsp {
 }
 
 impl CmdWinFsp {
-    pub fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
-        let init_token = winfsp::winfsp_init().context("Failed to initialize winfsp")?;
-        let fsp = winfsp::service::FileSystemServiceBuilder::default()
-            .with_start(|| match start_service() {
-                Ok(svc) => Ok(svc),
-                Err(err) => {
-                    tracing::error!("{err:?}");
-                    Err(STATUS_NONCONTINUABLE_EXCEPTION)
-                }
-            })
-            .with_stop(|fs| {
-                stop_service(fs);
-                Ok(())
-            })
-            .build("spfs", init_token)
-            .unwrap();
-        fsp.start()
-            .join()
-            .unwrap()
-            .context("Filesystem failed during runtime")
-            .map(|()| 0)
+    fn run(&mut self, config: &spfs::Config) -> Result<i32> {
+        // the actual winfsp filesystem uses it's own threads, and
+        // the mount command only needs to send requests to the running
+        // service, so a current thread runtime is appropriate
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .context("Failed to establish async runtime")?;
+        let res = match &mut self.command {
+            Command::Mount(c) => rt.block_on(c.run(config)),
+            Command::Service(c) => rt.block_on(c.run(config)),
+        };
+        rt.shutdown_timeout(std::time::Duration::from_secs(30));
+        res
     }
 }
 
-fn start_service() -> Result<FileSystem> {
+/// Start the background filesystem service
+///
+/// Typically this process is handled transparently as-needed
+/// but can be executed manually to establish an spfs mount ahead
+/// of entering any specific environments.
+///
+/// This will fail if an instance of the filesystem is already mounted
+/// at the specified path
+#[derive(Debug, Args)]
+struct CmdService {
+    /// Stop the running service instead of starting it
+    #[clap(long, exclusive = true)]
+    stop: bool,
+
+    /// The local address to listen on for filesystem control
+    ///
+    /// If the default value is overriden, any subsequent control commands must
+    /// also be given this new value. Conversely, changing the mount point from
+    /// its default value should require a change to this value
+    #[clap(
+        long,
+        default_value = "127.0.0.1:37737",
+        env = "SPFS_WINFSP_LISTEN_ADDRESS"
+    )]
+    listen: SocketAddr,
+
+    /// The location where to mount the spfs runtime
+    ///
+    /// Overriding the default value requires the specification of an
+    /// alternative '--listen' address for safety
+    #[clap(default_value = "C:\\spfs", requires = "listen")]
+    mountpoint: std::path::PathBuf,
+}
+
+impl CmdService {
+    async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
+        if self.stop {
+            return self.stop().await;
+        }
+
+        let init_token = winfsp::winfsp_init().context("Failed to initialize winfsp")?;
+        let filesystem = start_service(&self.mountpoint).map(Arc::new)?;
+        let fs = Arc::clone(&filesystem);
+        let fsp = winfsp::service::FileSystemServiceBuilder::default()
+            .with_start(move || Ok(Arc::clone(&fs)))
+            .with_stop(|fs| {
+                if let Some(f) = fs {
+                    let fs = Arc::clone(&f);
+                    tracing::info!("Stopping winfsp service...");
+                    tokio::task::spawn(async move { fs.shutdown().await });
+                }
+                Ok(())
+            })
+            .build("spfs", init_token)
+            .context("Failed to construct filesystem service")?;
+        let (shutdown_tx, mut shutdown_rx) = tokio::sync::mpsc::channel(4);
+        let service = proto::vfs_service_server::VfsServiceServer::new(Service {
+            filesystem,
+            shutdown: shutdown_tx.clone(),
+        });
+        tokio::task::spawn(async move {
+            if let Err(err) = tokio::signal::ctrl_c().await {
+                tracing::error!(?err, "Failed to setup graceful shutdown handler");
+            };
+            let _ = shutdown_tx.send(()).await;
+        });
+        let service = tonic::transport::Server::builder()
+            .add_service(service)
+            .serve_with_shutdown(self.listen, async {
+                let _ = shutdown_rx.recv().await;
+                tracing::info!("shutting down gRPC server...");
+            });
+        let fs_thread_handle = fsp.start();
+        let fs_handle = tokio::task::spawn_blocking(|| fs_thread_handle.join());
+        tokio::select! {
+            result = fs_handle => {
+                result
+                    .expect("Filesystem task should not panic")
+                    .expect("Filesystem thread should not panic")
+                    .context("Filesystem failed during runtime")?;
+                tracing::info!("Filesystem service shutdown, exiting...");
+            }
+            _ = service => {
+                tracing::info!("socket has shutdown, filesystem exiting...");
+                fsp.stop();
+            }
+        }
+        Ok(0)
+    }
+
+    async fn stop(&self) -> Result<i32> {
+        let channel = tonic::transport::Endpoint::from_shared(format!("http://{}", self.listen))?
+            .connect_lazy();
+        let mut client = spfs_vfs::proto::vfs_service_client::VfsServiceClient::new(channel);
+        let res = client
+            .shutdown(tonic::Request::new(proto::ShutdownRequest {}))
+            .await;
+        let Err(err) = res else {
+            return Ok(0);
+        };
+        if is_connection_refused(&err) {
+            tracing::warn!("The service does not appear to be running");
+            Ok(0)
+        } else {
+            Err(err.into())
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+struct CmdMount {
+    /// The local address to connect to for filesystem control
+    ///
+    /// If the default value is overriden, any subsequent control commands must
+    /// also be given this new value. Conversely, changing the mount point from
+    /// its default value should require a change to this value
+    #[clap(
+        long,
+        default_value = "127.0.0.1:37737",
+        env = "SPFS_WINFSP_LISTEN_ADDRESS"
+    )]
+    service: SocketAddr,
+
+    /// The location where to mount the spfs runtime
+    ///
+    /// Overriding the default value requires the specification of an
+    /// alternative '--service' address for safety and is only relevant
+    /// when the winfsp service is not already running at the given
+    /// service address.
+    #[clap(long, default_value = "C:\\spfs", requires = "service")]
+    mountpoint: std::path::PathBuf,
+
+    /// The tag or id of the files to mount
+    ///
+    /// Use '-' or '' to request an empty environment
+    #[clap(name = "REF")]
+    reference: EnvSpec,
+}
+
+impl CmdMount {
+    async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
+        let result = tonic::transport::Endpoint::from_shared(format!("http://{}", self.service))?
+            .connect()
+            .await;
+        let channel = match result {
+            Err(err) if is_connection_refused(&err) => {
+                let exe = std::env::current_exe().context("Failed to get current exe")?;
+                let mut cmd = std::process::Command::new(exe);
+                cmd.creation_flags(DETACHED_PROCESS.0)
+                    .arg("service")
+                    .arg("--listen")
+                    .arg(self.service.to_string())
+                    .arg(&self.mountpoint);
+                tracing::debug!(?cmd, "spawning service...");
+                let _child = cmd.spawn().context("Failed to start filesystem service")?;
+                tonic::transport::Endpoint::from_shared(format!("http://{}", self.service))?
+                    .connect()
+                    .await?
+            }
+            res => res?,
+        };
+
+        let mut client = spfs_vfs::proto::vfs_service_client::VfsServiceClient::new(channel);
+
+        todo!("mount not implemented");
+
+        Ok(0)
+    }
+}
+
+fn start_service(mountpoint: &std::path::Path) -> Result<FileSystem> {
     tracing::info!("starting service...");
     // as of writing, the descritor mode is the only one that works in
     // winsfp-rs without causting crashes
@@ -139,31 +282,66 @@ fn start_service() -> Result<FileSystem> {
         .hard_links(true)
         .read_only_volume(true)
         .volume_serial_number(7737);
-    let mut spfs = FileSystem {
-        fs: winfsp::host::FileSystemHost::new(params, FileSystemContext::default()).unwrap(),
-    };
-    spfs.fs
-        .mount("C:\\spfs")
+    let mut host = winfsp::host::FileSystemHost::new(params, FileSystemContext::default())
+        .context("Failed to establish filesystem host")?;
+    host.mount(mountpoint)
         .context("Failed to mount spfs filesystem")?;
-    spfs.fs.start().context("Failed to start filesystem")?;
-    Ok(spfs)
+    host.start().context("Failed to start filesystem")?;
+    Ok(FileSystem {
+        host: HostController::new(host),
+    })
 }
 
-fn stop_service(fs: Option<&mut FileSystem>) {
-    if let Some(f) = fs {
-        tracing::info!("Stopping winfsp service...");
-        f.fs.stop();
+struct HostController {
+    shutdown: tokio::sync::mpsc::Sender<()>,
+}
+
+impl HostController {
+    pub fn new(mut host: winfsp::host::FileSystemHost<'static>) -> Self {
+        let (shutdown, mut shutdown_rx) = tokio::sync::mpsc::channel(4);
+        let local = tokio::task::LocalSet::new();
+        let _guard = local.enter();
+        tokio::task::spawn_local(async move {
+            let _ = shutdown_rx.recv().await;
+            host.stop();
+            host.unmount();
+        });
+        Self { shutdown }
     }
 }
 
 struct FileSystem {
-    fs: winfsp::host::FileSystemHost<'static>,
+    host: HostController,
+}
+
+impl FileSystem {
+    /// Attempts to unmount and shutdown the hosted filesystem mount
+    pub async fn shutdown(&self) {
+        let _ = self.host.shutdown.send(()).await;
+    }
+}
+
+struct Service {
+    filesystem: Arc<FileSystem>,
+    shutdown: tokio::sync::mpsc::Sender<()>,
+}
+
+#[async_trait]
+impl VfsService for Service {
+    async fn shutdown(
+        &self,
+        _request: Request<proto::ShutdownRequest>,
+    ) -> std::result::Result<Response<proto::ShutdownResponse>, Status> {
+        self.shutdown
+            .send(())
+            .await
+            .map_err(|_| tonic::Status::not_found("filesystem is already shutting down"))
+            .map(|_| Response::new(proto::ShutdownResponse {}))
+    }
 }
 
 #[derive(Default)]
-struct FileSystemContext {
-    one_at_time: std::sync::Mutex<usize>,
-}
+struct FileSystemContext;
 
 struct FileContext {
     ino: u64,
@@ -198,10 +376,8 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
             &winfsp::U16CStr,
         ) -> Option<winfsp::filesystem::FileSecurity>,
     ) -> winfsp::Result<winfsp::filesystem::FileSecurity> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
         let path = std::path::PathBuf::from(file_name.to_os_string());
-        tracing::info!(?path, security=%security_descriptor.is_some(), op=%guard, "start");
+        tracing::info!(?path, security=%security_descriptor.is_some(),  "start");
 
         if let Some(security) = resolve_reparse_points(file_name.as_ref()) {
             return Ok(security);
@@ -265,10 +441,8 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         granted_access: FILE_ACCESS_RIGHTS,
         file_info: &mut winfsp::filesystem::OpenFileInfo,
     ) -> winfsp::Result<Self::FileContext> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
         let path = std::path::PathBuf::from(file_name.to_os_string());
-        tracing::info!(?path, ?granted_access, ?create_options, op=%guard, "start");
+        tracing::info!(?path, ?granted_access, ?create_options, "start");
 
         if path.file_name().is_none() {
             let now = unsafe { GetSystemTimeAsFileTime() };
@@ -302,10 +476,8 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         marker: winfsp::filesystem::DirMarker,
         buffer: &mut [u8],
     ) -> winfsp::Result<u32> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
         let pattern = pattern.map(|p| p.to_os_string());
-        tracing::info!(?context, ?marker, buffer=%buffer.len(), ?pattern, op=%guard, "start");
+        tracing::info!(?context, ?marker, buffer=%buffer.len(), ?pattern,  "start");
         let written = context.dir_buffer.read(marker, buffer);
         tracing::debug!(%written, " > done");
         Ok(written)
@@ -313,9 +485,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
 
     #[instrument(skip_all)]
     fn close(&self, context: Self::FileContext) {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
     }
 
     #[instrument(skip_all)]
@@ -331,9 +501,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _extra_buffer_is_reparse_point: bool,
         _file_info: &mut winfsp::filesystem::OpenFileInfo,
     ) -> winfsp::Result<Self::FileContext> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(op=%guard, "start");
+        tracing::info!("start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -347,9 +515,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         let path = file_name
             .map(|f| f.to_os_string())
             .map(std::path::PathBuf::from);
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, ?path, op=%guard, "start");
+        tracing::info!(?context, ?path, "start");
     }
 
     #[instrument(skip_all)]
@@ -358,9 +524,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         context: Option<&Self::FileContext>,
         _file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -370,9 +534,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         context: &Self::FileContext,
         file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
 
         if context.ino == 0 {
             let now = unsafe { GetSystemTimeAsFileTime() };
@@ -401,9 +563,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         context: &Self::FileContext,
         _security_descriptor: Option<&mut [c_void]>,
     ) -> winfsp::Result<u64> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -414,9 +574,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _security_information: u32,
         _modification_descriptor: ModificationDescriptor,
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -430,9 +588,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _extra_buffer: Option<&[u8]>,
         _file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -444,9 +600,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _new_file_name: &winfsp::U16CStr,
         _replace_if_exists: bool,
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -461,9 +615,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _last_change_time: u64,
         _file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -474,9 +626,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _file_name: &winfsp::U16CStr,
         _delete_file: bool,
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -488,9 +638,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _set_allocation_size: bool,
         _file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -501,9 +649,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _buffer: &mut [u8],
         _offset: u64,
     ) -> winfsp::Result<u32> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -517,9 +663,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _constrained_io: bool,
         _file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<u32> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -530,9 +674,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _file_name: &winfsp::U16CStr,
         _out_dir_info: &mut winfsp::filesystem::DirInfo,
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -541,9 +683,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         &self,
         _out_volume_info: &mut winfsp::filesystem::VolumeInfo,
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(op=%guard, "start");
+        tracing::info!("start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -553,9 +693,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _volume_label: &winfsp::U16CStr,
         _volume_info: &mut winfsp::filesystem::VolumeInfo,
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(op=%guard, "start");
+        tracing::info!("start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -565,9 +703,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         context: &Self::FileContext,
         _buffer: &mut [u8],
     ) -> winfsp::Result<u32> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -578,9 +714,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _is_directory: bool,
         _buffer: &mut [u8],
     ) -> winfsp::Result<u64> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(op=%guard, "start");
+        tracing::info!("start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -591,9 +725,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _file_name: &winfsp::U16CStr,
         _buffer: &mut [u8],
     ) -> winfsp::Result<u64> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -604,9 +736,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _file_name: &winfsp::U16CStr,
         _buffer: &[u8],
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -617,9 +747,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _file_name: &winfsp::U16CStr,
         _buffer: &[u8],
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -629,9 +757,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         context: &Self::FileContext,
         _buffer: &mut [u8],
     ) -> winfsp::Result<u32> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -642,9 +768,7 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _buffer: &[u8],
         _file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
@@ -656,12 +780,30 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         _input: &[u8],
         _output: &mut [u8],
     ) -> winfsp::Result<u32> {
-        let mut guard = self.one_at_time.lock().unwrap();
-        *guard += 1;
-        tracing::info!(?context, op=%guard, "start");
+        tracing::info!(?context, "start");
         Err(windows::Win32::Foundation::STATUS_INVALID_DEVICE_REQUEST.into())
     }
 
     #[instrument(skip_all)]
     fn dispatcher_stopped(&self, _normally: bool) {}
+}
+
+fn is_connection_refused<T>(err: &T) -> bool
+where
+    T: std::error::Error,
+{
+    let Some(mut source) = err.source() else {
+        return false;
+    };
+
+    while let Some(src) = source.source() {
+        source = src;
+    }
+
+    if let Some(io_err) = source.downcast_ref::<std::io::Error>() {
+        if io_err.kind() == std::io::ErrorKind::ConnectionRefused {
+            return true;
+        }
+    }
+    false
 }
