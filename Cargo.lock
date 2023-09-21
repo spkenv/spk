@@ -397,9 +397,9 @@ checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
 name = "bytes"
-version = "1.1.0"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4872d67bab6358e59559027aa3b9157c53d9358c51423c17554809a8858e0f8"
+checksum = "a2bd12c1caf447e69cd4528f47f94d203fd2582878ecb9e9465484c4148a8223"
 
 [[package]]
 name = "bzip2"
@@ -3459,11 +3459,9 @@ dependencies = [
  "tonic",
  "tower",
  "tracing",
- "uds_windows",
  "url",
  "windows",
- "winfsp 0.8.0+winfsp-2.0",
- "winfsp 0.9.3+winfsp-2.0",
+ "winfsp",
  "winfsp-sys",
 ]
 
@@ -3485,6 +3483,7 @@ name = "spfs-vfs"
 version = "0.34.6"
 dependencies = [
  "anyhow",
+ "bytes",
  "clap 4.3.0",
  "dashmap",
  "fuser",
@@ -3499,6 +3498,9 @@ dependencies = [
  "tonic-build",
  "tracing",
  "url",
+ "windows",
+ "winfsp",
+ "winfsp-sys",
 ]
 
 [[package]]
@@ -4737,16 +4739,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89570599c4fe5585de2b388aab47e99f7fa4e9238a1399f707a02e356058141c"
 
 [[package]]
-name = "uds_windows"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce65604324d3cce9b966701489fbd0cf318cb1f7bd9dd07ac9a4ee6fb791930d"
-dependencies = [
- "tempfile",
- "winapi 0.3.9",
-]
-
-[[package]]
 name = "ulid"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5280,21 +5272,6 @@ name = "windows_x86_64_msvc"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
-
-[[package]]
-name = "winfsp"
-version = "0.8.0+winfsp-2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04e29159ea4d7ada1e5caf118dfb9f525c335ea0eabe93a80cf7cb00f62c827d"
-dependencies = [
- "bytemuck",
- "paste",
- "static_assertions",
- "thiserror",
- "widestring",
- "windows",
- "winfsp-sys",
-]
 
 [[package]]
 name = "winfsp"

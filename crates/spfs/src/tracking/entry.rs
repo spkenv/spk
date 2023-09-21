@@ -160,58 +160,82 @@ impl PartialOrd for Entry {
     }
 }
 
-impl<T> Entry<T>
-where
-    T: Default,
-{
+impl<T> Entry<T> {
     /// Create an entry that represents a masked file
-    pub fn mask() -> Self {
+    pub fn mask_with_data(user_data: T) -> Self {
         Self {
             kind: EntryKind::Mask,
             object: encoding::NULL_DIGEST.into(),
             mode: 0o0777, // for backwards-compatible hashing
             size: 0,
             entries: Default::default(),
-            user_data: T::default(),
+            user_data,
         }
     }
 
     /// Create an entry that represents an empty symlink
-    pub fn empty_symlink() -> Self {
+    pub fn empty_symlink_with_data(user_data: T) -> Self {
         Self {
             kind: EntryKind::Blob,
             object: encoding::EMPTY_DIGEST.into(),
             mode: 0o0120777,
             size: 0,
             entries: Default::default(),
-            user_data: T::default(),
+            user_data,
         }
     }
 
     /// Create an entry that represents an empty
     /// directory with fully open permissions
-    pub fn empty_dir_with_open_perms() -> Self {
+    pub fn empty_dir_with_open_perms_with_data(user_data: T) -> Self {
         Self {
             kind: EntryKind::Tree,
             object: encoding::NULL_DIGEST.into(),
             mode: 0o0040777,
             size: 0,
             entries: Default::default(),
-            user_data: T::default(),
+            user_data,
         }
     }
 
     /// Create an entry that represents an empty
     /// directory with fully open permissions
-    pub fn empty_file_with_open_perms() -> Self {
+    pub fn empty_file_with_open_perms_with_data(user_data: T) -> Self {
         Self {
             kind: EntryKind::Blob,
             object: encoding::EMPTY_DIGEST.into(),
             mode: 0o0100777,
             size: 0,
             entries: Default::default(),
-            user_data: T::default(),
+            user_data,
         }
+    }
+}
+
+impl<T> Entry<T>
+where
+    T: Default,
+{
+    /// Create an entry that represents a masked file
+    pub fn mask() -> Self {
+        Self::mask_with_data(T::default())
+    }
+
+    /// Create an entry that represents an empty symlink
+    pub fn empty_symlink() -> Self {
+        Self::empty_symlink_with_data(T::default())
+    }
+
+    /// Create an entry that represents an empty
+    /// directory with fully open permissions
+    pub fn empty_dir_with_open_perms() -> Self {
+        Self::empty_dir_with_open_perms_with_data(T::default())
+    }
+
+    /// Create an entry that represents an empty
+    /// directory with fully open permissions
+    pub fn empty_file_with_open_perms() -> Self {
+        Self::empty_file_with_open_perms_with_data(T::default())
     }
 }
 
@@ -247,6 +271,21 @@ impl<T> Entry<T> {
                 .map(|(n, e)| (n, e.strip_user_data()))
                 .collect(),
             user_data: (),
+        }
+    }
+
+    pub fn with_user_data<T1: Default>(self, user_data: T1) -> Entry<T1> {
+        Entry {
+            kind: self.kind,
+            object: self.object,
+            mode: self.mode,
+            size: self.size,
+            entries: self
+                .entries
+                .into_iter()
+                .map(|(n, e)| (n, e.with_user_data(T1::default())))
+                .collect(),
+            user_data,
         }
     }
 }

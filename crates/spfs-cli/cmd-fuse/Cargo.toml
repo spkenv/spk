@@ -9,6 +9,7 @@ name = "spfs-fuse"
 path = "src/cmd_fuse.rs"
 
 [features]
+default = ["fuse-backend-abi-7-22"]
 fuse-backend-abi-7-22 = ["spfs-vfs/fuse-backend-abi-7-22"]
 fuse-backend-abi-7-25 = ["spfs-vfs/fuse-backend-abi-7-25"]
 fuse-backend-abi-7-28 = ["spfs-vfs/fuse-backend-abi-7-28"]

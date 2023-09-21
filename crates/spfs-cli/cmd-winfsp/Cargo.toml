@@ -24,31 +24,16 @@ tokio = { version = "1.20", features = ["rt"] }
 tracing = { workspace = true }
 tonic = { workspace = true }
 tower = { workspace = true }
-uds_windows = "1.0"
 url = "2.2"
-
-[dependencies.windows]
-version = "0.51"
-features = [
-    "Win32_Storage_FileSystem",
-    "Win32_Foundation",
-    "Win32_Security",
-    "Win32_Security_Authorization",
-    "Win32_System_Registry",
-    "Win32_System_Diagnostics_ToolHelp",
-]
-
-
-[dependencies.winfsp]
-version = "0.9.3"
-default-features = false
-features = ["notify", "delayload", "system"]
-
-[dependencies.winfsp-sys]
-version = "0.2"
+winfsp = { workspace = true, default-features = false, features = [
+    "build",
+    "delayload",
+] }
+winfsp-sys = "0.2"
+windows = { workspace = true, features = ["Win32_System_Threading"] }
 
 [build-dependencies]
-winfsp = { version = "0.8", default-features = false, features = [
+winfsp = { workspace = true, default-features = false, features = [
     "build",
     "delayload",
 ] }
