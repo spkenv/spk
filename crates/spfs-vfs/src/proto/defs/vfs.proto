@@ -8,7 +8,14 @@ package spfs_vfs;
 message ShutdownRequest{}
 message ShutdownResponse{}
 
+message MountRequest{
+    uint32 root_pid = 1;
+    string env_spec = 2;
+}
+message MountResponse{}
+
 service VfsService {
+    rpc Mount(MountRequest) returns (MountResponse);
     // shut down the mounted filesystem and all running environments
     rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
 }

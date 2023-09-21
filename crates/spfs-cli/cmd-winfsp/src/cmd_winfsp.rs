@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use std::os::windows::process::CommandExt;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
 use libc::c_void;
 use proto::vfs_service_server::VfsService;
@@ -27,7 +27,7 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
 };
 use windows::Win32::System::SystemInformation::GetSystemTimeAsFileTime;
-use windows::Win32::System::Threading::DETACHED_PROCESS;
+use windows::Win32::System::Threading::{GetCurrentProcessId, DETACHED_PROCESS};
 use winfsp::filesystem::{DirBuffer, ModificationDescriptor};
 use winfsp_sys::FILE_ACCESS_RIGHTS;
 //use spfs_vfs::{Config, Session};
@@ -202,10 +202,11 @@ impl CmdService {
             .shutdown(tonic::Request::new(proto::ShutdownRequest {}))
             .await;
         let Err(err) = res else {
+            tracing::info!("Stop request accepted");
             return Ok(0);
         };
         if is_connection_refused(&err) {
-            tracing::warn!("The service does not appear to be running");
+            tracing::warn!(addr=%self.listen, "The service does not appear to be running");
             Ok(0)
         } else {
             Err(err.into())
@@ -268,7 +269,20 @@ impl CmdMount {
 
         let mut client = spfs_vfs::proto::vfs_service_client::VfsServiceClient::new(channel);
 
-        todo!("mount not implemented");
+        let current_pid = unsafe { GetCurrentProcessId() };
+        let lineage = get_parent_pids(current_pid)?;
+        // the first parent of this process
+        let Some(parent) = lineage.into_iter().nth(1) else {
+            bail!("Failed to determin the calling process ID")
+        };
+
+        client
+            .mount(Request::new(spfs_vfs::proto::MountRequest {
+                root_pid: parent,
+                env_spec: self.reference.to_string(),
+            }))
+            .await
+            .context("Failed to mount filesystem")?;
 
         Ok(0)
     }
@@ -324,6 +338,11 @@ impl FileSystem {
     pub async fn shutdown(&self) {
         let _ = self.host.shutdown.send(()).await;
     }
+
+    pub async fn mount(&self, root_pid: u32, env_spec: EnvSpec) -> Result<()> {
+        tracing::error!(%root_pid, env_spec=%env_spec.to_string(), "mount called");
+        bail!("Not implemented")
+    }
 }
 
 struct Service {
@@ -343,10 +362,27 @@ impl VfsService for Service {
             .map_err(|_| tonic::Status::not_found("filesystem is already shutting down"))
             .map(|_| Response::new(proto::ShutdownResponse {}))
     }
+
+    async fn mount(
+        &self,
+        request: Request<proto::MountRequest>,
+    ) -> std::result::Result<Response<proto::MountResponse>, Status> {
+        let inner = request.into_inner();
+        let env_spec = spfs::tracking::EnvSpec::parse(&inner.env_spec).map_err(|err| {
+            Status::invalid_argument(format!("Provided env spec was invalid: {err}"))
+        })?;
+        self.filesystem
+            .mount(inner.root_pid, env_spec)
+            .await
+            .map_err(|err| Status::internal(format!("Failed to mount filesystem: {err}")))?;
+        Ok(Response::new(proto::MountResponse {}))
+    }
 }
 
 #[derive(Default)]
-struct FileSystemContext;
+struct FileSystemContext {
+    repos: Vec<Arc<spfs::storage::RepositoryHandle>>,
+}
 
 struct FileContext {
     ino: u64,
