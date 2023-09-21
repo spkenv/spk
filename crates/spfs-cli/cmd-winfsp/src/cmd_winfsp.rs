@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::os::windows::process::CommandExt;
 use std::sync::Arc;
@@ -15,12 +16,16 @@ use spfs_cli_common as cli;
 use spfs_vfs::proto;
 use tonic::{async_trait, Request, Response, Status};
 use tracing::instrument;
+use windows::core::HRESULT;
+use windows::Win32::Foundation::{CloseHandle, ERROR_NO_MORE_FILES};
 use windows::Win32::Security::Authorization::{
-    ConvertStringSecurityDescriptorToSecurityDescriptorW,
-    SDDL_REVISION_1,
+    ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
 };
 use windows::Win32::Security::PSECURITY_DESCRIPTOR;
 use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_DIRECTORY;
+use windows::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
+};
 use windows::Win32::System::SystemInformation::GetSystemTimeAsFileTime;
 use windows::Win32::System::Threading::DETACHED_PROCESS;
 use winfsp::filesystem::{DirBuffer, ModificationDescriptor};
@@ -364,6 +369,15 @@ impl std::fmt::Debug for FileContext {
     }
 }
 
+impl FileSystemContext {
+    fn get_process_stack(&self) -> std::result::Result<Vec<u32>, winfsp::FspError> {
+        // Safety: only valid when called from within the context of an active operation
+        // as this information is stored in the local thread storage
+        let pid = unsafe { winfsp_sys::FspFileSystemOperationProcessIdF() };
+        get_parent_pids(pid)
+    }
+}
+
 impl winfsp::filesystem::FileSystemContext for FileSystemContext {
     type FileContext = FileContext;
 
@@ -377,7 +391,9 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
         ) -> Option<winfsp::filesystem::FileSecurity>,
     ) -> winfsp::Result<winfsp::filesystem::FileSecurity> {
         let path = std::path::PathBuf::from(file_name.to_os_string());
-        tracing::info!(?path, security=%security_descriptor.is_some(),  "start");
+
+        let stack = self.get_process_stack()?;
+        tracing::info!(?path, ?stack, security=%security_descriptor.is_some(),  "start");
 
         if let Some(security) = resolve_reparse_points(file_name.as_ref()) {
             return Ok(security);
@@ -786,6 +802,31 @@ impl winfsp::filesystem::FileSystemContext for FileSystemContext {
 
     #[instrument(skip_all)]
     fn dispatcher_stopped(&self, _normally: bool) {}
+}
+
+fn get_parent_pids(mut child: u32) -> std::result::Result<Vec<u32>, winfsp::FspError> {
+    let no_more_files = HRESULT::from(ERROR_NO_MORE_FILES);
+    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, child)? };
+    let mut parents = HashMap::new();
+    let mut process = PROCESSENTRY32::default();
+    process.dwSize = std::mem::size_of::<PROCESSENTRY32>() as u32;
+    loop {
+        match unsafe { Process32Next(snapshot, &mut process as *mut PROCESSENTRY32) } {
+            Ok(()) => {
+                parents.insert(process.th32ProcessID, process.th32ParentProcessID);
+            }
+            Err(err) if err.code() == no_more_files => break,
+            Err(err) => tracing::error!(%err, "error"),
+        }
+    }
+    let mut stack = Vec::with_capacity(8);
+    stack.push(child);
+    while let Some(parent) = parents.get(&child) {
+        stack.push(*parent);
+        child = *parent;
+    }
+    let _ = unsafe { CloseHandle(snapshot) };
+    Ok(stack)
 }
 
 fn is_connection_refused<T>(err: &T) -> bool
