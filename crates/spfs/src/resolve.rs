@@ -4,6 +4,7 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use encoding::Encodable;
 use futures::{FutureExt, TryFutureExt, TryStreamExt};
@@ -444,7 +445,10 @@ where
 
 /// Find an spfs-* subcommand in the current environment
 pub fn which_spfs<S: AsRef<str>>(subcommand: S) -> Option<std::path::PathBuf> {
+    #[cfg(unix)]
     let command = format!("spfs-{}", subcommand.as_ref());
+    #[cfg(windows)]
+    let command = format!("spfs-{}.exe", subcommand.as_ref());
     if let Some(path) = which(&command) {
         return Some(path);
     }
@@ -457,12 +461,20 @@ pub fn which_spfs<S: AsRef<str>>(subcommand: S) -> Option<std::path::PathBuf> {
     None
 }
 
-/// Find a command
+/// Find a command by name
+///
+/// On windows, the .exe extension must be present or
+/// the executable will never be found
 pub fn which<S: AsRef<str>>(name: S) -> Option<std::path::PathBuf> {
     let path = std::env::var("PATH").unwrap_or_else(|_| "".to_string());
     let search_paths = path.split(':');
+    let name = name.as_ref();
+    #[cfg(windows)]
+    if !name.ends_with(".exe") {
+        return None;
+    };
     for path in search_paths {
-        let filepath = Path::new(path).join(name.as_ref());
+        let filepath = Path::new(path).join(name);
         if is_exe(&filepath) {
             return Some(filepath);
         }
@@ -470,6 +482,16 @@ pub fn which<S: AsRef<str>>(name: S) -> Option<std::path::PathBuf> {
     None
 }
 
+#[cfg(windows)]
+#[inline]
+fn is_exe<P: AsRef<Path>>(filepath: P) -> bool {
+    use std::ffi::OsStr;
+
+    let filepath = filepath.as_ref();
+    filepath.extension() == Some(OsStr::new("exe")) && filepath.is_file()
+}
+
+#[cfg(unix)]
 fn is_exe<P: AsRef<Path>>(filepath: P) -> bool {
     use faccess::PathExt;
 

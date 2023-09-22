@@ -141,7 +141,8 @@ impl Opt {
 
 async fn run_external_subcommand(args: Vec<String>) -> Result<i32> {
     {
-        let command = match args.get(0) {
+        let mut args = args.into_iter();
+        let command = match args.next() {
             None => {
                 tracing::error!("Invalid subcommand, cannot be empty");
                 return Ok(1);
@@ -150,12 +151,12 @@ async fn run_external_subcommand(args: Vec<String>) -> Result<i32> {
         };
 
         // either in the PATH or next to the current binary
-        let command = format!("spfs-{command}");
-        let cmd_path = match spfs::which(command.as_str()) {
+        let cmd_path = match spfs::which_spfs(&command) {
             Some(cmd) => cmd,
             None => {
                 let mut p = std::env::current_exe()
                     .map_err(|err| Error::process_spawn_error("current_exe()", err, None))?;
+                tracing::warn!("{p:?}");
                 p.set_file_name(&command);
                 p
             }
@@ -163,7 +164,7 @@ async fn run_external_subcommand(args: Vec<String>) -> Result<i32> {
 
         let cmd = spfs::bootstrap::Command {
             executable: cmd_path.into(),
-            args: args.into_iter().skip(1).map(Into::into).collect(),
+            args: args.map(Into::into).collect(),
             vars: Vec::new(),
         };
 

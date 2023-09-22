@@ -1,7 +1,10 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::ffi::{CString, OsStr, OsString};
+
+#[cfg(unix)]
+use std::ffi::CString;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 use url::Url;
@@ -88,8 +91,6 @@ impl Command {
     /// to that of this command, and caution should be taken.
     #[cfg(windows)]
     pub fn exec(self) -> Result<std::convert::Infallible> {
-        use std::os::windows::prelude::OsStrExt;
-
         tracing::debug!("{self:#?}");
         // ensure that all components of this command are utilized
         let Self {
@@ -97,28 +98,14 @@ impl Command {
             args,
             vars,
         } = self;
-        let exe: Vec<_> = executable.encode_wide().collect();
-        let mut argv = Vec::with_capacity(args.len() + 1);
-        argv.push(exe[0] as *const u16);
-        let args = args
-            .into_iter()
-            .map(|a| a.encode_wide().collect::<Vec<_>>())
-            .collect::<Vec<_>>();
-        argv.extend(args.iter().map(|a| &a[0] as *const u16));
-        for (name, value) in vars {
-            // set the environment to be inherited by the new process
-            std::env::set_var(name, value);
-        }
-        unsafe {
-            // Safety: this is a low-level operating system call but we
-            // trust that source OsStrings will be valid for this call
-            libc::wexecv(argv[0], &argv[0] as *const *const u16);
-        }
-        Err(Error::process_spawn_error(
-            "exec'd runtime process",
-            std::io::Error::last_os_error(),
-            None,
-        ))
+        let status = std::process::Command::new(&executable)
+            .args(args)
+            .envs(vars)
+            .status()
+            .map_err(|err| {
+                Error::ProcessSpawnError(executable.to_string_lossy().to_string(), err)
+            })?;
+        std::process::exit(status.code().unwrap_or(1))
     }
 }
 
