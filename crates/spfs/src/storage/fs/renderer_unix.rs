@@ -31,7 +31,7 @@ use crate::storage::fs::{
 };
 use crate::storage::prelude::*;
 use crate::storage::LocalRepository;
-use crate::{get_config, graph, tracking, Error, Result};
+use crate::{get_config, graph, tracking, Error, OsError, Result};
 
 #[cfg(test)]
 #[path = "./renderer_test.rs"]
@@ -326,7 +326,7 @@ where
         render_store.renders.ensure_base_dir(&rendered_dirpath)?;
         match tokio::fs::rename(&working_dir, &rendered_dirpath).await {
             Ok(_) => (),
-            Err(err) => match err.raw_os_error() {
+            Err(err) => match err.os_error() {
                 // XXX: Replace with ErrorKind::DirectoryNotEmpty when
                 // stabilized.
                 Some(libc::EEXIST) | Some(libc::ENOTEMPTY) => {
@@ -659,7 +659,7 @@ where
                                         std::io::ErrorKind::AlreadyExists => {
                                             RenderBlobResult::PayloadAlreadyExists
                                         }
-                                        _ if err.raw_os_error()
+                                        _ if err.os_error()
                                             == Some(nix::errno::Errno::EMLINK as i32) =>
                                         {
                                             // hard-linking can fail if we have reached the maximum number of links

@@ -511,6 +511,7 @@ macro_rules! configure {
 #[macro_export(local_inner_macros)]
 macro_rules! handle_result {
     ($result:ident) => {{
+        use $crate::__private::spfs::OsError;
         let code = match $result {
             Err(err) => match err.root_cause().downcast_ref::<spfs::Error>() {
                 Some(spfs::Error::Errno(msg, errno))
@@ -521,10 +522,7 @@ macro_rules! handle_result {
                 }
                 Some(spfs::Error::RuntimeWriteError(path, io_err))
                 | Some(spfs::Error::StorageWriteError(_, path, io_err))
-                    if std::matches!(
-                        io_err.raw_os_error(),
-                        Some($crate::__private::libc::ENOSPC)
-                    ) =>
+                    if std::matches!(io_err.os_error(), Some($crate::__private::libc::ENOSPC)) =>
                 {
                     tracing::error!("Out of disk space writing to {path}", path = path.display());
                     1

@@ -6,7 +6,7 @@
 #![warn(clippy::fn_params_excessive_bools)]
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use spfs::Error;
+use spfs::{Error, OsError};
 
 mod cmd_check;
 mod cmd_commit;
@@ -170,12 +170,10 @@ async fn run_external_subcommand(args: Vec<String>) -> Result<i32> {
 
         match cmd.exec() {
             Ok(o) => match o {},
-            Err(err) => match err.raw_os_error() {
-                Some(libc::ENOENT) => {
-                    tracing::error!("{command} not found in PATH, was it properly installed?")
-                }
-                _ => tracing::error!("subcommand failed: {err:?}"),
-            },
+            Err(err) if err.is_os_not_found() => {
+                tracing::error!("{command} not found in PATH, was it properly installed?")
+            }
+            Err(err) => tracing::error!("subcommand failed: {err:?}"),
         }
         Ok(1)
     }

@@ -16,7 +16,7 @@ use tokio_stream::StreamExt;
 
 use super::runtime;
 use crate::repeating_timeout::RepeatingTimeout;
-use crate::{Error, Result};
+use crate::{Error, OsError, Result};
 
 pub const PROC_DIR: &str = "/proc";
 
@@ -420,7 +420,7 @@ async fn find_other_processes_in_mount_namespace(ns: &std::path::Path) -> Result
         let link_path = entry.path().join("ns/mnt");
         let found_ns = match tokio::fs::read_link(&link_path).await {
             Ok(p) => p,
-            Err(err) => match err.raw_os_error() {
+            Err(err) => match err.os_error() {
                 Some(libc::ENOENT) => continue,
                 Some(libc::ENOTDIR) => continue,
                 Some(libc::EACCES) => continue,

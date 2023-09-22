@@ -17,6 +17,7 @@ use spfs::storage::fallback::FallbackProxy;
 use spfs::storage::fs::OpenFsRepository;
 use spfs::storage::RepositoryHandle;
 use spfs::tracking::EnvSpec;
+use spfs::OsError;
 
 const DEV_SHM: &str = "/dev/shm";
 const ORIGIN: &str = "origin";
@@ -145,7 +146,7 @@ impl<'a> Dynamic<'a> {
                 Ok(_) => true,
                 Err(err) => match err.downcast_ref::<std::io::Error>() {
                     // ErrorKind::DirectoryNotEmpty == 39; this is currently nightly-only.
-                    Some(io_err) if io_err.raw_os_error() == Some(39) => {
+                    Some(io_err) if io_err.os_error() == Some(39) => {
                         // It is extremely unlikely for this directory to suddenly
                         // exist unless it was another copy of this program racing
                         // to create it. Therefore, if it exists now, assume it is

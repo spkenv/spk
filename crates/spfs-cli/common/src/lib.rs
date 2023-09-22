@@ -7,7 +7,7 @@ mod args;
 
 pub mod __private {
     // Private re-exports for macros
-    pub use libc;
+    pub use {libc, spfs};
 }
 
 pub use args::{capture_if_relevant, CommandName, Logging, Render, Sync};

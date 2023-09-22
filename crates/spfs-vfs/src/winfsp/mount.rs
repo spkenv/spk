@@ -9,6 +9,7 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use libc::c_void;
 use spfs::tracking::{Entry, EntryKind};
+use spfs::OsError;
 use tokio::io::AsyncReadExt;
 use windows::Win32::Foundation::{ERROR_SEEK_ON_DEVICE, STATUS_NOT_A_DIRECTORY};
 use windows::Win32::Security::Authorization::{
@@ -48,7 +49,7 @@ macro_rules! err {
         let err = $err;
         tracing::error!("{err:?}");
         let errno = err
-            .raw_os_error()
+            .os_error()
             .unwrap_or(windows::Win32::Foundation::ERROR_BUSY.0 as i32);
         let _ = $send.send(Err(winfsp::FspError::WIN32(
             windows::Win32::Foundation::WIN32_ERROR(errno as u32),

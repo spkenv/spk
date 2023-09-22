@@ -16,7 +16,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::runtime::makedirs_with_perms;
 use crate::tracking::BlobRead;
-use crate::{encoding, Error, Result};
+use crate::{encoding, Error, OsError, Result};
 
 #[cfg(test)]
 #[path = "./hash_store_test.rs"]
@@ -111,7 +111,7 @@ impl FsHashStore {
         };
 
         let mut subdir = match tokio::fs::read_dir(entry.path()).await {
-            Err(err) => match err.raw_os_error() {
+            Err(err) => match err.os_error() {
                 Some(libc::ENOTDIR) => {
                     tracing::debug!(?entry_filename, "found non-directory in hash storage");
                     return Box::pin(futures::stream::empty());

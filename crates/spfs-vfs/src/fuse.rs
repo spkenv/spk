@@ -31,6 +31,7 @@ use spfs::storage::FromConfig;
 #[cfg(feature = "fuse-backend-abi-7-31")]
 use spfs::tracking::BlobRead;
 use spfs::tracking::{Entry, EntryKind, EnvSpec, Manifest};
+use spfs::OsError;
 use tokio::io::AsyncReadExt;
 
 /// Options to configure the FUSE filesystem and
@@ -204,7 +205,7 @@ macro_rules! err {
     ($reply:ident, $err:expr) => {{
         let err = $err;
         tracing::error!("{err:?}");
-        let errno = err.raw_os_error().unwrap_or(libc::EIO);
+        let errno = err.os_error().unwrap_or(libc::EIO);
         $reply.error(errno);
         return;
     }};
