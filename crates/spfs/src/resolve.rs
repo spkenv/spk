@@ -467,14 +467,14 @@ pub fn which_spfs<S: AsRef<str>>(subcommand: S) -> Option<std::path::PathBuf> {
 /// the executable will never be found
 pub fn which<S: AsRef<str>>(name: S) -> Option<std::path::PathBuf> {
     let path = std::env::var("PATH").unwrap_or_else(|_| "".to_string());
-    let search_paths = path.split(':');
+    let search_paths = std::env::split_paths(&path);
     let name = name.as_ref();
     #[cfg(windows)]
     if !name.ends_with(".exe") {
         return None;
     };
     for path in search_paths {
-        let filepath = Path::new(path).join(name);
+        let filepath = path.join(name);
         if is_exe(&filepath) {
             return Some(filepath);
         }

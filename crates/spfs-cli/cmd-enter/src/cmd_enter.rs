@@ -243,7 +243,21 @@ impl CmdEnter {
         &mut self,
         config: &spfs::Config,
     ) -> Result<Option<spfs::runtime::OwnedRuntime>> {
-        todo!()
+        let runtime = self.load_runtime(config).await?;
+        if self.exit.enabled {
+            todo!()
+        } else if self.remount.enabled {
+            todo!()
+        } else {
+            let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
+            let start_time = Instant::now();
+            let render_summary = spfs::initialize_runtime(&mut owned).await?;
+            self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
+            owned.ensure_startup_scripts(self.enter.tmpdir.as_ref())?;
+            std::env::set_var("SPFS_RUNTIME", owned.name());
+
+            Ok(Some(owned))
+        }
     }
 
     async fn load_runtime(&self, config: &spfs::Config) -> Result<spfs::runtime::Runtime> {

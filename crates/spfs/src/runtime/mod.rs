@@ -7,6 +7,7 @@
 #[cfg(unix)]
 pub mod overlayfs;
 mod startup_csh;
+mod startup_ps;
 mod startup_sh;
 mod storage;
 #[cfg(windows)]

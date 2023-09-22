@@ -142,6 +142,7 @@ pub fn build_interactive_shell_command(
         std::env::var_os(SPFS_SHELL_MESSAGE).unwrap_or_else(|| SPFS_SHELL_DEFAULT_MESSAGE.into()),
     );
     match shell {
+        #[cfg(unix)]
         Shell::Tcsh(tcsh) => Ok(Command {
             executable: tcsh.into(),
             args: vec![],
@@ -162,12 +163,23 @@ pub fn build_interactive_shell_command(
                 shell_message,
             ],
         }),
-
+        #[cfg(unix)]
         Shell::Bash(bash) => Ok(Command {
             executable: bash.into(),
             args: vec![
                 "--init-file".into(),
                 rt.config.sh_startup_file.as_os_str().to_owned(),
+            ],
+            vars: vec![shell_message],
+        }),
+        #[cfg(windows)]
+        Shell::Powershell(ps1) => Ok(Command {
+            executable: ps1.into(),
+            args: vec![
+                "-NoExit".into(),
+                "-NoLogo".into(),
+                "-File".into(),
+                rt.config.ps_startup_file.as_os_str().to_owned(),
             ],
             vars: vec![shell_message],
         }),
@@ -195,6 +207,25 @@ where
     let startup_file = match shell.kind() {
         ShellKind::Bash => &runtime.config.sh_startup_file,
         ShellKind::Tcsh => &runtime.config.csh_startup_file,
+        ShellKind::Powershell => {
+            let mut cmd = OsString::from(command.into());
+            for arg in args.into_iter().map(Into::into) {
+                cmd.push(" ");
+                cmd.push(arg);
+            }
+            let args = vec![
+                "-NoLogo".into(),
+                "-File".into(),
+                runtime.config.ps_startup_file.as_os_str().to_owned(),
+                "-RunCommand".into(),
+                cmd,
+            ];
+            return Ok(Command {
+                executable: shell.executable().into(),
+                args,
+                vars: vec![],
+            });
+        }
     };
 
     let mut shell_args = vec![startup_file.into(), command.into()];
@@ -339,6 +370,7 @@ where
 pub enum ShellKind {
     Bash,
     Tcsh,
+    Powershell,
 }
 
 impl AsRef<str> for ShellKind {
@@ -346,6 +378,7 @@ impl AsRef<str> for ShellKind {
         match self {
             Self::Bash => "bash",
             Self::Tcsh => "tcsh",
+            Self::Powershell => "powershell.exe",
         }
     }
 }
@@ -353,23 +386,35 @@ impl AsRef<str> for ShellKind {
 /// A supported shell that exists on this system
 #[derive(Debug, Clone)]
 pub enum Shell {
+    #[cfg(unix)]
     Bash(PathBuf),
+    #[cfg(unix)]
     Tcsh(PathBuf),
+    #[cfg(windows)]
+    Powershell(PathBuf),
 }
 
 impl Shell {
     pub fn kind(&self) -> ShellKind {
         match self {
+            #[cfg(unix)]
             Self::Bash(_) => ShellKind::Bash,
+            #[cfg(unix)]
             Self::Tcsh(_) => ShellKind::Tcsh,
+            #[cfg(windows)]
+            Self::Powershell(_) => ShellKind::Powershell,
         }
     }
 
     /// The location of this shell's binary
     pub fn executable(&self) -> &Path {
         match self {
+            #[cfg(unix)]
             Self::Bash(p) => p,
+            #[cfg(unix)]
             Self::Tcsh(p) => p,
+            #[cfg(windows)]
+            Self::Powershell(p) => p,
         }
     }
 
@@ -379,8 +424,12 @@ impl Shell {
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         match path.file_name().map(OsStr::to_string_lossy) {
+            #[cfg(unix)]
             Some(n) if n == ShellKind::Bash.as_ref() => Ok(Self::Bash(path.to_owned())),
+            #[cfg(unix)]
             Some(n) if n == ShellKind::Tcsh.as_ref() => Ok(Self::Tcsh(path.to_owned())),
+            #[cfg(windows)]
+            Some(n) if n == ShellKind::Powershell.as_ref() => Ok(Self::Powershell(path.to_owned())),
             Some(_) => Err(Error::new(format!("Unsupported shell: {path:?}"))),
             None => Err(Error::new(format!("Invalid shell path: {path:?}"))),
         }
@@ -393,7 +442,7 @@ impl Shell {
     ///
     /// In general, this strategy uses the value of SHELL before
     /// searching for viable entries in PATH and then falling back
-    /// to whatever it can find listed in /etc/shells
+    /// to whatever it can find listed in /etc/shells (on unix)
     pub fn find_best(shell: Option<&str>) -> Result<Shell> {
         let shell = shell
             .map(|s| s.to_string())
@@ -414,7 +463,7 @@ impl Shell {
             }
         }
 
-        for kind in &[ShellKind::Bash, ShellKind::Tcsh] {
+        for kind in &[ShellKind::Bash, ShellKind::Tcsh, ShellKind::Powershell] {
             if let Some(path) = which(kind) {
                 if let Ok(shell) = Shell::from_path(path) {
                     return Ok(shell);
@@ -422,6 +471,7 @@ impl Shell {
             }
         }
 
+        #[cfg(unix)]
         if let Ok(shells) = std::fs::read_to_string("/etc/shells") {
             for candidate in shells.split('\n') {
                 let path = Path::new(candidate.trim());

@@ -46,7 +46,7 @@ pub async fn get_runtime_backing_repo(
         config.get_local_repository_handle().await
     } else {
         let proxy_config = crate::storage::proxy::Config {
-            primary: config.storage.root.to_string_lossy().to_string(),
+            primary: config.storage.address().to_string(),
             secondary: rt
                 .config
                 .secondary_repositories
