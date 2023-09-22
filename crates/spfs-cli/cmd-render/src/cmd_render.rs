@@ -89,8 +89,7 @@ impl CmdRender {
         tokio::fs::create_dir_all(&target)
             .await
             .map_err(|err| Error::RuntimeWriteError(target.to_owned(), err))?;
-        let target_dir = tokio::fs::canonicalize(target)
-            .await
+        let target_dir = tokio::task::block_in_place(|| dunce::canonicalize(target))
             .map_err(|err| Error::InvalidPath(target.to_owned(), err))?;
         if tokio::fs::read_dir(&target_dir)
             .await

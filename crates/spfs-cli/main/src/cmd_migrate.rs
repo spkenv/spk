@@ -14,13 +14,12 @@ pub struct CmdMigrate {
     upgrade: bool,
 
     /// The path to the filesystem repository to migrate
-    path: String,
+    path: std::path::PathBuf,
 }
 
 impl CmdMigrate {
     pub async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
-        let repo_root = std::path::PathBuf::from(&self.path)
-            .canonicalize()
+        let repo_root = tokio::task::block_in_place(|| dunce::canonicalize(&self.path))
             .map_err(|err| Error::InvalidPath((&self.path).into(), err))?;
         let result = if self.upgrade {
             spfs::storage::fs::migrations::upgrade_repo(repo_root).await?

@@ -5,13 +5,13 @@
 
 use std::sync::Arc;
 
-use crate::proto;
 use proto::vfs_service_server::VfsService;
 use spfs::storage::FromConfig;
 use tonic::{async_trait, Request, Response, Status};
 use tracing::instrument;
-
 pub use winfsp::Result;
+
+use crate::proto;
 
 mod handle;
 mod mount;

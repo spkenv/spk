@@ -910,6 +910,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
+name = "dunce"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56ce8c6da7551ec6c462cbaf3bfbc75131ebbfa1c944aeaa9dab51ca1c5f0c3b"
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3251,6 +3257,7 @@ dependencies = [
  "dashmap",
  "data-encoding",
  "dirs",
+ "dunce",
  "faccess",
  "fuser",
  "futures",
@@ -3393,6 +3400,7 @@ dependencies = [
  "chrono",
  "clap 4.3.0",
  "colored",
+ "dunce",
  "futures",
  "hyper",
  "itertools",
@@ -3434,6 +3442,7 @@ version = "0.34.6"
 dependencies = [
  "anyhow",
  "clap 4.3.0",
+ "dunce",
  "futures",
  "serde_json",
  "spfs",
@@ -3551,6 +3560,7 @@ dependencies = [
 name = "spk-build"
 version = "0.38.0"
 dependencies = [
+ "dunce",
  "futures",
  "relative-path",
  "rstest",
@@ -3947,6 +3957,7 @@ name = "spk-schema"
 version = "0.38.0"
 dependencies = [
  "data-encoding",
+ "dunce",
  "enum_dispatch",
  "format_serde_error",
  "ignore",

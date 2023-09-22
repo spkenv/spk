@@ -11,7 +11,10 @@ use tracing::instrument;
 use windows::core::HRESULT;
 use windows::Win32::Foundation::{CloseHandle, ERROR_NO_MORE_FILES};
 use windows::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
+    CreateToolhelp32Snapshot,
+    Process32Next,
+    PROCESSENTRY32,
+    TH32CS_SNAPPROCESS,
 };
 use windows::Win32::System::Threading::GetCurrentProcessId;
 use winfsp::filesystem::{FileSystemContext, ModificationDescriptor};

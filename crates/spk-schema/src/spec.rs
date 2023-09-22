@@ -167,9 +167,8 @@ impl Template for SpecTemplate {
 
 impl TemplateExt for SpecTemplate {
     fn from_file(path: &Path) -> Result<Self> {
-        let file_path = path
-            .canonicalize()
-            .map_err(|err| Error::InvalidPath(path.to_owned(), err))?;
+        let file_path =
+            dunce::canonicalize(path).map_err(|err| Error::InvalidPath(path.to_owned(), err))?;
         let file = std::fs::File::open(&file_path)
             .map_err(|err| Error::FileOpenError(file_path.to_owned(), err))?;
         let mut template = String::new();

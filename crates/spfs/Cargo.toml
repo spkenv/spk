@@ -30,6 +30,7 @@ config = { workspace = true }
 dashmap = { workspace = true }
 data-encoding = "2.3"
 dirs = { workspace = true }
+dunce = { workspace = true }
 faccess = "0.2.3"
 futures = { workspace = true }
 futures-core = { workspace = true }

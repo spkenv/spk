@@ -39,9 +39,13 @@ impl ToAddress for Config {
 #[async_trait::async_trait]
 impl storage::FromUrl for Config {
     async fn from_url(url: &url::Url) -> Result<Self> {
-        Ok(Self {
-            path: std::path::PathBuf::from(url.path()),
-        })
+        #[cfg(windows)]
+        // on windows, a path with a drive letter may get prefixed with another
+        // root forward slash, which is not appropriate for the platform
+        let path = std::path::PathBuf::from(url.path().trim_start_matches('/'));
+        #[cfg(unix)]
+        let path = std::path::PathBuf::from(url.path());
+        Ok(Self { path })
     }
 }
 
@@ -116,9 +120,7 @@ impl TarRepository {
     // Open a repository over the given directory, which must already
     // exist and be a repository
     pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let path = path
-            .as_ref()
-            .canonicalize()
+        let path = dunce::canonicalize(&path)
             .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
         let mut file =
             BufReader::new(std::fs::File::open(&path).map_err(|err| {

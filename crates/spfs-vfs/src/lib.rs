@@ -20,6 +20,5 @@ pub mod winfsp;
 
 #[cfg(all(unix, feature = "fuse-backend"))]
 pub use fuse::{Config, Session};
-
 #[cfg(all(windows, feature = "winfsp-backend"))]
 pub use winfsp::{Config, Service};

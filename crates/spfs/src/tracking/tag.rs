@@ -211,11 +211,11 @@ impl TagSpec {
     }
 
     /// This tag with no version number.
-    pub fn path(&self) -> String {
+    pub fn path(&self) -> relative_path::RelativePathBuf {
         if let Some(org) = self.0.as_ref() {
-            format!("{org}/{}", self.1)
+            format!("{org}/{}", self.1).into()
         } else {
-            self.1.clone()
+            self.1.clone().into()
         }
     }
 

@@ -13,9 +13,7 @@ static MIGRATIONS: Vec<(&str, &MigrationFn)> = vec![];
 
 /// Migrate a repository to the latest version and replace the existing data.
 pub async fn upgrade_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
-    let root = root
-        .as_ref()
-        .canonicalize()
+    let root = tokio::task::block_in_place(|| dunce::canonicalize(&root))
         .map_err(|err| Error::InvalidPath(root.as_ref().to_owned(), err))?;
     let repo_name = match &root.file_name() {
         None => return Err("Repository path must have a file name".into()),
@@ -47,9 +45,7 @@ pub async fn upgrade_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
 /// # Returns:
 ///    - the path to the migrated repo data
 pub async fn migrate_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
-    let mut root = root
-        .as_ref()
-        .canonicalize()
+    let mut root = tokio::task::block_in_place(|| dunce::canonicalize(&root))
         .map_err(|err| Error::InvalidPath(root.as_ref().to_owned(), err))?;
     let last_migration = read_last_migration_version(&root)
         .await?

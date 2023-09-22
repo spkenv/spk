@@ -47,8 +47,7 @@ impl FsHashStore {
     pub fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
         let root = root.as_ref();
         Ok(Self::open_unchecked(
-            root.canonicalize()
-                .map_err(|err| Error::InvalidPath(root.to_owned(), err))?,
+            dunce::canonicalize(root).map_err(|err| Error::InvalidPath(root.to_owned(), err))?,
         ))
     }
 
@@ -384,11 +383,17 @@ impl FsHashStore {
     ///
     /// This method does not validate the path and will provide
     /// invalid references if given an invalid path.
-    pub async fn get_digest_from_path<P: AsRef<Path>>(&self, path: P) -> Result<encoding::Digest> {
+    pub async fn get_digest_from_path<P>(&self, path: P) -> Result<encoding::Digest>
+    where
+        P: AsRef<Path> + Send + Sync + 'static,
+    {
         use std::path::Component::Normal;
-        let path = tokio::fs::canonicalize(&path)
-            .await
-            .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
+        let path = tokio::task::spawn_blocking(move || {
+            dunce::canonicalize(&path)
+                .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))
+        })
+        .await
+        .expect("task should not panic")?;
         let mut parts: Vec<_> = path.components().collect();
         let last = parts.pop();
         let second_last = parts.pop();

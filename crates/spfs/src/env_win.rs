@@ -1,6 +1,6 @@
 use crate::{runtime, Result};
 
-pub const SPFS_DIR: &str = "todo!";
+pub const SPFS_DIR: &str = "C:\\spfs";
 
 /// Manages the configuration of an spfs runtime environment.
 ///

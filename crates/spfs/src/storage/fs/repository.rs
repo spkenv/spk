@@ -264,9 +264,11 @@ impl OpenFsRepository {
 
     /// Establish a new filesystem repository
     pub async fn create<P: AsRef<Path>>(root: P) -> Result<Self> {
+        // avoid creating any blocking tasks so as to not spawn
+        // threads for the case where this repo is being opened as
+        // part of the runtime setup process on linux
         makedirs_with_perms(&root, 0o777)?;
-        let root = tokio::fs::canonicalize(root.as_ref())
-            .await
+        let root = dunce::canonicalize(&root)
             .map_err(|err| Error::InvalidPath(root.as_ref().to_owned(), err))?;
         makedirs_with_perms(root.join("tags"), 0o777)?;
         makedirs_with_perms(root.join("objects"), 0o777)?;
@@ -288,7 +290,10 @@ impl OpenFsRepository {
     // Open a repository over the given directory, which must already
     // exist and be a repository
     pub async fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
-        let root = match tokio::fs::canonicalize(&root).await {
+        // although this is an async function, we avoid spawning a blocking task
+        // here for the cases where a local fs repo is opened to spawn a runtime
+        // and the program cannot spawn another thread without angering the kernel
+        let root = match dunce::canonicalize(&root) {
             Ok(r) => r,
             Err(err) => {
                 return Err(crate::Error::FailedToOpenRepository {

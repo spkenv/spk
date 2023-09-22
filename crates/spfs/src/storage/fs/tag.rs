@@ -737,7 +737,7 @@ pub trait TagExt {
 
 impl TagExt for tracking::TagSpec {
     fn to_path<P: AsRef<Path>>(&self, root: P) -> PathBuf {
-        let mut filepath = root.as_ref().join(self.path());
+        let mut filepath = self.path().to_path(root);
         let new_name = self.name() + "." + TAG_EXT;
         filepath.set_file_name(new_name);
         filepath

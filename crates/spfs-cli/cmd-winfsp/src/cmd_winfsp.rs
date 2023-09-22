@@ -10,8 +10,7 @@ use anyhow::{bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
 use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
-use spfs_vfs::proto;
-use spfs_vfs::Service;
+use spfs_vfs::{proto, Service};
 use tonic::Request;
 use windows::Win32::System::Threading::DETACHED_PROCESS;
 
