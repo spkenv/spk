@@ -15,6 +15,9 @@ pub enum Error {
     #[cfg(unix)]
     #[error(transparent)]
     Nix(#[from] nix::Error),
+    #[cfg(windows)]
+    #[error(transparent)]
+    Win(#[from] windows::core::Error),
     #[error("[ERRNO {1}] {0}")]
     Errno(String, i32),
     #[error(transparent)]

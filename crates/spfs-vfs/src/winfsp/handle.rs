@@ -3,10 +3,10 @@
 // https://github.com/imageworks/spk
 
 use std::pin::Pin;
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use spfs::tracking::{BlobRead, Entry};
-use winfsp::filesystem::DirBuffer;
 
 /// A handle to a file or directory in the spfs runtime
 pub enum Handle {
@@ -21,18 +21,22 @@ pub enum Handle {
     BlobStream {
         /// The underlying entry data for this filesystem node
         entry: Arc<Entry<u64>>,
+        /// The current offset of the file stream
+        ///
+        /// Streams cannot be seek'd and must be read through contiguously
+        /// and only once. This value is used to ensure that reads do not
+        /// attempt to move the offset.
+        offset: Arc<AtomicU64>,
         /// The opaque data stream for this blob
         // TODO: we should avoid the tokio mutex at all costs,
         // but we need a mutable reference to this BlobRead and
         // need to hold it across an await (for reading from the stream)
-        stream: tokio::sync::Mutex<Pin<Box<dyn BlobRead>>>,
+        stream: Arc<tokio::sync::Mutex<Pin<Box<dyn BlobRead>>>>,
     },
     /// A handle to an open directory that can be read
     Tree {
         /// The underlying entry data for this filesystem node
         entry: Arc<Entry<u64>>,
-        /// The winfsp-formatted directory information for this entry
-        dir_buffer: DirBuffer,
     },
 }
 
@@ -48,7 +52,16 @@ impl Handle {
         match self {
             Self::BlobFile { entry, .. } => entry.user_data,
             Self::BlobStream { entry, .. } => entry.user_data,
-            Self::Tree { entry, .. } => entry.user_data,
+            Self::Tree { entry } => entry.user_data,
+        }
+    }
+
+    /// An unowned reference to the entry data of this handle
+    pub fn entry(&self) -> &Entry<u64> {
+        match self {
+            Self::BlobFile { entry, .. } => &*entry,
+            Self::BlobStream { entry, .. } => &*entry,
+            Self::Tree { entry, .. } => &*entry,
         }
     }
 

@@ -7,15 +7,18 @@ use std::sync::Arc;
 
 use crate::proto;
 use proto::vfs_service_server::VfsService;
+use spfs::storage::FromConfig;
 use tonic::{async_trait, Request, Response, Status};
 use tracing::instrument;
 
 pub use winfsp::Result;
 
 mod handle;
+mod mount;
 mod router;
 
 pub use handle::Handle;
+pub use mount::Mount;
 pub use router::{get_parent_pids, Router};
 use winfsp::host::VolumeParams;
 
@@ -54,7 +57,19 @@ impl Service {
     ///
     /// The returned service is registered with winfsp, mounted
     /// to the windows filesystem, and visible to users.
-    pub async fn new(config: Config) -> Result<Arc<Self>> {
+    pub async fn new(config: Config) -> spfs::Result<Arc<Self>> {
+        let spfs_config = spfs::Config::current()?;
+        tracing::debug!("Opening repositories...");
+        let proxy_config = spfs::storage::proxy::Config {
+            primary: format!(
+                "file://{}?create=true",
+                spfs_config.storage.root.to_string_lossy()
+            ),
+            secondary: config.remotes.clone(),
+        };
+        let repo = spfs::storage::ProxyRepository::from_config(proxy_config).await?;
+        let repos = repo.into_stack().into_iter().map(Arc::new).collect();
+
         // as of writing, the descriptor mode is the only one that works in
         // winsfp-rs without causting crashes
         let mode = winfsp::host::FileContextMode::Descriptor;
@@ -66,7 +81,7 @@ impl Service {
             .hard_links(true)
             .read_only_volume(false)
             .volume_serial_number(7737);
-        let router = Router::new()?;
+        let router = Router::new(repos).await?;
         let host = HostController::new(&config.mountpoint, params, router.clone()).await?;
         Ok(Arc::new(Self {
             host,
@@ -99,7 +114,7 @@ impl HostController {
         mountpoint: P,
         params: VolumeParams,
         router: Router,
-    ) -> Result<Self> {
+    ) -> spfs::Result<Self> {
         let mountpoint = mountpoint.into();
         let (shutdown, mut shutdown_rx) = tokio::sync::mpsc::channel(4);
         let (result_tx, result_rx) = tokio::sync::oneshot::channel();
@@ -130,8 +145,13 @@ impl HostController {
             host.unmount();
             tracing::debug!("host unmounted...");
         });
-        result_rx.await.expect("Startup thread should not panic")?;
-        Ok(Self { shutdown })
+        match result_rx.await.expect("Startup thread should not panic") {
+            Ok(()) => Ok(Self { shutdown }),
+            Err(winfsp::FspError::HRESULT(r)) => Err(spfs::Error::Win(r.into())),
+            Err(winfsp::FspError::WIN32(w)) => Err(spfs::Error::Win(w.into())),
+            Err(winfsp::FspError::NTSTATUS(s)) => Err(spfs::Error::Win(s.into())),
+            Err(winfsp::FspError::IO(i)) => Err(spfs::Error::String(i.to_string())),
+        }
     }
 
     /// Attempt to unmount and shutdown the underlying filesystem.
@@ -174,10 +194,12 @@ impl VfsService for Arc<Service> {
         let env_spec = spfs::tracking::EnvSpec::parse(&inner.env_spec).map_err(|err| {
             Status::invalid_argument(format!("Provided env spec was invalid: {err}"))
         })?;
-        // self.filesystem
-        //     .mount(inner.root_pid, env_spec)
-        //     .await
-        //     .map_err(|err| Status::internal(format!("Failed to mount filesystem: {err}")))?;
+        if let Err(err) = self.router.mount(inner.root_pid, env_spec).await {
+            tracing::error!("{err}");
+            return Err(Status::internal(format!(
+                "Failed to mount filesystem: {err}"
+            )));
+        }
         Ok(Response::new(proto::MountResponse {}))
     }
 }

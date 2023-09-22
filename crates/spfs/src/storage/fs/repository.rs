@@ -65,10 +65,13 @@ impl FromUrl for Config {
         } else {
             Params::default()
         };
-        Ok(Self {
-            path: std::path::PathBuf::from(url.path()),
-            params,
-        })
+        #[cfg(windows)]
+        // on windows, a path with a drive letter may get prefixed with another
+        // root forward slash, which is not appropriate for the platform
+        let path = std::path::PathBuf::from(url.path().trim_start_matches('/'));
+        #[cfg(unix)]
+        let path = std::path::PathBuf::from(url.path());
+        Ok(Self { path, params })
     }
 }
 

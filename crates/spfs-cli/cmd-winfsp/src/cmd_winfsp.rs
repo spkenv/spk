@@ -122,7 +122,7 @@ struct CmdService {
 }
 
 impl CmdService {
-    async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
+    async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         if self.stop {
             return self.stop().await;
         }
@@ -131,7 +131,7 @@ impl CmdService {
         tracing::info!("starting service...");
         let config = spfs_vfs::Config {
             mountpoint: self.mountpoint.clone(),
-            remotes: Vec::new(),
+            remotes: config.filesystem.secondary_repositories.clone(),
         };
         let service = Service::new(config)
             .await
@@ -195,6 +195,11 @@ impl CmdService {
 
 #[derive(Debug, Args)]
 struct CmdMount {
+    /// The process id for which the mount will be visible, along
+    /// with all of it's children. Defaults to the calling process.
+    #[clap(long)]
+    root_process: Option<u32>,
+
     /// The local address to connect to for filesystem control
     ///
     /// If the default value is overriden, any subsequent control commands must
@@ -249,11 +254,15 @@ impl CmdMount {
         let mut client = spfs_vfs::proto::vfs_service_client::VfsServiceClient::new(channel);
 
         let lineage = spfs_vfs::winfsp::get_parent_pids(None)?;
-        // the first parent of this process
-        let Some(parent) = lineage.into_iter().nth(1) else {
-            bail!("Failed to determine the calling process ID")
+        let parent = match self.root_process {
+            Some(pid) if lineage.contains(&pid) => pid,
+            Some(_pid) => bail!("--root-process must the a parent of the current process"),
+            // the first parent of this process
+            None => match lineage.into_iter().nth(1) {
+                None => bail!("Failed to determine the calling process ID"),
+                Some(pid) => pid,
+            },
         };
-
         client
             .mount(Request::new(spfs_vfs::proto::MountRequest {
                 root_pid: parent,
