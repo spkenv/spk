@@ -18,8 +18,10 @@ use futures::{Stream, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 
-#[allow(unused_imports)]
-use super::{startup_csh, startup_ps, startup_sh};
+#[cfg(windows)]
+use super::startup_ps;
+#[cfg(unix)]
+use super::{startup_csh, startup_sh};
 use crate::encoding::{self, Encodable};
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::RepositoryHandle;

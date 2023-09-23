@@ -25,6 +25,8 @@ tracing = { workspace = true }
 tonic = { workspace = true }
 tower = { workspace = true }
 url = "2.2"
+
+[target.'cfg(windows)'.dependencies]
 winfsp = { workspace = true, default-features = false, features = [
     "build",
     "delayload",
@@ -32,7 +34,7 @@ winfsp = { workspace = true, default-features = false, features = [
 winfsp-sys = "0.2"
 windows = { workspace = true, features = ["Win32_System_Threading"] }
 
-[build-dependencies]
+[target.'cfg(windows)'.build-dependencies]
 winfsp = { workspace = true, default-features = false, features = [
     "build",
     "delayload",

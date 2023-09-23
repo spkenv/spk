@@ -3693,6 +3693,7 @@ dependencies = [
  "async-trait",
  "clap 4.3.0",
  "colored",
+ "dunce",
  "futures",
  "itertools",
  "serde_json",
@@ -3870,6 +3871,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap 4.3.0",
+ "dunce",
  "spfs",
  "spk-cli-common",
  "spk-exec",
@@ -5286,9 +5288,9 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 
 [[package]]
 name = "winfsp"
-version = "0.9.3+winfsp-2.0"
+version = "0.9.4+winfsp-2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "648dfcd263412a9aab1be8374f5390ec9d9737ca06ab2b466dbcbd2ac8e6c1ce"
+checksum = "bf1c9816811a87b629007191e11086f2bf1852d3b7d99b5d09bb27bf1d31ed06"
 dependencies = [
  "bytemuck",
  "paste",

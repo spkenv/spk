@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
@@ -131,7 +130,7 @@ impl Run for View {
         // /spfs/file/path' invocations, given a filepath work out
         // which package(s) and spfs layers provide it.
         if self.pkg.is_none() {
-            if let Ok(abspath) = dunce::canonicalize(&package) {
+            if let Ok(abspath) = dunce::canonicalize(package) {
                 if abspath.starts_with(spfs::env::SPFS_DIR) {
                     return self.print_filepath_info(abspath.to_str().unwrap()).await;
                 }

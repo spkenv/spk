@@ -3,15 +3,20 @@
 // https://github.com/imageworks/spk
 
 use std::net::SocketAddr;
+#[cfg(windows)]
 use std::os::windows::process::CommandExt;
+#[cfg(windows)]
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
 use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
+#[cfg(windows)]
 use spfs_vfs::{proto, Service};
+#[cfg(windows)]
 use tonic::Request;
+#[cfg(windows)]
 use windows::Win32::System::Threading::DETACHED_PROCESS;
 
 // The runtime setup process manages the current namespace
@@ -121,6 +126,12 @@ struct CmdService {
 }
 
 impl CmdService {
+    #[cfg(unix)]
+    async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
+        bail!("This command is only supported on windows")
+    }
+
+    #[cfg(windows)]
     async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         if self.stop {
             return self.stop().await;
@@ -172,6 +183,7 @@ impl CmdService {
         Ok(0)
     }
 
+    #[cfg(windows)]
     async fn stop(&self) -> Result<i32> {
         let channel = tonic::transport::Endpoint::from_shared(format!("http://{}", self.listen))?
             .connect_lazy();
@@ -228,6 +240,12 @@ struct CmdMount {
 }
 
 impl CmdMount {
+    #[cfg(unix)]
+    async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
+        bail!("This command is only supported on windows")
+    }
+
+    #[cfg(windows)]
     async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
         let result = tonic::transport::Endpoint::from_shared(format!("http://{}", self.service))?
             .connect()
@@ -274,6 +292,7 @@ impl CmdMount {
     }
 }
 
+#[cfg(windows)]
 fn is_connection_refused<T>(err: &T) -> bool
 where
     T: std::error::Error,

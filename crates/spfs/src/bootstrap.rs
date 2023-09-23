@@ -208,7 +208,7 @@ where
         ShellKind::Bash => &runtime.config.sh_startup_file,
         ShellKind::Tcsh => &runtime.config.csh_startup_file,
         ShellKind::Powershell => {
-            let mut cmd = OsString::from(command.into());
+            let mut cmd = command.into();
             for arg in args.into_iter().map(Into::into) {
                 cmd.push(" ");
                 cmd.push(arg);

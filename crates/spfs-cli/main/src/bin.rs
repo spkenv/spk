@@ -6,7 +6,7 @@
 #![warn(clippy::fn_params_excessive_bools)]
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use spfs::{Error, OsError};
+use spfs::{Error, OsErrorExt};
 
 mod cmd_check;
 mod cmd_commit;

@@ -4,7 +4,6 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use encoding::Encodable;
 use futures::{FutureExt, TryFutureExt, TryStreamExt};

@@ -8,6 +8,7 @@ CARGO_TARGET_DIR := $(shell \
 
 export PLATFORM ?= unix
 ifeq ($(PLATFORM),windows)
+spfs_packages := $(spfs_packages),spfs-cli-winfsp
 CARGO_ARGS += --target x86_64-pc-windows-gnu
 # swap cargo for cross when building for other platforms
 CARGO = cross
@@ -42,3 +43,11 @@ copy-release: release
 copy-spfs: release-spfs
 	cd $(SOURCE_ROOT)
 	sudo cp -f $(CARGO_TARGET_DIR)/release/spfs* /usr/local/bin/
+
+setcap:
+	sudo setcap 'cap_dac_override,cap_fowner+ep' /usr/local/bin/spfs-clean
+	sudo setcap 'cap_net_admin+ep' /usr/local/bin/spfs-monitor
+	sudo setcap 'cap_chown,cap_fowner+ep' /usr/local/bin/spfs-render
+	sudo setcap 'cap_sys_chroot,cap_sys_admin+ep' /usr/local/bin/spfs-join
+	sudo setcap 'cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep' /usr/local/bin/spfs-enter
+	sudo setcap 'cap_sys_admin+ep' /usr/local/bin/spfs-fuse

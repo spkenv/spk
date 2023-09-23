@@ -223,7 +223,7 @@ where
     where
         P: AsRef<Path>,
     {
-        let path = tokio::task::block_in_place(|| dunce::canonicalize(&path))
+        let path = dunce::canonicalize(&path)
             .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
         let manifest = self.builder.compute_manifest(&path).await?;
         Ok((path, manifest))

@@ -258,7 +258,7 @@ impl TarSource {
         } else {
             let tar_path = std::path::PathBuf::from(&self.tar);
             tarfile =
-                dunce::canonicalize(tar_path).map_err(|err| Error::InvalidPath(tar_path, err))?;
+                dunce::canonicalize(&tar_path).map_err(|err| Error::InvalidPath(tar_path, err))?;
         }
 
         let mut cmd = std::process::Command::new("tar");
