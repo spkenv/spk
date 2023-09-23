@@ -53,7 +53,7 @@ pub use clean::Cleaner;
 pub use commit::Committer;
 pub use diff::{diff, diff_runtime_changes};
 pub use encoding::Digest;
-pub use error::{Error, OsError, Result};
+pub use error::{Error, OsError, OsErrorExt, Result};
 pub use resolve::{
     compute_environment_manifest,
     compute_manifest,

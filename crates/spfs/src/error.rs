@@ -194,6 +194,8 @@ impl From<std::path::StripPrefixError> for Error {
     }
 }
 
+/// An OS error represents an error that may have an associated
+/// error code from the operating system
 pub trait OsError {
     /// The underlying os error code for this error, if any
     //
@@ -201,7 +203,11 @@ pub trait OsError {
     // platform-agnostic and have specific is_* functions for the cases
     // that our codebase would like to handle
     fn os_error(&self) -> Option<i32>;
+}
 
+/// An extension trait for [`OsError`]s that provide platform-agnostic
+/// functions for determining the abstract cause of an error
+pub trait OsErrorExt: OsError {
     /// True if the root cause of this error was that a file or directory
     /// did not exist in the underlying OS filesystem
     fn is_os_not_found(&self) -> bool {
@@ -219,6 +225,10 @@ pub trait OsError {
         }
     }
 }
+
+// this blanket implementation intentionally stops anyone
+// from redefining functions from the ext trait
+impl<T: ?Sized> OsErrorExt for T where T: OsError {}
 
 impl OsError for Error {
     fn os_error(&self) -> Option<i32> {

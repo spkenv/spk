@@ -21,7 +21,7 @@ use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 use super::{FsRepository, OpenFsRepository};
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
 use crate::storage::TagStorage;
-use crate::{encoding, tracking, Error, OsError, Result};
+use crate::{encoding, tracking, Error, OsError, OsErrorExt, Result};
 
 const TAG_EXT: &str = "tag";
 
