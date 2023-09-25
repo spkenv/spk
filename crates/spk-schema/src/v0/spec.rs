@@ -1128,7 +1128,13 @@ impl<B, T> Lints for SpecVisitor<B, T> {
 
         if let Some(tests) = self.tests.as_mut() {
             for test in tests.iter_mut() {
-                lint_messages.extend(std::mem::take(&mut test.lints));
+                lint_messages.extend(std::mem::take(
+                    &mut test
+                        .lints
+                        .iter()
+                        .map(|l| test.item.generate_lints(l))
+                        .collect_vec(),
+                ));
             }
         }
 

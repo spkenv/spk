@@ -123,7 +123,7 @@ impl<'de> serde::de::Visitor<'de> for TestSpecVisitor {
                 "selectors" => self.selectors = map.next_value::<Vec<OptionMap>>()?,
                 "requirements" => self.requirements = map.next_value::<Vec<Request>>()?,
                 unknown_key => {
-                    // self.lints.push(self.generate_lints(unknown_key));
+                    self.lints.push(unknown_key.to_string());
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }
