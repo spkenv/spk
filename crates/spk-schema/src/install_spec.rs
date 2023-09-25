@@ -4,20 +4,22 @@
 use std::marker::PhantomData;
 
 use itertools::Itertools;
+use lint_proc_macro::Lint;
+use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_ident::BuildIdent;
 
 use super::{ComponentSpecList, EmbeddedPackagesList, EnvOp, OpKind, RequirementsList};
 use crate::foundation::option_map::OptionMap;
-use crate::{InstallSpecKey, LintMessage, LintedItem, Lints, Result};
+use crate::{LintedItem, Lints, Result};
 
 #[cfg(test)]
 #[path = "./install_spec_test.rs"]
 mod install_spec_test;
 
 /// A set of structured installation parameters for a package.
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Default, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct InstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requirements: RequirementsList,
@@ -33,10 +35,10 @@ impl<D> Lints for InstallSpecVisitor<D>
 where
     D: Default,
 {
-    fn lints(&mut self) -> Vec<LintMessage> {
-        for env in self.environment.iter_mut() {
-            self.lints.extend(std::mem::take(&mut env.lints));
-        }
+    fn lints(&mut self) -> Vec<String> {
+        // for env in self.environment.iter_mut() {
+        //     self.lints.extend(std::mem::take(&mut env.lints));
+        // }
         std::mem::take(&mut self.lints)
     }
 }
@@ -50,7 +52,7 @@ where
     embedded: EmbeddedPackagesList,
     components: ComponentSpecList,
     environment: Vec<LintedItem<EnvOp>>,
-    lints: Vec<LintMessage>,
+    lints: Vec<String>,
     _phantom: PhantomData<D>,
 }
 
@@ -127,6 +129,7 @@ where
     where
         A: serde::de::MapAccess<'de>,
     {
+        let spec = InstallSpec::default();
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
                 "requirements" => self.requirements = map.next_value::<RequirementsList>()?,

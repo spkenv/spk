@@ -9,6 +9,8 @@ use std::path::Path;
 use std::str::FromStr;
 
 use itertools::Itertools;
+use lint_proc_macro::Lint;
+use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
@@ -51,7 +53,6 @@ use crate::{
     Inheritance,
     InputVariant,
     InstallSpec,
-    LintMessage,
     LintedItem,
     Lints,
     Opt,
@@ -62,7 +63,6 @@ use crate::{
     Result,
     SourceSpec,
     TestStage,
-    V0SpecKey,
     ValidationSpec,
     Variant,
 };
@@ -71,7 +71,7 @@ use crate::{
 #[path = "./spec_test.rs"]
 mod spec_test;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize)]
+#[derive(Debug, Clone, Hash, Lint, PartialEq, Eq, Ord, PartialOrd, Serialize)]
 pub struct Spec<Ident> {
     pub pkg: Ident,
     #[serde(default, skip_serializing_if = "Meta::is_default")]
@@ -976,7 +976,7 @@ struct SpecVisitor<B, T> {
     tests: Option<Vec<LintedItem<TestSpec>>>,
     install: Option<LintedItem<InstallSpec>>,
     check_build_spec: bool,
-    lints: Vec<LintMessage>,
+    lints: Vec<String>,
 }
 
 impl<B, T> SpecVisitor<B, T> {
@@ -997,6 +997,7 @@ impl<B, T> SpecVisitor<B, T> {
     }
 }
 
+<<<<<<< HEAD
 impl<B, T> Lints for SpecVisitor<B, T> {
     fn lints(&mut self) -> Vec<LintMessage> {
         if let Some(l) = self.install.as_mut() {
@@ -1030,6 +1031,8 @@ impl<B, T> Lints for SpecVisitor<B, T> {
     }
 }
 
+=======
+>>>>>>> 40697078 (Implemented proc macro for linting feature)
 impl<B, T> From<SpecVisitor<B, T>> for Spec<Ident<B, T>>
 where
     Ident<B, T>: serde::de::DeserializeOwned,
@@ -1070,10 +1073,52 @@ where
     }
 }
 
+<<<<<<< HEAD
 impl<B, T> Default for SpecVisitor<B, T> {
     #[inline]
     fn default() -> Self {
         Self::with_check_build_spec(true)
+=======
+impl<B, T> Lints for SpecVisitor<B, T> {
+    fn lints(&mut self) -> Vec<String> {
+        let mut lint_messages = Vec::new();
+        let spec = Spec::new(self.pkg.as_ref().expect("a pkg"));
+        for unknown_key in self.lints.iter() {
+            lint_messages.push(spec.generate_lints(unknown_key));
+        }
+
+        if let Some(l) = self.install.as_mut() {
+            lint_messages.extend(std::mem::take(&mut l.lints));
+        }
+
+        if let Some(l) = self.build.as_mut() {
+            lint_messages.extend(std::mem::take(&mut l.lints));
+        }
+
+        if let Some(l) = self.meta.as_mut() {
+            lint_messages.extend(std::mem::take(&mut l.lints));
+        }
+
+        if let Some(sources) = self.sources.as_mut() {
+            for source in sources.iter_mut() {
+                lint_messages.extend(std::mem::take(
+                    &mut source
+                        .lints
+                        .iter()
+                        .map(|l| source.item.lints(l))
+                        .collect_vec(),
+                ));
+            }
+        }
+
+        if let Some(tests) = self.tests.as_mut() {
+            for test in tests.iter_mut() {
+                lint_messages.extend(std::mem::take(&mut test.lints));
+            }
+        }
+
+        std::mem::take(&mut lint_messages)
+>>>>>>> 40697078 (Implemented proc macro for linting feature)
     }
 }
 
@@ -1119,11 +1164,8 @@ where
                 "api" => {
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
-                unknown_config => {
-                    self.lints
-                        .push(LintMessage::UnknownV0SpecKey(V0SpecKey::new(
-                            unknown_config,
-                        )));
+                unknown_key => {
+                    self.lints.push(unknown_key.to_string());
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }

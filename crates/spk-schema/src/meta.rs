@@ -1,19 +1,20 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-
 use std::collections::BTreeMap;
 
+use lint_proc_macro::Lint;
+use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 
-use crate::{LintMessage, LintedItem, Lints, MetaSpecKey};
+use crate::{LintedItem, Lints};
 
 #[cfg(test)]
 #[path = "./meta_test.rs"]
 mod meta_test;
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Meta {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -54,11 +55,11 @@ struct MetaVisitor {
     homepage: Option<String>,
     license: String,
     labels: BTreeMap<String, String>,
-    lints: Vec<LintMessage>,
+    lints: Vec<String>,
 }
 
 impl Lints for MetaVisitor {
-    fn lints(&mut self) -> Vec<LintMessage> {
+    fn lints(&mut self) -> Vec<String> {
         std::mem::take(&mut self.lints)
     }
 }
@@ -103,6 +104,7 @@ impl<'de> serde::de::Visitor<'de> for MetaVisitor {
     where
         A: serde::de::MapAccess<'de>,
     {
+        let meta_spec = Meta::default();
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
                 "description" => self.description = map.next_value::<Option<String>>()?,
@@ -110,10 +112,7 @@ impl<'de> serde::de::Visitor<'de> for MetaVisitor {
                 "license" => self.license = map.next_value::<Stringified>()?.0,
                 "labels" => self.labels = map.next_value::<BTreeMap<String, String>>()?,
                 unknown_key => {
-                    self.lints
-                        .push(LintMessage::UnknownMetaSpecKey(MetaSpecKey::new(
-                            unknown_key,
-                        )));
+                    self.lints.push(meta_spec.generate_lints(unknown_key));
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }
