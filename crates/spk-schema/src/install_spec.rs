@@ -4,6 +4,8 @@
 use std::marker::PhantomData;
 
 use itertools::Itertools;
+use lint_proc_macro::Lint;
+use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::spec_ops::Named;
@@ -62,10 +64,10 @@ impl<D> Lints for RawInstallSpecVisitor<D>
 where
     D: Default,
 {
-    fn lints(&mut self) -> Vec<LintMessage> {
-        for env in self.environment.iter_mut() {
-            self.lints.extend(std::mem::take(&mut env.lints));
-        }
+    fn lints(&mut self) -> Vec<String> {
+        // for env in self.environment.iter_mut() {
+        //     self.lints.extend(std::mem::take(&mut env.lints));
+        // }
         std::mem::take(&mut self.lints)
     }
 }
@@ -287,6 +289,7 @@ where
     where
         A: serde::de::MapAccess<'de>,
     {
+        let spec = InstallSpec::default();
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
                 "requirements" => self.requirements = map.next_value::<RequirementsList>()?,

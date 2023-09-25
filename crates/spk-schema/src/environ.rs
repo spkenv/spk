@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::IsDefault;
 
-use crate::{EnvOpKey, LintMessage, LintedItem, Lints};
+use crate::{LintedItem, Lints};
 
 #[cfg(test)]
 #[path = "./environ_test.rs"]
@@ -77,7 +77,7 @@ pub enum OpKind {
 }
 
 /// An operation performed to the environment
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(untagged)]
 pub enum EnvOp {
     Append(AppendEnv),
@@ -242,11 +242,11 @@ struct EnvOpVisitor {
     op_and_var: Option<(OpKind, ConfKind)>,
     value: Option<String>,
     separator: Option<String>,
-    lints: Vec<LintMessage>,
+    lints: Vec<String>,
 }
 
 impl Lints for EnvOpVisitor {
-    fn lints(&mut self) -> Vec<LintMessage> {
+    fn lints(&mut self) -> Vec<String> {
         std::mem::take(&mut self.lints)
     }
 }
