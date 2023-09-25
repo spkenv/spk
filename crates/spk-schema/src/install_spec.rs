@@ -36,9 +36,12 @@ where
     D: Default,
 {
     fn lints(&mut self) -> Vec<String> {
-        // for env in self.environment.iter_mut() {
-        //     self.lints.extend(std::mem::take(&mut env.lints));
-        // }
+        for env in self.environment.iter_mut() {
+            self.lints.extend(std::mem::take(
+                &mut env.lints.iter().map(|l| env.item.lints(l)).collect_vec(),
+            ));
+        }
+
         std::mem::take(&mut self.lints)
     }
 }
