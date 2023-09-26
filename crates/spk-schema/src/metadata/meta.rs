@@ -70,8 +70,13 @@ impl Meta {
                     Err(e) => return Err(Error::String(e.to_string())),
                 };
 
-                let json: serde_json::Value =
-                    serde_json::from_str(stdout).expect("Failed to read json output");
+                let json: serde_json::Value = match serde_json::from_str(stdout) {
+                    Ok(j) => j,
+                    Err(e) => {
+                        return Err(Error::String(format!("Unable to read json output: {e}")))
+                    }
+                };
+
                 if let Some(map) = json.as_object() {
                     for (k, v) in map {
                         v.as_str()
