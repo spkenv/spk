@@ -184,15 +184,20 @@ impl<'de> Deserialize<'de> for EnvOp {
                 }
 
                 // Comments and priority configs don't have any values.
-                let value = match self.op_and_var.as_ref().unwrap().0 {
-                    OpKind::Comment | OpKind::Priority => String::from(""),
-                    _ => self
-                        .value
-                        .take()
-                        .ok_or_else(|| serde::de::Error::missing_field("value"))?,
-                };
+                let value = self
+                    .op_and_var
+                    .as_ref()
+                    .and_then(|(op_kind, _)| match op_kind {
+                        OpKind::Comment | OpKind::Priority => None,
+                        _ => Some(
+                            self.value
+                                .take()
+                                .ok_or_else(|| serde::de::Error::missing_field("value")),
+                        ),
+                    })
+                    .transpose()?;
 
-                let value = shellexpand::env(&value)
+                let value = shellexpand::env(&value.unwrap_or_default())
                     .unwrap_or(std::borrow::Cow::Borrowed(""))
                     .to_string();
 
