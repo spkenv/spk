@@ -1040,6 +1040,11 @@ pub struct DecisionFormatterSettings {
     /// Display a report on of the search space size for the resolved solution.
     #[clap(long)]
     pub show_search_size: bool,
+
+    /// Run all the solvers to completion and produce a report
+    /// comparing them.
+    #[clap(long)]
+    compare_solvers: bool,
 }
 
 impl DecisionFormatterSettings {
@@ -1076,7 +1081,8 @@ impl DecisionFormatterSettings {
             .with_max_frequent_errors(self.max_frequent_errors)
             .with_status_bar(self.status_bar)
             .with_solver_to_run(self.solver_to_run.into())
-            .with_search_space_size(self.show_search_size);
+            .with_search_space_size(self.show_search_size)
+            .with_compare_solvers(self.compare_solvers);
         Ok(builder)
     }
 }
