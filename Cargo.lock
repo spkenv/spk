@@ -3178,6 +3178,7 @@ dependencies = [
  "spfs-cli-common",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]

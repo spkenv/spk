@@ -30,7 +30,7 @@ pub const DEFAULT_MAX_CONCURRENT_BLOBS: usize = 100;
 /// See: [`Renderer::with_max_concurrent_branches`]
 pub const DEFAULT_MAX_CONCURRENT_BRANCHES: usize = 5;
 
-#[derive(Debug, Copy, Clone, strum::EnumString, strum::EnumVariantNames)]
+#[derive(Debug, Copy, Clone, strum::EnumString, strum::EnumVariantNames, strum::IntoStaticStr)]
 pub enum RenderType {
     HardLink,
     HardLinkNoProxy,

@@ -69,3 +69,32 @@ mkdir -p /path/to/remote/spfs-storage/{objects,payloads,tags}
 ### SpFS
 
 Above these core layers sits the main spfs API layer, which provides high level functions that deal with syncing data between two repositories, cleaning orphaned objects from a repository, creating new layers from an active filesystem, and orchestrating with the runtime environment.
+
+
+### Spfs processes involved in running an spfs environment
+
+These spfs commands are involved in setting up, making available, and
+tearing down a /spfs environment:
+1. **spfs-run** - creates the runtime
+1. **spfs-enter** - creates the backend filesystem and launches the process
+1. **spfs-render** - syncs and renders layers to local repo from the remote
+1. **spfs-monitor** - monitors process to clean up when it exits
+1. if fuse enabled, **spfs-fuse** - operates the fuse backend
+1. if fuse enabled, **spfs-enter --exit** - cleans up the fuse backend
+
+Each process performs key steps in making /spfs work:
+
+{{< mermaid >}}
+graph LR;
+spfsrun[spfs-run] -->|execs| spfsenter;
+spfsenter[spfs-enter] -->|spawns| spfsrender[spfs-render];
+spfsrender[spfs-render] -->|reports to| spfsenter;
+spfsenter[spfs-enter] -->|spawns| spfsmonitor[spfs-monitor];
+spfsenter[spfs-enter] -->|mounts /spfs| spfsenter[spfs-enter];
+spfsenter[spfs-enter] -->|if enabled, spawns| spfsfuse;
+spfsenter[spfs-enter] -->|execs| process[Process using /spfs];
+spfsmonitor -->|watches| process;
+spfsmonitor -->|cleans up using| spfsenterexit[spfs-enter --exit];
+spfsfuse[spfs-fuse] -->|cleans up using| spfsenterexit[spfs-enter --exit];
+spfsenterexit[spfs-enter --exit] -->|unmounts /spfs| spfsenterexit[spfs-enter --exit];;
+{{< /mermaid >}}

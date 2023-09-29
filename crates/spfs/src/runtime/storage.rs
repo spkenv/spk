@@ -19,7 +19,9 @@ use tokio::io::AsyncReadExt;
 
 use super::{startup_csh, startup_sh};
 use crate::encoding::{self, Encodable};
-use crate::{graph, storage, tracking, Error, Result};
+use crate::storage::fs::DURABLE_EDITS_DIR;
+use crate::storage::RepositoryHandle;
+use crate::{bootstrap, graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./storage_test.rs"]
@@ -30,6 +32,10 @@ pub const STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
 
 /// The environment variable that can be used to specify the runtime fs size
 const SPFS_FILESYSTEM_TMPFS_SIZE: &str = "SPFS_FILESYSTEM_TMPFS_SIZE";
+
+// For durable paramater of create_runtime()
+#[cfg(test)]
+const TRANSIENT: bool = false;
 
 /// Information about the source of a runtime
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -136,6 +142,10 @@ pub struct Config {
     /// data from multiple repositories on-the-fly (eg FUSE)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub secondary_repositories: Vec<url::Url>,
+
+    /// Whether to keep the runtime around once the process using it exits.
+    #[serde(default)]
+    pub durable: bool,
 }
 
 impl Default for Config {
@@ -175,6 +185,7 @@ impl Config {
             mount_namespace: None,
             mount_backend: MountBackend::OverlayFsWithRenders,
             secondary_repositories: Vec::new(),
+            durable: false,
         }
     }
 
@@ -276,6 +287,15 @@ impl Data {
     /// The unique name used to identify this runtime
     pub fn name(&self) -> &String {
         &self.name
+    }
+
+    pub fn upper_dir(&self) -> &PathBuf {
+        &self.config.upper_dir
+    }
+
+    /// Whether to keep the runtime when the process is exits
+    pub fn is_durable(&self) -> bool {
+        self.config.durable
     }
 }
 
@@ -392,12 +412,32 @@ impl Runtime {
         self.name.as_ref()
     }
 
+    pub fn upper_dir(&self) -> &PathBuf {
+        self.data.upper_dir()
+    }
+
     pub fn data(&self) -> &Data {
         &self.data
     }
 
     pub fn storage(&self) -> &Storage {
         &self.storage
+    }
+
+    pub fn is_durable(&self) -> bool {
+        self.data.is_durable()
+    }
+
+    /// Reset parts of the runtime's state so it can be reused in
+    /// another process run.
+    pub async fn reinit_for_reuse_and_save_to_storage(&mut self) -> Result<()> {
+        // Reset the durable runtime's owner, monitor, and
+        // namespace fields so the runtime can be rerun in future.
+        self.status.owner = None;
+        self.status.monitor = None;
+        self.config.mount_namespace = None;
+
+        self.save_state_to_storage().await
     }
 
     /// Clear all working changes in this runtime's upper dir
@@ -596,6 +636,43 @@ impl Storage {
     /// This can break environments that are currently being used, and
     /// is generally not safe to call directly. Instead, use [`OwnedRuntime::delete`].
     pub async fn remove_runtime<S: AsRef<str>>(&self, name: S) -> Result<()> {
+        // Remove the durable path associated with the runtime first, if there is one.
+        let durable_path = self.durable_path(name.as_ref().to_string()).await?;
+        if durable_path.exists() {
+            // Removing the durable upper path requires elevated privileges so:
+            // 'spfs-clean --remove-durable RUNTIME_NAAME --runtime-storage STORAGE_URL'
+            // is run to do it.
+            let mut cmd = bootstrap::build_spfs_remove_durable_command(
+                name.as_ref().to_string(),
+                self.inner.address(),
+            )?
+            .into_std();
+            tracing::trace!("running: {cmd:?}");
+            match cmd
+                .status()
+                .map_err(|err| {
+                    Error::ProcessSpawnError(
+                        "spfs-clean --remove-durable to remove durable runtime".to_owned(),
+                        err,
+                    )
+                })?
+                .code()
+            {
+                Some(0) => (),
+                Some(code) => {
+                    return Err(Error::String(format!(
+                        "spfs-clean --remove-durable returned non-zero exit status: {code}"
+                    )))
+                }
+                None => {
+                    return Err(Error::String(
+                        "spfs-clean --remove-durable failed unexpectedly with no return code"
+                            .to_string(),
+                    ))
+                }
+            }
+        }
+
         // a runtime with no data takes up very little space, so we
         // remove the payload tag first because the other case is having
         // a tagged payload but no associated metadata
@@ -610,6 +687,7 @@ impl Storage {
                 err => return err,
             }
         }
+
         Ok(())
     }
 
@@ -653,22 +731,72 @@ impl Storage {
         })
     }
 
-    /// Create a new runtime
-    pub async fn create_runtime(&self) -> Result<Runtime> {
+    /// Create a runtime with a generated name that will not be kept
+    pub async fn create_transient_runtime(&self) -> Result<Runtime> {
         let uuid = uuid::Uuid::new_v4().to_string();
-        self.create_named_runtime(uuid).await
+        let durable = false;
+        self.create_named_runtime(uuid, durable).await
+    }
+
+    /// Create a new runtime with a generated name
+    pub async fn create_runtime(&self, durable: bool) -> Result<Runtime> {
+        let uuid = uuid::Uuid::new_v4().to_string();
+        self.create_named_runtime(uuid, durable).await
     }
 
     /// Create a new runtime that is owned by this process and
     /// will be deleted upon drop
     #[cfg(test)]
     pub async fn create_owned_runtime(&self) -> Result<OwnedRuntime> {
-        let rt = self.create_runtime().await?;
+        let rt = self.create_runtime(TRANSIENT).await?;
         OwnedRuntime::upgrade_as_owner(rt).await
     }
 
-    /// Create a new, empty runtime with a specific name
-    pub async fn create_named_runtime<S: Into<String>>(&self, name: S) -> Result<Runtime> {
+    pub async fn durable_path(&self, name: String) -> Result<PathBuf> {
+        match &*self.inner {
+            RepositoryHandle::FS(repo) => {
+                let mut upper_root_path = repo.root();
+                upper_root_path.push(DURABLE_EDITS_DIR);
+                upper_root_path.push(name);
+                Ok(upper_root_path)
+            }
+            _ => Err(Error::DoesNotSupportDurableRuntimePath),
+        }
+    }
+
+    async fn check_upper_path_in_existing_runtimes(
+        &self,
+        upper_name: String,
+        upper_root_path: PathBuf,
+    ) -> Result<()> {
+        // If upper root name is already being used by another runtime
+        // (on this machine) then undefined sharing and masking will
+        // occur between the runtimes. We don't want that to happen, so
+        // runtimes aren't allowed to use the same named upper dir paths.
+        let mut runtimes = self.iter_runtimes().await;
+        let sample_upper_dir = upper_root_path.join(Config::UPPER_DIR);
+        while let Some(runtime) = runtimes.next().await {
+            let Ok(runtime) = runtime else {
+                continue;
+            };
+            if sample_upper_dir == *runtime.upper_dir() {
+                return Err(Error::RuntimeUpperDirAlreadyInUse {
+                    upper_name,
+                    runtime_name: runtime.name().to_string(),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Create a new runtime with a specific name that will be kept or
+    /// not based on the given durable flag. If the runtime is kept,
+    /// it will use a durable upper root path for its upper/work dirs.
+    pub async fn create_named_runtime<S: Into<String>>(
+        &self,
+        name: S,
+        durable: bool,
+    ) -> Result<Runtime> {
         let name = name.into();
         let runtime_tag = runtime_tag(RuntimeDataType::Metadata, &name)?;
         match self.inner.resolve_tag(&runtime_tag).await {
@@ -676,7 +804,27 @@ impl Storage {
             Err(Error::UnknownReference(_)) => {}
             Err(err) => return Err(err),
         }
-        let rt = Runtime::new(name, self.clone());
+
+        let mut rt = Runtime::new(name.clone(), self.clone());
+        rt.data.config.durable = durable;
+        if durable {
+            // Keeping a runtime also activates a durable upperdir.
+            // The runtime's name is used the identifying token in the
+            // durable upper dir's root path, which is stored in the
+            // local repo in a known location to make them durable
+            // across invocations.
+            let durable_path = self.durable_path(name.clone()).await?;
+            self.check_upper_path_in_existing_runtimes(name, durable_path.clone())
+                .await?;
+
+            // The durable_path must not be on NFS or else the mount
+            // operation will fail.
+            rt.data.config.upper_dir = durable_path.join(Config::UPPER_DIR);
+            // The workdir has to be in the same filesystem/path root
+            // as the upperdir, for overlayfs.
+            rt.data.config.work_dir = durable_path.join(Config::WORK_DIR);
+        }
+
         self.save_runtime(&rt).await?;
         Ok(rt)
     }

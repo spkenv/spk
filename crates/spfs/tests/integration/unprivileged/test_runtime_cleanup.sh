@@ -76,7 +76,7 @@ wait_for_spfs_monitor_count 0
 assert_runtime_count 0
 
 # fast runtime doesn't linger
-spfs run - true
+spfs run - -- true
 wait_for_spfs_monitor_count 0
 assert_runtime_count 0
 

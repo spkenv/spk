@@ -98,6 +98,15 @@ impl CmdRuntimeList {
                                 // runtime.
                                 "zombie"
                             }
+                            (None, None, _) => {
+                                // There's no owner or monitor but the
+                                // durable runtime remains
+                                if runtime.config.durable {
+                                    "saved"
+                                } else {
+                                    "unknown"
+                                }
+                            }
                             (None, _, _) => {
                                 // these cases aren't expected
                                 "unknown"
@@ -105,7 +114,7 @@ impl CmdRuntimeList {
                         };
 
                         message = format!(
-                            "{message}\trunning={}\tpid={:<7}\teditable={}\tstatus={process_status}",
+                            "{message:37}\trunning={}\tpid={:<7}\teditable={}\tdurable={}\tstatus={process_status}",
                             runtime.status.running,
                             runtime
                                 .status
@@ -113,6 +122,7 @@ impl CmdRuntimeList {
                                 .map(|pid| pid.to_string())
                                 .unwrap_or_else(|| "unknown".to_string()),
                             runtime.status.editable,
+                            runtime.is_durable(),
                         )
                     }
                     println!("{message}");

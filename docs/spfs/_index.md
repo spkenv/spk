@@ -40,7 +40,7 @@ ls /spfs
 ```
 
 {{% notice warning %}}
-**Any files that you create, or changes that you make under /spfs are lost when the shell or program exits**. Make sure that you commit any changes that you want to keep or reuse (see below).
+**Any files that you create, or changes that you make under /spfs are lost when the shell or program exits**. Make sure that you commit any changes that you want to keep or reuse (see below). You can use the `spfs run --keep-runtime ...` to change this behaviour, but you will have to clean up the runtimes yourself (see below).
 {{% /notice %}}
 
 ### Storage & Persistence
@@ -127,8 +127,13 @@ By default, when you run a command or enter into a shell with an existing spfs i
 In edit mode, the spfs system stores changes that you make in a new area, layered on top of the existing files. This means that you are never actually modifying any files previously committed to spfs. There is no way to change a committed layer or platform, only update the tag to point to a newly committed set of files that are different (just like a git branch).
 
 {{% notice tip %}}
-In edit mode, all changes are stored in memory and are lost when you exit the runtime. The only way to save these changes is to commit them as a layer or platform before exiting.
+Normally in edit mode, all changes are stored in memory and are lost when you exit the runtime. One way to save these changes is to commit them as a layer or platform before exiting, the other is start spfs with the `--keep-runtime` flag before beginning any editing.
 {{% /notice %}}
+
+Using `--keep-runtime` with `spfs run` will tell spfs to make a durable runtime. The runtime and any edits made while it is running will be kept around until you delete the runtime, see `spfs runtime rm -h`. It is worth using `--runtime-name <NAME>` to give the runtime a memorable name when you are use `--keep-runtime`. The default runtime names are uuids that do not provide any useful insight above what is in the runtime. You can use `--runtime-name <NAME>` without `--keep-time` as well.
+
+You can restart a durable runtime you previously exited by using `spfs run --rerun <RUNTIME-NAME> ...`. This will restore the original layers and any edits that were made in the durableruntime, whether or not they were committed. Committed edits will be in the top most spfs object in the layers. Uncommited ones will be normal edits as described above.
+
 
 ### Sharing References
 

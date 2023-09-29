@@ -34,6 +34,10 @@ pub struct CmdRuntimeRemove {
     #[clap(long)]
     ignore_monitor: bool,
 
+    /// Allow durable runtimes to be removed, normally they will not be removed
+    #[clap(long)]
+    remove_durable: bool,
+
     /// The name/id of the runtime to remove
     name: Vec<String>,
 }
@@ -77,6 +81,13 @@ impl CmdRuntimeRemove {
                 tracing::error!(" > terminating the command should trigger the cleanup process");
                 tracing::error!(" > use --ignore-monitor to ignore this error");
                 return Ok(1);
+            }
+
+            if runtime.is_durable() && !self.remove_durable {
+                tracing::error!("Won't delete, the runtime is marked as durable and");
+                tracing::error!(" > '--remove-durable' was not specified");
+                tracing::error!(" > use --remove-durable to remove a durable runtime");
+                return Ok(2);
             }
 
             runtime_storage.remove_runtime(runtime.name()).await?;

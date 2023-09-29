@@ -183,9 +183,23 @@ impl CmdMonitor {
             tracing::error!("failed to tear down runtime: {err:?}");
         }
 
-        tracing::trace!("deleting runtime data");
-        if let Err(err) = owned.delete().await {
-            tracing::error!("failed to clean up runtime data: {err:?}");
+        tracing::trace!(
+            "{} runtime data",
+            if owned.is_durable() {
+                "keeping"
+            } else {
+                "deleting"
+            }
+        );
+        if owned.is_durable() {
+            // Reset the runtime can be rerun in future.  This has to
+            // be done after the exit_runtime/spfs enter --exit is
+            // called because that command relies on the
+            // mount_namespace value, which this resets, to teardown
+            // the runtime.
+            let _ = owned.reinit_for_reuse_and_save_to_storage().await;
+        } else if let Err(err) = owned.delete().await {
+            tracing::error!("failed to clean up runtime data: {err:?}")
         }
 
         res?;

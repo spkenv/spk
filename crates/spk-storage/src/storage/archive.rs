@@ -42,11 +42,15 @@ where
         super::remote_repository("origin"),
     );
     let local_repo = local_repo?;
+
+    let tar_repo = spfs::storage::tar::TarRepository::create(&filename).await?;
+    // Package exports should not include the top-level directory for
+    // durable runtime upperdir edits.
+    tar_repo.remove_durable_dir().await?;
+
     let mut target_repo = super::SpfsRepository::try_from((
         "archive",
-        spfs::storage::RepositoryHandle::from(
-            spfs::storage::tar::TarRepository::create(&filename).await?,
-        ),
+        spfs::storage::RepositoryHandle::from(tar_repo),
     ))?;
 
     // these are sorted to ensure that the recipe is published

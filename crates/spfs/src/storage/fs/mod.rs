@@ -37,4 +37,5 @@ pub use repository::{
     FsRepository,
     OpenFsRepository,
     RenderStore,
+    DURABLE_EDITS_DIR,
 };

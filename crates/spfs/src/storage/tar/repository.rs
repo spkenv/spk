@@ -14,6 +14,7 @@ use tar::{Archive, Builder};
 
 use crate::config::ToAddress;
 use crate::prelude::*;
+use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::EntryType;
 use crate::tracking::BlobRead;
@@ -98,6 +99,18 @@ impl TarRepository {
             })?;
         }
         Self::open(path).await
+    }
+
+    /// Remove the top-level durable directory, assuming it is empty.
+    /// This is used when exporting packages from another repo via a
+    /// tar repo, and you do not want to include any durable runtime
+    /// related data.
+    pub async fn remove_durable_dir(&self) -> Result<()> {
+        let path = self.repo_dir.path().join(DURABLE_EDITS_DIR);
+        // This will fail if the durable edits directory for runtimes has something in it.
+        tokio::fs::remove_dir(&path)
+            .await
+            .map_err(|err| Error::RuntimeWriteError(path, err))
     }
 
     // Open a repository over the given directory, which must already

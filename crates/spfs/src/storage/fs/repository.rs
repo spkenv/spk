@@ -20,6 +20,10 @@ use crate::storage::prelude::*;
 use crate::storage::LocalRepository;
 use crate::{Error, Result};
 
+/// The directory name within the repo where durable runtimes keep
+/// their upper path roots and upper/work directories.
+pub const DURABLE_EDITS_DIR: &str = "durable_edits";
+
 /// Configuration for an fs repository
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Config {
@@ -269,6 +273,7 @@ impl OpenFsRepository {
             root.join("renders").join(username).join(PROXY_DIRNAME),
             0o777,
         )?;
+        makedirs_with_perms(root.join(DURABLE_EDITS_DIR), 0o777)?;
         set_last_migration(&root, None).await?;
         // Safety: we canonicalized `root` and we just changed the repo
         // `VERSION` to our version, so it is compatible.

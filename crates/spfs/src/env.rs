@@ -831,6 +831,11 @@ pub(crate) struct OverlayMountOptions {
     /// When disabled, there will be additional restrictions on
     /// remounting the environment since the filesystem will hold
     /// additional handles and may not unmount while files remain held
+    ///
+    /// It needs to be disabled for durable runtimes becaues the
+    /// overlayfs index option it enables prevents sharing across
+    /// subsequent invocations of durable runtimes.
+    /// https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#sharing-and-copying-layers
     break_hardlinks: bool,
     /// When true, overlayfs will use extended file attributes to avoid
     /// copying file data when only the metadata of a file has changed.
