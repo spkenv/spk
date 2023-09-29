@@ -4,6 +4,7 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use clap::Args;
@@ -11,6 +12,7 @@ use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::Object;
+use spfs::io::Pluralize;
 use spfs::Digest;
 use spk_cli_common::with_version_and_build_set::WithVersionSet;
 use spk_cli_common::{current_env, flags, CommandArgs, DefaultVersionStrategy, Run};
@@ -20,7 +22,7 @@ use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::Request;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::version::Version;
-use spk_schema::{AnyIdent, BuildIdent, Recipe, Template, VersionIdent};
+use spk_schema::{AnyIdent, BuildIdent, Recipe, Spec, Template, VersionIdent};
 use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
 use spk_storage;
 use strum::{Display, EnumString, EnumVariantNames};
@@ -349,6 +351,17 @@ impl View {
         Ok(0)
     }
 
+    /// Display the contents of a package spec
+    fn print_build_spec(&self, package_spec: Arc<Spec>) -> Result<i32> {
+        match &self.format {
+            OutputFormat::Yaml => serde_yaml::to_writer(std::io::stdout(), &*package_spec)
+                .context("Failed to serialize loaded spec")?,
+            OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &*package_spec)
+                .context("Failed to serialize loaded spec")?,
+        }
+        Ok(0)
+    }
+
     /// Display information on the package by looking up its
     /// specification or recipe directly based on these rules about
     /// what is in the given package identifier.
@@ -387,17 +400,7 @@ impl View {
             let ident: BuildIdent = request.pkg.clone().try_into()?;
             for repo in repos {
                 if let Ok(package_spec) = repo.read_package(&ident).await {
-                    match &self.format {
-                        OutputFormat::Yaml => {
-                            serde_yaml::to_writer(std::io::stdout(), &*package_spec)
-                                .context("Failed to serialize loaded spec")?
-                        }
-                        OutputFormat::Json => {
-                            serde_json::to_writer(std::io::stdout(), &*package_spec)
-                                .context("Failed to serialize loaded spec")?
-                        }
-                    }
-                    return Ok(0);
+                    return self.print_build_spec(package_spec);
                 };
             }
 
@@ -417,19 +420,49 @@ impl View {
             let temp_ident: AnyIdent = request.pkg.clone().try_into()?;
             let ident: VersionIdent = temp_ident.to_version();
             for repo in repos {
-                if let Ok(version_recipe) = repo.read_recipe(&ident).await {
-                    match &self.format {
-                        OutputFormat::Yaml => {
-                            serde_yaml::to_writer(std::io::stdout(), &*version_recipe)
-                                .context("Failed to serialize loaded spec")?
+                match repo.read_recipe(&ident).await {
+                    Ok(version_recipe) => {
+                        match &self.format {
+                            OutputFormat::Yaml => {
+                                serde_yaml::to_writer(std::io::stdout(), &*version_recipe)
+                                    .context("Failed to serialize loaded spec")?
+                            }
+                            OutputFormat::Json => {
+                                serde_json::to_writer(std::io::stdout(), &*version_recipe)
+                                    .context("Failed to serialize loaded spec")?
+                            }
                         }
-                        OutputFormat::Json => {
-                            serde_json::to_writer(std::io::stdout(), &*version_recipe)
-                                .context("Failed to serialize loaded spec")?
+                        return Ok(0);
+                    }
+                    Err(err) => {
+                        tracing::debug!("Unable to read recipe from {}: {err}", repo.name());
+
+                        // Older repos can contain builds for a version, and have build specs,
+                        // but not have a version recipe in the repo. In those cases, we show
+                        // a build spec in lieu of a version recipe.
+                        match repo.list_package_builds(&ident).await {
+                            Ok(builds) if !builds.is_empty() => {
+                                let build_ident = &builds[0];
+                                match repo.read_package(build_ident).await {
+                                    Ok(package_spec) => {
+                                        let result = self.print_build_spec(package_spec);
+                                        let number = builds.len();
+                                        tracing::info!("No version recipe exists. But found {number} {}. Output a build spec instead.", "build".pluralize(number));
+                                        return result;
+                                    }
+                                    Err(err) => {
+                                        tracing::trace!("Unable to read package for build: {err}")
+                                    }
+                                }
+                            }
+                            Ok(_) => {}
+                            Err(err) => tracing::trace!(
+                                "{} repo has no builds for this version: {err}",
+                                repo.name()
+                            ),
                         }
                     }
-                    return Ok(0);
-                };
+                }
             }
         }
 
@@ -535,13 +568,7 @@ impl View {
 
         for item in solution.items() {
             if item.spec.name() == request.pkg.name {
-                match &self.format {
-                    OutputFormat::Yaml => serde_yaml::to_writer(std::io::stdout(), &*item.spec)
-                        .context("Failed to serialize loaded spec")?,
-                    OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &*item.spec)
-                        .context("Failed to serialize loaded spec")?,
-                }
-                return Ok(0);
+                return self.print_build_spec(Arc::clone(&item.spec));
             }
         }
 
