@@ -365,6 +365,86 @@ install:
           - { var: abi, static: cp27m }
 ```
 
+#### Platform Package Specs
+
+Platforms are a convenience for writing the package spec for
+"meta-packages" used to specify versions of a set of packages. They
+are used to constrain builds of other packages and do not contain
+usable programs, libraries or code themselves.
+
+A typical platform package has an empty build options list, and one or
+more install requirements, all in `IfAlreadyPresent` mode. These
+install requirements describe the versions of dependencies that target
+compatibility with some application execution environment, like a
+DCC.
+
+A platform spec reduces the amount of boilerplate needed to set up a
+platform package compared to using the v0/package recipe format. A
+platform spec will be filled in with appropriate defaults
+automatically for a platform.
+
+The platform spec also provides a way to inherit package requirements
+from another package, such as another platform. This allows platforms
+to be based on other platforms with respecifying the same
+requirements, e.g. a DCC specific platform can pull in the
+requirements in a company or site specific platform. The expectation
+is that a platform would only inherit from other platforms, but that
+is not strictly required.
+
+When a platform is built, it produces an ordinary v0/package just like
+a "normal" v0/package spec would do, and it is treated like any other
+package for use by downstream consumers. All its requirements will
+always be `IfAlreadyPresent` ones.
+
+An example platform spec:
+
+```yaml
+platform: company-platform
+api: v0/platform
+requirements:
+  - pkg: gcc/9.3.1
+  - pkg: python/3.9
+  - pkg: imath/3
+```
+
+The `platform:` fields provides the name of the platform package. The
+`api:` field indicates this is a platform spec.
+
+The `requirements` field contains the list of requirements in the
+platform. These will have `IfAlreadyPresent` added to them
+automatically, it does not need to be specified for them.
+
+An example platform spec that inherits from the 'company-platform' and makes adjustments of its own:
+
+```yaml
+platform: dcc-platform
+base: company-platform
+api: v0/platform
+  requirements:
+      - pkg: some-package/1.2.3
+    add:
+      - pkg: python: 3.7
+    remove:
+      - pkg: imath
+```
+
+The `base:`field indicates which platform this platform spec is based on (inherits the requiremented from).
+
+Specifying a requirement drectly with `- ` is the same as specifying it with `add:`, but is a shorthand for convienence.
+
+The `add:` and `remove:` entries indicate changes to the requirements inherited from the base platform. `add:` means "add or replace". `remove:` means remove entirely. `remove:` will work on components of packages, if they are specified, as well as full packages. Removing requirement is done before adding when determining the platform's final requirements.
+
+This is another way of specifying the same `dcc-platform` without basing it on the `company-platform`:
+
+```yaml
+platform: dcc-platform
+api: v0/platform
+  requirements:
+    - pkg: gcc/9.3.1
+    - pkg: python/3.7
+    - pkg: some-package/1.2.3
+```
+
 ### Testing
 
 Tests can also be defined in the package spec file. SPK currently supports three types of tests that validate different aspects of the package. Tests are defined by a bash script and _stage_.
