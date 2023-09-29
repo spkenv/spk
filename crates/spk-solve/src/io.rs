@@ -279,10 +279,17 @@ where
                     }
 
                     if self.verbosity > 1 {
-                        let fill: String = ".".repeat(self.level as usize);
+                        let prefix: String = if self.verbosity > 2 && self.level > 5 {
+                            let level_text = self.level.to_string();
+                            let prefix_width = level_text.len() + 1;
+                            let padding = ".".repeat(self.level as usize - prefix_width);
+                            format!("{level_text} {padding}")
+                        } else {
+                            ".".repeat(self.level as usize)
+                        };
                         for note in decision.notes.iter() {
                             self.output_queue
-                                .push_back(format!("{} {}", fill, format_note(note)));
+                                .push_back(format!("{prefix} {}", format_note(note)));
                         }
                     }
 
@@ -1022,7 +1029,8 @@ impl DecisionFormatter {
 
         if solve_time > Duration::from_secs(self.settings.long_solves_threshold) {
             tracing::warn!(
-                "Solve took longer than acceptable time (>{} secs) to finish",
+                "Solve took {:.3} secs to finish. Longer than the acceptable <{} secs",
+                solve_time.as_secs_f64(),
                 self.settings.long_solves_threshold
             );
 
