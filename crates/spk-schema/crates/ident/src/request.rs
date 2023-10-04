@@ -848,17 +848,22 @@ impl PkgRequest {
             return compat;
         }
 
-        // TODO: does this need to change to consider None and
-        // ExcludeAll as equivalent or invest the >'s?
         if self.prerelease_policy > other.prerelease_policy {
-            return Compatibility::incompatible(format!(
-                "prerelease policy {} is more inclusive than {}",
-                self.prerelease_policy
-                    .map_or_else(|| String::from("None"), |p| p.to_string()),
-                other
-                    .prerelease_policy
-                    .map_or_else(|| String::from("None"), |p| p.to_string()),
-            ));
+            if let (Some(PreReleasePolicy::ExcludeAll), None) =
+                (self.prerelease_policy, other.prerelease_policy)
+            {
+                // These two are compatible though Some(_) > None for
+                // an Option.
+            } else {
+                return Compatibility::incompatible(format!(
+                    "prerelease policy {} is more inclusive than {}",
+                    self.prerelease_policy
+                        .map_or_else(|| String::from("None"), |p| p.to_string()),
+                    other
+                        .prerelease_policy
+                        .map_or_else(|| String::from("None"), |p| p.to_string()),
+                ));
+            }
         }
         if self.inclusion_policy > other.inclusion_policy {
             return Compatibility::incompatible(format!(
