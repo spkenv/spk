@@ -872,26 +872,16 @@ impl PkgRequest {
     /// Reduce the scope of this request to the intersection with another.
     pub fn restrict(&mut self, other: &PkgRequest) -> Result<()> {
         // The default is None. It acts like ExcludeAll, but both
-        // IncludeAll and ExcludeAll take precedence over it, see:
-        // https://github.com/imageworks/spk/issues/839
+        // IncludeAll and ExcludeAll take precedence over it.  The
+        // truth table should be:
+        //  None + None => None
+        //  None + Some(IncludeAll) => Some(IncludeAll)
+        //  None + Some(ExcludeAll) => Some(ExcludeAll)
+        //  Some(IncludeAll) + Some(ExcludeAll) => Some(ExcludeAll)
+        // See: https://github.com/imageworks/spk/issues/839
         self.prerelease_policy = match (self.prerelease_policy, other.prerelease_policy) {
-            (None, Some(PreReleasePolicy::IncludeAll)) => Some(PreReleasePolicy::IncludeAll),
-            (Some(PreReleasePolicy::IncludeAll), None) => Some(PreReleasePolicy::IncludeAll),
-            (Some(PreReleasePolicy::IncludeAll), Some(PreReleasePolicy::IncludeAll)) => {
-                Some(PreReleasePolicy::IncludeAll)
-            }
-            (None, Some(PreReleasePolicy::ExcludeAll)) => Some(PreReleasePolicy::ExcludeAll),
-            (Some(PreReleasePolicy::ExcludeAll), None) => Some(PreReleasePolicy::ExcludeAll),
-            (Some(PreReleasePolicy::IncludeAll), Some(PreReleasePolicy::ExcludeAll)) => {
-                Some(PreReleasePolicy::ExcludeAll)
-            }
-            (Some(PreReleasePolicy::ExcludeAll), Some(PreReleasePolicy::IncludeAll)) => {
-                Some(PreReleasePolicy::ExcludeAll)
-            }
-            (Some(PreReleasePolicy::ExcludeAll), Some(PreReleasePolicy::ExcludeAll)) => {
-                Some(PreReleasePolicy::ExcludeAll)
-            }
-            (None, None) => None,
+            (Some(a), Some(b)) => Some(min(a, b)),
+            (a, b) => a.or(b),
         };
         self.inclusion_policy = min(self.inclusion_policy, other.inclusion_policy);
         // Allow otherwise impossible to satisfy combinations of requests
