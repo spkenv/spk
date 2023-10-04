@@ -3,28 +3,154 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spk_schema_foundation::version::{API_STR, BINARY_STR};
+use spk_schema_foundation::version::{Compatibility, IncompatibleReason, API_STR, BINARY_STR};
 use spk_schema_foundation::FromYaml;
 
 use super::{InclusionPolicy, PreReleasePolicy, Request};
 use crate::parse_build_ident;
 
 #[rstest]
-fn test_prerelease_policy() {
-    let mut a = serde_yaml::from_str::<Request>("{pkg: something, prereleasePolicy: IncludeAll}")
+// 1. IncludeAll + ExcludeAll
+#[case(
+    "{pkg: something, prereleasePolicy: IncludeAll}",
+    "{pkg: something, prereleasePolicy: ExcludeAll}",
+    Some(PreReleasePolicy::ExcludeAll)
+)]
+// 2. ExcludeAll + IncludeAll
+#[case(
+    "{pkg: something, prereleasePolicy: ExcludeAll}",
+    "{pkg: something, prereleasePolicy: IncludeAll}",
+    Some(PreReleasePolicy::ExcludeAll)
+)]
+// 3. None + ExcludeAll
+#[case(
+    "{pkg: something}",
+    "{pkg: something, prereleasePolicy: ExcludeAll}",
+    Some(PreReleasePolicy::ExcludeAll)
+)]
+// 4. ExcludeAll + None
+#[case(
+    "{pkg: something, prereleasePolicy: ExcludeAll}",
+    "{pkg: something}",
+    Some(PreReleasePolicy::ExcludeAll)
+)]
+// 5. None + IncludeAll
+#[case(
+    "{pkg: something}",
+    "{pkg: something, prereleasePolicy: IncludeAll}",
+    Some(PreReleasePolicy::IncludeAll)
+)]
+// 6. IncludeAll + None
+#[case(
+    "{pkg: something, prereleasePolicy: IncludeAll}",
+    "{pkg: something}",
+    Some(PreReleasePolicy::IncludeAll)
+)]
+// 7. None + None
+#[case("{pkg: something}", "{pkg: something}", None)]
+// 8. IncludeAll + IncludeAll
+#[case(
+    "{pkg: something, prereleasePolicy: IncludeAll}",
+    "{pkg: something, prereleasePolicy: IncludeAll}",
+    Some(PreReleasePolicy::IncludeAll)
+)]
+// 9. ExcludeAll + ExcludeAll
+#[case(
+    "{pkg: something, prereleasePolicy: ExcludeAll}",
+    "{pkg: something, prereleasePolicy: ExcludeAll}",
+    Some(PreReleasePolicy::ExcludeAll)
+)]
+fn test_prerelease_policy_restricts(
+    #[case] request_a: &str,
+    #[case] request_b: &str,
+    #[case] expected_policy: Option<PreReleasePolicy>,
+) {
+    let mut a = serde_yaml::from_str::<Request>(request_a)
         .unwrap()
         .into_pkg()
         .expect("expected pkg request");
-    let b = serde_yaml::from_str::<Request>("{pkg: something, prereleasePolicy: ExcludeAll}")
+    let b = serde_yaml::from_str::<Request>(request_b)
         .unwrap()
         .into_pkg()
         .expect("expected pkg request");
 
     a.restrict(&b).unwrap();
-    match a.prerelease_policy {
-        Some(PreReleasePolicy::ExcludeAll) => (),
-        _ => panic!("expected restricted prerelease policy"),
-    }
+    assert!(
+        expected_policy == a.prerelease_policy,
+        "expected restricted prerelease policy to be: {expected_policy:?}"
+    )
+}
+
+#[rstest]
+// 1. IncludeAll > ExcludeAll = Incompatible
+#[case(
+    "{pkg: something, prereleasePolicy: IncludeAll}",
+    "{pkg: something, prereleasePolicy: ExcludeAll}",
+    Compatibility::Incompatible(IncompatibleReason::Other("prerelease policy IncludeAll is more inclusive than ExcludeAll".to_string()))
+)]
+// 2. ExcludeAll < IncludeAll
+#[case(
+    "{pkg: something, prereleasePolicy: ExcludeAll}",
+    "{pkg: something, prereleasePolicy: IncludeAll}",
+    Compatibility::Compatible
+)]
+// 3. None == ExcludeAll
+#[case(
+    "{pkg: something}",
+    "{pkg: something, prereleasePolicy: ExcludeAll}",
+    Compatibility::Compatible
+)]
+// 4. ExcludeAll == None
+#[case(
+    "{pkg: something, prereleasePolicy: ExcludeAll}",
+    "{pkg: something}",
+    Compatibility::Compatible
+)]
+// 5. None < IncludeAll
+#[case(
+    "{pkg: something}",
+    "{pkg: something, prereleasePolicy: IncludeAll}",
+    Compatibility::Compatible
+)]
+// 6. IncludeAll > None = Incompatible
+#[case(
+    "{pkg: something, prereleasePolicy: IncludeAll}",
+    "{pkg: something}",
+    Compatibility::Incompatible(IncompatibleReason::Other("prerelease policy IncludeAll is more inclusive than None".to_string()))
+)]
+// 7. None == None
+#[case("{pkg: something}", "{pkg: something}", Compatibility::Compatible)]
+// 8.IncludeAll == IncludeAll
+#[case(
+    "{pkg: something, prereleasePolicy: IncludeAll}",
+    "{pkg: something, prereleasePolicy: IncludeAll}",
+    Compatibility::Compatible
+)]
+// 9. ExcludeAll == ExcludeAll
+#[case(
+    "{pkg: something, prereleasePolicy: ExcludeAll}",
+    "{pkg: something, prereleasePolicy: ExcludeAll}",
+    Compatibility::Compatible
+)]
+fn test_prerelease_policy_contains(
+    #[case] request_a: &str,
+    #[case] request_b: &str,
+    #[case] expected_compat: Compatibility,
+) {
+    let a = serde_yaml::from_str::<Request>(request_a)
+        .unwrap()
+        .into_pkg()
+        .expect("expected pkg request");
+    let b = serde_yaml::from_str::<Request>(request_b)
+        .unwrap()
+        .into_pkg()
+        .expect("expected pkg request");
+
+    let compat = a.contains(&b);
+    assert!(
+        expected_compat == compat,
+        "expected prerelease contains compat to be: {expected_compat:?}"
+    )
 }
 
 #[rstest]

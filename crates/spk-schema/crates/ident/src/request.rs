@@ -849,22 +849,27 @@ impl PkgRequest {
         }
 
         if self.prerelease_policy > other.prerelease_policy {
-            if let (Some(PreReleasePolicy::ExcludeAll), None) =
-                (self.prerelease_policy, other.prerelease_policy)
-            {
-                // These two are compatible though Some(_) > None for
-                // an Option.
-            } else {
-                return Compatibility::incompatible(format!(
-                    "prerelease policy {} is more inclusive than {}",
-                    self.prerelease_policy
-                        .map_or_else(|| String::from("None"), |p| p.to_string()),
-                    other
-                        .prerelease_policy
-                        .map_or_else(|| String::from("None"), |p| p.to_string()),
-                ));
+            match (self.prerelease_policy, other.prerelease_policy) {
+                (Some(PreReleasePolicy::ExcludeAll), None) => {
+                    // These two are compatible even though Some(_) >
+                    // None for Options.
+                }
+                // Allowing more make them incompatible
+                (a, b) if a > b => {
+                    return Compatibility::incompatible(format!(
+                        "prerelease policy {} is more inclusive than {}",
+                        self.prerelease_policy
+                            .map_or_else(|| String::from("None"), |p| p.to_string()),
+                        other
+                            .prerelease_policy
+                            .map_or_else(|| String::from("None"), |p| p.to_string()),
+                    ));
+                }
+                // Everything else either allows less, or allows the same things
+                (_, _) => {}
             }
         }
+
         if self.inclusion_policy > other.inclusion_policy {
             return Compatibility::incompatible(format!(
                 "inclusion policy {} is more inclusive than {}",
@@ -877,13 +882,8 @@ impl PkgRequest {
     /// Reduce the scope of this request to the intersection with another.
     pub fn restrict(&mut self, other: &PkgRequest) -> Result<()> {
         // The default is None. It acts like ExcludeAll, but both
-        // IncludeAll and ExcludeAll take precedence over it.  The
-        // truth table should be:
-        //  None + None => None
-        //  None + Some(IncludeAll) => Some(IncludeAll)
-        //  None + Some(ExcludeAll) => Some(ExcludeAll)
-        //  Some(IncludeAll) + Some(ExcludeAll) => Some(ExcludeAll)
-        // See: https://github.com/imageworks/spk/issues/839
+        // IncludeAll and ExcludeAll take precedence over it. See:
+        // https://github.com/imageworks/spk/issues/839
         self.prerelease_policy = match (self.prerelease_policy, other.prerelease_policy) {
             (Some(a), Some(b)) => Some(min(a, b)),
             (a, b) => a.or(b),
