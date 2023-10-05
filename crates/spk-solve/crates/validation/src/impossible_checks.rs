@@ -14,6 +14,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, RangeIdent, Request, RequestedBy};
 use spk_schema::spec_ops::Versioned;
+use spk_schema::version_range::Ranged;
 use spk_schema::{AnyIdent, BuildIdent, Package, Spec};
 use spk_solve_graph::{GetMergedRequestError, GetMergedRequestResult};
 use spk_solve_solution::PackageSource;
@@ -378,16 +379,29 @@ impl ImpossibleRequestsChecker {
             );
 
             if combined_request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
-                // IfAlreadyPresent requests are optional until a
-                // resolved package makes a real/'Always' dependency
-                // request for the package. Until that happens they
-                // are considered always possible.
                 self.num_ifalreadypresent_requests
                     .fetch_add(1, Ordering::Relaxed);
-                tracing::debug!( target: IMPOSSIBLE_CHECKS_TARGET,
-                                "Combined request: {combined_request} has `IfAlreadyPresent` set, so it's possible"
-                );
-                continue;
+
+                if combined_request.pkg.version.rules().len() > 1 {
+                    // If the combined IfAlreadyPresent request has
+                    // more than one version range, e.g. pkg/~1.2.3
+                    // and pkg/~2.3.4, then include it in the
+                    // impossible request checking.
+                    tracing::debug!( target: IMPOSSIBLE_CHECKS_TARGET,
+                                     "Combined request: {combined_request} has `IfAlreadyPresent` set and {} version ranges, it may be impossible and will be checked",
+                                     combined_request.pkg.version.rules().len()
+                    );
+                } else {
+                    // IfAlreadyPresent requests with single version
+                    // ranges are optional until a resolved package
+                    // makes a real/'Always' request for the package.
+                    // Until that happens these are considered always
+                    // possible and left out of the impossible checks.
+                    tracing::debug!( target: IMPOSSIBLE_CHECKS_TARGET,
+                                     "Combined request: {combined_request} has `IfAlreadyPresent` set and one version range, so it's possible"
+                    );
+                    continue;
+                }
             }
 
             if self.impossible_requests.contains_key(&combined_request.pkg) {

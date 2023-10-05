@@ -324,6 +324,7 @@ async fn test_impossible_requests_checker_validate_pkg_requests_impossible() {
 
 #[rstest]
 #[tokio::test]
+
 async fn test_impossible_requests_checker_validate_pkg_requests_include_embedded_impossible() {
     init_logging();
 
@@ -366,6 +367,60 @@ async fn test_impossible_requests_checker_validate_pkg_requests_include_embedded
     unresolved_requests.insert(same_pkg_request.pkg.name.clone(), same_pkg_request.clone());
 
     // Test: a package that adds an impossible request
+    let requests_checker = ImpossibleRequestsChecker::default();
+    requests_checker.set_binary_only(true);
+    let compat = requests_checker
+        .validate_pkg_requests(&spec, &unresolved_requests, &[Arc::clone(&arc_repo)])
+        .await
+        .unwrap();
+
+    assert!(
+        !compat.is_ok(),
+        "Should make an impossible request but it hasn't"
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_impossible_requests_checker_validate_pkg_requests_include_iap_impossible() {
+    init_logging();
+
+    let repo = make_repo!(
+        [
+            { "pkg": "new-pkg/2.0.0/3I42H3S6" },
+            { "pkg": "new-pkg/2.0.0/src" },
+
+             { "pkg": "my-pkg/2.0.0/3I42H3S6" },
+             { "pkg": "my-pkg/1.0.0/3I42H3S6" },
+             { "pkg": "my-pkg/1.0.0/src" },
+
+            { "pkg": "my-pkg-b/3.0.0/3I42H3S6" },
+            { "pkg": "my-pkg-b/3.1.1/3I42H3S6" },
+            { "pkg": "my-pkg-b/3.0.0/src" },
+        ]
+    );
+    let arc_repo = Arc::new(repo);
+
+    // Thie first request is the impossible one. The IfAlreadyPresent
+    // request has two version ranges so it will be included in the
+    // impossible request checks, and the two ranges are not compatible
+    // with each other. Note: this is contrived to emulate a combined
+    // IfAlreadyPresent request with more than one version range.
+    let spec = spec!(
+        { "pkg": "about-to-resolve/1.0.0/3I42H3S6",
+           "install": {
+               "requirements": [{"pkg": "my-pkg/1.0.0,2.0.0",
+                                 "include": "IfAlreadyPresent"},
+                                //{"pkg": "my-pkg/7.0.0"},
+                                {"pkg": "my-pkg-b/3.1.1"},
+                                {"var": "python.abi/3.9.7"}],
+           }
+        }
+    );
+
+    let unresolved_requests: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
+
+    // Test: a package that adds an impossible IfAlreadyPresent request.
     let requests_checker = ImpossibleRequestsChecker::default();
     requests_checker.set_binary_only(true);
     let compat = requests_checker
