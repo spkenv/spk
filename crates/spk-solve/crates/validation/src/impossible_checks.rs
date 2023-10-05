@@ -12,7 +12,7 @@ use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{InclusionPolicy, PkgRequest, RangeIdent, Request};
+use spk_schema::ident::{InclusionPolicy, PkgRequest, RangeIdent, Request, RequestedBy};
 use spk_schema::spec_ops::Versioned;
 use spk_schema::{AnyIdent, BuildIdent, Package, Spec};
 use spk_solve_graph::{GetMergedRequestError, GetMergedRequestResult};
@@ -273,7 +273,38 @@ impl ImpossibleRequestsChecker {
         unresolved_requests: &HashMap<PkgNameBuf, PkgRequest>,
         repos: &[Arc<RepositoryHandle>],
     ) -> Result<Compatibility> {
-        let requirements = package.runtime_requirements();
+        let mut requirements = (*package.runtime_requirements()).clone();
+
+        tracing::debug!(
+            target: IMPOSSIBLE_CHECKS_TARGET,
+            "Package: {}  Unresolved: {:?}", package.ident(),
+            unresolved_requests
+                .keys()
+                .map(ToString::to_string)
+                .collect::<Vec<String>>()
+        );
+
+        // Embedded packages in the package are only considered for
+        // the checks if there is also an unreqsolved request for the
+        // same package.
+        for embedded_package in package.embedded().iter() {
+            let embedded_id = embedded_package.ident().clone().to_version();
+            tracing::debug!(target: IMPOSSIBLE_CHECKS_TARGET, "{} Embedded id: {embedded_id}", package.ident());
+            match unresolved_requests.get(embedded_id.name()) {
+                None => {}
+                Some(_) => {
+                    // There is an unresolved request for the same package
+                    // so the embedded package needs checked as if it was a requirement
+                    let req = Request::Pkg(PkgRequest::from_ident(
+                        embedded_id.to_any(None),
+                        RequestedBy::Embedded(package.ident().clone()),
+                    ));
+                    tracing::debug!(target: IMPOSSIBLE_CHECKS_TARGET, "Embedded Added: {}", req.clone());
+                    requirements.insert_or_replace(req);
+                }
+            }
+        }
+
         if requirements.is_empty() {
             return Ok(Compatibility::Compatible);
         }
