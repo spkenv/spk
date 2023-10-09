@@ -40,7 +40,15 @@ impl InstallSpec {
         options: &OptionMap,
         resolved: impl Iterator<Item = &'a BuildIdent>,
     ) -> Result<()> {
-        self.requirements.render_all_pins(options, resolved)
+        let resolved_by_name = resolved.map(|x| (x.name(), x)).collect();
+        self.requirements
+            .render_all_pins(options, &resolved_by_name)?;
+        for component in self.components.iter_mut() {
+            component
+                .requirements
+                .render_all_pins(options, &resolved_by_name)?;
+        }
+        Ok(())
     }
 }
 
