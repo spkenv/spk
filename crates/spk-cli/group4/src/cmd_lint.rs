@@ -9,7 +9,8 @@ use colored::Colorize;
 use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::v0::Spec;
-use spk_schema::{AnyIdent, Error, LintedItem};
+use spk_schema::Lint::Key;
+use spk_schema::{AnyIdent, LintedItem, SpecTemplate, Template, TemplateExt};
 
 /// Validate spk yaml files
 #[derive(Args)]
@@ -26,26 +27,22 @@ impl Run for Lint {
     type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
-        let options = self.options.get_options()?;
         let mut out = 0;
+        let options = self.options.get_options()?;
         for spec in self.packages.iter() {
-            let file_path = spec
-                .canonicalize()
-                .map_err(|err| Error::InvalidPath(spec.to_owned(), err))?;
-            let file = std::fs::File::open(&file_path)
-                .map_err(|err| Error::FileOpenError(file_path.to_owned(), err))?;
-            let rdr = std::io::BufReader::new(file);
+            let yaml = SpecTemplate::from_file(spec).and_then(|t| t.render_to_string(&options))?;
+            let lints: std::result::Result<LintedItem<Spec<AnyIdent>>, serde_yaml::Error> =
+                serde_yaml::from_str(&yaml);
 
-            let result: std::result::Result<LintedItem<Spec<AnyIdent>>, serde_yaml::Error> =
-                serde_yaml::from_reader(rdr);
-
-            match result {
+            match lints {
                 Ok(s) => match s.lints.is_empty() {
                     true => println!("{} {}", "OK".green(), spec.display()),
                     false => {
                         println!("{} {}:", "Failed".red(), spec.display());
                         for lint in s.lints {
-                            println!("{} {}", "----->".red(), lint);
+                            match lint {
+                                Key(k) => println!("{} {}", "----->".red(), k.generate_message()),
+                            }
                         }
                         out = 1;
                     }

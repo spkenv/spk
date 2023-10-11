@@ -6,25 +6,16 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use lint_proc_macro::Lint;
-use ngrammatic::CorpusBuilder;
 use relative_path::RelativePathBuf;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
+use struct_field_names_as_array::FieldNamesAsArray;
 
-use crate::{Error, LintedItem, Lints, Result, Script};
+use crate::{Error, Lint, LintedItem, Lints, Result, Script, UnknownKey};
 
 #[cfg(test)]
 #[path = "./source_spec_test.rs"]
 mod source_spec_test;
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum SpecKind {
-    Local,
-    Git,
-    Tar,
-    Script,
-}
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(untagged)]
@@ -69,105 +60,57 @@ impl SourceSpec {
             SourceSpec::Script(source) => source.collect(dirname, env),
         }
     }
-
-    /// Returns the lint message for the given SourceSpec
-    pub fn lints(&self, unknown_key: &str) -> String {
-        match self {
-            SourceSpec::Local(source) => source.generate_lints(unknown_key),
-            SourceSpec::Git(source) => source.generate_lints(unknown_key),
-            SourceSpec::Tar(source) => source.generate_lints(unknown_key),
-            SourceSpec::Script(source) => source.generate_lints(unknown_key),
-        }
-    }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-enum IdentKind {
-    Path(PathBuf),
-    Git(String),
-    Tar(String),
-    Script(Script),
-}
-
-impl IdentKind {
-    pub fn get_path(&self) -> PathBuf {
-        match self {
-            IdentKind::Path(p) => p.clone(),
-            IdentKind::Git(_) => PathBuf::new(),
-            IdentKind::Tar(_) => PathBuf::new(),
-            IdentKind::Script(_) => PathBuf::new(),
-        }
-    }
-
-    pub fn get_git(&self) -> String {
-        match self {
-            IdentKind::Path(_) => String::from(""),
-            IdentKind::Git(g) => g.clone(),
-            IdentKind::Tar(_) => String::from(""),
-            IdentKind::Script(_) => String::from(""),
-        }
-    }
-
-    pub fn get_tar(&self) -> String {
-        match self {
-            IdentKind::Path(_) => String::from(""),
-            IdentKind::Git(_) => String::from(""),
-            IdentKind::Tar(t) => t.clone(),
-            IdentKind::Script(_) => String::from(""),
-        }
-    }
-
-    pub fn get_script(&self) -> Script {
-        match self {
-            IdentKind::Path(_) => Script::new(vec![""]),
-            IdentKind::Git(_) => Script::new(vec![""]),
-            IdentKind::Tar(_) => Script::new(vec![""]),
-            IdentKind::Script(s) => s.clone(),
-        }
-    }
-}
-
-#[derive(Default, Debug)]
+#[derive(Default, Debug, FieldNamesAsArray)]
 struct SourceSpecVisitor {
-    identifier: Option<(SpecKind, IdentKind)>,
+    path: Option<PathBuf>,
+    git: Option<String>,
+    script: Option<Script>,
+    tar: Option<String>,
     exclude: Option<Vec<String>>,
     filter: Option<Vec<String>>,
     reference: Option<String>,
     depth: Option<u32>,
     subdir: Option<String>,
-    lints: Vec<String>,
+    #[field_names_as_array(skip)]
+    lints: Vec<Lint>,
 }
 
 impl Lints for SourceSpecVisitor {
-    fn lints(&mut self) -> Vec<String> {
+    fn lints(&mut self) -> Vec<Lint> {
         std::mem::take(&mut self.lints)
     }
 }
 
 impl From<SourceSpecVisitor> for SourceSpec {
     fn from(value: SourceSpecVisitor) -> Self {
-        let (ident, val) = value.identifier.expect("an source spec ident");
-        match ident {
-            SpecKind::Local => SourceSpec::Local(LocalSource {
-                path: val.get_path(),
+        if value.path.is_some() {
+            SourceSpec::Local(LocalSource {
+                path: value.path.expect("a path source"),
                 exclude: value.exclude.unwrap_or(LocalSource::default_exclude()),
                 filter: value.filter.unwrap_or(LocalSource::default_filter()),
                 subdir: value.subdir,
-            }),
-            SpecKind::Git => SourceSpec::Git(GitSource {
-                git: val.get_git(),
+            })
+        } else if value.git.is_some() {
+            SourceSpec::Git(GitSource {
+                git: value.git.expect("a git source"),
                 reference: value.reference.unwrap_or(String::from("")),
                 depth: value.depth.unwrap_or(default_git_clone_depth()),
                 subdir: value.subdir,
-            }),
-            SpecKind::Tar => SourceSpec::Tar(TarSource {
-                tar: val.get_tar(),
+            })
+        } else if value.script.is_some() {
+            SourceSpec::Script(ScriptSource {
+                script: value.script.expect("a script source"),
                 subdir: value.subdir,
-            }),
-            SpecKind::Script => SourceSpec::Script(ScriptSource {
-                script: val.get_script(),
+            })
+        } else if value.tar.is_some() {
+            SourceSpec::Tar(TarSource {
+                tar: value.tar.expect("a tar source"),
                 subdir: value.subdir,
-            }),
+            })
+        } else {
+            SourceSpec::default()
         }
     }
 }
@@ -207,30 +150,10 @@ impl<'de> serde::de::Visitor<'de> for SourceSpecVisitor {
     {
         while let Some(key) = map.next_key::<String>()? {
             match key.as_str() {
-                "path" => {
-                    self.identifier = Some((
-                        SpecKind::Local,
-                        IdentKind::Path(map.next_value::<PathBuf>()?),
-                    ));
-                }
-                "git" => {
-                    self.identifier = Some((
-                        SpecKind::Git,
-                        IdentKind::Git(map.next_value::<Stringified>()?.0),
-                    ))
-                }
-                "tar" => {
-                    self.identifier = Some((
-                        SpecKind::Tar,
-                        IdentKind::Tar(map.next_value::<Stringified>()?.0),
-                    ))
-                }
-                "script" => {
-                    self.identifier = Some((
-                        SpecKind::Script,
-                        IdentKind::Script(map.next_value::<Script>()?),
-                    ))
-                }
+                "path" => self.path = Some(map.next_value::<PathBuf>()?),
+                "git" => self.git = Some(map.next_value::<Stringified>()?.0),
+                "script" => self.script = Some(map.next_value::<Script>()?),
+                "tar" => self.tar = Some(map.next_value::<Stringified>()?.0),
                 "exclude" => {
                     self.exclude = Some(
                         map.next_value::<Vec<Stringified>>()?
@@ -251,48 +174,10 @@ impl<'de> serde::de::Visitor<'de> for SourceSpecVisitor {
                 "depth" => self.depth = Some(map.next_value::<u32>()?),
                 "subdir" => self.subdir = Some(map.next_value::<Stringified>()?.0),
                 unknown_key => {
-                    self.lints.push(unknown_key.to_string());
-                    let mut corpus = CorpusBuilder::new().finish();
-                    corpus.add_text("path");
-                    corpus.add_text("git");
-                    corpus.add_text("script");
-                    corpus.add_text("tar");
-
-                    if let Some(result) = corpus.search(unknown_key, 0.7).first() {
-                        match result.text.as_str() {
-                            "path" => {
-                                self.identifier = Some((
-                                    SpecKind::Local,
-                                    IdentKind::Path(map.next_value::<PathBuf>()?),
-                                ))
-                            }
-                            "git" => {
-                                self.identifier = Some((
-                                    SpecKind::Git,
-                                    IdentKind::Git(map.next_value::<Stringified>()?.0),
-                                ))
-                            }
-                            "script" => {
-                                self.identifier = Some((
-                                    SpecKind::Script,
-                                    IdentKind::Script(map.next_value::<Script>()?),
-                                ))
-                            }
-                            "tar" => {
-                                self.identifier = Some((
-                                    SpecKind::Tar,
-                                    IdentKind::Tar(map.next_value::<Stringified>()?.0),
-                                ))
-                            }
-                            _ => {
-                                self.identifier =
-                                    Some((SpecKind::Local, IdentKind::Path(PathBuf::from("."))));
-                                map.next_value::<serde::de::IgnoredAny>()?;
-                            }
-                        };
-                        continue;
-                    }
-
+                    self.lints.push(Lint::Key(UnknownKey::new(
+                        unknown_key,
+                        SourceSpecVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
+                    )));
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }
@@ -302,7 +187,7 @@ impl<'de> serde::de::Visitor<'de> for SourceSpecVisitor {
 }
 
 /// Package source files in a local directory or file path.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct LocalSource {
     pub path: PathBuf,
     #[serde(
@@ -405,7 +290,7 @@ impl LocalSource {
 }
 
 /// Package source files from a remote git repository.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct GitSource {
     pub git: String,
     #[serde(default, rename = "ref", skip_serializing_if = "String::is_empty")]
@@ -467,7 +352,7 @@ impl GitSource {
 }
 
 /// Package source files from a local or remote tar archive.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct TarSource {
     pub tar: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -539,7 +424,7 @@ impl TarSource {
 }
 
 /// Package source files collected via arbitrary shell script.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct ScriptSource {
     pub script: Script,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -624,26 +509,6 @@ pub fn git_version() -> Option<String> {
     let out = String::from_utf8_lossy(out.stdout.as_slice());
     out.trim().split(' ').last().map(|s| s.to_string())
 }
-
-// fn unknown_key_default(unknown_key: &str, unknown_value: String) -> (SpecKind, IdentKind) {
-//     let mut corpus = CorpusBuilder::new().finish();
-//     corpus.add_text("path");
-//     corpus.add_text("git");
-//     corpus.add_text("script");
-//     corpus.add_text("tar");
-
-//     if let Some(result) = corpus.search(unknown_key, 0.7).first() {
-//         match result.text.as_str() {
-//             "path" => return (SpecKind::Local, IdentKind::Path(PathBuf::from(unknown_value))),
-//             "git" => return (SpecKind::Git, IdentKind::Git(unknown_value)),
-//             "script" => return (SpecKind::Script, IdentKind::Script(Script::new(vec![unknown_value]))),
-//             "tar" => return (SpecKind::Tar, IdentKind::Tar(unknown_value)),
-//             _ => return (SpecKind::Local, IdentKind::Path(PathBuf::from(".")))
-//         };
-//     };
-
-//     (SpecKind::Local, IdentKind::Path(PathBuf::from(".")))
-// }
 
 fn default_git_clone_depth() -> u32 {
     1

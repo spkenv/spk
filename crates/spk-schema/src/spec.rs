@@ -160,7 +160,7 @@ impl Template for SpecTemplate {
         &self.file_path
     }
 
-    fn render(&self, options: &OptionMap) -> Result<Self::Output> {
+    fn render_to_string(&self, options: &OptionMap) -> Result<String> {
         let data = super::TemplateData::new(options);
         let rendered = spk_schema_tera::render_template(
             self.file_path.to_string_lossy(),
@@ -170,13 +170,6 @@ impl Template for SpecTemplate {
         .map_err(Error::InvalidTemplate)?;
         Ok(SpecRecipe::from_yaml(rendered)?)
     }
-
-    // fn render_lint(&self, options: &OptionMap) -> Result<Self::Output> {
-    //     let data = super::TemplateData::new(options);
-    //     let rendered = spk_schema_liquid::render_template(&self.template, &data)
-    //         .map_err(Error::InvalidTemplate)?;
-    //     Ok(SpecRecipe::from_yaml(rendered)?)
-    // }
 }
 
 impl TemplateExt for SpecTemplate {
@@ -243,29 +236,6 @@ impl TemplateExt for SpecTemplate {
         })
     }
 }
-
-// #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize)]
-// // #[enum_dispatch(Deprecate, DeprecateMut)]
-// pub enum SpecRecipeKind {
-//     DefaultSpec(super::v0::Spec<VersionIdent>),
-//     LintSpec(super::v0::LintedSpec<VersionIdent>)
-// }
-
-// impl SpecRecipeKind {
-//     pub fn spec(&self) -> &super::v0::Spec<VersionIdent> {
-//         match self {
-//             SpecRecipeKind::DefaultSpec(s) => s,
-//             SpecRecipeKind::LintSpec(lint) => &lint.spec,
-//         }
-//     }
-
-//     pub fn lints(&self) -> Vec<String> {
-//         match self {
-//             SpecRecipeKind::DefaultSpec(_) => Vec::default(),
-//             SpecRecipeKind::LintSpec(lint) => lint.lints.clone(),
-//         }
-//     }
-// }
 
 /// Specifies some buildable object within the spk ecosystem.
 ///

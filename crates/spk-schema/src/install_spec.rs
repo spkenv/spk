@@ -1,25 +1,25 @@
 // Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
+
 use std::marker::PhantomData;
 
 use itertools::Itertools;
-use lint_proc_macro::Lint;
-use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_ident::BuildIdent;
+use struct_field_names_as_array::FieldNamesAsArray;
 
 use super::{ComponentSpecList, EmbeddedPackagesList, EnvOp, OpKind, RequirementsList};
 use crate::foundation::option_map::OptionMap;
-use crate::{LintedItem, Lints, Result};
+use crate::{Lint, LintedItem, Lints, Result, UnknownKey};
 
 #[cfg(test)]
 #[path = "./install_spec_test.rs"]
 mod install_spec_test;
 
 /// A set of structured installation parameters for a package.
-#[derive(Clone, Debug, Default, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct InstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requirements: RequirementsList,
@@ -35,18 +35,16 @@ impl<D> Lints for InstallSpecVisitor<D>
 where
     D: Default,
 {
-    fn lints(&mut self) -> Vec<String> {
+    fn lints(&mut self) -> Vec<Lint> {
         for env in self.environment.iter_mut() {
-            self.lints.extend(std::mem::take(
-                &mut env.lints.iter().map(|l| env.item.lints(l)).collect_vec(),
-            ));
+            self.lints.extend(std::mem::take(&mut env.lints));
         }
 
         std::mem::take(&mut self.lints)
     }
 }
 
-#[derive(Default)]
+#[derive(Default, FieldNamesAsArray)]
 struct InstallSpecVisitor<D>
 where
     D: Default,
@@ -55,7 +53,9 @@ where
     embedded: EmbeddedPackagesList,
     components: ComponentSpecList,
     environment: Vec<LintedItem<EnvOp>>,
-    lints: Vec<String>,
+    #[field_names_as_array(skip)]
+    lints: Vec<Lint>,
+    #[field_names_as_array(skip)]
     _phantom: PhantomData<D>,
 }
 
@@ -132,18 +132,17 @@ where
     where
         A: serde::de::MapAccess<'de>,
     {
-        let spec = InstallSpec::default();
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
                 "requirements" => self.requirements = map.next_value::<RequirementsList>()?,
                 "embedded" => self.embedded = map.next_value::<EmbeddedPackagesList>()?,
                 "components" => self.components = map.next_value::<ComponentSpecList>()?,
                 "environment" => self.environment = map.next_value::<Vec<LintedItem<EnvOp>>>()?,
-                unknown_config => {
-                    self.lints
-                        .push(LintMessage::UnknownInstallSpecKey(InstallSpecKey::new(
-                            unknown_config,
-                        )));
+                unknown_key => {
+                    self.lints.push(Lint::Key(UnknownKey::new(
+                        unknown_key,
+                        InstallSpecVisitor::<D>::FIELD_NAMES_AS_ARRAY.to_vec(),
+                    )));
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }
