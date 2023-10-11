@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::foundation::option_map::OptionMap;
-use crate::{Result, SpecFileData};
+use crate::foundation::spec_ops::Named;
+use crate::{FromYaml, Result, SpecFileData};
 
 /// Can be rendered into a recipe.
 #[enum_dispatch::enum_dispatch]
@@ -16,6 +17,9 @@ pub trait Template: Sized {
 
     /// Render this template with the provided values.
     fn render(&self, options: &OptionMap) -> Result<SpecFileData>;
+
+    /// Render this template but return the rendered string instead.
+    fn render_to_string(&self, options: &OptionMap) -> Result<String>;
 }
 
 pub trait TemplateExt: Template {

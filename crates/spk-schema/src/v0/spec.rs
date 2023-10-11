@@ -9,12 +9,9 @@ use std::path::Path;
 use std::str::FromStr;
 
 use itertools::Itertools;
-use lint_proc_macro::Lint;
-use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
-use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::{OptFilter, Stringified};
 use spk_schema_foundation::version::{
     BuildIdProblem,
@@ -26,13 +23,14 @@ use spk_schema_foundation::version::{
 };
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{AnyIdent, AsVersionIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
+use struct_field_names_as_array::FieldNamesAsArray;
 
 use super::variant_spec::VariantSpecEntryKey;
 use super::TestSpec;
 use crate::build_spec::UncheckedBuildSpec;
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
-use crate::foundation::name::{OptNameBuf, PkgName};
+use crate::foundation::name::{OptNameBuf, PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
@@ -62,6 +60,7 @@ use crate::{
     Inheritance,
     InputVariant,
     InstallSpec,
+    Lint,
     LintedItem,
     Lints,
     Opt,
@@ -73,6 +72,7 @@ use crate::{
     RuntimeEnvironment,
     SourceSpec,
     TestStage,
+    UnknownKey,
     ValidationSpec,
     Variant,
 };
@@ -81,7 +81,7 @@ use crate::{
 #[path = "./spec_test.rs"]
 mod spec_test;
 
-#[derive(Debug, Clone, Hash, Lint, PartialEq, Eq, Ord, PartialOrd, Serialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize)]
 pub struct Spec<Ident> {
     pub pkg: Ident,
     #[serde(default, skip_serializing_if = "Meta::is_default")]
@@ -981,17 +981,20 @@ where
     }
 }
 
+#[derive(FieldNamesAsArray)]
 struct SpecVisitor<B, T> {
     pkg: Option<Ident<B, T>>,
     meta: Option<LintedItem<Meta>>,
     compat: Option<Compat>,
     deprecated: Option<bool>,
     sources: Option<Vec<LintedItem<SourceSpec>>>,
-    build: Option<LintedItem<UncheckedBuildSpec>>,
+    build: Option<LintedItem<BuildSpec>>,
     tests: Option<Vec<LintedItem<TestSpec>>>,
     install: Option<LintedItem<InstallSpec>>,
+    #[field_names_as_array(skip)]
     check_build_spec: bool,
-    lints: Vec<String>,
+    #[field_names_as_array(skip)]
+    lints: Vec<Lint>,
 }
 
 impl<B, T> SpecVisitor<B, T> {
@@ -1012,14 +1015,48 @@ impl<B, T> SpecVisitor<B, T> {
     }
 }
 
-<<<<<<< HEAD
+impl<B, T> From<SpecVisitor<B, T>> for Spec<Ident<B, T>>
+where
+    Ident<B, T>: serde::de::DeserializeOwned,
+{
+    fn from(mut value: SpecVisitor<B, T>) -> Self {
+        Self {
+            pkg: value.pkg.expect("Missing field pkg"),
+            meta: value.meta.take().unwrap_or_default().item,
+            compat: value.compat.take().unwrap_or_default(),
+            deprecated: value.deprecated.take().unwrap_or_default(),
+            sources: if value.sources.is_none() {
+                vec![SourceSpec::default()]
+            } else {
+                value
+                    .sources
+                    .take()
+                    .expect("list of sources")
+                    .iter()
+                    .map(|l| l.item.clone())
+                    .collect_vec()
+            },
+            build: match value.build.take() {
+                Some(build) => build.item,
+                None => Default::default(),
+            },
+            tests: value
+                .tests
+                .take()
+                .unwrap_or_default()
+                .iter()
+                .map(|l| l.item.clone())
+                .collect_vec(),
+            install: value.install.take().unwrap_or_default().item,
+        }
+    }
+}
+
 impl<B, T> Lints for SpecVisitor<B, T> {
-    fn lints(&mut self) -> Vec<LintMessage> {
+    fn lints(&mut self) -> Vec<Lint> {
         if let Some(l) = self.install.as_mut() {
             self.lints.extend(std::mem::take(&mut l.lints));
         }
-<<<<<<< HEAD
-=======
 
         if let Some(l) = self.build.as_mut() {
             self.lints.extend(std::mem::take(&mut l.lints));
@@ -1041,105 +1078,7 @@ impl<B, T> Lints for SpecVisitor<B, T> {
             }
         }
 
->>>>>>> 790deb97 (Implemented linting feature for test spec and meta spec)
         std::mem::take(&mut self.lints)
-    }
-}
-
-=======
->>>>>>> 40697078 (Implemented proc macro for linting feature)
-impl<B, T> From<SpecVisitor<B, T>> for Spec<Ident<B, T>>
-where
-    Ident<B, T>: serde::de::DeserializeOwned,
-{
-    fn from(mut value: SpecVisitor<B, T>) -> Self {
-        Self {
-            pkg: value.pkg.expect("Missing field pkg"),
-            meta: value.meta.take().unwrap_or_default().item,
-            compat: value.compat.take().unwrap_or_default(),
-            deprecated: value.deprecated.take().unwrap_or_default(),
-            sources: value
-                .sources
-                .take()
-                .unwrap_or_default()
-                .iter()
-                .map(|l| l.item.clone())
-                .collect_vec(),
-            build: match value.build.take() {
-                Some(build_spec) if !value.check_build_spec => {
-                    // Safety: see the SpecVisitor::package constructor
-                    unsafe { build_spec.into_inner() }
-                }
-                Some(build_spec) => match build_spec.try_into() {
-                    Ok(b) => b,
-                    Err(_) => BuildSpec::default(),
-                },
-                None => Default::default(),
-            },
-            tests: value
-                .tests
-                .take()
-                .unwrap_or_default()
-                .iter()
-                .map(|l| l.item.clone())
-                .collect_vec(),
-            install: value.install.take().unwrap_or_default().item,
-        }
-    }
-}
-
-<<<<<<< HEAD
-impl<B, T> Default for SpecVisitor<B, T> {
-    #[inline]
-    fn default() -> Self {
-        Self::with_check_build_spec(true)
-=======
-impl<B, T> Lints for SpecVisitor<B, T> {
-    fn lints(&mut self) -> Vec<String> {
-        let mut lint_messages = Vec::new();
-        let spec = Spec::new(self.pkg.as_ref().expect("a pkg"));
-        for unknown_key in self.lints.iter() {
-            lint_messages.push(spec.generate_lints(unknown_key));
-        }
-
-        if let Some(l) = self.install.as_mut() {
-            lint_messages.extend(std::mem::take(&mut l.lints));
-        }
-
-        if let Some(l) = self.build.as_mut() {
-            lint_messages.extend(std::mem::take(&mut l.lints));
-        }
-
-        if let Some(l) = self.meta.as_mut() {
-            lint_messages.extend(std::mem::take(&mut l.lints));
-        }
-
-        if let Some(sources) = self.sources.as_mut() {
-            for source in sources.iter_mut() {
-                lint_messages.extend(std::mem::take(
-                    &mut source
-                        .lints
-                        .iter()
-                        .map(|l| source.item.lints(l))
-                        .collect_vec(),
-                ));
-            }
-        }
-
-        if let Some(tests) = self.tests.as_mut() {
-            for test in tests.iter_mut() {
-                lint_messages.extend(std::mem::take(
-                    &mut test
-                        .lints
-                        .iter()
-                        .map(|l| test.item.generate_lints(l))
-                        .collect_vec(),
-                ));
-            }
-        }
-
-        std::mem::take(&mut lint_messages)
->>>>>>> 40697078 (Implemented proc macro for linting feature)
     }
 }
 
@@ -1179,14 +1118,33 @@ where
                 "compat" => self.compat = Some(map.next_value::<Compat>()?),
                 "deprecated" => self.deprecated = Some(map.next_value::<bool>()?),
                 "sources" => self.sources = Some(map.next_value::<Vec<LintedItem<SourceSpec>>>()?),
-                "build" => self.build = Some(map.next_value::<LintedItem<UncheckedBuildSpec>>()?),
+                "build" => {
+                    self.build = {
+                        let build = map.next_value::<LintedItem<UncheckedBuildSpec>>()?;
+                        let lints = build.lints.clone();
+                        let build_spec = if !self.check_build_spec {
+                            // Safety: see the SpecVisitor::package constructor
+                            unsafe { build.item.into_inner() }
+                        } else {
+                            build.item.try_into().map_err(serde::de::Error::custom)?
+                        };
+
+                        Some(LintedItem {
+                            item: build_spec,
+                            lints,
+                        })
+                    }
+                }
                 "tests" => self.tests = Some(map.next_value::<Vec<LintedItem<TestSpec>>>()?),
                 "install" => self.install = Some(map.next_value::<LintedItem<InstallSpec>>()?),
                 "api" => {
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
                 unknown_key => {
-                    self.lints.push(unknown_key.to_string());
+                    self.lints.push(Lint::Key(UnknownKey::new(
+                        unknown_key,
+                        SpecVisitor::<B, T>::FIELD_NAMES_AS_ARRAY.to_vec(),
+                    )));
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }
@@ -1197,29 +1155,5 @@ where
             .ok_or_else(|| serde::de::Error::missing_field("pkg"))?;
 
         Ok(self)
-        // let pkg = self
-        //     .pkg
-        //     .take()
-        //     .ok_or_else(|| serde::de::Error::missing_field("pkg"))?;
-        // Ok(S {
-        //     meta: self.meta.take().unwrap_or_default(),
-        //     compat: self.compat.take().unwrap_or_default(),
-        //     deprecated: self.deprecated.take().unwrap_or_default(),
-        //     sources: self
-        //         .sources
-        //         .take()
-        //         .unwrap_or_else(|| vec![SourceSpec::Local(LocalSource::default())]),
-        //     build: match self.build.take() {
-        //         Some(build_spec) if !self.check_build_spec => {
-        //             // Safety: see the SpecVisitor::package constructor
-        //             unsafe { build_spec.into_inner() }
-        //         }
-        //         Some(build_spec) => build_spec.try_into().map_err(serde::de::Error::custom)?,
-        //         None => Default::default(),
-        //     },
-        //     tests: self.tests.take().unwrap_or_default(),
-        //     install: self.install.take().unwrap_or_default(),
-        //     pkg,
-        // })
     }
 }

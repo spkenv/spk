@@ -2,21 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use lint_proc_macro::Lint;
 use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_schema_ident::{RequestedBy, VersionIdent};
 use spk_schema_foundation::option_map::Stringified;
+use struct_field_names_as_array::FieldNamesAsArray;
 
 use crate::ident::Request;
-use crate::{LintedItem, Lints, Script, TestStage};
+use crate::{Lint, LintedItem, Lints, Script, TestStage, UnknownKey};
 
 #[cfg(test)]
 #[path = "./test_spec_test.rs"]
 mod test_spec_test;
 
 /// A set of structured inputs used to build a package.
-#[derive(Clone, Debug, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct TestSpec {
     pub stage: TestStage,
@@ -57,17 +57,18 @@ impl crate::Test for TestSpec {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, FieldNamesAsArray)]
 struct TestSpecVisitor {
     stage: Option<TestStage>,
     script: Option<Script>,
     selectors: Vec<OptionMap>,
     requirements: Vec<Request>,
-    lints: Vec<String>,
+    #[field_names_as_array(skip)]
+    lints: Vec<Lint>,
 }
 
 impl Lints for TestSpecVisitor {
-    fn lints(&mut self) -> Vec<String> {
+    fn lints(&mut self) -> Vec<Lint> {
         std::mem::take(&mut self.lints)
     }
 }
@@ -123,7 +124,10 @@ impl<'de> serde::de::Visitor<'de> for TestSpecVisitor {
                 "selectors" => self.selectors = map.next_value::<Vec<OptionMap>>()?,
                 "requirements" => self.requirements = map.next_value::<Vec<Request>>()?,
                 unknown_key => {
-                    self.lints.push(unknown_key.to_string());
+                    self.lints.push(Lint::Key(UnknownKey::new(
+                        unknown_key,
+                        TestSpecVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
+                    )));
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }

@@ -1,17 +1,17 @@
 // Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
+
 use std::marker::PhantomData;
 
 use itertools::Itertools;
-use lint_proc_macro::Lint;
-use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::spec_ops::Named;
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{BuildIdent, OptVersionIdent};
 use spk_schema_foundation::option_map::Stringified;
+use struct_field_names_as_array::FieldNamesAsArray;
 
 use crate::component_embedded_packages::ComponentEmbeddedPackage;
 use crate::foundation::option_map::OptionMap;
@@ -64,18 +64,16 @@ impl<D> Lints for RawInstallSpecVisitor<D>
 where
     D: Default,
 {
-    fn lints(&mut self) -> Vec<String> {
+    fn lints(&mut self) -> Vec<Lint> {
         for env in self.environment.iter_mut() {
-            self.lints.extend(std::mem::take(
-                &mut env.lints.iter().map(|l| env.item.lints(l)).collect_vec(),
-            ));
+            self.lints.extend(std::mem::take(&mut env.lints));
         }
 
         std::mem::take(&mut self.lints)
     }
 }
 
-#[derive(Default)]
+#[derive(Default, FieldNamesAsArray)]
 struct RawInstallSpecVisitor<D>
 where
     D: Default,
@@ -292,18 +290,17 @@ where
     where
         A: serde::de::MapAccess<'de>,
     {
-        let spec = InstallSpec::default();
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
                 "requirements" => self.requirements = map.next_value::<RequirementsList>()?,
                 "embedded" => self.embedded = map.next_value::<EmbeddedPackagesList>()?,
                 "components" => self.components = map.next_value::<ComponentSpecList>()?,
                 "environment" => self.environment = map.next_value::<LintedItem<EnvOpList>>()?,
-                unknown_config => {
-                    self.lints
-                        .push(LintMessage::UnknownInstallSpecKey(InstallSpecKey::new(
-                            unknown_config,
-                        )));
+                unknown_key => {
+                    self.lints.push(Lint::Key(UnknownKey::new(
+                        unknown_key,
+                        InstallSpecVisitor::<D>::FIELD_NAMES_AS_ARRAY.to_vec(),
+                    )));
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }

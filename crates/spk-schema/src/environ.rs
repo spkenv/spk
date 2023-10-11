@@ -5,12 +5,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::IsDefault;
+use struct_field_names_as_array::FieldNamesAsArray;
 
-use crate::{LintedItem, Lints};
+use crate::{Lint, LintedItem, Lints, UnknownKey};
 
 #[cfg(test)]
 #[path = "./environ_test.rs"]
@@ -237,16 +237,18 @@ impl ConfKind {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, FieldNamesAsArray)]
 struct EnvOpVisitor {
+    #[field_names_as_array(skip)]
     op_and_var: Option<(OpKind, ConfKind)>,
     value: Option<String>,
     separator: Option<String>,
-    lints: Vec<String>,
+    #[field_names_as_array(skip)]
+    lints: Vec<Lint>,
 }
 
 impl Lints for EnvOpVisitor {
-    fn lints(&mut self) -> Vec<String> {
+    fn lints(&mut self) -> Vec<Lint> {
         std::mem::take(&mut self.lints)
     }
 }
@@ -269,10 +271,10 @@ impl From<EnvOpVisitor> for EnvOp {
                 set: var.get_op(),
                 value: value.value.expect("an environment value"),
             }),
-            OpKind::Comment => EnvOp::Comment(CommentEnv {
+            OpKind::Comment => EnvOp::Comment(EnvComment {
                 comment: var.get_op(),
             }),
-            OpKind::Priority => EnvOp::Priority(Priority {
+            OpKind::Priority => EnvOp::Priority(EnvPriority {
                 priority: var.get_priority(),
             }),
             OpKind::UnrecognizedKey => EnvOp::UnrecognizedKey(UnrecognizedKey {
@@ -377,34 +379,40 @@ impl<'de> serde::de::Visitor<'de> for EnvOpVisitor {
                     self.separator = map.next_value::<Option<Stringified>>()?.map(|s| s.0)
                 }
                 unknown_key => {
+                    let mut field_names = EnvOpVisitor::FIELD_NAMES_AS_ARRAY.to_vec();
+                    field_names.extend(AppendEnv::FIELD_NAMES_AS_ARRAY.to_vec());
+                    field_names.extend(EnvComment::FIELD_NAMES_AS_ARRAY.to_vec());
+                    field_names.extend(EnvPriority::FIELD_NAMES_AS_ARRAY.to_vec());
+                    field_names.extend(PrependEnv::FIELD_NAMES_AS_ARRAY.to_vec());
+                    field_names.extend(SetEnv::FIELD_NAMES_AS_ARRAY.to_vec());
                     self.lints
-                        .push(LintMessage::UnknownEnvOpKey(EnvOpKey::new(unknown_key)));
-                    self.op_and_var = Some((
-                        OpKind::UnrecognizedKey,
-                        ConfKind::Operation(format!("missing field to define operation and variable, expected one of {OP_NAMES:?}")),
-                    ));
+                        .push(Lint::Key(UnknownKey::new(unknown_key, field_names)));
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }
         }
 
         // Comments and priority configs don't have any values.
-        let value = match self.op_and_var.as_ref() {
-            Some(v) => match v.0 {
-                OpKind::Comment | OpKind::Priority | OpKind::UnrecognizedKey => String::from(""),
-                _ => self
-                    .value
-                    .take()
-                    .ok_or_else(|| serde::de::Error::missing_field("value"))?,
-            },
-            None => String::from(""),
-        };
+        self.value = self
+            .op_and_var
+            .as_ref()
+            .and_then(|(op_kind, _)| match op_kind {
+                OpKind::Comment | OpKind::Priority => None,
+                _ => Some(
+                    self.value
+                        .take()
+                        .ok_or_else(|| serde::de::Error::missing_field("value")),
+                ),
+            })
+            .transpose()?;
 
-        let value = shellexpand::env(&value)
-            .unwrap_or(std::borrow::Cow::Borrowed(""))
-            .to_string();
+        // Should contain some value by this point
+        if self.op_and_var.is_none() {
+            return Err(serde::de::Error::custom(format!(
+                "missing field to define operation and variable, expected one of {OP_NAMES:?}",
+            )));
+        }
 
-        self.value = Some(value);
         Ok(self)
     }
 }
@@ -413,7 +421,7 @@ impl<'de> serde::de::Visitor<'de> for EnvOpVisitor {
 ///
 /// The separator used defaults to the path separator for the current
 /// host operating system (':' for unix, ';' for windows)
-#[derive(Clone, Debug, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, FieldNamesAsArray, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct AppendEnv {
     pub append: String,
     pub value: String,
@@ -459,7 +467,7 @@ impl AppendEnv {
 }
 
 /// Adds a comment to the generated environment script
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, FieldNamesAsArray, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct EnvComment {
     pub comment: String,
 }
@@ -477,7 +485,7 @@ impl EnvComment {
 }
 
 /// Assigns a priority to the generated environment script
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, FieldNamesAsArray, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct EnvPriority {
     pub priority: u8,
 }
@@ -502,7 +510,7 @@ impl EnvPriority {
 ///
 /// The separator used defaults to the path separator for the current
 /// host operating system (':' for unix, ';' for windows)
-#[derive(Clone, Debug, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, FieldNamesAsArray, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct PrependEnv {
     pub prepend: String,
     pub value: String,
@@ -548,7 +556,7 @@ impl PrependEnv {
 }
 
 /// Operates on an environment variable by setting it to a value
-#[derive(Clone, Debug, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, FieldNamesAsArray, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct SetEnv {
     pub set: String,
     pub value: String,

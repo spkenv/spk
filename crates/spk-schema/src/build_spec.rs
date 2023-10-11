@@ -7,8 +7,6 @@ use std::hash::Hash;
 use std::str::FromStr;
 
 use itertools::Itertools;
-use lint_proc_macro::Lint;
-use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_config::get_config;
 use spk_schema_foundation::ident_build::BuildId;
@@ -16,12 +14,13 @@ use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::{OptionMap, Stringified, HOST_OPTIONS};
 use spk_schema_foundation::version::Compat;
 use spk_schema_foundation::IsDefault;
+use struct_field_names_as_array::FieldNamesAsArray;
 use strum::Display;
 
 use super::{v0, Opt, ValidationSpec};
 use crate::name::{OptName, OptNameBuf};
-use crate::option::{PkgOpt, VarOpt};
-use crate::{Error, Result, Variant};
+use crate::option::VarOpt;
+use crate::{Lint, LintedItem, Lints, Result, UnknownKey, Variant};
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
@@ -134,7 +133,7 @@ impl IsDefault for AutoHostVars {
 }
 
 /// A set of structured inputs used to build a package.
-#[derive(Clone, Debug, Eq, Hash, Lint, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, FieldNamesAsArray, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct BuildSpec {
     pub script: Script,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -429,78 +428,106 @@ impl UncheckedBuildSpec {
     }
 }
 
+#[derive(Default)]
+struct BuildSpecVisitor {
+    build_spec: UncheckedBuildSpec,
+    lints: Vec<Lint>,
+}
+
+impl Lints for BuildSpecVisitor {
+    fn lints(&mut self) -> Vec<Lint> {
+        std::mem::take(&mut self.lints)
+    }
+}
+
+impl From<BuildSpecVisitor> for UncheckedBuildSpec {
+    fn from(value: BuildSpecVisitor) -> Self {
+        value.build_spec
+    }
+}
+
 impl<'de> Deserialize<'de> for UncheckedBuildSpec {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: serde::de::Deserializer<'de>,
     {
-        struct UncheckedBuildSpecVisitor;
+        Ok(deserializer
+            .deserialize_map(BuildSpecVisitor::default())?
+            .into())
+    }
+}
 
-        impl<'de> serde::de::Visitor<'de> for UncheckedBuildSpecVisitor {
-            type Value = UncheckedBuildSpec;
+impl<'de> Deserialize<'de> for LintedItem<UncheckedBuildSpec> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(BuildSpecVisitor::default())?
+            .into())
+    }
+}
 
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a build specification")
-            }
+impl<'de> serde::de::Visitor<'de> for BuildSpecVisitor {
+    type Value = BuildSpecVisitor;
 
-            fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
-            where
-                A: serde::de::MapAccess<'de>,
-            {
-                let mut variants = Vec::<v0::VariantSpec>::new();
-                let mut unchecked = BuildSpec::default();
-                while let Some(key) = map.next_key::<Stringified>()? {
-                    match key.as_str() {
-                        "script" => unchecked.script = map.next_value::<Script>()?,
-                        "options" => {
-                            unchecked.options = map.next_value::<Vec<Opt>>()?;
-                            let mut unique_options = HashSet::new();
-                            for opt in unchecked.options.iter() {
-                                let full_name = opt.full_name();
-                                if unique_options.contains(full_name) {
-                                    return Err(serde::de::Error::custom(format!(
-                                        "build option was specified more than once: {full_name}",
-                                    )));
-                                }
-                                unique_options.insert(full_name);
-                            }
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a build specification")
+    }
+
+    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        let mut variants = Vec::<v0::VariantSpec>::new();
+        let mut unchecked = BuildSpec::default();
+        while let Some(key) = map.next_key::<Stringified>()? {
+            match key.as_str() {
+                "script" => unchecked.script = map.next_value::<Script>()?,
+                "options" => {
+                    unchecked.options = map.next_value::<Vec<Opt>>()?;
+                    let mut unique_options = HashSet::new();
+                    for opt in unchecked.options.iter() {
+                        let full_name = opt.full_name();
+                        if unique_options.contains(full_name) {
+                            return Err(serde::de::Error::custom(format!(
+                                "build option was specified more than once: {full_name}",
+                            )));
                         }
-                        "variants" => {
-                            unchecked.raw_variants = map.next_value()?;
-                        }
-                        "validation" => {
-                            unchecked.validation = map.next_value::<ValidationSpec>()?
-                        }
-                        "auto_host_vars" => {
-                            unchecked.auto_host_vars = map.next_value::<AutoHostVars>()?
-                        }
-                        _ => {
-                            // for forwards compatibility we ignore any unrecognized
-                            // field, but consume it just the same
-                            // TODO: could we check for possible typos in here?
-                            map.next_value::<serde::de::IgnoredAny>()?;
-                        }
+                        unique_options.insert(full_name);
                     }
                 }
-
-                if variants.is_empty() {
-                    variants.push(Default::default());
+                "variants" => {
+                    variants = map.next_value()?;
                 }
-
-                // we can only parse out the final variant forms after all the
-                // build options have been loaded
-                unchecked.variants = unchecked
-                    .raw_variants
-                    .iter()
-                    .map(|o| v0::Variant::from_spec(o.clone(), &unchecked.options))
-                    .collect::<Result<Vec<_>>>()
-                    .map_err(serde::de::Error::custom)?;
-
-                Ok(UncheckedBuildSpec(unchecked))
+                "validation" => unchecked.validation = map.next_value::<ValidationSpec>()?,
+                "auto_host_vars" => unchecked.auto_host_vars = map.next_value::<AutoHostVars>()?,
+                unknown_key => {
+                    self.lints.push(Lint::Key(UnknownKey::new(
+                        unknown_key,
+                        BuildSpec::FIELD_NAMES_AS_ARRAY.to_vec(),
+                    )));
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                }
             }
         }
 
-        deserializer.deserialize_map(UncheckedBuildSpecVisitor)
+        if variants.is_empty() {
+            variants.push(Default::default());
+        }
+
+        // we can only parse out the final variant forms after all the
+        // build options have been loaded
+        unchecked.variants = variants
+            .into_iter()
+            .map(|o| v0::Variant::from_spec(o, &unchecked.options))
+            .collect::<Result<Vec<_>>>()
+            .map_err(serde::de::Error::custom)?;
+
+        Ok(Self {
+            build_spec: UncheckedBuildSpec(unchecked),
+            lints: self.lints,
+        })
     }
 }
 
