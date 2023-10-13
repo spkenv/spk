@@ -59,14 +59,12 @@ format:
 build: debug
 
 debug:
-	cd $(SOURCE_ROOT)
 	$(CARGO) build $(cargo_packages_arg) $(cargo_features_arg) $(CARGO_ARGS)
 
 debug-spfs:
 	$(MAKE) debug CRATES=$(spfs_packages)
 
 release:
-	cd $(SOURCE_ROOT)
 	$(CARGO) build --release $(cargo_packages_arg) $(cargo_features_arg) $(CARGO_ARGS)
 
 release-spfs:
@@ -110,7 +108,6 @@ rpm-build: rpm-buildenv
 
 .PHONY: rpm-buildenv
 rpm-buildenv:
-	cd $(SOURCE_ROOT)
 	docker build . \
 		--target build_env \
 		--cache-from build_env \

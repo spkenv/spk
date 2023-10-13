@@ -29,19 +29,15 @@ install-spfs: copy-spfs setcap
 copy-debug: copy-debug-spfs copy-debug-spk
 
 copy-debug-spfs: debug-spfs
-	cd $(SOURCE_ROOT)
 	sudo cp -f $(CARGO_TARGET_DIR)/debug/spfs* /usr/local/bin/
 
 copy-debug-spk: debug
-	cd $(SOURCE_ROOT)
 	sudo cp -f $(CARGO_TARGET_DIR)/debug/spk /usr/local/bin/
 
 copy-release: release
-	cd $(SOURCE_ROOT)
 	sudo cp -f $(CARGO_TARGET_DIR)/release/spk $(CARGO_TARGET_DIR)/release/spfs* /usr/local/bin/
 
 copy-spfs: release-spfs
-	cd $(SOURCE_ROOT)
 	sudo cp -f $(CARGO_TARGET_DIR)/release/spfs* /usr/local/bin/
 
 setcap:
