@@ -35,9 +35,9 @@ pub enum OpKind {
 #[serde(untagged)]
 pub enum EnvOp {
     Append(AppendEnv),
-    Comment(CommentEnv),
+    Comment(EnvComment),
     Prepend(PrependEnv),
-    Priority(Priority),
+    Priority(EnvPriority),
     Set(SetEnv),
 }
 
@@ -61,13 +61,14 @@ impl EnvOp {
         }
     }
 
-    pub fn priority(&self) -> u8 {
+    /// The environment priority assigned by this operation, if any
+    pub fn priority(&self) -> Option<u8> {
         match self {
-            Self::Append(_) => 0,
-            Self::Comment(_) => 0,
-            Self::Prepend(_) => 0,
-            Self::Priority(op) => op.priority(),
-            Self::Set(_) => 0,
+            Self::Append(_) => None,
+            Self::Comment(_) => None,
+            Self::Prepend(_) => None,
+            Self::Priority(op) => Some(op.priority()),
+            Self::Set(_) => None,
         }
     }
 
@@ -217,10 +218,10 @@ impl<'de> Deserialize<'de> for EnvOp {
                             set: var.get_op(),
                             value
                         })),
-                        OpKind::Comment => Ok(EnvOp::Comment(CommentEnv{
+                        OpKind::Comment => Ok(EnvOp::Comment(EnvComment{
                             comment: var.get_op()
                         })),
-                        OpKind::Priority => Ok(EnvOp::Priority(Priority{
+                        OpKind::Priority => Ok(EnvOp::Priority(EnvPriority{
                             priority: var.get_priority()
                         }))
                     },
@@ -283,12 +284,13 @@ impl AppendEnv {
     }
 }
 
+/// Adds a comment to the generated environment script
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct CommentEnv {
+pub struct EnvComment {
     pub comment: String,
 }
 
-impl CommentEnv {
+impl EnvComment {
     /// Construct the bash source representation for this operation
     pub fn bash_source(&self) -> String {
         format!("# {}", self.comment)
@@ -300,12 +302,13 @@ impl CommentEnv {
     }
 }
 
+/// Assigns a priority to the generated environment script
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct Priority {
+pub struct EnvPriority {
     pub priority: u8,
 }
 
-impl Priority {
+impl EnvPriority {
     /// Construct the bash source representation for this operation
     pub fn bash_source(&self) -> String {
         String::from("")
