@@ -85,9 +85,6 @@ pub async fn make_runtime_durable(rt: &runtime::Runtime) -> Result<()> {
 
 /// Change the current spfs runtime into a durable rt and reinitialize it
 /// (after runtime config changes, and syncing anys edits over).
-///
-/// This function will run blocking IO on the current thread. Although this is not ideal,
-/// the mount namespacing operated per-thread and so restricts our ability to move execution.
 pub async fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
     let in_namespace = env::RuntimeConfigurator::default().current_runtime(rt)?;
     let with_root = in_namespace.become_root()?;
