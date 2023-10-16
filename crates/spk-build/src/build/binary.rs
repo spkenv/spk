@@ -813,20 +813,12 @@ where
         let mut sh_file = std::fs::File::create(&startup_file_sh)
             .map_err(|err| Error::FileOpenError(startup_file_sh.to_owned(), err))?;
         for op in ops {
-            if op.priority().ne(&0) {
+            if let Some(priority) = op.priority() {
                 let original_startup_file_sh_name = startup_file_sh.clone();
                 let original_startup_file_csh_name = startup_file_csh.clone();
 
-                startup_file_sh.set_file_name(format!(
-                    "{}_spk_{}.sh",
-                    op.priority(),
-                    package.name()
-                ));
-                startup_file_csh.set_file_name(format!(
-                    "{}_spk_{}.csh",
-                    op.priority(),
-                    package.name()
-                ));
+                startup_file_sh.set_file_name(format!("{priority:02}_spk_{}.sh", package.name()));
+                startup_file_csh.set_file_name(format!("{priority:02}_spk_{}.csh", package.name()));
 
                 std::fs::rename(original_startup_file_sh_name, &startup_file_sh)
                     .map_err(|err| Error::FileWriteError(startup_file_sh.to_owned(), err))?;
