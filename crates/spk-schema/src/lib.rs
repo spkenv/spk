@@ -42,7 +42,7 @@ pub use package::{Package, PackageMut};
 pub use recipe::{BuildEnv, Recipe};
 pub use requirements_list::RequirementsList;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
-pub use spec::{Spec, SpecRecipe, SpecTemplate};
+pub use spec::{Spec, SpecRecipe, SpecTemplate, SpecVariant};
 pub use spk_schema_foundation::option_map::{self, OptionMap};
 pub use spk_schema_foundation::{
     self as foundation,

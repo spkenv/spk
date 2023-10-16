@@ -152,13 +152,14 @@ async fn remove_build_impl(
         tracing::warn!("build  {pretty_pkg: >25} not found in {repo_name}");
     }
     // Now fail if anything errored for other reasons.
-    if package.is_err() && !pkg_not_found {
-        return Err(package.unwrap_err().into());
+    match package {
+        Err(err) if !pkg_not_found => return Err(err.into()),
+        _ => {}
     }
-    if recipe.is_err() && !recipe_not_found {
-        return Err(recipe.unwrap_err().into());
+    match recipe {
+        Err(err) if !recipe_not_found => Err(err.into()),
+        _ => Ok(()),
     }
-    Ok(())
 }
 
 async fn remove_all(

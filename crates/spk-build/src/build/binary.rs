@@ -373,10 +373,7 @@ where
                     } else {
                         ConflictingPackagePair(pkg_b, pkg_a)
                     };
-                    let counter = self
-                        .conflicting_packages
-                        .entry(packages_key)
-                        .or_insert_with(HashSet::new);
+                    let counter = self.conflicting_packages.entry(packages_key).or_default();
                     counter.insert(path.clone());
                 }
                 hash_map::Entry::Vacant(entry) => {

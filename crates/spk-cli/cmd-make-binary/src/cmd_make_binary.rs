@@ -139,9 +139,11 @@ impl Run for MakeBinary {
             let mut built = std::collections::HashSet::new();
 
             let default_variants = recipe.default_variants();
-            let variants_to_build = match self.variant {
+            let variants_to_build: Box<
+                dyn Iterator<Item = &spk_schema::SpecVariant> + Send + Sync,
+            > = match self.variant {
                 Some(index) if index < default_variants.len() => {
-                    default_variants.iter().skip(index).take(1)
+                    Box::new(default_variants.iter().skip(index).take(1))
                 }
                 Some(index) => {
                     anyhow::bail!(
@@ -150,7 +152,7 @@ impl Run for MakeBinary {
                         recipe.ident().format_ident(),
                     );
                 }
-                None => default_variants.iter().skip(0).take(usize::MAX),
+                None => Box::new(default_variants.iter()),
             };
 
             for variant in variants_to_build {
