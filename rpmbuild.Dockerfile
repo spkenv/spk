@@ -7,7 +7,7 @@ RUN yum install -y \
     && yum clean all
 
 RUN ln -s cmake3 /usr/bin/cmake
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y --default-toolchain=1.72.0
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y --default-toolchain=1.73.0
 ENV PATH $PATH:/root/.cargo/bin
 
 RUN mkdir -p /root/rpmbuild/{SOURCES,SPECS,RPMS,SRPMS}

@@ -12,7 +12,7 @@ use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::option_map::{host_options, OptionMap};
 use spk_schema::prelude::*;
-use spk_schema::{Recipe, TestStage, Variant};
+use spk_schema::{Recipe, TestStage};
 
 use crate::test::{PackageBuildTester, PackageInstallTester, PackageSourceTester, Tester};
 
@@ -94,9 +94,11 @@ impl Run for CmdTest {
                 let mut tested = std::collections::HashSet::new();
 
                 let default_variants = recipe.default_variants();
-                let variants_to_test = match self.variant {
+                let variants_to_test: Box<
+                    dyn Iterator<Item = &spk_schema::SpecVariant> + Send + Sync,
+                > = match self.variant {
                     Some(index) if index < default_variants.len() => {
-                        default_variants.iter().skip(index).take(1)
+                        Box::new(default_variants.iter().skip(index).take(1))
                     }
                     Some(index) => {
                         anyhow::bail!(
@@ -105,7 +107,7 @@ impl Run for CmdTest {
                             recipe.ident().format_ident(),
                         );
                     }
-                    None => default_variants.iter().skip(0).take(usize::MAX),
+                    None => Box::new(default_variants.iter()),
                 };
 
                 for variant in variants_to_test {
