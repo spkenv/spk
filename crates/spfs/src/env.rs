@@ -654,7 +654,11 @@ where
         runtime.ensure_upper_dirs().await?;
         tracing::debug!("ensured upper dirs");
 
-        // this only syncs over the upper_dir contents, not the work_dir
+        // this only syncs over the upper_dir contents, not the
+        // work_dir because the work_dir is updated and managed
+        // internally by overlayfs as changes are made. any edits or
+        // changes that have been completed, but not committed, will
+        // appear in the upper_dir.
         let src_dir = match old_upper_dir.to_str() {
             Some(path) => path,
             None => {
