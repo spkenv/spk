@@ -19,6 +19,7 @@ BuildRequires: cmake3
 BuildRequires: make
 Requires: bash
 Requires: fuse
+Requires: rsync
 Obsoletes: spfs
 Provides: spfs = 0.34.6
 
