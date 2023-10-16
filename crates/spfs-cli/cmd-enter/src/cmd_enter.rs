@@ -37,7 +37,7 @@ pub struct CmdEnter {
     pub logging: cli::Logging,
 
     #[clap(flatten)]
-    change_to_durable: ChangeToDurableArgs,
+    make_durable: MakeDurableArgs,
 
     #[clap(flatten)]
     exit: ExitArgs,
@@ -61,9 +61,9 @@ pub struct CmdEnter {
 
 #[derive(Debug, Args)]
 #[group(id = "durable_grp", conflicts_with_all = ["enter_grp", "exit_grp", "remount_grp"])]
-pub struct ChangeToDurableArgs {
+pub struct MakeDurableArgs {
     /// Change the current runtime to a durable runtime
-    #[clap(id = "change_to_durable", long = "change-to-durable")]
+    #[clap(id = "make_durable", long = "make-durable")]
     enabled: bool,
 }
 
@@ -145,7 +145,7 @@ impl CmdEnter {
 
         let mut runtime = self.load_runtime(config).await?;
 
-        if self.change_to_durable.enabled {
+        if self.make_durable.enabled {
             if runtime.is_durable() {
                 return Err(spfs::Error::from("runtime is already durable").into());
             }
