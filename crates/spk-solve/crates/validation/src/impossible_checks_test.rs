@@ -344,7 +344,7 @@ async fn test_impossible_requests_checker_validate_pkg_requests_include_embedded
     );
     let arc_repo = Arc::new(repo);
 
-    // Thie second request is the impossible one. The IfAlreadyPresent
+    // This second request is the impossible one. The IfAlreadyPresent
     // request is possible because it is just IfAlreadyPresent and has
     // not be requested by anything else yet.
     let spec = spec!(
@@ -401,7 +401,7 @@ async fn test_impossible_requests_checker_validate_pkg_requests_include_iap_impo
     );
     let arc_repo = Arc::new(repo);
 
-    // Thie first request is the impossible one. The IfAlreadyPresent
+    // This first request is the impossible one. The IfAlreadyPresent
     // request has two version ranges so it will be included in the
     // impossible request checks, and the two ranges are not compatible
     // with each other. Note: this is contrived to emulate a combined
