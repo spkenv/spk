@@ -66,7 +66,7 @@ pub async fn make_runtime_durable(rt: &runtime::Runtime) -> Result<()> {
     tracing::debug!("Running: {:?}", cmd);
     let res = tokio::task::spawn_blocking(move || cmd.output())
         .await?
-        .map_err(|err| Error::process_spawn_error("spfs-enter --change-to-durable", err, None))?;
+        .map_err(|err| Error::process_spawn_error("spfs-enter --make-durable", err, None))?;
     if res.status.code() != Some(0) {
         let out = String::from_utf8_lossy(&res.stderr);
         let exit_code = match res.status.code() {
@@ -74,7 +74,7 @@ pub async fn make_runtime_durable(rt: &runtime::Runtime) -> Result<()> {
             None => String::from("unknown"),
         };
         Err(Error::String(format!(
-            "Failed to make runtime durable: spfs-enter --change-to-durable failed with code {:?}: {}",
+            "Failed to make runtime durable: spfs-enter --make-durable failed with code {:?}: {}",
             exit_code,
             out.trim()
         )))

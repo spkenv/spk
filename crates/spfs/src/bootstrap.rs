@@ -292,7 +292,7 @@ pub(crate) fn build_spfs_change_to_durable_command(rt: &runtime::Runtime) -> Res
     };
 
     let args = vec![
-        "--change-to-durable".into(),
+        "--make-durable".into(),
         "--runtime-storage".into(),
         rt.storage().address().to_string().into(),
         "--runtime".into(),
