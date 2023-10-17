@@ -22,10 +22,8 @@ pub async fn make_runtime_durable(rt: &runtime::Runtime) -> Result<()> {
 }
 /// Reinitialize the current spfs runtime as a durable rt (after runtime config changes).
 ///
-/// This function will run blocking IO on the current thread. Although this is not ideal,
-/// the mount namespacing operated per-thread and so restricts our ability to move execution.
 pub async fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
-    todo!()
+    Err(Error::OverlayFsUnsupportedOnWindows)
 }
 
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).

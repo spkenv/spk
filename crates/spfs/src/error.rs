@@ -119,6 +119,9 @@ pub enum Error {
 
     #[error("{}, and {} more errors during clean", errors.get(0).unwrap(), errors.len() - 1)]
     IncompleteClean { errors: Vec<Self> },
+
+    #[error("OverlayFS mount backend is not supported on windows.")]
+    OverlayFsUnsupportedOnWindows,
 }
 
 impl Error {
