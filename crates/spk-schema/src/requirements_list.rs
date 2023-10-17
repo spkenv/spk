@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::fmt::Write;
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::version::Compatibility;
 use spk_schema_ident::{BuildIdent, PinPolicy};
 
@@ -116,19 +117,15 @@ impl RequirementsList {
     }
 
     /// Render all requests with a package pin using the given resolved packages.
-    pub fn render_all_pins<'a>(
+    pub fn render_all_pins(
         &mut self,
         options: &OptionMap,
-        resolved: impl Iterator<Item = &'a BuildIdent>,
+        resolved_by_name: &std::collections::HashMap<&PkgName, &BuildIdent>,
     ) -> Result<()> {
-        let mut by_name = std::collections::HashMap::new();
-        for pkg in resolved {
-            by_name.insert(pkg.name(), pkg);
-        }
         self.0 = std::mem::take(&mut self.0).into_iter().filter_map(|request| {
             match &request {
                 Request::Pkg(pkg_request) => {
-                    match by_name.get(pkg_request.pkg.name()) {
+                    match resolved_by_name.get(pkg_request.pkg.name()) {
                         None if pkg_request.pin.is_none() && pkg_request.pin_policy == PinPolicy::IfPresentInBuildEnv => {
                             None
                         }
