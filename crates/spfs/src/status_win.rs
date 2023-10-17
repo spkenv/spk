@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use crate::storage::fs::RenderSummary;
-use crate::{runtime, Result};
+use crate::{runtime, Error, Result};
 
 /// Remount the given runtime as configured.
 pub async fn remount_runtime(_rt: &runtime::Runtime) -> Result<()> {
