@@ -273,7 +273,7 @@ impl ImpossibleRequestsChecker {
         unresolved_requests: &HashMap<PkgNameBuf, PkgRequest>,
         repos: &[Arc<RepositoryHandle>],
     ) -> Result<Compatibility> {
-        let mut requirements = (*package.runtime_requirements()).clone();
+        let mut requirements = package.runtime_requirements().into_owned();
 
         tracing::debug!(
             target: IMPOSSIBLE_CHECKS_TARGET,
@@ -285,7 +285,7 @@ impl ImpossibleRequestsChecker {
         );
 
         // Embedded packages in the package are only considered for
-        // the checks if there is also an unreqsolved request for the
+        // the checks if there is also an unresolved request for the
         // same package.
         for embedded_package in package.embedded().iter() {
             let embedded_id = embedded_package.ident().clone().to_version();
@@ -293,8 +293,9 @@ impl ImpossibleRequestsChecker {
             match unresolved_requests.get(embedded_id.name()) {
                 None => {}
                 Some(_) => {
-                    // There is an unresolved request for the same package
-                    // so the embedded package needs checked as if it was a requirement
+                    // There is an unresolved request for the same
+                    // package so the embedded package needs to be
+                    // checked as if it was a requirement
                     let req = Request::Pkg(PkgRequest::from_ident(
                         embedded_id.to_any(None),
                         RequestedBy::Embedded(package.ident().clone()),
