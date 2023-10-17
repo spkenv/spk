@@ -268,7 +268,7 @@ async fn test_impossible_requests_checker_validate_pkg_requests_impossible() {
     );
     let arc_repo = Arc::new(repo);
 
-    // Thie second request is the impossible one. The IfAlreadyPresent
+    // This second request is the impossible one. The IfAlreadyPresent
     // request is possible because it is just IfAlreadyPresent and has
     // not be requested by anything else yet.
     let spec = spec!(
