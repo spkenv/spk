@@ -15,10 +15,6 @@ pub struct CmdEdit {
     /// Change a runtime into a durable runtime, will also make the runtime editable
     #[clap(long)]
     keep_runtime: bool,
-
-    /// Used with --keep-runtime, stops the runtime becoming editable
-    #[clap(long, requires("keep_runtime"))]
-    but_not_edit: bool,
 }
 
 impl CmdEdit {
@@ -35,10 +31,6 @@ impl CmdEdit {
                 tracing::debug!("making runtime durable");
                 spfs::make_runtime_durable(&rt).await?;
                 tracing::info!("runtime changed to durable");
-            }
-
-            if self.but_not_edit {
-                return Ok(0);
             }
         }
 
