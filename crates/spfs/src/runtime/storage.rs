@@ -597,15 +597,16 @@ impl Runtime {
     pub async fn setup_durable_upper_dir(&mut self) -> Result<PathBuf> {
         // The runtime's name is used in the identifying token in the
         // durable upper dir's root path. This is stored in the local
-        // repo in a known location so they are durable across invocations.
+        // repo in a known location so they are durable across
+        // invocations. The local repo is used bcause the durable_path
+        // must not be on NFS or else any mount overlayfs operation
+        // that uses it will fail.
         let name = String::from(self.name());
         let durable_path = self.storage.durable_path(name.clone()).await?;
         self.storage
             .check_upper_path_in_existing_runtimes(name, durable_path.clone())
             .await?;
 
-        // The durable_path must not be on NFS or else the mount
-        // operation will fail.
         self.data.config.upper_dir = durable_path.join(Config::UPPER_DIR);
         // The workdir has to be in the same filesystem/path root
         // as the upperdir, for overlayfs.
