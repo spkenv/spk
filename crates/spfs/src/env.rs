@@ -695,7 +695,7 @@ where
         match rsync.status().map_err(|err| Error::String(err.to_string())) {
             Ok(status) => match status.code() {
                 Some(0) => {
-                    runtime.set_keep_runtime(true);
+                    runtime.set_durable(true);
                     runtime.save_state_to_storage().await?;
                     tracing::info!("runtime saved as durable");
                     Ok(0)

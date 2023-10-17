@@ -302,7 +302,7 @@ impl Data {
     /// this does not change the runtime into a durable runtime. It is
     /// a helper method used during the process of changing the
     /// runtime into a durable runtime.
-    pub fn set_keep_runtime(&mut self, value: bool) {
+    pub fn set_durable(&mut self, value: bool) {
         self.config.durable = value;
     }
 }
