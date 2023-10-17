@@ -87,7 +87,18 @@ impl storage::FromConfig for ProxyRepository {
             async {
                 let mut secondary = Vec::with_capacity(config.secondary.len());
                 for name in config.secondary.iter() {
-                    secondary.push(crate::config::open_repository_from_string(&spfs_config, Some(&name)).await?)
+                    match crate::config::open_repository_from_string(&spfs_config, Some(&name)).await? {
+                        RepositoryHandle::Proxy(proxy) => {
+                            // Instead of nesting proxy repos, flatten them into
+                            // a single proxy repo with multiple secondaries.
+                            // This helps spfs-fuse handle the case where
+                            // "origin" has been changed to a proxy repo.
+                            //
+                            // XXX: This doesn't expand already nested proxy repos
+                            secondary.extend(proxy.into_stack());
+                        }
+                        repo => secondary.push(repo),
+                    };
                 }
                 Ok(secondary)
             }
