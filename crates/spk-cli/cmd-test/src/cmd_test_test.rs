@@ -332,7 +332,8 @@ tests:
   - stage: install
     script:
       - "true"
-"#
+"#,
+        "--allow-circular-dependencies",
     );
 
     let mut opt = TestOpt::try_parse_from([

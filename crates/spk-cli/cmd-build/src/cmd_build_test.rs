@@ -13,7 +13,7 @@ use spk_schema::ident::version_ident;
 use spk_storage::fixtures::*;
 
 use super::Build;
-use crate::build_package;
+use crate::{build_package, try_build_package};
 
 #[derive(Parser)]
 struct Opt {
@@ -125,4 +125,161 @@ build:
         .filter(|b| !b.is_source());
 
     assert_eq!(non_src_builds.count(), 1, "Expected one build");
+}
+
+#[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[tokio::test]
+async fn test_build_with_circular_dependency(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
+    // The system should not allow a package to be built that has a circular
+    // dependency.
+    let _rt = spfs_runtime().await;
+
+    // Start out with a package with no dependencies.
+    let (_, r) = try_build_package!(
+        tmpdir,
+        "one.spk.yaml",
+        br#"
+pkg: one/1.0.0
+
+build:
+  script:
+    - "true"
+"#
+        "--solver-to-run",
+        solver_to_run
+    );
+
+    r.expect("Expected initial build of one to succeed");
+
+    // Build a package that depends on "one".
+    let (_, r) = try_build_package!(
+        tmpdir,
+        "two.spk.yaml",
+        br#"
+pkg: two/1.0.0
+
+build:
+  options:
+    - pkg: one
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: one
+      fromBuildEnv: true
+"#,
+        "--solver-to-run",
+        solver_to_run
+    );
+
+    r.expect("Expected build of two to succeed");
+
+    // Now build a newer version of "one" that depends on "two".
+    let (_, r) = try_build_package!(
+        tmpdir,
+        "one.spk.yaml",
+        br#"
+pkg: one/1.0.0
+
+build:
+  options:
+    - pkg: two
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: two
+      fromBuildEnv: true
+"#,
+        "--solver-to-run",
+        solver_to_run
+    );
+
+    r.expect_err("Expected build to fail");
+}
+
+#[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[tokio::test]
+async fn test_build_with_circular_dependency_allow_with_flag(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
+    // The system should not allow a package to be built that has a circular
+    // dependency.
+    let _rt = spfs_runtime().await;
+
+    // Start out with a package with no dependencies.
+    let (_, r) = try_build_package!(
+        tmpdir,
+        "one.spk.yaml",
+        br#"
+pkg: one/1.0.0
+
+build:
+  script:
+    - "true"
+"#
+        "--solver-to-run",
+        solver_to_run
+    );
+
+    r.expect("Expected initial build of one to succeed");
+
+    // Build a package that depends on "one".
+    let (_, r) = try_build_package!(
+        tmpdir,
+        "two.spk.yaml",
+        br#"
+pkg: two/1.0.0
+
+build:
+  options:
+    - pkg: one
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: one
+      fromBuildEnv: true
+"#,
+        "--solver-to-run",
+        solver_to_run
+    );
+
+    r.expect("Expected build of two to succeed");
+
+    // Now build a newer version of "one" that depends on "two".
+    let (_, r) = try_build_package!(
+        tmpdir,
+        "one.spk.yaml",
+        br#"
+pkg: one/1.0.0
+
+build:
+  options:
+    - pkg: two
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: two
+      fromBuildEnv: true
+"#,
+        "--solver-to-run",
+        solver_to_run,
+        "--allow-circular-dependencies"
+    );
+
+    r.expect("Expected build of one to succeed");
 }

@@ -81,6 +81,11 @@ pub struct MakeBinary {
 
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,
+
+    /// Allow dependencies of the package being built to have a dependency on
+    /// this package.
+    #[clap(long)]
+    pub allow_circular_dependencies: bool,
 }
 
 impl CommandArgs for MakeBinary {
@@ -188,7 +193,8 @@ impl Run for MakeBinary {
                     .with_repositories(repos.iter().cloned())
                     .set_interactive(self.interactive)
                     .with_source_resolver(&src_formatter)
-                    .with_build_resolver(&build_formatter);
+                    .with_build_resolver(&build_formatter)
+                    .with_allow_circular_dependencies(self.allow_circular_dependencies);
 
                 if self.here {
                     let here =

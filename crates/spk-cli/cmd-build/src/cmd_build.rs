@@ -47,6 +47,11 @@ pub struct Build {
 
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,
+
+    /// Allow dependencies of the package being built to have a dependency on
+    /// this package.
+    #[clap(long)]
+    pub allow_circular_dependencies: bool,
 }
 
 /// Runs make-source and then make-binary
@@ -89,6 +94,7 @@ impl Run for Build {
                     .collect(),
                 variant: self.variant,
                 formatter_settings: self.formatter_settings.clone(),
+                allow_circular_dependencies: self.allow_circular_dependencies,
             };
             let code = make_binary.run().await?;
             if code != 0 {
