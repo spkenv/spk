@@ -267,6 +267,12 @@ impl Recipe for Platform<VersionIdent> {
     }
 }
 
+// A private visitor struct that may be extended to aid linting in future.
+// It is currently identical to the PlatformRequirementsPatch struct.
+// If it does not change or gain extra methods when linting is added,
+// then it can probably be removed and the public PlatformRequirementsPatch
+// used in its place.
+// TODO: update this when linting/warning support is added
 #[derive(Default)]
 struct PlatformRequirementsPatchVisitor {
     add: Option<RequirementsList>,
