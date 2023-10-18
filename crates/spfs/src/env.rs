@@ -8,7 +8,7 @@ use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 
 use super::runtime;
-use crate::{Error, Result};
+use crate::{which, Error, Result};
 
 pub const SPFS_DIR: &str = "/spfs";
 
@@ -628,6 +628,91 @@ impl<MountNamespace> RuntimeConfigurator<IsRootUser, MountNamespace>
 where
     MountNamespace: __private::CurrentProcessIsInMountNamespace,
 {
+    /// Make a durable upper dir path for the runtime, copy the
+    /// contents of its previous upper dir to the new one.
+    pub async fn change_runtime_to_durable(&self, runtime: &mut runtime::Runtime) -> Result<i32> {
+        // Not all runtime backends support durable runtimes
+        match runtime.config.mount_backend {
+            runtime::MountBackend::FuseOnly | runtime::MountBackend::WinFsp => {
+                // a vfs-only runtime cannot be change to durable
+                return Err(Error::RuntimeChangeToDurableError(format!(
+                    "{} backend does not support durable runtimes",
+                    runtime.config.mount_backend
+                )));
+            }
+            runtime::MountBackend::OverlayFsWithFuse
+            | runtime::MountBackend::OverlayFsWithRenders => {}
+        }
+
+        tracing::info!("changing runtime to durable");
+
+        let old_upper_dir = runtime.data().config.upper_dir.clone();
+        tracing::debug!("old upper dir: {}", old_upper_dir.display());
+
+        let new_path = runtime.setup_durable_upper_dir().await?;
+        tracing::debug!("new upper path: {}", new_path.display());
+        runtime.ensure_upper_dirs().await?;
+        tracing::debug!("ensured upper dirs");
+
+        // this only syncs over the upper_dir contents, not the
+        // work_dir because the work_dir is updated and managed
+        // internally by overlayfs as changes are made. any edits or
+        // changes that have been completed, but not committed, will
+        // appear in the upper_dir.
+        let src_dir = match old_upper_dir.to_str() {
+            Some(path) => path,
+            None => {
+                return Err(Error::RuntimeChangeToDurableError(format!(
+                    "current upper_dir '{}' has invalid characters",
+                    old_upper_dir.display()
+                )))
+            }
+        };
+        let dest_dir = match new_path.to_str() {
+            Some(path) => path,
+            None => {
+                return Err(Error::RuntimeChangeToDurableError(format!(
+                    "new upper_dir '{}' has invalid characters",
+                    new_path.display()
+                )))
+            }
+        };
+
+        let args = vec!["-aD", src_dir, dest_dir];
+        let cmd_path = match which("rsync") {
+            Some(cmd) => cmd,
+            None => {
+                return Err(Error::RuntimeChangeToDurableError(
+                    "rysnc is not available on this host".to_string(),
+                ))
+            }
+        };
+
+        let mut rsync = std::process::Command::new(cmd_path);
+        rsync.args(args);
+        tracing::debug!("the rsync command: {rsync:?}");
+
+        match rsync.status().map_err(|err| Error::String(err.to_string())) {
+            Ok(status) => match status.code() {
+                Some(0) => {
+                    runtime.set_durable(true);
+                    runtime.save_state_to_storage().await?;
+                    tracing::info!("runtime saved as durable");
+                    Ok(0)
+                }
+                Some(code) => Err(Error::RuntimeChangeToDurableError(format!(
+                    "rsync failed with exit code: {code}"
+                ))),
+                None => Err(Error::RuntimeChangeToDurableError(
+                    "rsync was terminated by an unexpected signal".to_string(),
+                )),
+            },
+            Err(err) => Err(Error::RuntimeChangeToDurableError(format!(
+                "rsync failed to run: {err}"
+            ))),
+        }
+    }
+
     /// Unmount the non-fuse portion of the provided runtime, if applicable.
     pub async fn unmount_env(&self, rt: &runtime::Runtime, lazy: bool) -> Result<()> {
         tracing::debug!("unmounting existing env...");
@@ -635,7 +720,12 @@ where
         // unmount fuse portion first, because once /spfs is unmounted many safety checks will
         // fail and the runtime will effectively not be re-configurable anymore.
         self.unmount_env_fuse(rt, lazy).await?;
+        self.unmount_env_overlayfs(rt, lazy).await?;
+        Ok(())
+    }
 
+    /// Unmount the overlayfs portion of the provided runtime, if applicable
+    pub async fn unmount_env_overlayfs(&self, rt: &runtime::Runtime, lazy: bool) -> Result<()> {
         match rt.config.mount_backend {
             runtime::MountBackend::FuseOnly | runtime::MountBackend::WinFsp => {
                 // a vfs-only runtime cannot be unmounted this way

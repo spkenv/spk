@@ -99,6 +99,8 @@ pub enum Error {
     RuntimeWriteError(std::path::PathBuf, #[source] io::Error),
     #[error("Runtime set permissions error: {0}")]
     RuntimeSetPermissionsError(std::path::PathBuf, #[source] io::Error),
+    #[error("Unable to make the runtime durable: {0}")]
+    RuntimeChangeToDurableError(String),
     #[error("Storage read error from {0} at {1}: {2}")]
     StorageReadError(&'static str, std::path::PathBuf, #[source] io::Error),
     #[error("Storage write error from {0} at {1}: {2}")]
@@ -117,6 +119,9 @@ pub enum Error {
 
     #[error("{}, and {} more errors during clean", errors.get(0).unwrap(), errors.len() - 1)]
     IncompleteClean { errors: Vec<Self> },
+
+    #[error("OverlayFS mount backend is not supported on windows.")]
+    OverlayFsUnsupportedOnWindows,
 }
 
 impl Error {

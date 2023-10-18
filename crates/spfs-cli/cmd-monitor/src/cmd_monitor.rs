@@ -171,12 +171,20 @@ impl CmdMonitor {
         };
         tracing::trace!("runtime empty of processes ");
 
+        // need to reload the runtime here to get any changes made to
+        // the runtime while it was running so we don't blast them the
+        // next time this process saves the runtime state.
+        tracing::trace!("reloading runtime data before cleanup");
+        owned.reload_state_from_storage().await?;
+
         // try to set the running to false to make this
         // runtime easier to identify as safe to delete
         // if the automatic cleanup fails. Any error
         // here is unfortunate but not fatal.
         owned.status.running = false;
-        let _ = owned.save_state_to_storage().await;
+        if let Err(err) = owned.save_state_to_storage().await {
+            tracing::error!("failed to save runtime: {err:?}");
+        }
 
         tracing::trace!("tearing down and exiting");
         if let Err(err) = spfs::exit_runtime(&owned).await {
@@ -197,7 +205,9 @@ impl CmdMonitor {
             // called because that command relies on the
             // mount_namespace value, which this resets, to teardown
             // the runtime.
-            let _ = owned.reinit_for_reuse_and_save_to_storage().await;
+            if let Err(err) = owned.reinit_for_reuse_and_save_to_storage().await {
+                tracing::error!("failed to reset durable runtime for rerunning: {err:?}")
+            }
         } else if let Err(err) = owned.delete().await {
             tracing::error!("failed to clean up runtime data: {err:?}")
         }

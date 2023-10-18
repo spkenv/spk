@@ -37,6 +37,9 @@ pub struct CmdEnter {
     pub logging: cli::Logging,
 
     #[clap(flatten)]
+    make_durable: MakeDurableArgs,
+
+    #[clap(flatten)]
     exit: ExitArgs,
 
     #[clap(flatten)]
@@ -57,7 +60,15 @@ pub struct CmdEnter {
 }
 
 #[derive(Debug, Args)]
-#[group(id = "exit_grp", conflicts_with_all = ["enter_grp", "remount_grp"])]
+#[group(id = "durable_grp", conflicts_with_all = ["enter_grp", "exit_grp", "remount_grp"])]
+pub struct MakeDurableArgs {
+    /// Change the current runtime to a durable runtime
+    #[clap(id = "make_durable", long = "make-durable")]
+    enabled: bool,
+}
+
+#[derive(Debug, Args)]
+#[group(id = "exit_grp", conflicts_with_all = ["durable_grp", "enter_grp", "remount_grp"])]
 pub struct ExitArgs {
     /// Exit the current runtime, shutting down all filesystems
     #[clap(id = "exit", long = "exit")]
@@ -65,7 +76,7 @@ pub struct ExitArgs {
 }
 
 #[derive(Debug, Args)]
-#[group(id = "remount_grp", conflicts_with_all = ["exit_grp", "enter_grp"])]
+#[group(id = "remount_grp", conflicts_with_all = ["durable_grp", "exit_grp", "enter_grp"])]
 pub struct RemountArgs {
     /// Remount the overlay filesystem, don't enter a new namespace
     #[clap(id = "remount", long = "remount")]
@@ -134,7 +145,16 @@ impl CmdEnter {
 
         let mut runtime = self.load_runtime(config).await?;
 
-        if self.exit.enabled {
+        if self.make_durable.enabled {
+            if runtime.is_durable() {
+                return Err(spfs::Error::from("runtime is already durable").into());
+            }
+            let start_time = Instant::now();
+            let render_summary = spfs::change_to_durable_runtime(&mut runtime).await?;
+            self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
+            tracing::info!("runtime remounted as durable");
+            Ok(None)
+        } else if self.exit.enabled {
             let in_namespace =
                 spfs::env::RuntimeConfigurator::default().current_runtime(&runtime)?;
             let with_root = in_namespace.become_root()?;

@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use crate::storage::fs::RenderSummary;
-use crate::{runtime, Result};
+use crate::{runtime, Error, Result};
 
 /// Remount the given runtime as configured.
 pub async fn remount_runtime(_rt: &runtime::Runtime) -> Result<()> {
@@ -13,6 +13,17 @@ pub async fn remount_runtime(_rt: &runtime::Runtime) -> Result<()> {
 /// Exit the given runtime as configured, this should only ever be called with the active runtime
 pub async fn exit_runtime(_rt: &runtime::Runtime) -> Result<()> {
     todo!()
+}
+
+/// Turn the given runtime into a durable runtime, this should only
+/// ever be called with the active runtime
+pub async fn make_runtime_durable(rt: &runtime::Runtime) -> Result<()> {
+    todo!()
+}
+/// Reinitialize the current spfs runtime as a durable rt (after runtime config changes).
+///
+pub async fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
+    Err(Error::OverlayFsUnsupportedOnWindows)
 }
 
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).

@@ -53,6 +53,74 @@ pub async fn exit_runtime(rt: &runtime::Runtime) -> Result<()> {
     }
 }
 
+/// Turn the given runtime into a durable runtime, this should only
+/// ever be called with the active runtime
+pub async fn make_runtime_durable(rt: &runtime::Runtime) -> Result<()> {
+    let command = bootstrap::build_spfs_change_to_durable_command(rt)?;
+    // Not using `tokio::process` here because it relies on `SIGCHLD` to know
+    // when the process is done, which can be unreliable if something else
+    // is trapping signals, like the tarpaulin code coverage tool.
+    let mut cmd = std::process::Command::new(command.executable);
+    cmd.args(command.args);
+    cmd.stderr(std::process::Stdio::piped());
+    tracing::debug!("Running: {:?}", cmd);
+    let res = tokio::task::spawn_blocking(move || cmd.output())
+        .await?
+        .map_err(|err| Error::process_spawn_error("spfs-enter --make-durable", err, None))?;
+    if res.status.code() != Some(0) {
+        let out = String::from_utf8_lossy(&res.stderr);
+        let exit_code = match res.status.code() {
+            Some(n) => n.to_string(),
+            None => String::from("unknown"),
+        };
+        Err(Error::String(format!(
+            "Failed to make runtime durable: spfs-enter --make-durable failed with code {:?}: {}",
+            exit_code,
+            out.trim()
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+/// Change the current spfs runtime into a durable rt and reinitialize it
+/// (after runtime config changes, and syncing anys edits over).
+pub async fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
+    let in_namespace = env::RuntimeConfigurator::default().current_runtime(rt)?;
+    let with_root = in_namespace.become_root()?;
+
+    with_root.change_runtime_to_durable(rt).await?;
+    tracing::info!("runtime changed to durable");
+
+    // unmount overlayfs only so it can be remounted below, but not
+    // the fuse part (if any) because it isn't changing and trying to
+    // unmount and remount fuse in this case hangs.
+    const LAZY: bool = true; // because we are about to re-mount over it
+    with_root.unmount_env_overlayfs(rt, LAZY).await?;
+    tracing::debug!("runtime overlayfs unmounted");
+
+    // remount the overlayfs only, using its new durable path settings
+    let render_result = match rt.config.mount_backend {
+        runtime::MountBackend::OverlayFsWithRenders => {
+            resolve_and_render_overlay_dirs(rt, false).await?
+        }
+        runtime::MountBackend::OverlayFsWithFuse
+        | runtime::MountBackend::FuseOnly
+        | runtime::MountBackend::WinFsp => {
+            // fuse uses the lowerdir that's defined in the runtime
+            // config, which is implicitly added to all overlay mounts
+            Default::default()
+        }
+    };
+    with_root
+        .mount_env_overlayfs(rt, &render_result.paths_rendered)
+        .await?;
+    tracing::debug!("runtime overlayfs remounted");
+
+    with_root.become_original_user()?;
+    Ok(render_result.render_summary)
+}
+
 /// Reinitialize the current spfs runtime as rt (in case of runtime config changes).
 ///
 /// This function will run blocking IO on the current thread. Although this is not ideal,

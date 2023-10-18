@@ -15,6 +15,7 @@ BuildRequires: openssl-devel
 BuildRequires: fuse-devel
 BuildRequires: m4
 Requires: fuse
+Requires: rsync
 
 %define debug_package %{nil}
 
