@@ -54,10 +54,14 @@ impl EnvOp {
 
     /// Construct the source representation for this operation in the
     /// format of the identified shell.
-    pub fn source_for_shell(&self, shell: spfs::ShellKind) -> String {
+    pub fn source_for_shell(
+        &self,
+        shell: spfs::ShellKind,
+        expanded_val: &Option<String>,
+    ) -> String {
         match shell {
-            spfs::ShellKind::Bash => self.bash_source(),
-            spfs::ShellKind::Tcsh => self.tcsh_source(),
+            spfs::ShellKind::Bash => self.bash_source(expanded_val),
+            spfs::ShellKind::Tcsh => self.tcsh_source(expanded_val),
             spfs::ShellKind::Powershell => self.powershell_source(),
         }
     }
@@ -73,25 +77,36 @@ impl EnvOp {
         }
     }
 
-    /// Construct the bash source representation for this operation
-    pub fn bash_source(&self) -> String {
+    /// Returns the environment variable value if any
+    pub fn value(&self) -> Option<&String> {
         match self {
-            Self::Append(op) => op.bash_source(),
+            Self::Append(op) => Some(&op.value),
+            Self::Comment(_) => None,
+            Self::Prepend(op) => Some(&op.value),
+            Self::Priority(_) => None,
+            Self::Set(op) => Some(&op.value),
+        }
+    }
+
+    /// Construct the bash source representation for this operation
+    pub fn bash_source(&self, expanded_val: &Option<String>) -> String {
+        match self {
+            Self::Append(op) => op.bash_source(expanded_val),
             Self::Comment(op) => op.bash_source(),
-            Self::Prepend(op) => op.bash_source(),
+            Self::Prepend(op) => op.bash_source(expanded_val),
             Self::Priority(op) => op.bash_source(),
-            Self::Set(op) => op.bash_source(),
+            Self::Set(op) => op.bash_source(expanded_val),
         }
     }
 
     /// Construct the tcsh source representation for this operation
-    pub fn tcsh_source(&self) -> String {
+    pub fn tcsh_source(&self, expanded_val: &Option<String>) -> String {
         match self {
-            Self::Append(op) => op.tcsh_source(),
+            Self::Append(op) => op.tcsh_source(expanded_val),
             Self::Comment(op) => op.tcsh_source(),
-            Self::Prepend(op) => op.tcsh_source(),
+            Self::Prepend(op) => op.tcsh_source(expanded_val),
             Self::Priority(op) => op.tcsh_source(),
-            Self::Set(op) => op.tcsh_source(),
+            Self::Set(op) => op.tcsh_source(expanded_val),
         }
     }
 
@@ -204,25 +219,21 @@ impl<'de> Deserialize<'de> for EnvOp {
                     })
                     .transpose()?;
 
-                let value = shellexpand::env(&value.unwrap_or_default())
-                    .unwrap_or(std::borrow::Cow::Borrowed(""))
-                    .to_string();
-
                 match self.op_and_var.take() {
                     Some((op, var)) => match op {
                         OpKind::Prepend => Ok(EnvOp::Prepend(PrependEnv{
                             prepend: var.get_op(),
                             separator: self.separator.take(),
-                            value
+                            value: value.unwrap_or_default()
                         })),
                         OpKind::Append => Ok(EnvOp::Append(AppendEnv{
                             append: var.get_op(),
                             separator: self.separator.take(),
-                            value
+                            value: value.unwrap_or_default()
                         })),
                         OpKind::Set => Ok(EnvOp::Set(SetEnv{
                             set: var.get_op(),
-                            value
+                            value: value.unwrap_or_default()
                         })),
                         OpKind::Comment => Ok(EnvOp::Comment(EnvComment{
                             comment: var.get_op()
@@ -260,17 +271,27 @@ impl AppendEnv {
     }
 
     /// Construct the bash source representation for this operation
-    pub fn bash_source(&self) -> String {
+    pub fn bash_source(&self, expanded_val: &Option<String>) -> String {
+        let value = match expanded_val {
+            Some(val) => val,
+            None => &self.value,
+        };
+
         format!(
             "export {}=\"${{{}}}{}{}\"",
             self.append,
             self.append,
             self.sep(),
-            self.value
+            value
         )
     }
     /// Construct the tcsh source representation for this operation
-    pub fn tcsh_source(&self) -> String {
+    pub fn tcsh_source(&self, expanded_val: &Option<String>) -> String {
+        let value = match expanded_val {
+            Some(val) => val,
+            None => &self.value,
+        };
+
         // tcsh will complain if we use a variable that is not defined
         // so there is extra login in here to define it as needed
         [
@@ -280,7 +301,7 @@ impl AppendEnv {
                 self.append,
                 self.append,
                 self.sep(),
-                self.value,
+                value,
             ),
             "else".to_string(),
             format!("setenv {} \"{}\"", self.append, self.value),
@@ -349,17 +370,27 @@ impl PrependEnv {
     }
 
     /// Construct the bash source representation for this operation
-    pub fn bash_source(&self) -> String {
+    pub fn bash_source(&self, expanded_val: &Option<String>) -> String {
+        let value = match expanded_val {
+            Some(val) => val,
+            None => &self.value,
+        };
+
         format!(
             "export {}=\"{}{}${{{}}}\"",
             self.prepend,
-            self.value,
+            value,
             self.sep(),
             self.prepend,
         )
     }
     /// Construct the tcsh source representation for this operation
-    pub fn tcsh_source(&self) -> String {
+    pub fn tcsh_source(&self, expanded_val: &Option<String>) -> String {
+        let value = match expanded_val {
+            Some(val) => val,
+            None => &self.value,
+        };
+
         // tcsh will complain if we use a variable that is not defined
         // so there is extra login in here to define it as needed
         [
@@ -367,7 +398,7 @@ impl PrependEnv {
             format!(
                 "setenv {} \"{}{}${{{}}}\"",
                 self.prepend,
-                self.value,
+                value,
                 self.sep(),
                 self.prepend,
             ),
@@ -388,11 +419,19 @@ pub struct SetEnv {
 
 impl SetEnv {
     /// Construct the bash source representation for this operation
-    pub fn bash_source(&self) -> String {
-        format!("export {}=\"{}\"", self.set, self.value)
+    pub fn bash_source(&self, expanded_val: &Option<String>) -> String {
+        let value = match expanded_val {
+            Some(val) => val,
+            None => &self.value,
+        };
+        format!("export {}=\"{}\"", self.set, value)
     }
     /// Construct the tcsh source representation for this operation
-    pub fn tcsh_source(&self) -> String {
-        format!("setenv {} \"{}\"", self.set, self.value)
+    pub fn tcsh_source(&self, expanded_val: &Option<String>) -> String {
+        let value = match expanded_val {
+            Some(val) => val,
+            None => &self.value,
+        };
+        format!("setenv {} \"{}\"", self.set, value)
     }
 }
