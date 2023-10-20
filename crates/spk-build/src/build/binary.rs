@@ -832,13 +832,24 @@ where
         let mut sh_file = std::fs::File::create(&startup_file_sh)
             .map_err(|err| Error::FileOpenError(startup_file_sh.to_owned(), err))?;
 
-        // Add environment variables from build environment to the std::env.
-        // This way, the shellexpand crate will have access to the env variables from the build env.
+        let mut environment_vars = HashMap::new();
+        for (key, value) in std::env::vars() {
+            environment_vars.insert(key, value);
+        }
+
         if let Some(mut env_vars) = build_vars {
-            for (key, val) in env_vars.by_ref() {
-                std::env::set_var(key, val.unwrap_or_default());
+            for (key, value) in env_vars.by_ref() {
+                environment_vars.insert(
+                    key.to_string_lossy().into_owned(),
+                    value.unwrap_or_default().to_string_lossy().into_owned(),
+                );
             }
         }
+
+        let expand_env_variable = |s: &str| match environment_vars.get(s) {
+            Some(val) => Ok(Some(val)),
+            None => Err(Some("")),
+        };
 
         for op in ops {
             if let Some(priority) = op.priority() {
@@ -857,16 +868,14 @@ where
             }
 
             let value = op.value().map(|val| {
-                shellexpand::env(val)
-                    .unwrap_or(std::borrow::Cow::Borrowed(""))
-                    .to_string()
+                shellexpand::env_with_context(val, expand_env_variable).unwrap_or_default()
             });
 
             csh_file
-                .write_fmt(format_args!("{}\n", op.tcsh_source(&value)))
+                .write_fmt(format_args!("{}\n", op.tcsh_source(value.clone())))
                 .map_err(|err| Error::FileWriteError(startup_file_csh.to_owned(), err))?;
             sh_file
-                .write_fmt(format_args!("{}\n", op.bash_source(&value)))
+                .write_fmt(format_args!("{}\n", op.bash_source(value.clone())))
                 .map_err(|err| Error::FileWriteError(startup_file_sh.to_owned(), err))?;
         }
         Ok(())

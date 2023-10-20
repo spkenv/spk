@@ -1,6 +1,9 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 
@@ -57,7 +60,7 @@ impl EnvOp {
     pub fn source_for_shell(
         &self,
         shell: spfs::ShellKind,
-        expanded_val: &Option<String>,
+        expanded_val: Option<Cow<str>>,
     ) -> String {
         match shell {
             spfs::ShellKind::Bash => self.bash_source(expanded_val),
@@ -89,7 +92,7 @@ impl EnvOp {
     }
 
     /// Construct the bash source representation for this operation
-    pub fn bash_source(&self, expanded_val: &Option<String>) -> String {
+    pub fn bash_source(&self, expanded_val: Option<Cow<str>>) -> String {
         match self {
             Self::Append(op) => op.bash_source(expanded_val),
             Self::Comment(op) => op.bash_source(),
@@ -100,7 +103,7 @@ impl EnvOp {
     }
 
     /// Construct the tcsh source representation for this operation
-    pub fn tcsh_source(&self, expanded_val: &Option<String>) -> String {
+    pub fn tcsh_source(&self, expanded_val: Option<Cow<str>>) -> String {
         match self {
             Self::Append(op) => op.tcsh_source(expanded_val),
             Self::Comment(op) => op.tcsh_source(),
@@ -271,10 +274,10 @@ impl AppendEnv {
     }
 
     /// Construct the bash source representation for this operation
-    pub fn bash_source(&self, expanded_val: &Option<String>) -> String {
+    pub fn bash_source(&self, expanded_val: Option<Cow<str>>) -> String {
         let value = match expanded_val {
-            Some(val) => val,
-            None => &self.value,
+            Some(val) => val.to_string(),
+            None => self.value.clone(),
         };
 
         format!(
@@ -286,10 +289,10 @@ impl AppendEnv {
         )
     }
     /// Construct the tcsh source representation for this operation
-    pub fn tcsh_source(&self, expanded_val: &Option<String>) -> String {
+    pub fn tcsh_source(&self, expanded_val: Option<Cow<str>>) -> String {
         let value = match expanded_val {
-            Some(val) => val,
-            None => &self.value,
+            Some(val) => val.to_string(),
+            None => self.value.clone(),
         };
 
         // tcsh will complain if we use a variable that is not defined
@@ -370,10 +373,10 @@ impl PrependEnv {
     }
 
     /// Construct the bash source representation for this operation
-    pub fn bash_source(&self, expanded_val: &Option<String>) -> String {
+    pub fn bash_source(&self, expanded_val: Option<Cow<str>>) -> String {
         let value = match expanded_val {
-            Some(val) => val,
-            None => &self.value,
+            Some(val) => val.to_string(),
+            None => self.value.clone(),
         };
 
         format!(
@@ -385,10 +388,10 @@ impl PrependEnv {
         )
     }
     /// Construct the tcsh source representation for this operation
-    pub fn tcsh_source(&self, expanded_val: &Option<String>) -> String {
+    pub fn tcsh_source(&self, expanded_val: Option<Cow<str>>) -> String {
         let value = match expanded_val {
-            Some(val) => val,
-            None => &self.value,
+            Some(val) => val.to_string(),
+            None => self.value.clone(),
         };
 
         // tcsh will complain if we use a variable that is not defined
@@ -419,18 +422,18 @@ pub struct SetEnv {
 
 impl SetEnv {
     /// Construct the bash source representation for this operation
-    pub fn bash_source(&self, expanded_val: &Option<String>) -> String {
+    pub fn bash_source(&self, expanded_val: Option<Cow<str>>) -> String {
         let value = match expanded_val {
-            Some(val) => val,
-            None => &self.value,
+            Some(val) => val.to_string(),
+            None => self.value.clone(),
         };
         format!("export {}=\"{}\"", self.set, value)
     }
     /// Construct the tcsh source representation for this operation
-    pub fn tcsh_source(&self, expanded_val: &Option<String>) -> String {
+    pub fn tcsh_source(&self, expanded_val: Option<Cow<str>>) -> String {
         let value = match expanded_val {
-            Some(val) => val,
-            None => &self.value,
+            Some(val) => val.to_string(),
+            None => self.value.clone(),
         };
         format!("setenv {} \"{}\"", self.set, value)
     }
