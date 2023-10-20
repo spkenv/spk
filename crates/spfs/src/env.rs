@@ -479,6 +479,12 @@ where
             // The command logs all output to stderr, and should never hold onto
             // a handle to this process' stdout as it can cause hanging
             cmd.stdout(std::process::Stdio::null());
+            // Allowing stderr to be inherited causes this process to hang
+            // forever reading from that pipe, even after the child processes
+            // has exited (cause unknown).
+            // TODO: find a way to still see stderr output from the child
+            // process without it hanging.
+            cmd.stderr(std::process::Stdio::null());
             tracing::debug!("{cmd:?}");
             match cmd.status() {
                 Err(err) => return Err(Error::process_spawn_error("mount", err, None)),
