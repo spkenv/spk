@@ -1,0 +1,42 @@
+SHELL := cmd
+SPK_VERSION = 0.38.0
+SPFS_VERSION = 0.38.0
+SOURCE_ROOT := $(subst /,\,$(SOURCE_ROOT))
+CARGO_TARGET_DIR := $(SOURCE_ROOT)\target
+
+spfs_packages := $(spfs_packages),spfs-cli-winfsp
+
+installation-dir: C:/Program\ Files/spk C:/Program\ Files/spk/bin
+
+C:/Program\ Files/spk:
+	mkdir "C:\Program Files\spk"
+C:/Program\ Files/spk/bin:
+	mkdir "C:\Program Files\spk\bin"
+
+install-debug-spfs: copy-debug-spfs
+
+install-debug-spk: copy-debug-spk
+
+install-debug: install-debug-spfs install-debug-spk
+
+install: copy-release
+
+install-spfs: copy-spfs
+
+copy-debug: copy-debug-spfs copy-debug-spk
+
+copy-debug-spfs: installation-dir debug-spfs
+	cd "$(SOURCE_ROOT)"
+	copy /B $(CARGO_TARGET_DIR)\debug\spfs*.exe "C:\Program Files\spk\bin" /Y
+
+copy-debug-spk: installation-dir copy-debug-spfs debug
+	cd "$(SOURCE_ROOT)"
+	copy /B $(CARGO_TARGET_DIR)\debug\spk.exe "C:\Program Files\spk\bin" /Y
+
+copy-release: installation-dir copy-spfs
+	cd "$(SOURCE_ROOT)"
+	copy /B $(CARGO_TARGET_DIR)\release\spk.exe "C:\Program Files\spk\bin" /Y
+
+copy-spfs: installation-dir release-spfs
+	cd "$(SOURCE_ROOT)"
+	copy /B $(CARGO_TARGET_DIR)\release\spfs*.exe "C:\Program Files\spk\bin" /Y

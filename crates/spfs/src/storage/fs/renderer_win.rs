@@ -16,7 +16,7 @@ use crate::runtime::makedirs_with_perms;
 use crate::storage::fs::{OpenFsRepository, RenderReporter, SilentRenderReporter};
 use crate::storage::prelude::*;
 use crate::storage::LocalRepository;
-use crate::{graph, tracking, Error, Result};
+use crate::{graph, tracking, Error, OsError, Result};
 
 #[cfg(test)]
 #[path = "./renderer_test.rs"]
@@ -310,7 +310,7 @@ where
         render_store.renders.ensure_base_dir(&rendered_dirpath)?;
         match tokio::fs::rename(&working_dir, &rendered_dirpath).await {
             Ok(_) => (),
-            Err(err) => match err.raw_os_error() {
+            Err(err) => match err.os_error() {
                 // XXX: Replace with ErrorKind::DirectoryNotEmpty when
                 // stabilized.
                 Some(libc::EEXIST) | Some(libc::ENOTEMPTY) => {

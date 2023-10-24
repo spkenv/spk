@@ -223,8 +223,7 @@ where
     where
         P: AsRef<Path>,
     {
-        let path = tokio::fs::canonicalize(&path)
-            .await
+        let path = dunce::canonicalize(&path)
             .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
         let manifest = self.builder.compute_manifest(&path).await?;
         Ok((path, manifest))

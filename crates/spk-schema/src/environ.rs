@@ -58,6 +58,7 @@ impl EnvOp {
         match shell {
             spfs::ShellKind::Bash => self.bash_source(),
             spfs::ShellKind::Tcsh => self.tcsh_source(),
+            spfs::ShellKind::Powershell => self.powershell_source(),
         }
     }
 
@@ -92,6 +93,11 @@ impl EnvOp {
             Self::Priority(op) => op.tcsh_source(),
             Self::Set(op) => op.tcsh_source(),
         }
+    }
+
+    /// Construct the powershell source representation for this operation
+    pub fn powershell_source(&self) -> String {
+        todo!()
     }
 }
 

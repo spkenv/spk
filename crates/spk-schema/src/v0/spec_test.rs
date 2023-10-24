@@ -29,7 +29,7 @@ fn test_explicit_no_sources() {
 
 #[rstest]
 fn test_sources_relative_to_spec_file(tmpdir: tempfile::TempDir) {
-    let spec_dir = tmpdir.path().canonicalize().unwrap().join("dir");
+    let spec_dir = dunce::canonicalize(tmpdir.path()).unwrap().join("dir");
     std::fs::create_dir(&spec_dir).unwrap();
     let spec_file = spec_dir.join("package.spk.yaml");
     let mut file = std::fs::File::create(&spec_file).unwrap();

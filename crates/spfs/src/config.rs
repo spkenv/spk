@@ -80,6 +80,16 @@ pub struct Storage {
     pub allow_payload_sharing_between_users: bool,
 }
 
+impl Storage {
+    /// Get the repository address for the root storage
+    pub fn address(&self) -> url::Url {
+        url::Url::from_directory_path(&self.root)
+            .or_else(|_err| url::Url::parse(&format!("file://{}", self.root.display())))
+            .or_else(|_err| url::Url::parse(&format!("file://{}", self.root.to_string_lossy())))
+            .expect("file urls should always be constructable")
+    }
+}
+
 impl Default for Storage {
     fn default() -> Self {
         Self {

@@ -288,11 +288,11 @@ impl From<&graph::Entry> for super::Entry {
 impl TryFrom<super::Entry> for graph::Entry {
     type Error = Error;
     fn try_from(source: super::Entry) -> Result<Self> {
-        let kind = match super::EntryKind::from_i32(source.kind) {
-            Some(super::EntryKind::Tree) => tracking::EntryKind::Tree,
-            Some(super::EntryKind::Blob) => tracking::EntryKind::Blob,
-            Some(super::EntryKind::Mask) => tracking::EntryKind::Mask,
-            None => return Err("Received unknown entry kind in rpm data".into()),
+        let kind = match super::EntryKind::try_from(source.kind) {
+            Ok(super::EntryKind::Tree) => tracking::EntryKind::Tree,
+            Ok(super::EntryKind::Blob) => tracking::EntryKind::Blob,
+            Ok(super::EntryKind::Mask) => tracking::EntryKind::Mask,
+            Err(_) => return Err("Received unknown entry kind in rpm data".into()),
         };
         Ok(Self {
             object: convert_digest(source.object)?,

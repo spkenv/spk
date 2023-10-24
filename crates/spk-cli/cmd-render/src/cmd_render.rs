@@ -65,7 +65,7 @@ impl Run for Render {
             bail!("Output directory does not appear to be empty");
         }
 
-        let path = self.target.canonicalize()?;
+        let path = dunce::canonicalize(&self.target)?;
         tracing::info!("Rendering into dir: {path:?}");
         let config = spfs::load_config().context("Failed to load spfs config")?;
         let local = config

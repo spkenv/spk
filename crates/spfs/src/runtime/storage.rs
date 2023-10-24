@@ -5,6 +5,7 @@
 //! Definition and persistent storage of runtimes.
 
 use std::collections::HashSet;
+use std::env::temp_dir;
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 #[cfg(windows)]
@@ -17,6 +18,9 @@ use futures::{Stream, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 
+#[cfg(windows)]
+use super::startup_ps;
+#[cfg(unix)]
 use super::{startup_csh, startup_sh};
 use crate::encoding::{self, Encodable};
 use crate::storage::fs::DURABLE_EDITS_DIR;
@@ -120,6 +124,8 @@ pub struct Config {
     /// The filesystem uses this working directory as needed so it should not
     /// be accessed or used by any other processes on the local machine
     pub work_dir: PathBuf,
+    /// The location of the startup script for powershell-based shells
+    pub ps_startup_file: PathBuf,
     /// The location of the startup script for sh-based shells
     pub sh_startup_file: PathBuf,
     /// The location of the startup script for csh-based shells
@@ -161,6 +167,7 @@ impl Config {
     const WORK_DIR: &'static str = "work";
     const SH_STARTUP_FILE: &'static str = "startup.sh";
     const CSH_STARTUP_FILE: &'static str = ".cshrc";
+    const PS_STARTUP_FILE: &'static str = "startup.ps1";
     const DEV_NULL: &'static str = "/dev/null";
 
     /// Return a dummy value for the legacy csh_expect_file field.
@@ -180,6 +187,7 @@ impl Config {
             sh_startup_file: root.join(Self::SH_STARTUP_FILE),
             csh_startup_file: root.join(Self::CSH_STARTUP_FILE),
             csh_expect_file: Self::default_csh_expect_file(),
+            ps_startup_file: temp_dir().join(Self::PS_STARTUP_FILE),
             runtime_dir: Some(root),
             tmpfs_size,
             mount_namespace: None,
@@ -221,10 +229,10 @@ pub enum MountBackend {
     /// are stored in the overlayfs upper directory.
     #[cfg_attr(unix, default)]
     OverlayFsWithRenders,
-    // Mounts a since fuse filesystem as the lower directory to
-    // overlayfs, using the overlayfs upper directory for edits
+    /// Mounts a fuse filesystem as the lower directory to
+    /// overlayfs, using the overlayfs upper directory for edits
     OverlayFsWithFuse,
-    // Mounts a fuse filesystem directly
+    /// Mounts a fuse filesystem directly
     FuseOnly,
     /// Leverages the win file system protocol system to present
     /// dynamic file system entries to runtime processes
@@ -511,7 +519,7 @@ impl Runtime {
                 }
             }
             MountBackend::FuseOnly => false,
-            MountBackend::WinFsp => todo!(),
+            MountBackend::WinFsp => false,
         }
     }
 
@@ -552,16 +560,24 @@ impl Runtime {
         &self,
         tmpdir_value_for_child_process: Option<&String>,
     ) -> Result<()> {
+        #[cfg(unix)]
         std::fs::write(
             &self.config.sh_startup_file,
             startup_sh::source(tmpdir_value_for_child_process),
         )
         .map_err(|err| Error::RuntimeWriteError(self.config.sh_startup_file.clone(), err))?;
+        #[cfg(unix)]
         std::fs::write(
             &self.config.csh_startup_file,
             startup_csh::source(tmpdir_value_for_child_process),
         )
         .map_err(|err| Error::RuntimeWriteError(self.config.csh_startup_file.clone(), err))?;
+        #[cfg(windows)]
+        std::fs::write(
+            &self.config.ps_startup_file,
+            startup_ps::source(tmpdir_value_for_child_process),
+        )
+        .map_err(|err| Error::RuntimeWriteError(self.config.ps_startup_file.clone(), err))?;
         Ok(())
     }
 

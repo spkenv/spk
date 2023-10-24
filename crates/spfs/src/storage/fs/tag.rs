@@ -21,7 +21,7 @@ use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 use super::{FsRepository, OpenFsRepository};
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
 use crate::storage::TagStorage;
-use crate::{encoding, tracking, Error, Result};
+use crate::{encoding, tracking, Error, OsError, OsErrorExt, Result};
 
 const TAG_EXT: &str = "tag";
 
@@ -176,10 +176,8 @@ impl TagStorage for OpenFsRepository {
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
         let path = tag.to_path(self.tags_root());
         match read_tag_file(path).await {
-            Err(err) => match err.raw_os_error() {
-                Some(libc::ENOENT) => Err(Error::UnknownReference(tag.to_string())),
-                _ => Err(err),
-            },
+            Err(err) if err.is_os_not_found() => Err(Error::UnknownReference(tag.to_string())),
+            Err(err) => Err(err),
             Ok(stream) => Ok(Box::pin(stream)),
         }
     }
@@ -238,7 +236,7 @@ impl TagStorage for OpenFsRepository {
         let filepath = tag_spec.to_path(self.tags_root());
         let lock = match TagLock::new(&filepath).await {
             Ok(lock) => lock,
-            Err(err) => match err.raw_os_error() {
+            Err(err) => match err.os_error() {
                 Some(libc::ENOENT) | Some(libc::ENOTDIR) => {
                     return Err(Error::UnknownReference(tag.to_string()))
                 }
@@ -248,13 +246,14 @@ impl TagStorage for OpenFsRepository {
         match tokio::fs::remove_file(&filepath).await {
             Ok(_) => (),
             Err(err) => {
-                return match err.raw_os_error() {
-                    Some(libc::ENOENT) => Err(Error::UnknownReference(tag.to_string())),
-                    _ => Err(Error::StorageWriteError(
+                return if err.is_os_not_found() {
+                    Err(Error::UnknownReference(tag.to_string()))
+                } else {
+                    Err(Error::StorageWriteError(
                         "remove_file on tag stream file",
                         filepath,
                         err,
-                    )),
+                    ))
                 }
             }
         }
@@ -276,9 +275,9 @@ impl TagStorage for OpenFsRepository {
                     tracing::debug!(path = ?parent, "removed tag parent dir");
                     filepath = parent;
                 }
-                Err(err) => match err.raw_os_error() {
+                Err(err) if err.is_os_not_found() => return Ok(()),
+                Err(err) => match err.os_error() {
                     Some(libc::ENOTEMPTY) => return Ok(()),
-                    Some(libc::ENOENT) => return Ok(()),
                     _ => {
                         return Err(Error::StorageWriteError(
                             "remove_dir on tag stream parent dir",
@@ -737,7 +736,7 @@ pub trait TagExt {
 
 impl TagExt for tracking::TagSpec {
     fn to_path<P: AsRef<Path>>(&self, root: P) -> PathBuf {
-        let mut filepath = root.as_ref().join(self.path());
+        let mut filepath = self.path().to_path(root);
         let new_name = self.name() + "." + TAG_EXT;
         filepath.set_file_name(new_name);
         filepath
@@ -763,7 +762,7 @@ impl TagLock {
                     break Ok(TagLock(lock_file));
                 }
                 Err(err) => {
-                    break match err.raw_os_error() {
+                    break match err.os_error() {
                         Some(libc::EEXIST) if std::time::Instant::now() < timeout => {
                             // Wait up until the timeout to acquire the lock,
                             // but fail immediately for other [non-temporary]

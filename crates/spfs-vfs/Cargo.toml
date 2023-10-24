@@ -5,7 +5,15 @@ name = "spfs-vfs"
 version = "0.34.6"
 
 [features]
-default = ["fuse-backend-abi-7-22"]
+default = []
+winfsp-backend = [
+    "dep:tonic",
+    "dep:prost",
+    "dep:futures-core",
+    "dep:winfsp",
+    "dep:winfsp-sys",
+    "dep:windows",
+]
 fuse-backend = ["spfs/fuse-backend", "dep:fuser"]
 fuse-backend-abi-7-22 = ["fuse-backend", "fuser/abi-7-22"]
 fuse-backend-abi-7-25 = ["fuse-backend-abi-7-22", "fuser/abi-7-25"]
@@ -16,14 +24,38 @@ fuse-backend-rhel-7-9 = ["fuse-backend-abi-7-31"]
 
 [dependencies]
 anyhow = { workspace = true }
+bytes = { workspace = true }
 clap = { workspace = true }
 dashmap = { workspace = true }
+futures-core = { workspace = true, optional = true }
 nix = { workspace = true, features = ["process"] }
 libc = "0.2"
+prost = { workspace = true, optional = true }
 spfs = { path = "../spfs" }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }
+tonic = { workspace = true, optional = true }
 url = "2.2"
 
 [target.'cfg(unix)'.dependencies]
 fuser = { workspace = true, optional = true }
+
+[target.'cfg(windows)'.dependencies]
+winfsp = { workspace = true, optional = true, default-features = false, features = [
+    "notify",
+    "delayload",
+    "system",
+] }
+winfsp-sys = { workspace = true, optional = true }
+windows = { workspace = true, optional = true, features = [
+    "Win32_Storage_FileSystem",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_System_Registry",
+    "Win32_System_Diagnostics_ToolHelp",
+] }
+
+[build-dependencies]
+protobuf-src = { version = "1.0.5", optional = true } # protoc @ 3.19.3
+tonic-build = "0.8"

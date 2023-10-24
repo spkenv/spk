@@ -15,6 +15,9 @@ pub enum Error {
     #[cfg(unix)]
     #[error(transparent)]
     Nix(#[from] nix::Error),
+    #[cfg(windows)]
+    #[error(transparent)]
+    Win(#[from] windows::core::Error),
     #[error("[ERRNO {1}] {0}")]
     Errno(String, i32),
     #[error(transparent)]
@@ -142,34 +145,9 @@ impl Error {
 
     pub fn wrap<E: Into<String>>(&self, prefix: E) -> Error {
         let msg = format!("{}: {:?}", prefix.into(), self);
-        match self.raw_os_error() {
+        match self.os_error() {
             Some(errno) => Error::new_errno(errno, msg),
             None => Error::new(msg),
-        }
-    }
-
-    pub fn raw_os_error(&self) -> Option<i32> {
-        let handle_io_error = |err: &io::Error| match err.raw_os_error() {
-            Some(errno) => Some(errno),
-            None => match err.kind() {
-                std::io::ErrorKind::UnexpectedEof => Some(libc::EOF),
-                _ => None,
-            },
-        };
-
-        match self {
-            Error::UnknownObject(_) => Some(libc::ENOENT),
-            Error::Encoding(encoding::Error::FailedRead(err)) => handle_io_error(err),
-            Error::Encoding(encoding::Error::FailedWrite(err)) => handle_io_error(err),
-            Error::ProcessSpawnError(_, err) => handle_io_error(err),
-            Error::RuntimeReadError(_, err) => handle_io_error(err),
-            Error::RuntimeWriteError(_, err) => handle_io_error(err),
-            Error::StorageReadError(_, _, err) => handle_io_error(err),
-            Error::StorageWriteError(_, _, err) => handle_io_error(err),
-            Error::Errno(_, errno) => Some(*errno),
-            #[cfg(unix)]
-            Error::Nix(err) => Some(*err as i32),
-            _ => None,
         }
     }
 
@@ -213,6 +191,83 @@ impl From<&str> for Error {
 impl From<std::path::StripPrefixError> for Error {
     fn from(err: std::path::StripPrefixError) -> Self {
         Error::String(err.to_string())
+    }
+}
+
+/// An OS error represents an error that may have an associated
+/// error code from the operating system
+pub trait OsError {
+    /// The underlying os error code for this error, if any
+    //
+    // TODO: make this function unsafe to encourage all code to be
+    // platform-agnostic and have specific is_* functions for the cases
+    // that our codebase would like to handle
+    fn os_error(&self) -> Option<i32>;
+}
+
+/// An extension trait for [`OsError`]s that provide platform-agnostic
+/// functions for determining the abstract cause of an error
+pub trait OsErrorExt: OsError {
+    /// True if the root cause of this error was that a file or directory
+    /// did not exist in the underlying OS filesystem
+    fn is_os_not_found(&self) -> bool {
+        #[cfg(windows)]
+        const NOT_FOUND: &[i32] = &[
+            windows::Win32::Foundation::ERROR_PATH_NOT_FOUND.0 as i32,
+            windows::Win32::Foundation::ERROR_FILE_NOT_FOUND.0 as i32,
+        ];
+        match self.os_error() {
+            #[cfg(windows)]
+            Some(c) if NOT_FOUND.contains(&c) => true,
+            #[cfg(unix)]
+            Some(libc::ENOENT) => true,
+            _ => false,
+        }
+    }
+}
+
+// this blanket implementation intentionally stops anyone
+// from redefining functions from the ext trait
+impl<T: ?Sized> OsErrorExt for T where T: OsError {}
+
+impl OsError for Error {
+    fn os_error(&self) -> Option<i32> {
+        match self {
+            #[cfg(unix)]
+            Error::UnknownObject(_) => Some(libc::ENOENT),
+            #[cfg(windows)]
+            Error::UnknownObject(_) => {
+                Some(windows::Win32::Foundation::ERROR_FILE_NOT_FOUND.0 as i32)
+            }
+            Error::Encoding(encoding::Error::FailedRead(err)) => err.os_error(),
+            Error::Encoding(encoding::Error::FailedWrite(err)) => err.os_error(),
+            Error::ProcessSpawnError(_, err) => err.os_error(),
+            Error::RuntimeReadError(_, err) => err.os_error(),
+            Error::RuntimeWriteError(_, err) => err.os_error(),
+            Error::StorageReadError(_, _, err) => err.os_error(),
+            Error::StorageWriteError(_, _, err) => err.os_error(),
+            Error::Errno(_, errno) => Some(*errno),
+            #[cfg(unix)]
+            Error::Nix(err) => Some(*err as i32),
+            _ => None,
+        }
+    }
+}
+
+impl OsError for std::io::Error {
+    fn os_error(&self) -> Option<i32> {
+        match self.raw_os_error() {
+            Some(errno) => Some(errno),
+            None => match self.kind() {
+                #[cfg(unix)]
+                std::io::ErrorKind::UnexpectedEof => Some(libc::EOF),
+                #[cfg(windows)]
+                std::io::ErrorKind::UnexpectedEof => {
+                    Some(windows::Win32::Foundation::ERROR_HANDLE_EOF.0 as i32)
+                }
+                _ => None,
+            },
+        }
     }
 }
 

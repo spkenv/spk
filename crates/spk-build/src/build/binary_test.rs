@@ -117,9 +117,7 @@ async fn test_build_workdir(tmpdir: tempfile::TempDir) {
     let out = std::fs::read_to_string(out_file).unwrap();
     assert_eq!(
         out.trim(),
-        &tmpdir
-            .path()
-            .canonicalize()
+        dunce::canonicalize(&tmpdir)
             .expect("tmpdir can be canonicalized")
             .to_string_lossy()
     );

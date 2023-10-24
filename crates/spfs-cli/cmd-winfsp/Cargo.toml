@@ -1,0 +1,41 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+name = "spfs-cli-winfsp"
+version = "0.34.6"
+
+[[bin]]
+name = "spfs-winfsp"
+path = "src/cmd_winfsp.rs"
+
+[features]
+sentry = ["spfs-cli-common/sentry"]
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+dashmap = { workspace = true }
+spfs-vfs = { path = "../../spfs-vfs", features = ["winfsp-backend"] }
+nix = { workspace = true, features = ["process"] }
+libc = "0.2"
+spfs = { path = "../../spfs", features = ["winfsp-backend"] }
+spfs-cli-common = { path = "../common" }
+tokio = { version = "1.20", features = ["rt"] }
+tracing = { workspace = true }
+tonic = { workspace = true }
+tower = { workspace = true }
+url = "2.2"
+
+[target.'cfg(windows)'.dependencies]
+winfsp = { workspace = true, default-features = false, features = [
+    "build",
+    "delayload",
+] }
+winfsp-sys = "0.2"
+windows = { workspace = true, features = ["Win32_System_Threading"] }
+
+[target.'cfg(windows)'.build-dependencies]
+winfsp = { workspace = true, default-features = false, features = [
+    "build",
+    "delayload",
+] }

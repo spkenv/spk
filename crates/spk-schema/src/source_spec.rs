@@ -98,9 +98,7 @@ impl LocalSource {
     pub fn collect(&self, dirname: &Path) -> Result<()> {
         let mut rsync = std::process::Command::new("rsync");
         rsync.arg("--archive");
-        let mut path = self
-            .path
-            .canonicalize()
+        let mut path = dunce::canonicalize(&self.path)
             .map_err(|err| Error::InvalidPath(self.path.clone(), err))?;
         if path.is_dir() {
             // if the source path is a directory then we require
@@ -259,9 +257,8 @@ impl TarSource {
             }
         } else {
             let tar_path = std::path::PathBuf::from(&self.tar);
-            tarfile = tar_path
-                .canonicalize()
-                .map_err(|err| Error::InvalidPath(tar_path, err))?;
+            tarfile =
+                dunce::canonicalize(&tar_path).map_err(|err| Error::InvalidPath(tar_path, err))?;
         }
 
         let mut cmd = std::process::Command::new("tar");

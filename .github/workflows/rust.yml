@@ -10,7 +10,7 @@ env:
 jobs:
   build-windows:
     name: Windows Build
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.11.0
@@ -20,13 +20,13 @@ jobs:
           toolchain: 1.73.0
           target: x86_64-pc-windows-gnu
           override: true
-      - name: Install Cross
-        uses: brndnmtthws/rust-action-cargo-binstall@v1
+      - name: Prepare VM
+        uses: crazy-max/ghaction-chocolatey@v3
         with:
-          packages: cross
-      - name: Build SPFS
+          args: install protoc llvm winfsp make
+      - name: Install Debug SPFS
         run: |
-          make debug-spfs PLATFORM=windows
+          make install-debug-spfs
 
   build-and-test:
     name: Linux Build and Test

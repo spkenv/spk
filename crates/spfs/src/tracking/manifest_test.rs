@@ -19,7 +19,7 @@ async fn test_compute_manifest_determinism() {
 #[rstest]
 #[tokio::test]
 async fn test_compute_manifest() {
-    let root = std::fs::canonicalize("./src").unwrap();
+    let root = dunce::canonicalize("./src").unwrap();
     let this = file!()
         .to_string()
         .replace("./", "")
