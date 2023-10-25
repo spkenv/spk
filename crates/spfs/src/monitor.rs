@@ -421,6 +421,7 @@ async fn find_other_processes_in_mount_namespace(ns: &std::path::Path) -> Result
         let found_ns = match tokio::fs::read_link(&link_path).await {
             Ok(p) => p,
             Err(err) => match err.os_error() {
+                Some(libc::ESRCH) => continue,
                 Some(libc::ENOENT) => continue,
                 Some(libc::ENOTDIR) => continue,
                 Some(libc::EACCES) => continue,
