@@ -115,7 +115,7 @@ where
 
         let pkg = RangeIdent::double_equals(&build_to_test, [Component::All]);
         let request = PkgRequest::new(pkg, RequestedBy::InstallTest(self.recipe.ident().clone()))
-            .with_prerelease(PreReleasePolicy::IncludeAll)
+            .with_prerelease(Some(PreReleasePolicy::IncludeAll))
             .with_pin(None)
             .with_compat(None);
         solver.add_request(request.into());

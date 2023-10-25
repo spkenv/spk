@@ -106,7 +106,7 @@ impl<'a> PackageSourceTester<'a> {
             let mut ident_range = RangeIdent::equals(&source_pkg, [Component::Source]);
             ident_range.components.insert(Component::Source);
             let request = PkgRequest::new(ident_range, RequestedBy::SourceTest(source_pkg))
-                .with_prerelease(PreReleasePolicy::IncludeAll)
+                .with_prerelease(Some(PreReleasePolicy::IncludeAll))
                 .with_pin(None)
                 .with_compat(None);
             solver.add_request(request.into());
