@@ -832,11 +832,7 @@ where
         let mut sh_file = std::fs::File::create(&startup_file_sh)
             .map_err(|err| Error::FileOpenError(startup_file_sh.to_owned(), err))?;
 
-        let mut environment_vars = HashMap::new();
-        for (key, value) in std::env::vars() {
-            environment_vars.insert(key, value);
-        }
-
+        let mut environment_vars: HashMap<_, _> = Default::default();
         if let Some(mut env_vars) = build_vars {
             for (key, value) in env_vars.by_ref() {
                 environment_vars.insert(
@@ -845,11 +841,6 @@ where
                 );
             }
         }
-
-        let expand_env_variable = |s: &str| match environment_vars.get(s) {
-            Some(val) => Ok(Some(val)),
-            None => Err(Some("")),
-        };
 
         for op in ops {
             if let Some(priority) = op.priority() {
@@ -868,7 +859,16 @@ where
             }
 
             let value = op.value().map(|val| {
-                shellexpand::env_with_context(val, expand_env_variable).unwrap_or_default()
+                shellexpand::env_with_context(val, |s: &str| {
+                    match std::env::vars_os().find(|(key, _)| s == key.to_string_lossy()) {
+                        Some((_, v)) => Ok(Some(v.to_string_lossy().into_owned())),
+                        None => match environment_vars.get(s) {
+                            Some(build_val) => Ok(Some(build_val.to_string())),
+                            None => Err("No matching keys found"),
+                        },
+                    }
+                })
+                .unwrap_or_default()
             });
 
             csh_file
