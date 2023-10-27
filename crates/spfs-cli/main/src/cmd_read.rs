@@ -28,6 +28,9 @@ impl CmdRead {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
+        #[cfg(feature = "sentry")]
+        tracing::info!(target: "sentry", "using repo: {}", repo.address());
+
         let item = repo.read_ref(&self.reference.to_string()).await?;
         use spfs::graph::Object;
         let blob = match item {
