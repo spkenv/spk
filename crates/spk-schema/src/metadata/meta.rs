@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
@@ -40,6 +40,8 @@ impl Default for Meta {
 }
 
 impl Meta {
+    const COMMAND: &str = "command";
+
     pub fn is_default(&self) -> bool {
         self == &Self::default()
     }
@@ -47,44 +49,48 @@ impl Meta {
         "Unlicensed".into()
     }
 
-    pub fn update_metadata(&mut self, cmd: &String, args: &Option<Vec<String>>) -> Result<i32> {
-        let mut command = Command::new(cmd);
-        match args {
-            Some(a) => {
-                command.args(a);
-            }
-            None => (),
-        }
+    pub fn update_metadata(
+        &mut self,
+        global_config: &Vec<HashMap<String, Vec<String>>>,
+    ) -> Result<i32> {
+        for config in global_config {
+            let mut args: VecDeque<&String> = match config.get(Self::COMMAND) {
+                Some(c) => VecDeque::from_iter(c),
+                None => return Err(Error::String(String::from("No command config found"))),
+            };
 
-        command.stdout(Stdio::piped());
-        command.stderr(Stdio::piped());
+            let cmd = match args.pop_front() {
+                Some(c) => c,
+                None => return Err(Error::String(String::from("Command list is empty"))),
+            };
 
-        match command
-            .spawn()
-            .map_err(|err| Error::ProcessSpawnError(format!("command error: {err}").into()))?
-            .wait_with_output()
-        {
-            Ok(out) => {
-                let stdout = match std::str::from_utf8(&out.stdout) {
-                    Ok(s) => s,
-                    Err(e) => return Err(Error::String(e.to_string())),
-                };
+            let mut command = Command::new(cmd);
+            command.args(args);
+            command.stdout(Stdio::piped());
+            command.stderr(Stdio::piped());
 
-                let json: serde_json::Value = match serde_json::from_str(stdout) {
-                    Ok(j) => j,
-                    Err(e) => {
-                        return Err(Error::String(format!("Unable to read json output: {e}")))
-                    }
-                };
+            match command
+                .spawn()
+                .map_err(|err| Error::ProcessSpawnError(format!("command error: {err}").into()))?
+                .wait_with_output()
+            {
+                Ok(out) => {
+                    let json: serde_json::Value = match serde_json::from_reader(&*out.stdout) {
+                        Ok(j) => j,
+                        Err(e) => {
+                            return Err(Error::String(format!("Unable to read json output: {e}")))
+                        }
+                    };
 
-                if let Some(map) = json.as_object() {
-                    for (k, v) in map {
-                        v.as_str()
-                            .and_then(|val| self.labels.insert(k.clone(), val.to_string()));
+                    if let Some(map) = json.as_object() {
+                        for (k, v) in map {
+                            v.as_str()
+                                .and_then(|val| self.labels.insert(k.clone(), val.to_string()));
+                        }
                     }
                 }
+                Err(e) => return Err(Error::String(format!("Failed to execute command: {e}"))),
             }
-            Err(e) => return Err(Error::String(format!("Failed to execute command: {e}"))),
         }
         Ok(0)
     }

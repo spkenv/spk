@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashMap;
+
 use rstest::rstest;
 use spk_schema_ident::{AnyIdent, VersionIdent};
 
@@ -40,12 +42,14 @@ fn test_package_meta_basic() {
 #[rstest]
 fn test_custom_metadata() {
     let mut spec: v0::Spec<AnyIdent> = v0::Spec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
-    spec.meta
-        .update_metadata(
-            &String::from("src/metadata/test_capture_metadata.sh"),
-            &None,
-        )
-        .unwrap();
+    let mut config: HashMap<String, Vec<String>> = HashMap::new();
+    let mut commands = Vec::new();
+    config.insert(
+        String::from("command"),
+        [String::from("src/metadata/test_capture_metadata.sh")].to_vec(),
+    );
+    commands.push(config);
+    spec.meta.update_metadata(&commands).unwrap();
 
     let keys = ["CWD", "HOSTNAME", "REPO", "SHA1"];
     assert_eq!(spec.meta.labels.len(), 4);

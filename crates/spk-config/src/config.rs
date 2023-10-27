@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use once_cell::sync::OnceCell;
@@ -33,12 +34,9 @@ pub struct Sentry {
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(default)]
-pub struct CustomMetadata {
-    /// The path to the command to run
-    pub command: Option<String>,
-
-    /// Arguments to run with the command
-    pub args: Option<Vec<String>>,
+pub struct Metadata {
+    /// The command and arguments to run
+    pub global: Option<Vec<HashMap<String, Vec<String>>>>,
 }
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
@@ -117,7 +115,7 @@ pub struct Config {
     pub sentry: Sentry,
     pub solver: Solver,
     pub statsd: Statsd,
-    pub custom_metadata: CustomMetadata,
+    pub metadata: Metadata,
 }
 
 impl Config {

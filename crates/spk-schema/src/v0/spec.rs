@@ -521,11 +521,8 @@ impl Recipe for Spec<VersionIdent> {
             Err(err) => return Err(Error::String(format!("Failed to load spk config: {err}"))),
         };
 
-        match &config.custom_metadata.command {
-            Some(command) => match updated
-                .meta
-                .update_metadata(command, &config.custom_metadata.args)
-            {
+        match &config.metadata.global {
+            Some(command) => match updated.meta.update_metadata(command) {
                 Ok(_) => tracing::info!("Successfully updated metadata"),
                 Err(e) => return Err(Error::String(format!("Failed to update metadata: {e}"))),
             },
