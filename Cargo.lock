@@ -559,6 +559,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "4.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3ae8ba90b9d8b007efe66e55e48fb936272f5ca00349b5b0e89877520d35ea7"
+dependencies = [
+ "clap 4.3.0",
+]
+
+[[package]]
 name = "clap_derive"
 version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3525,6 +3534,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap 4.3.0",
+ "clap_complete",
  "colored",
  "sentry",
  "sentry-anyhow",
@@ -3623,6 +3633,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap 4.3.0",
+ "clap_complete",
  "colored",
  "futures",
  "itertools",

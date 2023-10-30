@@ -11,6 +11,7 @@ sentry = ["spk-solve/sentry"]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true }
+clap_complete = { workspace = true }
 colored = { workspace = true }
 futures = { workspace = true }
 itertools = "0.10"
