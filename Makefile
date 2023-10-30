@@ -13,14 +13,14 @@ cargo_packages_arg := $(if $(cargo_packages_arg),$(cargo_packages_arg),--workspa
 # Suppress this warning to not muddle the test output.
 export SPFS_SUPPRESS_OVERLAYFS_PARAMS_WARNING = 1
 
-# Create a file called "config.mak" to configure variables.
--include config.mak
-
 ifeq ($(OS),Windows_NT)
 include Makefile.windows
 else
 include Makefile.linux
 endif
+
+# Create a file called "config.mak" to configure variables.
+-include config.mak
 
 default: build
 
