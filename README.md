@@ -71,11 +71,11 @@ make build FEATURES=spfs/protobuf-src
 
 ### Binaries and Capabilities
 
-SPFS builds into a number of separate binaries, all of which can be run through the main `spfs` binary. Some of these binaries require special capabilities to be set in order to function properly. The `setcaps_debug.sh` script can be used to set these capabilities on your locally-compiled debug binaries.
+SPFS builds into a number of separate binaries, all of which can be run through the main `spfs` binary. Some of these binaries require special capabilities to be set in order to function properly. The `setcap` Makefile target can be used to set these capabilities on your locally-compiled debug binaries.
 
 ```sh
 # assign the necessary capabilities to the debug binaries
-sudo setcaps_debug.sh
+make setcap bindir=$PWD/target/debug
 
 # alternatively, assign the capabilities and install the debug binaries
 make install
@@ -194,7 +194,7 @@ Additionally, there are a number of integration tests that validate the fully in
 
 ```sh
 cargo build
-./setcaps_debug.sh
+make setcap bindir=$PWD/target/debug
 tests/integration/run_all.sh
 ```
 
