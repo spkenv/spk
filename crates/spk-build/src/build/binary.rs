@@ -832,7 +832,7 @@ where
         let mut sh_file = std::fs::File::create(&startup_file_sh)
             .map_err(|err| Error::FileOpenError(startup_file_sh.to_owned(), err))?;
 
-        let mut environment_vars: HashMap<_, _> = Default::default();
+        let mut environment_vars = HashMap::new();
         if let Some(mut env_vars) = build_vars {
             for (key, value) in env_vars.by_ref() {
                 environment_vars.insert(
@@ -859,14 +859,12 @@ where
             }
 
             let value = op.value().map(|val| {
-                shellexpand::env_with_context(val, |s: &str| {
-                    match std::env::vars_os().find(|(key, _)| s == key.to_string_lossy()) {
-                        Some((_, v)) => Ok(Some(v.to_string_lossy().into_owned())),
-                        None => match environment_vars.get(s) {
-                            Some(build_val) => Ok(Some(build_val.to_string())),
-                            None => Err("No matching keys found"),
-                        },
-                    }
+                shellexpand::env_with_context(val, |s: &str| match std::env::var_os(s) {
+                    Some(v) => Ok(Some(v.to_string_lossy().into_owned())),
+                    None => match environment_vars.get(s) {
+                        Some(build_val) => Ok(Some(build_val.to_string())),
+                        None => Err("No matching keys found"),
+                    },
                 })
                 .unwrap_or_default()
             });

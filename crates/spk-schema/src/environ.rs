@@ -281,11 +281,10 @@ impl AppendEnv {
         };
 
         format!(
-            "export {}=\"${{{}}}{}{}\"",
+            "export {}=\"${{{}}}{}{value}\"",
             self.append,
             self.append,
             self.sep(),
-            value
         )
     }
     /// Construct the tcsh source representation for this operation
@@ -300,11 +299,10 @@ impl AppendEnv {
         [
             format!("if ( $?{} ) then", self.append),
             format!(
-                "setenv {} \"${{{}}}{}{}\"",
+                "setenv {} \"${{{}}}{}{value}\"",
                 self.append,
                 self.append,
                 self.sep(),
-                value,
             ),
             "else".to_string(),
             format!("setenv {} \"{}\"", self.append, self.value),
@@ -380,9 +378,8 @@ impl PrependEnv {
         };
 
         format!(
-            "export {}=\"{}{}${{{}}}\"",
+            "export {}=\"{value}{}${{{}}}\"",
             self.prepend,
-            value,
             self.sep(),
             self.prepend,
         )
@@ -399,9 +396,8 @@ impl PrependEnv {
         [
             format!("if ( $?{} ) then", self.prepend),
             format!(
-                "setenv {} \"{}{}${{{}}}\"",
+                "setenv {} \"{value}{}${{{}}}\"",
                 self.prepend,
-                value,
                 self.sep(),
                 self.prepend,
             ),
@@ -427,7 +423,7 @@ impl SetEnv {
             Some(val) => val.to_string(),
             None => self.value.clone(),
         };
-        format!("export {}=\"{}\"", self.set, value)
+        format!("export {}=\"{value}\"", self.set)
     }
     /// Construct the tcsh source representation for this operation
     pub fn tcsh_source(&self, expanded_val: Option<Cow<str>>) -> String {
@@ -435,6 +431,6 @@ impl SetEnv {
             Some(val) => val.to_string(),
             None => self.value.clone(),
         };
-        format!("setenv {} \"{}\"", self.set, value)
+        format!("setenv {} \"{value}\"", self.set)
     }
 }
