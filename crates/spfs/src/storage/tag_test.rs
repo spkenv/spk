@@ -208,11 +208,11 @@ async fn test_tag_ordering(
     let tag = tracking::Tag::new(spec.org(), spec.name(), encoding::EMPTY_DIGEST.into()).unwrap();
 
     for (i, utc) in [
-        Utc.ymd(1977, 5, 25).and_hms(0, 0, 0),
-        Utc.ymd(1977, 5, 25).and_hms(2, 0, 0),
-        Utc.ymd(1977, 5, 25).and_hms(4, 0, 0),
-        Utc.ymd(1977, 5, 25).and_hms(12, 0, 0),
-        Utc.ymd(1977, 5, 25).and_hms(4, 0, 0),
+        Utc.with_ymd_and_hms(1977, 5, 25, 0, 0, 0).unwrap(),
+        Utc.with_ymd_and_hms(1977, 5, 25, 2, 0, 0).unwrap(),
+        Utc.with_ymd_and_hms(1977, 5, 25, 4, 0, 0).unwrap(),
+        Utc.with_ymd_and_hms(1977, 5, 25, 12, 0, 0).unwrap(),
+        Utc.with_ymd_and_hms(1977, 5, 25, 4, 0, 0).unwrap(),
     ]
     .iter()
     .enumerate()

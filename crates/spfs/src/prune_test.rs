@@ -23,8 +23,8 @@ async fn test_prunable_tags_age(#[future] tmprepo: TempRepo) {
     )
     .unwrap();
     old.parent = encoding::NULL_DIGEST.into();
-    old.time = Utc.timestamp(10000, 0);
-    let cutoff = Utc.timestamp(20000, 0);
+    old.time = Utc.timestamp_opt(10000, 0).unwrap();
+    let cutoff = Utc.timestamp_opt(20000, 0).unwrap();
     let mut new = tracking::Tag::new(
         Some("testing".to_string()),
         "prune",
@@ -32,7 +32,7 @@ async fn test_prunable_tags_age(#[future] tmprepo: TempRepo) {
     )
     .unwrap();
     new.parent = encoding::EMPTY_DIGEST.into();
-    new.time = Utc.timestamp(30000, 0);
+    new.time = Utc.timestamp_opt(30000, 0).unwrap();
     tmprepo.insert_tag(&old).await.unwrap();
     tmprepo.insert_tag(&new).await.unwrap();
 
@@ -49,7 +49,7 @@ async fn test_prunable_tags_age(#[future] tmprepo: TempRepo) {
         .with_reporter(TracingCleanReporter)
         .with_dry_run(true)
         .with_prune_tags_older_than(Some(cutoff))
-        .with_keep_tags_newer_than(Some(Utc.timestamp(0, 0)));
+        .with_keep_tags_newer_than(Some(Utc.timestamp_opt(0, 0).unwrap()));
     let result = cleaner.prune_all_tags_and_clean().await.unwrap();
     let tags = result.into_all_tags();
     assert!(!tags.contains(&old), "should prefer to keep when ambiguous");
@@ -133,7 +133,7 @@ async fn test_prune_tags(#[future] tmprepo: TempRepo) {
         }
 
         for year in vec![2020, 2021, 2022, 2023, 2024, 2025].into_iter() {
-            let time = Utc.ymd(year, 1, 1).and_hms(0, 0, 0);
+            let time = Utc.with_ymd_and_hms(year, 1, 1, 0, 0, 0).unwrap();
             let digest = random_digest();
             let mut tag = tracking::Tag::new(Some("test".into()), "prune", digest).unwrap();
             tag.time = time;
@@ -146,7 +146,7 @@ async fn test_prune_tags(#[future] tmprepo: TempRepo) {
     let tags = reset(&tmprepo).await;
     let cleaner = Cleaner::new(&tmprepo)
         .with_reporter(TracingCleanReporter)
-        .with_prune_tags_older_than(Some(Utc.ymd(2025, 1, 1).and_hms(0, 0, 0)));
+        .with_prune_tags_older_than(Some(Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap()));
     cleaner.prune_all_tags_and_clean().await.unwrap();
     let mut tag_stream = tmprepo.read_tag(&tag).await.unwrap();
     while let Some(tag) = tag_stream.next().await {
@@ -185,7 +185,7 @@ async fn test_prune_tags(#[future] tmprepo: TempRepo) {
     let _tags = reset(&tmprepo).await;
     let cleaner = Cleaner::new(&tmprepo)
         .with_reporter(TracingCleanReporter)
-        .with_prune_tags_older_than(Some(Utc.ymd(2030, 1, 1).and_hms(0, 0, 0)));
+        .with_prune_tags_older_than(Some(Utc.with_ymd_and_hms(2030, 1, 1, 0, 0, 0).unwrap()));
     cleaner.prune_all_tags_and_clean().await.unwrap();
     if tmprepo.read_tag(&tag).await.is_ok() {
         panic!("should not have any pruned tag left")
