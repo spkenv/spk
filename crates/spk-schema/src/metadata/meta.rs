@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap};
 use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
@@ -54,17 +54,19 @@ impl Meta {
         global_config: &Vec<HashMap<String, Vec<String>>>,
     ) -> Result<i32> {
         for config in global_config {
-            let mut args: VecDeque<&String> = match config.get(Self::COMMAND) {
-                Some(c) => VecDeque::from_iter(c),
+            let cmd = match config.get(Self::COMMAND) {
+                Some(c) => c,
                 None => return Err(Error::String(String::from("No command config found"))),
             };
 
-            let cmd = match args.pop_front() {
-                Some(c) => c,
-                None => return Err(Error::String(String::from("Command list is empty"))),
+            let Some(executable) = cmd.first() else {
+                tracing::warn!("Empty command in config");
+                continue;
             };
 
-            let mut command = Command::new(cmd);
+            let args = &cmd[1..];
+
+            let mut command = Command::new(executable);
             command.args(args);
             command.stdout(Stdio::piped());
             command.stderr(Stdio::piped());
