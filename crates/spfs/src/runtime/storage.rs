@@ -125,6 +125,7 @@ pub struct Config {
     /// be accessed or used by any other processes on the local machine
     pub work_dir: PathBuf,
     /// The location of the startup script for powershell-based shells
+    #[serde(default)]
     pub ps_startup_file: PathBuf,
     /// The location of the startup script for sh-based shells
     pub sh_startup_file: PathBuf,
