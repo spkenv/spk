@@ -6,7 +6,7 @@ use std::convert::From;
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
-use clap::{Args, ValueEnum};
+use clap::{Args, ValueEnum, ValueHint};
 use solve::{DecisionFormatter, DecisionFormatterBuilder, MultiSolverKind};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
@@ -262,7 +262,7 @@ pub struct Options {
     pub options: Vec<String>,
 
     /// Specify build/resolve options from a json or yaml file (see --opt/-o)
-    #[clap(long)]
+    #[clap(long, value_hint = ValueHint::FilePath)]
     pub options_file: Vec<std::path::PathBuf>,
 
     /// Do not add the default options for the current host system

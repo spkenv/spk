@@ -40,6 +40,7 @@ async-trait = "0.1"
 cached = "0.42.0"
 chrono = { version = "0.4.19", features = ["serde"] }
 clap = { version = "4.3", features = ["derive", "env"] }
+clap_complete = "4.3"
 colored = "2.0.0"
 config = "0.13.1"
 console = "0.15"

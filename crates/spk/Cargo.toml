@@ -46,6 +46,7 @@ statsd = ["dep:statsd", "spk-solve/statsd"]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true }
+clap_complete = { workspace = true }
 colored = { workspace = true }
 sentry = { workspace = true, optional = true }
 sentry-anyhow = { workspace = true, optional = true }

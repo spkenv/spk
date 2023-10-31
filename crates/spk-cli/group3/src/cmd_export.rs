@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use clap::Args;
+use clap::{Args, ValueHint};
 use colored::Colorize;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_storage as storage;
@@ -32,7 +32,7 @@ pub struct Export {
     pub package: String,
 
     /// The file to export into (Defaults to the name and version of the package)
-    #[clap(name = "FILE")]
+    #[arg(value_hint = ValueHint::FilePath, value_name = "FILE")]
     pub filename: Option<std::path::PathBuf>,
 }
 

@@ -8,12 +8,12 @@
 //! Main entry points and utilities for command line interface and interaction.
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use colored::Colorize;
 #[cfg(feature = "sentry")]
 use spk_cli_common::configure_sentry;
 use spk_cli_common::{configure_logging, CommandArgs, Error, Run};
-use spk_cli_group1::{cmd_bake, cmd_deprecate, cmd_undeprecate};
+use spk_cli_group1::{cmd_bake, cmd_completion, cmd_deprecate, cmd_undeprecate};
 use spk_cli_group2::{cmd_ls, cmd_new, cmd_num_variants, cmd_publish, cmd_remove};
 use spk_cli_group3::{cmd_export, cmd_import};
 use spk_cli_group4::{cmd_lint, cmd_search, cmd_version, cmd_view};
@@ -41,7 +41,8 @@ use spk_solve::{
 
 /// A Package Manager for SPFS
 #[derive(Parser)]
-#[clap(about)]
+#[command(name = "spk")]
+#[command(author, version, about, long_about = None)]
 pub struct Opt {
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
@@ -154,6 +155,7 @@ impl Opt {
 pub enum Command {
     Bake(cmd_bake::Bake),
     Build(cmd_build::Build),
+    Completion(cmd_completion::Completion),
     Convert(cmd_convert::Convert),
     Debug(cmd_debug::Debug),
     Deprecate(cmd_deprecate::DeprecateCmd),
@@ -191,6 +193,7 @@ impl Run for Command {
         match self {
             Command::Bake(cmd) => cmd.run().await,
             Command::Build(cmd) => cmd.run().await,
+            Command::Completion(cmd) => cmd.run(Opt::command()),
             Command::Convert(cmd) => cmd.run().await,
             Command::Debug(cmd) => cmd.run().await,
             Command::Deprecate(cmd) => cmd.run().await,
@@ -226,6 +229,7 @@ impl CommandArgs for Command {
             Command::Bake(cmd) => cmd.get_positional_args(),
             Command::Build(cmd) => cmd.get_positional_args(),
             Command::Convert(cmd) => cmd.get_positional_args(),
+            Command::Completion(cmd) => cmd.get_positional_args(),
             Command::Debug(cmd) => cmd.get_positional_args(),
             Command::Deprecate(cmd) => cmd.get_positional_args(),
             Command::Du(cmd) => cmd.get_positional_args(),

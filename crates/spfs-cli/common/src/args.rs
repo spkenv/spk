@@ -303,7 +303,7 @@ pub struct Logging {
     pub verbose: u8,
 
     /// Additionally log output to the provided file
-    #[clap(long, global = true, env = "SPFS_LOG_FILE")]
+    #[clap(long, global = true, env = "SPFS_LOG_FILE", value_hint = clap::ValueHint::FilePath)]
     pub log_file: Option<std::path::PathBuf>,
 
     /// Enables logging to syslog (for background processes, unix only)

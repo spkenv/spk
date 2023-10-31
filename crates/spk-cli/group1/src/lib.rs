@@ -6,5 +6,6 @@
 #![warn(clippy::fn_params_excessive_bools)]
 
 pub mod cmd_bake;
+pub mod cmd_completion;
 pub mod cmd_deprecate;
 pub mod cmd_undeprecate;
