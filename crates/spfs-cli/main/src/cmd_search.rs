@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use clap::Args;
+use spfs::prelude::*;
 use tokio_stream::StreamExt;
 
 /// Search for available tags by substring

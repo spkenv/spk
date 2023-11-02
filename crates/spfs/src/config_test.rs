@@ -4,8 +4,9 @@
 
 use rstest::rstest;
 
-use super::Config;
+use super::{Config, RemoteConfig};
 use crate::get_config;
+use crate::storage::RepositoryHandle;
 
 #[rstest]
 fn test_config_list_remote_names_empty() {
@@ -84,4 +85,21 @@ fn test_make_current_updates_config() {
 
     let current_config = get_config().unwrap();
     assert_eq!(current_config.user.name, changed_name);
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_remote_config_pinned_from_address() {
+    let address = url::Url::parse("http2://test.local?lazy=true&when=~10m").expect("a valid url");
+    let config = RemoteConfig::from_address(address)
+        .await
+        .expect("can parse address with 'when' query");
+    let repo = config
+        .open()
+        .await
+        .expect("should open pinned repo address");
+    assert!(
+        matches!(repo, RepositoryHandle::Pinned(_)),
+        "using a when query should create a pinned repo"
+    )
 }

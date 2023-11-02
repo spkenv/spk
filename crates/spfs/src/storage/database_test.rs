@@ -4,6 +4,7 @@
 use rstest::rstest;
 
 use crate::fixtures::*;
+use crate::prelude::*;
 use crate::{encoding, graph};
 
 #[rstest]

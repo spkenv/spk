@@ -6,6 +6,7 @@ use rstest::rstest;
 use tokio::io::AsyncReadExt;
 
 use crate::fixtures::*;
+use crate::prelude::*;
 
 #[rstest]
 #[case::fs(tmprepo("fs"))]

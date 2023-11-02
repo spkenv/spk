@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Args;
 use spfs::encoding::Encodable;
+use spfs::prelude::*;
 
 /// Commit the current runtime state or a directory to storage
 #[derive(Debug, Args)]

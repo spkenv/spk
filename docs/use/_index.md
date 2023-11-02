@@ -44,3 +44,18 @@ For more detailed information on the build process, check the [Package Build Pro
 # publish a locally built package for others to use
 $ spk publish my-pkg/0.1.0
 ```
+
+### Run an Environment In The Past
+
+For debugging and recovery workflows, the `--when` flag can be provided to run spk commands
+as they would have done at some relative or absolute time in the past (see `spk env --help` for more details).
+
+```bash
+# enter a shell environment using the repository state from 10 minutes ago
+$ spk env python/2 --when ~10m
+$ which python
+/spfs/bin/python
+
+# or run a command directly
+$ spk env python/2 --when ~10m -- python
+```

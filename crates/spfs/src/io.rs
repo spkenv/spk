@@ -7,6 +7,7 @@ use spfs_encoding::Encodable;
 
 use crate::find_path::{ObjectPath, ObjectPathEntry};
 use crate::graph::Object;
+use crate::prelude::*;
 use crate::{encoding, storage, tracking, Result};
 
 /// Specifies how a digest should be formatted

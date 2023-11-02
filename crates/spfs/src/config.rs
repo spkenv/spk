@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
 use tokio_stream::StreamExt;
 
-use crate::{runtime, storage, Result};
+use crate::{runtime, storage, tracking, Result};
 
 #[cfg(test)]
 #[path = "./config_test.rs"]
@@ -143,15 +143,37 @@ pub struct RemoteAddress {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct RemoteConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    when: Option<tracking::TimeSpec>,
+    #[serde(flatten)]
+    inner: RepositoryConfig,
+}
+
+impl ToAddress for RemoteConfig {
+    fn to_address(&self) -> Result<url::Url> {
+        let mut inner = self.inner.to_address()?;
+        if let Some(when) = &self.when {
+            let query = format!("when={when}");
+            match inner.query() {
+                None | Some("") => inner.set_query(Some(&query)),
+                Some(q) => inner.set_query(Some(&format!("{q}&{query}"))),
+            }
+        }
+        Ok(inner)
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "scheme", rename_all = "lowercase")]
-pub enum RemoteConfig {
+pub enum RepositoryConfig {
     Fs(storage::fs::Config),
     Grpc(storage::rpc::Config),
     Tar(storage::tar::Config),
     Proxy(storage::proxy::Config),
 }
 
-impl ToAddress for RemoteConfig {
+impl ToAddress for RepositoryConfig {
     fn to_address(&self) -> Result<url::Url> {
         match self {
             Self::Fs(c) => c.to_address(),
@@ -165,13 +187,20 @@ impl ToAddress for RemoteConfig {
 impl RemoteConfig {
     /// Parse a complete repository connection config from a url
     pub async fn from_address(url: url::Url) -> Result<Self> {
-        Ok(match url.scheme() {
-            "tar" => Self::Tar(storage::tar::Config::from_url(&url).await?),
-            "file" | "" => Self::Fs(storage::fs::Config::from_url(&url).await?),
-            "http2" | "grpc" => Self::Grpc(storage::rpc::Config::from_url(&url).await?),
-            "proxy" => Self::Proxy(storage::proxy::Config::from_url(&url).await?),
+        let when = url
+            .query_pairs()
+            .find(|(k, _)| k == "when")
+            .map(|(_, v)| v)
+            .map(tracking::TimeSpec::parse)
+            .transpose()?;
+        let inner = match url.scheme() {
+            "tar" => RepositoryConfig::Tar(storage::tar::Config::from_url(&url).await?),
+            "file" | "" => RepositoryConfig::Fs(storage::fs::Config::from_url(&url).await?),
+            "http2" | "grpc" => RepositoryConfig::Grpc(storage::rpc::Config::from_url(&url).await?),
+            "proxy" => RepositoryConfig::Proxy(storage::proxy::Config::from_url(&url).await?),
             scheme => return Err(format!("Unsupported repository scheme: '{scheme}'").into()),
-        })
+        };
+        Ok(Self { when, inner })
     }
 
     /// Parse a complete repository connection from an address string
@@ -186,18 +215,24 @@ impl RemoteConfig {
 
     /// Open a handle to a repository using this configuration
     pub async fn open(&self) -> Result<storage::RepositoryHandle> {
-        Ok(match self.clone() {
-            Self::Fs(config) => storage::fs::FsRepository::from_config(config).await?.into(),
-            Self::Tar(config) => storage::tar::TarRepository::from_config(config)
+        let handle = match self.inner.clone() {
+            RepositoryConfig::Fs(config) => {
+                storage::fs::FsRepository::from_config(config).await?.into()
+            }
+            RepositoryConfig::Tar(config) => storage::tar::TarRepository::from_config(config)
                 .await?
                 .into(),
-            Self::Grpc(config) => storage::rpc::RpcRepository::from_config(config)
+            RepositoryConfig::Grpc(config) => storage::rpc::RpcRepository::from_config(config)
                 .await?
                 .into(),
-            Self::Proxy(config) => storage::proxy::ProxyRepository::from_config(config)
+            RepositoryConfig::Proxy(config) => storage::proxy::ProxyRepository::from_config(config)
                 .await?
                 .into(),
-        })
+        };
+        match &self.when {
+            None => Ok(handle),
+            Some(ts) => Ok(handle.into_pinned(ts.to_datetime_from_now())),
+        }
     }
 }
 

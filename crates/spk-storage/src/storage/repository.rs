@@ -544,6 +544,8 @@ pub trait Repository: Storage + Sync {
 #[macro_export]
 macro_rules! with_cache_policy {
     ($repo:expr, $cp:expr, $expr:block ) => {{
+        #[allow(unused_imports)] // not all call sites need this
+        use $crate::Repository;
         let repo = &$repo;
         let old_cache_policy = repo.set_cache_policy($cp);
         let r = $expr;

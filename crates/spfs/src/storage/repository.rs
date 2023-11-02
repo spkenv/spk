@@ -113,9 +113,30 @@ pub trait Repository:
     }
 }
 
+#[async_trait::async_trait]
 impl<T: Repository> Repository for &T {
     fn address(&self) -> url::Url {
         Repository::address(&**self)
+    }
+
+    async fn has_ref(&self, reference: &str) -> bool {
+        (**self).has_ref(reference).await
+    }
+
+    async fn resolve_ref(&self, reference: &str) -> Result<encoding::Digest> {
+        (**self).resolve_ref(reference).await
+    }
+
+    async fn read_ref(&self, reference: &str) -> Result<graph::Object> {
+        (**self).read_ref(reference).await
+    }
+
+    async fn find_aliases(&self, reference: &str) -> Result<HashSet<Ref>> {
+        (**self).find_aliases(reference).await
+    }
+
+    async fn commit_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
+        (**self).commit_blob(reader).await
     }
 }
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashSet;
 use std::convert::From;
 use std::sync::Arc;
 
@@ -776,7 +777,13 @@ pub struct Repositories {
     /// Repositories to enable for the command
     ///
     /// Any configured spfs repository can be named here as well as "local" or
-    /// a path on disk or a full remote repository url.
+    /// a path on disk or a full remote repository url. Repositories can also
+    /// be limited to a specific time by appending a relative or absolute time
+    /// specifier (eg: origin~10m, origin~5weeks, origin@2022-10-11,
+    /// origin@2022-10-11T13:00.12). This time affects all interations and
+    /// queries in the repository, effectively making it look like it did in the past.
+    /// It will cause errors for any operation that attempts to make changes to
+    /// the repository, even if the time is in the future.
     #[clap(long, short = 'r')]
     pub enable_repo: Vec<String>,
 
@@ -785,6 +792,18 @@ pub struct Repositories {
     /// Any configured spfs repository can be named here as well as "local"
     #[clap(long)]
     pub disable_repo: Vec<String>,
+
+    /// Limit all repository data to a point in time
+    ///
+    /// A relative or absolute time to apply to all local and remote repositories
+    /// (eg: ~10m, ~5weeks, @2022-10-11, @2022-10-11T13:00.12). This value is superseded
+    /// at an individual level by any time specifier added to the --enable-repo/-r flag.
+    ///
+    /// This time affects all interations and queries in the repository, effectively making
+    /// it look like spk is being run in the past. It will cause errors for any operation
+    /// that attempts to make changes to a repository, even if the time is in the future.
+    #[clap(long)]
+    pub when: Option<spfs::tracking::TimeSpec>,
 }
 
 impl Repositories {
@@ -796,33 +815,50 @@ impl Repositories {
     pub async fn get_repos_for_destructive_operation(
         &self,
     ) -> Result<Vec<(String, storage::RepositoryHandle)>> {
-        let mut repos = Vec::new();
+        let mut enabled = Vec::with_capacity(self.enable_repo.len());
+        let disabled: HashSet<&str> = self.disable_repo.iter().map(String::as_str).collect();
+        for r in self.enable_repo.iter() {
+            match r.find(['~', '@']) {
+                Some(i) => enabled.push((&r[..i], Some(spfs::tracking::TimeSpec::parse(&r[i..])?))),
+                None => enabled.push((r, None)),
+            };
+        }
+
+        let mut repos = Vec::with_capacity(enabled.len());
         if !self.no_local_repo
             && self.enable_repo.is_empty()
             // Interpret `--disable-repo local` as a request to not use the
             // local repo.
-            && !self.disable_repo.iter().any(|s| s == "local")
+            && !disabled.contains("local")
         {
-            let repo = storage::local_repository().await?;
+            let mut repo = storage::local_repository().await?;
+            if let Some(ts) = self.when.as_ref() {
+                repo.pin_at_time(ts);
+            }
             repos.push(("local".into(), repo.into()));
         }
-        for name in self.enable_repo.iter() {
-            if self.disable_repo.contains(name) {
-                continue;
-            }
-            if repos.iter().any(|(s, _)| s == name) {
-                // Already added
+        for (name, ts) in enabled.iter() {
+            if disabled.contains(name) {
                 continue;
             }
 
-            let repo = match name.as_str() {
+            if let Some(i) = repos.iter().position(|(n, _)| n == name) {
+                // we favor the last instance of an --enable-repo flag
+                // over any previous one in the case of duplicates
+                repos.remove(i);
+            }
+
+            let mut repo = match *name {
                 // Allow `--enable-repo local` to work to enable the local repo.
                 "local" => storage::local_repository().await,
                 name => storage::remote_repository(name).await,
             }?;
-            repos.push((name.into(), repo.into()));
+            if let Some(ts) = ts.as_ref().or(self.when.as_ref()) {
+                repo.pin_at_time(ts);
+            }
+            repos.push((name.to_string(), repo.into()));
         }
-        Ok(repos)
+        Ok(repos.into_iter().collect())
     }
 
     /// Get the repositories to use based on command-line options.
@@ -838,37 +874,48 @@ impl Repositories {
     pub async fn get_repos_for_non_destructive_operation(
         &self,
     ) -> Result<Vec<(String, storage::RepositoryHandle)>> {
+        let mut enabled = Vec::with_capacity(self.enable_repo.len());
+        let disabled: HashSet<&str> = self.disable_repo.iter().map(String::as_str).collect();
+        for r in self.enable_repo.iter() {
+            match r.find(['~', '@']) {
+                Some(i) => enabled.push((&r[..i], Some(spfs::tracking::TimeSpec::parse(&r[i..])?))),
+                None => enabled.push((r, None)),
+            };
+        }
+
         let mut repos = Vec::new();
         if !self.no_local_repo
             // Interpret `--disable-repo local` as a request to not use the
             // local repo.
-            && !self.disable_repo.iter().any(|s| s == "local")
+            && !disabled.contains("local")
         {
-            let repo = storage::local_repository().await?;
+            let mut repo = storage::local_repository().await?;
+            if let Some(ts) = self.when.as_ref() {
+                repo.pin_at_time(ts);
+            }
             repos.push(("local".into(), repo.into()));
         }
         if self.local_repo_only {
             return Ok(repos);
         }
-        for name in self
-            .enable_repo
-            .iter()
-            .map(|s| s.as_ref())
-            .chain(std::iter::once("origin"))
-        {
-            if self.disable_repo.iter().any(|s| s == name) {
+        for (name, ts) in enabled.into_iter().chain([("origin", None)]) {
+            if disabled.contains(name) {
                 continue;
             }
-            if repos.iter().any(|(s, _)| s == name) {
-                // Already added
-                continue;
+            if let Some(i) = repos.iter().position(|(n, _)| n == name) {
+                // we favor the last instance of an --enable-repo flag
+                // over any previous one in the case of duplicates
+                repos.remove(i);
             }
 
-            let repo = match name {
+            let mut repo = match name {
                 // Allow `--enable-repo local` to work to enable the local repo.
                 "local" => storage::local_repository().await,
                 name => storage::remote_repository(name).await,
             }?;
+            if let Some(ts) = ts.as_ref().or(self.when.as_ref()) {
+                repo.pin_at_time(ts);
+            }
             repos.push((name.into(), repo.into()));
         }
         Ok(repos)

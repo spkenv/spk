@@ -10,6 +10,7 @@ use futures::Stream;
 use relative_path::RelativePathBuf;
 use spfs::encoding::Digest;
 use spfs::graph::Object;
+use spfs::prelude::*;
 use spfs::tracking::Entry;
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::Component;

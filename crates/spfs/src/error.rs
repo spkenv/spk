@@ -32,6 +32,8 @@ pub enum Error {
     InvalidRemoteUrl(#[from] url::ParseError),
     #[error("Invalid date time: {0:?}")]
     InvalidDateTime(#[from] chrono::ParseError),
+    #[error("time specifier is not valid: {given} ({reason})")]
+    InvalidTimeSpec { given: String, reason: String },
     #[error("Invalid path {0}")]
     InvalidPath(std::path::PathBuf, #[source] io::Error),
     #[cfg(unix)]
@@ -65,6 +67,8 @@ pub enum Error {
     NoRenderStorage(url::Url),
     #[error("Object is not a blob: {1}")]
     ObjectNotABlob(crate::graph::Object, encoding::Digest),
+    #[error("Cannot write to a repository which has been pinned in time")]
+    RepositoryIsPinned,
 
     #[error("Failed to open repository: {repository}")]
     FailedToOpenRepository {

@@ -5,6 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 use spfs::io::{self, DigestFormat};
+use spfs::prelude::*;
 use tokio_stream::StreamExt;
 
 /// List all layers in an spfs repository

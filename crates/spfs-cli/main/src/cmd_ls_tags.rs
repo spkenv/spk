@@ -5,6 +5,7 @@
 use anyhow::Result;
 use clap::Args;
 use relative_path::{RelativePath, RelativePathBuf};
+use spfs::prelude::*;
 use spfs::storage::EntryType;
 use tokio_stream::StreamExt;
 

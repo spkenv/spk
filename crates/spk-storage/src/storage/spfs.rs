@@ -13,7 +13,8 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use relative_path::RelativePathBuf;
 use serde::{Deserialize, Serialize};
-use spfs::storage::EntryType;
+use spfs::prelude::*;
+use spfs::storage::{EntryType, Repository};
 use spfs::tracking;
 use spk_schema::foundation::ident_build::{parse_build, Build};
 use spk_schema::foundation::ident_component::Component;
@@ -27,7 +28,7 @@ use spk_schema::{AnyIdent, BuildIdent, FromYaml, Package, Recipe, Spec, SpecReci
 use tokio::io::AsyncReadExt;
 
 use super::repository::{PublishPolicy, Storage};
-use super::{CachePolicy, Repository};
+use super::CachePolicy;
 use crate::storage::repository::internal::RepositoryExt;
 use crate::{with_cache_policy, Error, Result};
 
@@ -114,6 +115,23 @@ impl SpfsRepository {
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
         })
+    }
+
+    /// Pin this repository to a specific point in time, limiting
+    /// all queries and making it read-only
+    pub fn pin_at_time(&mut self, ts: &spfs::tracking::TimeSpec) {
+        // Safety: we are going to mutate and replace the value that
+        // is being read here, and know that self.inner is both
+        // initialized and valid for reads
+        let tmp = unsafe { std::ptr::read(&self.inner) };
+        let new = tmp.into_pinned(ts.to_datetime_from_now());
+        // Safety: we are replacing the old value with a moved copy
+        // of itself, and so explicitly do not want the old value
+        // dropped or accessed in any way
+        unsafe { std::ptr::write(&mut self.inner, new) };
+        self.address
+            .query_pairs_mut()
+            .append_pair("when", &ts.to_string());
     }
 }
 
@@ -582,7 +600,7 @@ impl Storage for SpfsRepository {
 }
 
 #[async_trait::async_trait]
-impl Repository for SpfsRepository {
+impl crate::Repository for SpfsRepository {
     fn address(&self) -> &url::Url {
         &self.address
     }
