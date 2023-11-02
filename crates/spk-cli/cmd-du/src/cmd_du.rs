@@ -481,10 +481,10 @@ impl<T: Output> Du<T> {
                         match input {
                             Some(input_component) => {
                                 if input_component.contains(&component.to_string()) {
-                                    yield Some((component.clone(), digest.clone()))
+                                    yield Some((component.clone(), *digest))
                                 }
                             }
-                            None => yield Some((component.clone(), digest.clone()))
+                            None => yield Some((component.clone(), *digest))
                         }
                     }
                 },

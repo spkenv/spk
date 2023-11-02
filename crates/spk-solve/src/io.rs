@@ -253,7 +253,7 @@ where
                             node.state
                                 .get_resolved_packages()
                                 .values()
-                                .map(|p| (*p).0.ident().format_ident())
+                                .map(|p| p.0.ident().format_ident())
                                 .collect::<Vec<String>>()
                                 .join(", ")
                         ));
