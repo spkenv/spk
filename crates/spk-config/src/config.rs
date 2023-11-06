@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use once_cell::sync::OnceCell;
@@ -35,8 +34,16 @@ pub struct Sentry {
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Metadata {
-    /// The command and arguments to run
-    pub global: Option<Vec<HashMap<String, Vec<String>>>>,
+    /// List of commands global commands to inject into the Meta struct.
+    #[serde(default)]
+    pub global: Vec<MetadataCommand>,
+}
+
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct MetadataCommand {
+    /// List containing the executable and its arguments.
+    pub command: Vec<String>,
 }
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]

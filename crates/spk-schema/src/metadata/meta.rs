@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
+use spk_config::Metadata;
 
 use crate::{Error, Result};
 
@@ -40,8 +41,6 @@ impl Default for Meta {
 }
 
 impl Meta {
-    const COMMAND: &str = "command";
-
     pub fn is_default(&self) -> bool {
         self == &Self::default()
     }
@@ -49,18 +48,11 @@ impl Meta {
         "Unlicensed".into()
     }
 
-    pub fn update_metadata(
-        &mut self,
-        global_config: &Vec<HashMap<String, Vec<String>>>,
-    ) -> Result<i32> {
-        for config in global_config {
-            let cmd = match config.get(Self::COMMAND) {
-                Some(c) => c,
-                None => return Err(Error::String(String::from("No command config found"))),
-            };
-
+    pub fn update_metadata(&mut self, global_config: &Metadata) -> Result<i32> {
+        for config in global_config.global.iter() {
+            let cmd = config.command.clone();
             let Some(executable) = cmd.first() else {
-                tracing::warn!("Empty command in config");
+                tracing::warn!("Empty command in global metadata config");
                 continue;
             };
 
