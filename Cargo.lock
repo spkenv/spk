@@ -3343,7 +3343,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_qs",
- "serde_yaml 0.9.25",
+ "serde_yaml 0.9.27",
  "serial_test",
  "spfs-encoding",
  "static_assertions",

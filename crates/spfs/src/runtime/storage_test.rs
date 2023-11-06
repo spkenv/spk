@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::fs::File;
+use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -13,7 +15,7 @@ use super::{makedirs_with_perms, Data, Storage};
 use crate::encoding;
 use crate::fixtures::*;
 use crate::runtime::storage::{default_live_layer_api_value, LiveLayerContents};
-use crate::runtime::{BindMount, LiveLayer};
+use crate::runtime::{BindMount, LiveLayer, LiveLayerFile};
 
 #[rstest]
 fn test_bindmount_creation() {
@@ -38,7 +40,7 @@ fn test_bindmount_validate(tmpdir: tempfile::TempDir) {
     let mountpoint = "tests/tests/tests".to_string();
 
     let mount = BindMount {
-        src: PathBuf::from(subdir),
+        src: subdir,
         dest: mountpoint,
     };
 
@@ -54,7 +56,7 @@ fn test_bindmount_validate_fail_not_under_parent(tmpdir: tempfile::TempDir) {
     let mountpoint = "tests/tests/tests".to_string();
 
     let mount = BindMount {
-        src: PathBuf::from(subdir),
+        src: subdir,
         dest: mountpoint,
     };
 
@@ -74,11 +76,33 @@ fn test_bindmount_validate_fail_not_exists(tmpdir: tempfile::TempDir) {
     let missing_subdir = subdir.join("not_made");
 
     let mount = BindMount {
-        src: PathBuf::from(missing_subdir),
+        src: missing_subdir,
         dest: mountpoint,
     };
 
     assert!(mount.validate(path.to_path_buf()).is_err());
+}
+
+#[rstest]
+fn test_live_layer_file_load(tmpdir: tempfile::TempDir) {
+    let dir = tmpdir.path();
+
+    let subdir = dir.join("testing");
+    std::fs::create_dir(subdir.clone()).unwrap();
+
+    let yaml = format!(
+        "# test live layer\napi: v0/layer\ncontents:\n - bind: {}\n   dest: /spfs/test\n",
+        subdir.display()
+    );
+
+    let file_path = dir.join("layer.spfs.yaml");
+    let mut tmp_file = File::create(file_path).unwrap();
+    writeln!(tmp_file, "{}", yaml).unwrap();
+
+    let llf = LiveLayerFile::parse(dir.display().to_string()).unwrap();
+
+    let live_layer = llf.load();
+    assert!(live_layer.is_ok());
 }
 
 #[rstest]

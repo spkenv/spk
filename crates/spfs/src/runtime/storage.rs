@@ -230,8 +230,13 @@ impl LiveLayer {
     /// Sets the live layer's parent directory, which updates its
     /// contents, and then validates its contents.
     pub fn set_parent_and_validate(&mut self, parent: PathBuf) -> Result<()> {
+        let abs_parent = match parent.canonicalize() {
+            Ok(abs_path) => abs_path.clone(),
+            Err(err) => return Err(Error::InvalidPath(parent.clone(), err)),
+        };
+
         self.set_parent(parent.clone())?;
-        self.validate(parent)
+        self.validate(abs_parent)
     }
 }
 
