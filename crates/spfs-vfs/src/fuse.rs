@@ -63,6 +63,7 @@ struct Filesystem {
     next_handle: AtomicU64,
     inodes: DashMap<u64, Arc<Entry<u64>>>,
     handles: DashMap<u64, Handle>,
+    fs_creation_time: SystemTime,
 }
 
 impl Filesystem {
@@ -87,6 +88,7 @@ impl Filesystem {
             next_handle: AtomicU64::new(1),
             inodes: Default::default(),
             handles: Default::default(),
+            fs_creation_time: SystemTime::now(),
         };
         // pre-allocate inodes for all entries in the manifest
         let mut root = manifest.take_root();
@@ -156,7 +158,6 @@ impl Filesystem {
     }
 
     fn attr_from_entry(&self, entry: &Entry<u64>) -> FileAttr {
-        let now = SystemTime::now();
         let kind = match entry.kind {
             EntryKind::Blob if entry.is_symlink() => FileType::Symlink,
             EntryKind::Blob => FileType::RegularFile,
@@ -175,10 +176,12 @@ impl Filesystem {
             uid: self.opts.uid.as_raw(),
             gid: self.opts.gid.as_raw(),
             blocks: (size / Self::BLOCK_SIZE as u64) + 1,
-            atime: now,
-            mtime: now,
-            ctime: now,
-            crtime: now,
+            // Use the time of the filesystem creation as the times here so
+            // that the filesystem appears to be static and unchanging.
+            atime: self.fs_creation_time,
+            mtime: self.fs_creation_time,
+            ctime: self.fs_creation_time,
+            crtime: self.fs_creation_time,
             kind,
             // TODO: possibly return directory link count
             //       for all dirs below it (because of .. entries)
