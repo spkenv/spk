@@ -145,9 +145,9 @@ pub struct RemoteAddress {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RemoteConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    when: Option<tracking::TimeSpec>,
+    pub when: Option<tracking::TimeSpec>,
     #[serde(flatten)]
-    inner: RepositoryConfig,
+    pub inner: RepositoryConfig,
 }
 
 impl ToAddress for RemoteConfig {
