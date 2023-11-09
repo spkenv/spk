@@ -164,9 +164,9 @@ async fn test_storage_create_runtime(tmpdir: tempfile::TempDir) {
     assert!(!runtime.name().is_empty());
 
     let durable = false;
-    let extra_mounts = None;
+    let live_layers = Vec::new();
     assert!(storage
-        .create_named_runtime(runtime.name(), durable, extra_mounts)
+        .create_named_runtime(runtime.name(), durable, live_layers)
         .await
         .is_err());
 }
@@ -312,7 +312,7 @@ async fn test_runtime_ensure_extra_bind_mount_locations_exist(tmpdir: tempfile::
         api: LiveLayerApiVersion::V0Layer,
         contents: vec![LiveLayerContents::BindMount(mount)],
     };
-    let live_layers = Some(vec![live_layer]);
+    let live_layers = vec![live_layer];
 
     let keep_runtime = false;
     let mut runtime = storage
@@ -320,10 +320,10 @@ async fn test_runtime_ensure_extra_bind_mount_locations_exist(tmpdir: tempfile::
         .await
         .expect("failed to create runtime in storage");
 
-    let mounts = runtime.live_layers();
+    let layers = runtime.live_layers();
 
-    if let Some(ms) = mounts {
-        assert!(ms.len() == 1)
+    if !layers.is_empty() {
+        assert!(layers.len() == 1)
     } else {
         panic!("a live layer should have been added to the runtime")
     };

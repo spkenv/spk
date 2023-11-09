@@ -111,12 +111,9 @@ impl CmdRun {
 
             self.exec_runtime_command(&mut runtime, &start_time).await
         } else if let Some(reference) = &self.reference {
-            let layers = reference.load_live_layers()?;
-            let live_layers = if layers.is_empty() {
-                None
-            } else {
-                tracing::debug!("with live layers: {layers:?}");
-                Some(layers)
+            let live_layers = reference.load_live_layers()?;
+            if !live_layers.is_empty() {
+                tracing::debug!("with live layers: {live_layers:?}");
             };
 
             // Make a new empty runtime

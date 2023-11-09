@@ -423,7 +423,8 @@ where
         // in the runtime, or by an earlier call to
         // ensure_extra_bind_mount_locations_exist() made in
         // initialize_runtime()
-        if let Some(live_layers) = rt.live_layers() {
+        let live_layers = rt.live_layers();
+        if !live_layers.is_empty() {
             tracing::debug!("mounting the extra bind mounts over the {SPFS_DIR} filesystem ...");
             let mount = super::resolve::which("mount").unwrap_or_else(|| "/usr/bin/mount".into());
 
@@ -464,7 +465,8 @@ where
 
     async fn unmount_live_layers(&self, rt: &runtime::Runtime) -> Result<()> {
         // Unmount the bind mounted items from the live layers
-        if let Some(live_layers) = rt.live_layers() {
+        let live_layers = rt.live_layers();
+        if !live_layers.is_empty() {
             tracing::debug!("unmounting the extra bind mounts from the {SPFS_DIR} filesystem ...");
             let umount =
                 super::resolve::which("umount").unwrap_or_else(|| "/usr/bin/umount".into());

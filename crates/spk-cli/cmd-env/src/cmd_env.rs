@@ -59,7 +59,7 @@ impl Run for Env {
             for layer_file in live_layer_files.iter() {
                 live_layers.push(layer_file.load()?);
             }
-            rt.config.live_layers = Some(live_layers.clone());
+            rt.config.live_layers = live_layers;
         }
 
         let mut solver = self.solver.get_solver(&self.options).await?;

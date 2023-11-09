@@ -390,7 +390,8 @@ pub struct Config {
     #[serde(default)]
     pub durable: bool,
     /// List of live layers to add on top of the runtime's overlayfs
-    pub live_layers: Option<Vec<LiveLayer>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub live_layers: Vec<LiveLayer>,
 }
 
 impl Default for Config {
@@ -433,7 +434,7 @@ impl Config {
             mount_backend: MountBackend::OverlayFsWithRenders,
             secondary_repositories: Vec::new(),
             durable: false,
-            live_layers: Some(Vec::new()),
+            live_layers: Vec::new(),
         }
     }
 
@@ -697,7 +698,7 @@ impl Runtime {
     }
 
     /// List of additional paths to mount on top of this Runtime's overlayfs
-    pub fn live_layers(&self) -> &Option<Vec<LiveLayer>> {
+    pub fn live_layers(&self) -> &Vec<LiveLayer> {
         &self.config.live_layers
     }
 
@@ -714,7 +715,8 @@ impl Runtime {
     /// adding a new layer to the runtime that contains all the
     /// directory paths.
     async fn ensure_extra_bind_mount_locations_exist(&mut self) -> Result<()> {
-        if let Some(live_layers) = self.live_layers() {
+        let live_layers = self.live_layers();
+        if !live_layers.is_empty() {
             // Make a layer that contains paths to all the mount locations.
             // This layer is added to the runtime so all the mount paths are
             // present for the extra mounts. This avoids having to check all
@@ -1130,15 +1132,15 @@ impl Storage {
     pub async fn create_transient_runtime(&self) -> Result<Runtime> {
         let uuid = uuid::Uuid::new_v4().to_string();
         let durable = false;
-        let extra_mounts = None;
-        self.create_named_runtime(uuid, durable, extra_mounts).await
+        let live_layers = Vec::new();
+        self.create_named_runtime(uuid, durable, live_layers).await
     }
 
     /// Create a new runtime with a generated name
     pub async fn create_runtime(
         &self,
         durable: bool,
-        live_layers: Option<Vec<LiveLayer>>,
+        live_layers: Vec<LiveLayer>,
     ) -> Result<Runtime> {
         let uuid = uuid::Uuid::new_v4().to_string();
         self.create_named_runtime(uuid, durable, live_layers).await
@@ -1148,8 +1150,8 @@ impl Storage {
     /// will be deleted upon drop
     #[cfg(test)]
     pub async fn create_owned_runtime(&self) -> Result<OwnedRuntime> {
-        let extra_mounts = None;
-        let rt = self.create_runtime(TRANSIENT, extra_mounts).await?;
+        let live_layers = Vec::new();
+        let rt = self.create_runtime(TRANSIENT, live_layers).await?;
         OwnedRuntime::upgrade_as_owner(rt).await
     }
 
@@ -1197,7 +1199,7 @@ impl Storage {
         &self,
         name: S,
         durable: bool,
-        live_layers: Option<Vec<LiveLayer>>,
+        live_layers: Vec<LiveLayer>,
     ) -> Result<Runtime> {
         let name = name.into();
         let runtime_tag = runtime_tag(RuntimeDataType::Metadata, &name)?;
