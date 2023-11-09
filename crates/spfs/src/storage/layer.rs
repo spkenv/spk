@@ -8,7 +8,7 @@ use encoding::Encodable;
 use futures::Stream;
 use tokio_stream::StreamExt;
 
-use crate::{encoding, graph, Result};
+use crate::{encoding, graph, tracking, Result};
 
 pub type LayerStreamItem = Result<(encoding::Digest, graph::Layer)>;
 
@@ -47,6 +47,17 @@ pub trait LayerStorage: graph::Database + Sync + Send {
         } else {
             panic!("this is impossible!");
         }
+    }
+
+    /// Create new layer from an arbitrary manifest
+    async fn create_layer_from_manifest(
+        &self,
+        manifest: &tracking::Manifest,
+    ) -> Result<graph::Layer> {
+        let storable_manifest = graph::Manifest::from(manifest);
+        self.write_object(&graph::Object::Manifest(storable_manifest.clone()))
+            .await?;
+        self.create_layer(&storable_manifest).await
     }
 }
 

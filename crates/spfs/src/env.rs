@@ -413,7 +413,7 @@ where
         rt.ensure_required_directories().await
     }
 
-    async fn mount_extra_bind_mounts(&self, rt: &runtime::Runtime) -> Result<()> {
+    async fn mount_live_layers(&self, rt: &runtime::Runtime) -> Result<()> {
         // Mounts the bind mounts from the any live layers in the runtime the top of paths
         // inside /spfs
         //
@@ -462,7 +462,7 @@ where
         Ok(())
     }
 
-    async fn unmount_extra_bind_mounts(&self, rt: &runtime::Runtime) -> Result<()> {
+    async fn unmount_live_layers(&self, rt: &runtime::Runtime) -> Result<()> {
         // Unmount the bind mounted items from the live layers
         if let Some(live_layers) = rt.live_layers() {
             tracing::debug!("unmounting the extra bind mounts from the {SPFS_DIR} filesystem ...");
@@ -519,7 +519,7 @@ where
             },
         }?;
 
-        self.mount_extra_bind_mounts(rt).await
+        self.mount_live_layers(rt).await
     }
 
     #[cfg(feature = "fuse-backend")]
@@ -530,7 +530,7 @@ where
     #[cfg(feature = "fuse-backend")]
     pub(crate) async fn mount_env_fuse(&self, rt: &runtime::Runtime) -> Result<()> {
         self.mount_fuse_onto(rt, SPFS_DIR).await?;
-        self.mount_extra_bind_mounts(rt).await
+        self.mount_live_layers(rt).await
     }
 
     #[cfg(feature = "fuse-backend")]
@@ -850,7 +850,7 @@ where
                 // Unmount any extra paths mounted in the depths of
                 // the fuse-only backend before fuse itself is
                 // unmounted to avoid issue with lazy unmounting.
-                self.unmount_extra_bind_mounts(rt).await?;
+                self.unmount_live_layers(rt).await?;
                 std::path::Path::new(SPFS_DIR)
             }
             runtime::MountBackend::OverlayFsWithRenders | runtime::MountBackend::WinFsp => {

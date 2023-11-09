@@ -152,24 +152,20 @@ pub enum LiveLayerContents {
     BindMount(BindMount),
 }
 
-/// Returns a default value for a live layer's api field.
-pub fn default_live_layer_api_value() -> String {
-    String::from("v0/layer")
+/// Supported LiveLayer api versions
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, Eq, PartialEq, strum::Display)]
+pub enum LiveLayerApiVersion {
+    #[serde(rename = "v0/layer")]
+    V0Layer,
 }
 
 /// Data needed to add a live layer onto an /spfs overlayfs.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct LiveLayer {
-    // TODO: maybe, eventually use the same kind of api verison token that spk does
     /// The api format version of the live layer data
-    #[serde(default = "default_live_layer_api_value")]
-    pub api: String,
+    pub api: LiveLayerApiVersion,
     /// The contents that the live layer will put into /spfs
     pub contents: Vec<LiveLayerContents>,
-    // Note: when adding more fields in future, remember to add
-    // #[serde(default)] to them or make then optional with
-    // Option<..>, or you will have backwards compatibility issues
-    // with existing live layers configurations
 }
 
 impl LiveLayer {
@@ -557,11 +553,6 @@ impl Data {
     pub fn set_durable(&mut self, value: bool) {
         self.config.durable = value;
     }
-
-    /// List of additional paths to mount from this Data's Config
-    pub fn live_layers(&self) -> &Option<Vec<LiveLayer>> {
-        &self.config.live_layers
-    }
 }
 
 #[derive(Debug)]
@@ -707,14 +698,22 @@ impl Runtime {
 
     /// List of additional paths to mount on top of this Runtime's overlayfs
     pub fn live_layers(&self) -> &Option<Vec<LiveLayer>> {
-        self.data.live_layers()
+        &self.config.live_layers
     }
 
-    /// If there are any extra bind mounts in the runtime, ensure that
-    /// all of their mount directory location will exist in the
-    /// runtime's /spfs filesytem by creating and adding a new layer
-    /// to the runtime that contains all the directory paths.
-    pub async fn ensure_extra_bind_mount_locations_exist(&mut self) -> Result<()> {
+    /// Prepares the runtime's layer stack for the live layers
+    pub async fn prepare_live_layers(&mut self) -> Result<()> {
+        // Any bind mount point destinations for live layers must
+        // exist in the runtime stack before the live layers are used.
+        self.ensure_extra_bind_mount_locations_exist().await
+    }
+
+    /// If there are any extra bind mounts in the live layers in the
+    /// runtime, ensure that all of their mount directory location
+    /// will exist in the runtime's /spfs filesytem by creating and
+    /// adding a new layer to the runtime that contains all the
+    /// directory paths.
+    async fn ensure_extra_bind_mount_locations_exist(&mut self) -> Result<()> {
         if let Some(live_layers) = self.live_layers() {
             // Make a layer that contains paths to all the mount locations.
             // This layer is added to the runtime so all the mount paths are
@@ -785,8 +784,11 @@ impl Runtime {
 
             // This creates and saves the layer into the same repo as
             // the one the runtime is in.
-            let layer: crate::graph::Layer =
-                self.storage.create_layer_from_manifest(&manifest).await?;
+            let layer: crate::graph::Layer = self
+                .storage
+                .inner
+                .create_layer_from_manifest(&manifest)
+                .await?;
             tracing::debug!("new layer saved with digest: {}", layer.digest()?);
 
             // TODO: do we want to tag this extra layer as well?
@@ -1149,18 +1151,6 @@ impl Storage {
         let extra_mounts = None;
         let rt = self.create_runtime(TRANSIENT, extra_mounts).await?;
         OwnedRuntime::upgrade_as_owner(rt).await
-    }
-
-    /// Create new layer from an arbitrary manifest
-    pub async fn create_layer_from_manifest(
-        &self,
-        manifest: &tracking::Manifest,
-    ) -> Result<graph::Layer> {
-        let storable_manifest = graph::Manifest::from(manifest);
-        self.inner
-            .write_object(&graph::Object::Manifest(storable_manifest.clone()))
-            .await?;
-        self.inner.create_layer(&storable_manifest).await
     }
 
     pub async fn durable_path(&self, name: String) -> Result<PathBuf> {

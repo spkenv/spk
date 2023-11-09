@@ -193,7 +193,7 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
     // all the mount point paths for the extra mounts. This doesn't
     // save the runtime because it will be saved below after we have
     // the namespace.
-    rt.ensure_extra_bind_mount_locations_exist().await?;
+    rt.prepare_live_layers().await?;
 
     let render_result = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {

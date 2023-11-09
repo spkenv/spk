@@ -14,7 +14,7 @@ use rstest::rstest;
 use super::{makedirs_with_perms, Data, Storage};
 use crate::encoding;
 use crate::fixtures::*;
-use crate::runtime::storage::{default_live_layer_api_value, LiveLayerContents};
+use crate::runtime::storage::{LiveLayerApiVersion, LiveLayerContents};
 use crate::runtime::{BindMount, LiveLayer, LiveLayerFile};
 
 #[rstest]
@@ -103,6 +103,37 @@ fn test_live_layer_file_load(tmpdir: tempfile::TempDir) {
 
     let live_layer = llf.load();
     assert!(live_layer.is_ok());
+}
+
+#[rstest]
+fn test_live_layer_minimal_deserialize() {
+    // Test a minimal yaml string that represents a LiveLayer. Note:
+    // if more LiveLayer fields are added in future, they should have
+    // #[serde(default)] set or be optional, so they are backwards
+    // compatible with existing live layer configurations.
+    let yaml: &str = "api: v0/layer\ncontents:\n";
+
+    let layer: LiveLayer = serde_yaml::from_str(yaml).unwrap();
+
+    assert!(layer.api == LiveLayerApiVersion::V0Layer);
+}
+
+#[rstest]
+#[should_panic]
+fn test_live_layer_deserialize_fail_no_contents_field() {
+    let yaml: &str = "api: v0/layer\n";
+
+    // This should panic because the contents: field is missing
+    let _layer: LiveLayer = serde_yaml::from_str(yaml).unwrap();
+}
+
+#[rstest]
+#[should_panic]
+fn test_live_layer_deserialize_unknown_version() {
+    let yaml: &str = "api: v9999999999999/invalidapi\ncontents:\n";
+
+    // This should panic because the api value is invalid
+    let _layer: LiveLayer = serde_yaml::from_str(yaml).unwrap();
 }
 
 #[rstest]
@@ -278,7 +309,7 @@ async fn test_runtime_ensure_extra_bind_mount_locations_exist(tmpdir: tempfile::
         dest: mountpoint,
     };
     let live_layer = LiveLayer {
-        api: default_live_layer_api_value(),
+        api: LiveLayerApiVersion::V0Layer,
         contents: vec![LiveLayerContents::BindMount(mount)],
     };
     let live_layers = Some(vec![live_layer]);
@@ -297,10 +328,7 @@ async fn test_runtime_ensure_extra_bind_mount_locations_exist(tmpdir: tempfile::
         panic!("a live layer should have been added to the runtime")
     };
 
-    assert!(runtime
-        .ensure_extra_bind_mount_locations_exist()
-        .await
-        .is_ok())
+    assert!(runtime.prepare_live_layers().await.is_ok())
 }
 
 #[rstest]

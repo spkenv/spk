@@ -115,6 +115,7 @@ impl CmdRun {
             let live_layers = if layers.is_empty() {
                 None
             } else {
+                tracing::debug!("with live layers: {layers:?}");
                 Some(layers)
             };
 
@@ -122,12 +123,12 @@ impl CmdRun {
             let mut runtime = match &self.runtime_name {
                 Some(name) => {
                     runtimes
-                        .create_named_runtime(name, self.keep_runtime, live_layers.clone())
+                        .create_named_runtime(name, self.keep_runtime, live_layers)
                         .await?
                 }
                 None => {
                     runtimes
-                        .create_runtime(self.keep_runtime, live_layers.clone())
+                        .create_runtime(self.keep_runtime, live_layers)
                         .await?
                 }
             };
@@ -146,10 +147,6 @@ impl CmdRun {
                     runtime.name(),
                     self.keep_runtime
                 );
-            }
-
-            if let Some(layers) = &live_layers {
-                tracing::debug!("with live layers: {layers:?}");
             }
 
             let start_time = Instant::now();
