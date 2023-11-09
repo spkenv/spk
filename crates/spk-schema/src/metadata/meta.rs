@@ -50,7 +50,7 @@ impl Meta {
 
     pub fn update_metadata(&mut self, global_config: &Metadata) -> Result<i32> {
         for config in global_config.global.iter() {
-            let cmd = config.command.clone();
+            let cmd = &config.command;
             let Some(executable) = cmd.first() else {
                 tracing::warn!("Empty command in global metadata config");
                 continue;
@@ -65,7 +65,11 @@ impl Meta {
 
             match command
                 .spawn()
-                .map_err(|err| Error::ProcessSpawnError(format!("command error: {err}").into()))?
+                .map_err(|err| {
+                    Error::ProcessSpawnError(
+                        format!("error running configured metadata command: {err}").into(),
+                    )
+                })?
                 .wait_with_output()
             {
                 Ok(out) => {

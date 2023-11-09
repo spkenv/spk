@@ -34,15 +34,15 @@ pub struct Sentry {
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Metadata {
-    /// List of commands global commands to inject into the Meta struct.
-    #[serde(default)]
+    /// List of commands that output global package metatdata in json to be
+    /// collected and added to every built package
     pub global: Vec<MetadataCommand>,
 }
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct MetadataCommand {
-    /// List containing the executable and its arguments.
+    /// List containing the executable and its arguments
     pub command: Vec<String>,
 }
 
