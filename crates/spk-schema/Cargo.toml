@@ -26,6 +26,7 @@ serde_yaml = { workspace = true }
 serde_json = { workspace = true }
 spfs = { path = "../spfs" }
 shellexpand = "3.1.0"
+spk-config = { path = "../spk-config" }
 spk-schema-foundation = { path = "./crates/foundation" }
 spk-schema-ident = { path = "./crates/ident" }
 spk-schema-validators = { path = "./crates/validators" }

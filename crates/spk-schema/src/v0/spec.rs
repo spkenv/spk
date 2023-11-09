@@ -31,7 +31,7 @@ use crate::ident::{
     Satisfy,
     VarRequest,
 };
-use crate::meta::Meta;
+use crate::metadata::Meta;
 use crate::option::VarOpt;
 use crate::{
     BuildEnv,
@@ -514,6 +514,17 @@ impl Recipe for Spec<VersionIdent> {
         updated
             .install
             .render_all_pins(&build_options, specs.values().map(|p| p.ident()))?;
+
+        // Update metadata fields from the output of the executable.
+        let config = match spk_config::get_config() {
+            Ok(c) => c,
+            Err(err) => return Err(Error::String(format!("Failed to load spk config: {err}"))),
+        };
+
+        match updated.meta.update_metadata(&config.metadata) {
+            Ok(_) => tracing::info!("Successfully updated metadata"),
+            Err(e) => return Err(Error::String(format!("Failed to update metadata: {e}"))),
+        }
 
         let mut missing_build_requirements = HashMap::new();
         let mut missing_runtime_requirements = HashMap::new();

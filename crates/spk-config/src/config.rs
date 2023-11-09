@@ -33,6 +33,21 @@ pub struct Sentry {
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(default)]
+pub struct Metadata {
+    /// List of commands that output global package metatdata in json to be
+    /// collected and added to every built package
+    pub global: Vec<MetadataCommand>,
+}
+
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct MetadataCommand {
+    /// List containing the executable and its arguments
+    pub command: Vec<String>,
+}
+
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
 pub struct Solver {
     /// If true, the solver will run impossible request checks on the initial requests
     pub check_impossible_initial: bool,
@@ -107,6 +122,7 @@ pub struct Config {
     pub sentry: Sentry,
     pub solver: Solver,
     pub statsd: Statsd,
+    pub metadata: Metadata,
 }
 
 impl Config {

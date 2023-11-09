@@ -14,7 +14,7 @@ mod environ;
 mod error;
 mod input_variant;
 mod install_spec;
-mod meta;
+mod metadata;
 mod option;
 mod package;
 pub mod prelude;
