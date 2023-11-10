@@ -2,6 +2,7 @@ use crate::tracking::EnvSpec;
 use crate::{runtime, Error, Result};
 
 pub const SPFS_DIR: &str = "C:\\spfs";
+pub const SPFS_DIR_PREFIX: &str = "C:\\spfs";
 
 /// Manages the configuration of an spfs runtime environment.
 ///

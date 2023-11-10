@@ -23,6 +23,8 @@ pub enum Error {
     #[error(transparent)]
     JSON(#[from] serde_json::Error),
     #[error(transparent)]
+    YAML(#[from] serde_yaml::Error),
+    #[error(transparent)]
     Config(#[from] config::ConfigError),
 
     #[error(transparent)]

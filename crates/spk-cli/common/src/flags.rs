@@ -9,6 +9,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, ValueEnum, ValueHint};
 use solve::{DecisionFormatter, DecisionFormatterBuilder, MultiSolverKind};
+use spfs::runtime::LiveLayerFile;
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
@@ -55,6 +56,11 @@ pub struct Runtime {
     /// make the runtime easier to reuse later.
     #[clap(long, env = SPK_KEEP_RUNTIME)]
     pub keep_runtime: bool,
+
+    /// Path to a live layer config file that will be added to the
+    /// /spfs filesystem over the top of the existing spfs layers
+    #[clap(long, value_name = "LAYER_FILE")]
+    pub live_layer: Option<Vec<LiveLayerFile>>,
 }
 
 impl Runtime {

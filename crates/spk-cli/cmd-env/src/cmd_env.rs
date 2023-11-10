@@ -51,6 +51,17 @@ impl Run for Env {
             .ensure_active_runtime(&["env", "run", "shell"])
             .await?;
 
+        rt.status.editable = self.runtime.editable();
+
+        if let Some(live_layer_files) = &self.runtime.live_layer {
+            // This is the equivalent of load_live_layers() without an EnvSpec
+            let mut live_layers = Vec::new();
+            for layer_file in live_layer_files.iter() {
+                live_layers.push(layer_file.load()?);
+            }
+            rt.config.live_layers = live_layers;
+        }
+
         let mut solver = self.solver.get_solver(&self.options).await?;
 
         let requests = self

@@ -95,6 +95,10 @@ impl CmdRun {
                 runtime.reinit_for_reuse_and_save_to_storage().await?;
             }
 
+            // TODO: there's nothing to change or clear any extra
+            // mounts made the last time this durable runtime was run.
+            // Currently, will use the extra mounts already in the runtime.
+
             let start_time = Instant::now();
             let origin = config.get_remote("origin").await?;
             let references_to_sync = EnvSpec::from_iter(runtime.status.stack.iter().copied());
@@ -107,20 +111,40 @@ impl CmdRun {
 
             self.exec_runtime_command(&mut runtime, &start_time).await
         } else if let Some(reference) = &self.reference {
+            let live_layers = reference.load_live_layers()?;
+            if !live_layers.is_empty() {
+                tracing::debug!("with live layers: {live_layers:?}");
+            };
+
             // Make a new empty runtime
             let mut runtime = match &self.runtime_name {
                 Some(name) => {
                     runtimes
-                        .create_named_runtime(name, self.keep_runtime)
+                        .create_named_runtime(name, self.keep_runtime, live_layers)
                         .await?
                 }
-                None => runtimes.create_runtime(self.keep_runtime).await?,
+                None => {
+                    runtimes
+                        .create_runtime(self.keep_runtime, live_layers)
+                        .await?
+                }
             };
-            tracing::debug!(
-                "created new runtime: {} [keep={}]",
-                runtime.name(),
-                self.keep_runtime
-            );
+
+            if self.keep_runtime && self.runtime_name.is_none() {
+                // User wants a durable runtime but has not named it,
+                // which means it will get uuid name. Want to make
+                // them aware of this and how to name it next time.
+                tracing::warn!(
+                    "created new durable runtime without naming it. You can use --runtime-name NAME to give the runtime a name. This one will be called: {}",
+                    runtime.name()
+                );
+            } else {
+                tracing::debug!(
+                    "created new runtime: {} [keep={}]",
+                    runtime.name(),
+                    self.keep_runtime
+                );
+            }
 
             let start_time = Instant::now();
             runtime.config.mount_backend = config.filesystem.backend;

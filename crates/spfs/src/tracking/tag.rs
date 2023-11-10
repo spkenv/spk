@@ -257,6 +257,7 @@ pub fn build_tag_spec(org: Option<String>, name: String, version: u64) -> Result
 
 pub fn split_tag_spec(spec: &str) -> Result<TagSpec> {
     let mut parts: Vec<_> = spec.rsplitn(2, '/').collect();
+
     parts.reverse();
     if parts.len() == 1 {
         // if there was no leading org, insert an empty one
