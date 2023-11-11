@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use clap::{Args, Subcommand};
+use miette::Result;
 
 /// View and manage spfs runtime information
 #[derive(Debug, Args)]

@@ -10,10 +10,10 @@ use std::ffi::OsString;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 
-use anyhow::{Context, Result};
 use clap::{Args, Parser};
 #[cfg(feature = "sentry")]
 use cli::configure_sentry;
+use miette::{Context, Result};
 use spfs::monitor::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
 use spfs::storage::fs::RenderSummary;
 use spfs_cli_common as cli;
@@ -222,12 +222,12 @@ impl CmdEnter {
                     // proceed with using the runtime, so we don't ignore this
                     // error and hope for the best. Using this new environment
                     // puts whatever is using it at risk of data loss.
-                    anyhow::bail!(
+                    miette::bail!(
                         "spfs-monitor disappeared unexpectedly, it is unsafe to continue. Setting ${SPFS_MONITOR_FOREGROUND_LOGGING_VAR}=1 may provide more details"
                     );
                 }
                 Err(err) => {
-                    anyhow::bail!("Failed to inform spfs-monitor to start: {err}");
+                    miette::bail!("Failed to inform spfs-monitor to start: {err}");
                 }
             };
 
@@ -286,7 +286,7 @@ impl CmdEnter {
 
         cmd.exec()
             .map(|_| 0)
-            .context("Failed to execute runtime command")
+            .wrap_err("Failed to execute runtime command")
     }
 
     #[cfg_attr(not(feature = "sentry"), allow(unused))]

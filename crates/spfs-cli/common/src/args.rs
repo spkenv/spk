@@ -7,7 +7,7 @@ use std::panic::catch_unwind;
 #[cfg(feature = "sentry")]
 use std::sync::Mutex;
 
-use anyhow::Error;
+use miette::Error;
 #[cfg(feature = "sentry")]
 use once_cell::sync::OnceCell;
 use spfs::storage::LocalRepository;
@@ -556,7 +556,7 @@ pub fn capture_if_relevant(err: &Error) {
         _ => {
             // This will always add a backtrace to the sentry event
             #[cfg(feature = "sentry")]
-            sentry_anyhow::capture_anyhow(err);
+            sentry_miette::capture_anyhow(err);
         }
     }
 }

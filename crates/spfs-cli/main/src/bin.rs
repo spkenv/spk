@@ -4,8 +4,8 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::fn_params_excessive_bools)]
-use anyhow::Result;
 use clap::{Parser, Subcommand};
+use miette::Result;
 use spfs::{Error, OsErrorExt};
 
 mod cmd_check;

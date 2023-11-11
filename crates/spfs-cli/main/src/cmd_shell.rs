@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use clap::{ArgGroup, Args};
+use miette::Result;
 use spfs_cli_common as cli;
 
 use super::cmd_run;

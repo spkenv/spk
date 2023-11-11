@@ -4,8 +4,8 @@
 
 use std::path::PathBuf;
 
-use anyhow::Result;
 use clap::Args;
+use miette::Result;
 use spfs::encoding::Encodable;
 use spfs::prelude::*;
 

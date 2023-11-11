@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use clap::Args;
 use futures::StreamExt;
+use miette::Result;
 use spfs::monitor::find_processes_and_mount_namespaces;
 
 /// List runtime information from the repository

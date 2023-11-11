@@ -6,8 +6,8 @@
 use std::os::unix::prelude::PermissionsExt;
 use std::path::PathBuf;
 
-use anyhow::Result;
 use clap::Args;
+use miette::Result;
 use spfs::prelude::*;
 use spfs::tracking::BlobReadExt;
 use spfs::Error;

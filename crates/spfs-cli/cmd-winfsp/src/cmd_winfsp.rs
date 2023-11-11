@@ -8,8 +8,8 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
+use miette::{bail, Context, Result};
 use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
 #[cfg(windows)]
@@ -81,7 +81,7 @@ impl CmdWinFsp {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
-            .context("Failed to establish async runtime")?;
+            .wrap_err("Failed to establish async runtime")?;
         let res = match &mut self.command {
             Command::Mount(c) => rt.block_on(c.run(config)),
             Command::Service(c) => rt.block_on(c.run(config)),
@@ -137,7 +137,7 @@ impl CmdService {
             return self.stop().await;
         }
 
-        let init_token = winfsp::winfsp_init().context("Failed to initialize winfsp")?;
+        let init_token = winfsp::winfsp_init().wrap_err("Failed to initialize winfsp")?;
         tracing::info!("starting service...");
         let config = spfs_vfs::Config {
             mountpoint: self.mountpoint.clone(),
@@ -145,10 +145,10 @@ impl CmdService {
         };
         let service = Service::new(config)
             .await
-            .context("Failed to start filesystem service")?;
+            .wrap_err("Failed to start filesystem service")?;
         let fsp = service
             .build_filesystem_service(init_token)
-            .context("Failed to build filesystem service")?;
+            .wrap_err("Failed to build filesystem service")?;
         let (shutdown_tx, mut shutdown_rx) = tokio::sync::mpsc::channel(4);
         let ctrl_c_shutdown_tx = shutdown_tx.clone();
         let service = proto::vfs_service_server::VfsServiceServer::new(Arc::clone(&service));
@@ -171,7 +171,7 @@ impl CmdService {
                 result
                     .expect("Filesystem task should not panic")
                     .expect("Filesystem thread should not panic")
-                    .context("Filesystem failed during runtime")?;
+                    .wrap_err("Filesystem failed during runtime")?;
                 tracing::info!("filesystem service shutdown, exiting...");
                 let _ = shutdown_tx.send(()).await;
             }
@@ -252,7 +252,7 @@ impl CmdMount {
             .await;
         let channel = match result {
             Err(err) if is_connection_refused(&err) => {
-                let exe = std::env::current_exe().context("Failed to get current exe")?;
+                let exe = std::env::current_exe().wrap_err("Failed to get current exe")?;
                 let mut cmd = std::process::Command::new(exe);
                 cmd.creation_flags(DETACHED_PROCESS.0)
                     .arg("service")
@@ -260,7 +260,7 @@ impl CmdMount {
                     .arg(self.service.to_string())
                     .arg(&self.mountpoint);
                 tracing::debug!(?cmd, "spawning service...");
-                let _child = cmd.spawn().context("Failed to start filesystem service")?;
+                let _child = cmd.spawn().wrap_err("Failed to start filesystem service")?;
                 tonic::transport::Endpoint::from_shared(format!("http://{}", self.service))?
                     .connect()
                     .await?
@@ -286,7 +286,7 @@ impl CmdMount {
                 env_spec: self.reference.to_string(),
             }))
             .await
-            .context("Failed to mount filesystem")?;
+            .wrap_err("Failed to mount filesystem")?;
 
         Ok(0)
     }

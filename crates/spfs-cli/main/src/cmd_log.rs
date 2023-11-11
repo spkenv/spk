@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use chrono::Local;
 use clap::Args;
 use colored::*;
 use futures::StreamExt;
+use miette::Result;
 use spfs::prelude::*;
 use spfs::{self};
 

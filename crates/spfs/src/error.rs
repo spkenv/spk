@@ -4,11 +4,12 @@
 use std::io;
 use std::str::Utf8Error;
 
+use miette::Diagnostic;
 use thiserror::Error;
 
 use crate::encoding;
 
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
 pub enum Error {
     #[error("{0}")]
     String(String),

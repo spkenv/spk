@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
 use fuser::MountOption;
+use miette::{bail, miette, Context, IntoDiagnostic, Result};
 use spfs::tracking::EnvSpec;
 use spfs::Error;
 use spfs_cli_common as cli;
@@ -158,19 +158,27 @@ impl CmdFuse {
         let mountpoint = self
             .mountpoint
             .canonicalize()
-            .context("Invalid mount point")?;
+            .into_diagnostic()
+            .wrap_err("Invalid mount point")?;
 
         if !opts.uid.is_root() {
-            nix::unistd::seteuid(opts.uid).context("Failed to become desired user (effective)")?;
-            nix::unistd::setegid(opts.gid).context("Failed to become desired group (effective)")?;
+            nix::unistd::seteuid(opts.uid)
+                .into_diagnostic()
+                .wrap_err("Failed to become desired user (effective)")?;
+            nix::unistd::setegid(opts.gid)
+                .into_diagnostic()
+                .wrap_err("Failed to become desired group (effective)")?;
             // unprivileged users must have write access to the directory that
             // they are trying to mount over.
             nix::unistd::access(&mountpoint, nix::unistd::AccessFlags::W_OK)
-                .context("Must have write access to mountpoint")?;
+                .into_diagnostic()
+                .wrap_err("Must have write access to mountpoint")?;
             nix::unistd::seteuid(calling_uid)
-                .context("Failed to reset calling user (effective)")?;
+                .into_diagnostic()
+                .wrap_err("Failed to reset calling user (effective)")?;
             nix::unistd::setegid(calling_gid)
-                .context("Failed to reset calling group (effective)")?;
+                .into_diagnostic()
+                .wrap_err("Failed to reset calling group (effective)")?;
         }
 
         // establish the fuse session before changing the uid/gid of this process
@@ -184,15 +192,24 @@ impl CmdFuse {
             &mountpoint,
             &mount_opts,
         )
-        .context("Failed to create a FUSE session")?;
+        .into_diagnostic()
+        .wrap_err("Failed to create a FUSE session")?;
 
         if opts.gid != calling_gid {
-            nix::unistd::setgid(opts.gid).context("Failed to set desired group (actual)")?;
-            nix::unistd::setegid(opts.gid).context("Failed to set desired group (effective)")?;
+            nix::unistd::setgid(opts.gid)
+                .into_diagnostic()
+                .wrap_err("Failed to set desired group (actual)")?;
+            nix::unistd::setegid(opts.gid)
+                .into_diagnostic()
+                .wrap_err("Failed to set desired group (effective)")?;
         }
         if opts.uid != calling_uid {
-            nix::unistd::setuid(opts.uid).context("Failed to become desired user (actual)")?;
-            nix::unistd::seteuid(opts.uid).context("Failed to become desired user (effective)")?;
+            nix::unistd::setuid(opts.uid)
+                .into_diagnostic()
+                .wrap_err("Failed to become desired user (actual)")?;
+            nix::unistd::seteuid(opts.uid)
+                .into_diagnostic()
+                .wrap_err("Failed to become desired user (effective)")?;
         }
 
         if !self.foreground {
@@ -200,7 +217,9 @@ impl CmdFuse {
             // We cannot daemonize until the session is established above,
             // otherwise initial use of the filesystem may not show any mount
             // at all.
-            nix::unistd::daemon(false, self.log_foreground)?;
+            nix::unistd::daemon(false, self.log_foreground)
+                .into_diagnostic()
+                .wrap_err("Failed to daemonize")?;
         }
 
         // We also cannot go multi-thread until the daemonization process above
@@ -213,12 +232,13 @@ impl CmdFuse {
             .max_blocking_threads(config.fuse.max_blocking_threads.get())
             .enable_all()
             .build()
-            .context("Failed to establish runtime")?;
+            .into_diagnostic()
+            .wrap_err("Failed to establish runtime")?;
 
         let result = rt.block_on(async move {
-            let mut interrupt = signal(SignalKind::interrupt()).context("interrupt signal handler")?;
-            let mut quit = signal(SignalKind::quit()).context("quit signal handler")?;
-            let mut terminate = signal(SignalKind::terminate()).context("terminate signal handler")?;
+            let mut interrupt = signal(SignalKind::interrupt()).into_diagnostic().wrap_err("interrupt signal handler")?;
+            let mut quit = signal(SignalKind::quit()).into_diagnostic().wrap_err("quit signal handler")?;
+            let mut terminate = signal(SignalKind::terminate()).into_diagnostic().wrap_err("terminate signal handler")?;
 
             tracing::info!("Starting FUSE filesystem");
             // Although the filesystem could run in the current thread, we prefer to
@@ -230,13 +250,13 @@ impl CmdFuse {
             let res = tokio::select!{
                 res = join_handle => {
                     tracing::info!("Filesystem shutting down");
-                    res.context("FUSE session failed")
+                    res.into_diagnostic().wrap_err("FUSE session failed")
                 }
                 // we explicitly catch any signal related to interruption
                 // and will act by shutting down the filesystem early
-                _ = terminate.recv() => Err(anyhow!("Terminate signal received, filesystem shutting down")),
-                _ = interrupt.recv() => Err(anyhow!("Interrupt signal received, filesystem shutting down")),
-                _ = quit.recv() => Err(anyhow!("Quit signal received, filesystem shutting down")),
+                _ = terminate.recv() => Err(miette!("Terminate signal received, filesystem shutting down")),
+                _ = interrupt.recv() => Err(miette!("Interrupt signal received, filesystem shutting down")),
+                _ = quit.recv() => Err(miette!("Quit signal received, filesystem shutting down")),
             };
             // the filesystem task must be fully terminated in order for the subsequent unmount
             // process to function. Otherwise, the background task will keep this process alive
@@ -251,7 +271,7 @@ impl CmdFuse {
         // events which will never come and so we don't want to block forever
         // when the runtime is dropped.
         rt.shutdown_timeout(std::time::Duration::from_secs(2));
-        result??;
+        result?.into_diagnostic()?;
         Ok(0)
     }
 }

@@ -4,9 +4,9 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
 use clap::Args;
 use itertools::Itertools;
+use miette::Result;
 use spfs::prelude::*;
 use spfs::tracking::{Entry, EnvSpecItem};
 

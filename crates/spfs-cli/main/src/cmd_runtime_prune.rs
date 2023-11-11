@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use chrono::{Duration, Utc};
 use clap::Args;
+use miette::Result;
 use tokio_stream::StreamExt;
 
 use super::cmd_runtime_remove::is_monitor_running;

@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 use futures::TryStreamExt;
+use miette::Result;
 use number_prefix::NumberPrefix;
 
 /// Check a repositories internal integrity
@@ -38,7 +38,7 @@ impl CmdCheck {
 
         let pull_from = match self.pull.take() {
             Some(name @ Some(_)) if name == self.remote => {
-                anyhow::bail!("Cannot --pull from same repo as --remote".to_string());
+                miette::bail!("Cannot --pull from same repo as --remote");
             }
             Some(None)
                 if self
@@ -47,7 +47,7 @@ impl CmdCheck {
                     .map(|r| r == "origin")
                     .unwrap_or_default() =>
             {
-                anyhow::bail!("Cannot --pull from same repo as --remote".to_string());
+                miette::bail!("Cannot --pull from same repo as --remote");
             }
             Some(mut repo) => Some(
                 spfs::config::open_repository_from_string(

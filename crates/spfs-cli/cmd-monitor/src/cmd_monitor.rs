@@ -7,10 +7,10 @@
 
 use std::time::Duration;
 
-use anyhow::{Context, Result};
 use clap::Parser;
 #[cfg(feature = "sentry")]
 use cli::configure_sentry;
+use miette::{Context, IntoDiagnostic, Result};
 use spfs::Error;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
@@ -84,13 +84,15 @@ impl CmdMonitor {
             .max_blocking_threads(1)
             .enable_all()
             .build()
-            .context("Failed to establish async runtime")?;
+            .into_diagnostic()
+            .wrap_err("Failed to establish async runtime")?;
         rt.block_on(self.wait_for_ready());
         // clean up this runtime and all other threads before detaching
         drop(rt);
 
         nix::unistd::daemon(self.no_chdir, self.no_close)
-            .context("Failed to daemonize the monitor process")?;
+            .into_diagnostic()
+            .wrap_err("Failed to daemonize the monitor process")?;
 
         #[cfg(feature = "sentry")]
         {
@@ -106,7 +108,8 @@ impl CmdMonitor {
             .max_blocking_threads(config.monitor.max_blocking_threads.get())
             .enable_all()
             .build()
-            .context("Failed to establish async runtime")?;
+            .into_diagnostic()
+            .wrap_err("Failed to establish async runtime")?;
         let code = rt.block_on(self.run_async())?;
         // the monitor is running in the background and, although not expected,
         // can take extra time to shutdown if needed

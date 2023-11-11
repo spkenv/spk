@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use clap::Args;
+use miette::{Context, IntoDiagnostic, Result};
 
 /// Show the complete state of a runtime
 #[derive(Debug, Args)]
@@ -28,7 +28,9 @@ impl CmdRuntimeInfo {
         };
 
         let runtime = runtime_storage.read_runtime(&self.name).await?;
-        serde_json::to_writer_pretty(std::io::stdout(), runtime.data())?;
+        serde_json::to_writer_pretty(std::io::stdout(), runtime.data())
+            .into_diagnostic()
+            .wrap_err("Failed to generate json output")?;
         println!(); // the trailing new line is nice for interactive shells
 
         Ok(0)

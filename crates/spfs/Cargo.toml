@@ -40,6 +40,7 @@ hyper = { version = "0.14.16", features = ["client"] }
 indicatif = { workspace = true }
 itertools = "0.10.3"
 libc = { workspace = true }
+miette = { workspace = true }
 nix = { workspace = true }
 nonempty = "0.8.1"
 num_cpus = "1.13.1"

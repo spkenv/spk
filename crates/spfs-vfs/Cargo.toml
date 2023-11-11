@@ -23,13 +23,13 @@ fuse-backend-rhel-7-6 = ["fuse-backend-abi-7-22"]
 fuse-backend-rhel-7-9 = ["fuse-backend-abi-7-31"]
 
 [dependencies]
-anyhow = { workspace = true }
 bytes = { workspace = true }
 clap = { workspace = true }
 dashmap = { workspace = true }
 futures-core = { workspace = true, optional = true }
 nix = { workspace = true, features = ["process"] }
 libc = "0.2"
+miette = { workspace = true, features = ["fancy"] }
 prost = { workspace = true, optional = true }
 spfs = { path = "../spfs" }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
