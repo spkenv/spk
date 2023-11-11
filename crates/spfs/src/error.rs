@@ -132,6 +132,14 @@ pub enum Error {
 
     #[error("OverlayFS mount backend is not supported on windows.")]
     OverlayFsUnsupportedOnWindows,
+
+    #[error("{context}")]
+    Wrapped {
+        context: String,
+        #[related]
+        related: Vec<Self>,
+        source: Box<Self>,
+    },
 }
 
 impl Error {
@@ -150,15 +158,34 @@ impl Error {
         err.wrap(prefix)
     }
 
-    pub fn wrap<E: Into<String>>(&self, prefix: E) -> Error {
-        let msg = format!("{}: {:?}", prefix.into(), self);
-        match self.os_error() {
-            Some(errno) => Error::new_errno(errno, msg),
-            None => Error::new(msg),
+    /// Wrap this error, adding an additional level of context
+    pub fn wrap<E: Into<String>>(self, msg: E) -> Error {
+        match self {
+            Self::Wrapped {
+                mut context,
+                mut related,
+                source,
+            } => {
+                related.push(Self::String(context));
+                context = msg.into();
+                Self::Wrapped {
+                    context,
+                    related,
+                    source,
+                }
+            }
+            source => {
+                let context = msg.into();
+        Self::Wrapped {
+                    context,
+                    related: Vec::new(),
+                    source: Box::new(source),
+                }
+            }
         }
     }
 
-    /// Create an `Error:ProcessSpawnError` with context.
+    /// Create an [`Error:ProcessSpawnError`] with context.
     pub fn process_spawn_error<S>(
         process_description: S,
         err: std::io::Error,
