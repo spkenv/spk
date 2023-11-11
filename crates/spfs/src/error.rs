@@ -10,16 +10,26 @@ use thiserror::Error;
 use crate::encoding;
 
 #[derive(Diagnostic, Debug, Error)]
+#[diagnostic(
+    url(
+        "https://getspk.io/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spfs::generic"))
+    )
+)]
 pub enum Error {
     #[error("{0}")]
+    #[diagnostic(code("spfs::generic"))]
     String(String),
     #[cfg(unix)]
     #[error(transparent)]
+    #[diagnostic(code("spfs::generic"))]
     Nix(#[from] nix::Error),
     #[cfg(windows)]
     #[error(transparent)]
+    #[diagnostic(code("spfs::generic"))]
     Win(#[from] windows::core::Error),
     #[error("[ERRNO {1}] {0}")]
+    #[diagnostic(code("spfs::generic"))]
     Errno(String, i32),
     #[error(transparent)]
     JSON(#[from] serde_json::Error),
@@ -176,7 +186,7 @@ impl Error {
             }
             source => {
                 let context = msg.into();
-        Self::Wrapped {
+                Self::Wrapped {
                     context,
                     related: Vec::new(),
                     source: Box::new(source),
