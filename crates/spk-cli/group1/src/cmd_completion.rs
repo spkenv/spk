@@ -1,10 +1,10 @@
 /// Generate shell completions for "spk"
 use std::io::Write;
 
-use anyhow::Result;
 use clap::{value_parser, Command, Parser};
 use clap_complete;
 use clap_complete::Shell;
+use miette::Result;
 use spk_cli_common::CommandArgs;
 
 /// Generate shell completions for "spk"

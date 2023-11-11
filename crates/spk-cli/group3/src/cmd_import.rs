@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::{Context, Result};
 use clap::Args;
 use futures::TryStreamExt;
+use miette::{Context, Result};
 use spfs::storage::TagStorage;
 use spk_cli_common::{CommandArgs, Run};
 
@@ -39,13 +39,13 @@ impl Run for Import {
                 .map_ok(|(spec, _)| spec)
                 .try_collect()
                 .await
-                .context("Failed to collect tags from archive")?;
+                .wrap_err("Failed to collect tags from archive")?;
             tracing::info!(archive = ?filename, "importing");
             summary += syncer
                 .clone_with_source(&tar_repo)
                 .sync_env(env_spec)
                 .await
-                .context("Failed to sync archived data")?
+                .wrap_err("Failed to sync archived data")?
                 .summary();
         }
         tracing::info!("{:#?}", summary);

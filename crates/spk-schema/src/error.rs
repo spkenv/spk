@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use miette::Diagnostic;
 use thiserror::Error;
 
 #[cfg(test)]
@@ -10,7 +11,13 @@ mod error_test;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
+#[diagnostic(
+    url(
+        "https://getspk.io/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spk::generic"))
+    )
+)]
 pub enum Error {
     #[error("Failed to open file {0}")]
     FileOpenError(std::path::PathBuf, #[source] std::io::Error),
@@ -26,22 +33,29 @@ pub enum Error {
     #[error("Invalid path {0}")]
     InvalidPath(std::path::PathBuf, #[source] std::io::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     ProcessSpawnError(spfs::Error),
     #[error("Failed to wait for process: {0}")]
     ProcessWaitError(#[source] std::io::Error),
     #[error("Failed to encode spec: {0}")]
     SpecEncodingError(#[source] serde_yaml::Error),
     #[error(transparent)]
-    SPFS(#[from] spfs::Error),
+    #[diagnostic(forward(0))]
+    Error(#[from] spfs::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkIdentBuildError(#[from] crate::foundation::ident_build::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkIdentComponentError(#[from] crate::foundation::ident_component::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkIdentError(#[from] crate::ident::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkNameError(#[from] crate::foundation::name::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkOptionMapError(#[from] crate::foundation::option_map::Error),
     #[error("Error: {0}")]
     String(String),

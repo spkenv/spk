@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use clap::Args;
+use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
 
 /// Show the resolve process for a set of packages.

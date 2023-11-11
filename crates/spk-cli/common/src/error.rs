@@ -3,41 +3,57 @@
 // https://github.com/imageworks/spk
 
 use colored::Colorize;
+use miette::Diagnostic;
 use spk_schema::foundation::format::FormatError;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
+#[diagnostic(
+    url(
+        "https://getspk.io/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spk::generic"))
+    )
+)]
 pub enum Error {
     #[error(transparent)]
-    SPFS(#[from] spfs::Error),
+    #[diagnostic(forward(0))]
+    Error(#[from] spfs::Error),
     #[error("Error: {0}")]
     String(String),
 
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkBuildError(#[from] spk_build::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkExecError(#[from] spk_exec::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkIdentError(#[from] spk_schema::ident::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkSolverError(#[from] spk_solve::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkSpecError(#[from] spk_schema::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkStorageError(#[from] spk_storage::Error),
 
     // IO Errors
     #[error("Failed to write file {0}")]
     FileWriteError(std::path::PathBuf, #[source] std::io::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     ProcessSpawnError(spfs::Error),
     #[error("Failed to create temp dir: {0}")]
     TempDirError(#[source] std::io::Error),
 
     // Test Errors
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     Test(#[from] TestError),
 
     /// Not running under an active spk environment
@@ -101,7 +117,7 @@ impl FormatError for Error {
 }
 
 /// Denotes that a test has failed or was invalid.
-#[derive(Debug, Error)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("Test error: {message}")]
 pub struct TestError {
     pub message: String,

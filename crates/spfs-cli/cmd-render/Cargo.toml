@@ -12,10 +12,10 @@ path = "src/cmd_render.rs"
 sentry = ["spfs-cli-common/sentry"]
 
 [dependencies]
-anyhow = { workspace = true }
 clap = { workspace = true }
 dunce = { workspace = true }
 futures = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
 serde_json = { workspace = true }
 spfs = { path = "../../spfs" }
 spfs-cli-common = { path = "../common" }

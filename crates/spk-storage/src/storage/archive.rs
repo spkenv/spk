@@ -43,7 +43,12 @@ where
     );
     let local_repo = local_repo?;
 
-    let tar_repo = spfs::storage::tar::TarRepository::create(&filename).await?;
+    let tar_repo = spfs::storage::tar::TarRepository::create(&filename)
+        .await
+        .map_err(|source| spfs::Error::FailedToOpenRepository {
+            repository: "<TAR Archive>".into(),
+            source,
+        })?;
     // Package exports should not include the top-level directory for
     // durable runtime upperdir edits.
     tar_repo.remove_durable_dir().await?;

@@ -4,6 +4,7 @@
 
 use clap::Args;
 use futures::TryFutureExt;
+use miette::IntoDiagnostic;
 use serde::Serialize;
 use spk_cli_common::{current_env, flags, CommandArgs, Run};
 use spk_schema::ident::RequestedBy;
@@ -89,7 +90,7 @@ const UNKNOWN_COMPONENT: &str = "";
 
 #[async_trait::async_trait]
 impl Run for Bake {
-    async fn run(&mut self) -> anyhow::Result<i32> {
+    async fn run(&mut self) -> miette::Result<i32> {
         // Get the layer data from either the active runtime, or the
         // requests made on the command line
         let layers = if self.requested.is_empty() {
@@ -114,11 +115,11 @@ impl Run for Bake {
             }
             YAML_FORMAT => {
                 // True layer data into yaml for other programs to use
-                serde_yaml::to_string(&layers)?
+                serde_yaml::to_string(&layers).into_diagnostic()?
             }
             JSON_FORMAT => {
                 // Turn layer data into json for other programs to use
-                serde_json::to_string(&layers)?
+                serde_json::to_string(&layers).into_diagnostic()?
             }
             // LAYER_FORMAT
             _ => {
@@ -146,7 +147,7 @@ impl Bake {
     /// the layers from any packages resolved into the current
     /// environment, and may include other layers added by other
     /// means (the user and spfs.)
-    async fn get_active_runtime_info(&self) -> anyhow::Result<Vec<BakeLayer>> {
+    async fn get_active_runtime_info(&self) -> miette::Result<Vec<BakeLayer>> {
         let (runtime, solution) = tokio::try_join!(
             spfs::active_runtime().map_err(|err| err.into()),
             current_env()
@@ -215,7 +216,7 @@ impl Bake {
     /// the requests given on the command line. This won't consider
     /// anything in the current environment.
     ///
-    async fn get_new_solve_info(&self) -> anyhow::Result<Vec<BakeLayer>> {
+    async fn get_new_solve_info(&self) -> miette::Result<Vec<BakeLayer>> {
         // Setup a solver for the requests and generate a solution
         // with it.
         let mut solver = self.solver.get_solver(&self.options).await?;

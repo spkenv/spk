@@ -4,21 +4,32 @@
 use std::io;
 use std::str::Utf8Error;
 
+use miette::Diagnostic;
 use thiserror::Error;
 
-use crate::encoding;
+use crate::{encoding, storage};
 
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
+#[diagnostic(
+    url(
+        "https://getspk.io/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spfs::generic"))
+    )
+)]
 pub enum Error {
     #[error("{0}")]
+    #[diagnostic(code("spfs::generic"))]
     String(String),
     #[cfg(unix)]
     #[error(transparent)]
+    #[diagnostic(code("spfs::generic"))]
     Nix(#[from] nix::Error),
     #[cfg(windows)]
     #[error(transparent)]
+    #[diagnostic(code("spfs::generic"))]
     Win(#[from] windows::core::Error),
     #[error("[ERRNO {1}] {0}")]
+    #[diagnostic(code("spfs::generic"))]
     Errno(String, i32),
     #[error(transparent)]
     JSON(#[from] serde_json::Error),
@@ -28,6 +39,7 @@ pub enum Error {
     Config(#[from] config::ConfigError),
 
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     Encoding(#[from] super::encoding::Error),
 
     #[error("Invalid repository url: {0:?}")]
@@ -73,11 +85,19 @@ pub enum Error {
     RepositoryIsPinned,
 
     #[error("Failed to open repository: {repository}")]
+    #[diagnostic(code("spfs::failed_to_open_repo"))]
     FailedToOpenRepository {
         repository: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        #[diagnostic_source]
+        #[source]
+        source: storage::OpenRepositoryError,
     },
-    #[error("No remote name '{0}' configured.")]
+
+    #[error("No remote named '{0}' configured")]
+    #[diagnostic(
+        code("spfs::unknown_remote"),
+        help("See available remotes via the 'spfs config' command")
+    )]
     UnknownRemoteName(String),
 
     #[error("Nothing to commit, resulting filesystem would be empty")]
@@ -108,6 +128,12 @@ pub enum Error {
     RuntimeWriteError(std::path::PathBuf, #[source] io::Error),
     #[error("Runtime set permissions error: {0}")]
     RuntimeSetPermissionsError(std::path::PathBuf, #[source] io::Error),
+    #[error("Failed to create {} directory", crate::env::SPFS_DIR)]
+    #[diagnostic(
+        code("spfs::could_not_create_spfs_dir"),
+        help("If you have sudo/admin privileges, you can try creating it yourself")
+    )]
+    CouldNotCreateSpfsRoot { source: std::io::Error },
     #[error("Unable to make the runtime durable: {0}")]
     RuntimeChangeToDurableError(String),
     #[error("Storage read error from {0} at {1}: {2}")]
@@ -131,6 +157,14 @@ pub enum Error {
 
     #[error("OverlayFS mount backend is not supported on windows.")]
     OverlayFsUnsupportedOnWindows,
+
+    #[error("{context}")]
+    Wrapped {
+        context: String,
+        #[related]
+        related: Vec<Self>,
+        source: Box<Self>,
+    },
 }
 
 impl Error {
@@ -149,15 +183,46 @@ impl Error {
         err.wrap(prefix)
     }
 
-    pub fn wrap<E: Into<String>>(&self, prefix: E) -> Error {
-        let msg = format!("{}: {:?}", prefix.into(), self);
-        match self.os_error() {
-            Some(errno) => Error::new_errno(errno, msg),
-            None => Error::new(msg),
+    /// Wrap this error, adding an additional level of context
+    pub fn wrap<E: Into<String>>(self, msg: E) -> Error {
+        match self {
+            Self::Wrapped {
+                mut context,
+                mut related,
+                source,
+            } => {
+                related.push(Self::String(context));
+                context = msg.into();
+                Self::Wrapped {
+                    context,
+                    related,
+                    source,
+                }
+            }
+            source => {
+                let context = msg.into();
+                Self::Wrapped {
+                    context,
+                    related: Vec::new(),
+                    source: Box::new(source),
+                }
+            }
         }
     }
 
-    /// Create an `Error:ProcessSpawnError` with context.
+    /// Create an [`Error::FailedToOpenRepository`] instance for
+    /// a repository using its address and root cause.
+    pub fn failed_to_open_repository<R: storage::Repository>(
+        repo: &R,
+        source: storage::OpenRepositoryError,
+    ) -> Self {
+        Self::FailedToOpenRepository {
+            repository: repo.address().to_string(),
+            source,
+        }
+    }
+
+    /// Create an [`Error::ProcessSpawnError`] with context.
     pub fn process_spawn_error<S>(
         process_description: S,
         err: std::io::Error,
@@ -199,6 +264,27 @@ impl From<std::path::StripPrefixError> for Error {
         Error::String(err.to_string())
     }
 }
+
+// impl IntoError for storage::OpenRepositoryError {
+//     type Context = url::Url;
+//     type Error = Error;
+
+//     fn into_error(self, context: Self::Context) -> Self::Error {
+//         Error::FailedToOpenRepository {
+//             repository: context.into(),
+//             source: self,
+//         }
+//     }
+// }
+
+// /// A type that can be converted into an error if
+// /// some additional context is provided
+// pub trait IntoError {
+//     type Context;
+//     type Error;
+
+//     fn into_error(self, context: Self::Context) -> Self::Error;
+// }
 
 /// An OS error represents an error that may have an associated
 /// error code from the operating system

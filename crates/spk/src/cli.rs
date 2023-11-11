@@ -7,9 +7,9 @@
 
 //! Main entry points and utilities for command line interface and interaction.
 
-use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand};
 use colored::Colorize;
+use miette::{Context, Result};
 #[cfg(feature = "sentry")]
 use spk_cli_common::configure_sentry;
 use spk_cli_common::{configure_logging, CommandArgs, Error, Run};
@@ -64,7 +64,7 @@ impl Opt {
             client
         };
 
-        let res = configure_logging(self.verbose).context("Failed to initialize output log");
+        let res = configure_logging(self.verbose).wrap_err("Failed to initialize output log");
         if let Err(err) = res {
             eprintln!("{}", err.to_string().red());
             #[cfg(feature = "statsd")]
@@ -115,25 +115,15 @@ impl Opt {
                             scope.set_fingerprint(Some(&fingerprints));
                         },
                         || {
-                            /*
                             // capture_error does not add a backtrace to
                             // sentry for the error event, unless backtraces
                             // are enabled for all events when the sentry
-                            // client is configured. This causes less sentry
-                            // empty backtrace noise:
-                            sentry::capture_error(<anyhow::Error as AsRef<
-                            (dyn std::error::Error + Send + Sync + 'static),
-                            >>::as_ref(&_err));
-                             */
-
-                            // This will always add a backtrace to sentry for
-                            // an error event, but it will be empty because
-                            // these errors are not panics and as such have no
-                            // backtrace data. This generates empty backtrace
-                            // noise in sentry. Panics will have backtraces,
+                            // client is configured. Panics will have backtraces,
                             // but aren't handled by this, they are sent when
                             // the _sentry_guard goes out of scope.
-                            sentry_anyhow::capture_anyhow(err);
+                            sentry::capture_error(
+                                std::convert::AsRef::<dyn std::error::Error>::as_ref(err),
+                            );
                         },
                     );
                 }

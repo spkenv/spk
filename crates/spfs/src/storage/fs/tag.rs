@@ -185,7 +185,9 @@ impl TagStorage for OpenFsRepository {
     async fn insert_tag(&self, tag: &tracking::Tag) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
         let filepath = tag_spec.to_path(self.tags_root());
-        crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
+        crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777).map_err(|err| {
+            Error::StorageWriteError("insert_tag::create_parent", filepath.clone(), err)
+        })?;
         let working_file = TagWorkingFile::new(&filepath).await?;
 
         let mut tags: Vec<tracking::Tag> = vec![];
@@ -401,7 +403,8 @@ trait TagReader: AsyncRead + AsyncSeek + Send + Unpin {}
 impl TagReader for tokio::io::BufReader<tokio::fs::File> {}
 
 async fn write_tags_to_path(filepath: &PathBuf, tags: &[tracking::Tag]) -> Result<()> {
-    crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)?;
+    crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777)
+        .map_err(|err| Error::StorageWriteError("write_tags_to_path", filepath.clone(), err))?;
     let mut file = tokio::io::BufWriter::new(
         tokio::fs::OpenOptions::new()
             .write(true)

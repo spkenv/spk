@@ -4,6 +4,7 @@
 use std::collections::BTreeSet;
 use std::str::FromStr;
 
+use miette::Diagnostic;
 use relative_path::RelativePathBuf;
 use thiserror::Error;
 
@@ -19,7 +20,7 @@ pub const SRC: &str = "src";
 pub const EMBEDDED: &str = "embedded";
 
 /// Denotes that an invalid build digest was given.
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
 #[error("Invalid build: {message}")]
 pub struct InvalidBuildError {
     pub message: String,

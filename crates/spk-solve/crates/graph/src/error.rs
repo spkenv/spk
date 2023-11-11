@@ -5,6 +5,7 @@
 use std::fmt::Write;
 
 use colored::Colorize;
+use miette::Diagnostic;
 use spk_schema::foundation::format::FormatError;
 use spk_schema::ident::PkgRequest;
 use thiserror::Error;
@@ -13,11 +14,19 @@ use super::graph::GraphError;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
+#[diagnostic(
+    url(
+        "https://getspk.io/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spk::generic"))
+    )
+)]
 pub enum Error {
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     FailedToResolve(#[from] super::graph::Graph),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     Graph(#[from] GraphError),
     #[error("Package not found: {0}")]
     PackageNotFoundDuringSolve(PkgRequest),
@@ -26,22 +35,31 @@ pub enum Error {
     #[error("Solver interrupted: {0}")]
     SolverInterrupted(String),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkIdentError(#[from] spk_schema::ident::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkIdentComponentError(#[from] spk_schema::foundation::ident_component::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkNameError(#[from] spk_schema::foundation::name::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkSolverPackageIteratorError(#[from] spk_solve_package_iterator::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkSolverSolutionError(#[from] spk_solve_solution::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkSpecError(#[from] spk_schema::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkStorageError(#[from] spk_storage::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkValidatorsError(#[from] spk_schema::validators::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkVersionRangeError(#[from] spk_schema::foundation::version_range::Error),
     #[error("Error: {0}")]
     String(String),
@@ -57,11 +75,12 @@ pub enum GetCurrentResolveError {
 
 pub type GetMergedRequestResult<T> = std::result::Result<T, GetMergedRequestError>;
 
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
 pub enum GetMergedRequestError {
     #[error("No request for: {0}")]
     NoRequestFor(String),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     Other(#[from] Box<crate::Error>),
 }
 

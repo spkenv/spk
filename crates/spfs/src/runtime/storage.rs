@@ -927,7 +927,7 @@ impl Runtime {
 
     async fn ensure_lower_dir(&self) -> Result<()> {
         if let Err(err) = makedirs_with_perms(&self.config.lower_dir, 0o777) {
-            return Err(err.wrap(format!("Failed to create {:?}", self.config.lower_dir)));
+            return Err(Error::RuntimeWriteError(self.config.lower_dir.clone(), err));
         }
         Ok(())
     }
@@ -936,11 +936,11 @@ impl Runtime {
     pub async fn ensure_upper_dirs(&self) -> Result<()> {
         let mut result = makedirs_with_perms(&self.config.upper_dir, 0o777);
         if let Err(err) = result {
-            return Err(err.wrap(format!("Failed to create {:?}", self.config.upper_dir)));
+            return Err(Error::RuntimeWriteError(self.config.upper_dir.clone(), err));
         }
         result = makedirs_with_perms(&self.config.work_dir, 0o777);
         if let Err(err) = result {
-            return Err(err.wrap(format!("Failed to create {:?}", self.config.work_dir)));
+            return Err(Error::RuntimeWriteError(self.config.work_dir.clone(), err));
         }
         Ok(())
     }
@@ -1285,7 +1285,7 @@ fn runtime_tag<S: std::fmt::Display>(
 }
 
 /// Recursively create the given directory with the appropriate permissions.
-pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> Result<()> {
+pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> std::io::Result<()> {
     let dirname = dirname.as_ref();
     #[cfg(unix)]
     let perms = std::fs::Permissions::from_mode(perms);
@@ -1296,7 +1296,8 @@ pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> Result<()>
             std::path::Component::ParentDir => path
                 .parent()
                 .ok_or_else(|| {
-                    Error::String(
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
                         "cannot traverse below root, too many '..' references".to_string(),
                     )
                 })?
@@ -1312,7 +1313,7 @@ pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> Result<()>
                 if let Err(err) = std::fs::create_dir(&path) {
                     match err.kind() {
                         std::io::ErrorKind::AlreadyExists => (),
-                        _ => return Err(Error::RuntimeWriteError(path, err)),
+                        _ => return Err(err),
                     }
                 }
                 // not fatal, so it's worth allowing things to continue

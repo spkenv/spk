@@ -5,8 +5,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
 use clap::Args;
+use miette::{bail, Context, Result};
 use spk_build::SourcePackageBuilder;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
@@ -93,7 +93,7 @@ impl MakeSource {
             let (out, _components) = SourcePackageBuilder::from_recipe(recipe)
                 .build_and_publish(root, &local)
                 .await
-                .context("Failed to collect sources")?;
+                .wrap_err("Failed to collect sources")?;
             tracing::info!("created {}", out.ident().format_ident());
             idents.push(out.ident().clone().into_located(local.name().to_owned()));
         }

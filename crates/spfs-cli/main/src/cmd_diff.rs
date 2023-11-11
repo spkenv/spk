@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use clap::Args;
+use miette::Result;
 
 /// Compare two spfs file system states
 #[derive(Debug, Args)]

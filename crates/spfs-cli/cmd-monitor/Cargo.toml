@@ -12,8 +12,8 @@ path = "src/cmd_monitor.rs"
 sentry = ["spfs/sentry", "spfs-cli-common/sentry"]
 
 [dependencies]
-anyhow = { workspace = true }
 clap = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
 nix = { workspace = true }
 spfs = { path = "../../spfs", features = ["fuse-backend"] }
 spfs-cli-common = { path = "../common" }

@@ -3,12 +3,14 @@
 // https://github.com/imageworks/spk
 use async_trait::async_trait;
 
-use crate::Result;
+use super::OpenRepositoryError;
+
+pub type OpenRepositoryResult<T> = std::result::Result<T, OpenRepositoryError>;
 
 /// A type that can be constructed using a url
 #[async_trait]
 pub trait FromUrl: Sized {
-    async fn from_url(url: &url::Url) -> Result<Self>;
+    async fn from_url(url: &url::Url) -> OpenRepositoryResult<Self>;
 }
 
 /// A type that can be constructed from some
@@ -17,7 +19,7 @@ pub trait FromUrl: Sized {
 pub trait FromConfig: Sized {
     type Config: FromUrl + Send;
 
-    async fn from_config(config: Self::Config) -> Result<Self>;
+    async fn from_config(config: Self::Config) -> OpenRepositoryResult<Self>;
 }
 
 #[async_trait]
@@ -25,7 +27,7 @@ impl<T> FromUrl for T
 where
     T: FromConfig + Send + Sync + Sized,
 {
-    async fn from_url(url: &url::Url) -> Result<Self> {
+    async fn from_url(url: &url::Url) -> OpenRepositoryResult<Self> {
         let config = T::Config::from_url(url).await?;
         Self::from_config(config).await
     }

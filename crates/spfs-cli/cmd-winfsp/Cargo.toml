@@ -12,12 +12,12 @@ path = "src/cmd_winfsp.rs"
 sentry = ["spfs-cli-common/sentry"]
 
 [dependencies]
-anyhow = { workspace = true }
 clap = { workspace = true }
 dashmap = { workspace = true }
-spfs-vfs = { path = "../../spfs-vfs", features = ["winfsp-backend"] }
-nix = { workspace = true, features = ["process"] }
 libc = "0.2"
+miette = { workspace = true, features = ["fancy"] }
+nix = { workspace = true, features = ["process"] }
+spfs-vfs = { path = "../../spfs-vfs", features = ["winfsp-backend"] }
 spfs = { path = "../../spfs", features = ["winfsp-backend"] }
 spfs-cli-common = { path = "../common" }
 tokio = { version = "1.20", features = ["rt"] }

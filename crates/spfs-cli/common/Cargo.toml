@@ -16,9 +16,9 @@ sentry = [
 ]
 
 [dependencies]
-anyhow = { workspace = true }
 clap = { workspace = true }
 libc = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
 once_cell = { workspace = true }
 sentry = { workspace = true, optional = true }
 sentry-anyhow = { workspace = true, optional = true }

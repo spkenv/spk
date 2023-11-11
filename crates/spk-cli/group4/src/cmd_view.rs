@@ -5,10 +5,10 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
 use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
+use miette::{bail, Context, IntoDiagnostic, Result};
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::Object;
 use spfs::io::Pluralize;
@@ -188,7 +188,7 @@ impl View {
 
     fn print_variants_info(&self, options: &OptionMap) -> Result<i32> {
         let (_, template) = flags::find_package_template(self.package.as_ref())
-            .context("find package template")?
+            .wrap_err("find package template")?
             .must_be_found();
         let recipe = template.render(options)?;
 
@@ -354,9 +354,11 @@ impl View {
     fn print_build_spec(&self, package_spec: Arc<Spec>) -> Result<i32> {
         match &self.format {
             OutputFormat::Yaml => serde_yaml::to_writer(std::io::stdout(), &*package_spec)
-                .context("Failed to serialize loaded spec")?,
+                .into_diagnostic()
+                .wrap_err("Failed to serialize loaded spec")?,
             OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &*package_spec)
-                .context("Failed to serialize loaded spec")?,
+                .into_diagnostic()
+                .wrap_err("Failed to serialize loaded spec")?,
         }
         Ok(0)
     }
@@ -424,11 +426,13 @@ impl View {
                         match &self.format {
                             OutputFormat::Yaml => {
                                 serde_yaml::to_writer(std::io::stdout(), &*version_recipe)
-                                    .context("Failed to serialize loaded spec")?
+                                    .into_diagnostic()
+                                    .wrap_err("Failed to serialize loaded spec")?
                             }
                             OutputFormat::Json => {
                                 serde_json::to_writer(std::io::stdout(), &*version_recipe)
-                                    .context("Failed to serialize loaded spec")?
+                                    .into_diagnostic()
+                                    .wrap_err("Failed to serialize loaded spec")?
                             }
                         }
                         return Ok(0);

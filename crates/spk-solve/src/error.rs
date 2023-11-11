@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use colored::Colorize;
+use miette::Diagnostic;
 use spk_schema::foundation::format::FormatError;
 use spk_schema::ident::PkgRequest;
 use spk_solve_graph::Note;
@@ -10,39 +11,55 @@ use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
+#[diagnostic(
+    url(
+        "https://getspk.io/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spk::generic"))
+    )
+)]
 pub enum Error {
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     OutOfOptions(#[from] OutOfOptions),
     #[error("Solver interrupted: {0}")]
     SolverInterrupted(String),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkIdentComponentError(#[from] spk_schema::foundation::ident_component::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkIdentError(#[from] spk_schema::ident::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     GraphError(#[from] spk_solve_graph::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     GraphGraphError(#[from] spk_solve_graph::GraphError),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     PackageIteratorError(#[from] spk_solve_package_iterator::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SolutionError(#[from] spk_solve_solution::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     ValidationError(#[from] spk_solve_validation::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkSpecError(#[from] spk_schema::Error),
     #[error("Status bar IO error: {0}")]
     StatusBarIOError(#[source] std::io::Error),
     #[error("Initial requests contain {0} impossible request{plural}.", plural = if *.0 == 1 { "" } else { "s" } )]
     InitialRequestsContainImpossibleError(usize),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkStorageError(#[from] spk_storage::Error),
     #[error("Error: {0}")]
     String(String),
 }
 
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
 #[error("Out of options for {pkg}", pkg = .request.pkg)]
 pub struct OutOfOptions {
     pub request: PkgRequest,

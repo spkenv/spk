@@ -28,6 +28,7 @@ spk-schema = { path = "../spk-schema" }
 spk-schema-validators = { path = "../spk-schema/crates/validators" }
 spk-storage = { path = "../spk-storage" }
 thiserror = { workspace = true }
+miette = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 

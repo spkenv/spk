@@ -7,7 +7,7 @@ use std::panic::catch_unwind;
 #[cfg(feature = "sentry")]
 use std::sync::Mutex;
 
-use anyhow::Error;
+use miette::Error;
 #[cfg(feature = "sentry")]
 use once_cell::sync::OnceCell;
 use spfs::storage::LocalRepository;
@@ -435,13 +435,13 @@ macro_rules! main {
         $crate::main!($cmd, sentry = $sentry, sync = true, syslog = false);
     };
     ($cmd:ident, sentry = $sentry:literal, sync = true, syslog = $syslog:literal) => {
-        fn main() {
+        fn main() -> miette::Result<()> {
             // because this function exits right away it does not
             // properly handle destruction of data, so we put the actual
             // logic into a separate function/scope
-            std::process::exit(main2())
+            std::process::exit(main2()?);
         }
-        fn main2() -> i32 {
+        fn main2() -> miette::Result<i32> {
             let mut opt = $cmd::parse();
             let (config, sentry_guard) = $crate::configure!(opt, $sentry, $syslog);
 
@@ -451,13 +451,13 @@ macro_rules! main {
         }
     };
     ($cmd:ident, sentry = $sentry:literal, sync = false, syslog = $syslog:literal) => {
-        fn main() {
+        fn main() -> miette::Result<()> {
             // because this function exits right away it does not
             // properly handle destruction of data, so we put the actual
             // logic into a separate function/scope
-            std::process::exit(main2())
+            std::process::exit(main2()?);
         }
-        fn main2() -> i32 {
+        fn main2() -> miette::Result<i32> {
             let mut opt = $cmd::parse();
             let (config, sentry_guard) = $crate::configure!(opt, $sentry, $syslog);
 
@@ -467,7 +467,7 @@ macro_rules! main {
             {
                 Err(err) => {
                     tracing::error!("Failed to establish runtime: {:?}", err);
-                    return 1;
+                    return Ok(1);
                 }
                 Ok(rt) => rt,
             };
@@ -501,7 +501,7 @@ macro_rules! configure {
         match spfs::get_config() {
             Err(err) => {
                 tracing::error!(err = ?err, "failed to load config");
-                return 1;
+                return Ok(1);
             }
             Ok(config) => (config, sentry_guard),
         }
@@ -512,28 +512,27 @@ macro_rules! configure {
 macro_rules! handle_result {
     ($result:ident) => {{
         use $crate::__private::spfs::OsError;
-        let code = match $result {
+        let res = match $result {
             Err(err) => match err.root_cause().downcast_ref::<spfs::Error>() {
                 Some(spfs::Error::Errno(msg, errno))
                     if *errno == $crate::__private::libc::ENOSPC =>
                 {
                     tracing::error!("Out of disk space: {msg}");
-                    1
+                    Ok(1)
                 }
                 Some(spfs::Error::RuntimeWriteError(path, io_err))
                 | Some(spfs::Error::StorageWriteError(_, path, io_err))
                     if std::matches!(io_err.os_error(), Some($crate::__private::libc::ENOSPC)) =>
                 {
                     tracing::error!("Out of disk space writing to {path}", path = path.display());
-                    1
+                    Ok(1)
                 }
                 _ => {
                     $crate::capture_if_relevant(&err);
-                    tracing::error!("{err:?}");
-                    1
+                    Err(err)
                 }
             },
-            Ok(code) => code,
+            Ok(code) => Ok(code),
         };
 
         // Explicitly consume the sentry guard here so it has a chance to
@@ -542,7 +541,7 @@ macro_rules! handle_result {
         #[cfg(feature = "sentry")]
         $crate::shutdown_sentry();
 
-        code
+        res
     }};
 }
 
@@ -556,7 +555,7 @@ pub fn capture_if_relevant(err: &Error) {
         _ => {
             // This will always add a backtrace to the sentry event
             #[cfg(feature = "sentry")]
-            sentry_anyhow::capture_anyhow(err);
+            sentry::capture_error(std::convert::AsRef::<dyn std::error::Error>::as_ref(err));
         }
     }
 }

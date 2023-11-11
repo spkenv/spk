@@ -13,11 +13,12 @@ use std::sync::Arc;
 use arc_swap::ArcSwap;
 
 use super::hash_store::PROXY_DIRNAME;
+use super::migrations::{MigrationError, MigrationResult};
 use super::FsHashStore;
 use crate::config::ToAddress;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
-use crate::storage::LocalRepository;
+use crate::storage::{LocalRepository, OpenRepositoryError, OpenRepositoryResult};
 use crate::{Error, Result};
 
 /// The directory name within the repo where durable runtimes keep
@@ -57,11 +58,10 @@ pub struct Params {
 
 #[async_trait::async_trait]
 impl FromUrl for Config {
-    async fn from_url(url: &url::Url) -> Result<Self> {
+    async fn from_url(url: &url::Url) -> crate::storage::OpenRepositoryResult<Self> {
         let params = if let Some(qs) = url.query() {
-            serde_qs::from_str(qs).map_err(|err| {
-                crate::Error::String(format!("Invalid fs repo parameters: {err:?}"))
-            })?
+            serde_qs::from_str(qs)
+                .map_err(|source| crate::storage::OpenRepositoryError::invalid_query(url, source))?
         } else {
             Params::default()
         };
@@ -83,10 +83,16 @@ pub struct RenderStore {
 
 impl RenderStore {
     pub fn for_user<P: AsRef<Path>>(root: &Path, username: P) -> Result<Self> {
-        let renders_dir = root.join("renders").join(username.as_ref());
-        FsHashStore::open(renders_dir.join(PROXY_DIRNAME)).and_then(|proxy| {
-            FsHashStore::open(&renders_dir).map(|renders| RenderStore { proxy, renders })
-        })
+        let username = username.as_ref();
+        let renders_dir = root.join("renders").join(username);
+        FsHashStore::open(renders_dir.join(PROXY_DIRNAME))
+            .and_then(|proxy| {
+                FsHashStore::open(&renders_dir).map(|renders| RenderStore { proxy, renders })
+            })
+            .map_err(|source| Error::FailedToOpenRepository {
+                repository: format!("<Render Storage for {}>", username.display()),
+                source,
+            })
     }
 }
 
@@ -132,7 +138,7 @@ impl From<Arc<OpenFsRepository>> for FsRepository {
 impl FromConfig for FsRepository {
     type Config = Config;
 
-    async fn from_config(config: Self::Config) -> Result<Self> {
+    async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
         if config.params.lazy {
             Ok(Self(Arc::new(ArcSwap::new(Arc::new(
                 InnerFsRepository::Closed(config),
@@ -145,7 +151,7 @@ impl FromConfig for FsRepository {
 
 impl FsRepository {
     /// Open a filesystem repository, creating it if necessary
-    pub async fn create<P: AsRef<Path>>(root: P) -> Result<Self> {
+    pub async fn create<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
         Ok(Self(Arc::new(ArcSwap::new(Arc::new(
             InnerFsRepository::Open(Arc::new(OpenFsRepository::create(root).await?)),
         )))))
@@ -153,21 +159,43 @@ impl FsRepository {
 
     // Open a repository over the given directory, which must already
     // exist and be properly setup as a repository
-    pub async fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
+    pub async fn open<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
+        let root = root.as_ref();
         Ok(Self(Arc::new(ArcSwap::new(Arc::new(
-            InnerFsRepository::Open(Arc::new(OpenFsRepository::open(root).await?)),
+            InnerFsRepository::Open(Arc::new(OpenFsRepository::open(&root).await?)),
         )))))
     }
 
     /// Get the opened version of this repository, performing
     /// any required opening and validation as needed
     pub fn opened(&self) -> impl futures::Future<Output = Result<Arc<OpenFsRepository>>> + 'static {
+        self.opened_and_map_err(Error::failed_to_open_repository)
+    }
+
+    /// Get the opened version of this repository, performing
+    /// any required opening and validation as needed
+    pub fn try_open(
+        &self,
+    ) -> impl futures::Future<Output = OpenRepositoryResult<Arc<OpenFsRepository>>> + 'static {
+        self.opened_and_map_err(|_, e| e)
+    }
+
+    fn opened_and_map_err<F, E>(
+        &self,
+        map: F,
+    ) -> impl futures::Future<Output = std::result::Result<Arc<OpenFsRepository>, E>> + 'static
+    where
+        F: FnOnce(&Self, OpenRepositoryError) -> E + 'static,
+    {
         let inner = Arc::clone(&self.0);
         async move {
             match &**inner.load() {
                 InnerFsRepository::Closed(config) => {
                     let config = config.clone();
-                    let opened = Arc::new(OpenFsRepository::from_config(config).await?);
+                    let opened = match OpenFsRepository::from_config(config).await {
+                        Ok(o) => Arc::new(o),
+                        Err(err) => return Err(map(&Self(inner), err)),
+                    };
                     inner.rcu(|_| InnerFsRepository::Open(Arc::clone(&opened)));
                     Ok(opened)
                 }
@@ -216,7 +244,7 @@ pub struct OpenFsRepository {
 impl FromConfig for OpenFsRepository {
     type Config = Config;
 
-    async fn from_config(config: Self::Config) -> Result<Self> {
+    async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
         if config.params.create {
             Self::create(&config.path).await
         } else {
@@ -263,22 +291,35 @@ impl OpenFsRepository {
     }
 
     /// Establish a new filesystem repository
-    pub async fn create<P: AsRef<Path>>(root: P) -> Result<Self> {
+    pub async fn create<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
+        let root = root.as_ref();
         // avoid creating any blocking tasks so as to not spawn
         // threads for the case where this repo is being opened as
         // part of the runtime setup process on linux
-        makedirs_with_perms(&root, 0o777)?;
-        let root = dunce::canonicalize(&root)
-            .map_err(|err| Error::InvalidPath(root.as_ref().to_owned(), err))?;
-        makedirs_with_perms(root.join("tags"), 0o777)?;
-        makedirs_with_perms(root.join("objects"), 0o777)?;
-        makedirs_with_perms(root.join("payloads"), 0o777)?;
+        makedirs_with_perms(root, 0o777).map_err(|source| {
+            OpenRepositoryError::PathNotInitialized {
+                path: root.to_owned(),
+                source,
+            }
+        })?;
+        let root = dunce::canonicalize(root).map_err(|source| {
+            OpenRepositoryError::PathNotInitialized {
+                path: root.to_owned(),
+                source,
+            }
+        })?;
         let username = whoami::username();
-        makedirs_with_perms(
+        for path in [
+            root.join("tags"),
+            root.join("objects"),
+            root.join("payloads"),
             root.join("renders").join(username).join(PROXY_DIRNAME),
-            0o777,
-        )?;
-        makedirs_with_perms(root.join(DURABLE_EDITS_DIR), 0o777)?;
+            root.join(DURABLE_EDITS_DIR),
+        ] {
+            makedirs_with_perms(&path, 0o777)
+                .map_err(|source| OpenRepositoryError::PathNotInitialized { path, source })?;
+        }
+
         set_last_migration(&root, None).await?;
         // Safety: we canonicalized `root` and we just changed the repo
         // `VERSION` to our version, so it is compatible.
@@ -289,17 +330,17 @@ impl OpenFsRepository {
 
     // Open a repository over the given directory, which must already
     // exist and be a repository
-    pub async fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
+    pub async fn open<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
         // although this is an async function, we avoid spawning a blocking task
         // here for the cases where a local fs repo is opened to spawn a runtime
         // and the program cannot spawn another thread without angering the kernel
         let root = match dunce::canonicalize(&root) {
             Ok(r) => r,
-            Err(err) => {
-                return Err(crate::Error::FailedToOpenRepository {
-                    repository: root.as_ref().to_string_lossy().to_string(),
-                    source: Box::new(err),
-                })
+            Err(source) => {
+                return Err(OpenRepositoryError::PathNotInitialized {
+                    path: root.as_ref().into(),
+                    source,
+                });
             }
         };
 
@@ -310,17 +351,10 @@ impl OpenFsRepository {
         let current_version = semver::Version::parse(crate::VERSION).unwrap();
         let repo_version = repo.last_migration().await?;
         if repo_version.major > current_version.major {
-            return Err(format!(
-                "Repository requires a newer version of spfs [{repo_version:?}]: {root:?}"
-            )
-            .into());
+            return Err(OpenRepositoryError::VersionIsTooNew { repo_version });
         }
         if repo_version.major < current_version.major {
-            return Err(format!(
-                "Repository requires a migration, run `spfs migrate {:?}`",
-                repo.address()
-            )
-            .into());
+            return Err(OpenRepositoryError::VersionIsTooOld { repo_version });
         }
 
         Ok(repo)
@@ -335,7 +369,7 @@ impl OpenFsRepository {
     ///
     /// The caller must ensure that the repository version is compatible with
     /// this version of spfs before using the repository.
-    unsafe fn open_unchecked<P: AsRef<Path>>(root: P) -> Result<Self> {
+    unsafe fn open_unchecked<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
         let root = root.as_ref();
         let username = whoami::username();
         Ok(Self {
@@ -346,8 +380,8 @@ impl OpenFsRepository {
         })
     }
 
-    /// The lastest repository version that this was migrated to.
-    pub async fn last_migration(&self) -> Result<semver::Version> {
+    /// The latest repository version that this was migrated to.
+    pub async fn last_migration(&self) -> MigrationResult<semver::Version> {
         Ok(read_last_migration_version(self.root())
             .await?
             .unwrap_or_else(|| {
@@ -359,7 +393,7 @@ impl OpenFsRepository {
     /// Sets the latest version of this repository.
     ///
     /// Should only be modified once a migration has completed successfully.
-    pub async fn set_last_migration(&self, version: semver::Version) -> Result<()> {
+    pub async fn set_last_migration(&self, version: semver::Version) -> MigrationResult<()> {
         set_last_migration(self.root(), Some(version)).await
     }
 
@@ -442,14 +476,14 @@ impl std::fmt::Debug for OpenFsRepository {
 /// Return None if no `VERSION` file was found, or was empty.
 pub async fn read_last_migration_version<P: AsRef<Path>>(
     root: P,
-) -> Result<Option<semver::Version>> {
+) -> MigrationResult<Option<semver::Version>> {
     let version_file = root.as_ref().join("VERSION");
     let version = match tokio::fs::read_to_string(&version_file).await {
         Ok(version) => version,
         Err(err) => match err.kind() {
             std::io::ErrorKind::NotFound => return Ok(None),
             _ => {
-                return Err(Error::StorageReadError(
+                return Err(MigrationError::ReadError(
                     "read_to_string on last migration version",
                     version_file,
                     err,
@@ -462,19 +496,19 @@ pub async fn read_last_migration_version<P: AsRef<Path>>(
     if version.is_empty() {
         return Ok(None);
     }
-    match semver::Version::parse(version) {
-        Ok(v) => Ok(Some(v)),
-        Err(err) => Err(crate::Error::String(format!(
-            "Failed to parse repository version '{version}': {err}",
-        ))),
-    }
+    semver::Version::parse(version)
+        .map(Some)
+        .map_err(|source| MigrationError::InvalidVersion {
+            version: version.to_owned(),
+            source,
+        })
 }
 
 /// Set the last migration version of the repo with the given root directory.
 pub async fn set_last_migration<P: AsRef<Path>>(
     root: P,
     version: Option<semver::Version>,
-) -> Result<()> {
+) -> MigrationResult<()> {
     let version = match version {
         Some(v) => v,
         None => semver::Version::parse(crate::VERSION).unwrap(),
@@ -492,9 +526,9 @@ pub async fn set_last_migration<P: AsRef<Path>>(
     }
 }
 
-fn write_version_file<P: AsRef<Path>>(root: P, version: &semver::Version) -> Result<()> {
+fn write_version_file<P: AsRef<Path>>(root: P, version: &semver::Version) -> MigrationResult<()> {
     let mut temp_version_file = tempfile::NamedTempFile::new_in(root.as_ref()).map_err(|err| {
-        Error::StorageWriteError(
+        MigrationError::WriteError(
             "create version file temp file",
             root.as_ref().to_owned(),
             err,
@@ -509,7 +543,7 @@ fn write_version_file<P: AsRef<Path>>(root: P, version: &semver::Version) -> Res
             .as_file()
             .set_permissions(Permissions::from_mode(0o666))
             .map_err(|err| {
-                Error::StorageWriteError(
+                MigrationError::WriteError(
                     "set_permissions on version file temp file",
                     temp_version_file.path().to_owned(),
                     err,
@@ -519,21 +553,22 @@ fn write_version_file<P: AsRef<Path>>(root: P, version: &semver::Version) -> Res
     temp_version_file
         .write_all(version.to_string().as_bytes())
         .map_err(|err| {
-            Error::StorageWriteError(
+            MigrationError::WriteError(
                 "write_all on version file temp file",
                 temp_version_file.path().to_owned(),
                 err,
             )
         })?;
     temp_version_file.flush().map_err(|err| {
-        Error::StorageWriteError(
+        MigrationError::WriteError(
             "flush on version file temp file",
             temp_version_file.path().to_owned(),
             err,
         )
     })?;
-    temp_version_file
-        .persist(root.as_ref().join("VERSION"))
-        .map_err(|err| crate::Error::String(err.to_string()))?;
+    let version_file = root.as_ref().join("VERSION");
+    temp_version_file.persist(&version_file).map_err(|err| {
+        MigrationError::WriteError("persist VERSION file", version_file, err.error)
+    })?;
     Ok(())
 }

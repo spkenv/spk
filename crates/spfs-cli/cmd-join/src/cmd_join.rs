@@ -7,9 +7,9 @@
 
 use std::ffi::OsString;
 
-use anyhow::{anyhow, bail, Context, Result};
 use clap::{ArgGroup, Parser};
 use futures::StreamExt;
+use miette::{bail, miette, Context, Result};
 use spfs::Error;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
@@ -62,12 +62,12 @@ impl CmdJoin {
                 storage
                     .read_runtime(runtime)
                     .await
-                    .map_err(Into::<anyhow::Error>::into)
+                    .map_err(Into::<miette::Error>::into)
             } else if let Some(pid) = self.pid {
                 let mount_ns = spfs::monitor::identify_mount_namespace_of_process(pid)
                     .await
-                    .context("identify mount namespace of pid")?
-                    .ok_or(anyhow!("pid not found"))?;
+                    .wrap_err("identify mount namespace of pid")?
+                    .ok_or(miette!("pid not found"))?;
                 let mut runtimes = storage.iter_runtimes().await;
                 while let Some(runtime) = runtimes.next().await {
                     let Ok(runtime) = runtime else {

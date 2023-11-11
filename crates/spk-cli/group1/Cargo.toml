@@ -8,7 +8,7 @@ version = { workspace = true }
 sentry = ["spk-solve/sentry"]
 
 [dependencies]
-anyhow = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }
 clap = { workspace = true }
 clap_complete = { workspace = true }

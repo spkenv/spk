@@ -6,8 +6,8 @@ use std::collections::HashSet;
 use std::convert::From;
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, ValueEnum, ValueHint};
+use miette::{bail, miette, Context, IntoDiagnostic, Result};
 use solve::{DecisionFormatter, DecisionFormatterBuilder, MultiSolverKind};
 use spfs::runtime::LiveLayerFile;
 use spk_schema::foundation::format::FormatIdent;
@@ -142,7 +142,8 @@ impl Runtime {
                 }
             })
             .collect::<std::result::Result<Vec<_>, _>>()
-            .context("One or more arguments was not a valid c-string")?;
+            .into_diagnostic()
+            .wrap_err("One or more arguments were not a valid c-string")?;
         if !found_insertion_index {
             args.push(std::ffi::CString::new("--no-runtime").expect("--no-runtime is valid UTF-8"));
         }
@@ -188,7 +189,8 @@ impl Runtime {
         }
 
         nix::unistd::execvp(&spfs, args.as_slice())
-            .context("Failed to re-launch spk in an spfs runtime")?;
+            .into_diagnostic()
+            .wrap_err("Failed to re-launch spk in an spfs runtime")?;
         unreachable!()
     }
 }
@@ -281,14 +283,16 @@ impl Options {
     pub fn get_options(&self) -> Result<OptionMap> {
         let mut opts = match self.no_host {
             true => OptionMap::default(),
-            false => host_options().context("Failed to compute options for current host")?,
+            false => host_options().wrap_err("Failed to compute options for current host")?,
         };
 
         for filename in self.options_file.iter() {
             let reader = std::fs::File::open(filename)
-                .with_context(|| format!("Failed to open: {filename:?}"))?;
+                .into_diagnostic()
+                .wrap_err_with(|| format!("Failed to open: {filename:?}"))?;
             let options: OptionMap = serde_yaml::from_reader(reader)
-                .with_context(|| format!("Failed to parse as option mapping: {filename:?}"))?;
+                .into_diagnostic()
+                .wrap_err_with(|| format!("Failed to parse as option mapping: {filename:?}"))?;
             opts.extend(options);
         }
 
@@ -296,7 +300,8 @@ impl Options {
             let pair = pair.trim();
             if pair.starts_with('{') {
                 let given: OptionMap = serde_yaml::from_str(pair)
-                    .context("--opt value looked like yaml, but could not be parsed")?;
+                    .into_diagnostic()
+                    .wrap_err("--opt value looked like yaml, but could not be parsed")?;
                 opts.extend(given);
                 continue;
             }
@@ -305,7 +310,7 @@ impl Options {
                 .split_once('=')
                 .or_else(|| pair.split_once(':'))
                 .ok_or_else(|| {
-                    anyhow!("Invalid option: -o {pair} (should be in the form name=value)")
+                    miette!("Invalid option: -o {pair} (should be in the form name=value)")
                 })
                 .and_then(|(name, value)| Ok((OptName::new(name)?, value)))?;
 
@@ -427,7 +432,7 @@ impl Requests {
                                         .skip(index)
                                         .take(1)
                                         .next()
-                                        .ok_or_else(|| anyhow!(
+                                        .ok_or_else(|| miette!(
                                             "Variant {index} is out of range; {} variants(s) found in {}",
                                             default_variants.len(),
                                             recipe.ident().format_ident()
@@ -456,8 +461,9 @@ impl Requests {
                 }
                 continue;
             }
-            let value: serde_yaml::Value =
-                serde_yaml::from_str(r).context("Request was not a valid yaml value")?;
+            let value: serde_yaml::Value = serde_yaml::from_str(r)
+                .into_diagnostic()
+                .wrap_err("Request was not a valid yaml value")?;
             let mut request_data = match value {
                 v @ serde_yaml::Value::String(_) => {
                     let mut mapping = serde_yaml::Mapping::with_capacity(1);
@@ -479,9 +485,10 @@ impl Requests {
             }
 
             let mut req = serde_yaml::from_value::<Request>(request_data.into())
-                .context(format!("Failed to parse request {r}"))?
+                .into_diagnostic()
+                .wrap_err(format!("Failed to parse request {r}"))?
                 .into_pkg()
-                .context(format!("Expected a package request, got {r}"))?;
+                .ok_or_else(|| miette!("Expected a package request, got None"))?;
             req.add_requester(RequestedBy::CommandLine);
 
             if req.pkg.components.is_empty() {
@@ -617,9 +624,11 @@ where
     // Lazily process the glob. This closure is expected to be called at
     // most once, but there are two code paths that might need to call it.
     let find_packages = || {
-        glob::glob("*.spk.yaml")?
+        glob::glob("*.spk.yaml")
+            .into_diagnostic()?
             .collect::<std::result::Result<Vec<_>, _>>()
-            .context("Failed to discover spec files in current directory")
+            .into_diagnostic()
+            .wrap_err("Failed to discover spec files in current directory")
     };
 
     // This must catch and convert all the errors into the appropriate
@@ -756,13 +765,13 @@ where
                         "Unable to find {:?} as a file, or existing package/version recipe in any repo",
                         name.as_ref()
                     );
-                    anyhow::bail!(
+                    miette::bail!(
                         " > Please check that file path, or package/version request, is correct"
                     );
                 }
                 None => {
                     tracing::error!("Unable to find a spec file, or existing package/version");
-                    anyhow::bail!(" > Please provide a file path, or package/version request");
+                    miette::bail!(" > Please provide a file path, or package/version request");
                 }
             }
         }
@@ -1026,7 +1035,7 @@ impl DecisionFormatterSettings {
     /// build.
     pub fn get_formatter_builder(&self, verbosity: u8) -> Result<DecisionFormatterBuilder> {
         let mut builder =
-            DecisionFormatterBuilder::try_from_config().context("Failed to load config")?;
+            DecisionFormatterBuilder::try_from_config().wrap_err("Failed to load config")?;
         builder
             .with_verbosity(verbosity)
             .with_time_and_stats(self.time)

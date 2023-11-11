@@ -12,6 +12,7 @@ use std::sync::Arc;
 use async_stream::stream;
 use colored::Colorize;
 use futures::Stream;
+use miette::Diagnostic;
 use once_cell::sync::{Lazy, OnceCell};
 use spk_schema::foundation::format::{FormatChange, FormatIdent, FormatOptionMap, FormatRequest};
 use spk_schema::foundation::ident_component::Component;
@@ -54,12 +55,13 @@ static REQUESTS_PRIORITY_ORDER: Lazy<PromotionPatterns> = Lazy::new(|| {
     )
 });
 
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
 #[allow(clippy::large_enum_variant)]
 pub enum GraphError {
     #[error("Recursion error: {0}")]
     RecursionError(&'static str),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     RequestError(#[from] super::error::GetMergedRequestError),
 }
 
@@ -472,7 +474,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
     }
 }
 
-#[derive(Clone, Debug, Error)]
+#[derive(Clone, Debug, Diagnostic, Error)]
 #[error("Failed to resolve")]
 pub struct Graph {
     pub root: Arc<tokio::sync::RwLock<Arc<Node>>>,

@@ -7,10 +7,10 @@
 
 use std::collections::HashSet;
 
-use anyhow::Result;
 use chrono::prelude::*;
 use clap::Parser;
 use colored::Colorize;
+use miette::Result;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
 
@@ -237,7 +237,7 @@ fn age_to_date(age: &str) -> Result<DateTime<Utc>> {
         .parse()
         .map_err(|err| spfs::Error::from(format!("{err:?}")))?;
     if num < 0 {
-        anyhow::bail!("provided age must be greater than zero: '{age}'");
+        miette::bail!("provided age must be greater than zero: '{age}'");
     }
 
     match postfix {
@@ -247,6 +247,6 @@ fn age_to_date(age: &str) -> Result<DateTime<Utc>> {
         "h" => Ok(Utc::now() - chrono::Duration::hours(num)),
         "m" => Ok(Utc::now() - chrono::Duration::minutes(num)),
         "s" => Ok(Utc::now() - chrono::Duration::seconds(num)),
-        _ => anyhow::bail!("Unknown age postfix: '{postfix}', must be one of y, w, d, h, m, s"),
+        _ => miette::bail!("Unknown age postfix: '{postfix}', must be one of y, w, d, h, m, s"),
     }
 }

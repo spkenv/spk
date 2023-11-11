@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 mod blob;
+mod error;
 mod layer;
 mod manifest;
 pub mod payload;
@@ -24,6 +25,7 @@ use std::sync::Arc;
 
 pub use blob::BlobStorage;
 use chrono::{DateTime, Utc};
+pub use error::OpenRepositoryError;
 pub use layer::LayerStorage;
 pub use manifest::ManifestStorage;
 pub use payload::PayloadStorage;
@@ -32,7 +34,7 @@ pub use proxy::{Config, ProxyRepository};
 pub use repository::{LocalRepository, Repository};
 pub use tag::{EntryType, TagStorage};
 
-pub use self::config::{FromConfig, FromUrl};
+pub use self::config::{FromConfig, FromUrl, OpenRepositoryResult};
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
@@ -172,16 +174,4 @@ impl From<Box<pinned::PinnedRepository<RepositoryHandle>>> for RepositoryHandle 
     fn from(repo: Box<pinned::PinnedRepository<RepositoryHandle>>) -> Self {
         RepositoryHandle::Pinned(repo)
     }
-}
-
-/// Open the repository at the given url address
-#[deprecated(
-    since = "0.32.0",
-    note = "instead, use the top-level one: spfs::open_repository(address)"
-)]
-pub async fn open_repository<S: AsRef<str>>(address: S) -> crate::Result<RepositoryHandle> {
-    crate::config::RemoteConfig::from_str(address)
-        .await?
-        .open()
-        .await
 }

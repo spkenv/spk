@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use clap::Args;
+use miette::Result;
 use spfs::prelude::*;
 use spfs::Error;
 
@@ -38,7 +38,7 @@ impl CmdRead {
             _ => {
                 let path = match &self.path {
                     None => {
-                        anyhow::bail!("PATH must be given to read from {:?}", item.kind());
+                        miette::bail!("PATH must be given to read from {:?}", item.kind());
                     }
                     Some(p) => p.strip_prefix("/spfs").unwrap_or(p).to_string(),
                 };

@@ -20,4 +20,5 @@ spk-schema = { path = '../spk-schema' }
 spk-storage = { path = "../spk-storage" }
 spk-solve = { path = "../spk-solve" }
 thiserror = { workspace = true }
+miette = { workspace = true }
 tracing = { workspace = true }

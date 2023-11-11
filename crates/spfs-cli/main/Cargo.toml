@@ -16,7 +16,6 @@ fuse = ["spfs/fuse-backend"]
 
 [dependencies]
 async-recursion = "1.0.2"
-anyhow = { workspace = true }
 clap = { workspace = true }
 chrono = { workspace = true }
 colored = "2.0"
@@ -25,6 +24,7 @@ futures = { workspace = true }
 hyper = { version = "0.14.16", optional = true }
 itertools = "0.10.3"
 libc = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
 nix = { workspace = true }
 number_prefix = "*"                                                           # we hope to match versions with indicatif
 relative-path = "1.3"

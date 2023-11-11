@@ -3,23 +3,34 @@
 // https://github.com/imageworks/spk
 
 use colored::Colorize;
+use miette::Diagnostic;
 use spk_schema::foundation::format::FormatError;
 use spk_solve_graph::Graph;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
+#[diagnostic(
+    url(
+        "https://getspk.io/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spk::generic"))
+    )
+)]
 pub enum Error {
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     FailedToResolve(#[from] Graph),
     #[error("Solver error: {0}")]
     SolverError(String),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkIdentError(#[from] spk_schema::ident::Error),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkSolverGraphGetMergedRequestError(#[from] spk_solve_graph::GetMergedRequestError),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkStorageError(#[from] spk_storage::Error),
 }
 

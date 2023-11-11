@@ -25,6 +25,7 @@ spk-storage = { path = "../../../spk-storage" }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
+miette = { workspace = true }
 
 [dev-dependencies]
 itertools = "0.10"

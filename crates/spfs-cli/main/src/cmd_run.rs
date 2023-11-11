@@ -5,8 +5,8 @@
 use std::ffi::OsString;
 use std::time::Instant;
 
-use anyhow::{Context, Result};
 use clap::{ArgGroup, Args};
+use miette::{Context, Result};
 use spfs::storage::FromConfig;
 use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
@@ -79,7 +79,7 @@ impl CmdRun {
             let mut runtime = runtimes
                 .read_runtime(runtime_name)
                 .await
-                .map_err(Into::<anyhow::Error>::into)?;
+                .map_err(Into::<miette::Error>::into)?;
 
             tracing::debug!(
                 "existing durable runtime loaded with status: {}",
@@ -184,7 +184,7 @@ impl CmdRun {
                 };
                 let repo = spfs::storage::ProxyRepository::from_config(proxy_config)
                     .await
-                    .context("Failed to build proxy repository for environment resolution")?;
+                    .wrap_err("Failed to build proxy repository for environment resolution")?;
                 for item in reference.iter() {
                     let digest = item.resolve_digest(&repo).await?;
                     runtime.push_digest(digest);
@@ -233,6 +233,6 @@ impl CmdRun {
 
         cmd.exec()
             .map(|_| 0)
-            .context("Failed to execute runtime command")
+            .wrap_err("Failed to execute runtime command")
     }
 }

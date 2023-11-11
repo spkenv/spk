@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::{Context, Result};
 use clap::builder::TypedValueParser;
 use clap::Parser;
+use miette::{Context, Result};
 use spfs::prelude::*;
 use spfs::storage::fallback::FallbackProxy;
 use spfs::{Error, RenderResult};
@@ -100,7 +100,7 @@ impl CmdRender {
             .is_some()
             && !self.allow_existing
         {
-            anyhow::bail!("Directory is not empty {}", target_dir.display());
+            miette::bail!("Directory is not empty {}", target_dir.display());
         }
         tracing::info!("rendering into {}", target_dir.display());
 
@@ -138,13 +138,13 @@ impl CmdRender {
             let digest = repo
                 .resolve_ref(env_item.as_ref())
                 .await
-                .with_context(|| format!("resolve ref '{env_item}'"))?;
+                .wrap_err_with(|| format!("resolve ref '{env_item}'"))?;
             digests.push(digest);
         }
 
         let layers = spfs::resolve_stack_to_layers_with_repo(digests.iter(), &repo)
             .await
-            .context("resolve stack to layers")?;
+            .wrap_err("resolve stack to layers")?;
 
         let console_render_reporter = spfs::storage::fs::ConsoleRenderReporter::default();
         let render_summary_reporter = spfs::storage::fs::RenderSummaryReporter::default();
@@ -163,7 +163,7 @@ impl CmdRender {
                 paths_rendered,
                 render_summary: render_summary_reporter.into_summary(),
             })
-            .map_err(Into::<anyhow::Error>::into)
-            .context("render layers")
+            .map_err(Into::<miette::Error>::into)
+            .wrap_err("render layers")
     }
 }

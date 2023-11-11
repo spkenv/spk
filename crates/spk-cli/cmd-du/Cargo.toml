@@ -5,7 +5,7 @@ name = "spk-cmd-du"
 version = { workspace = true }
 
 [dependencies]
-anyhow = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
 async-stream = "0.3"
 async-trait = { workspace = true }
 clap = { workspace = true }

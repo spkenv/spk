@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use clap::Args;
 use colored::*;
+use miette::Result;
 use spfs::env::SPFS_DIR;
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::Object;

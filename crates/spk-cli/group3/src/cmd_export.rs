@@ -4,9 +4,9 @@
 
 use std::sync::Arc;
 
-use anyhow::Result;
 use clap::{Args, ValueHint};
 use colored::Colorize;
+use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_storage as storage;
 

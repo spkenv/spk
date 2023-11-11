@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
+use miette::Result;
 use spfs::io::{self, DigestFormat};
 use spfs::prelude::*;
 use tokio_stream::StreamExt;

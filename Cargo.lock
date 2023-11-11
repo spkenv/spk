@@ -283,6 +283,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "backtrace-ext"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "537beee3be4a18fb023b570f80e3ae28003db9167a751266b259926e25539d50"
+dependencies = [
+ "backtrace",
+]
+
+[[package]]
 name = "base64"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -528,7 +537,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0610544180c38b88101fecf2dd634b174a62eef6946f84dfc6a7127512b381c"
 dependencies = [
  "bitflags 1.3.2",
- "textwrap",
+ "textwrap 0.11.0",
  "unicode-width",
 ]
 
@@ -1578,6 +1587,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "is_ci"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "616cde7c720bb2bb5824a224687d8f77bfd38922027f01d825cd7453be5099fb"
+
+[[package]]
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1811,6 +1826,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a634b1c61a95585bd15607c6ab0c4e5b226e695ff2800ba0cdccddf208c406c"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "miette"
+version = "5.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59bb584eaeeab6bd0226ccf3509a69d7936d148cf3d036ad350abe35e8c6856e"
+dependencies = [
+ "backtrace",
+ "backtrace-ext",
+ "is-terminal",
+ "miette-derive",
+ "once_cell",
+ "owo-colors",
+ "supports-color",
+ "supports-hyperlinks",
+ "supports-unicode",
+ "terminal_size",
+ "textwrap 0.15.2",
+ "thiserror",
+ "unicode-width",
+]
+
+[[package]]
+name = "miette-derive"
+version = "5.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49e7bc1560b95a3c4a25d03de42fe76ca718ab92d1a22a55b9b4cf67b3ae635c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.38",
 ]
 
 [[package]]
@@ -2077,6 +2124,12 @@ name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
+
+[[package]]
+name = "owo-colors"
+version = "3.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1b04fb49957986fdce4d6ee7a65027d55d4b6d2265e5848bbb507b58ccfdb6f"
 
 [[package]]
 name = "page_size"
@@ -3276,6 +3329,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "942b4a808e05215192e39f4ab80813e599068285906cc91aa64f923db842bd5a"
 
 [[package]]
+name = "smawk"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7c388c1b5e93756d0c740965c41e8822f866621d41acbdf6336a6a168f8840c"
+
+[[package]]
 name = "socket2"
 version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3325,6 +3384,7 @@ dependencies = [
  "indicatif",
  "itertools 0.10.5",
  "libc",
+ "miette",
  "nix 0.26.4",
  "nonempty",
  "num_cpus",
@@ -3372,10 +3432,10 @@ dependencies = [
 name = "spfs-cli-clean"
 version = "0.34.6"
 dependencies = [
- "anyhow",
  "chrono",
  "clap 4.4.7",
  "colored",
+ "miette",
  "question",
  "spfs",
  "spfs-cli-common",
@@ -3388,9 +3448,9 @@ dependencies = [
 name = "spfs-cli-common"
 version = "0.34.6"
 dependencies = [
- "anyhow",
  "clap 4.4.7",
  "libc",
+ "miette",
  "once_cell",
  "sentry",
  "sentry-anyhow",
@@ -3408,8 +3468,8 @@ dependencies = [
 name = "spfs-cli-enter"
 version = "0.34.6"
 dependencies = [
- "anyhow",
  "clap 4.4.7",
+ "miette",
  "nix 0.26.4",
  "spfs",
  "spfs-cli-common",
@@ -3422,11 +3482,11 @@ dependencies = [
 name = "spfs-cli-fuse"
 version = "0.34.6"
 dependencies = [
- "anyhow",
  "clap 4.4.7",
  "dashmap",
  "fuser",
  "libc",
+ "miette",
  "nix 0.26.4",
  "spfs",
  "spfs-cli-common",
@@ -3440,9 +3500,9 @@ dependencies = [
 name = "spfs-cli-join"
 version = "0.34.6"
 dependencies = [
- "anyhow",
  "clap 4.4.7",
  "futures",
+ "miette",
  "spfs",
  "spfs-cli-common",
  "tokio",
@@ -3453,7 +3513,6 @@ dependencies = [
 name = "spfs-cli-main"
 version = "0.34.6"
 dependencies = [
- "anyhow",
  "async-recursion",
  "chrono",
  "clap 4.4.7",
@@ -3463,6 +3522,7 @@ dependencies = [
  "hyper",
  "itertools 0.10.5",
  "libc",
+ "miette",
  "nix 0.26.4",
  "number_prefix",
  "procfs",
@@ -3484,8 +3544,8 @@ dependencies = [
 name = "spfs-cli-monitor"
 version = "0.34.6"
 dependencies = [
- "anyhow",
  "clap 4.4.7",
+ "miette",
  "nix 0.26.4",
  "spfs",
  "spfs-cli-common",
@@ -3498,10 +3558,10 @@ dependencies = [
 name = "spfs-cli-render"
 version = "0.34.6"
 dependencies = [
- "anyhow",
  "clap 4.4.7",
  "dunce",
  "futures",
+ "miette",
  "serde_json",
  "spfs",
  "spfs-cli-common",
@@ -3514,10 +3574,10 @@ dependencies = [
 name = "spfs-cli-winfsp"
 version = "0.34.6"
 dependencies = [
- "anyhow",
  "clap 4.4.7",
  "dashmap",
  "libc",
+ "miette",
  "nix 0.26.4",
  "spfs",
  "spfs-cli-common",
@@ -3537,6 +3597,7 @@ name = "spfs-encoding"
 version = "0.34.6"
 dependencies = [
  "data-encoding",
+ "miette",
  "rand 0.8.5",
  "ring",
  "rstest",
@@ -3549,13 +3610,13 @@ dependencies = [
 name = "spfs-vfs"
 version = "0.34.6"
 dependencies = [
- "anyhow",
  "bytes",
  "clap 4.4.7",
  "dashmap",
  "fuser",
  "futures-core",
  "libc",
+ "miette",
  "nix 0.26.4",
  "prost 0.12.1",
  "protobuf-src",
@@ -3580,11 +3641,11 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 name = "spk"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "clap_complete",
  "colored",
+ "miette",
  "sentry",
  "sentry-anyhow",
  "spk-build",
@@ -3621,6 +3682,7 @@ version = "0.38.0"
 dependencies = [
  "dunce",
  "futures",
+ "miette",
  "relative-path",
  "rstest",
  "serde",
@@ -3643,12 +3705,12 @@ dependencies = [
 name = "spk-cli-common"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "colored",
  "futures",
  "glob",
+ "miette",
  "nix 0.26.4",
  "nom",
  "nom-supreme",
@@ -3679,13 +3741,13 @@ dependencies = [
 name = "spk-cli-group1"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "clap_complete",
  "colored",
  "futures",
  "itertools 0.10.5",
+ "miette",
  "rstest",
  "serde",
  "serde_json",
@@ -3706,11 +3768,11 @@ dependencies = [
 name = "spk-cli-group2"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "colored",
  "itertools 0.10.5",
+ "miette",
  "nom",
  "nom-supreme",
  "rstest",
@@ -3728,11 +3790,11 @@ dependencies = [
 name = "spk-cli-group3"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "colored",
  "futures",
+ "miette",
  "rstest",
  "spfs",
  "spfs-cli-common",
@@ -3749,13 +3811,13 @@ dependencies = [
 name = "spk-cli-group4"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "colored",
  "dunce",
  "futures",
  "itertools 0.10.5",
+ "miette",
  "serde_json",
  "serde_yaml 0.9.27",
  "spfs",
@@ -3772,9 +3834,9 @@ dependencies = [
 name = "spk-cmd-build"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "rstest",
  "spk-cli-common",
  "spk-cmd-make-binary",
@@ -3789,9 +3851,9 @@ dependencies = [
 name = "spk-cmd-convert"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "spk-cli-common",
  "spk-cmd-env",
 ]
@@ -3804,6 +3866,7 @@ dependencies = [
  "async-trait",
  "clap 4.4.7",
  "futures",
+ "miette",
  "spfs",
  "spk-cli-common",
  "spk-exec",
@@ -3817,13 +3880,13 @@ dependencies = [
 name = "spk-cmd-du"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-stream",
  "async-trait",
  "clap 4.4.7",
  "colored",
  "futures",
  "itertools 0.10.5",
+ "miette",
  "spfs",
  "spk-build",
  "spk-cli-common",
@@ -3838,9 +3901,9 @@ dependencies = [
 name = "spk-cmd-env"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "nix 0.26.4",
  "spfs",
  "spk-cli-common",
@@ -3855,9 +3918,9 @@ dependencies = [
 name = "spk-cmd-explain"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "spk-cli-common",
  "tokio",
 ]
@@ -3866,11 +3929,11 @@ dependencies = [
 name = "spk-cmd-install"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "colored",
  "futures",
+ "miette",
  "spk-cli-common",
  "spk-exec",
  "spk-schema",
@@ -3881,10 +3944,10 @@ dependencies = [
 name = "spk-cmd-make-binary"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "futures",
+ "miette",
  "rstest",
  "spfs",
  "spk-build",
@@ -3903,6 +3966,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "spk-cli-common",
  "spk-schema",
  "spk-schema-liquid",
@@ -3913,9 +3977,9 @@ dependencies = [
 name = "spk-cmd-make-source"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "spfs",
  "spk-build",
  "spk-cli-common",
@@ -3928,10 +3992,10 @@ dependencies = [
 name = "spk-cmd-render"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "dunce",
+ "miette",
  "spfs",
  "spk-cli-common",
  "spk-exec",
@@ -3944,9 +4008,9 @@ dependencies = [
 name = "spk-cmd-repo"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "spk-cli-common",
  "spk-storage",
  "tracing",
@@ -3956,9 +4020,9 @@ dependencies = [
 name = "spk-cmd-test"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "rstest",
  "spfs",
  "spk-build",
@@ -3979,6 +4043,7 @@ version = "0.38.0"
 dependencies = [
  "config",
  "dirs",
+ "miette",
  "once_cell",
  "rstest",
  "serde",
@@ -3994,6 +4059,7 @@ version = "0.38.0"
 dependencies = [
  "async-stream",
  "futures",
+ "miette",
  "relative-path",
  "spfs",
  "spk-schema",
@@ -4007,7 +4073,7 @@ dependencies = [
 name = "spk-launcher"
 version = "0.33.6"
 dependencies = [
- "anyhow",
+ "miette",
  "nix 0.26.4",
  "spfs",
  "tempfile",
@@ -4025,6 +4091,7 @@ dependencies = [
  "ignore",
  "indexmap 1.9.3",
  "itertools 0.10.5",
+ "miette",
  "nom",
  "proptest",
  "regex",
@@ -4056,6 +4123,7 @@ dependencies = [
  "format_serde_error",
  "ignore",
  "itertools 0.10.5",
+ "miette",
  "nom",
  "nom-supreme",
  "once_cell",
@@ -4083,6 +4151,7 @@ dependencies = [
  "data-encoding",
  "format_serde_error",
  "itertools 0.10.5",
+ "miette",
  "nom",
  "nom-supreme",
  "proptest",
@@ -4118,6 +4187,7 @@ dependencies = [
  "ignore",
  "indexmap 1.9.3",
  "itertools 0.10.5",
+ "miette",
  "nom",
  "regex",
  "relative-path",
@@ -4148,6 +4218,7 @@ dependencies = [
  "dyn-clone",
  "futures",
  "itertools 0.10.5",
+ "miette",
  "num-bigint",
  "num-format",
  "once_cell",
@@ -4184,6 +4255,7 @@ dependencies = [
  "dyn-clone",
  "futures",
  "itertools 0.10.5",
+ "miette",
  "once_cell",
  "priority-queue",
  "rstest",
@@ -4218,6 +4290,7 @@ dependencies = [
  "futures",
  "glob",
  "itertools 0.10.5",
+ "miette",
  "once_cell",
  "rstest",
  "spk-config",
@@ -4237,6 +4310,7 @@ dependencies = [
  "colored",
  "console",
  "itertools 0.10.5",
+ "miette",
  "spfs",
  "spk-schema",
  "spk-storage",
@@ -4252,6 +4326,7 @@ dependencies = [
  "enum_dispatch",
  "futures",
  "itertools 0.10.5",
+ "miette",
  "once_cell",
  "rstest",
  "serde_yaml 0.9.27",
@@ -4281,6 +4356,7 @@ dependencies = [
  "ignore",
  "indexmap 1.9.3",
  "itertools 0.10.5",
+ "miette",
  "nom",
  "once_cell",
  "regex",
@@ -4353,6 +4429,34 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "supports-color"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6398cde53adc3c4557306a96ce67b302968513830a77a95b2b17305d9719a89"
+dependencies = [
+ "is-terminal",
+ "is_ci",
+]
+
+[[package]]
+name = "supports-hyperlinks"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f84231692eb0d4d41e4cdd0cabfdd2e6cd9e255e65f80c9aa7c98dd502b4233d"
+dependencies = [
+ "is-terminal",
+]
+
+[[package]]
+name = "supports-unicode"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b6c2cb240ab5dd21ed4906895ee23fe5a48acdbd15a3ce388e7b62a9b66baf7"
+dependencies = [
+ "is-terminal",
 ]
 
 [[package]]
@@ -4460,11 +4564,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal_size"
+version = "0.1.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "633c1a546cee861a1a6d0dc69ebeca693bf4296661ba7852b9d21d159e0506df"
+dependencies = [
+ "libc",
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "textwrap"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
 dependencies = [
+ "unicode-width",
+]
+
+[[package]]
+name = "textwrap"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
+dependencies = [
+ "smawk",
+ "unicode-linebreak",
  "unicode-width",
 ]
 
@@ -4857,6 +4982,12 @@ name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
+
+[[package]]
+name = "unicode-linebreak"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b09c83c3c29d37506a3e260c08c03743a6bb66a9cd432c6934ab501a190571f"
 
 [[package]]
 name = "unicode-normalization"

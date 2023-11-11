@@ -43,7 +43,7 @@ cli = [
 statsd = ["dep:statsd", "spk-solve/statsd"]
 
 [dependencies]
-anyhow = { workspace = true }
+miette = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true }
 clap_complete = { workspace = true }

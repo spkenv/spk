@@ -9,7 +9,7 @@ use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Context, Result};
+use miette::{bail, miette, Context, IntoDiagnostic, Result};
 use nix::unistd::execv;
 use spfs::encoding::Digest;
 use spfs::prelude::*;
@@ -108,16 +108,18 @@ impl<'a> Dynamic<'a> {
         let install_location = Path::new(self.install_path().as_os_str()).join(&digest_string);
         if !install_location.exists() {
             spfs::runtime::makedirs_with_perms(self.install_path(), 0o777)
-                .context("makedirs_with_perms")?;
+                .into_diagnostic()
+                .wrap_err("makedirs_with_perms")?;
 
             let tag_as_dirname = tag.to_string().replace('/', "-");
 
             let temp_dir = tempfile::Builder::new()
                 .prefix(&tag_as_dirname)
                 .tempdir_in(self.install_path())
-                .context("create temp working directory")?;
+                .into_diagnostic()
+                .wrap_err("create temp working directory")?;
 
-            let env_spec = EnvSpec::parse(tag).context("create env spec")?;
+            let env_spec = EnvSpec::parse(tag).wrap_err("create env spec")?;
 
             // Ensure tag is sync'd local because `render_into_directory` operates
             // out of the local repo.
@@ -125,7 +127,7 @@ impl<'a> Dynamic<'a> {
             let syncer = spfs::Syncer::new(&remote, &handle)
                 .with_policy(spfs::sync::SyncPolicy::LatestTags)
                 .with_reporter(spfs::sync::ConsoleSyncReporter::default());
-            let r = syncer.sync_env(env_spec).await.context("sync reference")?;
+            let r = syncer.sync_env(env_spec).await.wrap_err("sync reference")?;
             let env_spec = r.env;
 
             let fallback = FallbackProxy::new(local, vec![remote]);
@@ -138,10 +140,11 @@ impl<'a> Dynamic<'a> {
                     spfs::storage::fs::RenderType::Copy,
                 )
                 .await
-                .context("render spfs platform")?;
+                .wrap_err("render spfs platform")?;
 
             let should_create_symlink = match std::fs::rename(temp_dir.path(), &install_location)
-                .context("rename into place")
+                .into_diagnostic()
+                .wrap_err("rename into place")
             {
                 Ok(_) => true,
                 Err(err) => match err.downcast_ref::<std::io::Error>() {
@@ -176,13 +179,19 @@ impl<'a> Dynamic<'a> {
                 let _ = if symlink_name.is_symlink() {
                     // Symlink already exists; therefore it is not pointing
                     // at the correct place.
-                    std::fs::remove_file(&symlink_name).context("remove existing symlink")
+                    std::fs::remove_file(&symlink_name)
+                        .into_diagnostic()
+                        .wrap_err("remove existing symlink")
                 } else if !symlink_name.exists() {
                     Ok(())
                 } else {
-                    Err(anyhow!("symlink target exists"))
+                    Err(miette!("symlink target exists"))
                 }
-                .and_then(|_| symlink(&digest_string, &symlink_name).context("create symlink"));
+                .and_then(|_| {
+                    symlink(&digest_string, &symlink_name)
+                        .into_diagnostic()
+                        .wrap_err("create symlink")
+                });
             }
         }
 
@@ -194,12 +203,14 @@ impl<'a> Dynamic<'a> {
         let args = args_os()
             .map(|os_string| CString::new(os_string.as_bytes()))
             .collect::<Result<Vec<_>, _>>()
-            .context("valid CStrings")?;
+            .into_diagnostic()
+            .wrap_err("valid CStrings")?;
         if bin_tag == RPM_TAG {
             let bin = CString::new(AsRef::<OsStr>::as_ref(&self.rpm_bin_path()).as_bytes())
                 .expect("valid CString");
             execv(&bin, args.as_slice())
-                .with_context(|| format!("execv({}, ...)", bin.to_string_lossy()))?;
+                .into_diagnostic()
+                .wrap_err_with(|| format!("execv({}, ...)", bin.to_string_lossy()))?;
             unreachable!();
         }
 
@@ -207,11 +218,11 @@ impl<'a> Dynamic<'a> {
         let local_repo = config
             .get_opened_local_repository()
             .await
-            .context("open local spfs repo")?;
+            .wrap_err("open local spfs repo")?;
         let remote_repo = config
             .get_remote(ORIGIN)
             .await
-            .context("opened remote spfs repo")?;
+            .wrap_err("opened remote spfs repo")?;
 
         let spfs_tag = format!(
             "{}/{}/{}",
@@ -236,12 +247,12 @@ impl<'a> Dynamic<'a> {
                 let bin_path = self
                     .check_or_install(
                         &spfs_tag,
-                        &platform.digest().context("get platform context")?,
+                        &platform.digest().wrap_err("get platform context")?,
                         local_repo.into(),
                         remote_repo,
                     )
                     .await
-                    .with_context(|| {
+                    .wrap_err_with(|| {
                         format!(
                             "install requested version of {}",
                             self.spfs_tag_prefix().to_string_lossy()
@@ -251,15 +262,18 @@ impl<'a> Dynamic<'a> {
                 std::env::set_var(self.bin_var(), &bin_path);
 
                 execv(
-                    &CString::new(bin_path.into_vec()).with_context(|| {
-                        format!(
-                            "convert {} bin path to CString",
-                            self.spfs_tag_prefix().to_string_lossy()
-                        )
-                    })?,
+                    &CString::new(bin_path.into_vec())
+                        .into_diagnostic()
+                        .wrap_err_with(|| {
+                            format!(
+                                "convert {} bin path to CString",
+                                self.spfs_tag_prefix().to_string_lossy()
+                            )
+                        })?,
                     args.as_slice(),
                 )
-                .context("process replaced")?;
+                .into_diagnostic()
+                .wrap_err("process replaced")?;
                 unreachable!();
             }
             Ok(obj) => bail!("Expected platform object from spfs; found: {}", obj),
@@ -272,17 +286,17 @@ async fn main() -> Result<()> {
     let application_name = Path::new(
         &args_os()
             .next()
-            .ok_or_else(|| anyhow!("args missing"))
-            .context("get application name")?,
+            .ok_or_else(|| miette!("args missing"))
+            .wrap_err("get application name")?,
     )
     .iter()
     .last()
-    .ok_or_else(|| anyhow!("empty argv[0]?"))
-    .context("get last component of argv[0])")?
+    .ok_or_else(|| miette!("empty argv[0]?"))
+    .wrap_err("get last component of argv[0])")?
     .to_owned();
 
     Dynamic::new(application_name.as_os_str())
         .execute()
         .await
-        .with_context(|| format!("execute as {}", application_name.to_string_lossy()))
+        .wrap_err_with(|| format!("execute as {}", application_name.to_string_lossy()))
 }

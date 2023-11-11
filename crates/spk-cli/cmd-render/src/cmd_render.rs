@@ -7,8 +7,8 @@
 
 use std::path::PathBuf;
 
-use anyhow::{bail, Context, Result};
 use clap::Args;
+use miette::{bail, Context, IntoDiagnostic, Result};
 use spfs::storage::fallback::FallbackProxy;
 use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
 use spk_exec::resolve_runtime_layers;
@@ -56,22 +56,25 @@ impl Run for Render {
 
         let solution = build_required_packages(&solution).await?;
         let stack = resolve_runtime_layers(true, &solution).await?;
-        std::fs::create_dir_all(&self.target).context("Failed to create output directory")?;
+        std::fs::create_dir_all(&self.target)
+            .into_diagnostic()
+            .wrap_err("Failed to create output directory")?;
         if std::fs::read_dir(&self.target)
-            .context("Failed to validate output directory")?
+            .into_diagnostic()
+            .wrap_err("Failed to validate output directory")?
             .next()
             .is_some()
         {
             bail!("Output directory does not appear to be empty");
         }
 
-        let path = dunce::canonicalize(&self.target)?;
+        let path = dunce::canonicalize(&self.target).into_diagnostic()?;
         tracing::info!("Rendering into dir: {path:?}");
-        let config = spfs::load_config().context("Failed to load spfs config")?;
+        let config = spfs::load_config().wrap_err("Failed to load spfs config")?;
         let local = config
             .get_opened_local_repository()
             .await
-            .context("Failed to open local spfs repo")?;
+            .wrap_err("Failed to open local spfs repo")?;
 
         // Find possible fallback repositories among the solver's repositories.
         let mut fallback_repository_handles = Vec::with_capacity(solver.repositories().len());

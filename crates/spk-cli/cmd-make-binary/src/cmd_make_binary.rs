@@ -4,9 +4,9 @@
 
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
 use clap::Args;
 use futures::TryFutureExt;
+use miette::{bail, Context, IntoDiagnostic, Result};
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{flags, spk_exe, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
@@ -115,7 +115,7 @@ impl Run for MakeBinary {
         #[rustfmt::skip]
         let (_runtime, local, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(&["make-binary", "mkbinary", "mkbin", "mkb"]),
-            storage::local_repository().map_ok(storage::RepositoryHandle::from).map_err(anyhow::Error::from),
+            storage::local_repository().map_ok(storage::RepositoryHandle::from).map_err(miette::Error::from),
             async { self.repos.get_repos_for_non_destructive_operation().await }
         )?;
         let repos = repos
@@ -151,7 +151,7 @@ impl Run for MakeBinary {
                     Box::new(default_variants.iter().skip(index).take(1))
                 }
                 Some(index) => {
-                    anyhow::bail!(
+                    miette::bail!(
                         "--variant {index} is out of range; {} variant(s) found in {}",
                         default_variants.len(),
                         recipe.ident().format_ident(),
@@ -197,8 +197,9 @@ impl Run for MakeBinary {
                     .with_allow_circular_dependencies(self.allow_circular_dependencies);
 
                 if self.here {
-                    let here =
-                        std::env::current_dir().context("Failed to get current directory")?;
+                    let here = std::env::current_dir()
+                        .into_diagnostic()
+                        .wrap_err("Failed to get current directory")?;
                     builder.with_source(BuildSource::LocalPath(here));
                 } else if let Some(PackageSpecifier::WithSourceIdent((_, ref ident))) = package {
                     // Use the source package `AnyIdent` if the caller supplied one.
@@ -229,7 +230,7 @@ impl Run for MakeBinary {
                         .arg(request.pkg.to_string());
                     tracing::info!("entering environment with new package...");
                     tracing::debug!("{:?}", cmd);
-                    let status = cmd.status()?;
+                    let status = cmd.status().into_diagnostic()?;
                     return Ok(status.code().unwrap_or(1));
                 }
             }
