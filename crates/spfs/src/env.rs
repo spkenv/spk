@@ -356,8 +356,11 @@ where
     /// Check or create the necessary directories for mounting the provided runtime
     pub fn ensure_mount_targets_exist(&self, config: &runtime::Config) -> Result<()> {
         tracing::debug!("ensuring mount targets exist...");
-        runtime::makedirs_with_perms(SPFS_DIR, 0o777)
-            .map_err(|err| err.wrap(format!("Failed to create {SPFS_DIR}")))?;
+        runtime::makedirs_with_perms(SPFS_DIR, 0o777).map_err(|source| {
+            Error::CouldNotCreateSpfsRoot {
+                source: Box::new(source),
+            }
+        })?;
 
         if let Some(dir) = &config.runtime_dir {
             runtime::makedirs_with_perms(dir, 0o777)

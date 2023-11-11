@@ -119,6 +119,12 @@ pub enum Error {
     RuntimeWriteError(std::path::PathBuf, #[source] io::Error),
     #[error("Runtime set permissions error: {0}")]
     RuntimeSetPermissionsError(std::path::PathBuf, #[source] io::Error),
+    #[error("Failed to create {} directory", crate::env::SPFS_DIR)]
+    #[diagnostic(
+        code("spfs::could_not_create_spfs_dir"),
+        help("If you have sudo/admin privileges, you can try creating it yourself")
+    )]
+    CouldNotCreateSpfsRoot { source: Box<Self> },
     #[error("Unable to make the runtime durable: {0}")]
     RuntimeChangeToDurableError(String),
     #[error("Storage read error from {0} at {1}: {2}")]
