@@ -25,6 +25,7 @@ spk-solve-solution = { path = "../solution" }
 spk-schema = { path = "../../../spk-schema" }
 spk-storage = { path = "../../../spk-storage" }
 thiserror = { workspace = true }
+miette = { workspace = true }
 tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"
 

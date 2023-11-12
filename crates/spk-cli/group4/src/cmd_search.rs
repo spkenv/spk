@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
+use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::{Deprecate, VersionIdent};

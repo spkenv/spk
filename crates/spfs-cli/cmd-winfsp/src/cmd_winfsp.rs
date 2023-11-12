@@ -9,7 +9,7 @@ use std::os::windows::process::CommandExt;
 use std::sync::Arc;
 
 use clap::{Args, Parser, Subcommand};
-use miette::{bail, Context, Result};
+use miette::{bail, Context, IntoDiagnostic, Result};
 use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
 #[cfg(windows)]
@@ -81,6 +81,7 @@ impl CmdWinFsp {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
+            .into_diagnostic()
             .wrap_err("Failed to establish async runtime")?;
         let res = match &mut self.command {
             Command::Mount(c) => rt.block_on(c.run(config)),

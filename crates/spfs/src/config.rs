@@ -443,7 +443,8 @@ impl Config {
             )),
         }
         .map_err(|err| match err {
-            err @ crate::Error::FailedToOpenRepository { .. } => err,
+            err @ crate::Error::FailedToOpenRepository { .. }
+            | err @ crate::Error::UnknownRemoteName(_) => err,
             err => crate::Error::FailedToOpenRepository {
                 repository: remote_name.as_ref().to_owned(),
                 source: Box::new(err),

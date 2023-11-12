@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use miette::Diagnostic;
 use relative_path::RelativePathBuf;
 use spfs::tracking::DiffMode;
 use spk_schema_ident::{AnyIdent, VersionIdent};
@@ -9,7 +10,13 @@ use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
+#[diagnostic(
+    url(
+        "https://getspk.io/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spk::generic"))
+    )
+)]
 pub enum Error {
     #[error(transparent)]
     Serde(#[from] serde_yaml::Error),
@@ -18,10 +25,13 @@ pub enum Error {
 
     // API Errors
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     InvalidVersionError(#[from] spk_schema_foundation::version::InvalidVersionError),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     InvalidNameError(#[from] spk_schema_foundation::name::InvalidNameError),
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     InvalidBuildError(#[from] spk_schema_foundation::ident_build::InvalidBuildError),
 
     // Storage Errors

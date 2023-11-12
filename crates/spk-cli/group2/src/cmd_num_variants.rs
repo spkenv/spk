@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use anyhow::Result;
 use clap::Args;
+use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::Recipe;
 

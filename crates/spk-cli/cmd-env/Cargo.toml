@@ -8,7 +8,7 @@ version = { workspace = true }
 statsd = ["dep:statsd"]
 
 [dependencies]
-anyhow = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }
 clap = { workspace = true }
 spfs = { path = "../../spfs" }

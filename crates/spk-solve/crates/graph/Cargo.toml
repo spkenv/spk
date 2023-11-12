@@ -16,6 +16,7 @@ migration-to-components = [
 [dependencies]
 async-recursion = "1.0"
 async-stream = "0.3"
+miette = { workspace = true }
 async-trait = { workspace = true }
 colored = { workspace = true }
 ctrlc = "3.2"

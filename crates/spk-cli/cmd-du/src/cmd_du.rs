@@ -7,12 +7,12 @@ use std::fmt::Arguments;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::Result;
 use async_stream::try_stream;
 use clap::Args;
 use colored::Colorize;
 use futures::{Stream, TryStreamExt};
 use itertools::Itertools;
+use miette::Result;
 use spfs::graph::Object;
 use spfs::tracking::Entry;
 use spfs::Digest;

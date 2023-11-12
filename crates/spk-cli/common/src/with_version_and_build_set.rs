@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use anyhow::Result;
+use miette::Result;
 use spk_schema::version_range::{EqualsVersion, VersionFilter};
 use spk_schema::{AnyIdent, VersionIdent};
 use spk_solve::solution::find_highest_package_version;

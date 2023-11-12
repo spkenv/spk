@@ -47,6 +47,7 @@ statsd = { version = "0.15.0", optional = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
+miette = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }

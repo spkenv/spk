@@ -5,10 +5,10 @@
 use std::collections::HashSet;
 use std::io::Write;
 
-use anyhow::{Context, Result};
 use clap::Args;
 use colored::Colorize;
 use futures::TryFutureExt;
+use miette::{Context, IntoDiagnostic, Result};
 use spk_cli_common::{build_required_packages, current_env, flags, CommandArgs, Run};
 use spk_exec::setup_current_runtime;
 use spk_schema::foundation::format::FormatIdent;
@@ -107,7 +107,7 @@ impl Run for Install {
             let mut input = String::new();
             print!("Do you want to continue? [y/N]: ");
             let _ = std::io::stdout().flush();
-            std::io::stdin().read_line(&mut input)?;
+            std::io::stdin().read_line(&mut input).into_diagnostic()?;
             match input.trim() {
                 "y" | "yes" => {}
                 _ => {
@@ -119,7 +119,7 @@ impl Run for Install {
 
         let compiled_solution = build_required_packages(&solution)
             .await
-            .context("Failed to build one or more packages from source")?;
+            .wrap_err("Failed to build one or more packages from source")?;
         setup_current_runtime(&compiled_solution).await?;
         Ok(0)
     }

@@ -4,9 +4,9 @@
 use std::io::Write;
 use std::sync::Arc;
 
-use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
+use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::{parse_ident, AnyIdent};

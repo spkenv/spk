@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
 use clap::Args;
+use miette::{Context, IntoDiagnostic, Result};
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatOptionMap;
 use spk_schema::foundation::spec_ops::Named;
@@ -59,7 +59,8 @@ impl Run for MakeRecipe {
         let data = spk_schema::TemplateData::new(&options);
         tracing::debug!("full template data: {data:#?}");
         let rendered = spk_schema_liquid::render_template(template.source(), &data)
-            .context("Failed to render template")?;
+            .into_diagnostic()
+            .wrap_err("Failed to render template")?;
         print!("{rendered}");
 
         match template.render(&options) {

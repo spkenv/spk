@@ -5,9 +5,9 @@
 use std::collections::BTreeSet;
 use std::fmt::Write;
 
-use anyhow::{anyhow, Result};
 use clap::Args;
 use colored::Colorize;
+use miette::{miette, Result};
 use nom::combinator::all_consuming;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
@@ -245,7 +245,7 @@ impl<T: Output> Ls<T> {
                 .map(|(_, parts)| parts)
                 .map_err(|err| match err {
                     nom::Err::Error(e) | nom::Err::Failure(e) => {
-                        anyhow!(e.to_string())
+                        miette!(e.to_string())
                     }
                     nom::Err::Incomplete(_) => unreachable!(),
                 })

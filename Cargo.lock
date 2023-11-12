@@ -3597,6 +3597,7 @@ name = "spfs-encoding"
 version = "0.34.6"
 dependencies = [
  "data-encoding",
+ "miette",
  "rand 0.8.5",
  "ring",
  "rstest",
@@ -3640,11 +3641,11 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 name = "spk"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "clap_complete",
  "colored",
+ "miette",
  "sentry",
  "sentry-anyhow",
  "spk-build",
@@ -3681,6 +3682,7 @@ version = "0.38.0"
 dependencies = [
  "dunce",
  "futures",
+ "miette",
  "relative-path",
  "rstest",
  "serde",
@@ -3703,12 +3705,12 @@ dependencies = [
 name = "spk-cli-common"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "colored",
  "futures",
  "glob",
+ "miette",
  "nix 0.26.4",
  "nom",
  "nom-supreme",
@@ -3739,13 +3741,13 @@ dependencies = [
 name = "spk-cli-group1"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "clap_complete",
  "colored",
  "futures",
  "itertools 0.10.5",
+ "miette",
  "rstest",
  "serde",
  "serde_json",
@@ -3766,11 +3768,11 @@ dependencies = [
 name = "spk-cli-group2"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "colored",
  "itertools 0.10.5",
+ "miette",
  "nom",
  "nom-supreme",
  "rstest",
@@ -3788,11 +3790,11 @@ dependencies = [
 name = "spk-cli-group3"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "colored",
  "futures",
+ "miette",
  "rstest",
  "spfs",
  "spfs-cli-common",
@@ -3809,13 +3811,13 @@ dependencies = [
 name = "spk-cli-group4"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "colored",
  "dunce",
  "futures",
  "itertools 0.10.5",
+ "miette",
  "serde_json",
  "serde_yaml 0.9.27",
  "spfs",
@@ -3832,9 +3834,9 @@ dependencies = [
 name = "spk-cmd-build"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "rstest",
  "spk-cli-common",
  "spk-cmd-make-binary",
@@ -3849,9 +3851,9 @@ dependencies = [
 name = "spk-cmd-convert"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "spk-cli-common",
  "spk-cmd-env",
 ]
@@ -3864,6 +3866,7 @@ dependencies = [
  "async-trait",
  "clap 4.4.7",
  "futures",
+ "miette",
  "spfs",
  "spk-cli-common",
  "spk-exec",
@@ -3877,13 +3880,13 @@ dependencies = [
 name = "spk-cmd-du"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-stream",
  "async-trait",
  "clap 4.4.7",
  "colored",
  "futures",
  "itertools 0.10.5",
+ "miette",
  "spfs",
  "spk-build",
  "spk-cli-common",
@@ -3898,9 +3901,9 @@ dependencies = [
 name = "spk-cmd-env"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "nix 0.26.4",
  "spfs",
  "spk-cli-common",
@@ -3915,9 +3918,9 @@ dependencies = [
 name = "spk-cmd-explain"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "spk-cli-common",
  "tokio",
 ]
@@ -3926,11 +3929,11 @@ dependencies = [
 name = "spk-cmd-install"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "colored",
  "futures",
+ "miette",
  "spk-cli-common",
  "spk-exec",
  "spk-schema",
@@ -3941,10 +3944,10 @@ dependencies = [
 name = "spk-cmd-make-binary"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "futures",
+ "miette",
  "rstest",
  "spfs",
  "spk-build",
@@ -3963,6 +3966,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "spk-cli-common",
  "spk-schema",
  "spk-schema-liquid",
@@ -3973,9 +3977,9 @@ dependencies = [
 name = "spk-cmd-make-source"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "spfs",
  "spk-build",
  "spk-cli-common",
@@ -3988,10 +3992,10 @@ dependencies = [
 name = "spk-cmd-render"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
  "dunce",
+ "miette",
  "spfs",
  "spk-cli-common",
  "spk-exec",
@@ -4004,9 +4008,9 @@ dependencies = [
 name = "spk-cmd-repo"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "spk-cli-common",
  "spk-storage",
  "tracing",
@@ -4016,9 +4020,9 @@ dependencies = [
 name = "spk-cmd-test"
 version = "0.38.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "clap 4.4.7",
+ "miette",
  "rstest",
  "spfs",
  "spk-build",
@@ -4039,6 +4043,7 @@ version = "0.38.0"
 dependencies = [
  "config",
  "dirs",
+ "miette",
  "once_cell",
  "rstest",
  "serde",
@@ -4054,6 +4059,7 @@ version = "0.38.0"
 dependencies = [
  "async-stream",
  "futures",
+ "miette",
  "relative-path",
  "spfs",
  "spk-schema",
@@ -4067,7 +4073,7 @@ dependencies = [
 name = "spk-launcher"
 version = "0.33.6"
 dependencies = [
- "anyhow",
+ "miette",
  "nix 0.26.4",
  "spfs",
  "tempfile",
@@ -4085,6 +4091,7 @@ dependencies = [
  "ignore",
  "indexmap 1.9.3",
  "itertools 0.10.5",
+ "miette",
  "nom",
  "proptest",
  "regex",
@@ -4116,6 +4123,7 @@ dependencies = [
  "format_serde_error",
  "ignore",
  "itertools 0.10.5",
+ "miette",
  "nom",
  "nom-supreme",
  "once_cell",
@@ -4143,6 +4151,7 @@ dependencies = [
  "data-encoding",
  "format_serde_error",
  "itertools 0.10.5",
+ "miette",
  "nom",
  "nom-supreme",
  "proptest",
@@ -4178,6 +4187,7 @@ dependencies = [
  "ignore",
  "indexmap 1.9.3",
  "itertools 0.10.5",
+ "miette",
  "nom",
  "regex",
  "relative-path",
@@ -4208,6 +4218,7 @@ dependencies = [
  "dyn-clone",
  "futures",
  "itertools 0.10.5",
+ "miette",
  "num-bigint",
  "num-format",
  "once_cell",
@@ -4244,6 +4255,7 @@ dependencies = [
  "dyn-clone",
  "futures",
  "itertools 0.10.5",
+ "miette",
  "once_cell",
  "priority-queue",
  "rstest",
@@ -4278,6 +4290,7 @@ dependencies = [
  "futures",
  "glob",
  "itertools 0.10.5",
+ "miette",
  "once_cell",
  "rstest",
  "spk-config",
@@ -4297,6 +4310,7 @@ dependencies = [
  "colored",
  "console",
  "itertools 0.10.5",
+ "miette",
  "spfs",
  "spk-schema",
  "spk-storage",
@@ -4312,6 +4326,7 @@ dependencies = [
  "enum_dispatch",
  "futures",
  "itertools 0.10.5",
+ "miette",
  "once_cell",
  "rstest",
  "serde_yaml 0.9.27",
@@ -4341,6 +4356,7 @@ dependencies = [
  "ignore",
  "indexmap 1.9.3",
  "itertools 0.10.5",
+ "miette",
  "nom",
  "once_cell",
  "regex",

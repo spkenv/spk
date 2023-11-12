@@ -3,8 +3,8 @@
 // https://github.com/imageworks/spk
 use std::sync::Arc;
 
-use anyhow::Result;
 use clap::Args;
+use miette::Result;
 use spk_cli_common::{CommandArgs, Publisher, Run};
 use spk_schema::AnyIdent;
 use spk_storage as storage;

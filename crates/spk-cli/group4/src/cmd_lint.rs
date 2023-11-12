@@ -4,9 +4,9 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
+use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::{SpecTemplate, Template, TemplateExt};
 

@@ -9,6 +9,7 @@ use std::borrow::Borrow;
 use std::convert::TryFrom;
 
 pub use error::{Error, Result};
+use miette::Diagnostic;
 use thiserror::Error;
 
 #[cfg(test)]
@@ -53,7 +54,7 @@ macro_rules! opt_name {
 }
 
 /// Denotes that an invalid package name was given.
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
 #[error("Invalid name: {message}")]
 pub struct InvalidNameError {
     pub message: String,

@@ -39,6 +39,7 @@ pub enum Error {
     Config(#[from] config::ConfigError),
 
     #[error(transparent)]
+    #[diagnostic(forward(0))]
     Encoding(#[from] super::encoding::Error),
 
     #[error("Invalid repository url: {0:?}")]
@@ -88,7 +89,12 @@ pub enum Error {
         repository: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
-    #[error("No remote name '{0}' configured.")]
+
+    #[error("No remote named '{0}' configured")]
+    #[diagnostic(
+        code("spfs::unknown_remote"),
+        help("See available remotes via the 'spfs config' command")
+    )]
     UnknownRemoteName(String),
 
     #[error("Nothing to commit, resulting filesystem would be empty")]
@@ -201,7 +207,7 @@ impl Error {
         }
     }
 
-    /// Create an [`Error:ProcessSpawnError`] with context.
+    /// Create an [`Error::ProcessSpawnError`] with context.
     pub fn process_spawn_error<S>(
         process_description: S,
         err: std::io::Error,

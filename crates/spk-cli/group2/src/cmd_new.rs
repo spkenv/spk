@@ -1,9 +1,9 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
+use miette::{IntoDiagnostic, Result};
 use spk_cli_common::{CommandArgs, Run};
 use spk_schema::foundation::name::PkgNameBuf;
 
@@ -25,7 +25,7 @@ impl Run for New {
         let spec = get_stub(&self.name);
 
         let spec_file = format!("{}.spk.yaml", self.name);
-        std::fs::write(&spec_file, spec)?;
+        std::fs::write(&spec_file, spec).into_diagnostic()?;
         println!("{}: {}", "Created".green(), spec_file);
         Ok(0)
     }

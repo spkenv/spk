@@ -3,10 +3,10 @@
 // https://github.com/imageworks/spk
 use std::io::Write;
 
-use anyhow::Result;
 use clap::Args;
 use colored::Colorize;
 use itertools::Itertools;
+use miette::{IntoDiagnostic, Result};
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::parse_ident;
@@ -52,7 +52,7 @@ impl Run for Remove {
                     .yellow()
                 );
                 let _ = std::io::stdout().flush();
-                std::io::stdin().read_line(&mut input)?;
+                std::io::stdin().read_line(&mut input).into_diagnostic()?;
                 match input.trim() {
                     "y" | "yes" => {}
                     _ => {

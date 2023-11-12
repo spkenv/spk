@@ -5,8 +5,8 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::Result;
 use futures::Stream;
+use miette::Result;
 use spfs::encoding::Digest;
 
 pub const LEVEL_SEPARATOR: char = '/';

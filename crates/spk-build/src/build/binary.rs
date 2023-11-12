@@ -49,7 +49,7 @@ use crate::{Error, Result};
 mod binary_test;
 
 /// Denotes an error during the build process.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, miette::Diagnostic, thiserror::Error)]
 #[error("Build error: {message}")]
 pub struct BuildError {
     pub message: String,

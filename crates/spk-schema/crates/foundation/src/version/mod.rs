@@ -23,6 +23,7 @@ pub use compat::{
     BINARY_STR,
 };
 pub use error::{Error, Result};
+use miette::Diagnostic;
 use relative_path::RelativePathBuf;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
@@ -55,7 +56,7 @@ pub fn get_version_position_label(pos: usize) -> &'static str {
 }
 
 /// Denotes that an invalid version number was given.
-#[derive(Debug, Error)]
+#[derive(Diagnostic, Debug, Error)]
 #[error("Invalid version: {message}")]
 pub struct InvalidVersionError {
     pub message: String,

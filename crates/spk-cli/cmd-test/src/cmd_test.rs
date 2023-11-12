@@ -4,8 +4,8 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
 use clap::Args;
+use miette::{Context, Result};
 use spk_build::BuildSource;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
@@ -101,7 +101,7 @@ impl Run for CmdTest {
                         Box::new(default_variants.iter().skip(index).take(1))
                     }
                     Some(index) => {
-                        anyhow::bail!(
+                        miette::bail!(
                             "--variant {index} is out of range; {} variant(s) found in {}",
                             default_variants.len(),
                             recipe.ident().format_ident(),
@@ -125,7 +125,7 @@ impl Run for CmdTest {
 
                     let selected = recipe
                         .get_tests(stage, &opts)
-                        .context("Failed to select tests for this variant")?;
+                        .wrap_err("Failed to select tests for this variant")?;
                     tracing::info!(
                         variant=%opts.format_option_map(),
                         "Running {} relevant tests for this variant",

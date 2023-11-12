@@ -8,11 +8,9 @@ version = "0.34.6"
 data-encoding = "2.3"
 ring = "0.16.15"
 serde = { workspace = true, features = ["derive"] }
-tokio = { version = "1.20", features = [
-    "io-util",
-    "io-std",
-] }
+tokio = { version = "1.20", features = ["io-util", "io-std"] }
 thiserror = { workspace = true }
+miette = { workspace = true }
 
 [dev-dependencies]
 rstest = { version = "0.15.0", default_features = false }

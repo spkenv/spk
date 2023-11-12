@@ -19,7 +19,7 @@ use crate::{Error, Result};
 mod sources_test;
 
 /// Denotes an error during the build process.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, miette::Diagnostic, thiserror::Error)]
 #[error("Collection error: {message}")]
 pub struct CollectionError {
     pub message: String,

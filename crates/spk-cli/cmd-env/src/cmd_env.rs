@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::{Context, Result};
 use clap::Args;
+use miette::{Context, Result};
 use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
 use spk_exec::setup_runtime;
 #[cfg(feature = "statsd")]
@@ -113,7 +113,7 @@ impl Run for Env {
         command
             .exec()
             .map(|_| 0)
-            .context("Failed to execute runtime command")
+            .wrap_err("Failed to execute runtime command")
     }
 }
 

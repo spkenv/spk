@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
+use miette::{Context, Result};
 use spk_cli_common::{CommandArgs, Run};
 use spk_storage as storage;
 use storage::Repository;
@@ -54,7 +54,7 @@ impl RepoCommand {
             "local" => storage::local_repository().await?,
             _ => storage::remote_repository(repo).await?,
         };
-        let status = repo.upgrade().await.context("Upgrade failed")?;
+        let status = repo.upgrade().await.wrap_err("Upgrade failed")?;
         tracing::info!("{}", status);
         Ok(1)
     }

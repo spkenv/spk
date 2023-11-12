@@ -7,7 +7,7 @@ use std::ffi::{OsStr, OsString};
 use std::panic::catch_unwind;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use miette::{Context, IntoDiagnostic, Result};
 use once_cell::sync::Lazy;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
 use spk_schema::{Package, VersionIdent};
@@ -174,7 +174,7 @@ pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
         // Contexts are not searchable
         scope.set_context("SPK", sentry::protocol::Context::Other(data));
 
-        // Okay for captured errors/anyhow, not good for direct
+        // Okay for captured errors/miette, not good for direct
         // messages because they have no error value
         scope.set_fingerprint(Some(["{{ error.value }}"].as_ref()));
     });
@@ -300,7 +300,9 @@ pub fn configure_logging(verbosity: u8) -> Result<()> {
             )
     };
 
-    tracing::subscriber::set_global_default(sub).context("Failed to set default logger")
+    tracing::subscriber::set_global_default(sub)
+        .into_diagnostic()
+        .wrap_err("Failed to set default logger")
 }
 
 static SPK_EXE: Lazy<&OsStr> = Lazy::new(|| match std::env::var_os("SPK_BIN_PATH") {

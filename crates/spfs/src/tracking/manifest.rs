@@ -13,6 +13,7 @@ use std::sync::Arc;
 use futures::future::ready;
 use futures::{FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 use itertools::Itertools;
+use miette::Diagnostic;
 use relative_path::{RelativePath, RelativePathBuf};
 use tokio::fs::DirEntry;
 use tokio::sync::Semaphore;
@@ -281,7 +282,13 @@ impl<T> Manifest<T> {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Diagnostic, Debug, thiserror::Error)]
+#[diagnostic(
+    url(
+        "https://getspk.io/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spk::generic"))
+    )
+)]
 pub enum MkError {
     #[error("Entry already exists in manifest {0}")]
     AlreadyExists(RelativePathBuf),

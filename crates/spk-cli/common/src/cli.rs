@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 //! Main entry points and utilities for command line interface and interaction.
 
-use anyhow::Result;
+use miette::Result;
 
 /// Trait all cli commands must implement to be runnable.
 #[async_trait::async_trait]

@@ -5,9 +5,7 @@ name = "spk-schema-ident"
 version = { workspace = true }
 
 [features]
-migration-to-components = [
-	"spk-schema-foundation/migration-to-components",
-]
+migration-to-components = ["spk-schema-foundation/migration-to-components"]
 
 [dependencies]
 colored = { workspace = true }
@@ -23,6 +21,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_yaml = { workspace = true }
 spk-schema-foundation = { path = "../foundation" }
 thiserror = { workspace = true }
+miette = { workspace = true }
 
 [dev-dependencies]
 data-encoding = "2.3"

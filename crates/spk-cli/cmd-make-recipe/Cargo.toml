@@ -7,6 +7,7 @@ version = { workspace = true }
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
+miette = { workspace = true, features = ["fancy"] }
 clap = { workspace = true, features = ["derive", "env"] }
 spk-cli-common = { path = '../common' }
 spk-schema = { path = '../../spk-schema' }

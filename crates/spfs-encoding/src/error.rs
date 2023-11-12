@@ -2,11 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use miette::Diagnostic;
+
 /// A specialized result for encoding operations
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// The error type that is returned by encoding operations
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Diagnostic, Debug)]
+#[diagnostic(
+    url(
+        "https://getspk.io/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spfs::generic"))
+    )
+)]
 pub enum Error {
     /// Some underlying io error caused a decode process to fail
     #[error("Encoding read error")]
