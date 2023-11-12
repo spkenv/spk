@@ -138,7 +138,9 @@ impl CmdService {
             return self.stop().await;
         }
 
-        let init_token = winfsp::winfsp_init().wrap_err("Failed to initialize winfsp")?;
+        let init_token = winfsp::winfsp_init()
+            .into_diagnostic()
+            .wrap_err("Failed to initialize winfsp")?;
         tracing::info!("starting service...");
         let config = spfs_vfs::Config {
             mountpoint: self.mountpoint.clone(),
@@ -146,9 +148,11 @@ impl CmdService {
         };
         let service = Service::new(config)
             .await
+            .into_diagnostic()
             .wrap_err("Failed to start filesystem service")?;
         let fsp = service
             .build_filesystem_service(init_token)
+            .into_diagnostic()
             .wrap_err("Failed to build filesystem service")?;
         let (shutdown_tx, mut shutdown_rx) = tokio::sync::mpsc::channel(4);
         let ctrl_c_shutdown_tx = shutdown_tx.clone();
@@ -172,6 +176,7 @@ impl CmdService {
                 result
                     .expect("Filesystem task should not panic")
                     .expect("Filesystem thread should not panic")
+                    .into_diagnostic()
                     .wrap_err("Filesystem failed during runtime")?;
                 tracing::info!("filesystem service shutdown, exiting...");
                 let _ = shutdown_tx.send(()).await;
@@ -186,7 +191,9 @@ impl CmdService {
 
     #[cfg(windows)]
     async fn stop(&self) -> Result<i32> {
-        let channel = tonic::transport::Endpoint::from_shared(format!("http://{}", self.listen))?
+        let channel = tonic::transport::Endpoint::from_shared(format!("http://{}", self.listen))
+            .into_diagnostic()
+            .wrap_err("Invalid server address")?
             .connect_lazy();
         let mut client = spfs_vfs::proto::vfs_service_client::VfsServiceClient::new(channel);
         let res = client
@@ -200,7 +207,7 @@ impl CmdService {
             tracing::warn!(addr=%self.listen, "The service does not appear to be running");
             Ok(0)
         } else {
-            Err(err.into())
+            Err(err).into_diagnostic()
         }
     }
 }
@@ -248,12 +255,16 @@ impl CmdMount {
 
     #[cfg(windows)]
     async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
-        let result = tonic::transport::Endpoint::from_shared(format!("http://{}", self.service))?
+        let result = tonic::transport::Endpoint::from_shared(format!("http://{}", self.service))
+            .into_diagnostic()
+            .wrap_err("Invalid server address")?
             .connect()
             .await;
         let channel = match result {
             Err(err) if is_connection_refused(&err) => {
-                let exe = std::env::current_exe().wrap_err("Failed to get current exe")?;
+                let exe = std::env::current_exe()
+                    .into_diagnostic()
+                    .wrap_err("Failed to get current exe")?;
                 let mut cmd = std::process::Command::new(exe);
                 cmd.creation_flags(DETACHED_PROCESS.0)
                     .arg("service")
@@ -261,17 +272,22 @@ impl CmdMount {
                     .arg(self.service.to_string())
                     .arg(&self.mountpoint);
                 tracing::debug!(?cmd, "spawning service...");
-                let _child = cmd.spawn().wrap_err("Failed to start filesystem service")?;
-                tonic::transport::Endpoint::from_shared(format!("http://{}", self.service))?
+                let _child = cmd
+                    .spawn()
+                    .into_diagnostic()
+                    .wrap_err("Failed to start filesystem service")?;
+                tonic::transport::Endpoint::from_shared(format!("http://{}", self.service))
+                    .into_diagnostic()?
                     .connect()
-                    .await?
+                    .await
+                    .into_diagnostic()?
             }
-            res => res?,
+            res => res.into_diagnostic()?,
         };
 
         let mut client = spfs_vfs::proto::vfs_service_client::VfsServiceClient::new(channel);
 
-        let lineage = spfs_vfs::winfsp::get_parent_pids(None)?;
+        let lineage = spfs_vfs::winfsp::get_parent_pids(None).into_diagnostic()?;
         let parent = match self.root_process {
             Some(pid) if lineage.contains(&pid) => pid,
             Some(_pid) => bail!("--root-process must the a parent of the current process"),
@@ -287,6 +303,7 @@ impl CmdMount {
                 env_spec: self.reference.to_string(),
             }))
             .await
+            .into_diagnostic()
             .wrap_err("Failed to mount filesystem")?;
 
         Ok(0)
