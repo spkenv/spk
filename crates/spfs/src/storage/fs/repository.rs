@@ -298,7 +298,7 @@ impl OpenFsRepository {
             Err(err) => {
                 return Err(crate::Error::FailedToOpenRepository {
                     repository: root.as_ref().to_string_lossy().to_string(),
-                    source: Box::new(err),
+                    source: Box::new(crate::Error::InvalidPath(root.as_ref().to_owned(), err)),
                 })
             }
         };
