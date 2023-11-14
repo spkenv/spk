@@ -16,7 +16,7 @@ use crate::config::ToAddress;
 use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::tag::TagSpecAndTagStream;
-use crate::storage::EntryType;
+use crate::storage::{EntryType, OpenRepositoryError, OpenRepositoryResult};
 use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
@@ -38,7 +38,7 @@ impl ToAddress for Config {
 
 #[async_trait::async_trait]
 impl storage::FromUrl for Config {
-    async fn from_url(url: &url::Url) -> Result<Self> {
+    async fn from_url(url: &url::Url) -> OpenRepositoryResult<Self> {
         #[cfg(windows)]
         // on windows, a path with a drive letter may get prefixed with another
         // root forward slash, which is not appropriate for the platform
@@ -65,7 +65,7 @@ pub struct TarRepository {
 impl storage::FromConfig for TarRepository {
     type Config = Config;
 
-    async fn from_config(config: Self::Config) -> Result<Self> {
+    async fn from_config(config: Self::Config) -> OpenRepositoryResult<Self> {
         Self::create(&config.path).await
     }
 }
@@ -77,29 +77,26 @@ impl std::fmt::Debug for TarRepository {
 }
 
 impl TarRepository {
-    pub async fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub async fn create<P: AsRef<Path>>(path: P) -> OpenRepositoryResult<Self> {
         let path = path.as_ref();
         if !path.exists() {
             if let Some(parent) = path.parent() {
-                crate::runtime::makedirs_with_perms(parent, 0o777)?;
+                crate::runtime::makedirs_with_perms(parent, 0o777)
+                    .map_err(|_| OpenRepositoryError::CouldNotCreateTarParent(parent.to_owned()))?;
             }
             let mut file = std::fs::OpenOptions::new()
                 .write(true)
                 .create_new(true)
                 .open(path)
-                .map_err(|err| {
-                    Error::StorageWriteError(
-                        "open tar repository for write exclusively",
-                        path.to_owned(),
-                        err,
-                    )
+                .map_err(|source| OpenRepositoryError::FailedToOpenArchive {
+                    path: path.to_owned(),
+                    source,
                 })?;
-            Builder::new(&mut file).finish().map_err(|err| {
-                Error::StorageWriteError(
-                    "finish on tar repository builder in create",
-                    path.to_owned(),
-                    err,
-                )
+            Builder::new(&mut file).finish().map_err(|source| {
+                OpenRepositoryError::FailedToCloseArchive {
+                    path: path.to_owned(),
+                    source,
+                }
             })?;
         }
         Self::open(path).await
@@ -119,23 +116,33 @@ impl TarRepository {
 
     // Open a repository over the given directory, which must already
     // exist and be a repository
-    pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let path = dunce::canonicalize(&path)
-            .map_err(|err| Error::InvalidPath(path.as_ref().to_owned(), err))?;
-        let mut file =
-            BufReader::new(std::fs::File::open(&path).map_err(|err| {
-                Error::StorageReadError("open of tar repository", path.clone(), err)
-            })?);
+    pub async fn open<P: AsRef<Path>>(path: P) -> OpenRepositoryResult<Self> {
+        let path = dunce::canonicalize(&path).map_err(|source| {
+            OpenRepositoryError::FailedToOpenArchive {
+                path: path.as_ref().to_owned(),
+                source,
+            }
+        })?;
+        let mut file = BufReader::new(std::fs::File::open(&path).map_err(|source| {
+            OpenRepositoryError::FailedToOpenArchive {
+                path: path.clone(),
+                source,
+            }
+        })?);
         let mut archive = Archive::new(&mut file);
         let tmpdir = tempfile::Builder::new()
             .prefix("spfs-tar-repo")
             .tempdir()
-            .map_err(|err| {
-                Error::StorageWriteError("create tar repository temp dir", "temp dir".into(), err)
+            .map_err(|source| OpenRepositoryError::FailedToUnpackArchive {
+                path: "<new temporary directory>".into(),
+                source,
             })?;
         let repo_path = tmpdir.path().to_path_buf();
-        archive.unpack(&repo_path).map_err(|err| {
-            Error::StorageWriteError("unpack of tar repository", repo_path.clone(), err)
+        archive.unpack(&repo_path).map_err(|source| {
+            OpenRepositoryError::FailedToUnpackArchive {
+                path: repo_path.clone(),
+                source,
+            }
         })?;
         Ok(Self {
             up_to_date: AtomicBool::new(false),

@@ -86,7 +86,9 @@ impl OpenFsRepository {
         };
         let rendered_dirpath = renders.build_digest_path(&digest);
         let workdir = renders.workdir();
-        makedirs_with_perms(&workdir, renders.directory_permissions)?;
+        makedirs_with_perms(&workdir, renders.directory_permissions).map_err(|source| {
+            Error::StorageWriteError("remove render create workdir", workdir.clone(), source)
+        })?;
         Self::remove_dir_atomically(&rendered_dirpath, &workdir).await
     }
 
@@ -298,7 +300,9 @@ where
 
         let uuid = uuid::Uuid::new_v4().to_string();
         let working_dir = render_store.renders.workdir().join(uuid);
-        makedirs_with_perms(&working_dir, 0o777)?;
+        makedirs_with_perms(&working_dir, 0o777).map_err(|source| {
+            Error::StorageWriteError("create renderer workdir", working_dir.clone(), source)
+        })?;
 
         self.render_manifest_into_dir(
             manifest,

@@ -701,7 +701,11 @@ impl SessionInner {
                     secondary: self.opts.remotes.clone(),
                 };
                 let repo = spfs::storage::ProxyRepository::from_config(proxy_config)
-                    .await?
+                    .await
+                    .map_err(|source| spfs::Error::FailedToOpenRepository {
+                        repository: "<FUSE Repository Stack>".into(),
+                        source,
+                    })?
                     .into();
 
                 tracing::debug!("Computing environment manifest...");

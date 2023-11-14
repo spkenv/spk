@@ -14,13 +14,13 @@ use tokio::signal::unix::{signal, SignalKind};
 // The runtime setup process manages the current namespace
 // which operates only on the current thread. For this reason
 // we must use a single threaded async runtime, if any.
-fn main() {
+fn main() -> Result<()> {
     // because this function exits right away it does not
     // properly handle destruction of data, so we put the actual
     // logic into a separate function/scope
-    std::process::exit(main2())
+    std::process::exit(main2()?)
 }
-fn main2() -> i32 {
+fn main2() -> Result<i32> {
     let mut opt = CmdFuse::parse();
     opt.logging
         .log_file
@@ -31,7 +31,7 @@ fn main2() -> i32 {
     let config = match spfs::get_config() {
         Err(err) => {
             tracing::error!(err = ?err, "failed to load config");
-            return 1;
+            return Ok(1);
         }
         Ok(config) => config,
     };

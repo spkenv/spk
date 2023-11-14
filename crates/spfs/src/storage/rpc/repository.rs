@@ -9,7 +9,8 @@ use crate::proto::database_service_client::DatabaseServiceClient;
 use crate::proto::payload_service_client::PayloadServiceClient;
 use crate::proto::repository_client::RepositoryClient;
 use crate::proto::tag_service_client::TagServiceClient;
-use crate::{proto, storage, Error, Result};
+use crate::storage::{OpenRepositoryError, OpenRepositoryResult};
+use crate::{proto, storage, Result};
 
 /// Configures an rpc repository connection
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
@@ -28,12 +29,11 @@ pub struct Params {
 
 #[async_trait::async_trait]
 impl FromUrl for Config {
-    async fn from_url(url: &url::Url) -> Result<Self> {
+    async fn from_url(url: &url::Url) -> crate::storage::OpenRepositoryResult<Self> {
         let mut address = url.clone();
         let params = if let Some(qs) = address.query() {
-            serde_qs::from_str(qs).map_err(|err| {
-                crate::Error::String(format!("Invalid grpc repo parameters: {err:?}"))
-            })?
+            serde_qs::from_str(qs)
+                .map_err(|source| crate::storage::OpenRepositoryError::invalid_query(url, source))?
         } else {
             Params::default()
         };
@@ -68,7 +68,7 @@ pub struct RpcRepository {
 impl storage::FromConfig for RpcRepository {
     type Config = Config;
 
-    async fn from_config(config: Self::Config) -> Result<Self> {
+    async fn from_config(config: Self::Config) -> OpenRepositoryResult<Self> {
         Self::new(config).await
     }
 }
@@ -78,26 +78,27 @@ impl RpcRepository {
         since = "0.32.0",
         note = "instead, use the spfs::storage::FromUrl trait: RpcRepository::from_url(address)"
     )]
-    pub async fn connect(address: url::Url) -> Result<Self> {
+    pub async fn connect(address: url::Url) -> OpenRepositoryResult<Self> {
         Self::from_url(&address).await
     }
 
     /// Create a new rpc repository client for the given configuration
-    pub async fn new(config: Config) -> Result<Self> {
+    pub async fn new(config: Config) -> OpenRepositoryResult<Self> {
         let endpoint = tonic::transport::Endpoint::from_shared(config.address.to_string())
-            .map_err(|err| Error::String(format!("invalid address for rpc repository: {err:?}")))?;
+            .map_err(|source| OpenRepositoryError::InvalidTransportAddress {
+                address: config.address.to_string(),
+                source,
+            })?;
         let channel = match config.params.lazy {
             true => endpoint.connect_lazy(),
-            false => endpoint.connect().await.map_err(|err| {
-                Error::String(format!("failed to connect to rpc repository: {err:?}"))
-            })?,
+            false => endpoint.connect().await?,
         };
         let repo_client = RepositoryClient::new(channel.clone());
         let tag_client = TagServiceClient::new(channel.clone());
         let db_client = DatabaseServiceClient::new(channel.clone());
         let payload_client = PayloadServiceClient::new(channel);
         Ok(Self {
-            address: config.to_address()?,
+            address: config.to_address().expect("an internally valid config"),
             repo_client,
             tag_client,
             db_client,

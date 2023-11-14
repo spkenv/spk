@@ -356,15 +356,12 @@ where
     /// Check or create the necessary directories for mounting the provided runtime
     pub fn ensure_mount_targets_exist(&self, config: &runtime::Config) -> Result<()> {
         tracing::debug!("ensuring mount targets exist...");
-        runtime::makedirs_with_perms(SPFS_DIR, 0o777).map_err(|source| {
-            Error::CouldNotCreateSpfsRoot {
-                source: Box::new(source),
-            }
-        })?;
+        runtime::makedirs_with_perms(SPFS_DIR, 0o777)
+            .map_err(|source| Error::CouldNotCreateSpfsRoot { source })?;
 
         if let Some(dir) = &config.runtime_dir {
             runtime::makedirs_with_perms(dir, 0o777)
-                .map_err(|err| err.wrap(format!("Failed to create {dir:?}")))?
+                .map_err(|err| Error::RuntimeWriteError(dir.clone(), err))?
         }
         Ok(())
     }
@@ -639,7 +636,8 @@ where
                 let relative_fullpath = node.path.to_path("");
                 if let Some(parent) = relative_fullpath.parent() {
                     tracing::trace!(?parent, "build parent dir for mask");
-                    runtime::makedirs_with_perms(parent, 0o777)?;
+                    runtime::makedirs_with_perms(parent, 0o777)
+                        .map_err(|err| Error::RuntimeWriteError(parent.to_owned(), err))?;
                 }
                 tracing::trace!(?node.path, "Creating file mask");
 

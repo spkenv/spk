@@ -11,7 +11,7 @@ use relative_path::RelativePath;
 use crate::config::ToAddress;
 use crate::prelude::*;
 use crate::storage::tag::TagSpecAndTagStream;
-use crate::storage::EntryType;
+use crate::storage::{EntryType, OpenRepositoryError, OpenRepositoryResult};
 use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Result};
 
@@ -43,14 +43,11 @@ impl ToAddress for Config {
 
 #[async_trait::async_trait]
 impl storage::FromUrl for Config {
-    async fn from_url(url: &url::Url) -> Result<Self> {
+    async fn from_url(url: &url::Url) -> OpenRepositoryResult<Self> {
         match url.query() {
             Some(qs) => serde_qs::from_str(qs)
-                .map_err(|err| crate::Error::String(format!("Invalid proxy repo url: {err:?}"))),
-            None => Err(crate::Error::String(
-                "Stacked repo url had empty query string, this would create an unusable repo"
-                    .to_string(),
-            )),
+                .map_err(|source| crate::storage::OpenRepositoryError::invalid_query(url, source)),
+            None => Err(crate::storage::OpenRepositoryError::missing_query(url)),
         }
     }
 }
@@ -79,8 +76,11 @@ impl ProxyRepository {
 impl storage::FromConfig for ProxyRepository {
     type Config = Config;
 
-    async fn from_config(config: Self::Config) -> Result<Self> {
-        let spfs_config = crate::Config::current()?;
+    async fn from_config(config: Self::Config) -> OpenRepositoryResult<Self> {
+        let spfs_config =
+            crate::Config::current().map_err(|source| OpenRepositoryError::FailedToLoadConfig {
+                source: Box::new(source),
+            })?;
         #[rustfmt::skip]
         let (primary, secondary) = tokio::try_join!(
             crate::config::open_repository_from_string(&spfs_config, Some(&config.primary)),
@@ -102,7 +102,7 @@ impl storage::FromConfig for ProxyRepository {
                 }
                 Ok(secondary)
             }
-        )?;
+        ).map_err(|source| OpenRepositoryError::FailedToOpenPartial{source: Box::new(source)})?;
         Ok(Self { primary, secondary })
     }
 }

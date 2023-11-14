@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
 use tokio_stream::StreamExt;
 
-use crate::{runtime, storage, tracking, Result};
+use crate::{runtime, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./config_test.rs"]
@@ -19,6 +19,7 @@ mod config_test;
 
 const DEFAULT_USER_STORAGE: &str = "spfs";
 const FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
+const LOCAL_STORAGE_NAME: &str = "<local storage>";
 
 fn default_fuse_worker_threads() -> NonZeroUsize {
     let num_cpu = num_cpus::get();
@@ -193,13 +194,25 @@ impl RemoteConfig {
             .map(|(_, v)| v)
             .map(tracking::TimeSpec::parse)
             .transpose()?;
-        let inner = match url.scheme() {
-            "tar" => RepositoryConfig::Tar(storage::tar::Config::from_url(&url).await?),
-            "file" | "" => RepositoryConfig::Fs(storage::fs::Config::from_url(&url).await?),
-            "http2" | "grpc" => RepositoryConfig::Grpc(storage::rpc::Config::from_url(&url).await?),
-            "proxy" => RepositoryConfig::Proxy(storage::proxy::Config::from_url(&url).await?),
+        let result = match url.scheme() {
+            "tar" => storage::tar::Config::from_url(&url)
+                .await
+                .map(RepositoryConfig::Tar),
+            "file" | "" => storage::fs::Config::from_url(&url)
+                .await
+                .map(RepositoryConfig::Fs),
+            "http2" | "grpc" => storage::rpc::Config::from_url(&url)
+                .await
+                .map(RepositoryConfig::Grpc),
+            "proxy" => storage::proxy::Config::from_url(&url)
+                .await
+                .map(RepositoryConfig::Proxy),
             scheme => return Err(format!("Unsupported repository scheme: '{scheme}'").into()),
         };
+        let inner = result.map_err(|source| Error::FailedToOpenRepository {
+            repository: url.to_string(),
+            source,
+        })?;
         Ok(Self { when, inner })
     }
 
@@ -214,7 +227,7 @@ impl RemoteConfig {
     }
 
     /// Open a handle to a repository using this configuration
-    pub async fn open(&self) -> Result<storage::RepositoryHandle> {
+    pub async fn open(&self) -> storage::OpenRepositoryResult<storage::RepositoryHandle> {
         let handle = match self.inner.clone() {
             RepositoryConfig::Fs(config) => {
                 storage::fs::FsRepository::from_config(config).await?.into()
@@ -381,6 +394,10 @@ impl Config {
                 .unwrap_or(&self.storage.root),
         )
         .await
+        .map_err(|source| Error::FailedToOpenRepository {
+            repository: LOCAL_STORAGE_NAME.into(),
+            source,
+        })
     }
 
     /// Get the local repository instance as configured, creating it if needed.
@@ -438,17 +455,15 @@ impl Config {
                 tracing::debug!(?config, "opening repository");
                 config.open().await
             }
-            None => Err(crate::Error::UnknownRemoteName(
-                remote_name.as_ref().to_owned(),
-            )),
+            None => {
+                return Err(crate::Error::UnknownRemoteName(
+                    remote_name.as_ref().to_owned(),
+                ));
+            }
         }
-        .map_err(|err| match err {
-            err @ crate::Error::FailedToOpenRepository { .. }
-            | err @ crate::Error::UnknownRemoteName(_) => err,
-            err => crate::Error::FailedToOpenRepository {
-                repository: remote_name.as_ref().to_owned(),
-                source: Box::new(err),
-            },
+        .map_err(|source| crate::Error::FailedToOpenRepository {
+            repository: remote_name.as_ref().to_owned(),
+            source,
         })
     }
 
@@ -524,10 +539,9 @@ pub async fn open_repository<S: AsRef<str>>(
 ) -> crate::Result<storage::RepositoryHandle> {
     match RemoteConfig::from_str(address.as_ref()).await?.open().await {
         Ok(repo) => Ok(repo),
-        err @ Err(crate::Error::FailedToOpenRepository { .. }) => err,
-        Err(err) => Err(crate::Error::FailedToOpenRepository {
+        Err(source) => Err(crate::Error::FailedToOpenRepository {
             repository: address.as_ref().to_owned(),
-            source: Box::new(err),
+            source,
         }),
     }
 }
@@ -553,35 +567,31 @@ pub async fn open_repository_from_string<S: AsRef<str>>(
     // way first.
     let rh = config.get_remote_repository_or_local(specifier).await;
 
-    if let Err(crate::Error::FailedToOpenRepository { source, .. }) = &rh {
-        if let Some(crate::Error::UnknownRemoteName(specifier)) =
-            source.downcast_ref::<crate::Error>()
-        {
-            // In the event that provided specifier was not a recognized name,
-            // attempt to use it as an address instead.
-            let rh_as_address = open_repository(specifier).await;
+    if let Err(crate::Error::UnknownRemoteName(specifier)) = &rh {
+        // In the event that provided specifier was not a recognized name,
+        // attempt to use it as an address instead.
+        let rh_as_address = open_repository(specifier).await;
 
-            // This might fail because the specifier was not a valid url.
-            if let Err(crate::Error::InvalidRemoteUrl(_)) = rh_as_address {
-                // If the specifier does not contain a '/' then it is more
-                // likely a bare name like "foo" and not intended to be
-                // treated as path on disk.
-                if !specifier.contains('/') {
-                    // Return the original error so the user sees something like
-                    // "foo" is an unknown remote, rather than an error about
-                    // parsing urls.
-                    return rh;
-                }
-
-                // As a convenience, try turning the specifier into a valid file url.
-                let address = format!("file:{specifier}");
-                // User should see the error from this however this plays out.
-                return open_repository(address).await;
+        // This might fail because the specifier was not a valid url.
+        if let Err(crate::Error::InvalidRemoteUrl(_)) = rh_as_address {
+            // If the specifier does not contain a '/' then it is more
+            // likely a bare name like "foo" and not intended to be
+            // treated as path on disk.
+            if !specifier.contains('/') {
+                // Return the original error so the user sees something like
+                // "foo" is an unknown remote, rather than an error about
+                // parsing urls.
+                return rh;
             }
 
-            // Other errors apart from parsing the url should be shown to the user.
-            return rh_as_address;
+            // As a convenience, try turning the specifier into a valid file url.
+            let address = format!("file:{specifier}");
+            // User should see the error from this however this plays out.
+            return open_repository(address).await;
         }
+
+        // Other errors apart from parsing the url should be shown to the user.
+        return rh_as_address;
     }
 
     // No fallbacks worked so return the original result.

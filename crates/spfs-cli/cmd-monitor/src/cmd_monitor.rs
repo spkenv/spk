@@ -18,13 +18,13 @@ use tokio::io::AsyncReadExt;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::timeout;
 
-fn main() {
+fn main() -> Result<()> {
     // because this function exits right away it does not
     // properly handle destruction of data, so we put the actual
     // logic into a separate function/scope
-    std::process::exit(main2())
+    std::process::exit(main2()?);
 }
-fn main2() -> i32 {
+fn main2() -> Result<i32> {
     let mut opt = CmdMonitor::parse();
     opt.logging
         .log_file

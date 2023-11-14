@@ -7,7 +7,7 @@ use std::str::Utf8Error;
 use miette::Diagnostic;
 use thiserror::Error;
 
-use crate::encoding;
+use crate::{encoding, storage};
 
 #[derive(Diagnostic, Debug, Error)]
 #[diagnostic(
@@ -85,9 +85,12 @@ pub enum Error {
     RepositoryIsPinned,
 
     #[error("Failed to open repository: {repository}")]
+    #[diagnostic(code("spfs::failed_to_open_repo"))]
     FailedToOpenRepository {
         repository: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        #[diagnostic_source]
+        #[source]
+        source: storage::OpenRepositoryError,
     },
 
     #[error("No remote named '{0}' configured")]
@@ -130,7 +133,7 @@ pub enum Error {
         code("spfs::could_not_create_spfs_dir"),
         help("If you have sudo/admin privileges, you can try creating it yourself")
     )]
-    CouldNotCreateSpfsRoot { source: Box<Self> },
+    CouldNotCreateSpfsRoot { source: std::io::Error },
     #[error("Unable to make the runtime durable: {0}")]
     RuntimeChangeToDurableError(String),
     #[error("Storage read error from {0} at {1}: {2}")]
@@ -207,6 +210,18 @@ impl Error {
         }
     }
 
+    /// Create an [`Error::FailedToOpenRepository`] instance for
+    /// a repository using its address and root cause.
+    pub fn failed_to_open_repository<R: storage::Repository>(
+        repo: &R,
+        source: storage::OpenRepositoryError,
+    ) -> Self {
+        Self::FailedToOpenRepository {
+            repository: repo.address().to_string(),
+            source,
+        }
+    }
+
     /// Create an [`Error::ProcessSpawnError`] with context.
     pub fn process_spawn_error<S>(
         process_description: S,
@@ -249,6 +264,27 @@ impl From<std::path::StripPrefixError> for Error {
         Error::String(err.to_string())
     }
 }
+
+// impl IntoError for storage::OpenRepositoryError {
+//     type Context = url::Url;
+//     type Error = Error;
+
+//     fn into_error(self, context: Self::Context) -> Self::Error {
+//         Error::FailedToOpenRepository {
+//             repository: context.into(),
+//             source: self,
+//         }
+//     }
+// }
+
+// /// A type that can be converted into an error if
+// /// some additional context is provided
+// pub trait IntoError {
+//     type Context;
+//     type Error;
+
+//     fn into_error(self, context: Self::Context) -> Self::Error;
+// }
 
 /// An OS error represents an error that may have an associated
 /// error code from the operating system

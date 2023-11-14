@@ -45,15 +45,11 @@ impl ToAddress for Config {
 
 #[async_trait::async_trait]
 impl storage::FromUrl for Config {
-    async fn from_url(url: &url::Url) -> Result<Self> {
+    async fn from_url(url: &url::Url) -> crate::storage::OpenRepositoryResult<Self> {
         match url.query() {
-            Some(qs) => serde_qs::from_str(qs).map_err(|err| {
-                crate::Error::String(format!("Invalid payload fallback repo url: {err:?}"))
-            }),
-            None => Err(crate::Error::String(
-                "Stacked repo url had empty query string, this would create an unusable repo"
-                    .to_string(),
-            )),
+            Some(qs) => serde_qs::from_str(qs)
+                .map_err(|source| crate::storage::OpenRepositoryError::invalid_query(url, source)),
+            None => Err(crate::storage::OpenRepositoryError::missing_query(url)),
         }
     }
 }

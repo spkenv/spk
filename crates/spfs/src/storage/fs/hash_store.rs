@@ -15,6 +15,7 @@ use tokio::fs::DirEntry;
 use tokio::io::AsyncWriteExt;
 
 use crate::runtime::makedirs_with_perms;
+use crate::storage::{OpenRepositoryError, OpenRepositoryResult};
 use crate::tracking::BlobRead;
 use crate::{encoding, Error, OsError, Result};
 
@@ -44,11 +45,14 @@ pub struct FsHashStore {
 }
 
 impl FsHashStore {
-    pub fn open<P: AsRef<Path>>(root: P) -> Result<Self> {
+    pub fn open<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
         let root = root.as_ref();
-        Ok(Self::open_unchecked(
-            dunce::canonicalize(root).map_err(|err| Error::InvalidPath(root.to_owned(), err))?,
-        ))
+        Ok(Self::open_unchecked(dunce::canonicalize(root).map_err(
+            |source| OpenRepositoryError::PathNotInitialized {
+                path: root.to_owned(),
+                source,
+            },
+        )?))
     }
 
     pub fn open_unchecked<P: AsRef<Path>>(root: P) -> Self {
@@ -374,7 +378,8 @@ impl FsHashStore {
 
     pub fn ensure_base_dir<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         match path.as_ref().parent() {
-            Some(parent) => makedirs_with_perms(parent, self.directory_permissions),
+            Some(parent) => makedirs_with_perms(parent, self.directory_permissions)
+                .map_err(|err| Error::StorageWriteError("ensure_base_dir", parent.to_owned(), err)),
             _ => Ok(()),
         }
     }

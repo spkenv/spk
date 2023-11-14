@@ -108,6 +108,7 @@ impl<'a> Dynamic<'a> {
         let install_location = Path::new(self.install_path().as_os_str()).join(&digest_string);
         if !install_location.exists() {
             spfs::runtime::makedirs_with_perms(self.install_path(), 0o777)
+                .into_diagnostic()
                 .wrap_err("makedirs_with_perms")?;
 
             let tag_as_dirname = tag.to_string().replace('/', "-");

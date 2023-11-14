@@ -13,6 +13,7 @@ use crate::storage::FromConfig;
 use crate::{runtime, tracking, Error, Result};
 
 static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
+const RUNTIME_REPO_NAME: &str = "<runtime>";
 
 /// Unlock the current runtime file system so that it can be modified.
 ///
@@ -54,9 +55,13 @@ pub async fn get_runtime_backing_repo(
                 .map(ToString::to_string)
                 .collect(),
         };
-        Ok(crate::storage::ProxyRepository::from_config(proxy_config)
-            .await?
-            .into())
+        crate::storage::ProxyRepository::from_config(proxy_config)
+            .await
+            .map_err(|source| Error::FailedToOpenRepository {
+                repository: RUNTIME_REPO_NAME.into(),
+                source,
+            })
+            .map(Into::into)
     }
 }
 

@@ -2,21 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+mod error;
+
 use std::path::{Path, PathBuf};
 
-use super::read_last_migration_version;
-use crate::{Error, Result};
+pub use error::{MigrationError, MigrationResult};
 
-type MigrationFn = dyn (Fn(&PathBuf, &PathBuf) -> Result<()>) + Sync;
+use super::read_last_migration_version;
+
+type MigrationFn = dyn (Fn(&PathBuf, &PathBuf) -> MigrationResult<()>) + Sync;
 
 static MIGRATIONS: Vec<(&str, &MigrationFn)> = vec![];
 
 /// Migrate a repository to the latest version and replace the existing data.
-pub async fn upgrade_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
+pub async fn upgrade_repo<P: AsRef<Path>>(root: P) -> MigrationResult<PathBuf> {
     let root = tokio::task::block_in_place(|| dunce::canonicalize(&root))
-        .map_err(|err| Error::InvalidPath(root.as_ref().to_owned(), err))?;
+        .map_err(|err| MigrationError::InvalidRoot(root.as_ref().to_owned(), err))?;
     let repo_name = match &root.file_name() {
-        None => return Err("Repository path must have a file name".into()),
+        None => return Err(MigrationError::NoFileName),
         Some(name) => name.to_string_lossy(),
     };
     tracing::info!("migrating data...");
@@ -26,17 +29,17 @@ pub async fn upgrade_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
     tokio::fs::rename(&root, &backup_path)
         .await
         .map_err(|err| {
-            Error::StorageWriteError("rename on repo to backup", backup_path.clone(), err)
+            MigrationError::WriteError("rename on repo to backup", backup_path.clone(), err)
         })?;
     tokio::fs::rename(&migrated_path, &root)
         .await
         .map_err(|err| {
-            Error::StorageWriteError("rename on migrated path to root", root.clone(), err)
+            MigrationError::WriteError("rename on migrated path to root", root.clone(), err)
         })?;
     tracing::info!("purging old data...");
     tokio::fs::remove_dir_all(&backup_path)
         .await
-        .map_err(|err| Error::StorageWriteError("remove_all_dir on backup", backup_path, err))?;
+        .map_err(|err| MigrationError::WriteError("remove_all_dir on backup", backup_path, err))?;
     Ok(root)
 }
 
@@ -44,16 +47,16 @@ pub async fn upgrade_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
 ///
 /// # Returns:
 ///    - the path to the migrated repo data
-pub async fn migrate_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
+pub async fn migrate_repo<P: AsRef<Path>>(root: P) -> MigrationResult<PathBuf> {
     let mut root = tokio::task::block_in_place(|| dunce::canonicalize(&root))
-        .map_err(|err| Error::InvalidPath(root.as_ref().to_owned(), err))?;
+        .map_err(|err| MigrationError::InvalidRoot(root.as_ref().to_owned(), err))?;
     let last_migration = read_last_migration_version(&root)
         .await?
         .unwrap_or_else(|| {
             semver::Version::parse(crate::VERSION).expect("crate::VERSION is a valid semver value")
         });
     let repo_name = match &root.file_name() {
-        None => return Err("Repository path must have a file name".into()),
+        None => return Err(MigrationError::NoFileName),
         Some(name) => name.to_string_lossy().to_string(),
     };
 
@@ -70,7 +73,7 @@ pub async fn migrate_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
 
         let migrated_path = root.with_file_name(format!("{repo_name}-{version}"));
         if migrated_path.exists() {
-            return Err(format!("found existing migration data: {migrated_path:?}").into());
+            return Err(MigrationError::ExistingData(migrated_path));
         }
         tracing::info!("migrating data from {last_migration} to {version}...");
         migration_func(&root, &migrated_path)?;
@@ -78,7 +81,7 @@ pub async fn migrate_repo<P: AsRef<Path>>(root: P) -> Result<PathBuf> {
         tokio::fs::rename(&migrated_path, &root)
             .await
             .map_err(|err| {
-                Error::StorageWriteError("rename on migrated repo", root.clone(), err)
+                MigrationError::WriteError("rename on migrated repo", root.clone(), err)
             })?;
     }
 
