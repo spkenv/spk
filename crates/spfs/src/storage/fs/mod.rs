@@ -36,6 +36,7 @@ pub use repository::{
     Config,
     FsRepository,
     OpenFsRepository,
+    Params,
     RenderStore,
     DURABLE_EDITS_DIR,
 };

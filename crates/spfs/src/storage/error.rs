@@ -8,7 +8,7 @@ pub enum OpenRepositoryError {
     #[error("Repository not initialized")]
     #[diagnostic(
         code("spfs::storage::fs::not_initialized"),
-        help("run `spfs init {}` to establish a repository", path.display())
+        help("run `spfs init repo {}` to establish a repository", path.display())
     )]
     PathNotInitialized {
         path: std::path::PathBuf,
@@ -78,7 +78,6 @@ pub enum OpenRepositoryError {
     },
 
     #[error("Invalid repository address")]
-    #[diagnostic(help("run `spfs init <path>` to establish a repository"))]
     InvalidTransportAddress {
         #[source_code]
         address: String,

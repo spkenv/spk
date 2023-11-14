@@ -14,6 +14,7 @@ mod cmd_config;
 mod cmd_diff;
 mod cmd_edit;
 mod cmd_info;
+mod cmd_init;
 mod cmd_layers;
 mod cmd_log;
 mod cmd_ls;
@@ -66,6 +67,7 @@ pub struct Opt {
 #[clap(trailing_var_arg = true, dont_delimit_trailing_values = true)]
 pub enum Command {
     Version(cmd_version::CmdVersion),
+    Init(cmd_init::CmdInit),
     Edit(cmd_edit::CmdEdit),
     Commit(cmd_commit::CmdCommit),
     Config(cmd_config::CmdConfig),
@@ -109,6 +111,7 @@ impl Opt {
         match &mut self.cmd {
             Command::Version(cmd) => cmd.run().await,
             Command::Edit(cmd) => cmd.run(config).await,
+            Command::Init(cmd) => cmd.run(config).await,
             Command::Commit(cmd) => cmd.run(config).await,
             Command::Config(cmd) => cmd.run(config).await,
             Command::Reset(cmd) => cmd.run(config).await,
