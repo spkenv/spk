@@ -4103,6 +4103,7 @@ dependencies = [
  "serde_yaml 0.9.27",
  "shellexpand",
  "spfs",
+ "spk-config",
  "spk-schema-foundation",
  "spk-schema-ident",
  "spk-schema-liquid",
