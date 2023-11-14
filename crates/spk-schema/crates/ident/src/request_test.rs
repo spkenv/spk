@@ -86,7 +86,7 @@ fn test_prerelease_policy_restricts(
 #[case(
     "{pkg: something, prereleasePolicy: IncludeAll}",
     "{pkg: something, prereleasePolicy: ExcludeAll}",
-    Compatibility::Incompatible(IncompatibleReason::Other("prerelease policy IncludeAll is more inclusive than ExcludeAll".to_string()))
+    Compatibility::Incompatible(IncompatibleReason::InclusionPolicyNotSuperset)
 )]
 // 2. ExcludeAll < IncludeAll
 #[case(
@@ -116,7 +116,7 @@ fn test_prerelease_policy_restricts(
 #[case(
     "{pkg: something, prereleasePolicy: IncludeAll}",
     "{pkg: something}",
-    Compatibility::Incompatible(IncompatibleReason::Other("prerelease policy IncludeAll is more inclusive than None".to_string()))
+    Compatibility::Incompatible(IncompatibleReason::InclusionPolicyNotSuperset)
 )]
 // 7. None == None
 #[case("{pkg: something}", "{pkg: something}", Compatibility::Compatible)]
@@ -147,10 +147,7 @@ fn test_prerelease_policy_contains(
         .expect("expected pkg request");
 
     let compat = a.contains(&b);
-    assert!(
-        expected_compat == compat,
-        "expected prerelease contains compat to be: {expected_compat:?}"
-    )
+    assert_eq!(expected_compat, compat);
 }
 
 #[rstest]

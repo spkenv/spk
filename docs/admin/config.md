@@ -13,7 +13,7 @@ For spk: `/etc/spk.toml`, which can be overridden by `~/.config/spk/spk.toml`
 
 ### Environment Variables
 
-All spfs and spk configuration values can be overridden in the environment. The name of the variable will be the upper-cased name of the config value, separated by underscores, and prefixed with either `SPFS_` or `SPK_`, eg: `SPFS_STORAGE_ROOT`. In cases where the name of the config value contains an underscore, two underscores can be used to disambiguate separators from names, eg: `SPFS__STORAGE__TAG_NAMESPACE`.
+All spfs and spk configuration values can be overridden in the environment. The name of the variable will be the upper-cased name of the config value, separated by underscores, and prefixed with either `SPFS_` or `SPK_`, eg: `SPFS_STORAGE_ROOT`. In cases where the name of the config value contains an underscore, two underscores can be used to disambiguate separators from names, eg: `SPFS_STORAGE__TAG_NAMESPACE`.
 
 ### SPFS Configuration
 

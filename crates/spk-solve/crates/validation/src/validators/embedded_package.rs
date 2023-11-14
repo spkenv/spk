@@ -68,12 +68,8 @@ impl EmbeddedPackageValidator {
             Err(err) => return Err(err.into()),
         };
 
-        let compat = existing.is_satisfied_by(embedded);
-        if !&compat {
-            return Ok(Compatibility::incompatible(format!(
-                "embedded package '{}' is incompatible: {compat}",
-                embedded.ident()
-            )));
+        if let incompatible @ Compatibility::Incompatible(_) = existing.is_satisfied_by(embedded) {
+            return Ok(incompatible);
         }
         Ok(Compatible)
     }

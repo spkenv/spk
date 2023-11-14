@@ -1313,7 +1313,33 @@ impl SolverRuntime {
                         self.solver.increment_error_count(ErrorDetails::CouldNotSatisfy(err.request.pkg.to_string(), requested_by));
 
                         if let Some(d) = self.decision.as_mut() {
-                            Arc::make_mut(d).add_notes(err.notes.iter().cloned())
+                            'added_notes: {
+                                // Condense notes if possible. If all options
+                                // were skipped for the same reason, then
+                                // replace the individual skip notes with a
+                                // single summary note.
+                                if let Some(first) = err.notes.first() {
+                                    if err.notes.iter().all(|n| {
+                                        match (n, first) {
+                                            (Note::SkipPackageNote(n), Note::SkipPackageNote(first)) => n.pkg.name() == first.pkg.name() && n.reason == first.reason,
+                                            (Note::Other(n), Note::Other(first)) => n == first,
+                                            _ => false,
+                                        }
+                                    }) {
+                                        match first {
+                                            Note::SkipPackageNote(first) => {
+                                                Arc::make_mut(d).add_notes(vec![Note::Other(format!("All options for '{}' were skipped: {}", first.pkg.name(), first.reason))]);
+                                            }
+                                            Note::Other(first) => {
+                                                Arc::make_mut(d).add_notes(vec![Note::Other(format!("All options were skipped: {first}"))]);
+                                            }
+                                        }
+                                        break 'added_notes;
+                                    }
+                                }
+
+                                Arc::make_mut(d).add_notes(err.notes.iter().cloned());
+                            }
                         }
                         yield Ok(to_yield);
                         continue 'outer;

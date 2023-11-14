@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use itertools::Itertools;
+use spk_schema::version::IncompatibleReason;
 
 use super::prelude::*;
 use crate::validators::EmbeddedPackageValidator;
@@ -61,14 +61,8 @@ impl PkgRequirementsValidator {
 
         let mut restricted = existing.clone();
         let request = match restricted.restrict(request) {
-            Ok(_) => restricted,
-            // FIXME: only match ValueError
-            Err(spk_schema::ident::Error::String(err)) => {
-                return Ok(Compatibility::incompatible(format!(
-                    "conflicting requirement: {err}"
-                )))
-            }
-            Err(err) => return Err(err.into()),
+            Compatible => restricted,
+            incompatible @ Compatibility::Incompatible(_) => return Ok(incompatible),
         };
 
         let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
@@ -111,14 +105,15 @@ impl PkgRequirementsValidator {
                     embedded,
                     state,
                 )?;
-                if !&compat {
-                    return Ok(Compatibility::incompatible(format!(
-                        "requires {}:{} which embeds {}, and {}",
-                        resolved.name(),
-                        component.name,
-                        embedded.name(),
-                        compat,
-                    )));
+                if let Compatibility::Incompatible(compat) = compat {
+                    return Ok(Compatibility::Incompatible(
+                        IncompatibleReason::ConflictingEmbeddedPackageRequirement(
+                            resolved.name().to_owned(),
+                            component.name.to_string(),
+                            embedded.name().to_owned(),
+                            Box::new(compat),
+                        ),
+                    ));
                 }
             }
         }
@@ -132,11 +127,13 @@ impl PkgRequirementsValidator {
     ) -> crate::Result<Compatibility> {
         use Compatibility::Compatible;
         let compat = request.is_satisfied_by(&**resolved);
-        if !&compat {
-            return Ok(Compatibility::incompatible(format!(
-                "conflicting requirement: '{}' {}",
-                request.pkg.name, compat
-            )));
+        if let Compatibility::Incompatible(compat) = compat {
+            return Ok(Compatibility::Incompatible(
+                IncompatibleReason::ConflictingRequirement(
+                    request.pkg.name.clone(),
+                    Box::new(compat),
+                ),
+            ));
         }
         let required_components = resolved
             .components()
@@ -146,24 +143,14 @@ impl PkgRequirementsValidator {
             .filter(|c| !provided_components.contains(c))
             .collect();
         if !missing_components.is_empty() {
-            return Ok(Compatibility::incompatible(format!(
-                "resolved package {} does not provide all required components: needed {}, have {}",
-                request.pkg.name,
-                missing_components
-                    .into_iter()
-                    .map(Component::to_string)
-                    .join("\n"),
-                {
-                    if provided_components.is_empty() {
-                        "none".to_owned()
-                    } else {
-                        provided_components
-                            .into_iter()
-                            .map(Component::to_string)
-                            .join("\n")
-                    }
-                }
-            )));
+            return Ok(Compatibility::Incompatible(
+                IncompatibleReason::ComponentsMissing(
+                    missing_components
+                        .into_iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                ),
+            ));
         }
 
         Ok(Compatible)

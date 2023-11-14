@@ -20,7 +20,14 @@ use spk_schema_foundation::format::{
 use spk_schema_foundation::ident_component::ComponentSet;
 use spk_schema_foundation::name::{OptName, OptNameBuf, PkgName};
 use spk_schema_foundation::option_map::Stringified;
-use spk_schema_foundation::version::{CompatRule, Compatibility, Version, API_STR, BINARY_STR};
+use spk_schema_foundation::version::{
+    CompatRule,
+    Compatibility,
+    IncompatibleReason,
+    Version,
+    API_STR,
+    BINARY_STR,
+};
 use spk_schema_foundation::version_range::{
     DoubleEqualsVersion,
     EqualsVersion,
@@ -29,6 +36,7 @@ use spk_schema_foundation::version_range::{
     VersionFilter,
 };
 use spk_schema_foundation::IsDefault;
+use tap::Tap;
 
 use super::AnyIdent;
 use crate::{BuildIdent, Error, RangeIdent, Result, Satisfy, VersionIdent};
@@ -433,17 +441,11 @@ impl VarRequest<PinnableValue> {
     /// if satisfying this request would undoubtedly satisfy the other.
     pub fn contains(&self, other: &Self) -> Compatibility {
         if self.var.base_name() != other.var.base_name() {
-            return Compatibility::incompatible(format!(
-                "request is for a different var altogether [{} != {}]",
-                self.var, other.var
-            ));
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset);
         }
         let ns = self.var.namespace();
         if ns.is_some() && ns != other.var.namespace() {
-            return Compatibility::incompatible(format!(
-                "request specifies a different namespace [{} != {}]",
-                self.var, other.var
-            ));
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset);
         }
         let (Some(self_value), Some(other_value)) =
             (&self.value.as_pinned(), &other.value.as_pinned())
@@ -451,14 +453,10 @@ impl VarRequest<PinnableValue> {
             // we cannot consider a request that still needs to be pinned as
             // containing any other because the ultimate value of this request
             // is unknown
-            return Compatibility::incompatible(
-                "fromBuildEnv requests cannot be reasonably compared".to_string(),
-            );
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset);
         };
         if !other_value.is_empty() && self_value != other_value {
-            return Compatibility::incompatible(format!(
-                "requests require different values [{self_value:?} != {other_value:?}]",
-            ));
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset);
         }
         Compatibility::Compatible
     }
@@ -915,7 +913,7 @@ impl PkgRequest {
             || self.prerelease_policy == Some(PreReleasePolicy::ExcludeAll))
             && !version.pre.is_empty()
         {
-            Compatibility::incompatible("prereleases not allowed".to_owned())
+            Compatibility::Incompatible(IncompatibleReason::PrereleasesNotAllowed)
         } else {
             self.pkg.version.is_applicable(version)
         }
@@ -945,14 +943,9 @@ impl PkgRequest {
                 }
                 // Allowing more make them incompatible
                 (a, b) if a > b => {
-                    return Compatibility::incompatible(format!(
-                        "prerelease policy {} is more inclusive than {}",
-                        self.prerelease_policy
-                            .map_or_else(|| String::from("None"), |p| p.to_string()),
-                        other
-                            .prerelease_policy
-                            .map_or_else(|| String::from("None"), |p| p.to_string()),
-                    ));
+                    return Compatibility::Incompatible(
+                        IncompatibleReason::InclusionPolicyNotSuperset,
+                    );
                 }
                 // Everything else either allows less, or allows the same things
                 (_, _) => {}
@@ -960,16 +953,13 @@ impl PkgRequest {
         }
 
         if self.inclusion_policy > other.inclusion_policy {
-            return Compatibility::incompatible(format!(
-                "inclusion policy {} is more inclusive than {}",
-                self.inclusion_policy, other.inclusion_policy
-            ));
+            return Compatibility::Incompatible(IncompatibleReason::InclusionPolicyNotSuperset);
         }
         Compatibility::Compatible
     }
 
     /// Reduce the scope of this request to the intersection with another.
-    pub fn restrict(&mut self, other: &PkgRequest) -> Result<()> {
+    pub fn restrict(&mut self, other: &PkgRequest) -> Compatibility {
         // The default is None. It acts like ExcludeAll, but both
         // IncludeAll and ExcludeAll take precedence over it. See:
         // https://github.com/spkenv/spk/issues/839
@@ -998,17 +988,21 @@ impl PkgRequest {
             } else {
                 RestrictMode::RequireIntersectingRanges
             };
-        self.pkg.restrict(&other.pkg, version_range_restrict_mode)?;
-        // Add the requesters from the other request to this one.
-        for (key, request_list) in &other.requested_by {
-            for requester in request_list {
-                self.requested_by
-                    .entry(key.clone())
-                    .or_default()
-                    .push(requester.clone());
-            }
-        }
-        Ok(())
+        self.pkg
+            .restrict(&other.pkg, version_range_restrict_mode)
+            .tap(|compatibility| {
+                if compatibility.is_ok() {
+                    // Add the requesters from the other request to this one.
+                    for (key, request_list) in &other.requested_by {
+                        for requester in request_list {
+                            self.requested_by
+                                .entry(key.clone())
+                                .or_default()
+                                .push(requester.clone());
+                        }
+                    }
+                }
+            })
     }
 }
 

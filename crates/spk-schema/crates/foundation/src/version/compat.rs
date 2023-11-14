@@ -11,8 +11,9 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::{Error, Result, Version, VERSION_SEP};
-use crate::name::PkgNameBuf;
-use crate::{version, IsDefault};
+use crate::name::{OptNameBuf, PkgNameBuf};
+use crate::option_map::OptionMap;
+use crate::IsDefault;
 
 #[cfg(test)]
 #[path = "./compat_test.rs"]
@@ -88,37 +89,87 @@ impl Ord for CompatRule {
 }
 
 /// Denotes whether or not something is compatible.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, strum::Display)]
 pub enum IncompatibleReason {
+    #[strum(
+        to_string = "embedded package {embedded} already embedded by another package in solve: {embedded_by}"
+    )]
     AlreadyEmbeddedPackage {
         embedded: PkgNameBuf,
         embedded_by: PkgNameBuf,
     },
+    #[strum(to_string = "build is deprecated and not requested specifically")]
+    BuildDeprecated,
+    #[strum(to_string = "building from source is not enabled")]
+    BuildFromSourceDisabled,
+    #[strum(to_string = "build id does not match")]
+    BuildIdMismatch,
+    #[strum(to_string = "build id is not a superset")]
+    BuildIdNotSuperset,
+    #[strum(to_string = "build option {0} has invalid value")]
+    BuildOptionMismatch(OptNameBuf),
+    #[strum(to_string = "build options {0} not defined in package")]
+    BuildOptionsMissing(OptionMap),
+    #[strum(to_string = "components {0} not defined in package")]
+    ComponentsMissing(BTreeSet<String>),
+    #[strum(to_string = "embedded package conflicts with existing package in solve: {pkg}")]
     ConflictingEmbeddedPackage(PkgNameBuf),
-    Other(String),
-}
-
-impl std::fmt::Display for IncompatibleReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            IncompatibleReason::AlreadyEmbeddedPackage {
-                embedded,
-                embedded_by,
-            } => {
-                write!(
-                    f,
-                    "embedded package {embedded} already embedded by another package in solve: {embedded_by}"
-                )
-            }
-            IncompatibleReason::ConflictingEmbeddedPackage(pkg) => {
-                write!(
-                    f,
-                    "embedded package conflicts with existing package in solve: {pkg}"
-                )
-            }
-            IncompatibleReason::Other(msg) => f.write_str(msg),
-        }
-    }
+    #[strum(
+        to_string = "package {0} component {1} embeds {2} and conflicts with existing package in solve: {3}"
+    )]
+    ConflictingEmbeddedPackageRequirement(PkgNameBuf, String, PkgNameBuf, Box<IncompatibleReason>),
+    #[strum(to_string = "package {0} requirement conflicts with existing package in solve: {1}")]
+    ConflictingRequirement(PkgNameBuf, Box<IncompatibleReason>),
+    #[strum(to_string = "would produce an impossible request")]
+    ImpossibleRequest,
+    #[strum(to_string = "inclusion policy is not a superset")]
+    InclusionPolicyNotSuperset,
+    #[strum(to_string = "{0} [INTERNAL ERROR]")]
+    InternalError(String),
+    #[strum(to_string = "no builds were compatible with a request")]
+    NoCompatibleBuilds,
+    #[strum(to_string = "recipe options incompatible with state")]
+    OptionResolveError,
+    #[strum(to_string = "package name does not match")]
+    PackageNameMismatch,
+    #[strum(to_string = "package is not an embedded package")]
+    PackageNotAnEmbeddedPackage,
+    #[strum(to_string = "package repo does not match")]
+    PackageRepoMismatch,
+    #[strum(to_string = "prereleases not allowed")]
+    PrereleasesNotAllowed,
+    #[strum(to_string = "ranges do not intersect")]
+    RangesDoNotIntersect,
+    #[strum(to_string = "range is not a superset")]
+    RangeNotSuperset,
+    #[strum(to_string = "recipe is deprecated in this version")]
+    RecipeDeprecated,
+    #[strum(to_string = "requirements are not a superset")]
+    RequirementsNotSuperset,
+    #[strum(to_string = "var option {0} does not equal any of the defined choices")]
+    VarOptionIllegalChoice(OptNameBuf),
+    #[strum(to_string = "var option {0} doesn't match")]
+    VarOptionMismatch(OptNameBuf),
+    #[strum(to_string = "var option {0} not defined in package")]
+    VarOptionMissing(OptNameBuf),
+    #[strum(to_string = "var request is not a superset")]
+    VarRequestNotSuperset,
+    #[strum(to_string = "var requirement {0} doesn't match")]
+    VarRequirementMismatch(OptNameBuf),
+    #[strum(to_string = "version range '{version_range}' invalid: {err}")]
+    VersionRangeInvalid { version_range: String, err: String },
+    #[strum(to_string = "version too high")]
+    VersionTooHigh,
+    #[strum(to_string = "version too low")]
+    VersionTooLow,
+    #[strum(to_string = "version doesn't satisfy compatibility requirements")]
+    VersionNotCompatible,
+    #[strum(to_string = "version not different")]
+    VersionNotDifferent,
+    #[strum(to_string = "version not equal")]
+    VersionNotEqual,
+    #[strum(to_string = "version out of range")]
+    VersionOutOfRange,
 }
 
 /// Denotes whether or not something is compatible.
@@ -156,14 +207,27 @@ impl Compatibility {
         ))
     }
 
-    /// Creates a compatibility instance denoting incompatibility
-    /// for the provided reason
-    pub fn incompatible(message: impl ToString) -> Self {
-        Compatibility::Incompatible(IncompatibleReason::Other(message.to_string()))
-    }
-
+    #[inline]
     pub fn is_ok(&self) -> bool {
         matches!(self, &Compatibility::Compatible)
+    }
+
+    /// Return true if the compatibility is incompatible.
+    pub fn is_err(&self) -> bool {
+        match self {
+            Compatibility::Compatible => false,
+            Compatibility::Incompatible(_) => true,
+        }
+    }
+
+    /// Unwrap the compatibility, panicking if it is incompatible.
+    pub fn unwrap(self) {
+        match self {
+            Compatibility::Compatible => {}
+            Compatibility::Incompatible(reason) => {
+                panic!("Unwrapping incompatible compatibility: {reason}")
+            }
+        }
     }
 }
 
@@ -373,25 +437,22 @@ impl Compat {
                 return Compatibility::Compatible;
             }
 
-            for (matches, optruleset, desc, a, b) in [
-                (pre_matches, &self.pre, "pre", &base.pre, &other.pre),
-                (post_matches, &self.post, "post", &base.post, &other.post),
-            ] {
+            for (matches, optruleset) in [(pre_matches, &self.pre), (post_matches, &self.post)] {
                 if matches {
                     continue;
                 }
 
                 if let Some(ruleset) = optruleset {
                     if ruleset.0.contains(&CompatRule::None) {
-                        return Compatibility::incompatible(format!(
-                            "Not compatible with {base} [{self} at {desc}: has {b}, requires {a}]",
-                        ));
+                        return Compatibility::Incompatible(
+                            IncompatibleReason::VersionNotCompatible,
+                        );
                     }
 
                     if !ruleset.0.contains(&required) {
-                        return Compatibility::incompatible(format!(
-                            "Not {required:?} compatible with {base} [{self} at {desc}: has {b}, requires {a}]",
-                        ));
+                        return Compatibility::Incompatible(
+                            IncompatibleReason::VersionNotCompatible,
+                        );
                     }
                 }
             }
@@ -414,11 +475,9 @@ impl Compat {
             if rule.0.contains(&CompatRule::None) {
                 match (a, b) {
                     (Some(a), Some(b)) if a != b => {
-                        return Compatibility::incompatible(format!(
-                            "Not compatible with {base} [{self} at pos {} ({}): has {b}, requires {a}]",
-                            i + 1,
-                            version::get_version_position_label(i),
-                        ));
+                        return Compatibility::Incompatible(
+                            IncompatibleReason::VersionNotCompatible,
+                        );
                     }
                     _ => continue,
                 }
@@ -429,13 +488,10 @@ impl Compat {
                     (Some(a), Some(b)) if a == b => {
                         continue;
                     }
-                    (Some(a), Some(b)) => {
-                        return Compatibility::incompatible(format!(
-                            "Not {:?} compatible with {base} [{self} at pos {} ({}): has {b}, requires {a}]",
-                            required,
-                            i + 1,
-                            version::get_version_position_label(i),
-                        ));
+                    (Some(_), Some(_)) => {
+                        return Compatibility::Incompatible(
+                            IncompatibleReason::VersionNotCompatible,
+                        );
                     }
                     _ => continue,
                 }
@@ -443,12 +499,7 @@ impl Compat {
 
             match (a, b) {
                 (Some(a), Some(b)) if b < a => {
-                    return Compatibility::incompatible(format!(
-                        "Not {:?} compatible with {base} [{self} at pos {} ({}): (version) {b} < {a} (compat)]",
-                        required,
-                        i + 1,
-                        version::get_version_position_label(i),
-                    ));
+                    return Compatibility::Incompatible(IncompatibleReason::VersionNotCompatible);
                 }
                 _ => {
                     return Compatibility::Compatible;
@@ -456,9 +507,7 @@ impl Compat {
             }
         }
 
-        Compatibility::incompatible(format!(
-            "Not compatible: {base} ({self}) [{required:?} compatibility not specified]",
-        ))
+        Compatibility::Incompatible(IncompatibleReason::VersionNotCompatible)
     }
 }
 

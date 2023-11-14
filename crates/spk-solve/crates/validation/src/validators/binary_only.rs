@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use spk_schema::version::IncompatibleReason;
+
 use super::prelude::*;
 use crate::ValidatorT;
 
@@ -24,8 +26,8 @@ impl ValidatorT for BinaryOnlyValidator {
         _state: &State,
         _recipe: &R,
     ) -> crate::Result<Compatibility> {
-        Ok(Compatibility::incompatible(
-            "building from source is not enabled",
+        Ok(Compatibility::Incompatible(
+            IncompatibleReason::BuildFromSourceDisabled,
         ))
     }
 
@@ -43,8 +45,8 @@ impl ValidatorT for BinaryOnlyValidator {
         if package.ident().is_source()
             && request.pkg.build.as_ref() != Some(package.ident().build())
         {
-            return Ok(Compatibility::incompatible(
-                "building from source is not enabled",
+            return Ok(Compatibility::Incompatible(
+                IncompatibleReason::BuildFromSourceDisabled,
             ));
         }
         Ok(Compatibility::Compatible)

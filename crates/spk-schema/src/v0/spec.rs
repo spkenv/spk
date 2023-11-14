@@ -356,9 +356,8 @@ impl Package for Spec<BuildIdent> {
                 .map(String::as_str);
             let compat = option.validate(value);
             if !compat.is_ok() {
-                return Compatibility::incompatible(format!(
-                    "invalid value for {}: {compat}",
-                    option.full_name(),
+                return Compatibility::Incompatible(IncompatibleReason::BuildOptionMismatch(
+                    option.full_name().to_owned(),
                 ));
             }
 
@@ -367,9 +366,7 @@ impl Package for Spec<BuildIdent> {
 
         if !must_exist.is_empty() {
             let missing = must_exist;
-            return Compatibility::incompatible(format!(
-                "Package does not define requested build options: {missing:?}",
-            ));
+            return Compatibility::Incompatible(IncompatibleReason::BuildOptionsMissing(missing));
         }
 
         Compatibility::Compatible
@@ -697,20 +694,14 @@ impl Recipe for Spec<VersionIdent> {
 impl Satisfy<PkgRequest> for Spec<BuildIdent> {
     fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
         if pkg_request.pkg.name != *self.pkg.name() {
-            return Compatibility::incompatible(format!(
-                "different package name: {} != {}",
-                pkg_request.pkg.name,
-                self.pkg.name()
-            ));
+            return Compatibility::Incompatible(IncompatibleReason::PackageNameMismatch);
         }
 
         if self.is_deprecated() {
             // deprecated builds are only okay if their build
             // was specifically requested
             if pkg_request.pkg.build.as_ref() != Some(self.pkg.build()) {
-                return Compatibility::incompatible(
-                    "Build is deprecated and was not specifically requested".to_string(),
-                );
+                return Compatibility::Incompatible(IncompatibleReason::BuildDeprecated);
             }
         }
 
@@ -718,7 +709,7 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
             || pkg_request.prerelease_policy == Some(PreReleasePolicy::ExcludeAll))
             && !self.version().pre.is_empty()
         {
-            return Compatibility::incompatible("prereleases not allowed".to_string());
+            return Compatibility::Incompatible(IncompatibleReason::PrereleasesNotAllowed);
         }
 
         let source_package_requested = pkg_request.pkg.build == Some(Build::Source);
@@ -738,17 +729,11 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
                 .sorted()
                 .collect_vec();
             if !missing_components.is_empty() {
-                return Compatibility::incompatible(format!(
-                    "does not define requested components: [{}], found [{}]",
+                return Compatibility::Incompatible(IncompatibleReason::ComponentsMissing(
                     missing_components
                         .into_iter()
                         .map(Component::to_string)
-                        .join(", "),
-                    available_components
-                        .iter()
-                        .map(Component::to_string)
-                        .sorted()
-                        .join(", ")
+                        .collect(),
                 ));
             }
         }
@@ -767,11 +752,7 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
             return Compatibility::Compatible;
         }
 
-        Compatibility::incompatible(format!(
-            "Package and request differ in builds: requested {:?}, got {:?}",
-            pkg_request.pkg.build,
-            self.pkg.build()
-        ))
+        Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch)
     }
 }
 
@@ -797,9 +778,8 @@ where
         match opt {
             None => {
                 if opt_required {
-                    return Compatibility::incompatible(format!(
-                        "Package does not define requested option: {}",
-                        var_request.var
+                    return Compatibility::Incompatible(IncompatibleReason::VarOptionMissing(
+                        var_request.var.clone(),
                     ));
                 }
                 Compatibility::Compatible
@@ -819,42 +799,29 @@ where
                     let base_version = exact.clone();
                     let Ok(base_version) = Version::from_str(&base_version.unwrap_or_default())
                     else {
-                        return Compatibility::incompatible(format!(
-                            "Incompatible build option '{}': '{base}' != '{}' and '{base}' is not a valid version number",
-                            var_request.var,
-                            request_value.unwrap_or_default(),
-                            base = exact.unwrap_or_default()
+                        return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
+                            var_request.var.clone(),
                         ));
                     };
 
                     let Ok(request_version) = Version::from_str(request_value.unwrap_or_default())
                     else {
-                        return Compatibility::incompatible(format!(
-                            "Incompatible build option '{}': '{base}' != '{request}' and '{request}' is not a valid version number",
-                            var_request.var,
-                            request = request_value.unwrap_or_default(),
-                            base = exact.unwrap_or_default()
+                        return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
+                            var_request.var.clone(),
                         ));
                     };
 
-                    let mut result = compat.is_binary_compatible(&base_version, &request_version);
-                    if let Compatibility::Incompatible(IncompatibleReason::Other(msg)) = &mut result
-                    {
-                        *msg = format!(
-                            "Incompatible build option '{}': '{}' != '{}' and {msg}",
-                            var_request.var,
-                            exact.unwrap_or_else(|| "None".to_string()),
-                            request_value.unwrap_or_default()
-                        );
+                    let result = compat.is_binary_compatible(&base_version, &request_version);
+                    if let Compatibility::Incompatible(_) = result {
+                        return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
+                            var_request.var.clone(),
+                        ));
                     }
                     return result;
                 }
 
-                Compatibility::incompatible(format!(
-                    "Incompatible build option '{}': '{}' != '{}'",
-                    var_request.var,
-                    exact.unwrap_or_else(|| "None".to_string()),
-                    request_value.unwrap_or_default()
+                Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
+                    var_request.var.clone(),
                 ))
             }
         }

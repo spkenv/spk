@@ -746,6 +746,10 @@ impl Node {
             )),
         );
     }
+
+    pub fn output_decisions(&self) -> impl Iterator<Item = &Arc<Decision>> {
+        self.outputs_decisions.iter()
+    }
 }
 
 /// Some additional information left by the solver
@@ -799,8 +803,8 @@ impl RequestPackage {
                     // Safety: `cloned_request` is not `None` by previous test.
                     let mut request = unsafe { cloned_request.take().unwrap_unchecked() };
                     match request.restrict(&existing_request) {
-                        Ok(_) => Arc::new(request.into()),
-                        Err(_) => {
+                        Compatibility::Compatible => Arc::new(request.into()),
+                        Compatibility::Incompatible(_) => {
                             // Keep looking
                             cloned_request = Some(request);
                             existing_request
@@ -1312,7 +1316,13 @@ impl State {
                     if request.pkg.name != merged.pkg.name {
                         continue;
                     }
-                    merged.restrict(request).map_err(crate::Error::from)?;
+                    if let incompatible @ Compatibility::Incompatible(_) = merged.restrict(request)
+                    {
+                        return Err(crate::Error::String(format!(
+                            "Incompatible requests for '{name}': {incompatible}",
+                        ))
+                        .into());
+                    }
                 }
             }
         }
@@ -1498,7 +1508,7 @@ impl State {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SkipPackageNoteReason {
     String(String),
     Compatibility(Compatibility),

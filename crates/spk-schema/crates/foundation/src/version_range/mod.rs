@@ -14,7 +14,7 @@ use itertools::Itertools;
 
 use self::intersection::{CombineWith, ValidRange};
 use crate::spec_ops::Versioned;
-use crate::version::{get_version_position_label, CompatRule, Compatibility, Version, VERSION_SEP};
+use crate::version::{CompatRule, Compatibility, IncompatibleReason, Version, VERSION_SEP};
 
 mod error;
 mod intersection;
@@ -59,12 +59,13 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     fn is_applicable(&self, other: &Version) -> Compatibility {
         if let Some(gt) = self.greater_or_equal_to() {
             if other < &gt {
-                return Compatibility::incompatible(format!("version too low for >= {gt}"));
+                // return Compatibility::incompatible(format!("version too low for >= {gt}"));
+                return Compatibility::Incompatible(IncompatibleReason::VersionTooLow);
             }
         }
         if let Some(lt) = self.less_than() {
             if other >= &lt {
-                return Compatibility::incompatible(format!("version too high for < {lt}"));
+                return Compatibility::Incompatible(IncompatibleReason::VersionTooHigh);
             }
         }
         Compatibility::Compatible
@@ -94,15 +95,11 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
                 };
 
                 if !contains {
-                    return Compatibility::incompatible(format!(
-                        "{self} has stronger compatibility requirements than {other}"
-                    ));
+                    return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
                 }
             }
             (Some(x), Some(y)) if x > y => {
-                return Compatibility::incompatible(format!(
-                    "{self} has stronger compatibility requirements than {other}"
-                ));
+                return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
             }
             _ => {}
         };
@@ -112,14 +109,13 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
         let other_lower = other.greater_or_equal_to();
         let other_upper = other.less_than();
 
-        for (index, (left_bound, right_bound, right_opposite_bound)) in [
+        for (left_bound, right_bound, right_opposite_bound) in [
             // Order important here! self > other for lower bound
             (&self_lower, &other_lower, &other_upper),
             // Order important here! other > self for upper bound
             (&other_upper, &self_upper, &self_lower),
         ]
         .iter()
-        .enumerate()
         {
             // Check that the left bound `Version` contains the right bound `Version`.
             //
@@ -134,9 +130,7 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
                 }
                 (None, Some(_), None) => {
                     // <3.0 does not contain >2.0
-                    return Compatibility::incompatible(format!(
-                        "[case 1,{index}] {self} does not contain {other}"
-                    ));
+                    return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
                 }
                 (None, Some(right_bound), Some(right_opposite_bound)) => {
                     // For "<2.0" to contain "=1.0", 2.0 must be >= 1.0.
@@ -146,29 +140,21 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
                     // `right_bound` is 1.0+ε
                     // `right_opposite_bound` is 1.0
                     if right_opposite_bound < right_bound {
-                        return Compatibility::incompatible(format!(
-                            "[case 2,{index}] {self} does not contain {other}"
-                        ));
+                        return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
                     }
                 }
                 (Some(left_bound), None, Some(right_opposite_bound)) => {
                     // This mirrors case 2.
                     if right_opposite_bound > left_bound {
-                        return Compatibility::incompatible(format!(
-                            "[case 3,{index}] {self} does not contain {other}"
-                        ));
+                        return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
                     }
                 }
                 (Some(_), None, _) => {
-                    return Compatibility::incompatible(format!(
-                        "[case 4,{index}] {self} does not contain {other}"
-                    ));
+                    return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
                 }
                 (Some(left_bound), Some(right_bound), _) => {
                     if left_bound > right_bound {
-                        return Compatibility::incompatible(format!(
-                            "[case 5,{index}] {self} does not contain {other}"
-                        ));
+                        return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
                     }
                 }
             }
@@ -213,9 +199,7 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
         if self_valid_range.intersects(&other_valid_range) {
             Compatibility::Compatible
         } else {
-            Compatibility::incompatible(format!(
-                "{self_valid_range} does not intersect with {other_valid_range}"
-            ))
+            Compatibility::Incompatible(IncompatibleReason::RangesDoNotIntersect)
         }
     }
 }
@@ -486,14 +470,10 @@ impl Ranged for WildcardRange {
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
-        for (i, (a, b)) in self.parts.iter().zip(&*version.parts).enumerate() {
+        for (a, b) in self.parts.iter().zip(&*version.parts) {
             if let Some(a) = a {
                 if a != b {
-                    return Compatibility::incompatible(format!(
-                        "Out of range: {self} [at pos {} ({}): has {b}, requires {a}]",
-                        i + 1,
-                        get_version_position_label(i),
-                    ));
+                    return Compatibility::Incompatible(IncompatibleReason::VersionOutOfRange);
                 }
             }
         }
@@ -604,7 +584,8 @@ impl Ranged for GreaterThanRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version <= &self.bound {
-            return Compatibility::incompatible(format!("Not {self} [too low]"));
+            // return Compatibility::incompatible(format!("Not {self} [too low]"));
+            return Compatibility::Incompatible(IncompatibleReason::VersionTooLow);
         }
         Compatibility::Compatible
     }
@@ -647,7 +628,7 @@ impl Ranged for LessThanRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version >= &self.bound {
-            return Compatibility::incompatible(format!("Not {self} [too high]"));
+            return Compatibility::Incompatible(IncompatibleReason::VersionTooHigh);
         }
         Compatibility::Compatible
     }
@@ -690,7 +671,8 @@ impl Ranged for GreaterThanOrEqualToRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version < &self.bound {
-            return Compatibility::incompatible(format!("Not {self} [too low]"));
+            // return Compatibility::incompatible(format!("Not {self} [too low]"));
+            return Compatibility::Incompatible(IncompatibleReason::VersionTooLow);
         }
         Compatibility::Compatible
     }
@@ -733,7 +715,7 @@ impl Ranged for LessThanOrEqualToRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version > &self.bound {
-            return Compatibility::incompatible(format!("Not {self} [too high]"));
+            return Compatibility::Incompatible(IncompatibleReason::VersionTooHigh);
         }
         Compatibility::Compatible
     }
@@ -777,14 +759,8 @@ impl Ranged for EqualsVersion {
     }
 
     fn is_applicable(&self, other: &Version) -> Compatibility {
-        if self.version.parts != other.parts {
-            return Compatibility::incompatible(format!("{} !! {} [not equal]", &other, self));
-        }
-
-        if self.version.pre != other.pre {
-            return Compatibility::incompatible(format!(
-                "{other} !! {self} [not equal @ prerelease]",
-            ));
+        if self.version.parts != other.parts || self.version.pre != other.pre {
+            return Compatibility::Incompatible(IncompatibleReason::VersionNotEqual);
         }
         // each post release tag must be exact if specified
         for (name, value) in self.version.post.iter() {
@@ -793,9 +769,7 @@ impl Ranged for EqualsVersion {
                     continue;
                 }
             }
-            return Compatibility::incompatible(format!(
-                "{other} !! {self} [not equal @ postrelease]",
-            ));
+            return Compatibility::Incompatible(IncompatibleReason::VersionNotEqual);
         }
         Compatibility::Compatible
     }
@@ -854,7 +828,7 @@ impl Ranged for NotEqualsVersion {
             return Compatibility::Compatible;
         }
 
-        Compatibility::incompatible(format!("excluded [{self}]"))
+        Compatibility::Incompatible(IncompatibleReason::VersionNotDifferent)
     }
 }
 
@@ -905,24 +879,14 @@ impl Ranged for DoubleEqualsVersion {
     }
 
     fn is_applicable(&self, other: &Version) -> Compatibility {
-        if self.version.parts != other.parts {
-            return Compatibility::incompatible(
-                format!("{other} !! {self} [not equal precisely]",),
-            );
+        if self.version.parts != other.parts
+            || self.version.pre != other.pre
+            || self.version.post != other.post
+        {
+            Compatibility::Incompatible(IncompatibleReason::VersionNotEqual)
+        } else {
+            Compatibility::Compatible
         }
-
-        if self.version.pre != other.pre {
-            return Compatibility::incompatible(format!(
-                "{other} !! {self} [not equal precisely @ prerelease]",
-            ));
-        }
-        // post release tags must match exactly
-        if self.version.post != other.post {
-            return Compatibility::incompatible(format!(
-                "{other} !! {self} [not equal precisely @ postrelease]",
-            ));
-        }
-        Compatibility::Compatible
     }
 }
 
@@ -979,7 +943,7 @@ impl Ranged for DoubleNotEqualsVersion {
             return Compatibility::Compatible;
         }
 
-        Compatibility::incompatible(format!("excluded precisely [{self}]"))
+        Compatibility::Incompatible(IncompatibleReason::VersionNotEqual)
     }
 }
 
@@ -1048,7 +1012,8 @@ impl Ranged for CompatRange {
     {
         // The version of the spec must be >= base to satisfy the request.
         if *spec.version() < self.base {
-            return Compatibility::incompatible(format!("version too low for {}", self.base));
+            // return Compatibility::incompatible(format!("version too low for {}", self.base));
+            return Compatibility::Incompatible(IncompatibleReason::VersionTooLow);
         }
 
         // XXX: Should this custom logic be in `is_applicable` instead?
@@ -1139,15 +1104,15 @@ impl VersionFilter {
     /// of the current version range and the other. Or, if they do not
     /// intersect, then `mode` determines if an error is returned or if the
     /// two ranges will be concatenated without any simplification.
-    pub fn restrict(&mut self, other: impl Ranged, mode: RestrictMode) -> Result<()> {
+    pub fn restrict(&mut self, other: impl Ranged, mode: RestrictMode) -> Compatibility {
         let compat = self.intersects(&other);
-        if let Compatibility::Incompatible(msg) = compat {
+        if let incompatible @ Compatibility::Incompatible(_) = compat {
             if matches!(mode, RestrictMode::AllowNonIntersectingRanges) {
                 self.rules.extend(other.rules());
-                return Ok(());
+                return Compatibility::Compatible;
             }
 
-            return Err(Error::String(msg.to_string()));
+            return incompatible;
         }
 
         // Combine the two rule sets and then simplify them.
@@ -1160,7 +1125,7 @@ impl VersionFilter {
         // this request to just "maya/2020".
         self.simplify_rules(false);
 
-        Ok(())
+        Compatibility::Compatible
     }
 
     /// Remove redundant rules from a set of `VersionRange` values.

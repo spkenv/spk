@@ -28,6 +28,7 @@ relative-path = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml = { workspace = true }
 spk-schema-foundation = { workspace = true }
+tap = { workspace = true }
 thiserror = { workspace = true }
 miette = { workspace = true }
 

@@ -4,6 +4,8 @@
 
 use std::collections::HashSet;
 
+use spk_schema::version::IncompatibleReason;
+
 use super::prelude::*;
 use crate::ValidatorT;
 
@@ -38,11 +40,8 @@ impl ValidatorT for OptionsValidator {
                 // eg: this is 'debug', but we have 'thispackage.debug'
                 continue;
             }
-            let compat = request.is_satisfied_by(spec);
-            if !&compat {
-                return Ok(Compatibility::incompatible(format!(
-                    "doesn't satisfy requested option: {compat}"
-                )));
+            if let incompatible @ Compatibility::Incompatible(_) = request.is_satisfied_by(spec) {
+                return Ok(incompatible);
             }
         }
         Ok(Compatibility::Compatible)
@@ -53,8 +52,10 @@ impl ValidatorT for OptionsValidator {
         state: &State,
         recipe: &R,
     ) -> crate::Result<Compatibility> {
-        if let Err(err) = recipe.resolve_options(state.get_option_map()) {
-            Ok(Compatibility::incompatible(err.to_string()))
+        if recipe.resolve_options(state.get_option_map()).is_err() {
+            Ok(Compatibility::Incompatible(
+                IncompatibleReason::OptionResolveError,
+            ))
         } else {
             Ok(Compatibility::Compatible)
         }
