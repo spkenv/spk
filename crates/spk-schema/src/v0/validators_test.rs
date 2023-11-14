@@ -39,8 +39,7 @@ fn test_validate_build_changeset_collected() {
         spec.install.components.iter().map(|c| &c.files),
         &vec![spfs::tracking::Diff {
             path: "/spfs/file.txt".into(),
-            mode: spfs::tracking::DiffMode::Changed(
-                spfs::tracking::Entry::empty_file_with_open_perms(),
+            mode: spfs::tracking::DiffMode::Added(
                 spfs::tracking::Entry::empty_file_with_open_perms(),
             ),
         }],
