@@ -20,6 +20,7 @@ migration-to-components = []
 
 [dependencies]
 arc-swap = { workspace = true }
+async-trait = { workspace = true }
 colored = { workspace = true }
 data-encoding = "2.3"
 enum_dispatch = "0.3.8"

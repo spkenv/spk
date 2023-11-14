@@ -255,7 +255,7 @@ async fn main() -> ExitCode {
         Err(err) => {
             let root = err.root_cause();
             if let Some(err) = root.downcast_ref::<Error>() {
-                eprintln!("{}", err.format_error(opts.verbose));
+                eprintln!("{}", err.format_error(opts.verbose).await);
             } else {
                 tracing::error!("{:?}", err);
             }

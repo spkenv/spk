@@ -4391,6 +4391,7 @@ name = "spk-schema-foundation"
 version = "0.42.0"
 dependencies = [
  "arc-swap",
+ "async-trait",
  "colored",
  "data-encoding",
  "enum_dispatch",
@@ -4574,6 +4575,7 @@ dependencies = [
 name = "spk-solve-validation"
 version = "0.42.0"
 dependencies = [
+ "async-trait",
  "colored",
  "dashmap",
  "enum_dispatch",

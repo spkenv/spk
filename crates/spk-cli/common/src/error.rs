@@ -88,8 +88,9 @@ impl From<&str> for Error {
     }
 }
 
+#[async_trait::async_trait]
 impl FormatError for Error {
-    fn format_error(&self, verbosity: u8) -> String {
+    async fn format_error(&self, verbosity: u8) -> String {
         let mut msg = String::new();
         match self {
             /*
@@ -111,7 +112,7 @@ impl FormatError for Error {
                 )
             }
             */
-            Error::SpkSolverError(err) => return err.format_error(verbosity),
+            Error::SpkSolverError(err) => return err.format_error(verbosity).await,
             Error::String(err) => msg.push_str(err),
             err => msg.push_str(&err.to_string()),
         }

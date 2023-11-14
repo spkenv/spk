@@ -34,8 +34,9 @@ pub enum Error {
     SpkStorageError(#[from] spk_storage::Error),
 }
 
+#[async_trait::async_trait]
 impl FormatError for Error {
-    fn format_error(&self, verbosity: u8) -> String {
+    async fn format_error(&self, verbosity: u8) -> String {
         let mut msg = String::new();
         msg.push_str("Failed to resolve");
         match self {

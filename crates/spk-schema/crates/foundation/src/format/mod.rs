@@ -41,8 +41,9 @@ pub trait FormatComponents {
     fn format_components(&self) -> String;
 }
 
+#[async_trait::async_trait]
 pub trait FormatError {
-    fn format_error(&self, verbosity: u8) -> String;
+    async fn format_error(&self, verbosity: u8) -> String;
 }
 
 pub trait FormatIdent {
