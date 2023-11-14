@@ -14,7 +14,7 @@ migration-to-components = [
 colored = { workspace = true }
 console =  { workspace = true }
 itertools = "0.10"
-spfs = { version = '0.34.6', path = "../../../spfs" }
+spfs = { path = "../../../spfs" }
 spk-schema = { path = "../../../spk-schema" }
 spk-storage = { path = "../../../spk-storage" }
 thiserror = { workspace = true }

@@ -2,7 +2,7 @@
 authors = { workspace = true }
 edition = { workspace = true }
 name = "spfs-cli-clean"
-version = "0.34.6"
+version = { workspace = true }
 
 [[bin]]
 name = "spfs-clean"

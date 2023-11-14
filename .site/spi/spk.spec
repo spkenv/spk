@@ -21,7 +21,7 @@ BuildRequires: spdev >= 0.28.2
 Requires: bash
 Requires: fuse
 Obsoletes: spfs
-Provides: spfs = 0.34.6
+Provides: spfs = 0.38.0
 
 %define debug_package %{nil}
 

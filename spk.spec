@@ -21,7 +21,7 @@ Requires: bash
 Requires: fuse
 Requires: rsync
 Obsoletes: spfs
-Provides: spfs = 0.34.6
+Provides: spfs = 0.38.0
 
 %define debug_package %{nil}
 
