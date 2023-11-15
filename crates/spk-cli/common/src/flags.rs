@@ -438,9 +438,9 @@ impl Requests {
                                             recipe.ident().format_ident()
                                         ))?
                                         .with_overrides(options.clone());
-                                recipe.get_build_requirements(&variant).into_diagnostic()?
+                                recipe.get_build_requirements(&variant)?
                             }
-                            None => recipe.get_build_requirements(&options).into_diagnostic()?,
+                            None => recipe.get_build_requirements(&options)?,
                         };
                         out.extend(requirements.into_owned());
                     }
@@ -722,7 +722,7 @@ where
 {
     match find_package_template(package_name)? {
         FindPackageTemplateResult::Found { path, template } => {
-            let recipe = template.render(options).into_diagnostic()?;
+            let recipe = template.render(options)?;
             Ok((Arc::new(recipe), path))
         }
         FindPackageTemplateResult::MultipleTemplateFiles(files) => {
@@ -739,7 +739,7 @@ where
                     // there will be at least one item for any string
                     let name_version = name.as_ref().split('@').next().unwrap();
 
-                    let pkg = parse_ident(name_version).into_diagnostic()?;
+                    let pkg = parse_ident(name_version)?;
                     tracing::debug!(
                         "Looking in repositories for a package matching {} ...",
                         pkg.format_ident()
