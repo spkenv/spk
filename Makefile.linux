@@ -16,6 +16,9 @@ else
 spfs_packages := $(spfs_packages),spfs-cli-fuse,spfs-cli-monitor
 endif
 
+prefix ?= /usr/local
+bindir ?= $(prefix)/bin
+
 install-debug-spfs: copy-debug-spfs setcap
 
 install-debug-spk: copy-debug-spk
@@ -26,24 +29,27 @@ install: copy-release setcap
 
 install-spfs: copy-spfs setcap
 
+install-dirs:
+	mkdir -p '$(DESTDIR)$(bindir)'
+
 copy-debug: copy-debug-spfs copy-debug-spk
 
-copy-debug-spfs: debug-spfs
-	sudo cp -f $(CARGO_TARGET_DIR)/debug/spfs* /usr/local/bin/
+copy-debug-spfs: debug-spfs install-dirs
+	sudo cp -f $(CARGO_TARGET_DIR)/debug/spfs* '$(DESTDIR)$(bindir)'
 
-copy-debug-spk: debug
-	sudo cp -f $(CARGO_TARGET_DIR)/debug/spk /usr/local/bin/
+copy-debug-spk: debug install-dirs
+	sudo cp -f $(CARGO_TARGET_DIR)/debug/spk '$(DESTDIR)$(bindir)'
 
-copy-release: release
-	sudo cp -f $(CARGO_TARGET_DIR)/release/spk $(CARGO_TARGET_DIR)/release/spfs* /usr/local/bin/
+copy-release: release install-dirs
+	sudo cp -f $(CARGO_TARGET_DIR)/release/spk $(CARGO_TARGET_DIR)/release/spfs* '$(DESTDIR)$(bindir)'
 
-copy-spfs: release-spfs
-	sudo cp -f $(CARGO_TARGET_DIR)/release/spfs* /usr/local/bin/
+copy-spfs: release-spfs install-dirs
+	sudo cp -f $(CARGO_TARGET_DIR)/release/spfs* '$(DESTDIR)$(bindir)'
 
 setcap:
-	sudo setcap 'cap_dac_override,cap_fowner+ep' /usr/local/bin/spfs-clean
-	sudo setcap 'cap_net_admin+ep' /usr/local/bin/spfs-monitor
-	sudo setcap 'cap_chown,cap_fowner+ep' /usr/local/bin/spfs-render
-	sudo setcap 'cap_sys_chroot,cap_sys_admin+ep' /usr/local/bin/spfs-join
-	sudo setcap 'cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep' /usr/local/bin/spfs-enter
-	sudo setcap 'cap_sys_admin+ep' /usr/local/bin/spfs-fuse
+	sudo setcap 'cap_dac_override,cap_fowner+ep' '$(DESTDIR)$(bindir)/spfs-clean'
+	sudo setcap 'cap_net_admin+ep' '$(DESTDIR)$(bindir)/spfs-monitor'
+	sudo setcap 'cap_chown,cap_fowner+ep' '$(DESTDIR)$(bindir)/spfs-render'
+	sudo setcap 'cap_sys_chroot,cap_sys_admin+ep' '$(DESTDIR)$(bindir)/spfs-join'
+	sudo setcap 'cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep' '$(DESTDIR)$(bindir)/spfs-enter'
+	sudo setcap 'cap_sys_admin+ep' '$(DESTDIR)$(bindir)/spfs-fuse'
