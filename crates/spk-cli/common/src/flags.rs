@@ -407,8 +407,9 @@ impl Requests {
         for r in requests.into_iter() {
             let r = r.as_ref();
             if r.contains('@') {
-                let (recipe, _, stage, build_variant) =
-                    parse_stage_specifier(r, &options, repos).await?;
+                let (recipe, _, stage, build_variant) = parse_stage_specifier(r, &options, repos)
+                    .await
+                    .wrap_err_with(|| format!("parsing {r} as a filename with stage specifier"))?;
 
                 match stage {
                     TestStage::Sources => {
@@ -555,9 +556,12 @@ pub async fn parse_stage_specifier(
     TestStage,
     Option<crate::parsing::VariantIndex>,
 )> {
-    let (package, stage, build_variant) = parse_package_stage_and_variant(specifier)?;
+    let (package, stage, build_variant) = parse_package_stage_and_variant(specifier)
+        .wrap_err_with(|| format!("parsing {specifier} as a stage name and optional variant"))?;
     let (spec, filename) =
-        find_package_recipe_from_template_or_repo(Some(&package), options, repos).await?;
+        find_package_recipe_from_template_or_repo(Some(&package), options, repos)
+            .await
+            .wrap_err_with(|| format!("finding package recipe for {package}"))?;
 
     Ok((spec, filename, stage, build_variant))
 }
@@ -720,7 +724,17 @@ pub async fn find_package_recipe_from_template_or_repo<S>(
 where
     S: AsRef<str>,
 {
-    match find_package_template(package_name)? {
+    match find_package_template(package_name).wrap_err_with(|| {
+        format!(
+            "finding package template for {package_name}",
+            package_name = {
+                match &package_name {
+                    Some(package_name) => package_name.as_ref(),
+                    None => "something named *.spk.yaml in the current directory",
+                }
+            }
+        )
+    })? {
         FindPackageTemplateResult::Found { path, template } => {
             let recipe = template.render(options)?;
             Ok((Arc::new(recipe), path))
@@ -739,25 +753,31 @@ where
                     // there will be at least one item for any string
                     let name_version = name.as_ref().split('@').next().unwrap();
 
-                    let pkg = parse_ident(name_version)?;
-                    tracing::debug!(
-                        "Looking in repositories for a package matching {} ...",
-                        pkg.format_ident()
-                    );
+                    // If the package name can't be parsed as a valid name,
+                    // don't return the parse error. It's possible that the
+                    // name is a filename like "package.spk.yaml" which is an
+                    // illegal package name and won't parse successfully. Let
+                    // this get reported as missing file below.
+                    if let Ok(pkg) = parse_ident(name_version) {
+                        tracing::debug!(
+                            "Looking in repositories for a package matching {} ...",
+                            pkg.format_ident()
+                        );
 
-                    for repo in repos.iter() {
-                        match repo.read_recipe(pkg.as_version()).await {
-                            Ok(recipe) => {
-                                tracing::debug!(
-                                    "Using recipe found for {}",
-                                    recipe.ident().format_ident(),
-                                );
-                                return Ok((recipe, std::path::PathBuf::from(&name.as_ref())));
+                        for repo in repos.iter() {
+                            match repo.read_recipe(pkg.as_version()).await {
+                                Ok(recipe) => {
+                                    tracing::debug!(
+                                        "Using recipe found for {}",
+                                        recipe.ident().format_ident(),
+                                    );
+                                    return Ok((recipe, std::path::PathBuf::from(&name.as_ref())));
+                                }
+                                Err(spk_storage::Error::SpkValidatorsError(
+                                    spk_schema::validators::Error::PackageNotFoundError(_),
+                                )) => continue,
+                                Err(err) => return Err(err.into()),
                             }
-                            Err(spk_storage::Error::SpkValidatorsError(
-                                spk_schema::validators::Error::PackageNotFoundError(_),
-                            )) => continue,
-                            Err(err) => return Err(err.into()),
                         }
                     }
 
