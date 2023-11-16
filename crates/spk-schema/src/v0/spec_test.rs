@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashMap;
 use std::io::Write;
 
 use rstest::rstest;
@@ -174,6 +175,10 @@ fn test_strong_inheritance_injection() {
             )
             .unwrap()]
         }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::default()
+        }
     }
 
     let build_env = TestBuildEnv();
@@ -237,6 +242,10 @@ fn test_strong_inheritance_injection_transitivity() {
             "#,
             )
             .unwrap()]
+        }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::default()
         }
     }
 

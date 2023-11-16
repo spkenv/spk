@@ -917,7 +917,7 @@ async fn test_build_add_startup_files(tmpdir: tempfile::TempDir) {
         .unwrap();
     BinaryPackageBuilder::from_recipe(recipe)
         .with_prefix(tmpdir.path().into())
-        .generate_startup_scripts(&spec, None)
+        .generate_startup_scripts(&spec)
         .unwrap();
 
     let bash_file = tmpdir.path().join("etc/spfs/startup.d/spk_testpkg.sh");
@@ -986,7 +986,7 @@ async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir) {
         .unwrap();
     BinaryPackageBuilder::from_recipe(recipe)
         .with_prefix(tmpdir.path().into())
-        .generate_startup_scripts(&spec, None)
+        .generate_startup_scripts(&spec)
         .unwrap();
 
     let bash_file = tmpdir.path().join("etc/spfs/startup.d/99_spk_testpkg.sh");
@@ -1122,7 +1122,7 @@ async fn test_dependant_variable_substitution_in_startup_files(tmpdir: tempfile:
         .unwrap();
     BinaryPackageBuilder::from_recipe(recipe)
         .with_prefix(tmpdir.path().into())
-        .generate_startup_scripts(&spec, None)
+        .generate_startup_scripts(&spec)
         .unwrap();
 
     let bash_file = tmpdir.path().join("etc/spfs/startup.d/spk_testpkg.sh");

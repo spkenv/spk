@@ -6,7 +6,6 @@ use std::collections::{hash_map, HashMap, HashSet};
 use std::convert::TryInto;
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::CommandEnvs;
 use std::sync::Arc;
 
 use futures::StreamExt;
@@ -805,14 +804,10 @@ where
             }
         }
 
-        self.generate_startup_scripts(package, Some(cmd.get_envs()))
+        self.generate_startup_scripts(package)
     }
 
-    fn generate_startup_scripts(
-        &self,
-        package: &impl Package,
-        build_vars: Option<CommandEnvs<'_>>,
-    ) -> Result<()> {
+    fn generate_startup_scripts(&self, package: &impl Package) -> Result<()> {
         let ops = package.runtime_environment();
         if ops.is_empty() {
             return Ok(());
@@ -832,16 +827,6 @@ where
         let mut sh_file = std::fs::File::create(&startup_file_sh)
             .map_err(|err| Error::FileOpenError(startup_file_sh.to_owned(), err))?;
 
-        let mut environment_vars = HashMap::new();
-        if let Some(mut env_vars) = build_vars {
-            for (key, value) in env_vars.by_ref() {
-                environment_vars.insert(
-                    key.to_string_lossy().into_owned(),
-                    value.unwrap_or_default().to_string_lossy().into_owned(),
-                );
-            }
-        }
-
         for op in ops {
             if let Some(priority) = op.priority() {
                 let original_startup_file_sh_name = startup_file_sh.clone();
@@ -858,22 +843,11 @@ where
                 continue;
             }
 
-            let value = op.value().map(|val| {
-                shellexpand::env_with_context(val, |s: &str| match std::env::var_os(s) {
-                    Some(v) => Ok(Some(v.to_string_lossy().into_owned())),
-                    None => match environment_vars.get(s) {
-                        Some(build_val) => Ok(Some(build_val.to_string())),
-                        None => Err("No matching keys found"),
-                    },
-                })
-                .unwrap_or_default()
-            });
-
             csh_file
-                .write_fmt(format_args!("{}\n", op.tcsh_source(value.clone())))
+                .write_fmt(format_args!("{}\n", op.tcsh_source()))
                 .map_err(|err| Error::FileWriteError(startup_file_csh.to_owned(), err))?;
             sh_file
-                .write_fmt(format_args!("{}\n", op.bash_source(value.clone())))
+                .write_fmt(format_args!("{}\n", op.bash_source()))
                 .map_err(|err| Error::FileWriteError(startup_file_sh.to_owned(), err))?;
         }
         Ok(())

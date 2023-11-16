@@ -554,6 +554,10 @@ impl BuildEnv for Solution {
             .map(|resolved| Arc::clone(&resolved.spec))
             .collect::<Vec<_>>()
     }
+
+    fn env_vars(&self) -> HashMap<String, String> {
+        self.to_environment(Some(std::env::vars()))
+    }
 }
 
 impl FormatSolution for Solution {
