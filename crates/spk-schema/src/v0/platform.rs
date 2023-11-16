@@ -26,7 +26,7 @@ use spk_schema_ident::{
 use super::{Spec, TestSpec};
 use crate::foundation::version::Compat;
 use crate::ident::is_false;
-use crate::meta::Meta;
+use crate::metadata::Meta;
 use crate::option::VarOpt;
 use crate::{
     BuildEnv,
