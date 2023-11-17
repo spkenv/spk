@@ -553,9 +553,8 @@ pub fn capture_if_relevant(err: &Error) {
         Some(spfs::Error::AmbiguousReference(_)) => (),
         Some(spfs::Error::NothingToCommit) => (),
         _ => {
-            // This will always add a backtrace to the sentry event
             #[cfg(feature = "sentry")]
-            sentry::capture_error(std::convert::AsRef::<dyn std::error::Error>::as_ref(err));
+            sentry_miette::capture_miette(err);
         }
     }
 }
