@@ -16,7 +16,7 @@ async fn test_hash_store_iter_states(tmpdir: tempfile::TempDir) {
     init_logging();
     let store = super::FsHashStore::open(tmpdir.path()).unwrap();
     let mut stream = Box::pin(store.iter());
-    while stream.next().await.is_some() {
+    if stream.next().await.is_some() {
         panic!("empty hash store should not yield any digests");
     }
 }

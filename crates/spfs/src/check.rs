@@ -344,8 +344,8 @@ where
     pub async fn check_manifest(&self, manifest: graph::Manifest) -> Result<CheckManifestResult> {
         let futures: FuturesUnordered<_> = manifest
             .iter_entries()
-            .cloned()
             .filter(|e| e.kind.is_blob())
+            .cloned()
             // run through check_digest to ensure that blobs can be loaded
             // from the db and allow for possible repairs
             .map(|e| self.check_digest_with_perms_opt(e.object, Some(e.mode)))

@@ -345,8 +345,8 @@ where
 
         let entries: Vec<_> = manifest
             .iter_entries()
-            .cloned()
             .filter(|e| e.kind.is_blob())
+            .cloned()
             .collect();
         let mut results = Vec::with_capacity(entries.len());
         let mut futures = FuturesUnordered::new();
