@@ -14,8 +14,6 @@ pub struct Explain {
     #[clap(flatten)]
     pub options: flags::Options,
     #[clap(flatten)]
-    pub runtime: flags::Runtime,
-    #[clap(flatten)]
     pub requests: flags::Requests,
 
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
@@ -27,12 +25,46 @@ pub struct Explain {
     /// The requests to resolve
     #[clap(name = "REQUESTS", required = true)]
     pub requested: Vec<String>,
+
+    // The following arguments were previously provided by the `runtime` field.
+    // These are now ignored however they are still accepted for backwards
+    // compatibility and can be removed after a deprecation period.
+    #[clap(long, hide = true)]
+    pub no_runtime: bool,
+    #[clap(long, hide = true)]
+    pub edit: bool,
+    #[clap(long, hide = true)]
+    pub no_edit: bool,
+    #[clap(long, hide = true)]
+    pub runtime_name: Option<String>,
+    #[clap(long, hide = true)]
+    pub keep_runtime: bool,
+    #[clap(long, hide = true)]
+    pub live_layer: Option<Vec<spfs::runtime::LiveLayerFile>>,
 }
 
 #[async_trait::async_trait]
 impl Run for Explain {
     async fn run(&mut self) -> Result<i32> {
-        self.runtime.ensure_active_runtime(&["explain"]).await?;
+        // Warn about deprecated arguments.
+        if self.no_runtime {
+            tracing::warn!("--no-runtime is deprecated and has no effect");
+        }
+        if self.edit {
+            tracing::warn!("--edit is deprecated and has no effect");
+        }
+        if self.no_edit {
+            tracing::warn!("--no-edit is deprecated and has no effect");
+        }
+        if self.runtime_name.is_some() {
+            tracing::warn!("--runtime-name is deprecated and has no effect");
+        }
+        if self.keep_runtime {
+            tracing::warn!("--keep-runtime is deprecated and has no effect");
+        }
+        if self.live_layer.is_some() {
+            tracing::warn!("--live-layer is deprecated and has no effect");
+        }
 
         let mut solver = self.solver.get_solver(&self.options).await?;
 

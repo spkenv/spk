@@ -3921,8 +3921,10 @@ dependencies = [
  "async-trait",
  "clap 4.4.7",
  "miette",
+ "spfs",
  "spk-cli-common",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
