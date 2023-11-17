@@ -48,22 +48,22 @@ impl Run for Explain {
     async fn run(&mut self) -> Result<i32> {
         // Warn about deprecated arguments.
         if self.no_runtime {
-            tracing::warn!("--no-runtime is deprecated and has no effect");
+            tracing::warn!("When using explain, --no-runtime is deprecated and has no effect");
         }
         if self.edit {
-            tracing::warn!("--edit is deprecated and has no effect");
+            tracing::warn!("When using explain, --edit is deprecated and has no effect");
         }
         if self.no_edit {
-            tracing::warn!("--no-edit is deprecated and has no effect");
+            tracing::warn!("When using explain, --no-edit is deprecated and has no effect");
         }
         if self.runtime_name.is_some() {
-            tracing::warn!("--runtime-name is deprecated and has no effect");
+            tracing::warn!("When using explain, --runtime-name is deprecated and has no effect");
         }
         if self.keep_runtime {
-            tracing::warn!("--keep-runtime is deprecated and has no effect");
+            tracing::warn!("When using explain, --keep-runtime is deprecated and has no effect");
         }
         if self.live_layer.is_some() {
-            tracing::warn!("--live-layer is deprecated and has no effect");
+            tracing::warn!("When using explain, --live-layer is deprecated and has no effect");
         }
 
         let mut solver = self.solver.get_solver(&self.options).await?;
