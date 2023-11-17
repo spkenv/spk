@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spk-cli-common"
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [features]
 migration-to-components = [
     "spk-build/migration-to-components",

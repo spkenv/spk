@@ -8,8 +8,6 @@
 //! and winfsp on windows.
 
 #![deny(missing_docs)]
-#![deny(unsafe_op_in_unsafe_fn)]
-#![warn(clippy::fn_params_excessive_bools)]
 
 #[cfg(all(unix, feature = "fuse-backend"))]
 mod fuse;

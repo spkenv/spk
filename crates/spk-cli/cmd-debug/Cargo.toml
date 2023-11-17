@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spk-cmd-debug"
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"

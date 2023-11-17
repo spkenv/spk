@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spk-storage"
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [features]
 migration-to-components = ["spk-schema/migration-to-components"]
 

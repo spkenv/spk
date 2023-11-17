@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spfs-cli-common"
 version = "0.34.6"
 
+[lints]
+workspace = true
+
 [features]
 sentry = [
     "dep:sentry",

@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spk-cmd-convert"
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [dependencies]
 miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }

@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spk-schema-foundation"
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [features]
 default = ["parsedbuf-serde"]
 # activates serde within the generated code from parsedbuf macros
