@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spfs-cli-winfsp"
 version = "0.34.6"
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "spfs-winfsp"
 path = "src/cmd_winfsp.rs"

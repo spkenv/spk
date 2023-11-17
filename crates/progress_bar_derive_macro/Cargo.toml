@@ -3,6 +3,9 @@ name = "progress_bar_derive_macro"
 version = { workspace = true }
 edition = { workspace = true }
 
+[lints]
+workspace = true
+
 [lib]
 proc-macro = true
 

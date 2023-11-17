@@ -4,11 +4,16 @@ edition = { workspace = true }
 name = "spk-schema-liquid"
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [features]
 migration-to-components = ["spk-schema-foundation/migration-to-components"]
 
 [dependencies]
-format_serde_error = {version = "0.3", default_features = false, features = ["colored"]}
+format_serde_error = { version = "0.3", default_features = false, features = [
+    "colored",
+] }
 once_cell = { workspace = true }
 regex = "1.6.0"
 serde = "1.0"
