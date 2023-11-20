@@ -3,7 +3,7 @@ authors = { workspace = true }
 default-run = "spfs"
 edition = { workspace = true }
 name = "spfs-cli-main"
-version = "0.34.6"
+version = { workspace = true }
 
 [[bin]]
 name = "spfs"

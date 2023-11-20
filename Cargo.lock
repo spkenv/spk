@@ -3356,7 +3356,7 @@ dependencies = [
 
 [[package]]
 name = "spfs"
-version = "0.34.6"
+version = "0.38.0"
 dependencies = [
  "arc-swap",
  "async-compression",
@@ -3430,7 +3430,7 @@ dependencies = [
 
 [[package]]
 name = "spfs-cli-clean"
-version = "0.34.6"
+version = "0.38.0"
 dependencies = [
  "chrono",
  "clap 4.4.7",
@@ -3446,7 +3446,7 @@ dependencies = [
 
 [[package]]
 name = "spfs-cli-common"
-version = "0.34.6"
+version = "0.38.0"
 dependencies = [
  "clap 4.4.7",
  "libc",
@@ -3466,7 +3466,7 @@ dependencies = [
 
 [[package]]
 name = "spfs-cli-enter"
-version = "0.34.6"
+version = "0.38.0"
 dependencies = [
  "clap 4.4.7",
  "miette",
@@ -3480,7 +3480,7 @@ dependencies = [
 
 [[package]]
 name = "spfs-cli-fuse"
-version = "0.34.6"
+version = "0.38.0"
 dependencies = [
  "clap 4.4.7",
  "dashmap",
@@ -3498,7 +3498,7 @@ dependencies = [
 
 [[package]]
 name = "spfs-cli-join"
-version = "0.34.6"
+version = "0.38.0"
 dependencies = [
  "clap 4.4.7",
  "futures",
@@ -3511,7 +3511,7 @@ dependencies = [
 
 [[package]]
 name = "spfs-cli-main"
-version = "0.34.6"
+version = "0.38.0"
 dependencies = [
  "async-recursion",
  "chrono",
@@ -3542,7 +3542,7 @@ dependencies = [
 
 [[package]]
 name = "spfs-cli-monitor"
-version = "0.34.6"
+version = "0.38.0"
 dependencies = [
  "clap 4.4.7",
  "miette",
@@ -3556,7 +3556,7 @@ dependencies = [
 
 [[package]]
 name = "spfs-cli-render"
-version = "0.34.6"
+version = "0.38.0"
 dependencies = [
  "clap 4.4.7",
  "dunce",
@@ -3572,7 +3572,7 @@ dependencies = [
 
 [[package]]
 name = "spfs-cli-winfsp"
-version = "0.34.6"
+version = "0.38.0"
 dependencies = [
  "clap 4.4.7",
  "dashmap",
@@ -3594,7 +3594,7 @@ dependencies = [
 
 [[package]]
 name = "spfs-encoding"
-version = "0.34.6"
+version = "0.38.0"
 dependencies = [
  "data-encoding",
  "miette",
@@ -3608,7 +3608,7 @@ dependencies = [
 
 [[package]]
 name = "spfs-vfs"
-version = "0.34.6"
+version = "0.38.0"
 dependencies = [
  "bytes",
  "clap 4.4.7",
@@ -4071,7 +4071,7 @@ dependencies = [
 
 [[package]]
 name = "spk-launcher"
-version = "0.33.6"
+version = "0.38.0"
 dependencies = [
  "miette",
  "nix 0.26.4",
