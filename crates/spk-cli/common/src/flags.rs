@@ -781,17 +781,17 @@ where
                         }
                     }
 
-                    tracing::error!(
+                    miette::bail!(
+                        help = "Check that file path, or package/version request, is correct",
                         "Unable to find {:?} as a file, or existing package/version recipe in any repo",
                         name.as_ref()
                     );
-                    miette::bail!(
-                        " > Please check that file path, or package/version request, is correct"
-                    );
                 }
                 None => {
-                    tracing::error!("Unable to find a spec file, or existing package/version");
-                    miette::bail!(" > Please provide a file path, or package/version request");
+                    miette::bail!(
+                        help = "Provide a file path, or package/version request",
+                        "Unable to find a spec file, or existing package/version"
+                    );
                 }
             }
         }
