@@ -110,7 +110,7 @@ impl EnvOp {
     }
 
     /// Returns the EnvOop object with expanded env var, if any
-    pub fn get_expanded_env_op_object(&self, env_vars: HashMap<String, String>) -> Self {
+    pub fn to_expanded(&self, env_vars: HashMap<String, String>) -> Self {
         let value = self.value().map(|val| {
             shellexpand::env_with_context(val, |s: &str| match env_vars.get(s) {
                 Some(v) => Ok(Some(v.clone())),
@@ -120,7 +120,7 @@ impl EnvOp {
         });
 
         match value {
-            Some(val) => self.update_value(val.to_string()),
+            Some(val) => self.update_value(val.into_owned()),
             None => self.clone(),
         }
     }
