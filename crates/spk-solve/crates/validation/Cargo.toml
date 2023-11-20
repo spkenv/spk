@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spk-solve-validation"
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [features]
 migration-to-components = [
     "spk-solve-graph/migration-to-components",

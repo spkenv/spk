@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spfs-cli-enter"
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "spfs-enter"
 path = "src/cmd_enter.rs"

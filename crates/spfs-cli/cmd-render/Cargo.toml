@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spfs-cli-render"
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "spfs-render"
 path = "src/cmd_render.rs"

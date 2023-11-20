@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spfs-cli-monitor"
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "spfs-monitor"
 path = "src/cmd_monitor.rs"

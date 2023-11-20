@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spfs-vfs"
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [features]
 default = []
 winfsp-backend = [

@@ -5,6 +5,9 @@ name = "spk"
 version = { workspace = true }
 default-run = "spk"
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "spk"
 path = "src/cli.rs"
@@ -12,7 +15,10 @@ required-features = ["cli"]
 
 [features]
 default = ["cli"]
-migration-to-components = ["spk-schema/migration-to-components", "spk-solve/migration-to-components"]
+migration-to-components = [
+    "spk-schema/migration-to-components",
+    "spk-solve/migration-to-components",
+]
 sentry = [
     "dep:sentry",
     "dep:sentry-anyhow",

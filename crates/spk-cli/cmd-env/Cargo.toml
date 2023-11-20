@@ -4,6 +4,9 @@ edition = { workspace = true }
 name = "spk-cmd-env"
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [features]
 statsd = ["dep:statsd"]
 

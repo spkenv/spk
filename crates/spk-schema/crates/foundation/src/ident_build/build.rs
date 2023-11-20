@@ -39,7 +39,7 @@ pub struct EmbeddedSourcePackage {
 }
 
 impl EmbeddedSourcePackage {
-    pub const EMBEDDED_BY_PREFIX: &str = "embedded-by-";
+    pub const EMBEDDED_BY_PREFIX: &'static str = "embedded-by-";
 }
 
 /// An embedded package's source (if known).

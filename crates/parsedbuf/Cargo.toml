@@ -4,5 +4,8 @@ edition = { workspace = true }
 name = "parsedbuf"
 version = "0.1.0"
 
+[lints]
+workspace = true
+
 [dependencies]
 paste = "1.0"

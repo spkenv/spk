@@ -4,6 +4,9 @@ name = "spk-config"
 edition = { workspace = true }
 version = { workspace = true }
 
+[lints]
+workspace = true
+
 [features]
 migration-to-components = []
 
