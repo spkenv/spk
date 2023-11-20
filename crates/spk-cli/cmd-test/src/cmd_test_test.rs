@@ -322,6 +322,9 @@ build:
     - pkg: some-other
   script:
     - "true"
+  validation:
+    rules:
+      - allow: RecursiveBuild
 install:
   requirements:
     - pkg: dep-b
@@ -333,7 +336,6 @@ tests:
     script:
       - "true"
 "#,
-        "--allow-circular-dependencies",
     );
 
     let mut opt = TestOpt::try_parse_from([

@@ -2,12 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use super::{default_validators, ValidationSpec};
+use super::ValidationSpec;
 
 #[test]
-fn test_validation_disabling() {
-    let spec: ValidationSpec = serde_yaml::from_str("{disabled: [MustInstallSomething]}").unwrap();
-    let configured = spec.configured_validators();
-    assert_ne!(configured.len(), default_validators().len());
-    assert!(!configured.contains(&super::Validator::MustInstallSomething));
+fn test_validation_rule_expansion() {
+    let spec: ValidationSpec = serde_yaml::from_str("{rules: [{allow: RecursiveBuild}]}").unwrap();
+    let configured = spec.to_expanded_rules();
+    tracing::trace!("{configured:#?}");
+    assert!(configured.len() > 1, "Implicit rules should be added");
+    assert!(configured.contains(&super::ValidationRule::Allow {
+        condition: super::ValidationMatcher::CollectExistingFiles {
+            packages: vec![super::NameOrCurrent::Current]
+        }
+    }));
 }

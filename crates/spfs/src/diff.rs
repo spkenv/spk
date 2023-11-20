@@ -15,7 +15,10 @@ use crate::{tracking, Result};
 ///         (defaults to the current runtime)
 /// - **top**: The tag or id to diff the base against
 ///         (defaults to the contents of /spfs)
-pub async fn diff(base: Option<&String>, top: Option<&String>) -> Result<Vec<tracking::Diff>> {
+pub async fn diff(
+    base: Option<&String>,
+    top: Option<&String>,
+) -> Result<Vec<tracking::Diff<(), ()>>> {
     let base_manifest = match base {
         None => {
             tracing::debug!("computing runtime manifest as base");
@@ -43,25 +46,29 @@ pub async fn diff(base: Option<&String>, top: Option<&String>) -> Result<Vec<tra
     Ok(tracking::compute_diff(&base_manifest, &top_manifest))
 }
 
+/// Build a manifest of the current set of changes
+/// made to the active runtime
+pub async fn runtime_active_changes() -> Result<tracking::Manifest> {
+    let config = crate::get_config()?;
+    let repo = Arc::new(config.get_local_repository_handle().await?);
+    let runtime = active_runtime().await?;
+    crate::Committer::new(&repo)
+        .manifest_for_path(&runtime.config.upper_dir)
+        .await
+        .map(|(_, manifest)| manifest)
+}
+
 /// Return the changes found in the current runtime.
 ///
 /// Unlike [`diff`] this returns only the modifications found in the active
 /// runtime. It will not return any [`tracking::DiffMode::Unchanged`] results.
-pub async fn diff_runtime_changes() -> Result<Vec<tracking::Diff>> {
+pub async fn diff_runtime_changes() -> Result<Vec<tracking::Diff<(), ()>>> {
     let runtime_manifest = tokio::spawn(async {
         let runtime = active_runtime().await?;
         compute_runtime_manifest(&runtime).await
     });
 
-    let upperdir_manifest = tokio::spawn(async {
-        let config = crate::get_config()?;
-        let repo = Arc::new(config.get_local_repository_handle().await?);
-        let runtime = active_runtime().await?;
-        crate::Committer::new(&repo)
-            .manifest_for_path(&runtime.config.upper_dir)
-            .await
-            .map(|(_, manifest)| manifest)
-    });
+    let upperdir_manifest = tokio::spawn(runtime_active_changes());
 
     tracing::debug!("computing diffs");
     let mut raw_diff =

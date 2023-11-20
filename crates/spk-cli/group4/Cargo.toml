@@ -17,7 +17,7 @@ futures = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
-itertools = "0.10"
+itertools = { workspace = true }
 spfs = { path = "../../spfs" }
 spk-cli-common = { path = '../common' }
 spk-schema = { path = '../../spk-schema' }

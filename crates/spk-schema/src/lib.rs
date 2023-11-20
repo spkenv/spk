@@ -22,7 +22,7 @@ mod spec;
 mod template;
 mod test;
 pub mod v0;
-mod validation;
+pub mod validation;
 pub mod variant;
 
 pub use build_spec::{BuildSpec, Script};
@@ -38,6 +38,7 @@ pub use option::{Inheritance, Opt};
 pub use package::{Package, PackageMut};
 pub use recipe::{BuildEnv, Recipe};
 pub use requirements_list::RequirementsList;
+pub use serde_json;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::{Spec, SpecRecipe, SpecTemplate, SpecVariant};
 pub use spk_schema_foundation::option_map::{self, OptionMap};
@@ -57,9 +58,8 @@ pub use spk_schema_foundation::{
 pub use spk_schema_ident::{self as ident, AnyIdent, BuildIdent, Request, VersionIdent};
 pub use template::{Template, TemplateData, TemplateExt};
 pub use test::{Test, TestStage};
-pub use validation::{default_validators, ValidationSpec, Validator};
+pub use validation::{ValidationRule, ValidationSpec};
 pub use variant::{Variant, VariantExt};
-pub use {serde_json, spk_schema_validators as validators};
 
 #[cfg(test)]
 #[path = "./version_range_test.rs"]

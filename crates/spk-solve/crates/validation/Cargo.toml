@@ -20,7 +20,7 @@ colored = { workspace = true }
 dashmap = { workspace = true }
 enum_dispatch = "0.3.8"
 futures = { workspace = true }
-itertools = "0.10"
+itertools = { workspace = true }
 once_cell = { workspace = true }
 spfs = { path = "../../../spfs" }
 spk-solve-graph = { path = "../graph" }

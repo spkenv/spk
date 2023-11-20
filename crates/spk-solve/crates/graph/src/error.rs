@@ -57,9 +57,6 @@ pub enum Error {
     SpkStorageError(#[from] spk_storage::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkValidatorsError(#[from] spk_schema::validators::Error),
-    #[error(transparent)]
-    #[diagnostic(forward(0))]
     SpkVersionRangeError(#[from] spk_schema::foundation::version_range::Error),
     #[error("Error: {0}")]
     String(String),

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::{hash_map, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::io::Write;
 use std::path::PathBuf;
@@ -16,7 +16,6 @@ use spk_exec::{
     pull_resolved_runtime_layers,
     resolve_runtime_layers,
     solution_to_resolved_runtime_layers,
-    ResolvedLayer,
 };
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::format::FormatIdent;
@@ -25,7 +24,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy, VersionIdent};
-use spk_schema::version::Compatibility;
+use spk_schema::variant::Override;
 use spk_schema::{
     BuildIdent,
     ComponentFileMatchMode,
@@ -38,10 +37,12 @@ use spk_schema::{
 };
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
-use spk_solve::{BoxedResolverCallback, ResolverCallback, Solver};
+use spk_solve::{BoxedResolverCallback, Named, ResolverCallback, Solver};
 use spk_storage as storage;
 use tokio::pin;
 
+use crate::report::{BuildOutputReport, BuildReport, BuildSetupReport};
+use crate::validation::{Report, Validator};
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -143,7 +144,6 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
     last_solve_graph: Arc<tokio::sync::RwLock<Graph>>,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     interactive: bool,
-    files_to_layers: HashMap<RelativePathBuf, ResolvedLayer>,
     conflicting_packages: HashMap<ConflictingPackagePair, HashSet<RelativePathBuf>>,
     allow_circular_dependencies: bool,
 }
@@ -173,7 +173,6 @@ where
             last_solve_graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
             repos: Default::default(),
             interactive: false,
-            files_to_layers: Default::default(),
             conflicting_packages: Default::default(),
             allow_circular_dependencies: false,
         }
@@ -270,17 +269,27 @@ where
         &mut self,
         variant: V,
         repo: &R,
-    ) -> Result<(Recipe::Output, HashMap<Component, spfs::encoding::Digest>)>
+    ) -> Result<(Recipe::Output, HashMap<Component, spfs::Digest>)>
     where
-        V: Variant + Clone,
+        V: Variant + Clone + Send + Sync,
         R: std::ops::Deref<Target = T>,
         T: storage::Repository<Recipe = Recipe> + ?Sized,
         <T as storage::Storage>::Package: PackageMut,
     {
-        let (package, components) = self.build(variant).await?;
-        tracing::debug!("publishing build {}", package.ident().format_ident());
-        repo.publish_package(&package, &components).await?;
-        Ok((package, components))
+        let report = self.build(variant).await?;
+        tracing::debug!(
+            "publishing build {}",
+            report.setup.package.ident().format_ident()
+        );
+        let components = report
+            .output
+            .components
+            .iter()
+            .map(|(n, c)| (n.clone(), c.layer))
+            .collect();
+        repo.publish_package(&report.setup.package, &components)
+            .await?;
+        Ok((report.setup.package, components))
     }
 
     /// Build the requested binary package.
@@ -290,9 +299,9 @@ where
     pub async fn build<V>(
         &mut self,
         variant: V,
-    ) -> Result<(Recipe::Output, HashMap<Component, spfs::encoding::Digest>)>
+    ) -> Result<BuildReport<Recipe::Output, Override<Override<V>>>>
     where
-        V: Variant + Clone,
+        V: Variant + Clone + Send + Sync,
     {
         self.environment.clear();
         let mut runtime = spfs::active_runtime().await?;
@@ -340,6 +349,15 @@ where
             tokio::spawn(async move { Ok(resolved_layers_copy.layers()) })
         };
 
+        let mut environment_filesystem = spfs::tracking::Manifest::new(
+            // we expect this to be replaced, but the source build for this package
+            // seems like one of the most reasonable default owners for the root
+            // of this manifest until then
+            spfs::tracking::Entry::empty_dir_with_open_perms_with_data(
+                self.recipe.ident().to_build(Build::Source),
+            ),
+        );
+
         // Warn about possibly unexpected shadowed files in the layer stack.
         let mut warning_found = false;
         let entries = resolved_layers.iter_entries();
@@ -352,47 +370,43 @@ where
                 Ok(entry) => entry,
             };
 
+            let entry = entry.and_user_data(resolved_layer.spec.ident().to_owned());
+            let Some(previous) = environment_filesystem.get_path(&path).cloned() else {
+                environment_filesystem.mknod(&path, entry)?;
+                continue;
+            };
+            let entry = environment_filesystem.mknod(&path, entry)?;
             if !matches!(entry.kind, EntryKind::Blob) {
                 continue;
             }
-            match self.files_to_layers.entry(path.clone()) {
-                hash_map::Entry::Occupied(entry) => {
-                    // This file has already been seen by a lower layer.
-                    //
-                    // Ignore when the shadowing is from different components
-                    // of the same package.
-                    if entry.get().spec.ident() == resolved_layer.spec.ident() {
-                        continue;
-                    }
-                    // The layer order isn't necessarily meaningful in terms
-                    // of spk package dependency ordering (at the time of
-                    // writing), so phrase this in a way that doesn't suggest
-                    // one layer "owns" the file more than the other.
-                    warning_found = true;
-                    tracing::warn!(
-                        "File {path} found in more than one package: {}:{} and {}:{}",
-                        entry.get().spec.ident(),
-                        entry.get().component,
-                        resolved_layer.spec.ident(),
-                        resolved_layer.component,
-                    );
 
-                    // Track the packages involved for later use
-                    let pkg_a = entry.get().spec.ident().clone();
-                    let pkg_b = resolved_layer.spec.ident().clone();
-                    let packages_key = if pkg_a < pkg_b {
-                        ConflictingPackagePair(pkg_a, pkg_b)
-                    } else {
-                        ConflictingPackagePair(pkg_b, pkg_a)
-                    };
-                    let counter = self.conflicting_packages.entry(packages_key).or_default();
-                    counter.insert(path.clone());
-                }
-                hash_map::Entry::Vacant(entry) => {
-                    // This is the first layer that has this file.
-                    entry.insert(resolved_layer.clone());
-                }
+            // Ignore when the shadowing is from different components
+            // of the same package.
+            if entry.user_data == previous.user_data {
+                continue;
+            }
+
+            // The layer order isn't necessarily meaningful in terms
+            // of spk package dependency ordering (at the time of
+            // writing), so phrase this in a way that doesn't suggest
+            // one layer "owns" the file more than the other.
+            warning_found = true;
+            tracing::warn!(
+                "File {path} found in more than one package: {} and {}",
+                previous.user_data,
+                entry.user_data
+            );
+
+            // Track the packages involved for later use
+            let pkg_a = previous.user_data.clone();
+            let pkg_b = entry.user_data.clone();
+            let packages_key = if pkg_a < pkg_b {
+                ConflictingPackagePair(pkg_a, pkg_b)
+            } else {
+                ConflictingPackagePair(pkg_b, pkg_a)
             };
+            let counter = self.conflicting_packages.entry(packages_key).or_default();
+            counter.insert(path.clone());
         }
         if warning_found {
             tracing::warn!("Conflicting files were detected");
@@ -418,11 +432,26 @@ where
             },
             &solution,
         )?;
-        self.validate_generated_package(&solution, &package)?;
-        let components = self
-            .build_and_commit_artifacts(&package, full_variant.options())
-            .await?;
-        Ok((package, components))
+
+        // this report will not be complete initially, but the
+        // additional functions called after should fill in the
+        // final details as the build progresses
+        let setup = BuildSetupReport {
+            environment: solution,
+            package,
+            variant: full_variant,
+            environment_filesystem,
+        };
+        let mut report = BuildReport {
+            setup,
+            // use a default placeholder, assuming it won't be used
+            // by the setup validators, and then replaced during the build
+            output: Default::default(),
+        };
+        self.validate_build_setup(&report).await?;
+        report.output = self.build_and_commit_artifacts(&report.setup).await?;
+        self.validate_build_output(&report).await?;
+        Ok(report)
     }
 
     async fn resolve_source_package(
@@ -494,11 +523,6 @@ where
         self.solver.reset();
         self.solver.update_options(options.clone());
         self.solver.set_binary_only(true);
-        // Deny resolving a package that has the name of the package being
-        // built (circular dependency), unless they have been explicitly
-        // allowed.
-        self.solver
-            .set_reject_package_with_name(self.recipe.name(), !self.allow_circular_dependencies);
         for repo in self.repos.iter().cloned() {
             self.solver.add_repository(repo);
         }
@@ -513,184 +537,93 @@ where
         Ok(solution)
     }
 
-    fn validate_generated_package(
-        &self,
-        solution: &Solution,
-        package: &Recipe::Output,
-    ) -> Result<()> {
-        let build_requirements = package.get_build_requirements()?;
-        let runtime_requirements = package.runtime_requirements();
-        let solved_packages = solution.items().map(|r| Arc::clone(&r.spec));
-        let all_components = package.components();
-        for spec in solved_packages {
-            for component in all_components.names() {
-                let downstream_build = spec.downstream_build_requirements([component]);
-                for request in downstream_build.iter() {
-                    match build_requirements.contains_request(request) {
-                        Compatibility::Compatible => continue,
-                        Compatibility::Incompatible(reason) => {
-                            return Err(Error::MissingDownstreamBuildRequest {
-                                required_by: spec.ident().to_owned(),
-                                request: request.clone(),
-                                problem: reason.to_string(),
-                            })
-                        }
-                    }
-                }
-                let downstream_runtime = spec.downstream_runtime_requirements([component]);
-                for request in downstream_runtime.iter() {
-                    match runtime_requirements.contains_request(request) {
-                        Compatibility::Compatible => continue,
-                        Compatibility::Incompatible(reason) => {
-                            return Err(Error::MissingDownstreamRuntimeRequest {
-                                required_by: spec.ident().to_owned(),
-                                request: request.clone(),
-                                problem: reason.to_string(),
-                            })
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// Helper for constructing more useful error messages from schema validator errors
-    fn assemble_error_message(
-        &self,
-        error: spk_schema_validators::Error,
-        files_to_packages: &HashMap<RelativePathBuf, BuildIdent>,
-        conflicting_packages: &HashMap<ConflictingPackagePair, HashSet<RelativePathBuf>>,
-    ) -> String {
-        match error {
-            spk_schema_validators::Error::ExistingFileAltered(diffmode, filepath) => {
-                let operation = match *diffmode {
-                    DiffMode::Changed(a, b) => {
-                        let mut changes: Vec<String> = Vec::new();
-                        if a.mode != b.mode {
-                            changes.push(format!("permissions: {:06o} => {:06o}", a.mode, b.mode));
-                        }
-                        if a.kind != b.kind {
-                            changes.push(format!("kind: {} => {}", a.kind, b.kind));
-                        }
-                        if a.object != b.object {
-                            changes.push(format!("digest: {} => {}", a.object, b.object));
-                        }
-                        if a.size != b.size {
-                            changes.push(format!("size: {} => {} bytes", a.size, b.size));
-                        }
-
-                        format!("Changed [{}]", changes.join(", "))
-                    }
-                    DiffMode::Removed(_) => String::from("Removed"),
-                    _ => String::from("Added or Unchanged"),
-                };
-
-                let mut message = format!("\"{}\" was {}", filepath, operation);
-
-                // Work out if the files in conflict came from more
-                // than one package
-                let packages: Vec<(&ConflictingPackagePair, &HashSet<RelativePathBuf>)> =
-                    conflicting_packages
-                        .iter()
-                        .filter(|(_ps, fs)| fs.contains(&filepath))
-                        .collect();
-
-                if packages.is_empty() {
-                    // Then the file is only in a single package, not
-                    // in a pair of conflicting packages.
-                    let package = files_to_packages
-                        .get(&filepath)
-                        .map(|ident| ident.to_string())
-                        .unwrap_or_else(|| {
-                            "an unknown package, so something went wrong.".to_string()
-                        });
-                    message.push_str(&format!(". It is from {package}"));
-                } else {
-                    let num_others = packages.iter().map(|(_ps, fs)| fs.len()).sum::<usize>() - 1;
-                    if num_others > 0 {
-                        message.push_str(&format!(
-                            " (along with {num_others} more file{})",
-                            if num_others == 1 { "" } else { "s" }
-                        ));
-                    }
-                    let pkgs = packages
-                        .iter()
-                        .flat_map(|(ps, _fs)| Vec::from([ps.0.to_string(), ps.1.to_string()]))
-                        .collect::<Vec<String>>();
-                    message.push_str(&format!(
-                        " in {} packages: {}",
-                        pkgs.len(),
-                        pkgs.join(" AND ")
-                    ));
-                }
-
-                message
-            }
-            _ => error.to_string(),
-        }
-    }
-
-    async fn build_and_commit_artifacts<O>(
-        &mut self,
-        package: &Recipe::Output,
-        options: O,
-    ) -> Result<HashMap<Component, spfs::encoding::Digest>>
+    async fn validate_build_setup<V>(&self, report: &BuildReport<Recipe::Output, V>) -> Result<()>
     where
-        O: AsRef<OptionMap>,
+        V: Variant + Send + Sync,
     {
-        self.build_artifacts(package, options).await?;
+        // these must remain ordered so that the overriding of
+        // rules is applied correctly later when we merge the results
+        let mut validations = futures::stream::FuturesOrdered::new();
+        if !report.setup.package.validation().disabled.is_empty() {
+            return Err(Error::UseOfObsoleteValidators);
+        }
+        let validators = report.setup.package.validation().to_expanded_rules();
+        tracing::trace!("running validation");
+        for validator in validators {
+            tracing::trace!(" > {validator:?}");
+            validations.push_back(async move { validator.validate_setup(&report.setup).await });
+        }
+        Report::from_iter(validations.collect::<Vec<_>>().await).into_result()
+    }
+
+    async fn validate_build_output<V>(&self, report: &BuildReport<Recipe::Output, V>) -> Result<()>
+    where
+        V: Variant + Send + Sync,
+    {
+        // these must remain ordered so that the overriding of
+        // rules is applied correctly later when we merge the results
+        let mut validations = futures::stream::FuturesOrdered::new();
+        let validators = report.setup.package.validation().to_expanded_rules();
+        for validator in validators {
+            validations.push_back(async move { validator.validate_build(report).await });
+        }
+        Report::from_iter(validations.collect::<Vec<_>>().await).into_result()
+    }
+
+    async fn build_and_commit_artifacts<V: Variant>(
+        &mut self,
+        input: &BuildSetupReport<Recipe::Output, V>,
+    ) -> Result<BuildOutputReport> {
+        let options = input.variant.options();
+        self.build_artifacts(&input.package, &options).await?;
 
         let source_ident =
             VersionIdent::new(self.recipe.name().to_owned(), self.recipe.version().clone())
                 .into_any(Some(Build::Source));
         let sources_dir = data_path(&source_ident);
 
-        let mut runtime = spfs::active_runtime().await?;
-        let pattern = sources_dir.join("**").to_string();
-        tracing::info!(
-            "Purging all changes made to source directory: {}",
-            sources_dir.to_path(&self.prefix).display()
-        );
-        runtime.reset(&[pattern])?;
-        runtime.save_state_to_storage().await?;
-        spfs::remount_runtime(&runtime).await?;
-
-        tracing::info!("Validating package contents...");
-
-        let changed_files = package
-            .validation()
-            .validate_build_changeset(package)
-            .await
-            .map_err(|err| {
-                let err_message = match err {
-                    spk_schema::Error::InvalidBuildChangeSetError(validator_name, source_err) => {
-                        // Simplify this for use during the validation errors and to
-                        // avoid having to pass ResolvedLayers down into the validation.
-                        let files_to_packages: HashMap<RelativePathBuf, BuildIdent> = self
-                            .files_to_layers
-                            .iter()
-                            .map(|(f, l)| (f.clone(), l.spec.ident().clone()))
-                            .collect();
-
-                        format!(
-                            "{}: {}",
-                            validator_name,
-                            self.assemble_error_message(
-                                source_err,
-                                &files_to_packages,
-                                &self.conflicting_packages,
-                            )
-                        )
+        let active_changes = spfs::runtime_active_changes()
+            .await?
+            .take_root()
+            .and_user_data(input.package.ident().to_owned())
+            .into();
+        let mut collected_changes =
+            spfs::tracking::compute_diff(&input.environment_filesystem, &active_changes);
+        collected_changes = collected_changes
+            .into_iter()
+            .filter_map(|diff| {
+                // All changes to the sources area are ignored as that is considered to be
+                // the build sandbox of the package
+                if diff.path.starts_with(&sources_dir) {
+                    return None;
+                }
+                match diff.mode {
+                    // Filter out `DiffMode::Removed` entries that aren't `EntryKind::Mask`.
+                    // Since we didn't provide the complete manifest for all of /spfs, but
+                    // just for the overlayfs upperdir instead, anything that wasn't changed
+                    // will show up in the diff as removed.
+                    DiffMode::Removed(ref e) if e.kind == spfs::tracking::EntryKind::Mask => {
+                        Some(diff)
                     }
-                    _ => format!("{err}"),
-                };
-
-                BuildError::new_error(format_args!("Invalid Build: {err_message}"))
-            })?;
+                    DiffMode::Removed(_) => None,
+                    // Unchanged diffs represent files that were in the working changes/upperdir
+                    // but whose contents and permissions were the same as the base layer. In other
+                    // words they were touched but not changed. These files are ignored unless
+                    // they belong to another version of the package being built. In these cases
+                    // we assume that this is a known recursive build, or at least that these files
+                    // were written as part of the build but unknowingly clashed with the existing
+                    // package. In these cases this type of change would need to be manually reset
+                    // during the build script to not be collected.
+                    DiffMode::Unchanged(src) if src.user_data.name() != input.package.name() => {
+                        None
+                    }
+                    _ => Some(diff),
+                }
+            })
+            .collect();
 
         tracing::info!("Committing package contents...");
-        commit_component_layers(package, &mut runtime, changed_files.as_slice()).await
+        commit_component_layers(input, collected_changes).await
     }
 
     async fn build_artifacts<O>(&mut self, package: &Recipe::Output, options: O) -> Result<()>
@@ -895,40 +828,55 @@ where
 ///
 /// Only the changes also present in `filter` will be committed. It is
 /// expected to contain paths relative to `$PREFIX`.
-pub async fn commit_component_layers<'a, P>(
-    package: &P,
-    runtime: &mut spfs::runtime::Runtime,
-    filter: impl spfs::tracking::PathFilter + Send + Sync,
-) -> Result<HashMap<Component, spfs::encoding::Digest>>
+pub async fn commit_component_layers<'a, P, V>(
+    input: &BuildSetupReport<P, V>,
+    collected_changes: Vec<spfs::tracking::Diff<BuildIdent, BuildIdent>>,
+) -> Result<BuildOutputReport>
 where
-    P: Package,
+    P: spk_schema::Package,
+    V: Variant,
 {
+    let mut runtime = spfs::active_runtime().await?;
     let config = spfs::get_config()?;
     let repo = Arc::new(config.get_local_repository_handle().await?);
     let layer = spfs::Committer::new(&repo)
-        .with_path_filter(filter)
-        .commit_layer(runtime)
+        .with_path_filter(collected_changes.as_slice())
+        .commit_layer(&mut runtime)
         .await?;
-    let manifest = repo
+    let collected_layer = repo
         .read_manifest(layer.manifest)
         .await?
         .to_tracking_manifest();
-    let manifests = split_manifest_by_component(package.ident(), &manifest, package.components())?;
-    let mut committed = HashMap::with_capacity(manifests.len());
+    let manifests = split_manifest_by_component(
+        input.package.ident(),
+        &collected_layer,
+        input.package.components(),
+    )?;
+    let mut components = HashMap::new();
     for (component, manifest) in manifests {
-        let manifest = spfs::graph::Manifest::from(&manifest);
+        let storable_manifest = spfs::graph::Manifest::from(&manifest);
         let layer = spfs::graph::Layer {
-            manifest: manifest.digest().unwrap(),
+            manifest: storable_manifest.digest().unwrap(),
         };
         let layer_digest = layer.digest().unwrap();
         #[rustfmt::skip]
         tokio::try_join!(
-            async { repo.write_object(&manifest.into()).await },
+            async { repo.write_object(&storable_manifest.into()).await },
             async { repo.write_object(&layer.into()).await }
         )?;
-        committed.insert(component, layer_digest);
+        components.insert(
+            component,
+            crate::report::BuiltComponentReport {
+                layer: layer_digest,
+                manifest,
+            },
+        );
     }
-    Ok(committed)
+    Ok(BuildOutputReport {
+        collected_layer,
+        collected_changes,
+        components,
+    })
 }
 
 fn split_manifest_by_component(

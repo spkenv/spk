@@ -72,6 +72,12 @@ where
 
 impl<T> std::cmp::Eq for Manifest<T> where T: std::cmp::Eq {}
 
+impl<T> From<Entry<T>> for Manifest<T> {
+    fn from(root: Entry<T>) -> Self {
+        Self { root }
+    }
+}
+
 impl<T> Manifest<T> {
     pub fn new(root: Entry<T>) -> Self {
         Self { root }
@@ -175,10 +181,7 @@ where
     }
 }
 
-impl<T> Manifest<T>
-where
-    T: Eq + PartialEq,
-{
+impl<T> Manifest<T> {
     /// Walk the contents of this manifest top-down and depth-first.
     pub fn walk(&self) -> ManifestWalker<'_, T> {
         ManifestWalker::new(&self.root)
@@ -324,10 +327,7 @@ impl<'m, T> ManifestWalker<'m, T> {
     }
 }
 
-impl<'m, T> Iterator for ManifestWalker<'m, T>
-where
-    T: Eq + PartialEq,
-{
+impl<'m, T> Iterator for ManifestWalker<'m, T> {
     type Item = ManifestNode<'m, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -405,7 +405,7 @@ where
     }
 }
 
-impl PathFilter for &[Diff] {
+impl<U1, U2> PathFilter for &[Diff<U1, U2>] {
     fn should_include_path(&self, path: &RelativePath) -> bool {
         for diff in self.iter() {
             if diff.path == path || diff.path.starts_with(path) {
@@ -715,21 +715,15 @@ where
     }
 }
 
-impl<'a, T> PartialEq for ManifestNode<'a, T>
-where
-    T: PartialEq,
-{
+impl<'a, T> PartialEq for ManifestNode<'a, T> {
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path && self.entry == other.entry
     }
 }
 
-impl<'a, T> Eq for ManifestNode<'a, T> where T: Eq {}
+impl<'a, T> Eq for ManifestNode<'a, T> {}
 
-impl<'a, T> Ord for ManifestNode<'a, T>
-where
-    T: Eq + PartialEq,
-{
+impl<'a, T> Ord for ManifestNode<'a, T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         use std::cmp::Ordering;
 
@@ -784,10 +778,7 @@ where
     }
 }
 
-impl<'a, T> PartialOrd for ManifestNode<'a, T>
-where
-    T: Eq + PartialEq,
-{
+impl<'a, T> PartialOrd for ManifestNode<'a, T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }

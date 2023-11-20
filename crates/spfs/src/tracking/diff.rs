@@ -13,15 +13,15 @@ use super::{Entry, EntryKind, Manifest};
 mod diff_test;
 
 /// Identifies a difference between two file system entries
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum DiffMode {
-    Unchanged(Entry),
-    Changed(Entry, Entry),
-    Added(Entry),
-    Removed(Entry),
+#[derive(Debug, Eq, PartialEq, Clone, strum::EnumDiscriminants)]
+pub enum DiffMode<U1 = (), U2 = ()> {
+    Unchanged(Entry<U1>),
+    Changed(Entry<U1>, Entry<U2>),
+    Added(Entry<U2>),
+    Removed(Entry<U1>),
 }
 
-impl std::fmt::Display for DiffMode {
+impl<U1, U2> std::fmt::Display for DiffMode<U1, U2> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Unchanged(..) => f.write_str("="),
@@ -32,7 +32,7 @@ impl std::fmt::Display for DiffMode {
     }
 }
 
-impl DiffMode {
+impl<U1, U2> DiffMode<U1, U2> {
     pub fn is_unchanged(&self) -> bool {
         matches!(self, Self::Unchanged(..))
     }
@@ -45,15 +45,43 @@ impl DiffMode {
     pub fn is_removed(&self) -> bool {
         matches!(self, Self::Removed(..))
     }
+
+    /// True if the underlying entry is/was a directory.
+    ///
+    /// In the case of a change, both the original and final
+    /// entries must be directories for this to return true.
+    pub fn is_dir(&self) -> bool {
+        match self {
+            DiffMode::Unchanged(entry) => entry.is_dir(),
+            DiffMode::Changed(a, b) => a.is_dir() && b.is_dir(),
+            DiffMode::Added(entry) => entry.is_dir(),
+            DiffMode::Removed(entry) => entry.is_dir(),
+        }
+    }
+}
+
+impl<U1> DiffMode<U1, U1> {
+    /// The associated user data from the underlying entry.
+    ///
+    /// In the case of a [`Self::Changed`] entry, the original entry
+    /// data is returned.
+    pub fn user_data(&self) -> &U1 {
+        match self {
+            DiffMode::Unchanged(entry) => &entry.user_data,
+            DiffMode::Changed(a, _) => &a.user_data,
+            DiffMode::Added(entry) => &entry.user_data,
+            DiffMode::Removed(entry) => &entry.user_data,
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct Diff {
-    pub mode: DiffMode,
+pub struct Diff<U1 = (), U2 = ()> {
+    pub mode: DiffMode<U1, U2>,
     pub path: RelativePathBuf,
 }
 
-impl std::fmt::Display for Diff {
+impl<U1, U2> std::fmt::Display for Diff<U1, U2> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "{} {}{}",
@@ -64,7 +92,7 @@ impl std::fmt::Display for Diff {
     }
 }
 
-impl Diff {
+impl<U1, U2> Diff<U1, U2> {
     fn details(&self) -> String {
         let mut details = String::new();
         if let DiffMode::Changed(a, b) = &self.mode {
@@ -82,7 +110,7 @@ impl Diff {
     }
 }
 
-pub fn compute_diff(a: &Manifest, b: &Manifest) -> Vec<Diff> {
+pub fn compute_diff<U1: Clone>(a: &Manifest<U1>, b: &Manifest<U1>) -> Vec<Diff<U1, U1>> {
     let mut changes = Vec::new();
     let mut all_entries: Vec<_> = a.walk().chain(b.walk()).collect();
     all_entries.sort();
@@ -105,12 +133,19 @@ pub fn compute_diff(a: &Manifest, b: &Manifest) -> Vec<Diff> {
     changes
 }
 
-fn diff_path(a: &Manifest, b: &Manifest, path: &RelativePathBuf) -> Option<Diff> {
+/// Compares the two entries, creating a diff to represent their delta.
+///
+/// In the case of no change, the entry from `a` is returned.
+fn diff_path<U1: Clone, U2: Clone>(
+    a: &Manifest<U1>,
+    b: &Manifest<U2>,
+    path: &RelativePathBuf,
+) -> Option<Diff<U1, U2>> {
     match (a.get_path(path), b.get_path(path)) {
         (None, None) => None,
 
-        (_, Some(b_entry)) if b_entry.kind == EntryKind::Mask => Some(Diff {
-            mode: DiffMode::Removed(b_entry.clone()),
+        (Some(a_entry), Some(b_entry)) if b_entry.kind == EntryKind::Mask => Some(Diff {
+            mode: DiffMode::Removed(a_entry.clone()),
             path: path.clone(),
         }),
 
@@ -127,7 +162,10 @@ fn diff_path(a: &Manifest, b: &Manifest, path: &RelativePathBuf) -> Option<Diff>
         (Some(a_entry), Some(b_entry)) => Some({
             if a_entry == b_entry {
                 Diff {
-                    mode: DiffMode::Unchanged(b_entry.clone()),
+                    // use the entry from `a` as it's more representative
+                    // of the unchanged item (in the case of the user data
+                    // being different, one would expect the original value)
+                    mode: DiffMode::Unchanged(a_entry.clone()),
                     path: path.clone(),
                 }
             } else {

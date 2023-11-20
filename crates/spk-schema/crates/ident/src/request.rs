@@ -726,8 +726,9 @@ impl PkgRequest {
         self.requested_by.values().flatten().cloned().collect()
     }
 
-    pub fn from_ident(pkg: AnyIdent, requester: RequestedBy) -> Self {
-        let (version_ident, build) = pkg.into_inner();
+    /// Construct a new simple request for the identified package
+    pub fn from_ident<I: Into<AnyIdent>>(pkg: I, requester: RequestedBy) -> Self {
+        let (version_ident, build) = pkg.into().into_inner();
         let (name, version) = version_ident.into_inner();
         let ri = RangeIdent {
             repository_name: None,

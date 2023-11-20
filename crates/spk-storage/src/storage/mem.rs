@@ -171,9 +171,7 @@ where
         if matches!(publish_policy, PublishPolicy::DoNotOverwriteVersion)
             && versions.contains_key(spec.version())
         {
-            Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::VersionExistsError(spec.ident().clone()),
-            ))
+            Err(Error::VersionExists(spec.ident().clone()))
         } else {
             versions.insert(spec.version().clone(), Arc::new(spec.clone()));
             Ok(())
@@ -185,24 +183,12 @@ where
             .read()
             .await
             .get(pkg.name())
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.to_any(),
-                ))
-            })?
+            .ok_or_else(|| Error::PackageNotFound(pkg.to_any()))?
             .get(pkg.version())
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.to_any(),
-                ))
-            })?
+            .ok_or_else(|| Error::PackageNotFound(pkg.to_any()))?
             .get(pkg.build())
             .map(|(_, d)| d.to_owned())
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.to_any(),
-                ))
-            })
+            .ok_or_else(|| Error::PackageNotFound(pkg.to_any()))
     }
 
     async fn read_package_from_storage(
@@ -213,23 +199,11 @@ where
             .read()
             .await
             .get(pkg.name())
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.to_any(),
-                ))
-            })?
+            .ok_or_else(|| Error::PackageNotFound(pkg.to_any()))?
             .get(pkg.version())
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.to_any(),
-                ))
-            })?
+            .ok_or_else(|| Error::PackageNotFound(pkg.to_any()))?
             .get(pkg.build())
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.to_any(),
-                ))
-            })
+            .ok_or_else(|| Error::PackageNotFound(pkg.to_any()))
             .map(|found| Arc::clone(&found.0))
     }
 
@@ -246,18 +220,14 @@ where
                 match versions.get_mut(pkg.version()) {
                     Some(builds) => {
                         if builds.remove(pkg.build()).is_none() {
-                            return Err(Error::SpkValidatorsError(
-                                spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
-                            ));
+                            return Err(Error::PackageNotFound(pkg.to_any()));
                         }
                         if builds.is_empty() {
                             versions.remove(pkg.version());
                         }
                     }
                     None => {
-                        return Err(Error::SpkValidatorsError(
-                            spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
-                        ));
+                        return Err(Error::PackageNotFound(pkg.to_any()));
                     }
                 };
                 if versions.is_empty() {
@@ -265,9 +235,7 @@ where
                 }
             }
             None => {
-                return Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
-                ));
+                return Err(Error::PackageNotFound(pkg.to_any()));
             }
         };
         Ok(())
@@ -277,26 +245,16 @@ where
         let mut packages = self.packages.write().await;
         let versions = match packages.get_mut(pkg.name()) {
             Some(v) => v,
-            None => {
-                return Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
-                ))
-            }
+            None => return Err(Error::PackageNotFound(pkg.to_any())),
         };
 
         let builds = match versions.get_mut(pkg.version()) {
             Some(v) => v,
-            None => {
-                return Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
-                ))
-            }
+            None => return Err(Error::PackageNotFound(pkg.to_any())),
         };
 
         if builds.remove(pkg.build()).is_none() {
-            Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
-            ))
+            Err(Error::PackageNotFound(pkg.to_any()))
         } else {
             Ok(())
         }
@@ -368,23 +326,11 @@ where
             .read()
             .await
             .get(pkg.name())
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.to_any(),
-                ))
-            })?
+            .ok_or_else(|| Error::PackageNotFound(pkg.to_any()))?
             .get(pkg.version())
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.to_any(),
-                ))
-            })?
+            .ok_or_else(|| Error::PackageNotFound(pkg.to_any()))?
             .get(pkg.build())
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.to_any(),
-                ))
-            })
+            .ok_or_else(|| Error::PackageNotFound(pkg.to_any()))
             .map(Arc::clone)
     }
 
@@ -393,18 +339,10 @@ where
             .read()
             .await
             .get(pkg.name())
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.to_any(None),
-                ))
-            })?
+            .ok_or_else(|| Error::PackageNotFound(pkg.to_any(None)))?
             .get(pkg.version())
             .map(Arc::clone)
-            .ok_or_else(|| {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.to_any(None),
-                ))
-            })
+            .ok_or_else(|| Error::PackageNotFound(pkg.to_any(None)))
     }
 
     async fn remove_recipe(&self, pkg: &VersionIdent) -> Result<()> {
@@ -412,19 +350,13 @@ where
         match specs.get_mut(pkg.name()) {
             Some(versions) => {
                 if versions.remove(pkg.version()).is_none() {
-                    return Err(Error::SpkValidatorsError(
-                        spk_schema::validators::Error::PackageNotFoundError(pkg.to_any(None)),
-                    ));
+                    return Err(Error::PackageNotFound(pkg.to_any(None)));
                 }
                 if versions.is_empty() {
                     specs.remove(pkg.name());
                 }
             }
-            None => {
-                return Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any(None)),
-                ))
-            }
+            None => return Err(Error::PackageNotFound(pkg.to_any(None))),
         };
         Ok(())
     }

@@ -66,10 +66,6 @@ pub enum Error {
     InvalidYaml(#[from] format_serde_error::SerdeError),
     #[error(transparent)]
     InvalidTemplate(format_serde_error::SerdeError),
-
-    #[error("{0}: {1}")]
-    InvalidBuildChangeSetError(String, #[source] spk_schema_validators::Error),
-
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkConfigError(#[from] spk_config::Error),

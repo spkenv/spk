@@ -127,7 +127,7 @@ async fn remove_build_impl(
     // `remove_build_impl` multiple times for the same package), the recipe
     // will get deleted on the first call and then it will be "not found" for
     // subsequent calls. To avoid warning about it not being found, transmute
-    // PackageNotFoundError into a success.
+    // PackageNotFound into a success.
     if build_index > 0 && matches!(&recipe, Err(err) if err.is_package_not_found()) {
         recipe = Ok(());
     }
@@ -186,9 +186,7 @@ async fn remove_all(
     let pretty_pkg = pkg.format_ident();
     match repo.remove_recipe(pkg).await {
         Ok(()) => tracing::info!("removed recipe {pretty_pkg: >25} from {repo_name}"),
-        Err(spk_storage::Error::SpkValidatorsError(
-            spk_schema::validators::Error::PackageNotFoundError(_),
-        )) => {
+        Err(spk_storage::Error::PackageNotFound(_)) => {
             // If builds were found above, `remove_build` will have also
             // attempted to delete the recipe, so don't warn about not finding
             // it now.

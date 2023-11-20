@@ -31,6 +31,6 @@ tracing = { workspace = true }
 miette = { workspace = true }
 
 [dev-dependencies]
-itertools = "0.10"
+itertools = { workspace = true }
 rstest = { workspace = true }
 spk-solve-macros = { path = "../macros" }

@@ -113,9 +113,7 @@ where
 
         let local_err = match copy_any(transfer_pkg.clone(), &local_repo, &target_repo).await {
             Ok(_) => continue,
-            Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(ident),
-            )) => {
+            Err(Error::PackageNotFound(ident)) => {
                 if ident.build().is_some() {
                     CopyResult::BuildNotFound
                 } else {
@@ -135,9 +133,7 @@ where
         .await
         {
             Ok(_) => continue,
-            Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(ident),
-            )) => {
+            Err(Error::PackageNotFound(ident)) => {
                 if ident.build().is_some() {
                     CopyResult::BuildNotFound
                 } else {
@@ -149,7 +145,7 @@ where
 
         // `list_package_builds` can return builds that only exist as spfs tags
         // under `spk/spec`, meaning the build doesn't really exist. Ignore
-        // `PackageNotFoundError` about these ... unless the build was
+        // `PackageNotFound` about these ... unless the build was
         // explicitly named to be archived.
         //
         // Consider changing `list_package_builds` so it doesn't do that
@@ -166,9 +162,9 @@ where
         // we will hide the remote_err in cases when both failed,
         // because the remote was always a fallback and fixing the
         // local error is preferred
-        return Err(local_err.or(remote_err).unwrap_or_else(|| {
-            spk_schema::validators::Error::PackageNotFoundError(transfer_pkg).into()
-        }));
+        return Err(local_err
+            .or(remote_err)
+            .unwrap_or_else(|| Error::PackageNotFound(transfer_pkg)));
     }
 
     tracing::info!(path=?filename, "building archive");

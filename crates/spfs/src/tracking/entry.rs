@@ -88,6 +88,8 @@ impl encoding::Decodable for EntryKind {
 }
 
 /// An entry in the manifest identifies a directory or file in the tree
+///
+/// Any associated user data is not considered for comparison, sorting, etc.
 #[derive(Clone)]
 pub struct Entry<T = ()> {
     pub kind: EntryKind,
@@ -124,11 +126,8 @@ where
     }
 }
 
-impl<T> PartialEq for Entry<T>
-where
-    T: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
+impl<T, T2> PartialEq<Entry<T2>> for Entry<T> {
+    fn eq(&self, other: &Entry<T2>) -> bool {
         // break this apart to create compiler errors when
         // new fields are added
         let Entry {
@@ -137,19 +136,29 @@ where
             mode,
             size,
             entries,
-            user_data,
+            user_data: _,
         } = other;
-        self.kind == *kind
-            && self.mode == *mode
-            && self.size == *size
-            && self.object == *object
-            && self.entries == *entries
-            && self.user_data == *user_data
+        if self.kind != *kind || self.mode != *mode || self.size != *size || self.object != *object
+        {
+            return false;
+        }
+        if self.entries.len() != entries.len() {
+            return false;
+        }
+        for (name, value) in self.entries.iter() {
+            let Some(other) = entries.get(name) else {
+                return false;
+            };
+            if value != other {
+                return false;
+            }
+        }
+        true
     }
 }
-impl<T> Eq for Entry<T> where T: Eq {}
+impl<T> Eq for Entry<T> {}
 
-impl PartialOrd for Entry {
+impl<T> PartialOrd for Entry<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self.kind, other.kind) {
             (EntryKind::Tree, EntryKind::Tree) => None,
@@ -274,6 +283,24 @@ impl<T> Entry<T> {
         }
     }
 
+    /// Clone the provided user data into this entry and any children
+    pub fn and_user_data<T1: Clone>(self, user_data: T1) -> Entry<T1> {
+        Entry {
+            kind: self.kind,
+            object: self.object,
+            mode: self.mode,
+            size: self.size,
+            entries: self
+                .entries
+                .into_iter()
+                .map(|(n, e)| (n, e.and_user_data(user_data.clone())))
+                .collect(),
+            user_data,
+        }
+    }
+
+    /// Map this entry with the given user data, applying
+    /// the default value to any children.
     pub fn with_user_data<T1: Default>(self, user_data: T1) -> Entry<T1> {
         Entry {
             kind: self.kind,

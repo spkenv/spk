@@ -17,7 +17,6 @@ use spk_storage::{self as storage, Repository};
 
 use super::{BinaryPackageBuilder, BuildSource};
 use crate::build::SourcePackageBuilder;
-use crate::Error;
 
 #[rstest]
 fn test_split_manifest_permissions() {
@@ -104,7 +103,10 @@ async fn test_build_workdir(tmpdir: tempfile::TempDir) {
     let recipe = recipe!({
         "pkg": "test/1.0.0",
         "build": {
-            "script": format!("echo $PWD > {out_file:?}")
+            "script": format!("echo $PWD > {out_file:?}"),
+            "validation": {
+                "rules": [{"allow": "EmptyPackage"}]
+            }
         }
     });
 
@@ -605,7 +607,7 @@ async fn test_build_package_source_cleanup() {
 
 #[rstest]
 #[tokio::test]
-async fn test_build_filters_unmodified_files() {
+async fn test_build_filters_reset_files() {
     let rt = spfs_runtime().await;
 
     // Create a package that can be used as a dependency...
@@ -698,128 +700,6 @@ async fn test_build_filters_unmodified_files() {
             entry.is_some(),
             "should capture the files newly created in the build"
         );
-    }
-}
-
-#[rstest]
-#[tokio::test]
-async fn test_build_package_downstream_build_requests() {
-    let rt = spfs_runtime().await;
-    let base_spec = recipe!(
-        {
-            "pkg": "base/1.0.0",
-            "sources": [],
-            "build": {
-                "options": [{"var": "inherited/val", "inheritance": "StrongForBuildOnly"}],
-                "script": "echo building...",
-            },
-        }
-    );
-    let top_spec = recipe!(
-        {
-            "pkg": "top/1.0.0",
-            "sources": [],
-            "build": {"options": [{"pkg": "base"}], "script": "echo building..."},
-        }
-    );
-    rt.tmprepo.publish_recipe(&top_spec).await.unwrap();
-    rt.tmprepo.publish_recipe(&base_spec).await.unwrap();
-
-    SourcePackageBuilder::from_recipe(base_spec.clone())
-        .build_and_publish(".", &*rt.tmprepo)
-        .await
-        .unwrap();
-    let (base_pkg, _) = BinaryPackageBuilder::from_recipe(base_spec)
-        .with_repository(rt.tmprepo.clone())
-        .build_and_publish(option_map! {}, &*rt.tmprepo)
-        .await
-        .unwrap();
-
-    SourcePackageBuilder::from_recipe(top_spec.clone())
-        .build_and_publish(".", &*rt.tmprepo)
-        .await
-        .unwrap();
-    let result = BinaryPackageBuilder::from_recipe(top_spec)
-        .with_repository(rt.tmprepo.clone())
-        .build_and_publish(option_map! {}, &*rt.tmprepo)
-        .await;
-
-    match result {
-        Err(Error::MissingDownstreamBuildRequest {
-            required_by,
-            request,
-            ..
-        }) => {
-            assert_eq!(&required_by, base_pkg.ident());
-            assert!(
-                matches!(&request, Request::Var(v) if v.var.as_str() == "base.inherited" && v.value.as_pinned() == Some("val")),
-                "{request}"
-            );
-            panic!("missing downstream build request should have been injected")
-        }
-        Err(err) => panic!("Expected Error::MissingDownstreamBuildRequest, got {err:?}"),
-        Ok(_) => (),
-    }
-}
-
-#[rstest]
-#[tokio::test]
-async fn test_build_package_downstream_runtime_request() {
-    let rt = spfs_runtime().await;
-    let base_spec = recipe!(
-        {
-            "pkg": "base/1.0.0",
-            "sources": [],
-            "build": {
-                "options": [{"var": "inherited/val", "inheritance": "Strong"}],
-                "script": "echo building...",
-            },
-        }
-    );
-    let top_spec = recipe!(
-        {
-            "pkg": "top/1.0.0",
-            "sources": [],
-            "build": {"options": [{"pkg": "base"}, {"var": "inherited/val"}], "script": "echo building..."},
-        }
-    );
-    rt.tmprepo.publish_recipe(&top_spec).await.unwrap();
-    rt.tmprepo.publish_recipe(&base_spec).await.unwrap();
-
-    SourcePackageBuilder::from_recipe(base_spec.clone())
-        .build_and_publish(".", &*rt.tmprepo)
-        .await
-        .unwrap();
-    let (base_pkg, _) = BinaryPackageBuilder::from_recipe(base_spec)
-        .with_repository(rt.tmprepo.clone())
-        .build_and_publish(&option_map! {}, &*rt.tmprepo)
-        .await
-        .unwrap();
-
-    SourcePackageBuilder::from_recipe(top_spec.clone())
-        .build_and_publish(".", &*rt.tmprepo)
-        .await
-        .unwrap();
-    let result = BinaryPackageBuilder::from_recipe(top_spec)
-        .with_repository(rt.tmprepo.clone())
-        .build_and_publish(&option_map! {}, &*rt.tmprepo)
-        .await;
-
-    match result {
-        Err(Error::MissingDownstreamRuntimeRequest {
-            required_by,
-            request,
-            ..
-        }) => {
-            assert_eq!(&required_by, base_pkg.ident());
-            assert!(
-                matches!(&request, Request::Var(v) if v.var.as_str() == "base.inherited" && v.value.as_pinned() == Some("val")),
-                "{request}"
-            );
-            panic!("missing downstream runtime request should have been injected")
-        }
-        Err(err) => panic!("Expected Error::MissingDownstreamRuntimeRequest, got {err}"),
-        Ok(_) => (),
     }
 }
 
@@ -1211,7 +1091,10 @@ async fn test_build_options_respect_components() {
                     "test -f /spfs/build && exit 1",
                     // This "run" file should exist in our build env.
                     "test -f /spfs/run"
-                ]
+                ],
+                "validation": {
+                    "rules": [{"allow": "EmptyPackage"}]
+                }
             },
         }
     );
@@ -1238,5 +1121,8 @@ async fn test_build_options_respect_components() {
         .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await;
 
-    assert!(r.is_ok(), "build script for 'top' expected to succeed");
+    if let Err(err) = r {
+        println!("{err}");
+        panic!("build script for 'top' expected to succeed");
+    }
 }

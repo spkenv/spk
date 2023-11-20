@@ -72,7 +72,7 @@ async fn test_repo_read_recipe_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
     let nothing = parse_version_ident("nothing").unwrap();
     match repo.read_recipe(&nothing).await {
-        Err(Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(_))) => {}
+        Err(Error::PackageNotFound(_)) => {}
         _ => panic!("expected package not found error"),
     }
 }
@@ -85,7 +85,7 @@ async fn test_repo_read_package_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
     let nothing = parse_build_ident("nothing/1.0.0/src").unwrap();
     match repo.read_package(&nothing).await {
-        Err(Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(_))) => {}
+        Err(Error::PackageNotFound(_)) => {}
         res => panic!("expected package not found error, got {res:?}"),
     }
 }
@@ -122,7 +122,7 @@ async fn test_repo_publish_recipe(#[case] repo: RepoKind) {
     );
 
     match repo.publish_recipe(&spec).await {
-        Err(Error::SpkValidatorsError(spk_schema::validators::Error::VersionExistsError(_))) => (),
+        Err(Error::VersionExists(_)) => (),
         _ => panic!("expected version exists error"),
     }
     repo.force_publish_recipe(&spec)

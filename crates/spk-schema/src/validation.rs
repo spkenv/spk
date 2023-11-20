@@ -2,63 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
-use std::iter::FromIterator;
-use std::path::PathBuf;
-
+use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
-use spfs::tracking::{Diff, DiffMode};
-
-use crate::validators::{
-    must_collect_all_files,
-    must_install_something,
-    must_not_alter_existing_files,
-};
-use crate::{Error, Result};
+use spk_schema_foundation::name::{PkgName, PkgNameBuf};
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]
 mod validation_test;
 
 /// A Validator validates packages after they have been built
+///
+/// This type has been deprecated in favor of the more extensible
+/// and configurable [`ValidationRule`] type, but remains in place
+/// so that older specs can still be read.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub enum Validator {
+#[allow(clippy::enum_variant_names)]
+pub enum LegacyValidator {
     MustInstallSomething,
     MustNotAlterExistingFiles,
     MustCollectAllFiles,
-}
-
-impl Validator {
-    /// Validate the set of changes to spfs according to this validator
-    pub fn validate<Package, P>(
-        &self,
-        pkg: &Package,
-        diffs: &[spfs::tracking::Diff],
-        prefix: P,
-    ) -> spk_schema_validators::Result<()>
-    where
-        Package: crate::Package,
-        P: AsRef<std::path::Path>,
-    {
-        match self {
-            Self::MustInstallSomething => must_install_something(diffs, prefix),
-            Self::MustNotAlterExistingFiles => must_not_alter_existing_files(diffs, prefix),
-            Self::MustCollectAllFiles => must_collect_all_files(
-                pkg.ident(),
-                pkg.components().iter().map(|c| &c.files),
-                diffs,
-            ),
-        }
-    }
-}
-
-/// The set of validators that are enabled by default
-pub fn default_validators() -> Vec<Validator> {
-    vec![
-        Validator::MustInstallSomething,
-        Validator::MustNotAlterExistingFiles,
-        Validator::MustCollectAllFiles,
-    ]
 }
 
 /// ValidationSpec configures how builds of this package
@@ -67,94 +29,375 @@ pub fn default_validators() -> Vec<Validator> {
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct ValidationSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub disabled: Vec<Validator>,
+    rules: Vec<ValidationRule>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub disabled: Vec<LegacyValidator>,
 }
 
 impl ValidationSpec {
     pub fn is_default(&self) -> bool {
-        self == &Self::default()
+        self.rules.is_empty() && self.disabled.is_empty()
     }
 
-    /// Return the set of active validators based on this spec
-    pub fn configured_validators(&self) -> HashSet<Validator> {
-        HashSet::from_iter(
-            default_validators()
-                .into_iter()
-                .filter(|validator| !self.disabled.contains(validator)),
-        )
+    /// The rules as specified in the spec file. Usually this is not
+    /// what you want, see [`Self::to_expanded_rules`].
+    ///
+    /// # Safety
+    /// The unexpanded rules are as-specified in the spec file but do not
+    /// include any required default rules or expanded rules. It also
+    /// may have multiple conflicting rules that need to be further accounted
+    /// for when determining actual validation criteria
+    pub unsafe fn unexpanded_rules(&self) -> &Vec<ValidationRule> {
+        &self.rules
     }
 
-    /// Validate the current set of spfs changes as a build of this package
-    pub async fn validate_build_changeset<Package>(&self, package: &Package) -> Result<Vec<Diff>>
-    where
-        Package: crate::Package,
-    {
-        static SPFS: &str = "/spfs";
-
-        let mut diffs = spfs::diff_runtime_changes().await?;
-
-        // FIXME: this is only required because of a bug in spfs reset which
-        // fails to handle permission-only changes on files...
-        reset_permissions(&mut diffs, SPFS)?;
-
-        for validator in self.configured_validators().iter() {
-            if let Err(err) = validator.validate(package, &diffs, SPFS) {
-                return Err(crate::Error::InvalidBuildChangeSetError(
-                    format!("{validator:?}"),
-                    err,
-                ));
-            }
+    /// Compute the final set of validation rules for this package
+    ///
+    /// This includes any default and implicit rules in the correct
+    /// override order.
+    pub fn to_expanded_rules(&self) -> Vec<ValidationRule> {
+        let defaults = Self::default_rules()
+            .into_iter()
+            .flat_map(ValidationRule::with_implicit_additions)
+            .collect::<Vec<_>>();
+        let mut expanded = defaults;
+        for rule in self.rules.iter().cloned() {
+            let implicit_additions = rule.with_implicit_additions();
+            expanded.extend(implicit_additions);
         }
+        expanded
+    }
 
-        // Remove any "unchanged" entries from `diffs`; this list can be used
-        // to ignore entries in the upperdir that would otherwise be captured
-        // as changed by the build. For example, renaming a file to a
-        // different name and back to its original name.
-        diffs.retain(|diff| !diff.mode.is_unchanged());
-
-        Ok(diffs)
+    /// The default rules assumed for all packages
+    pub fn default_rules() -> Vec<ValidationRule> {
+        vec![
+            ValidationRule::Deny {
+                condition: ValidationMatcher::EmptyPackage,
+            },
+            ValidationRule::Deny {
+                condition: ValidationMatcher::RecursiveBuild,
+            },
+            ValidationRule::Deny {
+                condition: ValidationMatcher::AlterExistingFiles {
+                    packages: Vec::new(),
+                    action: None,
+                },
+            },
+            ValidationRule::Deny {
+                condition: ValidationMatcher::CollectExistingFiles {
+                    packages: Vec::new(),
+                },
+            },
+            ValidationRule::Require {
+                condition: ValidationMatcher::InheritRequirements {
+                    packages: Vec::new(),
+                },
+            },
+        ]
     }
 }
 
-// Reset all file permissions in spfs if permissions is the
-// only change for the given file
-// NOTE(rbottriell): permission changes are not properly reset by spfs
-// so we must deal with them manually for now
-pub fn reset_permissions<P: AsRef<relative_path::RelativePath>>(
-    diffs: &mut [spfs::tracking::Diff],
-    prefix: P,
-) -> Result<()> {
-    use std::os::unix::prelude::PermissionsExt;
+/// Specifies an additional set of validation criteria for a package
+///
+/// These rules are meant to be evaluated in order with later rules
+/// taking precedence over earlier ones with the same level of specificity
+#[derive(Debug, Clone, Eq, Hash, Ord, PartialEq, PartialOrd, strum::EnumDiscriminants)]
+#[strum_discriminants(derive(strum::EnumVariantNames, Serialize, Deserialize))]
+#[strum_discriminants(serde(rename_all = "lowercase"))]
+#[strum_discriminants(strum(serialize_all = "lowercase"))]
+pub enum ValidationRule {
+    Allow { condition: ValidationMatcher },
+    Deny { condition: ValidationMatcher },
+    Require { condition: ValidationMatcher },
+}
 
-    for diff in diffs.iter_mut() {
-        match &diff.mode {
-            DiffMode::Unchanged(_) | DiffMode::Removed(_) | DiffMode::Added(_) => continue,
-            DiffMode::Changed(a, b) => {
-                if a.size != b.size {
-                    continue;
-                }
-                if a.object != b.object {
-                    continue;
-                }
-                if a.kind != b.kind {
-                    continue;
-                }
-                let mode_change = a.mode ^ b.mode;
-                let nonperm_change = (mode_change | 0o777) ^ 0o777;
-                if nonperm_change != 0 {
-                    continue;
-                }
-                if mode_change != 0 {
-                    let perms = std::fs::Permissions::from_mode(a.mode);
-                    let filename = diff
-                        .path
-                        .to_path(PathBuf::from(prefix.as_ref().to_string()));
-                    std::fs::set_permissions(&filename, perms)
-                        .map_err(|err| Error::FileWriteError(filename, err))?;
-                }
-                diff.mode = DiffMode::Unchanged(a.clone());
-            }
+impl ValidationRule {
+    pub fn is_allow(&self) -> bool {
+        matches!(self, Self::Allow { .. })
+    }
+
+    pub fn is_deny(&self) -> bool {
+        matches!(self, Self::Deny { .. })
+    }
+
+    pub fn is_require(&self) -> bool {
+        matches!(self, Self::Require { .. })
+    }
+
+    /// The internal condition that is allowed, denied, required by this rule
+    pub fn condition(&self) -> &ValidationMatcher {
+        match self {
+            Self::Allow { condition } => condition,
+            Self::Deny { condition } => condition,
+            Self::Require { condition } => condition,
         }
     }
-    Ok(())
+
+    /// Create a new rule with the same allow/deny/require but an alternative condition
+    pub fn with_condition(&self, condition: ValidationMatcher) -> Self {
+        match self {
+            ValidationRule::Allow { condition: _ } => Self::Allow { condition },
+            ValidationRule::Deny { condition: _ } => Self::Deny { condition },
+            ValidationRule::Require { condition: _ } => Self::Require { condition },
+        }
+    }
+
+    /// Expands this rule, adding rules for any implicit ones that
+    /// are defined as being a part of the current one.
+    pub fn with_implicit_additions(self) -> Vec<ValidationRule> {
+        match self.condition() {
+            ValidationMatcher::RecursiveBuild => {
+                // allowing a recursive build also implicitly assumes that
+                // all files from the previous version of the package are okay
+                // to modify, remove and collect into the new version
+                vec![
+                    self.with_condition(ValidationMatcher::AlterExistingFiles {
+                        packages: vec![NameOrCurrent::Current],
+                        action: Some(FileAlteration::Remove),
+                    }),
+                    self.with_condition(ValidationMatcher::AlterExistingFiles {
+                        packages: vec![NameOrCurrent::Current],
+                        action: Some(FileAlteration::Change),
+                    }),
+                    self.with_condition(ValidationMatcher::AlterExistingFiles {
+                        packages: vec![NameOrCurrent::Current],
+                        action: Some(FileAlteration::Touch),
+                    }),
+                    self.with_condition(ValidationMatcher::CollectExistingFiles {
+                        packages: vec![NameOrCurrent::Current],
+                    }),
+                    self,
+                ]
+            }
+            ValidationMatcher::AlterExistingFiles {
+                packages,
+                action: None,
+            } => vec![
+                self.with_condition(ValidationMatcher::AlterExistingFiles {
+                    packages: packages.clone(),
+                    action: Some(FileAlteration::Change),
+                }),
+                self.with_condition(ValidationMatcher::AlterExistingFiles {
+                    packages: packages.clone(),
+                    action: Some(FileAlteration::Remove),
+                }),
+            ],
+            _ => vec![self],
+        }
+    }
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Deserialize,
+    Serialize,
+    strum::EnumDiscriminants,
+    strum::EnumVariantNames,
+)]
+#[strum_discriminants(derive(
+    Hash,
+    PartialOrd,
+    Ord,
+    strum::EnumVariantNames,
+    Deserialize,
+    Serialize
+))]
+pub enum ValidationMatcher {
+    EmptyPackage,
+    CollectAllFiles,
+    AlterExistingFiles {
+        packages: Vec<NameOrCurrent>,
+        action: Option<FileAlteration>,
+    },
+    CollectExistingFiles {
+        packages: Vec<NameOrCurrent>,
+    },
+    RecursiveBuild,
+    InheritRequirements {
+        packages: Vec<PkgNameBuf>,
+    },
+}
+
+#[derive(
+    Debug, Default, Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize,
+)]
+pub enum FileAlteration {
+    #[default]
+    Change,
+    Remove,
+    Touch,
+}
+
+/// Either a package name or a special reference to the current package
+#[derive(Debug, Clone, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+pub enum NameOrCurrent {
+    #[serde(rename = "Self")]
+    Current,
+    Name(PkgNameBuf),
+}
+
+impl NameOrCurrent {
+    /// Returns the contained package name or the
+    /// provided current package as appropriate
+    pub fn or_current<'a, 'b: 'a>(&'a self, current: &'b PkgName) -> &'a PkgName {
+        match self {
+            Self::Name(n) => n,
+            Self::Current => current,
+        }
+    }
+
+    /// The named package, if this is not [`Self::Current`]
+    pub fn as_name(&self) -> Option<&PkgName> {
+        match self {
+            Self::Current => None,
+            Self::Name(n) => Some(n.as_ref()),
+        }
+    }
+}
+
+impl From<PkgNameBuf> for NameOrCurrent {
+    fn from(value: PkgNameBuf) -> Self {
+        Self::Name(value)
+    }
+}
+
+impl<'de> Deserialize<'de> for ValidationRule {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ValidationRuleVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ValidationRuleVisitor {
+            type Value = ValidationRule;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("an allow, deny, or require rule")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                use ValidationRuleDiscriminants as Kind;
+                let kind = map
+                    .next_key::<Kind>()?
+                    .ok_or_else(|| serde::de::Error::missing_field("allow, deny, or require"))?;
+                match kind {
+                    Kind::Allow => Ok(ValidationRule::Allow {
+                        condition: Self::deserialize_partial_matcher(map)?,
+                    }),
+                    Kind::Deny => Ok(ValidationRule::Deny {
+                        condition: Self::deserialize_partial_matcher(map)?,
+                    }),
+                    Kind::Require => Ok(ValidationRule::Require {
+                        condition: Self::deserialize_partial_matcher(map)?,
+                    }),
+                }
+            }
+        }
+
+        impl<'de> ValidationRuleVisitor {
+            fn deserialize_partial_matcher<A>(mut map: A) -> Result<ValidationMatcher, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                use ValidationMatcherDiscriminants as Kind;
+                let kind = map.next_value::<Kind>()?;
+                match kind {
+                    Kind::EmptyPackage => Ok(ValidationMatcher::EmptyPackage),
+                    Kind::CollectAllFiles => Ok(ValidationMatcher::EmptyPackage),
+                    Kind::AlterExistingFiles => {
+                        let mut packages = Default::default();
+                        let mut action = None;
+                        while let Some(name) = map.next_key::<String>()? {
+                            match name.as_str() {
+                                "packages" => packages = map.next_value()?,
+                                "action" => action = map.next_value()?,
+                                unknown => {
+                                    return Err(serde::de::Error::unknown_field(
+                                        unknown,
+                                        &["packages", "action"],
+                                    ));
+                                }
+                            }
+                        }
+                        Ok(ValidationMatcher::AlterExistingFiles { packages, action })
+                    }
+                    Kind::InheritRequirements => {
+                        let packages = if let Some((name, value)) =
+                            map.next_entry::<String, Vec<PkgNameBuf>>()?
+                        {
+                            if name != "packages" {
+                                return Err(serde::de::Error::unknown_field(&name, &["packages"]));
+                            }
+                            value
+                        } else {
+                            Vec::new()
+                        };
+                        Ok(ValidationMatcher::InheritRequirements { packages })
+                    }
+                    Kind::CollectExistingFiles => {
+                        let packages = if let Some((name, value)) =
+                            map.next_entry::<String, Vec<NameOrCurrent>>()?
+                        {
+                            if name != "packages" {
+                                return Err(serde::de::Error::unknown_field(&name, &["packages"]));
+                            }
+                            value
+                        } else {
+                            Vec::new()
+                        };
+                        Ok(ValidationMatcher::CollectExistingFiles { packages })
+                    }
+                    Kind::RecursiveBuild => Ok(ValidationMatcher::RecursiveBuild),
+                }
+            }
+        }
+
+        deserializer.deserialize_map(ValidationRuleVisitor)
+    }
+}
+
+impl Serialize for ValidationRule {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use ValidationMatcherDiscriminants as Kind;
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_key(&ValidationRuleDiscriminants::from(self))?;
+        let condition = self.condition();
+        map.serialize_value(&Kind::from(condition))?;
+        match condition {
+            ValidationMatcher::RecursiveBuild
+            | ValidationMatcher::CollectAllFiles
+            | ValidationMatcher::EmptyPackage => {}
+            ValidationMatcher::InheritRequirements { packages } => {
+                if !packages.is_empty() {
+                    map.serialize_entry("packages", packages)?;
+                }
+            }
+            ValidationMatcher::AlterExistingFiles { packages, action } => {
+                if !packages.is_empty() {
+                    map.serialize_entry("packages", packages)?;
+                }
+                if let Some(action) = action {
+                    map.serialize_entry("action", action)?;
+                }
+            }
+            ValidationMatcher::CollectExistingFiles { packages } => {
+                if !packages.is_empty() {
+                    map.serialize_entry("packages", packages)?;
+                }
+            }
+        }
+        map.end()
+    }
 }

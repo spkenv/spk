@@ -16,7 +16,7 @@ migration-to-components = [
 [dependencies]
 colored = { workspace = true }
 console = { workspace = true }
-itertools = "0.10"
+itertools = { workspace = true }
 spfs = { path = "../../../spfs" }
 spk-schema = { path = "../../../spk-schema" }
 spk-storage = { path = "../../../spk-storage" }

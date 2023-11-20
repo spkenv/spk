@@ -213,10 +213,13 @@ impl Run for MakeBinary {
                 let out = match builder.build_and_publish(&variant, &local).await {
                     Err(err @ spk_build::Error::SpkSolverError(_))
                     | Err(
+                        err @ spk_build::Error::SpkStorageError(spk_storage::Error::VersionExists(
+                            _,
+                        )),
+                    )
+                    | Err(
                         err @ spk_build::Error::SpkStorageError(
-                            spk_storage::Error::SpkValidatorsError(
-                                spk_schema::validators::Error::PackageNotFoundError(_),
-                            ),
+                            spk_storage::Error::PackageNotFound(_),
                         ),
                     ) => {
                         if !self.created_builds.is_empty() {

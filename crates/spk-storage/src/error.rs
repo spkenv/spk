@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use miette::Diagnostic;
-use spk_schema::AnyIdent;
+use spk_schema::{AnyIdent, VersionIdent};
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -32,6 +32,10 @@ pub enum Error {
     ),
     #[error("Invalid repository metadata: {0}")]
     InvalidRepositoryMetadata(#[source] serde_yaml::Error),
+    #[error("Package not found: {0}")]
+    PackageNotFound(AnyIdent),
+    #[error("Version exists: {0}")]
+    VersionExists(VersionIdent),
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SPFS(#[from] spfs::Error),
@@ -50,10 +54,7 @@ pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkSpecError(#[from] spk_schema::Error),
-    #[error(transparent)]
-    #[diagnostic(forward(0))]
-    SpkValidatorsError(#[from] spk_schema::validators::Error),
-    #[error("Error: {0}")]
+    #[error("{0}")]
     String(String),
 }
 
@@ -61,10 +62,7 @@ impl Error {
     /// Return true if this is a `PackageNotFound` error.
     #[inline]
     pub fn is_package_not_found(&self) -> bool {
-        match self {
-            Error::SpkValidatorsError(e) => e.is_package_not_found(),
-            _ => false,
-        }
+        matches!(self, Self::PackageNotFound(_))
     }
 }
 

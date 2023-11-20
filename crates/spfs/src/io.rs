@@ -73,7 +73,11 @@ pub async fn format_digest(digest: encoding::Digest, format: DigestFormat<'_>) -
 }
 
 /// Return a human readable string rendering of the given diffs.
-pub fn format_diffs<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> String {
+///
+/// Ignores any additional entry user data.
+pub fn format_diffs<'a, U1: 'a, U2: 'a>(
+    diffs: impl Iterator<Item = &'a tracking::Diff<U1, U2>>,
+) -> String {
     let mut outputs = Vec::new();
     for diff in diffs {
         let mut abouts = Vec::new();
@@ -109,7 +113,11 @@ pub fn format_diffs<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> Stri
 }
 
 /// Return a string rendering of any given diffs which represent change.
-pub fn format_changes<'a>(diffs: impl Iterator<Item = &'a tracking::Diff>) -> String {
+///
+/// Ignores and entry user data.
+pub fn format_changes<'a, U1: 'a, U2: 'a>(
+    diffs: impl Iterator<Item = &'a tracking::Diff<U1, U2>>,
+) -> String {
     format_diffs(diffs.filter(|x| !x.mode.is_unchanged()))
 }
 

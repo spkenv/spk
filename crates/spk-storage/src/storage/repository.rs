@@ -80,7 +80,7 @@ pub trait Storage: Sync {
     /// published as well in order to make the spec usable in environments.
     ///
     /// # Errors:
-    /// - VersionExistsError: if the spec version is already present and
+    /// - VersionExists: if the spec version is already present and
     ///   `publish_policy` does not allow overwrite.
     async fn publish_recipe_to_storage(
         &self,
@@ -97,7 +97,7 @@ pub trait Storage: Sync {
     /// Read package information for a specific version and build.
     ///
     /// # Errors:
-    /// - PackageNotFoundError: If the package, version, or build does not exist
+    /// - PackageNotFound: If the package, version, or build does not exist
     async fn read_package_from_storage(
         &self,
         pkg: &BuildIdent,
@@ -274,13 +274,13 @@ pub trait Repository: Storage + Sync {
     /// Read an embed stub.
     ///
     /// # Errors:
-    /// - PackageNotFoundError: If the package, or version does not exist
+    /// - PackageNotFound: If the package, or version does not exist
     async fn read_embed_stub(&self, pkg: &BuildIdent) -> Result<Arc<Self::Package>>;
 
     /// Read a package recipe for the given package, and version.
     ///
     /// # Errors:
-    /// - PackageNotFoundError: If the package, or version does not exist
+    /// - PackageNotFound: If the package, or version does not exist
     async fn read_recipe(&self, pkg: &VersionIdent) -> Result<Arc<Self::Recipe>>;
 
     /// Publish a package spec to this repository.
@@ -290,7 +290,7 @@ pub trait Repository: Storage + Sync {
     /// published as well in order to make the package useful.
     ///
     /// # Errors:
-    /// - VersionExistsError: if the recipe version is already present
+    /// - VersionExists: if the recipe version is already present
     async fn publish_recipe(&self, spec: &Self::Recipe) -> Result<()> {
         self.publish_recipe_to_storage(spec, PublishPolicy::DoNotOverwriteVersion)
             .await
@@ -315,7 +315,7 @@ pub trait Repository: Storage + Sync {
     /// Read package information for a specific version and build.
     ///
     /// # Errors:
-    /// - PackageNotFoundError: If the package, version, or build does not exist
+    /// - PackageNotFound: If the package, version, or build does not exist
     async fn read_package(
         &self,
         pkg: &BuildIdent,

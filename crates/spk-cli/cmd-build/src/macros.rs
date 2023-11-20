@@ -48,7 +48,7 @@ macro_rules! try_build_package {
         $crate::try_build_package!($tmpdir, filename_str, $($extra_build_args),*)
     }};
 
-    ($tmpdir:ident, $filename:literal, $recipe:ident $(,)? $($extra_build_args:expr),*) => {{
+    ($tmpdir:ident, $filename:literal, $recipe:expr, $($extra_build_args:expr),*) => {{
         // Leak `filename` for convenience.
         let filename = Box::leak(Box::new($tmpdir.path().join($filename)));
         {
