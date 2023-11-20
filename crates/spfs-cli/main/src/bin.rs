@@ -157,7 +157,6 @@ async fn run_external_subcommand(args: Vec<String>) -> Result<i32> {
             None => {
                 let mut p = std::env::current_exe()
                     .map_err(|err| Error::process_spawn_error("current_exe()", err, None))?;
-                tracing::warn!("{p:?}");
                 p.set_file_name(&command);
                 p
             }
