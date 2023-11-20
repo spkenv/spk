@@ -109,8 +109,8 @@ impl CmdInfo {
                     "refs:".bright_blue(),
                     self.format_digest(obj.digest()?, repo).await?
                 );
-                println!("{}", "stack:".bright_blue());
-                for reference in obj.stack {
+                println!("{}:", "stack (top-down)".bright_blue());
+                for reference in obj.stack.to_top_down() {
                     println!("  - {}", self.format_digest(reference, repo).await?);
                 }
             }
@@ -187,16 +187,12 @@ impl CmdInfo {
     async fn print_global_info(&self, repo: &spfs::storage::RepositoryHandle) -> Result<()> {
         let runtime = spfs::active_runtime().await?;
 
-        println!("{}", "Active Runtime:".green());
-        println!(" {}: {}", "id:".bright_blue(), runtime.name());
-        println!(
-            " {}: {}",
-            "editable:".bright_blue(),
-            runtime.status.editable
-        );
-        println!("{}", "stack".bright_blue());
-        for digest in runtime.status.stack.iter() {
-            print!("  - {}, ", self.format_digest(*digest, repo).await?);
+        println!("{}:", "Active Runtime".green());
+        println!(" {}: {}", "id".bright_blue(), runtime.name());
+        println!(" {}: {}", "editable".bright_blue(), runtime.status.editable);
+        println!("{}:", "stack (top-down)".bright_blue());
+        for digest in runtime.status.stack.to_top_down() {
+            print!("  - {}, ", self.format_digest(digest, repo).await?);
             let object = repo.read_ref(digest.to_string().as_str()).await?;
             println!(
                 "Size: {}",

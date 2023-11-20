@@ -313,8 +313,8 @@ where
     pub async fn check_platform(&self, platform: graph::Platform) -> Result<CheckPlatformResult> {
         let futures: FuturesUnordered<_> = platform
             .stack
-            .iter()
-            .map(|d| self.check_digest(*d))
+            .iter_bottom_up()
+            .map(|d| self.check_digest(d))
             .collect();
         let results = futures.try_collect().await?;
         let res = CheckPlatformResult {

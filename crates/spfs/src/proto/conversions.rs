@@ -181,20 +181,21 @@ impl TryFrom<super::Object> for graph::Object {
 impl From<&graph::Platform> for super::Platform {
     fn from(source: &graph::Platform) -> Self {
         Self {
-            stack: source.stack.iter().map(Into::into).collect(),
+            stack: source.stack.iter_bottom_up().map(Into::into).collect(),
         }
     }
 }
 
 impl TryFrom<super::Platform> for graph::Platform {
     type Error = Error;
+
     fn try_from(source: super::Platform) -> Result<Self> {
         Ok(Self {
             stack: source
                 .stack
                 .into_iter()
                 .map(TryInto::try_into)
-                .collect::<Result<Vec<_>>>()?,
+                .collect::<Result<_>>()?,
         })
     }
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use super::Stack;
 use crate::encoding::Encodable;
 use crate::{encoding, Error, Result};
 
@@ -16,26 +17,24 @@ mod platform_test;
 /// future runtimes.
 #[derive(Debug, Eq, PartialEq, Default, Clone)]
 pub struct Platform {
-    pub stack: Vec<encoding::Digest>,
+    /// Items in the platform, where the first element is the bottom of the
+    /// stack, and may be overridden by later elements higher in the stack
+    pub stack: Stack,
 }
 
 impl Platform {
-    pub fn new<E, I>(layers: I) -> Result<Self>
+    pub fn from_encodable<E, I>(layers: I) -> Result<Self>
     where
         E: encoding::Encodable,
         Error: std::convert::From<E::Error>,
-        I: Iterator<Item = E>,
+        I: IntoIterator<Item = E>,
     {
-        let mut platform = Self { stack: Vec::new() };
-        for item in layers {
-            platform.stack.push(item.digest()?);
-        }
-        Ok(platform)
+        Stack::from_encodable(layers).map(|stack| Self { stack })
     }
 
     /// Return the digests of objects that this manifest refers to.
     pub fn child_objects(&self) -> Vec<encoding::Digest> {
-        self.stack.to_vec()
+        self.stack.iter_bottom_up().collect()
     }
 }
 
@@ -43,9 +42,14 @@ impl Encodable for Platform {
     type Error = Error;
 
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_uint(&mut writer, self.stack.len() as u64)?;
-        for digest in self.stack.iter() {
-            encoding::write_digest(&mut writer, digest)?;
+        // use a vec to know the name ahead of time and
+        // avoid iterating the stack twice
+        let digests = self.stack.iter_bottom_up().collect::<Vec<_>>();
+        encoding::write_uint(&mut writer, digests.len() as u64)?;
+        // for historical reasons, and to remain backward-compatible, platform
+        // stacks are stored in reverse (top-down) order
+        for digest in digests.into_iter().rev() {
+            encoding::write_digest(&mut writer, &digest)?;
         }
         Ok(())
     }
@@ -54,12 +58,34 @@ impl Encodable for Platform {
 impl encoding::Decodable for Platform {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
         let num_layers = encoding::read_uint(&mut reader)?;
-        let mut platform = Self {
-            stack: Vec::with_capacity(num_layers as usize),
-        };
+        let mut layers = Vec::with_capacity(num_layers as usize);
         for _ in 0..num_layers {
-            platform.stack.push(encoding::read_digest(&mut reader)?)
+            layers.push(encoding::read_digest(&mut reader)?);
         }
-        Ok(platform)
+        // for historical reasons, and to remain backward-compatible, platform
+        // stacks are stored in reverse (top-down) order
+        Ok(Self::from_iter(layers.into_iter().rev()))
+    }
+}
+
+impl<T> From<T> for Platform
+where
+    T: Into<Stack>,
+{
+    fn from(value: T) -> Self {
+        Self {
+            stack: value.into(),
+        }
+    }
+}
+
+impl<T> FromIterator<T> for Platform
+where
+    Stack: FromIterator<T>,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Self {
+            stack: Stack::from_iter(iter),
+        }
     }
 }

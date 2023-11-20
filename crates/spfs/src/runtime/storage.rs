@@ -73,8 +73,10 @@ impl Default for Author {
 /// Information about the current state of a runtime
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct Status {
-    /// The set of layers that are being used in this runtime
-    pub stack: Vec<encoding::Digest>,
+    /// The set of layers that are being used in this runtime,
+    /// where the first element is the bottom of the stack,
+    /// and may be overridden by later elements higher in the stack
+    pub stack: graph::Stack,
     /// Additional layers that were created automatically due to the stack
     /// being too large.
     #[serde(default, skip_serializing_if = "HashSet::is_empty")]
@@ -871,20 +873,10 @@ impl Runtime {
     ///
     /// This will update the configuration of the runtime,
     /// and change the overlayfs options, but not save the runtime or
-    /// update any currently running environment.
-    pub fn push_digest(&mut self, digest: encoding::Digest) {
-        let mut new_stack = Vec::with_capacity(self.status.stack.len() + 1);
-        new_stack.push(digest);
-        for existing in self.status.stack.drain(..) {
-            // we do not want the same layer showing up twice, one for
-            // efficiency and two it causes errors in overlayfs so promote
-            // any existing instance to the new top of the stack
-            if existing == digest {
-                continue;
-            }
-            new_stack.push(existing);
-        }
-        self.status.stack = new_stack;
+    /// update any currently running environment. Returns false
+    /// if adding the digest had no change to the runtime stack.
+    pub fn push_digest(&mut self, digest: encoding::Digest) -> bool {
+        self.status.stack.push(digest)
     }
 
     /// Generate a platform with all the layers from this runtime

@@ -293,8 +293,8 @@ where
         self.reporter.visit_platform(&platform);
 
         let mut futures = FuturesUnordered::new();
-        for digest in &platform.stack {
-            futures.push(self.sync_digest(*digest));
+        for digest in platform.stack.iter_bottom_up() {
+            futures.push(self.sync_digest(digest));
         }
         let mut results = Vec::with_capacity(futures.len());
         while let Some(result) = futures.try_next().await? {

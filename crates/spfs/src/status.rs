@@ -69,7 +69,7 @@ pub async fn get_runtime_backing_repo(
 ///
 /// The returned manifest DOES NOT include any active changes to the runtime.
 pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking::Manifest> {
-    let spec = rt.status.stack.iter().cloned().collect();
+    let spec = rt.status.stack.iter_bottom_up().collect();
     super::compute_environment_manifest(&spec, &get_runtime_backing_repo(rt).await?).await
 }
 

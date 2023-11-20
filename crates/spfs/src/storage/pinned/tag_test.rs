@@ -8,7 +8,6 @@ use chrono::Utc;
 use futures::{StreamExt, TryStreamExt};
 use relative_path::RelativePath;
 use rstest::rstest;
-use spfs_encoding as encoding;
 
 use super::PinnedRepository;
 use crate::fixtures::*;
@@ -155,14 +154,4 @@ async fn test_pinned_visibility() {
         HashSet::from([spec1.to_string(), spec2.to_string()]),
         "should not show entries for tags that don't exist yet"
     );
-}
-
-fn random_digest() -> encoding::Digest {
-    use rand::Rng;
-    let mut hasher = encoding::Hasher::<std::io::Sink>::default();
-    let mut rng = rand::thread_rng();
-    let mut buf = vec![0; 64];
-    rng.fill(buf.as_mut_slice());
-    hasher.update(buf.as_slice());
-    hasher.digest()
 }

@@ -33,8 +33,7 @@ impl RuntimeConfigurator {
         let env_spec = rt
             .status
             .stack
-            .iter()
-            .copied()
+            .iter_bottom_up()
             .collect::<EnvSpec>()
             .to_string();
 

@@ -104,7 +104,7 @@ async fn test_sync_ref(
         .await
         .unwrap();
     let platform = repo_a
-        .create_platform(vec![layer.digest().unwrap()])
+        .create_platform(layer.digest().unwrap().into())
         .await
         .unwrap();
     let tag = tracking::TagSpec::parse("testing").unwrap();
@@ -171,7 +171,7 @@ async fn test_sync_missing_from_source(
         .await
         .unwrap();
     let platform = repo_b
-        .create_platform(vec![layer.digest().unwrap()])
+        .create_platform(layer.digest().unwrap().into())
         .await
         .unwrap();
     let tag = tracking::TagSpec::parse("testing").unwrap();
@@ -240,7 +240,7 @@ async fn test_sync_through_tar(
         .await
         .unwrap();
     let platform = repo_a
-        .create_platform(vec![layer.digest().unwrap()])
+        .create_platform(layer.digest().unwrap().into())
         .await
         .unwrap();
     let tag = tracking::TagSpec::parse("testing").unwrap();

@@ -231,15 +231,11 @@ where
 
     /// Render all layers in the given env to the render storage of the underlying
     /// repository, returning the paths to all relevant layers in the appropriate order.
-    pub async fn render<I, D>(
+    pub async fn render(
         &self,
-        stack: I,
+        stack: &graph::Stack,
         render_type: Option<RenderType>,
-    ) -> Result<Vec<PathBuf>>
-    where
-        I: Iterator<Item = D> + Send,
-        D: AsRef<encoding::Digest> + Send,
-    {
+    ) -> Result<Vec<PathBuf>> {
         let layers = crate::resolve::resolve_stack_to_layers_with_repo(stack, self.repo).await?;
         let mut futures = futures::stream::FuturesOrdered::new();
         for layer in layers {
@@ -262,14 +258,13 @@ where
         render_type: RenderType,
     ) -> Result<()> {
         let env_spec = env_spec.into();
-        let mut stack = Vec::new();
+        let mut stack = graph::Stack::default();
         for target in env_spec.iter() {
             let target = target.to_string();
             let obj = self.repo.read_ref(target.as_str()).await?;
             stack.push(obj.digest()?);
         }
-        let layers =
-            crate::resolve::resolve_stack_to_layers_with_repo(stack.iter(), self.repo).await?;
+        let layers = crate::resolve::resolve_stack_to_layers_with_repo(&stack, self.repo).await?;
         let mut manifests = Vec::with_capacity(layers.len());
         for layer in layers {
             manifests.push(self.repo.read_manifest(layer.manifest).await?);

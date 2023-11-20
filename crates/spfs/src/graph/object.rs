@@ -59,13 +59,13 @@ impl Object {
             for object in items_to_process.iter() {
                 match object {
                     Object::Platform(object) => {
-                        for reference in object.stack.iter() {
-                            let item = repo.read_ref(reference.to_string().as_str()).await?;
+                        for digest in object.stack.iter_bottom_up() {
+                            let item = repo.read_object(digest).await?;
                             next_iter_objects.push(item);
                         }
                     }
                     Object::Layer(object) => {
-                        let item = repo.read_ref(object.manifest.to_string().as_str()).await?;
+                        let item = repo.read_object(object.manifest).await?;
                         next_iter_objects.push(item);
                     }
                     Object::Manifest(object) => {

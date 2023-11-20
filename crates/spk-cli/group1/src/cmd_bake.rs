@@ -160,8 +160,9 @@ impl Bake {
         // Get the layer(s) for the packages mapping from their source repos
         let layers_to_packages = get_spfs_layers_to_packages(&items)?;
 
-        // Keep the runtime stack order with the first layer at the
-        // bottom. Usually the runtime layers match will the current
+        // Reverse the runtime stack order with the first layer at the
+        // top to remain consistent with other console-based output.
+        // Usually, the runtime layers match will the current
         // environment's packages. However, additional layers may have
         // been added to the runtime (see get_stack() call above).
         // Those layers are included, but we don't know what package
@@ -169,10 +170,10 @@ impl Bake {
         //
         // Note: this may not interact well with spfs run's layer
         // merging for overlay fs mount commands.
-        let mut layers: Vec<BakeLayer> = Vec::with_capacity(runtime.status.stack.len());
-        for layer in runtime.status.stack.iter() {
+        let mut layers: Vec<BakeLayer> = Vec::new();
+        for layer in runtime.status.stack.to_top_down() {
             let (spk_package, mut components) =
-                if let Some(LayerPackageAndComponents(sr, c)) = layers_to_packages.get(layer) {
+                if let Some(LayerPackageAndComponents(sr, c)) = layers_to_packages.get(&layer) {
                     (
                         if self.verbose > NO_VERBOSITY {
                             remove_ansi_escapes(sr.format_as_installed_package())

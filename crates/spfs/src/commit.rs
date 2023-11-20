@@ -191,7 +191,9 @@ where
             .repo
             .create_layer(&graph::Manifest::from(&manifest))
             .await?;
-        runtime.push_digest(layer.digest()?);
+        if !runtime.push_digest(layer.digest()?) {
+            return Err(Error::NothingToCommit);
+        }
         runtime.status.editable = false;
         runtime.save_state_to_storage().await?;
         remount_runtime(runtime).await?;

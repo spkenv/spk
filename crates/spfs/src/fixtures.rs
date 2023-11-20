@@ -257,3 +257,12 @@ fn generate_subtree(root: &std::path::Path, max_depth: i32) {
         }
     }
 }
+
+pub fn random_digest() -> crate::encoding::Digest {
+    let mut hasher = crate::encoding::Hasher::new_sync();
+    let mut rng = rand::thread_rng();
+    let mut buf = vec![0; 64];
+    rng.fill(buf.as_mut_slice());
+    hasher.update(buf.as_slice());
+    hasher.digest()
+}

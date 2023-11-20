@@ -192,13 +192,3 @@ async fn test_prune_tags(#[future] tmprepo: TempRepo) {
         panic!("should not have any pruned tag left")
     }
 }
-
-fn random_digest() -> encoding::Digest {
-    use rand::Rng;
-    let mut hasher = encoding::Hasher::new_sync();
-    let mut rng = rand::thread_rng();
-    let mut buf = vec![0; 64];
-    rng.fill(buf.as_mut_slice());
-    hasher.update(buf.as_slice());
-    hasher.digest()
-}
