@@ -527,21 +527,9 @@ impl Recipe for Spec<VersionIdent> {
         }
 
         // Expand env variables from EnvOp.
-        let env_vars = build_env.env_vars();
         let mut updated_ops = Vec::new();
         for op in updated.install.environment.iter() {
-            let value = op.value().map(|val| {
-                shellexpand::env_with_context(val, |s: &str| match env_vars.get(s) {
-                    Some(v) => Ok(Some(v.clone())),
-                    None => Err("No matching keys found"),
-                })
-                .unwrap_or_default()
-            });
-
-            match value {
-                Some(val) => updated_ops.push(op.update_value(val.to_string())),
-                None => updated_ops.push(op.clone()),
-            }
+            updated_ops.push(op.get_expanded_env_op_object(build_env.env_vars()));
         }
 
         updated.install.environment.clear();

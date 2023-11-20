@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 
@@ -104,6 +106,22 @@ impl EnvOp {
             Self::Prepend(op) => Some(&op.value),
             Self::Priority(_) => None,
             Self::Set(op) => Some(&op.value),
+        }
+    }
+
+    /// Returns the EnvOop object with expanded env var, if any
+    pub fn get_expanded_env_op_object(&self, env_vars: HashMap<String, String>) -> Self {
+        let value = self.value().map(|val| {
+            shellexpand::env_with_context(val, |s: &str| match env_vars.get(s) {
+                Some(v) => Ok(Some(v.clone())),
+                None => Err("No matching keys found"),
+            })
+            .unwrap_or_default()
+        });
+
+        match value {
+            Some(val) => self.update_value(val.to_string()),
+            None => self.clone(),
         }
     }
 
