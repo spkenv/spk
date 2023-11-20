@@ -9,4 +9,10 @@ miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }
 clap = { workspace = true }
 spk-cli-common = { path = '../common' }
+# The dependency on spfs can be removed after the deprecated runtime flags are
+# removed.
+spfs = { path = '../../spfs' }
 tokio = { workspace = true, features = ["rt"] }
+# The dependency on tracing can be removed after the deprecated runtime flags
+# and deprecation warnings are removed.
+tracing = { workspace = true }
