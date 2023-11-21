@@ -109,7 +109,7 @@ impl EnvOp {
         }
     }
 
-    /// Returns the EnvOop object with expanded env var, if any
+    /// Returns the EnvOp object with expanded env var, if any
     pub fn to_expanded(&self, env_vars: HashMap<String, String>) -> Self {
         let value = self
             .value()
