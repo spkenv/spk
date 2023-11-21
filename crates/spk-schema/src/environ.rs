@@ -111,13 +111,9 @@ impl EnvOp {
 
     /// Returns the EnvOop object with expanded env var, if any
     pub fn to_expanded(&self, env_vars: HashMap<String, String>) -> Self {
-        let value = self.value().map(|val| {
-            shellexpand::env_with_context(val, |s: &str| match env_vars.get(s) {
-                Some(v) => Ok(Some(v.clone())),
-                None => Err("No matching keys found"),
-            })
-            .unwrap_or_default()
-        });
+        let value = self
+            .value()
+            .map(|val| shellexpand::env_with_context_no_errors(val, |s: &str| env_vars.get(s)));
 
         match value {
             Some(val) => self.update_value(val.into_owned()),
