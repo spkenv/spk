@@ -528,8 +528,9 @@ impl Recipe for Spec<VersionIdent> {
 
         // Expand env variables from EnvOp.
         let mut updated_ops = Vec::new();
+        let build_env_vars = build_env.env_vars();
         for op in updated.install.environment.iter() {
-            updated_ops.push(op.to_expanded(&build_env.env_vars()));
+            updated_ops.push(op.to_expanded(&build_env_vars));
         }
 
         updated.install.environment.clear();
