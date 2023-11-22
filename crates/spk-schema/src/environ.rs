@@ -110,7 +110,7 @@ impl EnvOp {
     }
 
     /// Returns the EnvOp object with expanded env var, if any
-    pub fn to_expanded(&self, env_vars: HashMap<String, String>) -> Self {
+    pub fn to_expanded(&self, env_vars: &HashMap<String, String>) -> Self {
         let value = self
             .value()
             .map(|val| shellexpand::env_with_context_no_errors(val, |s: &str| env_vars.get(s)));
