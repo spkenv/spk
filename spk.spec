@@ -40,6 +40,8 @@ RELEASE_DIR=%{_builddir}/%{name}-%{version}/target/release
 for cmd in $RELEASE_DIR/spk $RELEASE_DIR/spfs $RELEASE_DIR/spfs-*; do
     # skip debug info for commands
     if [[ $cmd =~ \.d$ ]]; then continue; fi
+    # skip windows
+    if [[ $cmd =~ spfs-winfsp$ ]]; then continue; fi
     install -p -m 755 $cmd %{buildroot}/usr/local/bin/
 done
 mv %{buildroot}/usr/local/bin/spk %{buildroot}/usr/local/bin/spk-%{version}
