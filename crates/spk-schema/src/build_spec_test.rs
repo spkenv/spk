@@ -4,7 +4,149 @@
 use rstest::rstest;
 use spk_schema_foundation::FromYaml;
 
-use super::BuildSpec;
+use super::{BuildSpec, HostOsCompatibility};
+
+#[rstest]
+fn test_host_os_compatibility_default() {
+    let host_compat = HostOsCompatibility::default();
+    assert!(host_compat.is_default());
+}
+
+#[rstest]
+#[case("distro", true)]
+#[case("Distro", true)]
+#[case("arch", true)]
+#[case("Arch", true)]
+#[case("os", true)]
+#[case("Os", true)]
+#[case("OS", true)]
+#[case("any", true)]
+#[case("Any", true)]
+#[case("Tuesday", false)]
+fn test_build_spec_with_host_opt_value(#[case] value: &str, #[case] expected_result: bool) {
+    // Tests the host_compat value is valid
+    let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(&format!(
+        "{{
+        host_compat: {value},
+        options: [{{pkg: \"my-pkg\"}}],
+    }}"
+    ));
+    assert!(res.is_ok() == expected_result);
+}
+
+#[rstest]
+#[case("distro", vec![String::from("distro"),String::from("arch"),String::from("os")])]
+#[case("arch", vec![String::from("arch"),String::from("os")])]
+#[case("os", vec![String::from("os")])]
+#[case("any", vec![])]
+fn test_build_spec_with_host_opt_contains_expected_names(
+    #[case] value: &str,
+    #[case] expected_names: Vec<String>,
+) {
+    // Test the host_compat value generates the expected named options
+    let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(&format!(
+        "{{
+        host_compat: {value},
+        options: [{{pkg: \"my-pkg\"}}],
+    }}"
+    ));
+
+    match res {
+        Ok(build_spec) => {
+            let opt_names: Vec<String> = build_spec
+                .opts_for_variant(&build_spec.variants[0])
+                .unwrap()
+                .iter()
+                .map(|o| o.full_name().to_string())
+                .collect();
+            println!("opt names: {opt_names:?}");
+
+            for name in expected_names.iter() {
+                if !opt_names.contains(name) {
+                    panic!("Fail: build spec with '{value}' host compat does not contain '{name}'")
+                }
+            }
+        }
+        Err(err) => panic!("Fail: {value} host compat in build spec: {err:?}"),
+    }
+}
+
+#[rstest]
+#[case("distro", vec![])]
+#[case("arch", vec!["distro"])]
+#[case("os", vec!["distro", "arch"])]
+#[case("any", vec!["distro", "arch", "os"])]
+fn test_build_spec_with_host_opt_does_not_have_disallowed_names(
+    #[case] value: &str,
+    #[case] invalid_names: Vec<&str>,
+) {
+    // Test the host_compat value does not create the options names
+    // that are disallowed by that value. This test will have to
+    // change if the host_compat validation is disabled.
+    let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(&format!(
+        "{{
+        host_compat: {value},
+        options: [{{pkg: \"my-pkg\"}}],
+    }}"
+    ));
+
+    let unexpected_names = invalid_names
+        .iter()
+        .map(|s| String::from(*s))
+        .collect::<Vec<String>>();
+
+    match res {
+        Ok(build_spec) => {
+            let opt_names: Vec<String> = build_spec
+                .opts_for_variant(&build_spec.variants[0])
+                .unwrap()
+                .iter()
+                .map(|o| o.full_name().to_string())
+                .collect();
+            println!("opt names: {opt_names:?}");
+
+            for name in unexpected_names.iter() {
+                if opt_names.contains(name) {
+                    panic!("Fail: build spec with '{value}' host compat does not contain '{name}'")
+                }
+            }
+        }
+        Err(err) => panic!("Fail: {value} host compat in build spec: {err:?}"),
+    }
+}
+
+// #[case("distro")] - not checked, it has no disallowed names
+#[rstest]
+#[case("arch")]
+#[case("os")]
+#[case("any")]
+fn test_build_spec_with_host_opt_and_disallowed_name(#[case] value: &str) {
+    // Test the host_compat value setting causes an error when there's
+    // a disallowed option name in the build options.
+    let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(&format!(
+        "{{
+        host_compat: {value},
+        options: [{{var: \"distro/centos\"}}],
+    }}"
+    ));
+
+    match res {
+        Ok(build_spec) => {
+            // This return an error because of the "distro/centos" var
+            // setting in the variant
+            let result = build_spec.opts_for_variant(&build_spec.variants[0]);
+            let config = spk_config::get_config().unwrap();
+            if config.host_compat.validate {
+                // With the checks, this should fail validation
+                assert!(result.is_err())
+            } else {
+                // Without the checks, this should be ok
+                assert!(result.is_ok())
+            }
+        }
+        Err(err) => panic!("Fail: build spec didn't parse with host_compat {value}: {err:?}"),
+    }
+}
 
 #[rstest]
 fn test_variants_may_have_a_build() {

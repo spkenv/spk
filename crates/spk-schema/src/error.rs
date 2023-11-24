@@ -69,6 +69,17 @@ pub enum Error {
 
     #[error("{0}: {1}")]
     InvalidBuildChangeSetError(String, #[source] spk_schema_validators::Error),
+
+    #[error("'{0}' cannot be set in a variant. The host compatibility value '{1}' will set it")]
+    HostOptionNotAllowedInVariantError(String, String),
+    #[error("Not a valid distro name for distro host_compatibility: {0}")]
+    HostOptionNotValidDistroNameError(String),
+    #[error("No distro name option set by host. One is needed for host_compatibility: distro")]
+    HostOptionNoDistroName,
+
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
+    SpkConfigError(#[from] spk_config::Error),
 }
 
 impl Error {

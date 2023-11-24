@@ -16,10 +16,14 @@ use crate::{recipe, Template};
 fn test_resolve_options_empty_options() {
     let spec = recipe!({
         "pkg": "test/1.0.0",
+        "build": {
+            "host_compat": "any"
+        }
     });
 
     let resolved_options = spec.resolve_options(&OptionMap::default()).unwrap();
-    // No options were specified and none has magically appeared.
+    // No options were specified and none has magically appeared
+    // because host_compat was set to "any".
     assert!(resolved_options.is_empty());
 }
 
@@ -34,6 +38,7 @@ fn test_resolve_options_variant_adds_new_var_option(
     let spec = recipe!({
         "pkg": "test/1.0.0",
         "build": {
+            "host_compat": "any",
             "variants": [
                 {
                     opt_name: default_value,

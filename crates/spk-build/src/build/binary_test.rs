@@ -53,6 +53,7 @@ async fn test_empty_var_option_is_not_a_request() {
         r#"{
             pkg: mypackage/1.0.0,
             build: {
+                host_compat: any,
                 options: [
                     {var: something}
                 ]
@@ -831,11 +832,13 @@ async fn test_default_build_component() {
             "pkg": "mypkg/1.0.0",
             "sources": [],
             "build": {
+                "host_compat": "any",
                 "options": [{"pkg": "somepkg/1.0.0"}],
                 "script": "echo building...",
             },
         }
     );
+
     let requirements = spec.get_build_requirements(&option_map! {}).unwrap();
     assert_eq!(requirements.len(), 1, "should have one build requirement");
     let req = requirements.get(0).unwrap();

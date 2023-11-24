@@ -4109,6 +4109,7 @@ dependencies = [
  "spk-schema-ident",
  "spk-schema-liquid",
  "spk-schema-validators",
+ "strum",
  "sys-info",
  "tempfile",
  "thiserror",

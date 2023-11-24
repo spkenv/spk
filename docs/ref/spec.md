@@ -66,12 +66,13 @@ Fetches and extracts a tar archive as package source files.
 
 ## BuildSpec
 
-| Field      | Type                                | Description                                                    |
-| ---------- | ----------------------------------- | -------------------------------------------------------------- |
-| script     | _str_ or _List[str]_                | The bash script which builds and installs the package to /spfs |
-| options    | _List[[BuildOption](#buildoption)]_ | The set of inputs for the package build process                |
-| variants   | _List[[OptionMap](#optionmap)]_     | The default variants of the package options to build           |
-| validation | _[ValidationSpec](#validationspec)_ | Modifies the default package validation process                |
+| Field       | Type                                | Description                                                    |
+| ----------  | ----------------------------------- | -------------------------------------------------------------- |
+| script      | _str_ or _List[str]_                | The bash script which builds and installs the package to /spfs |
+| options     | _List[[BuildOption](#buildoption)]_ | The set of inputs for the package build process                |
+| variants    | _List[[OptionMap](#optionmap)]_     | The default variants of the package options to build           |
+| validation  | _[ValidationSpec](#validationspec)_ | Modifies the default package validation process                |
+| host_compat | _[HostOsCompatibility](#hostoscompatibility)_ | The host os compatibility setting for the package's builds          |
 
 ### BuildOption
 
@@ -116,6 +117,28 @@ The ValidationSpec modifies the default validation process for packages, primari
 | ------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
 | MustInstallSomething      | Enabled | Packages must install at least one file or folder during build                                                            |
 | MustNotAlterExistingFiles | Enabled | Packages must not modify the content or metadata of any file that is provided by another package in the build environment |
+
+### HostOsCompatibility
+
+The HostOsCompatibility value sets the host os related options that
+are automatically added to each build. It also describes the package's
+compatibility with host OSes.
+
+| Field       | Type  | Description                                                                            |
+| ----------- | ------| -------------------------------------------------------------------------------------- |
+| host_compat | _str_ | The host os compatibility of the package, one of: **distro**, **arch**, **os*, **any** |
+
+Each value adds zero on more host options to each build, and disallows
+certain host related option when host_compat validation checks are
+enabled in the spk config file:
+
+|  Value     | Adds these host options                        | Disallows, these options with host compat validation |
+| ---------- | ---------------------------------------------- | ---------------------------------------------------- |
+| **distro** | "distro", "arch", "os", and the "<distroname>" |                                                      |
+| **arch**   | "arch", "os", and the "<distroname>"           | "distro"                                             |
+| **os**     | "os"                                           | "distro", "arch"                                     |
+| **any**    |                                                | "distro", "arch", "os"                               |
+
 
 ## TestSpec
 

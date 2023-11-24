@@ -26,6 +26,7 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
         {
             "pkg": "vnp3/2.0.0",
             "build": {
+                "host_compat": "any",
                 "options": [
                     {"var": "tuesday/debug"},
                     {"var": "cmake/3.0"},
@@ -40,6 +41,7 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
         {
             "pkg": "vnp3/2.0.0",
             "build": {
+                "host_compat": "any",
                 "options": [
                     {"pkg": "gcc/6"},
                     {"var": "cheese/3.0"},
@@ -59,6 +61,7 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
         {
             "pkg": "vnp3/2.0.0/src",
             "build": {
+                "host_compat": "any",
                 "options": [
                     {"var": "tuesday/debug"},
                     {"var": "cmake/3.0"},

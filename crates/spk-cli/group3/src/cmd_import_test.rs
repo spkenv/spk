@@ -49,15 +49,15 @@ async fn test_archive_io() {
             "tags/spk/pkg".to_string(),
             "tags/spk/pkg/spk-archive-test".to_string(),
             "tags/spk/pkg/spk-archive-test/0.0.1".to_string(),
-            "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6".to_string(),
-            "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6.tag".to_string(),
-            "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6/build.tag".to_string(),
-            "tags/spk/pkg/spk-archive-test/0.0.1/3I42H3S6/run.tag".to_string(),
+            "tags/spk/pkg/spk-archive-test/0.0.1/CDBJPKOI".to_string(),
+            "tags/spk/pkg/spk-archive-test/0.0.1/CDBJPKOI.tag".to_string(),
+            "tags/spk/pkg/spk-archive-test/0.0.1/CDBJPKOI/build.tag".to_string(),
+            "tags/spk/pkg/spk-archive-test/0.0.1/CDBJPKOI/run.tag".to_string(),
             "tags/spk/spec".to_string(),
             "tags/spk/spec/spk-archive-test".to_string(),
             "tags/spk/spec/spk-archive-test/0.0.1".to_string(),
             "tags/spk/spec/spk-archive-test/0.0.1.tag".to_string(),
-            "tags/spk/spec/spk-archive-test/0.0.1/3I42H3S6.tag".to_string(),
+            "tags/spk/spec/spk-archive-test/0.0.1/CDBJPKOI.tag".to_string(),
         ]
     );
     let result = super::Import {
