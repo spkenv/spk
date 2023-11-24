@@ -526,6 +526,16 @@ impl Recipe for Spec<VersionIdent> {
             Err(e) => return Err(Error::String(format!("Failed to update metadata: {e}"))),
         }
 
+        // Expand env variables from EnvOp.
+        let mut updated_ops = Vec::new();
+        let build_env_vars = build_env.env_vars();
+        for op in updated.install.environment.iter() {
+            updated_ops.push(op.to_expanded(&build_env_vars));
+        }
+
+        updated.install.environment.clear();
+        updated.install.environment.append(&mut updated_ops);
+
         let mut missing_build_requirements = HashMap::new();
         let mut missing_runtime_requirements = HashMap::new();
 

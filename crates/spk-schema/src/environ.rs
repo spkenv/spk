@@ -1,6 +1,9 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 
@@ -70,6 +73,51 @@ impl EnvOp {
             Self::Prepend(_) => None,
             Self::Priority(op) => Some(op.priority()),
             Self::Set(_) => None,
+        }
+    }
+
+    /// Returns a new EnvOp object with the expanded value
+    pub fn update_value(&self, expanded_val: String) -> Self {
+        match self {
+            Self::Prepend(op) => EnvOp::Prepend(PrependEnv {
+                prepend: op.prepend.clone(),
+                separator: op.separator.clone(),
+                value: expanded_val,
+            }),
+            Self::Append(op) => EnvOp::Append(AppendEnv {
+                append: op.append.clone(),
+                separator: op.separator.clone(),
+                value: expanded_val,
+            }),
+            Self::Set(op) => EnvOp::Set(SetEnv {
+                set: op.set.clone(),
+                value: expanded_val,
+            }),
+            Self::Comment(_) => self.clone(),
+            Self::Priority(_) => self.clone(),
+        }
+    }
+
+    /// Returns the environment variable value if any
+    pub fn value(&self) -> Option<&String> {
+        match self {
+            Self::Append(op) => Some(&op.value),
+            Self::Comment(_) => None,
+            Self::Prepend(op) => Some(&op.value),
+            Self::Priority(_) => None,
+            Self::Set(op) => Some(&op.value),
+        }
+    }
+
+    /// Returns the EnvOp object with expanded env var, if any
+    pub fn to_expanded(&self, env_vars: &HashMap<String, String>) -> Self {
+        let value = self
+            .value()
+            .map(|val| shellexpand::env_with_context_no_errors(val, |s: &str| env_vars.get(s)));
+
+        match value {
+            Some(val) => self.update_value(val.into_owned()),
+            None => self.clone(),
         }
     }
 
@@ -204,25 +252,21 @@ impl<'de> Deserialize<'de> for EnvOp {
                     })
                     .transpose()?;
 
-                let value = shellexpand::env(&value.unwrap_or_default())
-                    .unwrap_or(std::borrow::Cow::Borrowed(""))
-                    .to_string();
-
                 match self.op_and_var.take() {
                     Some((op, var)) => match op {
                         OpKind::Prepend => Ok(EnvOp::Prepend(PrependEnv{
                             prepend: var.get_op(),
                             separator: self.separator.take(),
-                            value
+                            value: value.unwrap_or_default()
                         })),
                         OpKind::Append => Ok(EnvOp::Append(AppendEnv{
                             append: var.get_op(),
                             separator: self.separator.take(),
-                            value
+                            value: value.unwrap_or_default()
                         })),
                         OpKind::Set => Ok(EnvOp::Set(SetEnv{
                             set: var.get_op(),
-                            value
+                            value: value.unwrap_or_default()
                         })),
                         OpKind::Comment => Ok(EnvOp::Comment(EnvComment{
                             comment: var.get_op()

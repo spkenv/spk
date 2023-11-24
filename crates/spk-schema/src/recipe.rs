@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::path::Path;
 
 use spk_schema_ident::VersionIdent;
@@ -16,6 +17,8 @@ pub trait BuildEnv {
     type Package: super::Package;
 
     fn build_env(&self) -> Vec<Self::Package>;
+
+    fn env_vars(&self) -> HashMap<String, String>;
 }
 
 /// Can be used to build a package.

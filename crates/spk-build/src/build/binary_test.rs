@@ -997,6 +997,108 @@ async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir) {
 
 #[rstest]
 #[tokio::test]
+async fn test_variable_substitution_in_build_env(tmpdir: tempfile::TempDir) {
+    let rt = spfs_runtime().await;
+    let dep_spec = recipe!(
+        {
+            "pkg": "dep/1.0.0",
+            "build": {
+                "script": "touch /spfs/dep-file",
+                "options": [{"var": "depvar/depvalue"}],
+            },
+        }
+    );
+    let spec = recipe!(
+        {
+            "pkg": "testpkg/1.0.0",
+            "build": {
+                "script": [
+                    "env",
+                ],
+                "options": [
+                    {"pkg": "dep/1.0.0"},
+                ],
+            },
+            "install": {
+                "environment": [
+                    {"set": "DEPVER1", "value": "$SPK_PKG_dep_VERSION_BASE"},
+                    {"set": "DEPVER2", "value": "${SPK_PKG_dep_VERSION_BASE}"},
+                    {"set": "AT_ENV_TIME", "value": "I'm using dep version $${DEPVER1}"}
+                ]
+            },
+        }
+    );
+
+    rt.tmprepo.publish_recipe(&dep_spec).await.unwrap();
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
+    BinaryPackageBuilder::from_recipe(dep_spec)
+        .with_source(BuildSource::LocalPath(tmpdir.path().to_owned()))
+        .with_repository(rt.tmprepo.clone())
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
+        .await
+        .unwrap();
+
+    BinaryPackageBuilder::from_recipe(spec)
+        .with_source(BuildSource::LocalPath(tmpdir.path().to_owned()))
+        .with_repository(rt.tmprepo.clone())
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
+        .await
+        .unwrap();
+
+    let bash_file = tmpdir
+        .path()
+        .join("/spfs/etc/spfs/startup.d/spk_testpkg.sh");
+    assert!(bash_file.exists());
+    let tcsh_file = tmpdir
+        .path()
+        .join("/spfs/etc/spfs/startup.d/spk_testpkg.csh");
+    assert!(tcsh_file.exists());
+
+    let bash_value = std::process::Command::new("bash")
+        .args(["--norc", "-c"])
+        .arg(format!("source {bash_file:?}; printenv AT_ENV_TIME"))
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(
+        String::from_utf8_lossy(&bash_value),
+        "I'm using dep version 1.0.0\n"
+    );
+
+    let bash_value = std::process::Command::new("bash")
+        .args(["--norc", "-c"])
+        .arg(format!("source {bash_file:?}; printenv DEPVER1"))
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(String::from_utf8_lossy(&bash_value), "1.0.0\n");
+
+    let tcsh_value = std::process::Command::new("tcsh")
+        .arg("-fc")
+        .arg(format!("source {tcsh_file:?}; printenv AT_ENV_TIME"))
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(
+        String::from_utf8_lossy(&tcsh_value),
+        "I'm using dep version 1.0.0\n",
+    );
+
+    let tcsh_value = std::process::Command::new("tcsh")
+        .arg("-fc")
+        .arg(format!("source {tcsh_file:?}; printenv DEPVER2"))
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(String::from_utf8_lossy(&tcsh_value), "1.0.0\n");
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_dependant_variable_substitution_in_startup_files(tmpdir: tempfile::TempDir) {
     let rt = spfs_runtime().await;
 

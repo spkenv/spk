@@ -803,6 +803,7 @@ where
                 )))
             }
         }
+
         self.generate_startup_scripts(package)
     }
 
@@ -811,7 +812,6 @@ where
         if ops.is_empty() {
             return Ok(());
         }
-
         let startup_dir = self.prefix.join("etc").join("spfs").join("startup.d");
         if let Err(err) = std::fs::create_dir_all(&startup_dir) {
             match err.kind() {
@@ -826,6 +826,7 @@ where
             .map_err(|err| Error::FileOpenError(startup_file_csh.to_owned(), err))?;
         let mut sh_file = std::fs::File::create(&startup_file_sh)
             .map_err(|err| Error::FileOpenError(startup_file_sh.to_owned(), err))?;
+
         for op in ops {
             if let Some(priority) = op.priority() {
                 let original_startup_file_sh_name = startup_file_sh.clone();
