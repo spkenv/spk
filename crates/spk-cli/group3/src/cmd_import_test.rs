@@ -21,6 +21,8 @@ async fn test_archive_io() {
         .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
+    let digest = spec.ident().build();
+
     let filename = rt.tmpdir.path().join("archive.spk");
     filename.ensure();
     spk_storage::export_package(spec.ident().to_any(), &filename)
@@ -49,15 +51,15 @@ async fn test_archive_io() {
             "tags/spk/pkg".to_string(),
             "tags/spk/pkg/spk-archive-test".to_string(),
             "tags/spk/pkg/spk-archive-test/0.0.1".to_string(),
-            "tags/spk/pkg/spk-archive-test/0.0.1/CDBJPKOI".to_string(),
-            "tags/spk/pkg/spk-archive-test/0.0.1/CDBJPKOI.tag".to_string(),
-            "tags/spk/pkg/spk-archive-test/0.0.1/CDBJPKOI/build.tag".to_string(),
-            "tags/spk/pkg/spk-archive-test/0.0.1/CDBJPKOI/run.tag".to_string(),
+            format!("tags/spk/pkg/spk-archive-test/0.0.1/{digest}"),
+            format!("tags/spk/pkg/spk-archive-test/0.0.1/{digest}.tag"),
+            format!("tags/spk/pkg/spk-archive-test/0.0.1/{digest}/build.tag"),
+            format!("tags/spk/pkg/spk-archive-test/0.0.1/{digest}/run.tag"),
             "tags/spk/spec".to_string(),
             "tags/spk/spec/spk-archive-test".to_string(),
             "tags/spk/spec/spk-archive-test/0.0.1".to_string(),
             "tags/spk/spec/spk-archive-test/0.0.1.tag".to_string(),
-            "tags/spk/spec/spk-archive-test/0.0.1/CDBJPKOI.tag".to_string(),
+            format!("tags/spk/spec/spk-archive-test/0.0.1/{digest}.tag"),
         ]
     );
     let result = super::Import {
