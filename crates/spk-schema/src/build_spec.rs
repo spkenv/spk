@@ -25,6 +25,13 @@ const ARCH_ADDS: &[&OptName] = &[OptName::os(), OptName::arch()];
 const OS_ADDS: &[&OptName] = &[OptName::os()];
 const NONE_ADDS: &[&OptName] = &[];
 
+// Each HostCompat value disallows certain var names when host_compat
+// validation is enabled in the config file.
+const DISTRO_DISALLOWS: &[&OptName] = &[];
+const ARCH_DISALLOWS: &[&OptName] = &[OptName::distro()];
+const OS_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch()];
+const NONE_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch(), OptName::os()];
+
 /// Describes what level of cross-platform compatibility the built package
 /// should have.
 #[derive(
@@ -58,6 +65,16 @@ impl HostCompat {
         };
 
         names.iter().copied().collect::<HashSet<&OptName>>()
+    }
+
+    // TODO: should this be a hashset too?
+    fn names_disallowed(&self) -> &[&OptName] {
+        match self {
+            HostCompat::Distro => DISTRO_DISALLOWS,
+            HostCompat::Arch => ARCH_DISALLOWS,
+            HostCompat::Os => OS_DISALLOWS,
+            HostCompat::None => NONE_DISALLOWS,
+        }
     }
 
     /// Get host_options after filtering based on the cross Os
@@ -279,6 +296,8 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
             {
                 let mut variants = Vec::<OptionMap>::new();
                 let mut unchecked = BuildSpec::default();
+                let has_auto_host_vars_field = false;
+
                 while let Some(key) = map.next_key::<Stringified>()? {
                     match key.as_str() {
                         "script" => unchecked.script = map.next_value::<Script>()?,
@@ -302,7 +321,8 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                             unchecked.validation = map.next_value::<ValidationSpec>()?
                         }
                         "auto_host_vars" => {
-                            unchecked.host_compat = map.next_value::<HostCompat>()?
+                            unchecked.host_compat = map.next_value::<HostCompat>()?;
+                            has_auto_host_vars_field = true;
                         }
                         _ => {
                             // for forwards compatibility we ignore any unrecognized
@@ -323,6 +343,43 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                     .into_iter()
                     .map(|o| v0::Variant::from_options(o, &unchecked.options))
                     .collect();
+
+                if !has_auto_host_vars_field {
+                    // TODO: might want to make a MissingKey or something lint
+                    // instead of reusing the one in the linting PR as a placeholder
+                    //let lint = UnknownKey::new("host_compat", vec!["host_compat"]);
+                    self.lints.push(format!(
+                        "Missing build spec field: host_compat\nWill default to 'host_compat: {}'",
+                        HostCompat::default().to_string()
+                    ));
+                }
+
+                // Check if any variants set a value on a var that the
+                // host_compat value would normally set, or one it
+                // would normally disallow.
+                let added_names = unchecked.host_compat.names_added();
+                let disallowed_names = unchecked.host_compat.names_disallowed();
+
+                // TODO: to variant numbers start at 1 or 0?
+                let number = 1;
+                for variant_opts in variants {
+                    for add_name in added_names {
+                        // Caompre btreemp vs hashset, and ones a vec, make it a hashset too?
+                        if let Some(value) = variant_opts.get(&*add_name) {
+                            // This variant will override a host
+                            // option added by the host_compat.
+                            self.lints.push(format!("Variant {number} sets {add_name}={value} which overrides the {} host_compat's setting for {add_name}", unchecked.host_compat));
+                        }
+                    }
+                    for bad_name in disallowed_names {
+                        if let Some(value) = variant_opts.get(*bad_name) {
+                            // This variant will set a host option
+                            // the host_compat disallows.
+                            self.lints.push(format!("Variant {number} sets {bad_name}={value} but the 'host_compat' value of {} disallows setting {bad_name}", unchecked.host_compat));
+                        }
+                    }
+                    number += 1;
+                }
 
                 Ok(UncheckedBuildSpec(unchecked))
             }
