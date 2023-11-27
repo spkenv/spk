@@ -44,14 +44,20 @@ fn get_stub(name: &PkgNameBuf) -> String {
 
 build:
 
+  build:
+  # Set what level of host os compatibility the built package should have:
+  # - full: package can be used on any OS
+  # - os: package can be used anywhere that has the same OS type
+  # - arch: package can be used anywhere that has the same OS and CPU type
+  # - distro: package can only be used on the same OS, CPU, and OS distribution version
+  host_compatibility: distro
+
   # options are all the inputs to the package build process, including
   # build-time dependencies
   options:
     # var options define environment/string values that affect the build.
     # The value is defined in the build environment as SPK_OPT_{{name}}
-    - var: arch    # rebuild if the arch changes
-    - var: os      # rebuild if the os changes
-    - var: centos  # rebuild if centos version changes
+    # - var: somename/somvevalue
 
     # pkg options request packages that need to be present
     # in the build environment. You can specify a version number
