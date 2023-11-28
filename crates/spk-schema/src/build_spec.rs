@@ -22,112 +22,103 @@ mod build_spec_test;
 // in use super::foundation::option_map
 /// Set what level of cross-platform compatibility the built package
 /// should have.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize, Display)]
-pub enum HostOsCompatibility {
+#[derive(
+    Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize, Display, Default,
+)]
+pub enum HostCompat {
     /// Package can only be used on the same OS distribution
-    #[serde(alias = "distro")]
+    #[default]
     Distro,
     /// Package can be used anywhere that has the same OS and cpu type
-    #[serde(alias = "arch")]
     Arch,
     /// Package can be used on the same OS with any cpu or distro
-    #[serde(alias = "os", alias = "OS")]
     Os,
     /// Package can be used on any Os
-    #[serde(alias = "any")]
     Any,
 }
 
-impl Default for HostOsCompatibility {
-    fn default() -> Self {
-        // TODO: possibly make the default configurable for sites, or
-        // remove this and derive the default?
-        Self::Distro
-    }
-}
+// Each HostCompat value disallows certain var names when host_compat
+// validation is enabled in the config file.
+// TODO: move these to config
+const DISTRO_DISALLOWS: &[&OptName] = &[];
+const ARCH_DISALLOWS: &[&OptName] = &[OptName::distro()];
+const OS_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch()];
+const ANY_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch(), OptName::os()];
 
-impl HostOsCompatibility {
+impl HostCompat {
     pub fn is_default(&self) -> bool {
         self == &Self::default()
     }
 
-    /// Get host_options after filtering based on the cross Os
-    /// compatibility setting.
-    pub fn host_options(&self) -> Result<OptionMap> {
-        let all_host_options = spk_schema_foundation::option_map::host_options()?;
-
-        // TODO: move these to constant/config
-        let names_added = match self {
-            HostOsCompatibility::Distro => {
-                let mut allows = vec![
-                    OptName::os().to_owned(),
-                    OptName::arch().to_owned(),
-                    OptName::distro().to_owned(),
-                ];
-                // Also adds the <distroname> option
-                match all_host_options.get(OptName::distro()) {
-                    Some(distro_name) => match OptNameBuf::try_from(distro_name.clone()) {
-                        Ok(name) => allows.push(name.to_owned()),
-                        Err(_err) => {
-                            return Err(Error::HostOptionNotValidDistroNameError(
-                                distro_name.to_string(),
-                            ))
-                        }
-                    },
-                    None => return Err(Error::HostOptionNoDistroName),
-                };
-                allows
-            }
-            HostOsCompatibility::Arch => {
-                vec![OptName::os().to_owned(), OptName::arch().to_owned()]
-            }
-            HostOsCompatibility::Os => {
-                vec![OptName::os().to_owned()]
-            }
-            HostOsCompatibility::Any => Vec::new(),
+    fn names_added(&self) -> HashSet<OptNameBuf> {
+        // TODO: move this to constants/config
+        let names = match self {
+            HostCompat::Distro => vec![
+                OptName::os().to_owned(),
+                OptName::arch().to_owned(),
+                OptName::distro().to_owned(),
+            ],
+            HostCompat::Arch => vec![OptName::os().to_owned(), OptName::arch().to_owned()],
+            HostCompat::Os => vec![OptName::os().to_owned()],
+            HostCompat::Any => Vec::new(),
         };
 
-        let mut settings = OptionMap::default();
+        names.into_iter().collect::<HashSet<OptNameBuf>>()
+    }
+
+    /// Get host_options after filtering based on the cross Os
+    /// compatibility setting.
+    pub fn host_options(&self) -> Result<Vec<Opt>> {
+        let all_host_options = spk_schema_foundation::option_map::host_options()?;
+
+        let mut names_added = self.names_added();
+        if HostCompat::Distro == *self {
+            match all_host_options.get(OptName::distro()) {
+                Some(distro_name) => match OptNameBuf::try_from(distro_name.clone()) {
+                    Ok(name) => _ = names_added.insert(name),
+                    Err(err) => {
+                        return Err(Error::HostOptionNotValidDistroNameError(
+                            distro_name.to_string(),
+                            err,
+                        ))
+                    }
+                },
+                None => return Err(Error::HostOptionNoDistroName),
+            }
+        }
+
+        let mut settings = Vec::new();
         for (name, value) in all_host_options.iter() {
             if names_added.contains(name) {
-                settings.insert(name.to_owned(), value.clone());
+                let mut opt = Opt::Var(VarOpt::new(name)?);
+                opt.set_value(value.to_string())?;
+                settings.push(opt)
             }
         }
 
         Ok(settings)
     }
 
-    /// Check the given options are compatible with the
-    /// HostOsCompatibility setting.
-    pub fn validate_host_opts(&self, options: &[Opt]) -> Result<()> {
-        let known = options
-            .iter()
-            .map(Opt::full_name)
-            .map(ToOwned::to_owned)
-            .collect::<HashSet<_>>();
+    fn names_disallowed(&self) -> &[&OptName] {
+        match self {
+            HostCompat::Distro => DISTRO_DISALLOWS,
+            HostCompat::Arch => ARCH_DISALLOWS,
+            HostCompat::Os => OS_DISALLOWS,
+            HostCompat::Any => ANY_DISALLOWS,
+        }
+    }
 
-        // TODO: move these to constant/config setting
-        let disallowed_names = match self {
-            HostOsCompatibility::Distro => Vec::new(),
-            HostOsCompatibility::Arch => {
-                vec![OptName::distro().to_owned()]
-            }
-            HostOsCompatibility::Os => {
-                vec![OptName::distro().to_owned(), OptName::arch().to_owned()]
-            }
-            HostOsCompatibility::Any => {
-                vec![
-                    OptName::distro().to_owned(),
-                    OptName::arch().to_owned(),
-                    OptName::os().to_owned(),
-                ]
-            }
-        };
+    /// Check the given options are compatible with the HostCompat
+    /// setting.
+    pub fn validate_host_opts(&self, options: &[Opt]) -> Result<()> {
+        let known = options.iter().map(Opt::full_name).collect::<HashSet<_>>();
+
+        let disallowed_names = self.names_disallowed();
 
         for name in disallowed_names {
             // If a name that this setting would add is already in the
             // given options then flag it as an error.
-            if known.contains(&name) {
+            if known.contains(name) {
                 return Err(Error::HostOptionNotAllowedInVariantError(
                     name.to_string(),
                     self.to_string(),
@@ -150,7 +141,7 @@ pub struct BuildSpec {
     #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
     pub validation: ValidationSpec,
     #[serde(default)]
-    pub host_compatibility: HostOsCompatibility,
+    pub host_compat: HostCompat,
 }
 
 impl Default for BuildSpec {
@@ -160,7 +151,7 @@ impl Default for BuildSpec {
             options: Vec::new(),
             variants: vec![v0::Variant::default()],
             validation: ValidationSpec::default(),
-            host_compatibility: HostOsCompatibility::default(),
+            host_compat: HostCompat::default(),
         }
     }
 }
@@ -204,16 +195,16 @@ impl BuildSpec {
         // controlled by the host compatibility setting.
         let config = spk_config::get_config()?;
         if config.host_compat.validate {
-            self.host_compatibility.validate_host_opts(&opts)?;
+            self.host_compat.validate_host_opts(&opts)?;
         }
 
         // Add any host options that are not already present.
-        let host_opts = self.host_compatibility.host_options()?;
-        for (name, value) in host_opts.iter() {
-            let mut opt = Opt::Var(VarOpt::new(name)?);
-            opt.set_value(value.to_string())?;
+        let host_opts = self.host_compat.host_options()?;
+        for opt in host_opts.iter() {
+            //let mut opt = Opt::Var(VarOpt::new(name)?);
+            //opt.set_value(value.to_string())?;
             if known.insert(opt.full_name().to_owned()) {
-                opts.push(opt);
+                opts.push(opt.clone());
             }
         }
 
@@ -343,10 +334,7 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                         "validation" => {
                             unchecked.validation = map.next_value::<ValidationSpec>()?
                         }
-                        "host_compat" | "host_compatibility" => {
-                            unchecked.host_compatibility =
-                                map.next_value::<HostOsCompatibility>()?
-                        }
+                        "host_compat" => unchecked.host_compat = map.next_value::<HostCompat>()?,
                         _ => {
                             // for forwards compatibility we ignore any unrecognized
                             // field, but consume it just the same

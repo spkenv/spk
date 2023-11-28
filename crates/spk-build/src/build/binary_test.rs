@@ -53,7 +53,7 @@ async fn test_empty_var_option_is_not_a_request() {
         r#"{
             pkg: mypackage/1.0.0,
             build: {
-                host_compat: any,
+                host_compat: Any,
                 options: [
                     {var: something}
                 ]
@@ -832,7 +832,7 @@ async fn test_default_build_component() {
             "pkg": "mypkg/1.0.0",
             "sources": [],
             "build": {
-                "host_compat": "any",
+                "host_compat": "Any",
                 "options": [{"pkg": "somepkg/1.0.0"}],
                 "script": "echo building...",
             },

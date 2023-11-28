@@ -44,13 +44,12 @@ fn get_stub(name: &PkgNameBuf) -> String {
 
 build:
 
-  build:
   # Set what level of host os compatibility the built package should have:
   # - full: package can be used on any OS
   # - os: package can be used anywhere that has the same OS type
   # - arch: package can be used anywhere that has the same OS and CPU type
   # - distro: package can only be used on the same OS, CPU, and OS distribution version
-  host_compatibility: distro
+  host_compat: distro
 
   # options are all the inputs to the package build process, including
   # build-time dependencies

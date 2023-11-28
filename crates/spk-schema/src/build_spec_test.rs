@@ -4,23 +4,18 @@
 use rstest::rstest;
 use spk_schema_foundation::FromYaml;
 
-use super::{BuildSpec, HostOsCompatibility};
+use super::{BuildSpec, HostCompat};
 
 #[rstest]
-fn test_host_os_compatibility_default() {
-    let host_compat = HostOsCompatibility::default();
+fn test_host_compat_default() {
+    let host_compat = HostCompat::default();
     assert!(host_compat.is_default());
 }
 
 #[rstest]
-#[case("distro", true)]
 #[case("Distro", true)]
-#[case("arch", true)]
 #[case("Arch", true)]
-#[case("os", true)]
 #[case("Os", true)]
-#[case("OS", true)]
-#[case("any", true)]
 #[case("Any", true)]
 #[case("Tuesday", false)]
 fn test_build_spec_with_host_opt_value(#[case] value: &str, #[case] expected_result: bool) {
@@ -35,10 +30,10 @@ fn test_build_spec_with_host_opt_value(#[case] value: &str, #[case] expected_res
 }
 
 #[rstest]
-#[case("distro", vec![String::from("distro"),String::from("arch"),String::from("os")])]
-#[case("arch", vec![String::from("arch"),String::from("os")])]
-#[case("os", vec![String::from("os")])]
-#[case("any", vec![])]
+#[case("Distro", vec![String::from("distro"),String::from("arch"),String::from("os")])]
+#[case("Arch", vec![String::from("arch"),String::from("os")])]
+#[case("Os", vec![String::from("os")])]
+#[case("Any", vec![])]
 fn test_build_spec_with_host_opt_contains_expected_names(
     #[case] value: &str,
     #[case] expected_names: Vec<String>,
@@ -72,10 +67,10 @@ fn test_build_spec_with_host_opt_contains_expected_names(
 }
 
 #[rstest]
-#[case("distro", vec![])]
-#[case("arch", vec!["distro"])]
-#[case("os", vec!["distro", "arch"])]
-#[case("any", vec!["distro", "arch", "os"])]
+#[case("Distro", vec![])]
+#[case("Arch", vec!["distro"])]
+#[case("Os", vec!["distro", "arch"])]
+#[case("Any", vec!["distro", "arch", "os"])]
 fn test_build_spec_with_host_opt_does_not_have_disallowed_names(
     #[case] value: &str,
     #[case] invalid_names: Vec<&str>,
@@ -117,9 +112,9 @@ fn test_build_spec_with_host_opt_does_not_have_disallowed_names(
 
 // #[case("distro")] - not checked, it has no disallowed names
 #[rstest]
-#[case("arch")]
-#[case("os")]
-#[case("any")]
+#[case("Arch")]
+#[case("Os")]
+#[case("Any")]
 fn test_build_spec_with_host_opt_and_disallowed_name(#[case] value: &str) {
     // Test the host_compat value setting causes an error when there's
     // a disallowed option name in the build options.

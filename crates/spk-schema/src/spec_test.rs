@@ -17,7 +17,7 @@ fn test_resolve_options_empty_options() {
     let spec = recipe!({
         "pkg": "test/1.0.0",
         "build": {
-            "host_compat": "any"
+            "host_compat": "Any"
         }
     });
 
@@ -38,7 +38,7 @@ fn test_resolve_options_variant_adds_new_var_option(
     let spec = recipe!({
         "pkg": "test/1.0.0",
         "build": {
-            "host_compat": "any",
+            "host_compat": "Any",
             "variants": [
                 {
                     opt_name: default_value,
