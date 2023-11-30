@@ -10,7 +10,7 @@ use strum::Display;
 
 use super::foundation::option_map::OptionMap;
 use super::{v0, Opt, ValidationSpec};
-use crate::name::{OptName, OptNameBuf};
+use crate::name::OptName;
 use crate::option::VarOpt;
 use crate::{Error, Result, Variant};
 
@@ -20,6 +20,22 @@ mod build_spec_test;
 
 // TODO: could move to another file nearer the host_options() function
 // in use super::foundation::option_map
+
+// Each HostCompat value adds a different set of host related options when used.
+// TODO: move these to config
+const DISTRO_ADDS: &[&OptName] = &[OptName::os(), OptName::arch(), OptName::distro()];
+const ARCH_ADDS: &[&OptName] = &[OptName::os(), OptName::arch()];
+const OS_ADDS: &[&OptName] = &[OptName::os()];
+const ANY_ADDS: &[&OptName] = &[];
+
+// Each HostCompat value disallows certain var names when host_compat
+// validation is enabled in the config file.
+// TODO: move these to config
+const DISTRO_DISALLOWS: &[&OptName] = &[];
+const ARCH_DISALLOWS: &[&OptName] = &[OptName::distro()];
+const OS_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch()];
+const ANY_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch(), OptName::os()];
+
 /// Set what level of cross-platform compatibility the built package
 /// should have.
 #[derive(
@@ -37,33 +53,20 @@ pub enum HostCompat {
     Any,
 }
 
-// Each HostCompat value disallows certain var names when host_compat
-// validation is enabled in the config file.
-// TODO: move these to config
-const DISTRO_DISALLOWS: &[&OptName] = &[];
-const ARCH_DISALLOWS: &[&OptName] = &[OptName::distro()];
-const OS_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch()];
-const ANY_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch(), OptName::os()];
-
 impl HostCompat {
     pub fn is_default(&self) -> bool {
         self == &Self::default()
     }
 
-    fn names_added(&self) -> HashSet<OptNameBuf> {
-        // TODO: move this to constants/config
+    fn names_added(&self) -> HashSet<&OptName> {
         let names = match self {
-            HostCompat::Distro => vec![
-                OptName::os().to_owned(),
-                OptName::arch().to_owned(),
-                OptName::distro().to_owned(),
-            ],
-            HostCompat::Arch => vec![OptName::os().to_owned(), OptName::arch().to_owned()],
-            HostCompat::Os => vec![OptName::os().to_owned()],
-            HostCompat::Any => Vec::new(),
+            HostCompat::Distro => DISTRO_ADDS,
+            HostCompat::Arch => ARCH_ADDS,
+            HostCompat::Os => OS_ADDS,
+            HostCompat::Any => ANY_ADDS,
         };
 
-        names.into_iter().collect::<HashSet<OptNameBuf>>()
+        names.iter().copied().collect::<HashSet<&OptName>>()
     }
 
     /// Get host_options after filtering based on the cross Os
@@ -72,24 +75,28 @@ impl HostCompat {
         let all_host_options = spk_schema_foundation::option_map::host_options()?;
 
         let mut names_added = self.names_added();
+        let distro_name;
         if HostCompat::Distro == *self {
             match all_host_options.get(OptName::distro()) {
-                Some(distro_name) => match OptNameBuf::try_from(distro_name.clone()) {
-                    Ok(name) => _ = names_added.insert(name),
-                    Err(err) => {
-                        return Err(Error::HostOptionNotValidDistroNameError(
-                            distro_name.to_string(),
-                            err,
-                        ))
+                Some(distro) => {
+                    distro_name = distro.clone();
+                    match OptName::new(&distro_name) {
+                        Ok(name) => _ = names_added.insert(name),
+                        Err(err) => {
+                            return Err(Error::HostOptionNotValidDistroNameError(
+                                distro_name.to_string(),
+                                err,
+                            ))
+                        }
                     }
-                },
+                }
                 None => return Err(Error::HostOptionNoDistroName),
             }
         }
 
         let mut settings = Vec::new();
         for (name, value) in all_host_options.iter() {
-            if names_added.contains(name) {
+            if names_added.contains(&OptName::new(name)?) {
                 let mut opt = Opt::Var(VarOpt::new(name)?);
                 opt.set_value(value.to_string())?;
                 settings.push(opt)
