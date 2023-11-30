@@ -8,6 +8,7 @@ use chrono::prelude::*;
 use clap::Parser;
 use colored::Colorize;
 use miette::Result;
+use spfs::storage::fs::NoRenderStoreForCurrentUser;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
 
@@ -117,7 +118,14 @@ impl CommandName for CmdClean {
 
 impl CmdClean {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        // NoRenderStoreForCurrentUser is used to avoid attempting to create
+        // the directory if it missing, which may fail for full disks,
+        // preventing the clean operation from running.
+        let repo = spfs::config::open_repository_with_render_mode_from_string::<
+            _,
+            NoRenderStoreForCurrentUser,
+        >(config, self.remote.as_ref())
+        .await?;
         tracing::debug!("spfs clean command called");
 
         if let Some(runtime_name) = &self.remove_durable {

@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
 use tokio_stream::StreamExt;
 
+use crate::storage::fs::ValidRenderStoreForCurrentUser;
 use crate::{runtime, storage, tracking, Error, Result};
 
 #[cfg(test)]
@@ -230,7 +231,9 @@ impl RemoteConfig {
     pub async fn open(&self) -> storage::OpenRepositoryResult<storage::RepositoryHandle> {
         let handle = match self.inner.clone() {
             RepositoryConfig::Fs(config) => {
-                storage::fs::FsRepository::from_config(config).await?.into()
+                storage::fs::FsRepository::<ValidRenderStoreForCurrentUser>::from_config(config)
+                    .await?
+                    .into()
             }
             RepositoryConfig::Tar(config) => storage::tar::TarRepository::from_config(config)
                 .await?
@@ -376,7 +379,12 @@ impl Config {
     }
 
     /// Get the local repository instance as configured, creating it if needed.
-    pub async fn get_opened_local_repository(&self) -> Result<storage::fs::OpenFsRepository> {
+    pub async fn get_opened_local_repository<LocalRepositoryMode>(
+        &self,
+    ) -> Result<storage::fs::OpenFsRepository<LocalRepositoryMode>>
+    where
+        LocalRepositoryMode: storage::fs::RenderStoreMode,
+    {
         // Possibly use a different path for the local repository, depending
         // on enabled features.
         #[allow(unused_mut)]
@@ -388,7 +396,7 @@ impl Config {
                 Some(self.storage.root.join("ci").join(format!("pipeline_{id}")));
         }
 
-        storage::fs::OpenFsRepository::create(
+        storage::fs::OpenFsRepository::<LocalRepositoryMode>::create(
             use_ci_isolated_storage_path
                 .as_ref()
                 .unwrap_or(&self.storage.root),
@@ -404,8 +412,24 @@ impl Config {
     ///
     /// The returned repo is guaranteed to be created, valid and open already. Ie
     /// the local repository is not allowed to be lazily opened.
+    pub async fn get_local_repository_with_render_mode<LocalRepositoryMode>(
+        &self,
+    ) -> Result<storage::fs::FsRepository<LocalRepositoryMode>>
+    where
+        LocalRepositoryMode: storage::fs::RenderStoreMode,
+    {
+        self.get_opened_local_repository::<LocalRepositoryMode>()
+            .await
+            .map(Into::into)
+    }
+
+    /// Get the local repository instance as configured, creating it if needed.
+    ///
+    /// The returned repo is guaranteed to be created, valid and open already. Ie
+    /// the local repository is not allowed to be lazily opened.
     pub async fn get_local_repository(&self) -> Result<storage::fs::FsRepository> {
-        self.get_opened_local_repository().await.map(Into::into)
+        self.get_local_repository_with_render_mode::<ValidRenderStoreForCurrentUser>()
+            .await
     }
 
     /// Get the local repository handle as configured,  creating it if needed.
@@ -420,16 +444,20 @@ impl Config {
     ///
     /// If `name` is defined, attempt to open the named remote
     /// repository; otherwise open the local repository.
-    pub async fn get_remote_repository_or_local<S>(
+    pub async fn get_remote_repository_or_local<S, LocalRepositoryMode>(
         &self,
         name: Option<S>,
     ) -> Result<storage::RepositoryHandle>
     where
         S: AsRef<str>,
+        LocalRepositoryMode: storage::fs::RenderStoreMode,
     {
         match name {
             Some(name) => self.get_remote(name).await,
-            None => Ok(self.get_local_repository().await?.into()),
+            None => Ok(self
+                .get_local_repository_with_render_mode::<LocalRepositoryMode>()
+                .await?
+                .into()),
         }
     }
 
@@ -441,10 +469,10 @@ impl Config {
     }
 
     /// Get a remote repository by name.
-    pub async fn get_remote<S: AsRef<str>>(
-        &self,
-        remote_name: S,
-    ) -> Result<storage::RepositoryHandle> {
+    pub async fn get_remote<S>(&self, remote_name: S) -> Result<storage::RepositoryHandle>
+    where
+        S: AsRef<str>,
+    {
         match self.remote.get(remote_name.as_ref()) {
             Some(Remote::Address(remote)) => {
                 let config = RemoteConfig::from_address(remote.address.clone()).await?;
@@ -558,14 +586,20 @@ pub async fn open_repository<S: AsRef<str>>(
 /// repository, use `config::get_remote_repository_or_local` instead.
 ///
 /// When the repository specifier is a url, use `open_repository` instead.
-pub async fn open_repository_from_string<S: AsRef<str>>(
+pub async fn open_repository_with_render_mode_from_string<S, LocalRepositoryMode>(
     config: &Config,
     specifier: Option<S>,
-) -> crate::Result<storage::RepositoryHandle> {
+) -> crate::Result<storage::RepositoryHandle>
+where
+    S: AsRef<str>,
+    LocalRepositoryMode: storage::fs::RenderStoreMode,
+{
     // Discovering that the given string is not a configured remote
     // name is relatively cheap, so attempt to open a remote that
     // way first.
-    let rh = config.get_remote_repository_or_local(specifier).await;
+    let rh = config
+        .get_remote_repository_or_local::<_, LocalRepositoryMode>(specifier)
+        .await;
 
     if let Err(crate::Error::UnknownRemoteName(specifier)) = &rh {
         // In the event that provided specifier was not a recognized name,
@@ -596,4 +630,29 @@ pub async fn open_repository_from_string<S: AsRef<str>>(
 
     // No fallbacks worked so return the original result.
     rh
+}
+
+/// Open a repository either by address or by configured name.
+///
+/// If `specifier` is `None`, return the configured local repository.
+///
+/// This function will try to interpret the given repository specifier
+/// as either a url or configured remote name. It is recommended to use
+/// an alternative function when the type of the specifier is known.
+///
+/// When the repository specifier is expected to be a configured
+/// repository, use `config::get_remote_repository_or_local` instead.
+///
+/// When the repository specifier is a url, use `open_repository` instead.
+pub async fn open_repository_from_string<S>(
+    config: &Config,
+    specifier: Option<S>,
+) -> crate::Result<storage::RepositoryHandle>
+where
+    S: AsRef<str>,
+{
+    open_repository_with_render_mode_from_string::<_, ValidRenderStoreForCurrentUser>(
+        config, specifier,
+    )
+    .await
 }

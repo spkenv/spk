@@ -396,6 +396,9 @@ where
     };
     match repo {
         storage::RepositoryHandle::FS(r) => resolve_stack_to_layers_with_repo(stack, r).await,
+        storage::RepositoryHandle::FSNoUserRenders(r) => {
+            resolve_stack_to_layers_with_repo(stack, r).await
+        }
         storage::RepositoryHandle::Tar(r) => resolve_stack_to_layers_with_repo(stack, r).await,
         storage::RepositoryHandle::Rpc(r) => resolve_stack_to_layers_with_repo(stack, r).await,
         storage::RepositoryHandle::FallbackProxy(r) => {

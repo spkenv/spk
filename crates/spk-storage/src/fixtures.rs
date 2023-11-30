@@ -10,6 +10,7 @@ use once_cell::sync::Lazy;
 use rstest::fixture;
 use spfs::config::Remote;
 use spfs::prelude::*;
+use spfs::storage::fs::ValidRenderStoreForCurrentUser;
 use spfs::Result;
 use spk_schema::foundation::fixtures::*;
 use tokio::sync::{Mutex, MutexGuard};
@@ -106,7 +107,10 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
     let repo = match kind {
         RepoKind::Spfs => {
             let storage_root = tmpdir.path().join("repo");
-            let spfs_repo = spfs::storage::fs::FsRepository::create(&storage_root)
+            let spfs_repo =
+                spfs::storage::fs::FsRepository::<ValidRenderStoreForCurrentUser>::create(
+                    &storage_root,
+                )
                 .await
                 .expect("failed to establish temporary local repo for test");
             let written = spfs_repo

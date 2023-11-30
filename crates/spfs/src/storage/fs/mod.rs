@@ -35,8 +35,11 @@ pub use repository::{
     read_last_migration_version,
     Config,
     FsRepository,
+    NoRenderStoreForCurrentUser,
     OpenFsRepository,
     Params,
     RenderStore,
+    RenderStoreMode,
+    ValidRenderStoreForCurrentUser,
     DURABLE_EDITS_DIR,
 };
