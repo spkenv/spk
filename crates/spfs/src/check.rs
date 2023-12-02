@@ -249,6 +249,7 @@ where
                     self.check_object_with_perms_opt(obj, perms).await?
                 };
                 if matches!(fallback, Fallback::Repaired) {
+                    tracing::trace!(?digest, ?res, "setting repaired flag");
                     res.set_repaired();
                 }
                 Ok(res)
