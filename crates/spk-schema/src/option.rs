@@ -159,13 +159,9 @@ impl TryFrom<Request> for Opt {
     fn try_from(request: Request) -> Result<Opt> {
         match request {
             Request::Pkg(request) => {
-                let default = request
-                    .pkg
-                    .to_string()
-                    .chars()
-                    .skip(request.pkg.name.len())
-                    .skip(1)
-                    .collect();
+                let default = request.pkg.to_version_and_build_string().map_err(|err| {
+                    Error::String(format!("failed to get version and build string: {err}"))
+                })?;
                 Ok(Opt::Pkg(PkgOpt {
                     pkg: request.pkg.name.clone(),
                     components: request.pkg.components.into(),

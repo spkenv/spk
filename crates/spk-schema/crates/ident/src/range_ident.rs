@@ -229,6 +229,23 @@ impl RangeIdent {
             build: self.build,
         }
     }
+
+    /// Return a string that formats the version and optional build part of
+    /// this ident.
+    ///
+    /// This returns an empty string if the version is empty, even if the build
+    /// is not empty.
+    pub fn to_version_and_build_string(&self) -> std::result::Result<String, std::fmt::Error> {
+        let mut out = String::new();
+        if self.version.is_empty() {
+            return Ok(out);
+        }
+        write!(&mut out, "{}", self.version)?;
+        if let Some(build) = &self.build {
+            write!(&mut out, "/{}", build)?;
+        }
+        Ok(out)
+    }
 }
 
 impl std::fmt::Display for RangeIdent {
