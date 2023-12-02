@@ -1,7 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -155,14 +155,58 @@ impl BuildSpec {
             .map(Opt::full_name)
             .map(ToOwned::to_owned)
             .collect::<HashSet<_>>();
+        let mut known_pkg_options_with_index = opts
+            .iter()
+            .enumerate()
+            .filter_map(|(i, o)| match o {
+                Opt::Pkg(_) => Some((o.full_name().to_owned(), i)),
+                _ => None,
+            })
+            .collect::<HashMap<_, _>>();
 
         // inject additional package options for items in the variant that
         // were not present in the original package
         let reqs = variant.additional_requirements().into_owned();
         for req in reqs.into_iter() {
-            let opt = Opt::try_from(req)?;
+            let mut opt = Opt::try_from(req)?;
+
             if known.insert(opt.full_name().to_owned()) {
+                // Maintain pkg index when inserting a new PkgOpt.
+                if let Opt::Pkg(_) = &opt {
+                    known_pkg_options_with_index.insert(opt.full_name().to_owned(), opts.len());
+                };
+
                 opts.push(opt);
+                continue;
+            }
+
+            if let Opt::Pkg(pkg) = &mut opt {
+                // This is an existing PkgOpt; merge the requested components.
+
+                match known_pkg_options_with_index.get(pkg.pkg.as_opt_name()) {
+                    Some(&idx) => {
+                        // Merge the components of the existing option with the
+                        // additional one(s) from the variant.
+                        match &mut opts[idx] {
+                            Opt::Pkg(pkg_in_opts) => {
+                                let pkg_components = std::mem::take(&mut pkg.components);
+                                pkg_in_opts.components.extend(pkg_components.into_inner());
+                            }
+                            Opt::Var(_) => {
+                                debug_assert!(
+                                    false,
+                                    "known_pkg_options_with_index should only index PkgOpt options"
+                                );
+                            }
+                        };
+                    }
+                    None => {
+                        debug_assert!(
+                            false,
+                            "known_pkg_options_with_index should already contain all PkgOpt names"
+                        );
+                    }
+                };
             }
         }
 

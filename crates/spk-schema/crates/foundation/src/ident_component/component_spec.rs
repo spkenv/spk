@@ -264,6 +264,12 @@ impl std::ops::Deref for ComponentBTreeSet {
     }
 }
 
+impl std::ops::DerefMut for ComponentBTreeSet {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl std::fmt::Display for ComponentBTreeSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.fmt_component_set(f)

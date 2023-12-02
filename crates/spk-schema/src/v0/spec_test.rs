@@ -16,8 +16,9 @@ use super::Spec;
 use crate::foundation::fixtures::*;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::FromYaml;
+use crate::option::PkgOpt;
 use crate::spec::SpecTemplate;
-use crate::{BuildEnv, Opt, Recipe, Template, TemplateExt, Variant};
+use crate::{BuildEnv, Opt, Recipe, Template, TemplateExt, Variant, VariantExt};
 
 #[rstest]
 fn test_spec_is_valid_with_only_name() {
@@ -342,5 +343,79 @@ fn test_variants_can_introduce_components() {
     assert!(
         found,
         "dep-pkg adds option and package dependency with comp1 and comp2 enabled"
+    )
+}
+
+#[rstest]
+fn test_variants_can_append_components() {
+    struct TestBuildEnv();
+
+    impl BuildEnv for TestBuildEnv {
+        type Package = Spec<BuildIdent>;
+
+        fn build_env(&self) -> Vec<Self::Package> {
+            vec![serde_yaml::from_str(
+                r#"
+                api: v0/package
+                pkg: dep-pkg/1.2.3/3TCOOP2W
+            "#,
+            )
+            .unwrap()]
+        }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::default()
+        }
+    }
+
+    let build_env = TestBuildEnv();
+
+    let spec: Spec<VersionIdent> = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        build:
+          options:
+            - pkg: dep-pkg:comp1/1.2.3
+          variants:
+            - { "dep-pkg:comp2": "1.2.3" }
+    "#,
+    )
+    .unwrap();
+
+    let variants = spec.default_variants();
+
+    let variant = variants[0].clone().with_overrides(option_map! {});
+
+    let built_package = spec.generate_binary_build(&variant, &build_env).unwrap();
+
+    // Verify that after building the first variant, the built package has
+    // requests for both comp1 and comp2 (the requests were merged).
+
+    let comp1 = Component::Named("comp1".to_owned());
+    let comp2 = Component::Named("comp2".to_owned());
+
+    let mut found = false;
+    for option in built_package.build.options.iter() {
+        match option {
+            Opt::Pkg(PkgOpt {
+                pkg,
+                components,
+                default,
+                ..
+            }) if pkg == "dep-pkg"
+                && components.contains(&comp1)
+                && components.contains(&comp2)
+                && default == "1.2.3" =>
+            {
+                found = true;
+                break;
+            }
+            _ => (),
+        };
+    }
+
+    assert!(
+        found,
+        "dep-pkg adds package dependency with comp1 and comp2 enabled"
     )
 }
