@@ -419,3 +419,88 @@ fn test_variants_can_append_components() {
         "dep-pkg adds package dependency with comp1 and comp2 enabled"
     )
 }
+
+#[rstest]
+fn test_variants_can_append_components_and_modify_version() {
+    struct TestBuildEnv();
+
+    impl BuildEnv for TestBuildEnv {
+        type Package = Spec<BuildIdent>;
+
+        fn build_env(&self) -> Vec<Self::Package> {
+            vec![
+                serde_yaml::from_str(
+                    r#"
+                api: v0/package
+                pkg: dep-pkg/1.2.3/3TCOOP2W
+            "#,
+                )
+                .unwrap(),
+                serde_yaml::from_str(
+                    r#"
+                api: v0/package
+                pkg: dep-pkg/1.2.4/3TCOOP2W
+            "#,
+                )
+                .unwrap(),
+            ]
+        }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::default()
+        }
+    }
+
+    let build_env = TestBuildEnv();
+
+    let spec: Spec<VersionIdent> = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        build:
+          options:
+            # base option asks for 1.2.3
+            - pkg: dep-pkg:comp1/1.2.3
+          variants:
+            # variant asks for 1.2.4
+            - { "dep-pkg:comp2": "1.2.4" }
+    "#,
+    )
+    .unwrap();
+
+    let variants = spec.default_variants();
+
+    let variant = variants[0].clone().with_overrides(option_map! {});
+
+    let built_package = spec.generate_binary_build(&variant, &build_env).unwrap();
+
+    // Verify that after building the first variant, the built package has
+    // requests for both comp1 and comp2 (the requests were merged).
+
+    let comp1 = Component::Named("comp1".to_owned());
+    let comp2 = Component::Named("comp2".to_owned());
+
+    let mut found = false;
+    for option in built_package.build.options.iter() {
+        match option {
+            Opt::Pkg(PkgOpt {
+                pkg,
+                components,
+                default,
+                ..
+            }) if pkg == "dep-pkg"
+                && components.contains(&comp1)
+                && components.contains(&comp2)
+                && default == "1.2.4" =>
+            {
+                found = true;
+                break;
+            }
+            x => dbg!(x),
+        };
+    }
+
+    assert!(
+        found,
+        "dep-pkg adds package dependency with comp1 and comp2 enabled and expected version"
+    )
+}

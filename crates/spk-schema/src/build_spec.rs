@@ -181,16 +181,20 @@ impl BuildSpec {
             }
 
             if let Opt::Pkg(pkg) = &mut opt {
-                // This is an existing PkgOpt; merge the requested components.
+                // This is an existing PkgOpt; merge the requests.
 
                 match known_pkg_options_with_index.get(pkg.pkg.as_opt_name()) {
                     Some(&idx) => {
-                        // Merge the components of the existing option with the
-                        // additional one(s) from the variant.
                         match &mut opts[idx] {
                             Opt::Pkg(pkg_in_opts) => {
+                                // Merge the components of the existing option with the
+                                // additional one(s) from the variant.
                                 let pkg_components = std::mem::take(&mut pkg.components);
                                 pkg_in_opts.components.extend(pkg_components.into_inner());
+
+                                // The default value is overridden by the
+                                // variant.
+                                pkg_in_opts.default = std::mem::take(&mut pkg.default);
                             }
                             Opt::Var(_) => {
                                 debug_assert!(
