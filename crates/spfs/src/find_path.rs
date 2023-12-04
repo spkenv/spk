@@ -54,8 +54,8 @@ pub async fn find_path_providers_in_spfs_runtime(
     let mut found: Vec<ObjectPath> = Vec::new();
 
     if let Ok(runtime) = status::active_runtime().await {
-        for digest in runtime.status.stack.iter() {
-            let item = repo.read_object(*digest).await?;
+        for digest in runtime.status.stack.iter_bottom_up() {
+            let item = repo.read_object(digest).await?;
             let file_data = find_path_in_spfs_item(filepath, &item, repo).await?;
             if !file_data.is_empty() {
                 found.extend(file_data);
@@ -82,8 +82,8 @@ async fn find_path_in_spfs_item(
 
     match obj {
         Object::Platform(obj) => {
-            for reference in obj.stack.iter() {
-                let item = repo.read_object(*reference).await?;
+            for reference in obj.stack.iter_bottom_up() {
+                let item = repo.read_object(reference).await?;
                 let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
                 for path in paths_to_file {
                     let mut new_path: ObjectPath = Vec::new();

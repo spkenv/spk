@@ -501,7 +501,7 @@ async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding
     let runtime = spfs::active_runtime().await?;
     let repo = spfs::get_runtime_backing_repo(&runtime).await?;
 
-    let layers = spfs::resolve_stack_to_layers(runtime.status.stack.iter(), Some(&repo)).await?;
+    let layers = spfs::resolve_stack_to_layers(&runtime.status.stack, Some(&repo)).await?;
     for layer in layers.iter().rev() {
         let manifest = repo
             .read_manifest(layer.manifest)
@@ -536,7 +536,7 @@ async fn find_layers_by_filenames<S: AsRef<str>>(
     let mut results = Vec::new();
     results.resize_with(paths.len(), Default::default);
 
-    let layers = spfs::resolve_stack_to_layers(runtime.status.stack.iter(), Some(&repo)).await?;
+    let layers = spfs::resolve_stack_to_layers(&runtime.status.stack, Some(&repo)).await?;
     for layer in layers.iter().rev() {
         let manifest = repo
             .read_manifest(layer.manifest)

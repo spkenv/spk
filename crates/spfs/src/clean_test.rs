@@ -196,7 +196,7 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
         .await
         .unwrap();
     let platform = tmprepo
-        .create_platform(vec![layer.digest().unwrap()])
+        .create_platform(layer.digest().unwrap().into())
         .await
         .unwrap();
 
@@ -244,7 +244,7 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         .await
         .unwrap();
     let _platform = tmprepo
-        .create_platform(vec![layer.digest().unwrap()])
+        .create_platform(layer.digest().unwrap().into())
         .await
         .unwrap();
 

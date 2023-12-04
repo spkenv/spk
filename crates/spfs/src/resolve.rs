@@ -152,10 +152,10 @@ pub async fn compute_environment_manifest(
             tracking::EnvSpecItem::LiveLayerFile(_) => None,
         })
         .collect();
-    let stack: Vec<_> = stack_futures.try_collect().await?;
-    let layers = resolve_stack_to_layers(stack.iter(), Some(repo)).await?;
+    let stack = stack_futures.try_collect().await?;
+    let layers = resolve_stack_to_layers(&stack, Some(repo)).await?;
     let mut manifest = tracking::Manifest::default();
-    for layer in layers.iter().rev() {
+    for layer in layers {
         manifest.update(
             &repo
                 .read_manifest(layer.manifest)
@@ -176,9 +176,9 @@ pub async fn compute_object_manifest(
             .await?
             .to_tracking_manifest()),
         graph::Object::Platform(obj) => {
-            let layers = resolve_stack_to_layers(obj.stack.iter(), Some(repo)).await?;
+            let layers = resolve_stack_to_layers(&obj.stack, Some(repo)).await?;
             let mut manifest = tracking::Manifest::default();
-            for layer in layers.iter().rev() {
+            for layer in layers.iter() {
                 let layer_manifest = repo.read_manifest(layer.manifest).await?;
                 manifest.update(&layer_manifest.to_tracking_manifest());
             }
@@ -245,7 +245,7 @@ where
         }
     }
 
-    let layers = resolve_stack_to_layers_with_repo(runtime.status.stack.iter(), &repo).await?;
+    let layers = resolve_stack_to_layers_with_repo(&runtime.status.stack, &repo).await?;
     let mut manifests = Vec::with_capacity(layers.len());
     for (index, layer) in layers.iter().enumerate() {
         manifests.push(ResolvedManifest::Existing {
@@ -377,14 +377,10 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
 }
 
 /// Given a sequence of tags and digests, resolve to the set of underlying layers.
-pub async fn resolve_stack_to_layers<'iter, 'repo, D, I>(
-    stack: I,
+pub async fn resolve_stack_to_layers<'repo>(
+    stack: &graph::Stack,
     mut repo: Option<&'repo storage::RepositoryHandle>,
-) -> Result<Vec<graph::Layer>>
-where
-    I: Iterator<Item = D> + Send + 'iter,
-    D: AsRef<encoding::Digest> + Send,
-{
+) -> Result<Vec<graph::Layer>> {
     let owned_handle;
     let repo = match repo.take() {
         Some(repo) => repo,
@@ -410,25 +406,20 @@ where
 
 /// See [`resolve_stack_to_layers`].
 #[async_recursion::async_recursion]
-pub async fn resolve_stack_to_layers_with_repo<I, D, R>(
-    stack: I,
+pub async fn resolve_stack_to_layers_with_repo<R>(
+    stack: &graph::Stack,
     repo: R,
 ) -> Result<Vec<graph::Layer>>
 where
-    I: Iterator<Item = D> + Send + 'async_recursion,
-    D: AsRef<encoding::Digest> + Send,
     R: storage::Repository + Send + Sync + Copy + 'async_recursion,
 {
     let mut layers = Vec::new();
-    for reference in stack {
-        let reference = reference.as_ref();
-        let entry = repo.read_ref(reference.to_string().as_str()).await?;
+    for digest in stack.iter_bottom_up() {
+        let entry = repo.read_object(digest).await?;
         match entry {
             graph::Object::Layer(layer) => layers.push(layer),
             graph::Object::Platform(platform) => {
-                let mut expanded =
-                    resolve_stack_to_layers_with_repo(platform.stack.clone().into_iter(), repo)
-                        .await?;
+                let mut expanded = resolve_stack_to_layers_with_repo(&platform.stack, repo).await?;
                 layers.append(&mut expanded);
             }
             graph::Object::Manifest(manifest) => {

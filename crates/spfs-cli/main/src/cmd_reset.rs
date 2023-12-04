@@ -39,7 +39,7 @@ impl CmdReset {
         )?;
         if let Some(env_spec) = &self.reference {
             runtime.reset::<&str>(&[])?;
-            runtime.status.stack.truncate(0);
+            runtime.status.stack.clear();
             if env_spec.is_empty() {
                 self.edit = true;
             } else {

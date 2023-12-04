@@ -139,7 +139,8 @@ fn test_live_layer_deserialize_unknown_version() {
 #[rstest]
 fn test_config_serialization() {
     let mut expected = Data::new("spfs-testing");
-    expected.status.stack = vec![encoding::NULL_DIGEST.into(), encoding::EMPTY_DIGEST.into()];
+    expected.status.stack.push(encoding::NULL_DIGEST.into());
+    expected.status.stack.push(encoding::EMPTY_DIGEST.into());
     let data = serde_json::to_string_pretty(&expected).expect("failed to serialize config");
     let actual: Data = serde_json::from_str(&data).expect("failed to deserialize config data");
 

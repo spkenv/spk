@@ -193,7 +193,7 @@ pub async fn setup_current_runtime(solution: &Solution) -> Result<()> {
 pub async fn setup_runtime(rt: &mut spfs::runtime::Runtime, solution: &Solution) -> Result<()> {
     let stack =
         resolve_runtime_layers(rt.config.mount_backend.requires_localization(), solution).await?;
-    rt.status.stack = stack;
+    rt.status.stack = spfs::graph::Stack::from_iter(stack);
     rt.save_state_to_storage().await?;
     spfs::remount_runtime(rt).await?;
     Ok(())

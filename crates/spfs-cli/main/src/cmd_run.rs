@@ -101,7 +101,7 @@ impl CmdRun {
 
             let start_time = Instant::now();
             let origin = config.get_remote("origin").await?;
-            let references_to_sync = EnvSpec::from_iter(runtime.status.stack.iter().copied());
+            let references_to_sync = EnvSpec::from_iter(runtime.status.stack.iter_bottom_up());
             let _synced = self
                 .sync
                 .get_syncer(&origin, &repo)

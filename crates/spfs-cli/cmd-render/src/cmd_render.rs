@@ -7,7 +7,7 @@ use clap::Parser;
 use miette::{Context, Result};
 use spfs::prelude::*;
 use spfs::storage::fallback::FallbackProxy;
-use spfs::{Error, RenderResult};
+use spfs::{graph, Error, RenderResult};
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
 use strum::VariantNames;
@@ -132,17 +132,17 @@ impl CmdRender {
         repo: FallbackProxy,
         env_spec: spfs::tracking::EnvSpec,
     ) -> Result<RenderResult> {
-        let mut digests = Vec::with_capacity(env_spec.len());
+        let mut stack = graph::Stack::default();
         for env_item in env_spec.iter() {
             let env_item = env_item.to_string();
             let digest = repo
                 .resolve_ref(env_item.as_ref())
                 .await
                 .wrap_err_with(|| format!("resolve ref '{env_item}'"))?;
-            digests.push(digest);
+            stack.push(digest);
         }
 
-        let layers = spfs::resolve_stack_to_layers_with_repo(digests.iter(), &repo)
+        let layers = spfs::resolve_stack_to_layers_with_repo(&stack, &repo)
             .await
             .wrap_err("resolve stack to layers")?;
 
@@ -156,8 +156,9 @@ impl CmdRender {
                 &render_summary_reporter as &dyn spfs::storage::fs::RenderReporter,
             ]),
         );
+        let stack = layers.into_iter().map(|l| l.manifest).collect();
         renderer
-            .render(layers.into_iter().map(|l| l.manifest), self.strategy)
+            .render(&stack, self.strategy)
             .await
             .map(|paths_rendered| RenderResult {
                 paths_rendered,

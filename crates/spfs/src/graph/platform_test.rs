@@ -12,7 +12,7 @@ use crate::encoding::{Decodable, Encodable};
 fn test_platform_encoding() {
     let layers: Vec<encoding::Digest> =
         vec![encoding::EMPTY_DIGEST.into(), encoding::NULL_DIGEST.into()];
-    let expected = Platform::new(layers.iter()).unwrap();
+    let expected = Platform::from_iter(layers);
 
     let mut stream = Vec::new();
     expected.encode(&mut stream).unwrap();

@@ -185,6 +185,17 @@ where
     fn decode(reader: &mut impl std::io::BufRead) -> std::result::Result<Self, Self::Error>;
 }
 
+impl<T> Encodable for &T
+where
+    T: Encodable,
+{
+    type Error = T::Error;
+
+    fn encode(&self, writer: &mut impl Write) -> std::result::Result<(), Self::Error> {
+        (**self).encode(writer)
+    }
+}
+
 impl Encodable for String {
     type Error = Error;
 
@@ -492,18 +503,6 @@ impl Encodable for Digest {
 impl Decodable for Digest {
     fn decode(reader: &mut impl std::io::BufRead) -> Result<Self> {
         binary::read_digest(reader)
-    }
-}
-
-impl Encodable for &Digest {
-    type Error = Error;
-
-    fn encode(&self, writer: &mut impl Write) -> Result<()> {
-        binary::write_digest(writer, self)
-    }
-
-    fn digest(&self) -> Result<Digest> {
-        Ok(*self.to_owned())
     }
 }
 
