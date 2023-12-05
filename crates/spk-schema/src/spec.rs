@@ -212,7 +212,7 @@ impl TemplateExt for SpecTemplate {
 
         let pkg = pkg.as_str().ok_or_else(|| {
             crate::Error::String(format!(
-                "Invalid value for 'pkg' field: expected string, got {pkg:?} in {file_path:?}"
+                "Invalid value for '{name_field}' field: expected string, got {pkg:?} in {file_path:?}"
             ))
         })?;
 
