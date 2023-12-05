@@ -385,7 +385,7 @@ automatically for a platform.
 
 The platform spec also provides a way to inherit package requirements
 from another package, such as another platform. This allows platforms
-to be based on other platforms with respecifying the same
+to be based on other platforms without respecifying the same
 requirements, e.g. a DCC specific platform can pull in the
 requirements in a company or site specific platform. The expectation
 is that a platform would only inherit from other platforms, but that
@@ -428,7 +428,7 @@ api: v0/platform
       - pkg: imath
 ```
 
-The `base:`field indicates which platform this platform spec is based on (inherits the requiremented from).
+The `base:` field indicates which platform this platform spec is based on (inherits the requiremented from).
 
 Specifying a requirement drectly with `- ` is the same as specifying it with `add:`, but is a shorthand for convienence.
 

@@ -116,7 +116,7 @@ impl RequirementsList {
         Compatibility::incompatible(format!("No request exists for {}", theirs.name()))
     }
 
-    /// Remove a requirement in this list.
+    /// Remove a requirement from this list.
     ///
     /// If a request exists for the same name, it is removed from the list.
     pub fn remove(&mut self, request: &Request) {
