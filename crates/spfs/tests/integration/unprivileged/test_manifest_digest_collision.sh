@@ -9,14 +9,14 @@ set -o errexit
 # test that an empty platform's digest doesn't collide with a specially crafted
 # blob
 
-# Commit a blob containing 8 null bytes. This blob will also have the digest
-# V5KXB5NBQEFXV54MV5F4OCTGB4G7KHSCXL4R2TPFWIZI3YHIHX6A====
-spfs run - -- bash -c "dd if=/dev/zero bs=1 count=8 2>/dev/null | spfs write -t test/blob"
-
 # Commit an empty platform. At the time of writing with the current digest
 # calculation strategy, this should produce a digest of
 # V5KXB5NBQEFXV54MV5F4OCTGB4G7KHSCXL4R2TPFWIZI3YHIHX6A====
 spfs run - -- bash -c "spfs commit --allow-empty platform -t test/empty_platform"
+
+# Commit a blob containing 8 null bytes. This blob will also have the digest
+# V5KXB5NBQEFXV54MV5F4OCTGB4G7KHSCXL4R2TPFWIZI3YHIHX6A====
+spfs run - -- bash -c "dd if=/dev/zero bs=1 count=8 2>/dev/null | spfs write -t test/blob"
 
 # It should be possible to `spfs read` the blob; this command fails if the
 # object is not a blob.
