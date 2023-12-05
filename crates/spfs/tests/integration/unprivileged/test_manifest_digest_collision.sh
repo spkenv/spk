@@ -9,12 +9,15 @@ set -o errexit
 # test that an empty platform's digest doesn't collide with a specially crafted
 # blob
 
-# Commit an empty platform. At the time of writing with the current digest
+# Need to enable the new storage generation to pick up the fix.
+export SPFS_STORAGE_GENERATION=1
+
+# Commit an empty platform. At the time of writing with the new digest
 # calculation strategy, this should produce a digest of
-# V5KXB5NBQEFXV54MV5F4OCTGB4G7KHSCXL4R2TPFWIZI3YHIHX6A====
+# L2NF3ZFFTJ6DZG5IQRQGBOTXVNAC4MEIMWFKOBPBUZHHS33M2XHQ====
 spfs run - -- bash -c "spfs commit --allow-empty platform -t test/empty_platform"
 
-# Commit a blob containing 8 null bytes. This blob will also have the digest
+# Commit a blob containing 8 null bytes. This blob will have the digest
 # V5KXB5NBQEFXV54MV5F4OCTGB4G7KHSCXL4R2TPFWIZI3YHIHX6A====
 spfs run - -- bash -c "dd if=/dev/zero bs=1 count=8 2>/dev/null | spfs write -t test/blob"
 

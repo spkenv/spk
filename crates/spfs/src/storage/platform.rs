@@ -5,12 +5,19 @@
 use std::pin::Pin;
 
 use futures::stream::Stream;
+use once_cell::sync::Lazy;
 use tokio_stream::StreamExt;
 
-use crate::graph::{self, DigestFromKindAndEncode, PlatformHandle};
+use crate::graph::{self, DigestFromEncode, DigestFromKindAndEncode, PlatformHandle};
 use crate::{encoding, Result};
 
 pub type PlatformStreamItem = Result<(encoding::Digest, PlatformHandle)>;
+
+static STORAGE_GENERATION: Lazy<u64> = Lazy::new(|| {
+    crate::get_config()
+        .map(|config| config.storage.generation)
+        .unwrap_or(0)
+});
 
 #[async_trait::async_trait]
 pub trait PlatformStorage: graph::Database + Sync + Send {
@@ -32,7 +39,15 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
         use graph::Object;
         match self.read_object(digest).await {
             Err(err) => Err(err),
-            Ok(Object::Platform(platform)) => Ok(platform),
+            Ok(Object::Platform(platform))
+                if *STORAGE_GENERATION > 0 || matches!(platform, PlatformHandle::V1(_)) =>
+            {
+                Ok(platform)
+            }
+            Ok(Object::Platform(_)) => Err(format!(
+                "Platform object version is not allowed by the current storage generation configuration: {digest:?}"
+            )
+            .into()),
             Ok(_) => Err(format!("Object is not a platform: {digest:?}").into()),
         }
     }
@@ -59,8 +74,13 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
     where
         Self: Sized,
     {
-        self.create_platform_impl::<DigestFromKindAndEncode>(layers)
-            .await
+        match *STORAGE_GENERATION {
+            0 => self.create_platform_impl::<DigestFromEncode>(layers).await,
+            _ => {
+                self.create_platform_impl::<DigestFromKindAndEncode>(layers)
+                    .await
+            }
+        }
     }
 }
 

@@ -79,6 +79,15 @@ pub struct Storage {
     /// is owned by a different user than the current user. Only applies to
     /// payloads readable by "other".
     pub allow_payload_sharing_between_users: bool,
+    /// Storage format generation
+    ///
+    /// This is used to govern behaviors when interacting with storage.
+    ///
+    /// - 0: The initial storage format; platform v2 objects are not supported.
+    ///      Both read and write are not supported to prevent syncing v2 objects
+    ///      to/from remote repositories.
+    /// - 1: Platform v2 objects are supported.
+    pub generation: u64,
 }
 
 impl Storage {
@@ -98,6 +107,7 @@ impl Default for Storage {
                 .map(|data| data.join(DEFAULT_USER_STORAGE))
                 .unwrap_or_else(|| PathBuf::from(FALLBACK_STORAGE_ROOT)),
             allow_payload_sharing_between_users: false,
+            generation: 0,
         }
     }
 }
