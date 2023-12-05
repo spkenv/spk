@@ -12,7 +12,7 @@ use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
 use tokio::sync::Semaphore;
 
-use crate::graph::{DigestFromEncode, DigestFromKindAndEncode};
+use crate::graph::{DigestFromEncode, DigestFromKindAndEncode, PlatformHandle};
 use crate::prelude::*;
 use crate::sync::{SyncObjectResult, SyncPayloadResult, SyncPolicy};
 use crate::{encoding, graph, storage, tracking, Error, Result};
@@ -294,12 +294,14 @@ where
         self.reporter.visit_object(&obj);
         let res = match obj {
             Object::Layer(obj) => CheckObjectResult::Layer(self.check_layer(obj).await?.into()),
-            Object::PlatformV1(obj) => {
-                CheckObjectResult::PlatformV1(self.check_platform(obj).await?)
-            }
-            Object::PlatformV2(obj) => {
-                CheckObjectResult::PlatformV2(self.check_platform(obj).await?)
-            }
+            Object::Platform(obj) => match obj {
+                PlatformHandle::V1(obj) => {
+                    CheckObjectResult::PlatformV1(self.check_platform(obj).await?)
+                }
+                PlatformHandle::V2(obj) => {
+                    CheckObjectResult::PlatformV2(self.check_platform(obj).await?)
+                }
+            },
             Object::Blob(obj) => CheckObjectResult::Blob(unsafe {
                 // Safety: it is unsafe to call this function unless the blob
                 // is known to exist, which is the same rule we pass up to the caller

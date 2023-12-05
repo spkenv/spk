@@ -198,55 +198,6 @@ impl<'a> Dynamic<'a> {
         Ok(install_location.join(self.rel_bin_path()).into_os_string())
     }
 
-    #[allow(clippy::too_many_arguments)]
-    async fn execute_platform<P>(
-        &self,
-        platform: spfs::graph::Platform<P>,
-        spfs_tag: &str,
-        local_repo: OpenFsRepository,
-        remote_repo: RepositoryHandle,
-        args: &[CString],
-    ) -> Result<()>
-    where
-        spfs::graph::Platform<P>: spfs::encoding::Digestible<Error = spfs::Error>,
-    {
-        if platform.stack.is_empty() {
-            bail!("Unexpected empty platform stack");
-        }
-
-        let bin_path = self
-            .check_or_install(
-                spfs_tag,
-                &platform.digest().wrap_err("get platform context")?,
-                local_repo.into(),
-                remote_repo,
-            )
-            .await
-            .wrap_err_with(|| {
-                format!(
-                    "install requested version of {}",
-                    self.spfs_tag_prefix().to_string_lossy()
-                )
-            })?;
-
-        std::env::set_var(self.bin_var(), &bin_path);
-
-        execv(
-            &CString::new(bin_path.into_vec())
-                .into_diagnostic()
-                .wrap_err_with(|| {
-                    format!(
-                        "convert {} bin path to CString",
-                        self.spfs_tag_prefix().to_string_lossy()
-                    )
-                })?,
-            args,
-        )
-        .into_diagnostic()
-        .wrap_err("process replaced")?;
-        unreachable!();
-    }
-
     async fn execute(&self) -> Result<()> {
         let bin_tag = var_os(self.tag_env_var()).unwrap_or_else(|| RPM_TAG.into());
         let args = args_os()
@@ -288,13 +239,42 @@ impl<'a> Dynamic<'a> {
                 );
             }
             Err(err) => bail!(err.to_string()),
-            Ok(spfs::graph::Object::PlatformV1(platform)) => {
-                self.execute_platform(platform, &spfs_tag, local_repo, remote_repo, &args)
+            Ok(spfs::graph::Object::Platform(platform)) => {
+                if platform.stack().is_empty() {
+                    bail!("Unexpected empty platform stack");
+                }
+
+                let bin_path = self
+                    .check_or_install(
+                        &spfs_tag,
+                        &platform.digest().wrap_err("get platform context")?,
+                        local_repo.into(),
+                        remote_repo,
+                    )
                     .await
-            }
-            Ok(spfs::graph::Object::PlatformV2(platform)) => {
-                self.execute_platform(platform, &spfs_tag, local_repo, remote_repo, &args)
-                    .await
+                    .wrap_err_with(|| {
+                        format!(
+                            "install requested version of {}",
+                            self.spfs_tag_prefix().to_string_lossy()
+                        )
+                    })?;
+
+                std::env::set_var(self.bin_var(), &bin_path);
+
+                execv(
+                    &CString::new(bin_path.into_vec())
+                        .into_diagnostic()
+                        .wrap_err_with(|| {
+                            format!(
+                                "convert {} bin path to CString",
+                                self.spfs_tag_prefix().to_string_lossy()
+                            )
+                        })?,
+                    args.as_slice(),
+                )
+                .into_diagnostic()
+                .wrap_err("process replaced")?;
+                unreachable!();
             }
             Ok(obj) => bail!("Expected platform object from spfs; found: {}", obj),
         }

@@ -171,26 +171,20 @@ pub async fn compute_object_manifest(
     obj: graph::Object,
     repo: &storage::RepositoryHandle,
 ) -> Result<tracking::Manifest> {
-    async fn compute_platform_manifest<D>(
-        obj: graph::Platform<D>,
-        repo: &storage::RepositoryHandle,
-    ) -> Result<tracking::Manifest> {
-        let layers = resolve_stack_to_layers(&obj.stack, Some(repo)).await?;
-        let mut manifest = tracking::Manifest::default();
-        for layer in layers.iter() {
-            let layer_manifest = repo.read_manifest(layer.manifest).await?;
-            manifest.update(&layer_manifest.to_tracking_manifest());
-        }
-        Ok(manifest)
-    }
-
     match obj {
         graph::Object::Layer(obj) => Ok(repo
             .read_manifest(obj.manifest)
             .await?
             .to_tracking_manifest()),
-        graph::Object::PlatformV1(obj) => compute_platform_manifest(obj, repo).await,
-        graph::Object::PlatformV2(obj) => compute_platform_manifest(obj, repo).await,
+        graph::Object::Platform(obj) => {
+            let layers = resolve_stack_to_layers(obj.stack(), Some(repo)).await?;
+            let mut manifest = tracking::Manifest::default();
+            for layer in layers.iter() {
+                let layer_manifest = repo.read_manifest(layer.manifest).await?;
+                manifest.update(&layer_manifest.to_tracking_manifest());
+            }
+            Ok(manifest)
+        }
         graph::Object::Manifest(obj) => Ok(obj.to_tracking_manifest()),
         obj => Err(format!("Resolve: Unhandled object of type {:?}", obj.kind()).into()),
     }
@@ -425,12 +419,9 @@ where
         let entry = repo.read_object(digest).await?;
         match entry {
             graph::Object::Layer(layer) => layers.push(layer),
-            graph::Object::PlatformV1(platform) => {
-                let mut expanded = resolve_stack_to_layers_with_repo(&platform.stack, repo).await?;
-                layers.append(&mut expanded);
-            }
-            graph::Object::PlatformV2(platform) => {
-                let mut expanded = resolve_stack_to_layers_with_repo(&platform.stack, repo).await?;
+            graph::Object::Platform(platform) => {
+                let mut expanded =
+                    resolve_stack_to_layers_with_repo(platform.stack(), repo).await?;
                 layers.append(&mut expanded);
             }
             graph::Object::Manifest(manifest) => {

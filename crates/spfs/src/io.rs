@@ -159,8 +159,7 @@ pub async fn pretty_print_filepath(
         match item {
             ObjectPathEntry::Parent(obj) => {
                 let name = match obj {
-                    Object::PlatformV1(_) => "platform",
-                    Object::PlatformV2(_) => "platform",
+                    Object::Platform(_) => "platform",
                     Object::Layer(_) => "layer",
                     Object::Manifest(_) => "manifest",
                     Object::Blob(_) => "blob",

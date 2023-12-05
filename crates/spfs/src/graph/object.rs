@@ -7,14 +7,22 @@ use std::io::BufRead;
 use strum::Display;
 
 use super::blob::SameAsPayload;
-use super::{Blob, DigestFromEncode, DigestFromKindAndEncode, Layer, Manifest, Platform, Tree};
+use super::{
+    Blob,
+    DigestFromEncode,
+    DigestFromKindAndEncode,
+    Layer,
+    Manifest,
+    Platform,
+    PlatformHandle,
+    Tree,
+};
 use crate::storage::RepositoryHandle;
 use crate::{encoding, Error};
 
 #[derive(Debug, Display, Eq, PartialEq, Clone)]
 pub enum Object {
-    PlatformV1(Platform<DigestFromEncode>),
-    PlatformV2(Platform<DigestFromKindAndEncode>),
+    Platform(PlatformHandle),
     Layer(Layer<DigestFromEncode>),
     Manifest(Manifest<DigestFromEncode>),
     Tree(Tree<DigestFromEncode>),
@@ -25,8 +33,7 @@ pub enum Object {
 impl Object {
     pub fn child_objects(&self) -> Vec<encoding::Digest> {
         match self {
-            Self::PlatformV1(platform) => platform.child_objects(),
-            Self::PlatformV2(platform) => platform.child_objects(),
+            Self::Platform(platform) => platform.child_objects(),
             Self::Layer(layer) => layer.child_objects(),
             Self::Manifest(manifest) => manifest.child_objects(),
             Self::Tree(tree) => tree.entries.iter().map(|e| e.object).collect(),
@@ -49,14 +56,8 @@ impl Object {
             let mut next_iter_objects: Vec<Object> = Vec::new();
             for object in items_to_process.iter() {
                 match object {
-                    Object::PlatformV1(object) => {
-                        for digest in object.stack.iter_bottom_up() {
-                            let item = repo.read_object(digest).await?;
-                            next_iter_objects.push(item);
-                        }
-                    }
-                    Object::PlatformV2(object) => {
-                        for digest in object.stack.iter_bottom_up() {
+                    Object::Platform(object) => {
+                        for digest in object.stack().iter_bottom_up() {
                             let item = repo.read_object(digest).await?;
                             next_iter_objects.push(item);
                         }
@@ -87,12 +88,12 @@ impl Object {
 
 impl From<Platform<DigestFromEncode>> for Object {
     fn from(platform: Platform<DigestFromEncode>) -> Self {
-        Self::PlatformV1(platform)
+        Self::Platform(PlatformHandle::V1(platform))
     }
 }
 impl From<Platform<DigestFromKindAndEncode>> for Object {
     fn from(platform: Platform<DigestFromKindAndEncode>) -> Self {
-        Self::PlatformV2(platform)
+        Self::Platform(PlatformHandle::V2(platform))
     }
 }
 impl From<Layer> for Object {
@@ -154,8 +155,7 @@ impl Kind for Object {
     #[inline]
     fn kind(&self) -> ObjectKind {
         match self {
-            Object::PlatformV1(o) => o.kind(),
-            Object::PlatformV2(o) => o.kind(),
+            Object::Platform(o) => o.kind(),
             Object::Layer(o) => o.kind(),
             Object::Manifest(o) => o.kind(),
             Object::Tree(o) => o.kind(),
@@ -180,8 +180,7 @@ impl encoding::Encodable for Object {
             Self::Blob(obj) => obj.encode(&mut writer),
             Self::Manifest(obj) => obj.encode(&mut writer),
             Self::Layer(obj) => obj.encode(&mut writer),
-            Self::PlatformV1(obj) => obj.encode(&mut writer),
-            Self::PlatformV2(obj) => obj.encode(&mut writer),
+            Self::Platform(obj) => obj.encode(&mut writer),
             Self::Tree(obj) => obj.encode(&mut writer),
             Self::Mask => Ok(()),
         }
@@ -196,10 +195,14 @@ impl encoding::Decodable for Object {
             Some(ObjectKind::Blob) => Ok(Self::Blob(Blob::decode(&mut reader)?)),
             Some(ObjectKind::Manifest) => Ok(Self::Manifest(Manifest::decode(&mut reader)?)),
             Some(ObjectKind::Layer) => Ok(Self::Layer(Layer::decode(&mut reader)?)),
-            Some(ObjectKind::PlatformV1) => Ok(Self::PlatformV1(
-                Platform::<DigestFromEncode>::decode(&mut reader)?,
-            )),
-            Some(ObjectKind::PlatformV2) => Ok(Self::PlatformV2(Platform::decode(&mut reader)?)),
+            Some(ObjectKind::PlatformV1) => Ok(Self::Platform(PlatformHandle::V1(Platform::<
+                DigestFromEncode,
+            >::decode(
+                &mut reader
+            )?))),
+            Some(ObjectKind::PlatformV2) => Ok(Self::Platform(PlatformHandle::V2(
+                Platform::decode(&mut reader)?,
+            ))),
             Some(ObjectKind::Tree) => Ok(Self::Tree(Tree::decode(&mut reader)?)),
             Some(ObjectKind::Mask) => Ok(Self::Mask),
             None => Err(format!("Cannot read object: unknown object kind {type_id}").into()),
@@ -212,8 +215,7 @@ impl encoding::Digestible for Object {
 
     fn digest(&self) -> std::result::Result<encoding::Digest, Self::Error> {
         match self {
-            Object::PlatformV1(o) => o.digest(),
-            Object::PlatformV2(o) => o.digest(),
+            Object::Platform(o) => o.digest(),
             Object::Layer(o) => o.digest(),
             Object::Manifest(o) => o.digest(),
             Object::Tree(o) => o.digest(),

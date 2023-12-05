@@ -12,6 +12,7 @@ mod layer;
 mod manifest;
 mod object;
 mod platform;
+mod platform_handle;
 pub mod stack;
 mod tree;
 
@@ -29,5 +30,6 @@ pub use layer::Layer;
 pub use manifest::Manifest;
 pub use object::{Kind, Object, ObjectKind};
 pub use platform::Platform;
+pub use platform_handle::PlatformHandle;
 pub use stack::Stack;
 pub use tree::Tree;

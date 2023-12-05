@@ -10,6 +10,7 @@ use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
 use tokio::sync::Semaphore;
 
+use crate::graph::PlatformHandle;
 use crate::prelude::*;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
@@ -273,14 +274,7 @@ where
         self.reporter.visit_object(&obj);
         let res = match obj {
             Object::Layer(obj) => SyncObjectResult::Layer(self.sync_layer(obj).await?),
-            Object::PlatformV1(obj) => SyncObjectResult::Platform(
-                self.sync_platform(storage::PlatformVersion::V1(obj))
-                    .await?,
-            ),
-            Object::PlatformV2(obj) => SyncObjectResult::Platform(
-                self.sync_platform(storage::PlatformVersion::V2(obj))
-                    .await?,
-            ),
+            Object::Platform(obj) => SyncObjectResult::Platform(self.sync_platform(obj).await?),
             Object::Blob(obj) => SyncObjectResult::Blob(self.sync_blob(obj).await?),
             Object::Manifest(obj) => SyncObjectResult::Manifest(self.sync_manifest(obj).await?),
             Object::Tree(obj) => SyncObjectResult::Tree(obj),
@@ -290,10 +284,7 @@ where
         Ok(res)
     }
 
-    pub async fn sync_platform(
-        &self,
-        platform: storage::PlatformVersion,
-    ) -> Result<SyncPlatformResult> {
+    pub async fn sync_platform(&self, platform: PlatformHandle) -> Result<SyncPlatformResult> {
         let digest = platform.digest()?;
         if !self.processed_digests.insert(digest) {
             return Ok(SyncPlatformResult::Duplicate);
@@ -313,8 +304,8 @@ where
         }
 
         let platform = match platform {
-            storage::PlatformVersion::V1(o) => self.dest.create_platform_v1(o.stack).await?.into(),
-            storage::PlatformVersion::V2(o) => self.dest.create_platform(o.stack).await?.into(),
+            PlatformHandle::V1(o) => self.dest.create_platform_v1(o.stack).await?.into(),
+            PlatformHandle::V2(o) => self.dest.create_platform(o.stack).await?.into(),
         };
 
         let res = SyncPlatformResult::Synced { platform, results };
@@ -534,7 +525,7 @@ pub trait SyncReporter: Send + Sync {
     fn synced_object(&self, _result: &SyncObjectResult) {}
 
     /// Called when a platform has been identified to sync
-    fn visit_platform(&self, _platform: &storage::PlatformVersion) {}
+    fn visit_platform(&self, _platform: &PlatformHandle) {}
 
     /// Called when a platform has finished syncing
     fn synced_platform(&self, _result: &SyncPlatformResult) {}
@@ -790,7 +781,7 @@ pub enum SyncPlatformResult {
     Duplicate,
     /// The platform was at least partially synced
     Synced {
-        platform: storage::PlatformVersion,
+        platform: PlatformHandle,
         results: Vec<SyncObjectResult>,
     },
 }

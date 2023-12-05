@@ -4,48 +4,13 @@
 
 use std::pin::Pin;
 
-use encoding::Digestible;
 use futures::stream::Stream;
 use tokio_stream::StreamExt;
 
-use crate::graph::{self, DigestFromEncode, DigestFromKindAndEncode, Stack};
+use crate::graph::{self, DigestFromEncode, DigestFromKindAndEncode, PlatformHandle};
 use crate::{encoding, Result};
 
-#[derive(Debug)]
-pub enum PlatformVersion {
-    V1(graph::Platform<graph::DigestFromEncode>),
-    V2(graph::Platform<graph::DigestFromKindAndEncode>),
-}
-
-impl PlatformVersion {
-    pub fn digest(&self) -> Result<encoding::Digest> {
-        match self {
-            PlatformVersion::V1(o) => o.digest(),
-            PlatformVersion::V2(o) => o.digest(),
-        }
-    }
-
-    pub fn stack(&self) -> &Stack {
-        match self {
-            PlatformVersion::V1(o) => &o.stack,
-            PlatformVersion::V2(o) => &o.stack,
-        }
-    }
-}
-
-impl From<graph::Platform<graph::DigestFromEncode>> for PlatformVersion {
-    fn from(value: graph::Platform<graph::DigestFromEncode>) -> Self {
-        PlatformVersion::V1(value)
-    }
-}
-
-impl From<graph::Platform<graph::DigestFromKindAndEncode>> for PlatformVersion {
-    fn from(value: graph::Platform<graph::DigestFromKindAndEncode>) -> Self {
-        PlatformVersion::V2(value)
-    }
-}
-
-pub type PlatformStreamItem = Result<(encoding::Digest, PlatformVersion)>;
+pub type PlatformStreamItem = Result<(encoding::Digest, PlatformHandle)>;
 
 #[async_trait::async_trait]
 pub trait PlatformStorage: graph::Database + Sync + Send {
@@ -54,8 +19,7 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
         use graph::Object;
         let stream = self.iter_objects().filter_map(|res| match res {
             Ok((digest, obj)) => match obj {
-                Object::PlatformV1(platform) => Some(Ok((digest, PlatformVersion::V1(platform)))),
-                Object::PlatformV2(platform) => Some(Ok((digest, PlatformVersion::V2(platform)))),
+                Object::Platform(platform) => Some(Ok((digest, platform))),
                 _ => None,
             },
             Err(err) => Some(Err(err)),
@@ -64,12 +28,11 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
     }
 
     /// Return the platform identified by the given digest.
-    async fn read_platform(&self, digest: encoding::Digest) -> Result<PlatformVersion> {
+    async fn read_platform(&self, digest: encoding::Digest) -> Result<PlatformHandle> {
         use graph::Object;
         match self.read_object(digest).await {
             Err(err) => Err(err),
-            Ok(Object::PlatformV1(platform)) => Ok(PlatformVersion::V1(platform)),
-            Ok(Object::PlatformV2(platform)) => Ok(PlatformVersion::V2(platform)),
+            Ok(Object::Platform(platform)) => Ok(platform),
             Ok(_) => Err(format!("Object is not a platform: {digest:?}").into()),
         }
     }
@@ -84,7 +47,7 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
         let storable: graph::Object = platform.into();
         self.write_object(&storable).await?;
         match storable {
-            graph::Object::PlatformV1(platform) => Ok(platform),
+            graph::Object::Platform(PlatformHandle::V1(platform)) => Ok(platform),
             _ => unreachable!(),
         }
     }
@@ -99,7 +62,7 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
         let storable: graph::Object = platform.into();
         self.write_object(&storable).await?;
         match storable {
-            graph::Object::PlatformV2(platform) => Ok(platform),
+            graph::Object::Platform(PlatformHandle::V2(platform)) => Ok(platform),
             _ => unreachable!(),
         }
     }

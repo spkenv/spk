@@ -141,8 +141,10 @@ impl From<&graph::Object> for super::Object {
         use super::object::Kind;
         super::Object {
             kind: Some(match source {
-                graph::Object::PlatformV1(o) => Kind::Platform(o.into()),
-                graph::Object::PlatformV2(o) => Kind::PlatformV2(o.into()),
+                graph::Object::Platform(o) => match o {
+                    graph::PlatformHandle::V1(o) => Kind::Platform(o.into()),
+                    graph::PlatformHandle::V2(o) => Kind::PlatformV2(o.into()),
+                },
                 graph::Object::Layer(o) => Kind::Layer(o.into()),
                 graph::Object::Manifest(o) => Kind::Manifest(o.into()),
                 graph::Object::Tree(o) => Kind::Tree(o.into()),
@@ -167,8 +169,12 @@ impl TryFrom<super::Object> for graph::Object {
     fn try_from(source: super::Object) -> Result<Self> {
         use super::object::Kind;
         match source.kind {
-            Some(Kind::Platform(o)) => Ok(graph::Object::PlatformV1(o.try_into()?)),
-            Some(Kind::PlatformV2(o)) => Ok(graph::Object::PlatformV2(o.try_into()?)),
+            Some(Kind::Platform(o)) => Ok(graph::Object::Platform(graph::PlatformHandle::V1(
+                o.try_into()?,
+            ))),
+            Some(Kind::PlatformV2(o)) => Ok(graph::Object::Platform(graph::PlatformHandle::V2(
+                o.try_into()?,
+            ))),
             Some(Kind::Layer(o)) => Ok(graph::Object::Layer(o.try_into()?)),
             Some(Kind::Manifest(o)) => Ok(graph::Object::Manifest(o.try_into()?)),
             Some(Kind::Tree(o)) => Ok(graph::Object::Tree(o.try_into()?)),

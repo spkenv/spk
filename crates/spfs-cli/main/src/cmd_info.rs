@@ -90,31 +90,6 @@ impl CmdInfo {
         .map_err(|err| err.into())
     }
 
-    async fn pretty_print_platform<P>(
-        &self,
-        obj: spfs::graph::Platform<P>,
-        repo: &spfs::storage::RepositoryHandle,
-    ) -> Result<()>
-    where
-        spfs::graph::Platform<P>: spfs::encoding::Digestible<Error = crate::Error>,
-    {
-        println!(
-            "{}:\n{}",
-            self.format_digest(obj.digest()?, repo).await?,
-            "platform:".green()
-        );
-        println!(
-            " {} {}",
-            "refs:".bright_blue(),
-            self.format_digest(obj.digest()?, repo).await?
-        );
-        println!("{}:", "stack (top-down)".bright_blue());
-        for reference in obj.stack.to_top_down() {
-            println!("  - {}", self.format_digest(reference, repo).await?);
-        }
-        Ok(())
-    }
-
     /// Display the spfs object locations that provide the given file
     async fn pretty_print_ref(
         &self,
@@ -123,12 +98,21 @@ impl CmdInfo {
         verbosity: usize,
     ) -> Result<()> {
         match obj {
-            Object::PlatformV1(obj) => {
-                self.pretty_print_platform(obj, repo).await?;
-            }
-
-            Object::PlatformV2(obj) => {
-                self.pretty_print_platform(obj, repo).await?;
+            Object::Platform(obj) => {
+                println!(
+                    "{}:\n{}",
+                    self.format_digest(obj.digest()?, repo).await?,
+                    "platform:".green()
+                );
+                println!(
+                    " {} {}",
+                    "refs:".bright_blue(),
+                    self.format_digest(obj.digest()?, repo).await?
+                );
+                println!("{}:", "stack (top-down)".bright_blue());
+                for reference in obj.stack().to_top_down() {
+                    println!("  - {}", self.format_digest(reference, repo).await?);
+                }
             }
 
             Object::Layer(obj) => {
