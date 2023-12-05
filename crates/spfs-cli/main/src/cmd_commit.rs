@@ -72,6 +72,10 @@ pub struct CmdCommit {
         required_unless_present = "path",
     )]
     kind: Option<String>,
+
+    /// Allow committing an empty layer or platform
+    #[clap(long, hide = true)]
+    allow_empty: bool,
 }
 
 impl CmdCommit {
@@ -82,7 +86,8 @@ impl CmdCommit {
             let committer = spfs::Committer::new(&repo)
                 .with_reporter(spfs::commit::ConsoleCommitReporter::default())
                 .with_max_concurrent_branches(self.max_concurrent_branches)
-                .with_max_concurrent_blobs(self.max_concurrent_blobs);
+                .with_max_concurrent_blobs(self.max_concurrent_blobs)
+                .with_allow_empty(self.allow_empty);
             if self.hash_while_committing {
                 let committer = committer
                     .with_blob_hasher(spfs::commit::WriteToRepositoryBlobHasher { repo: &repo });
@@ -122,7 +127,7 @@ impl CmdCommit {
     {
         if let Some(path) = &self.path {
             let manifest = committer.commit_dir(path).await?;
-            if manifest.is_empty() {
+            if manifest.is_empty() && !self.allow_empty {
                 return Err(spfs::Error::NothingToCommit);
             }
             return Ok(repo
