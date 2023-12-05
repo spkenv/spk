@@ -218,7 +218,10 @@ where
     }
 
     /// Commit the full layer stack and working files to a new platform.
-    pub async fn commit_platform(&self, runtime: &mut runtime::Runtime) -> Result<graph::Platform> {
+    pub async fn commit_platform(
+        &self,
+        runtime: &mut runtime::Runtime,
+    ) -> Result<graph::PlatformHandle> {
         match self.commit_layer(runtime).await {
             Ok(_) | Err(Error::NothingToCommit) => (),
             Err(err) => return Err(err),

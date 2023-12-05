@@ -5,7 +5,7 @@
 use spfs_encoding::{Digest, Digestible, Encodable};
 use strum::Display;
 
-use super::{DigestFromEncode, DigestFromKindAndEncode, Kind, ObjectKind, Platform, Stack};
+use super::{DigestFromEncode, DigestFromKindAndEncode, Kind, Object, ObjectKind, Platform, Stack};
 use crate::{Error, Result};
 
 #[derive(Debug, Display, Eq, PartialEq, Clone)]
@@ -79,5 +79,12 @@ impl From<Platform<DigestFromKindAndEncode>> for PlatformHandle {
     #[inline]
     fn from(platform: Platform<DigestFromKindAndEncode>) -> Self {
         Self::V2(platform)
+    }
+}
+
+impl From<PlatformHandle> for Object {
+    #[inline]
+    fn from(platform: PlatformHandle) -> Self {
+        Self::Platform(platform)
     }
 }

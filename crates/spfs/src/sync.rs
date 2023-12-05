@@ -10,7 +10,7 @@ use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
 use tokio::sync::Semaphore;
 
-use crate::graph::PlatformHandle;
+use crate::graph::{DigestFromEncode, PlatformHandle};
 use crate::prelude::*;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
@@ -304,8 +304,12 @@ where
         }
 
         let platform = match platform {
-            PlatformHandle::V1(o) => self.dest.create_platform_v1(o.stack).await?.into(),
-            PlatformHandle::V2(o) => self.dest.create_platform(o.stack).await?.into(),
+            PlatformHandle::V1(o) => {
+                self.dest
+                    .create_platform_impl::<DigestFromEncode>(o.stack)
+                    .await?
+            }
+            PlatformHandle::V2(o) => self.dest.create_platform(o.stack).await?,
         };
 
         let res = SyncPlatformResult::Synced { platform, results };

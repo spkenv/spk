@@ -7,7 +7,7 @@ use std::pin::Pin;
 use futures::stream::Stream;
 use tokio_stream::StreamExt;
 
-use crate::graph::{self, DigestFromEncode, DigestFromKindAndEncode, PlatformHandle};
+use crate::graph::{self, DigestFromKindAndEncode, PlatformHandle};
 use crate::{encoding, Result};
 
 pub type PlatformStreamItem = Result<(encoding::Digest, PlatformHandle)>;
@@ -39,32 +39,28 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
 
     /// Create and storage a new platform for the given platform.
     /// Layers are ordered bottom to top.
-    async fn create_platform_v1(
-        &self,
-        layers: graph::Stack,
-    ) -> Result<graph::Platform<DigestFromEncode>> {
-        let platform = graph::Platform::<DigestFromEncode>::new(layers);
+    async fn create_platform_impl<P>(&self, layers: graph::Stack) -> Result<PlatformHandle>
+    where
+        graph::Platform<P>: Into<graph::Object>,
+        Self: Sized,
+    {
+        let platform = graph::Platform::<P>::new(layers);
         let storable: graph::Object = platform.into();
         self.write_object(&storable).await?;
         match storable {
-            graph::Object::Platform(PlatformHandle::V1(platform)) => Ok(platform),
+            graph::Object::Platform(platform) => Ok(platform),
             _ => unreachable!(),
         }
     }
 
     /// Create and storage a new platform for the given platform.
     /// Layers are ordered bottom to top.
-    async fn create_platform(
-        &self,
-        layers: graph::Stack,
-    ) -> Result<graph::Platform<DigestFromKindAndEncode>> {
-        let platform = graph::Platform::<DigestFromKindAndEncode>::new(layers);
-        let storable: graph::Object = platform.into();
-        self.write_object(&storable).await?;
-        match storable {
-            graph::Object::Platform(PlatformHandle::V2(platform)) => Ok(platform),
-            _ => unreachable!(),
-        }
+    async fn create_platform(&self, layers: graph::Stack) -> Result<PlatformHandle>
+    where
+        Self: Sized,
+    {
+        self.create_platform_impl::<DigestFromKindAndEncode>(layers)
+            .await
     }
 }
 
