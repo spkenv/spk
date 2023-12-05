@@ -420,12 +420,12 @@ An example platform spec that inherits from the 'company-platform' and makes adj
 platform: dcc-platform
 base: company-platform
 api: v0/platform
-  requirements:
-      - pkg: some-package/1.2.3
-    add:
-      - pkg: python: 3.7
-    remove:
-      - pkg: imath
+requirements:
+  - pkg: some-package/1.2.3
+  add:
+    - pkg: python: 3.7
+  remove:
+    - pkg: imath
 ```
 
 The `base:` field indicates which platform this platform spec is based on (inherits the requiremented from).
@@ -439,10 +439,10 @@ This is another way of specifying the same `dcc-platform` without basing it on t
 ```yaml
 platform: dcc-platform
 api: v0/platform
-  requirements:
-    - pkg: gcc/9.3.1
-    - pkg: python/3.7
-    - pkg: some-package/1.2.3
+requirements:
+  - pkg: gcc/9.3.1
+  - pkg: python/3.7
+  - pkg: some-package/1.2.3
 ```
 
 ### Testing
