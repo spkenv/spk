@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashMap;
+
 use rstest::rstest;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::host_options;
@@ -49,6 +51,10 @@ fn test_platform_add_pkg_requirement(#[case] spec: &str) {
 
         fn build_env(&self) -> Vec<Self::Package> {
             Vec::new()
+        }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::new()
         }
     }
 
@@ -102,6 +108,10 @@ fn test_platform_inheritance() {
             )
             .unwrap()]
         }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::new()
+        }
     }
 
     let build_env = TestBuildEnv();
@@ -150,6 +160,10 @@ fn test_platform_inheritance_with_override_and_removal() {
             "#,
             )
             .unwrap()]
+        }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::new()
         }
     }
 

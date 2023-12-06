@@ -97,7 +97,7 @@ impl PlatformRequirements {
                 // removed and re-added with a different set of components.
                 if let Some(remove) = &patch.remove {
                     for request in remove.iter() {
-                        spec.install.requirements.remove(request);
+                        spec.install.requirements.remove_all(request.name());
                     }
                 }
 

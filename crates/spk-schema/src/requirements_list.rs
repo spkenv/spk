@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::fmt::Write;
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::name::PkgName;
+use spk_schema_foundation::name::{OptName, PkgName};
 use spk_schema_foundation::version::Compatibility;
 use spk_schema_ident::{BuildIdent, PinPolicy};
 
@@ -118,9 +118,13 @@ impl RequirementsList {
 
     /// Remove a requirement from this list.
     ///
-    /// If a request exists for the same name, it is removed from the list.
-    pub fn remove(&mut self, request: &Request) {
-        self.0.retain(|existing| existing.name() != request.name());
+    /// All requests with the same name as the given name are removed
+    /// from the list.
+    pub fn remove_all<N>(&mut self, name: &N)
+    where
+        N: AsRef<OptName> + ?Sized,
+    {
+        self.0.retain(|existing| existing.name() != name.as_ref());
     }
 
     /// Render all requests with a package pin using the given resolved packages.
