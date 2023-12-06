@@ -963,7 +963,7 @@ pub enum SolverToRun {
     Cli,
     /// Run and show output from the solver based on the cli solver and with all impossible request checks enabled
     Checks,
-    /// Run both solvers but show outputform the Cli solver
+    /// Run both solvers, showing the output from the Cli solver
     All,
 }
 
