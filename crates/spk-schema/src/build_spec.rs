@@ -28,14 +28,6 @@ const ARCH_ADDS: &[&OptName] = &[OptName::os(), OptName::arch()];
 const OS_ADDS: &[&OptName] = &[OptName::os()];
 const ANY_ADDS: &[&OptName] = &[];
 
-// Each HostCompat value disallows certain var names when host_compat
-// validation is enabled in the config file.
-// TODO: these will be used when the linting is added, so haven't removed them
-// const DISTRO_DISALLOWS: &[&OptName] = &[];
-// const ARCH_DISALLOWS: &[&OptName] = &[OptName::distro()];
-// const OS_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch()];
-// const ANY_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch(), OptName::os()];
-
 /// Set what level of cross-platform compatibility the built package
 /// should have.
 #[derive(
@@ -105,16 +97,6 @@ impl HostCompat {
 
         Ok(settings)
     }
-
-    // TODO: comment this back in when adding linting for host_compats
-    // fn names_disallowed(&self) -> &[&OptName] {
-    //     match self {
-    //         HostCompat::Distro => DISTRO_DISALLOWS,
-    //         HostCompat::Arch => ARCH_DISALLOWS,
-    //         HostCompat::Os => OS_DISALLOWS,
-    //         HostCompat::Any => ANY_DISALLOWS,
-    //     }
-    //}
 }
 
 /// A set of structured inputs used to build a package.
