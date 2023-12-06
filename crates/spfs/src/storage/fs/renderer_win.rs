@@ -238,29 +238,17 @@ where
     ) -> Result<Vec<PathBuf>> {
         let layers = crate::resolve::resolve_stack_to_layers_with_repo(stack, self.repo)
             .await
-            .map_err(|err| {
-                Error::StringWithSource("resolve stack to layers".to_owned(), Box::new(err))
-            })?;
+            .map_err(|err| err.wrap("resolve stack to layers"))?;
         let mut futures = futures::stream::FuturesOrdered::new();
         for layer in layers {
             let fut = self
                 .repo
                 .read_manifest(layer.manifest)
-                .map_err(move |err| {
-                    Error::StringWithSource(
-                        format!("read manifest {}", layer.manifest),
-                        Box::new(err),
-                    )
-                })
+                .map_err(move |err| err.wrap(format!("read manifest {}", layer.manifest)))
                 .and_then(move |manifest| async move {
                     self.render_manifest(&manifest, render_type)
                         .await
-                        .map_err(move |err| {
-                            Error::StringWithSource(
-                                format!("render manifest {}", layer.manifest),
-                                Box::new(err),
-                            )
-                        })
+                        .map_err(move |err| err.wrap(format!("render manifest {}", layer.manifest)))
                 });
             futures.push_back(fut);
         }
@@ -323,13 +311,10 @@ where
         )
         .await
         .map_err(|err| {
-            Error::StringWithSource(
-                format!(
-                    "render manifest into working dir '{}'",
-                    working_dir.to_string_lossy()
-                ),
-                Box::new(err),
-            )
+            err.wrap(format!(
+                "render manifest into working dir '{}'",
+                working_dir.to_string_lossy()
+            ))
         })?;
 
         render_store.renders.ensure_base_dir(&rendered_dirpath)?;

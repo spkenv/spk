@@ -258,29 +258,17 @@ where
     ) -> Result<Vec<PathBuf>> {
         let layers = crate::resolve::resolve_stack_to_layers_with_repo(stack, self.repo)
             .await
-            .map_err(|err| {
-                Error::StringWithSource("resolve stack to layers".to_owned(), Box::new(err))
-            })?;
+            .map_err(|err| err.wrap("resolve stack to layers"))?;
         let mut futures = futures::stream::FuturesOrdered::new();
         for layer in layers {
             let fut = self
                 .repo
                 .read_manifest(layer.manifest)
-                .map_err(move |err| {
-                    Error::StringWithSource(
-                        format!("read manifest {}", layer.manifest),
-                        Box::new(err),
-                    )
-                })
+                .map_err(move |err| err.wrap(format!("read manifest {}", layer.manifest)))
                 .and_then(move |manifest| async move {
                     self.render_manifest(&manifest, render_type)
                         .await
-                        .map_err(move |err| {
-                            Error::StringWithSource(
-                                format!("render manifest {}", layer.manifest),
-                                Box::new(err),
-                            )
-                        })
+                        .map_err(move |err| err.wrap(format!("render manifest {}", layer.manifest)))
                 });
             futures.push_back(fut);
         }
@@ -347,13 +335,10 @@ where
         )
         .await
         .map_err(|err| {
-            Error::StringWithSource(
-                format!(
-                    "render manifest into working dir '{}'",
-                    working_dir.to_string_lossy()
-                ),
-                Box::new(err),
-            )
+            err.wrap(format!(
+                "render manifest into working dir '{}'",
+                working_dir.to_string_lossy()
+            ))
         })?;
 
         render_store.renders.ensure_base_dir(&rendered_dirpath)?;
@@ -428,9 +413,7 @@ where
         if let Err(Error::StorageWriteError(_, p, _)) = &mut res {
             *p = target_dir.join(p.as_path());
         }
-        res.map_err(|err| {
-            Error::StringWithSource("render_into_dir <root node>".to_owned(), Box::new(err))
-        })?;
+        res.map_err(|err| err.wrap("render_into_dir <root node>"))?;
         self.reporter.rendered_layer(manifest);
         Ok(())
     }
@@ -510,11 +493,11 @@ where
                                 root_path.push(p.as_path());
                                 *p = root_path;
                             }
-                            res.map(|_| None).map_err(|err| Error::StringWithSource(format!("render_into_dir '{}'", entry.name), Box::new(err)))
+                            res.map(|_| None).map_err(|err| err.wrap(format!("render_into_dir '{}'", entry.name)))
                         }
                         tracking::EntryKind::Mask => Ok(None),
                         tracking::EntryKind::Blob => {
-                            self.render_blob(root_dir_fd, &entry, render_type).await.map(Some).map_err(|err| Error::StringWithSource(format!("render blob '{}'", entry.name), Box::new(err)))
+                            self.render_blob(root_dir_fd, &entry, render_type).await.map(Some).map_err(|err| err.wrap(format!("render blob '{}'", entry.name)))
                         }
                     }.map(|render_blob_result_opt| (entry, render_blob_result_opt))
                 };
@@ -578,7 +561,7 @@ where
             .repo
             .open_payload(entry.object)
             .await
-            .map_err(|err| Error::StringWithSource("open payload".to_owned(), Box::new(err)))?;
+            .map_err(|err| err.wrap("open payload"))?;
         let target_dir_fd = dir_fd.as_raw_fd();
         if entry.is_symlink() {
             let mut target = String::new();
