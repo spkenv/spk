@@ -236,15 +236,20 @@ where
         stack: &graph::Stack,
         render_type: Option<RenderType>,
     ) -> Result<Vec<PathBuf>> {
-        let layers = crate::resolve::resolve_stack_to_layers_with_repo(stack, self.repo).await?;
+        let layers = crate::resolve::resolve_stack_to_layers_with_repo(stack, self.repo)
+            .await
+            .map_err(|err| err.wrap("resolve stack to layers"))?;
         let mut futures = futures::stream::FuturesOrdered::new();
         for layer in layers {
             let fut = self
                 .repo
                 .read_manifest(layer.manifest)
-                .and_then(
-                    |manifest| async move { self.render_manifest(&manifest, render_type).await },
-                );
+                .map_err(move |err| err.wrap(format!("read manifest {}", layer.manifest)))
+                .and_then(move |manifest| async move {
+                    self.render_manifest(&manifest, render_type)
+                        .await
+                        .map_err(move |err| err.wrap(format!("render manifest {}", layer.manifest)))
+                });
             futures.push_back(fut);
         }
         futures.try_collect().await
@@ -304,7 +309,13 @@ where
             &working_dir,
             render_type.unwrap_or(RenderType::HardLink),
         )
-        .await?;
+        .await
+        .map_err(|err| {
+            err.wrap(format!(
+                "render manifest into working dir '{}'",
+                working_dir.to_string_lossy()
+            ))
+        })?;
 
         render_store.renders.ensure_base_dir(&rendered_dirpath)?;
         match tokio::fs::rename(&working_dir, &rendered_dirpath).await {

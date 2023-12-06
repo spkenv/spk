@@ -256,15 +256,20 @@ where
         stack: &graph::Stack,
         render_type: Option<RenderType>,
     ) -> Result<Vec<PathBuf>> {
-        let layers = crate::resolve::resolve_stack_to_layers_with_repo(stack, self.repo).await?;
+        let layers = crate::resolve::resolve_stack_to_layers_with_repo(stack, self.repo)
+            .await
+            .map_err(|err| err.wrap("resolve stack to layers"))?;
         let mut futures = futures::stream::FuturesOrdered::new();
         for layer in layers {
             let fut = self
                 .repo
                 .read_manifest(layer.manifest)
-                .and_then(
-                    |manifest| async move { self.render_manifest(&manifest, render_type).await },
-                );
+                .map_err(move |err| err.wrap(format!("read manifest {}", layer.manifest)))
+                .and_then(move |manifest| async move {
+                    self.render_manifest(&manifest, render_type)
+                        .await
+                        .map_err(move |err| err.wrap(format!("render manifest {}", layer.manifest)))
+                });
             futures.push_back(fut);
         }
         futures.try_collect().await
@@ -328,7 +333,13 @@ where
             &working_dir,
             render_type.unwrap_or(RenderType::HardLink),
         )
-        .await?;
+        .await
+        .map_err(|err| {
+            err.wrap(format!(
+                "render manifest into working dir '{}'",
+                working_dir.to_string_lossy()
+            ))
+        })?;
 
         render_store.renders.ensure_base_dir(&rendered_dirpath)?;
         match tokio::fs::rename(&working_dir, &rendered_dirpath).await {
@@ -402,7 +413,7 @@ where
         if let Err(Error::StorageWriteError(_, p, _)) = &mut res {
             *p = target_dir.join(p.as_path());
         }
-        res?;
+        res.map_err(|err| err.wrap("render_into_dir <root node>"))?;
         self.reporter.rendered_layer(manifest);
         Ok(())
     }
@@ -482,11 +493,11 @@ where
                                 root_path.push(p.as_path());
                                 *p = root_path;
                             }
-                            res.map(|_| None)
+                            res.map(|_| None).map_err(|err| err.wrap(format!("render_into_dir '{}'", entry.name)))
                         }
                         tracking::EntryKind::Mask => Ok(None),
                         tracking::EntryKind::Blob => {
-                            self.render_blob(root_dir_fd, &entry, render_type).await.map(Some)
+                            self.render_blob(root_dir_fd, &entry, render_type).await.map(Some).map_err(|err| err.wrap(format!("render blob '{}'", entry.name)))
                         }
                     }.map(|render_blob_result_opt| (entry, render_blob_result_opt))
                 };
@@ -546,7 +557,11 @@ where
         // the payload file without calling `open_payload`. If `open_payload`
         // is not called here, the non-symlink code may fail due to a missing
         // a payload that could have been repaired.
-        let (mut reader, filename) = self.repo.open_payload(entry.object).await?;
+        let (mut reader, filename) = self
+            .repo
+            .open_payload(entry.object)
+            .await
+            .map_err(|err| err.wrap("open payload"))?;
         let target_dir_fd = dir_fd.as_raw_fd();
         if entry.is_symlink() {
             let mut target = String::new();
