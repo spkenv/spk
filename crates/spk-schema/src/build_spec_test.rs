@@ -130,14 +130,7 @@ fn test_build_spec_with_host_opt_and_disallowed_name(#[case] value: &str) {
             // This return an error because of the "distro/centos" var
             // setting in the variant
             let result = build_spec.opts_for_variant(&build_spec.variants[0]);
-            let config = spk_config::get_config().unwrap();
-            if config.host_compat.validate {
-                // With the checks, this should fail validation
-                assert!(result.is_err())
-            } else {
-                // Without the checks, this should be ok
-                assert!(result.is_ok())
-            }
+            assert!(result.is_ok())
         }
         Err(err) => panic!("Fail: build spec didn't parse with host_compat {value}: {err:?}"),
     }

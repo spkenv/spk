@@ -30,11 +30,11 @@ const ANY_ADDS: &[&OptName] = &[];
 
 // Each HostCompat value disallows certain var names when host_compat
 // validation is enabled in the config file.
-// TODO: move these to config
-const DISTRO_DISALLOWS: &[&OptName] = &[];
-const ARCH_DISALLOWS: &[&OptName] = &[OptName::distro()];
-const OS_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch()];
-const ANY_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch(), OptName::os()];
+// TODO: these will be used when the linting is added, so haven't removed them
+// const DISTRO_DISALLOWS: &[&OptName] = &[];
+// const ARCH_DISALLOWS: &[&OptName] = &[OptName::distro()];
+// const OS_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch()];
+// const ANY_DISALLOWS: &[&OptName] = &[OptName::distro(), OptName::arch(), OptName::os()];
 
 /// Set what level of cross-platform compatibility the built package
 /// should have.
@@ -106,35 +106,15 @@ impl HostCompat {
         Ok(settings)
     }
 
-    fn names_disallowed(&self) -> &[&OptName] {
-        match self {
-            HostCompat::Distro => DISTRO_DISALLOWS,
-            HostCompat::Arch => ARCH_DISALLOWS,
-            HostCompat::Os => OS_DISALLOWS,
-            HostCompat::Any => ANY_DISALLOWS,
-        }
-    }
-
-    /// Check the given options are compatible with the HostCompat
-    /// setting.
-    pub fn validate_host_opts(&self, options: &[Opt]) -> Result<()> {
-        let known = options.iter().map(Opt::full_name).collect::<HashSet<_>>();
-
-        let disallowed_names = self.names_disallowed();
-
-        for name in disallowed_names {
-            // If a name that this setting would add is already in the
-            // given options then flag it as an error.
-            if known.contains(name) {
-                return Err(Error::HostOptionNotAllowedInVariantError(
-                    name.to_string(),
-                    self.to_string(),
-                ));
-            }
-        }
-
-        Ok(())
-    }
+    // TODO: comment this back in when adding linting for host_compats
+    // fn names_disallowed(&self) -> &[&OptName] {
+    //     match self {
+    //         HostCompat::Distro => DISTRO_DISALLOWS,
+    //         HostCompat::Arch => ARCH_DISALLOWS,
+    //         HostCompat::Os => OS_DISALLOWS,
+    //         HostCompat::Any => ANY_DISALLOWS,
+    //     }
+    //}
 }
 
 /// A set of structured inputs used to build a package.
@@ -198,18 +178,9 @@ impl BuildSpec {
             }
         }
 
-        // Optionally, check the opts aren't setting an option
-        // controlled by the host compatibility setting.
-        let config = spk_config::get_config()?;
-        if config.host_compat.validate {
-            self.host_compat.validate_host_opts(&opts)?;
-        }
-
         // Add any host options that are not already present.
         let host_opts = self.host_compat.host_options()?;
         for opt in host_opts.iter() {
-            //let mut opt = Opt::Var(VarOpt::new(name)?);
-            //opt.set_value(value.to_string())?;
             if known.insert(opt.full_name().to_owned()) {
                 opts.push(opt.clone());
             }
