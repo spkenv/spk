@@ -959,11 +959,11 @@ impl Repositories {
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum SolverToRun {
-    /// Run and show output from the solver specified by the command line parameters
+    /// Run and show output from the basic solver
     Cli,
-    /// Run and show output from the solver based on the cli solver and with all impossible request checks enabled
+    /// Run and show output from the "impossible requests" checking solver
     Checks,
-    /// Run both solvers, showing the output from the Cli solver
+    /// Run both solvers, showing the output from the basic solver
     All,
 }
 
@@ -1028,12 +1028,18 @@ pub struct DecisionFormatterSettings {
     #[clap(long)]
     pub status_bar: bool,
 
-    /// Run and show output from the named solver. There are two
-    /// solver configurations: one configured from the command line
-    /// (cli), and one based on the command line but with all
-    /// impossible request checks enabled (checks). By default, they
-    /// are both (all) run in parallel when finding a solution for a
-    /// requested solve.
+    /// Control what solver(s) are used and what output is shown.
+    ///
+    /// There are currently two modes for the solver, one that is faster when
+    /// there are few problems encountered looking for packages (cli) and one
+    /// that is faster when it is difficult to find a set of packages that
+    /// satisfy a request (checks).
+    ///
+    /// By default, both solvers are run in parallel and the result is taken
+    /// from the first one that finishes. However, the output from the (cli)
+    /// solver is displayed even if the result ultimately comes from the
+    /// (checks) solver. To see the output from the (checks) solver, use
+    /// `--solver-to-run checks` to see that output.
     #[clap(long, value_enum, default_value_t = SolverToRun::All)]
     pub solver_to_run: SolverToRun,
 
