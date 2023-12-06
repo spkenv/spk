@@ -14,7 +14,7 @@ export SPFS_STORAGE_GENERATION=1
 
 # Commit an empty platform. At the time of writing with the new digest
 # calculation strategy, this should produce a digest of
-# L2NF3ZFFTJ6DZG5IQRQGBOTXVNAC4MEIMWFKOBPBUZHHS33M2XHQ====
+# 6IRNBK3OWYWHJKCVRKGSBL2UDGQ25C3KUBOXPWW2TJWBJJXT7I3Q====
 spfs run - -- bash -c "spfs commit --allow-empty platform -t test/empty_platform"
 
 # Commit a blob containing 8 null bytes. This blob will have the digest

@@ -58,6 +58,11 @@ impl KindAndEncodeDigest for DigestFromEncode {
     }
 }
 
+/// A salt use to prime the digest calculation so it is less likely to
+/// collide with digests produced by [`DigestFromEncode`], particularly digests
+/// for blobs and payloads.
+const DIGEST_SALT: &[u8] = b"spfs digest da8d8e62-9459-11ee-adab-00155dcb338b\0";
+
 /// A digest calculation strategy that uses `Kind::kind` and `Encodable::encode`.
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 pub struct DigestFromKindAndEncode {}
@@ -70,6 +75,7 @@ impl KindAndEncodeDigest for DigestFromKindAndEncode {
         T: Encodable<Error = Self::Error> + Kind,
     {
         let mut hasher = Hasher::new_sync();
+        hasher.update(DIGEST_SALT);
         hasher.update(&(object.kind() as u64).to_le_bytes());
         object.encode(&mut hasher)?;
         Ok(hasher.digest())
