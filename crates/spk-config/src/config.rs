@@ -4,6 +4,7 @@
 
 use std::sync::{Arc, RwLock};
 
+use config::Environment;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -178,26 +179,20 @@ pub fn load_config() -> Result<Config> {
             ))
         })?;
 
-    let mut config_builder = RawConfig::builder()
+    let config = RawConfig::builder()
         // the system config can also be in any support format: toml, yaml, json, ini, etc
         .add_source(File::with_name("/etc/spk").required(false))
         // the user config can also be in any support format: toml, yaml, json, ini, etc
-        .add_source(File::with_name(&format!("{}", user_config.display())).required(false));
+        .add_source(File::with_name(&format!("{}", user_config.display())).required(false))
+        // Note: if a var using single underscores is set, it will have precedence
+        .add_source(
+            Environment::with_prefix("SPK")
+                .prefix_separator("_")
+                .separator("__"),
+        )
+        // for backwards compatibility with vars not using double underscores
+        .add_source(Environment::with_prefix("SPK").separator("_"))
+        .build()?;
 
-    for (var, value) in std::env::vars() {
-        let Some(tail) = var.strip_prefix("SPK_") else {
-            continue;
-        };
-        let Some((section, name)) = tail.split_once('_') else {
-            // typically, a value with no section is not a configuration
-            // value, and can be skipped (eg: SPK_LOG)
-            continue;
-        };
-
-        let key = format!("{}.{}", section.to_lowercase(), name.to_lowercase());
-        config_builder = config_builder.set_override(key, value)?;
-    }
-
-    let config = config_builder.build()?;
     Ok(Config::deserialize(config)?)
 }
