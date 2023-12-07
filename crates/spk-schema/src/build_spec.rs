@@ -87,10 +87,9 @@ impl HostCompat {
         }
 
         let mut settings = Vec::new();
-        for (name, value) in all_host_options.iter() {
+        for (name, _value) in all_host_options.iter() {
             if names_added.contains(&OptName::new(name)?) {
-                let mut opt = Opt::Var(VarOpt::new(name)?);
-                opt.set_value(value.to_string())?;
+                let opt = Opt::Var(VarOpt::new(name)?);
                 settings.push(opt)
             }
         }
