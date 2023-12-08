@@ -128,12 +128,12 @@ Each value adds zero on more host options to each build, and disallows
 certain host related option when host_compat validation checks are
 enabled in the spk config file:
 
-|  Value     | Adds these host options                        | Disallows, these options with host compat validation |
-| ---------- | ---------------------------------------------- | ---------------------------------------------------- |
-| **Distro** | "distro", "arch", "os", and the "<distroname>" |                                                      |
-| **Arch**   | "arch", "os", and the "<distroname>"           | "distro"                                             |
-| **Os**     | "os"                                           | "distro", "arch"                                     |
-| **Any**    |                                                | "distro", "arch", "os"                               |
+|  Value     | Adds these host options                        |
+| ---------- | ---------------------------------------------- |
+| **Distro** | "distro", "arch", "os", and the "<distroname>" |
+| **Arch**   | "arch", "os", and the "<distroname>"           |
+| **Os**     | "os"                                           |
+| **Any**    |                                                |
 
 
 ## TestSpec
