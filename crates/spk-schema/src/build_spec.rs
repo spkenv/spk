@@ -28,7 +28,7 @@ const ARCH_ADDS: &[&OptName] = &[OptName::os(), OptName::arch()];
 const OS_ADDS: &[&OptName] = &[OptName::os()];
 const ANY_ADDS: &[&OptName] = &[];
 
-/// Set what level of cross-platform compatibility the built package
+/// Describes what level of cross-platform compatibility the built package
 /// should have.
 #[derive(
     Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize, Display, Default,

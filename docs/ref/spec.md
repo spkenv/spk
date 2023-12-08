@@ -120,7 +120,7 @@ The ValidationSpec modifies the default validation process for packages, primari
 
 ### HostCompat
 
-The HostCompat value sets the host os related options that are
+The HostCompat value sets the host- and os-related options that are
 automatically added to each build. It also describes the package's
 compatibility with host OSes. 
 
