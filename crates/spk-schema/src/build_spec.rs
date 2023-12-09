@@ -12,7 +12,7 @@ use super::foundation::option_map::OptionMap;
 use super::{v0, Opt, ValidationSpec};
 use crate::name::OptName;
 use crate::option::VarOpt;
-use crate::{Error, Result, Variant};
+use crate::{Result, Variant};
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
@@ -75,14 +75,15 @@ impl HostCompat {
                     match OptName::new(&distro_name) {
                         Ok(name) => _ = names_added.insert(name),
                         Err(err) => {
-                            return Err(Error::HostOptionNotValidDistroNameError(
-                                distro_name.to_string(),
-                                err,
-                            ))
+                            tracing::warn!("Reported distro id ({}) is not a valid var option name: {err}. A <distroname> var will not be created.", distro_name.to_string());
                         }
                     }
                 }
-                None => return Err(Error::HostOptionNoDistroName),
+                None => {
+                    tracing::warn!(
+                        "No distro name set by host. A <distroname> var will not be created.",
+                    );
+                }
             }
         }
 

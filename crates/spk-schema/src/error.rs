@@ -70,16 +70,6 @@ pub enum Error {
     #[error("{0}: {1}")]
     InvalidBuildChangeSetError(String, #[source] spk_schema_validators::Error),
 
-    #[error("'{0}' not a valid distro name for 'host_compat: distro' to use as a var name: {1}")]
-    #[diagnostic(help("The distro name comes from the host's settings and contains a value spk cannot use. Please contact your Admin to address this."),
-                 code("spk_schema::host_option_not_valid_distro_name"))]
-    HostOptionNotValidDistroNameError(String, #[source] crate::foundation::name::Error),
-
-    #[error("No distro name set by host. One is needed for host_compatibility: distro")]
-    #[diagnostic(help("The distro name comes from the host's settings. It should have one. Please contact your Admin to address this."),
-                 code("spk_schema::host_option_no_distro_name"))]
-    HostOptionNoDistroName,
-
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkConfigError(#[from] spk_config::Error),
