@@ -17,7 +17,10 @@ message Tag {
   DateTime time = 6;
 }
 
-message LsTagsRequest { string path = 1; }
+message LsTagsRequest {
+    string path = 1;
+    string namespace = 2;
+}
 message LsTagsResponse {
   message Entry {
     oneof kind {
@@ -36,7 +39,10 @@ message LsTagsResponse {
   }
 }
 
-message ResolveTagRequest { string tag_spec = 2; }
+message ResolveTagRequest {
+    string tag_spec = 2;
+    string namespace = 3;
+}
 message ResolveTagResponse {
   oneof result {
     Error error = 1;
@@ -44,7 +50,10 @@ message ResolveTagResponse {
   }
 }
 
-message FindTagsRequest { Digest digest = 1; }
+message FindTagsRequest {
+    Digest digest = 1;
+    string namespace = 2;
+}
 message FindTagsResponse {
   message TagList { repeated string tags = 1; }
   oneof result {
@@ -53,16 +62,23 @@ message FindTagsResponse {
   }
 }
 
-message IterTagSpecsRequest {}
+message IterTagSpecsRequest {
+  string namespace = 1;
+}
 message IterTagSpecsResponse {
-  message TagSpecList { repeated string tag_specs = 1; }
+  message TagSpecList {
+      repeated string tag_specs = 1;
+  }
   oneof result {
     Error error = 1;
     TagSpecList ok = 2;
   }
 }
 
-message ReadTagRequest { string tag_spec = 1; }
+message ReadTagRequest {
+    string tag_spec = 1;
+    string namespace = 2;
+}
 message ReadTagResponse {
   message TagList { repeated Tag tags = 1; }
   oneof result {
@@ -71,7 +87,10 @@ message ReadTagResponse {
   }
 }
 
-message InsertTagRequest { Tag tag = 1; }
+message InsertTagRequest {
+    Tag tag = 1;
+    string namespace = 2;
+}
 message InsertTagResponse {
   oneof result {
     Error error = 1;
@@ -79,7 +98,10 @@ message InsertTagResponse {
   }
 }
 
-message RemoveTagStreamRequest { string tag_Spec = 1; }
+message RemoveTagStreamRequest {
+    string tag_Spec = 1;
+    string namespace = 2;
+}
 message RemoveTagStreamResponse {
   oneof result {
     Error error = 1;
@@ -87,7 +109,11 @@ message RemoveTagStreamResponse {
   }
 }
 
-message RemoveTagRequest { Tag tag = 1; }
+message RemoveTagRequest {
+    Tag tag = 1;
+    string namespace = 2;
+
+}
 message RemoveTagResponse {
   oneof result {
     Error error = 1;

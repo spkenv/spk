@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::path::PathBuf;
+
 use storage::FromUrl;
 
 use crate::config::ToAddress;
@@ -40,6 +42,9 @@ pub struct Params {
     ///
     /// Default is no limit
     pub max_encode_message_size_bytes: Option<usize>,
+
+    /// optional tag namespace to use when querying tags
+    pub tag_namespace: Option<PathBuf>,
 }
 
 #[async_trait::async_trait]
@@ -77,6 +82,9 @@ pub struct RpcRepository {
     pub(super) tag_client: TagServiceClient<tonic::transport::Channel>,
     pub(super) db_client: DatabaseServiceClient<tonic::transport::Channel>,
     pub(super) payload_client: PayloadServiceClient<tonic::transport::Channel>,
+    /// the namespace to use for tag resolution. If set, then this is treated
+    /// as "chroot" of the real tag root.
+    tag_namespace: Option<PathBuf>,
 }
 
 #[async_trait::async_trait]
@@ -133,6 +141,7 @@ impl RpcRepository {
             tag_client,
             db_client,
             payload_client,
+            tag_namespace: config.params.tag_namespace,
         })
     }
 
@@ -141,6 +150,18 @@ impl RpcRepository {
         let start = std::time::Instant::now();
         self.repo_client.clone().ping(proto::PingRequest {}).await?;
         Ok(start.elapsed())
+    }
+
+    /// The namespace to use for tag resolution.
+    pub fn tag_namespace(&self) -> Option<&PathBuf> {
+        self.tag_namespace.as_ref()
+    }
+
+    /// Set the namespace to use for tag resolution.
+    ///
+    /// Returns the previous namespace, if any.
+    pub fn set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Option<PathBuf> {
+        std::mem::replace(&mut self.tag_namespace, tag_namespace)
     }
 }
 

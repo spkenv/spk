@@ -291,43 +291,63 @@ impl TagStorage for FallbackProxy {
         self.primary.get_tag_namespace()
     }
 
-    fn ls_tags(
+    fn ls_tags_in_namespace(
         &self,
+        namespace: Option<&Path>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
-        self.primary.ls_tags(path)
+        self.primary.ls_tags_in_namespace(namespace, path)
     }
 
-    fn find_tags(
+    fn find_tags_in_namespace(
         &self,
+        namespace: Option<&Path>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
-        self.primary.find_tags(digest)
+        self.primary.find_tags_in_namespace(namespace, digest)
     }
 
-    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
-        self.primary.iter_tag_streams()
-    }
-
-    async fn read_tag(
+    fn iter_tag_streams_in_namespace(
         &self,
+        namespace: Option<&Path>,
+    ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
+        self.primary.iter_tag_streams_in_namespace(namespace)
+    }
+
+    async fn read_tag_in_namespace(
+        &self,
+        namespace: Option<&Path>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
-        self.primary.read_tag(tag).await
+        self.primary.read_tag_in_namespace(namespace, tag).await
     }
 
-    async fn insert_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        self.primary.insert_tag(tag).await?;
+    async fn insert_tag_in_namespace(
+        &self,
+        namespace: Option<&Path>,
+        tag: &tracking::Tag,
+    ) -> Result<()> {
+        self.primary.insert_tag_in_namespace(namespace, tag).await?;
         Ok(())
     }
 
-    async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
-        self.primary.remove_tag_stream(tag).await?;
+    async fn remove_tag_stream_in_namespace(
+        &self,
+        namespace: Option<&Path>,
+        tag: &tracking::TagSpec,
+    ) -> Result<()> {
+        self.primary
+            .remove_tag_stream_in_namespace(namespace, tag)
+            .await?;
         Ok(())
     }
 
-    async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        self.primary.remove_tag(tag).await?;
+    async fn remove_tag_in_namespace(
+        &self,
+        namespace: Option<&Path>,
+        tag: &tracking::Tag,
+    ) -> Result<()> {
+        self.primary.remove_tag_in_namespace(namespace, tag).await?;
         Ok(())
     }
 }
