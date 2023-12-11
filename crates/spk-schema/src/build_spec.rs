@@ -26,7 +26,7 @@ mod build_spec_test;
 const DISTRO_ADDS: &[&OptName] = &[OptName::os(), OptName::arch(), OptName::distro()];
 const ARCH_ADDS: &[&OptName] = &[OptName::os(), OptName::arch()];
 const OS_ADDS: &[&OptName] = &[OptName::os()];
-const ANY_ADDS: &[&OptName] = &[];
+const NONE_ADDS: &[&OptName] = &[];
 
 /// Describes what level of cross-platform compatibility the built package
 /// should have.
@@ -42,7 +42,7 @@ pub enum HostCompat {
     /// Package can be used on the same OS with any cpu or distro
     Os,
     /// Package can be used on any Os
-    Any,
+    None,
 }
 
 impl HostCompat {
@@ -55,7 +55,7 @@ impl HostCompat {
             HostCompat::Distro => DISTRO_ADDS,
             HostCompat::Arch => ARCH_ADDS,
             HostCompat::Os => OS_ADDS,
-            HostCompat::Any => ANY_ADDS,
+            HostCompat::None => NONE_ADDS,
         };
 
         names.iter().copied().collect::<HashSet<&OptName>>()
@@ -294,7 +294,9 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                         "validation" => {
                             unchecked.validation = map.next_value::<ValidationSpec>()?
                         }
-                        "host_compat" => unchecked.host_compat = map.next_value::<HostCompat>()?,
+                        "auto_host_vars" => {
+                            unchecked.host_compat = map.next_value::<HostCompat>()?
+                        }
                         _ => {
                             // for forwards compatibility we ignore any unrecognized
                             // field, but consume it just the same

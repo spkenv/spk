@@ -16,13 +16,13 @@ fn test_host_compat_default() {
 #[case("Distro", true)]
 #[case("Arch", true)]
 #[case("Os", true)]
-#[case("Any", true)]
+#[case("None", true)]
 #[case("Tuesday", false)]
 fn test_build_spec_with_host_opt_value(#[case] value: &str, #[case] expected_result: bool) {
     // Tests the host_compat value is valid
     let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(&format!(
         "{{
-        host_compat: {value},
+        auto_host_vars: {value},
         options: [{{pkg: \"my-pkg\"}}],
     }}"
     ));
@@ -33,7 +33,7 @@ fn test_build_spec_with_host_opt_value(#[case] value: &str, #[case] expected_res
 #[case("Distro", vec![String::from("distro"),String::from("arch"),String::from("os")])]
 #[case("Arch", vec![String::from("arch"),String::from("os")])]
 #[case("Os", vec![String::from("os")])]
-#[case("Any", vec![])]
+#[case("None", vec![])]
 fn test_build_spec_with_host_opt_contains_expected_names(
     #[case] value: &str,
     #[case] expected_names: Vec<String>,
@@ -41,7 +41,7 @@ fn test_build_spec_with_host_opt_contains_expected_names(
     // Test the host_compat value generates the expected named options
     let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(&format!(
         "{{
-        host_compat: {value},
+        auto_host_vars: {value},
         options: [{{pkg: \"my-pkg\"}}],
     }}"
     ));
@@ -70,7 +70,7 @@ fn test_build_spec_with_host_opt_contains_expected_names(
 #[case("Distro", vec![])]
 #[case("Arch", vec!["distro"])]
 #[case("Os", vec!["distro", "arch"])]
-#[case("Any", vec!["distro", "arch", "os"])]
+#[case("None", vec!["distro", "arch", "os"])]
 fn test_build_spec_with_host_opt_does_not_have_disallowed_names(
     #[case] value: &str,
     #[case] invalid_names: Vec<&str>,
@@ -80,7 +80,7 @@ fn test_build_spec_with_host_opt_does_not_have_disallowed_names(
     // change if the host_compat validation is disabled.
     let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(&format!(
         "{{
-        host_compat: {value},
+        auto_host_vars: {value},
         options: [{{pkg: \"my-pkg\"}}],
     }}"
     ));
@@ -114,13 +114,13 @@ fn test_build_spec_with_host_opt_does_not_have_disallowed_names(
 #[rstest]
 #[case("Arch")]
 #[case("Os")]
-#[case("Any")]
+#[case("None")]
 fn test_build_spec_with_host_opt_and_disallowed_name(#[case] value: &str) {
     // Test the host_compat value setting causes an error when there's
     // a disallowed option name in the build options.
     let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(&format!(
         "{{
-        host_compat: {value},
+        auto_host_vars: {value},
         options: [{{var: \"distro/centos\"}}],
     }}"
     ));

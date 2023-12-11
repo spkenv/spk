@@ -72,7 +72,7 @@ Fetches and extracts a tar archive as package source files.
 | options     | _List[[BuildOption](#buildoption)]_ | The set of inputs for the package build process                |
 | variants    | _List[[OptionMap](#optionmap)]_     | The default variants of the package options to build           |
 | validation  | _[ValidationSpec](#validationspec)_ | Modifies the default package validation process                |
-| host_compat | _[HostCompat](#hostcompat)_ | The host compatibility setting for the package's builds. It covers distro, arch, os, and distro version |
+| auto_host_vars | _[HostCompat](#hostcompat)_ | The host compatibility setting for the package's builds. It covers distro, arch, os, and distro version |
 
 ### BuildOption
 
@@ -122,18 +122,17 @@ The ValidationSpec modifies the default validation process for packages, primari
 
 The HostCompat value sets the host- and os-related options that are
 automatically added to each build. It also describes the package's
-compatibility with host OSes. 
+compatibility with host OSes.
 
-Each value adds zero on more host options to each build, and disallows
-certain host related option when host_compat validation checks are
-enabled in the spk config file:
+Each value adds zero or more host options to each build, as describe
+in the table:
 
 |  Value     | Adds these host options                        |
 | ---------- | ---------------------------------------------- |
 | **Distro** | "distro", "arch", "os", and the "<distroname>" |
 | **Arch**   | "arch", "os", and the "<distroname>"           |
 | **Os**     | "os"                                           |
-| **Any**    |                                                |
+| **None**   |                                                |
 
 
 ## TestSpec
