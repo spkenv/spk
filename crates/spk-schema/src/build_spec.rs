@@ -10,7 +10,7 @@ use strum::Display;
 
 use super::foundation::option_map::OptionMap;
 use super::{v0, Opt, ValidationSpec};
-use crate::name::OptName;
+use crate::name::{OptName, OptNameBuf};
 use crate::option::VarOpt;
 use crate::{Result, Variant};
 
@@ -34,14 +34,16 @@ const NONE_ADDS: &[&OptName] = &[];
     Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize, Display, Default,
 )]
 pub enum HostCompat {
-    /// Package can only be used on the same OS distribution
+    /// Package can only be used on the same OS distribution. Adds
+    /// distro, arch, os, and <distroname> option vars.
     #[default]
     Distro,
-    /// Package can be used anywhere that has the same OS and cpu type
+    /// Package can be used anywhere that has the same OS and cpu
+    /// type. Adds distro, and arch options vars.
     Arch,
-    /// Package can be used on the same OS with any cpu or distro
+    /// Package can be used on the same OS with any cpu or distro. Adds os option var.
     Os,
-    /// Package can be used on any Os
+    /// Package can be used on any Os. Does not add any option vars.
     None,
 }
 
@@ -68,6 +70,7 @@ impl HostCompat {
 
         let mut names_added = self.names_added();
         let distro_name;
+        let fallback_name: OptNameBuf;
         if HostCompat::Distro == *self {
             match all_host_options.get(OptName::distro()) {
                 Some(distro) => {
@@ -76,6 +79,8 @@ impl HostCompat {
                         Ok(name) => _ = names_added.insert(name),
                         Err(err) => {
                             tracing::warn!("Reported distro id ({}) is not a valid var option name: {err}. A <distroname> var will not be created.", distro_name.to_string());
+                            fallback_name = OptName::new_lossy(&distro_name);
+                            _ = names_added.insert(&fallback_name);
                         }
                     }
                 }
@@ -83,6 +88,7 @@ impl HostCompat {
                     tracing::warn!(
                         "No distro name set by host. A <distroname> var will not be created.",
                     );
+                    _ = names_added.insert(OptName::unknown_distro());
                 }
             }
         }

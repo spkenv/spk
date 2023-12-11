@@ -159,6 +159,32 @@ impl OptName {
     const MIN_LEN: usize = PkgName::MIN_LEN;
     const MAX_LEN: usize = PkgName::MAX_LEN;
 
+    /// Construct a valid OptNameBuf, invalid characters will be
+    /// removed, the length will be padded or truncates, and uppercase
+    /// letter will be lowercased to make a valid option name.
+    pub fn new_lossy<S: AsRef<str>>(s: &S) -> OptNameBuf {
+        if validate_opt_base_name(s).is_ok() {
+            return unsafe { OptNameBuf::from_string(s.as_ref().to_string()) };
+        }
+
+        let mut new_name: String = s
+            .as_ref()
+            .to_lowercase()
+            .chars()
+            .filter(|c| is_valid_opt_name_char(*c))
+            .collect();
+
+        let length = new_name.len();
+        if length < OptName::MIN_LEN {
+            let difference = OptName::MIN_LEN - length;
+            new_name += &"_".repeat(difference)
+        } else if length > OptName::MAX_LEN {
+            new_name.truncate(OptName::MAX_LEN)
+        }
+
+        unsafe { OptNameBuf::from_string(new_name) }
+    }
+
     /// Standard option used to identify the operating system
     pub const fn os() -> &'static Self {
         // Safety: from_str skips validation, but this is a known good value
@@ -175,6 +201,12 @@ impl OptName {
     pub const fn distro() -> &'static Self {
         // Safety: from_str skips validation, but this is a known good value
         unsafe { Self::from_str("distro") }
+    }
+
+    /// Fallback option used to identify an os with no distro name
+    pub const fn unknown_distro() -> &'static Self {
+        // Safety: from_str skips validation, but this is a known good value
+        unsafe { Self::from_str("unknown_distro") }
     }
 
     /// Validate the given string as an option name

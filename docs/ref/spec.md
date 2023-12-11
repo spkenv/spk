@@ -120,12 +120,9 @@ The ValidationSpec modifies the default validation process for packages, primari
 
 ### HostCompat
 
-The HostCompat value sets the host- and os-related options that are
-automatically added to each build. It also describes the package's
-compatibility with host OSes.
-
-Each value adds zero or more host options to each build, as describe
-in the table:
+The HostCompat value sets which host- and os-related options are
+automatically added to each build. The values add zero, or more, host
+options to each build, as described in the table:
 
 |  Value     | Adds these host options                        |
 | ---------- | ---------------------------------------------- |
@@ -133,6 +130,10 @@ in the table:
 | **Arch**   | "arch", "os", and the "<distroname>"           |
 | **Os**     | "os"                                           |
 | **None**   |                                                |
+
+If the host OS has no distroname, "unknown_distro" will be used as the
+distro name. If the host OS' distroname is not valid as a var option
+name, it will be converted lossily to a valid var option name.
 
 
 ## TestSpec
