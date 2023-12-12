@@ -78,15 +78,19 @@ impl HostCompat {
                     match OptName::new(&distro_name) {
                         Ok(name) => _ = names_added.insert(name),
                         Err(err) => {
-                            tracing::warn!("Reported distro id ({}) is not a valid var option name: {err}. A <distroname> var will not be created.", distro_name.to_string());
-                            fallback_name = OptName::new_lossy(&distro_name);
+                            fallback_name = OptNameBuf::new_lossy(&distro_name);
+                            tracing::warn!("Reported distro id ({}) is not a valid var option name: {err}. A {} var will be used instead.",
+                                           distro_name.to_string(),
+                                           fallback_name);
+
                             _ = names_added.insert(&fallback_name);
                         }
                     }
                 }
                 None => {
                     tracing::warn!(
-                        "No distro name set by host. A <distroname> var will not be created.",
+                        "No distro name set by host. A {}= will be used instead.",
+                        OptName::unknown_distro()
                     );
                     _ = names_added.insert(OptName::unknown_distro());
                 }
