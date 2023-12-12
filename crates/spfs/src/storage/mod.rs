@@ -32,7 +32,7 @@ pub use payload::PayloadStorage;
 pub use platform::PlatformStorage;
 pub use proxy::{Config, ProxyRepository};
 pub use repository::{LocalRepository, Repository};
-pub use tag::{EntryType, TagStorage, TagStorageMut};
+pub use tag::{EntryType, TagStorage, TagStorageMut, TAG_NAMESPACE_MARKER};
 
 pub use self::config::{FromConfig, FromUrl, OpenRepositoryResult};
 use crate::{Error, Result};

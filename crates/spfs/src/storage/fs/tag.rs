@@ -20,7 +20,7 @@ use relative_path::RelativePath;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 
 use super::{FsRepository, OpenFsRepository};
-use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
+use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream, TAG_NAMESPACE_MARKER};
 use crate::storage::{TagStorage, TagStorageMut};
 use crate::{encoding, tracking, Error, OsError, OsErrorExt, Result};
 
@@ -137,7 +137,10 @@ impl OpenFsRepository {
 
                 // Add a suffix in the form of `"#ns"` to distinguish
                 // tag namespace subdirectories from normal tag subdirectories.
-                tags_root = tags_root.join(format!("{}#ns", component.to_string_lossy()));
+                tags_root = tags_root.join(format!(
+                    "{}{TAG_NAMESPACE_MARKER}",
+                    component.to_string_lossy()
+                ));
             }
         }
         tags_root
@@ -191,7 +194,7 @@ impl TagStorage for OpenFsRepository {
             } else if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
                 path.file_name().map(|s| {
                     let s = s.to_string_lossy();
-                    match s.split_once("#ns") {
+                    match s.split_once(TAG_NAMESPACE_MARKER) {
                         Some((name, _)) => Ok(EntryType::Namespace(name.to_owned())),
                         None => Ok(EntryType::Folder(s.to_string())),
                     }

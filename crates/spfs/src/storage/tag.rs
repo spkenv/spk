@@ -22,6 +22,9 @@ pub(crate) type IterTagsItem = Result<(tracking::TagSpec, tracking::Tag)>;
 #[path = "./tag_test.rs"]
 mod tag_test;
 
+/// A suffix on directory names that indicates that the directory is a tag namespace.
+pub const TAG_NAMESPACE_MARKER: &str = "#ns";
+
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum EntryType {
     Folder(String),
@@ -53,7 +56,7 @@ impl Display for EntryType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
             EntryType::Folder(e) => f.pad(format!("{e}/").as_str()),
-            EntryType::Namespace(e) => f.pad(format!("{e}#ns/").as_str()),
+            EntryType::Namespace(e) => f.pad(format!("{e}{TAG_NAMESPACE_MARKER}").as_str()),
             EntryType::Tag(e) => f.pad(e),
         }
     }

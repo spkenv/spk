@@ -66,6 +66,8 @@ fn test_tag_spec_validation() {
 }
 
 #[rstest]
+// This test is intended to make sure tag names can't contain the
+// TAG_NAMESPACE_MARKER value.
 #[case::tag_namespace_name("illegal#ns.0")]
 #[tokio::test]
 async fn test_tag_name_violation(#[case] tag: &str) {
