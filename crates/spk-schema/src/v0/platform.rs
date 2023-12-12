@@ -218,11 +218,20 @@ impl Recipe for Platform<VersionIdent> {
         E: BuildEnv<Package = P>,
         P: Package,
     {
+        let Self {
+            platform,
+            meta,
+            compat,
+            deprecated: _deprecated,
+            base,
+            requirements,
+        } = self;
+
         // Translate the platform spec into a "normal" recipe and delegate to
         // that recipe's generate_binary_build method.
-        let mut spec = super::Spec::new(self.platform.clone());
-        spec.compat = self.compat.clone();
-        spec.meta = self.meta.clone();
+        let mut spec = super::Spec::new(platform.clone());
+        spec.compat = compat.clone();
+        spec.meta = meta.clone();
 
         // Platforms have no sources
         spec.sources = Vec::new();
@@ -241,7 +250,7 @@ impl Recipe for Platform<VersionIdent> {
         };
 
         // Add base requirements, if any, first.
-        if let Some(base) = self.base.as_ref() {
+        if let Some(base) = base.as_ref() {
             let build_env = build_env.build_env();
             let base = build_env
                 .iter()
@@ -259,7 +268,7 @@ impl Recipe for Platform<VersionIdent> {
             }
         }
 
-        if let Some(requirements) = self.requirements.as_ref() {
+        if let Some(requirements) = requirements.as_ref() {
             requirements.update_spec_for_binary_build(&mut spec, build_env)?;
         }
 
