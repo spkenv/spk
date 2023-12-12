@@ -44,14 +44,23 @@ fn get_stub(name: &PkgNameBuf) -> String {
 
 build:
 
+  # set which host related vars are added automatically to the built package:
+  # - Distro: adds 'distro', 'arch', 'os' and '<distroname>' vars, so the package
+  #           can only be used on the same OS, CPU, and OS distribution version 
+  #           (e.g. linux distro). This is the default.
+  # - Arch: adds 'arch' and 'os' vars, so the package can be used anywhere that
+  #         has the same OS and CPU architecture (x86_64, i386)
+  # - Os: adds 'os' var, so the package can be used anywhere that has the same 
+  #       OS type (mac, linux, windows)
+  # - None: adds no host vars, so package can be used on any OS and any architecture
+  auto_host_vars: Distro
+
   # options are all the inputs to the package build process, including
   # build-time dependencies
   options:
     # var options define environment/string values that affect the build.
     # The value is defined in the build environment as SPK_OPT_{{name}}
-    - var: arch    # rebuild if the arch changes
-    - var: os      # rebuild if the os changes
-    - var: centos  # rebuild if centos version changes
+    # - var: somename/somvevalue
 
     # pkg options request packages that need to be present
     # in the build environment. You can specify a version number

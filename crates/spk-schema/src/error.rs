@@ -69,6 +69,10 @@ pub enum Error {
 
     #[error("{0}: {1}")]
     InvalidBuildChangeSetError(String, #[source] spk_schema_validators::Error),
+
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
+    SpkConfigError(#[from] spk_config::Error),
 }
 
 impl Error {

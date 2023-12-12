@@ -36,6 +36,23 @@ fn test_opt_name_validation(#[case] input: &str) {
 }
 
 #[rstest]
+#[case("lowercase", "lowercase")]
+#[case("with-dashes", "with-dashes")]
+#[case("with_underscores", "with_underscores")]
+#[case("num000", "num000")]
+#[case("000-000", "000-000")]
+#[case("000_000", "000_000")]
+#[case("-----", "-----")]
+#[case("_____", "_____")]
+#[case("upperCase", "uppercase")]
+#[case("name!!", "name")]
+#[case("a", "a_")]
+fn test_opt_name_buf_new_lossy(#[case] input: &str, #[case] result: &str) {
+    let opt_name = super::OptNameBuf::new_lossy(&String::from(input));
+    assert_eq!(opt_name.base_name(), result);
+}
+
+#[rstest]
 #[case("my_opt", None, "my_opt")]
 #[case("my-pkg.my_opt", Some("my-pkg"), "my_opt")]
 fn test_opt_name_namespace(#[case] input: &str, #[case] ns: Option<&str>, #[case] name: &str) {

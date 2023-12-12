@@ -34,6 +34,7 @@ spk-schema-foundation = { path = "./crates/foundation" }
 spk-schema-ident = { path = "./crates/ident" }
 spk-schema-validators = { path = "./crates/validators" }
 spk-schema-liquid = { path = "./crates/liquid" }
+strum = { workspace = true }
 sys-info = "0.9.0"
 tempfile = { workspace = true }
 thiserror = { workspace = true }

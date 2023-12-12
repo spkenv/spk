@@ -6,14 +6,105 @@ use std::collections::HashSet;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
+use strum::Display;
 
 use super::foundation::option_map::OptionMap;
 use super::{v0, Opt, ValidationSpec};
+use crate::name::{OptName, OptNameBuf};
+use crate::option::VarOpt;
 use crate::{Result, Variant};
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
 mod build_spec_test;
+
+// Each HostCompat value adds a different set of host related options
+// when used.
+const DISTRO_ADDS: &[&OptName] = &[OptName::os(), OptName::arch(), OptName::distro()];
+const ARCH_ADDS: &[&OptName] = &[OptName::os(), OptName::arch()];
+const OS_ADDS: &[&OptName] = &[OptName::os()];
+const NONE_ADDS: &[&OptName] = &[];
+
+/// Describes what level of cross-platform compatibility the built package
+/// should have.
+#[derive(
+    Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize, Display, Default,
+)]
+pub enum HostCompat {
+    /// Package can only be used on the same OS distribution. Adds
+    /// distro, arch, os, and <distroname> option vars.
+    #[default]
+    Distro,
+    /// Package can be used anywhere that has the same OS and cpu
+    /// type. Adds distro, and arch options vars.
+    Arch,
+    /// Package can be used on the same OS with any cpu or distro. Adds os option var.
+    Os,
+    /// Package can be used on any Os. Does not add any option vars.
+    None,
+}
+
+impl HostCompat {
+    pub fn is_default(&self) -> bool {
+        self == &Self::default()
+    }
+
+    fn names_added(&self) -> HashSet<&OptName> {
+        let names = match self {
+            HostCompat::Distro => DISTRO_ADDS,
+            HostCompat::Arch => ARCH_ADDS,
+            HostCompat::Os => OS_ADDS,
+            HostCompat::None => NONE_ADDS,
+        };
+
+        names.iter().copied().collect::<HashSet<&OptName>>()
+    }
+
+    /// Get host_options after filtering based on the cross Os
+    /// compatibility setting.
+    pub fn host_options(&self) -> Result<Vec<Opt>> {
+        let all_host_options = spk_schema_foundation::option_map::host_options()?;
+
+        let mut names_added = self.names_added();
+        let distro_name;
+        let fallback_name: OptNameBuf;
+        if HostCompat::Distro == *self {
+            match all_host_options.get(OptName::distro()) {
+                Some(distro) => {
+                    distro_name = distro.clone();
+                    match OptName::new(&distro_name) {
+                        Ok(name) => _ = names_added.insert(name),
+                        Err(err) => {
+                            fallback_name = OptNameBuf::new_lossy(&distro_name);
+                            tracing::warn!("Reported distro id ({}) is not a valid var option name: {err}. A {} var will be used instead.",
+                                           distro_name.to_string(),
+                                           fallback_name);
+
+                            _ = names_added.insert(&fallback_name);
+                        }
+                    }
+                }
+                None => {
+                    tracing::warn!(
+                        "No distro name set by host. A {}= will be used instead.",
+                        OptName::unknown_distro()
+                    );
+                    _ = names_added.insert(OptName::unknown_distro());
+                }
+            }
+        }
+
+        let mut settings = Vec::new();
+        for (name, _value) in all_host_options.iter() {
+            if names_added.contains(&OptName::new(name)?) {
+                let opt = Opt::Var(VarOpt::new(name)?);
+                settings.push(opt)
+            }
+        }
+
+        Ok(settings)
+    }
+}
 
 /// A set of structured inputs used to build a package.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -25,6 +116,8 @@ pub struct BuildSpec {
     pub variants: Vec<v0::Variant>,
     #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
     pub validation: ValidationSpec,
+    #[serde(default)]
+    pub host_compat: HostCompat,
 }
 
 impl Default for BuildSpec {
@@ -34,6 +127,7 @@ impl Default for BuildSpec {
             options: Vec::new(),
             variants: vec![v0::Variant::default()],
             validation: ValidationSpec::default(),
+            host_compat: HostCompat::default(),
         }
     }
 }
@@ -72,6 +166,15 @@ impl BuildSpec {
                 opts.push(opt);
             }
         }
+
+        // Add any host options that are not already present.
+        let host_opts = self.host_compat.host_options()?;
+        for opt in host_opts.iter() {
+            if known.insert(opt.full_name().to_owned()) {
+                opts.push(opt.clone());
+            }
+        }
+
         Ok(opts)
     }
 
@@ -197,6 +300,9 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                         }
                         "validation" => {
                             unchecked.validation = map.next_value::<ValidationSpec>()?
+                        }
+                        "auto_host_vars" => {
+                            unchecked.host_compat = map.next_value::<HostCompat>()?
                         }
                         _ => {
                             // for forwards compatibility we ignore any unrecognized

@@ -66,12 +66,13 @@ Fetches and extracts a tar archive as package source files.
 
 ## BuildSpec
 
-| Field      | Type                                | Description                                                    |
-| ---------- | ----------------------------------- | -------------------------------------------------------------- |
-| script     | _str_ or _List[str]_                | The bash script which builds and installs the package to /spfs |
-| options    | _List[[BuildOption](#buildoption)]_ | The set of inputs for the package build process                |
-| variants   | _List[[OptionMap](#optionmap)]_     | The default variants of the package options to build           |
-| validation | _[ValidationSpec](#validationspec)_ | Modifies the default package validation process                |
+| Field       | Type                                | Description                                                    |
+| ----------  | ----------------------------------- | -------------------------------------------------------------- |
+| script      | _str_ or _List[str]_                | The bash script which builds and installs the package to /spfs |
+| options     | _List[[BuildOption](#buildoption)]_ | The set of inputs for the package build process                |
+| variants    | _List[[OptionMap](#optionmap)]_     | The default variants of the package options to build           |
+| validation  | _[ValidationSpec](#validationspec)_ | Modifies the default package validation process                |
+| auto_host_vars | _[HostCompat](#hostcompat)_ | The host compatibility setting for the package's builds. Depending on the value, it injects build options like distro, arch, os, and distro version |
 
 ### BuildOption
 
@@ -116,6 +117,24 @@ The ValidationSpec modifies the default validation process for packages, primari
 | ------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
 | MustInstallSomething      | Enabled | Packages must install at least one file or folder during build                                                            |
 | MustNotAlterExistingFiles | Enabled | Packages must not modify the content or metadata of any file that is provided by another package in the build environment |
+
+### HostCompat
+
+The HostCompat value sets which host- and os-related options are
+automatically added to each build. The values add zero, or more, host
+options to each build, as described in the table:
+
+|  Value     | Adds these host options                        |
+| ---------- | ---------------------------------------------- |
+| **Distro** (default) | "distro", "arch", "os", and the "<distroname>" |
+| **Arch**   | "arch", "os", and the "<distroname>"           |
+| **Os**     | "os"                                           |
+| **None**   |                                                |
+
+If the host OS has no distroname, "unknown_distro" will be used as the
+distro name. If the host OS' distroname is not valid as a var option
+name, it will be converted lossily to a valid var option name.
+
 
 ## TestSpec
 
