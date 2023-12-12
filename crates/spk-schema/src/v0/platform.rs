@@ -68,7 +68,7 @@ impl PlatformRequirements {
     ///
     /// The request's attributes may be modified to conform to the expected
     /// behavior for platform requirements.
-    fn process_add(&self, dest: &mut RequirementsList, add: &RequirementsList) {
+    fn process_add(dest: &mut RequirementsList, add: &RequirementsList) {
         for request in add.iter() {
             let mut request = request.clone();
             if let Request::Pkg(pkg) = &mut request {
@@ -90,7 +90,7 @@ impl PlatformRequirements {
     {
         match self {
             PlatformRequirements::BareAdd(add) => {
-                self.process_add(&mut spec.install.requirements, add);
+                PlatformRequirements::process_add(&mut spec.install.requirements, add);
             }
             PlatformRequirements::Patch(patch) => {
                 // Removes are performed first; an inherited request can be
@@ -102,7 +102,7 @@ impl PlatformRequirements {
                 }
 
                 if let Some(add) = &patch.add {
-                    self.process_add(&mut spec.install.requirements, add);
+                    PlatformRequirements::process_add(&mut spec.install.requirements, add);
                 }
             }
         }
