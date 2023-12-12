@@ -4,7 +4,6 @@
 
 use std::borrow::Cow;
 use std::future::ready;
-use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -13,7 +12,7 @@ use relative_path::RelativePath;
 
 use super::PinnedRepository;
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
-use crate::storage::TagStorage;
+use crate::storage::{TagNamespace, TagStorage};
 use crate::{encoding, tracking, Error, Result};
 
 #[cfg(test)]
@@ -26,7 +25,7 @@ where
     T: TagStorage + 'static,
 {
     #[inline]
-    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         T::get_tag_namespace(&*self.inner)
     }
 
@@ -38,7 +37,7 @@ where
     /// Return true if the given tag exists in this storage in the given namespace.
     async fn has_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> bool {
         self.read_tag_in_namespace(namespace, tag).await.is_ok()
@@ -61,13 +60,15 @@ where
 
     fn ls_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
-        let namespace = Arc::new(namespace.map(Path::to_owned));
+        let namespace = Arc::new(namespace.map(ToOwned::to_owned));
         let path = path.to_owned();
         let repo = self.clone();
-        let source = repo.inner.ls_tags_in_namespace(namespace.as_deref(), &path);
+        let source = repo
+            .inner
+            .ls_tags_in_namespace((*namespace).as_deref(), &path);
         Box::pin(source.try_filter_map(move |entry| {
             let namespace = Arc::clone(&namespace);
             let repo = repo.clone();
@@ -75,7 +76,7 @@ where
             async move {
                 Ok(match &entry {
                     EntryType::Folder(_) => repo
-                        .has_tag_folder_in_namespace(namespace.as_deref(), &entry_path)
+                        .has_tag_folder_in_namespace((*namespace).as_deref(), &entry_path)
                         .await
                         .then_some(entry),
                     EntryType::Namespace(_) => {
@@ -84,7 +85,7 @@ where
                     }
                     EntryType::Tag(_) => {
                         let spec = tracking::TagSpec::parse(entry_path).unwrap();
-                        repo.has_tag_in_namespace(namespace.as_deref(), &spec)
+                        repo.has_tag_in_namespace((*namespace).as_deref(), &spec)
                             .await
                             .then_some(entry)
                     }
@@ -99,17 +100,21 @@ where
     /// tag versions in each tag stream.
     fn find_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
-        let namespace = Arc::new(namespace.map(Path::to_owned));
+        let namespace = Arc::new(namespace.map(ToOwned::to_owned));
         let inner = Arc::clone(&self.inner);
-        let source = inner.find_tags_in_namespace(namespace.as_deref(), digest);
+        let source = inner.find_tags_in_namespace((*namespace).as_deref(), digest);
         Box::pin(source.try_filter(move |t| {
             let t = t.clone();
             let namespace = Arc::clone(&namespace);
             let inner = Arc::clone(&inner);
-            async move { inner.has_tag_in_namespace(namespace.as_deref(), &t).await }
+            async move {
+                inner
+                    .has_tag_in_namespace((*namespace).as_deref(), &t)
+                    .await
+            }
         }))
     }
 
@@ -132,7 +137,7 @@ where
     /// Iterate through the available tags in this storage.
     fn iter_tag_streams_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
         let inner = Arc::clone(&self.inner);
         let source = inner.iter_tag_streams_in_namespace(namespace);
@@ -162,7 +167,7 @@ where
 
     async fn read_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
         let pin = self.pin;
@@ -189,7 +194,7 @@ where
 
     async fn insert_tag_in_namespace(
         &self,
-        _namespace: Option<&Path>,
+        _namespace: Option<&TagNamespace>,
         _tag: &tracking::Tag,
     ) -> Result<()> {
         Err(Error::RepositoryIsPinned)
@@ -197,7 +202,7 @@ where
 
     async fn remove_tag_stream_in_namespace(
         &self,
-        _namespace: Option<&Path>,
+        _namespace: Option<&TagNamespace>,
         _tag: &tracking::TagSpec,
     ) -> Result<()> {
         Err(Error::RepositoryIsPinned)
@@ -205,7 +210,7 @@ where
 
     async fn remove_tag_in_namespace(
         &self,
-        _namespace: Option<&Path>,
+        _namespace: Option<&TagNamespace>,
         _tag: &tracking::Tag,
     ) -> Result<()> {
         Err(Error::RepositoryIsPinned)
@@ -223,7 +228,7 @@ where
     /// the total number of tag versions in the hierarchy.
     async fn has_tag_folder_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         path: &relative_path::RelativePath,
     ) -> bool {
         self.ls_tags_in_namespace(namespace, path)

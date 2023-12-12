@@ -10,6 +10,7 @@ pub mod payload;
 mod platform;
 mod repository;
 mod tag;
+mod tag_namespace;
 
 mod config;
 pub mod fallback;
@@ -32,7 +33,8 @@ pub use payload::PayloadStorage;
 pub use platform::PlatformStorage;
 pub use proxy::{Config, ProxyRepository};
 pub use repository::{LocalRepository, Repository};
-pub use tag::{EntryType, TagStorage, TagStorageMut, TAG_NAMESPACE_MARKER};
+pub use tag::{EntryType, TagStorage, TagStorageMut};
+pub use tag_namespace::{TagNamespace, TagNamespaceBuf, TAG_NAMESPACE_MARKER};
 
 pub use self::config::{FromConfig, FromUrl, OpenRepositoryResult};
 use crate::{Error, Result};

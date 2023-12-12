@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::path::PathBuf;
-
 use storage::FromUrl;
 
 use crate::config::ToAddress;
@@ -11,7 +9,7 @@ use crate::proto::database_service_client::DatabaseServiceClient;
 use crate::proto::payload_service_client::PayloadServiceClient;
 use crate::proto::repository_client::RepositoryClient;
 use crate::proto::tag_service_client::TagServiceClient;
-use crate::storage::{OpenRepositoryError, OpenRepositoryResult};
+use crate::storage::{OpenRepositoryError, OpenRepositoryResult, TagNamespace, TagNamespaceBuf};
 use crate::{proto, storage, Result};
 
 /// Configures an rpc repository connection
@@ -44,7 +42,7 @@ pub struct Params {
     pub max_encode_message_size_bytes: Option<usize>,
 
     /// optional tag namespace to use when querying tags
-    pub tag_namespace: Option<PathBuf>,
+    pub tag_namespace: Option<TagNamespaceBuf>,
 }
 
 #[async_trait::async_trait]
@@ -84,7 +82,7 @@ pub struct RpcRepository {
     pub(super) payload_client: PayloadServiceClient<tonic::transport::Channel>,
     /// the namespace to use for tag resolution. If set, then this is treated
     /// as "chroot" of the real tag root.
-    tag_namespace: Option<PathBuf>,
+    tag_namespace: Option<TagNamespaceBuf>,
 }
 
 #[async_trait::async_trait]
@@ -153,14 +151,17 @@ impl RpcRepository {
     }
 
     /// The namespace to use for tag resolution.
-    pub fn tag_namespace(&self) -> Option<&PathBuf> {
-        self.tag_namespace.as_ref()
+    pub fn tag_namespace(&self) -> Option<&TagNamespace> {
+        self.tag_namespace.as_deref()
     }
 
     /// Set the namespace to use for tag resolution.
     ///
     /// Returns the previous namespace, if any.
-    pub fn set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Option<PathBuf> {
+    pub fn set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Option<TagNamespaceBuf> {
         std::mem::replace(&mut self.tag_namespace, tag_namespace)
     }
 }

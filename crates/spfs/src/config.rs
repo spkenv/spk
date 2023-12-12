@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
 use tokio_stream::StreamExt;
 
+use crate::storage::TagNamespaceBuf;
 use crate::{runtime, storage, tracking, Error, Result};
 
 #[cfg(test)]
@@ -79,7 +80,7 @@ pub struct Storage {
     /// is owned by a different user than the current user. Only applies to
     /// payloads readable by "other".
     pub allow_payload_sharing_between_users: bool,
-    pub tag_namespace: Option<PathBuf>,
+    pub tag_namespace: Option<TagNamespaceBuf>,
 }
 
 impl Storage {

@@ -4,7 +4,6 @@
 
 use std::borrow::Cow;
 use std::fmt::Display;
-use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 use encoding::Encodable;
@@ -12,6 +11,7 @@ use futures::Stream;
 use relative_path::RelativePath;
 use tokio_stream::StreamExt;
 
+use super::{TagNamespace, TagNamespaceBuf, TAG_NAMESPACE_MARKER};
 use crate::{encoding, tracking, Error, Result};
 
 pub(crate) type TagStream = Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>;
@@ -21,9 +21,6 @@ pub(crate) type IterTagsItem = Result<(tracking::TagSpec, tracking::Tag)>;
 #[cfg(test)]
 #[path = "./tag_test.rs"]
 mod tag_test;
-
-/// A suffix on directory names that indicates that the directory is a tag namespace.
-pub const TAG_NAMESPACE_MARKER: &str = "#ns";
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum EntryType {
@@ -66,7 +63,7 @@ impl Display for EntryType {
 #[async_trait::async_trait]
 pub trait TagStorage: Send + Sync {
     /// Return the (optional) tag namespace to use for this tag storage.
-    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>>;
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>>;
 
     /// Return true if the given tag exists in this storage.
     async fn has_tag(&self, tag: &tracking::TagSpec) -> bool {
@@ -76,7 +73,7 @@ pub trait TagStorage: Send + Sync {
     /// Return true if the given tag exists in this storage in the given namespace.
     async fn has_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> bool {
         self.resolve_tag_in_namespace(namespace, tag).await.is_ok()
@@ -97,7 +94,7 @@ pub trait TagStorage: Send + Sync {
     /// - if the tag does not exist in this storage
     async fn resolve_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag_spec: &tracking::TagSpec,
     ) -> Result<tracking::Tag> {
         let mut stream =
@@ -130,7 +127,7 @@ pub trait TagStorage: Send + Sync {
     /// List tags and tag directories based on a tag path and namespace.
     fn ls_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>>;
 
@@ -145,7 +142,7 @@ pub trait TagStorage: Send + Sync {
     /// Find tags that point to the given digest in the given namespace.
     fn find_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>>;
 
@@ -157,7 +154,7 @@ pub trait TagStorage: Send + Sync {
     /// Iterate through the available tags in this storage.
     fn iter_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = IterTagsItem> + Send>> {
         let stream = self.iter_tag_streams_in_namespace(namespace);
         let mapped = futures::StreamExt::filter_map(stream, |res| async {
@@ -181,7 +178,7 @@ pub trait TagStorage: Send + Sync {
     /// Iterate through the available tags in this storage by stream in the given namespace.
     fn iter_tag_streams_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>>;
 
     /// Read the entire tag stream for the given tag.
@@ -200,7 +197,7 @@ pub trait TagStorage: Send + Sync {
     /// If the tag does not exist, and empty stream is returned.
     async fn read_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>>;
 
@@ -248,7 +245,7 @@ pub trait TagStorage: Send + Sync {
     /// to oldest.
     async fn insert_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()>;
 
@@ -265,7 +262,7 @@ pub trait TagStorage: Send + Sync {
     /// If the given tag spec contains a version, the version is ignored.
     async fn remove_tag_stream_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<()>;
 
@@ -278,7 +275,7 @@ pub trait TagStorage: Send + Sync {
     /// Remove the oldest stored instance of the given tag in the given namespace.
     async fn remove_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()>;
 }
@@ -286,13 +283,13 @@ pub trait TagStorage: Send + Sync {
 #[async_trait::async_trait]
 impl<T: TagStorage> TagStorage for &T {
     #[inline]
-    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         TagStorage::get_tag_namespace(&**self)
     }
 
     fn ls_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
         TagStorage::ls_tags_in_namespace(&**self, namespace, path)
@@ -300,7 +297,7 @@ impl<T: TagStorage> TagStorage for &T {
 
     fn find_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
         TagStorage::find_tags_in_namespace(&**self, namespace, digest)
@@ -308,14 +305,14 @@ impl<T: TagStorage> TagStorage for &T {
 
     fn iter_tag_streams_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
         TagStorage::iter_tag_streams_in_namespace(&**self, namespace)
     }
 
     async fn read_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
         TagStorage::read_tag_in_namespace(&**self, namespace, tag).await
@@ -323,7 +320,7 @@ impl<T: TagStorage> TagStorage for &T {
 
     async fn insert_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()> {
         TagStorage::insert_tag_in_namespace(&**self, namespace, tag).await
@@ -331,7 +328,7 @@ impl<T: TagStorage> TagStorage for &T {
 
     async fn remove_tag_stream_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<()> {
         TagStorage::remove_tag_stream_in_namespace(&**self, namespace, tag).await
@@ -339,7 +336,7 @@ impl<T: TagStorage> TagStorage for &T {
 
     async fn remove_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()> {
         TagStorage::remove_tag_in_namespace(&**self, namespace, tag).await
@@ -349,5 +346,8 @@ impl<T: TagStorage> TagStorage for &T {
 pub trait TagStorageMut {
     /// Set the configured tag namespace, returning the old tag namespace,
     /// if there was one.
-    fn try_set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Result<Option<PathBuf>>;
+    fn try_set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Result<Option<TagNamespaceBuf>>;
 }

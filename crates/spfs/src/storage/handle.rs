@@ -4,7 +4,6 @@
 
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -16,7 +15,7 @@ use spfs_encoding as encoding;
 use super::prelude::*;
 use super::repository::Ref;
 use super::tag::TagSpecAndTagStream;
-use super::{RepositoryHandle, TagStorageMut};
+use super::{RepositoryHandle, TagNamespace, TagNamespaceBuf, TagStorageMut};
 use crate::tracking::{self, BlobRead};
 use crate::{graph, Error, Result};
 
@@ -66,13 +65,13 @@ impl Repository for RepositoryHandle {
 #[async_trait::async_trait]
 impl TagStorage for RepositoryHandle {
     #[inline]
-    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         each_variant!(self, repo, { repo.get_tag_namespace() })
     }
 
     async fn resolve_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag_spec: &tracking::TagSpec,
     ) -> Result<tracking::Tag> {
         each_variant!(self, repo, {
@@ -82,7 +81,7 @@ impl TagStorage for RepositoryHandle {
 
     fn ls_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<super::EntryType>> + Send>> {
         each_variant!(self, repo, { repo.ls_tags_in_namespace(namespace, path) })
@@ -90,7 +89,7 @@ impl TagStorage for RepositoryHandle {
 
     fn find_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
         each_variant!(self, repo, {
@@ -100,7 +99,7 @@ impl TagStorage for RepositoryHandle {
 
     fn iter_tag_streams_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
         each_variant!(self, repo, {
             repo.iter_tag_streams_in_namespace(namespace)
@@ -109,7 +108,7 @@ impl TagStorage for RepositoryHandle {
 
     async fn read_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
         each_variant!(self, repo, {
@@ -119,7 +118,7 @@ impl TagStorage for RepositoryHandle {
 
     async fn insert_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()> {
         each_variant!(self, repo, {
@@ -129,7 +128,7 @@ impl TagStorage for RepositoryHandle {
 
     async fn remove_tag_stream_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<()> {
         each_variant!(self, repo, {
@@ -139,7 +138,7 @@ impl TagStorage for RepositoryHandle {
 
     async fn remove_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()> {
         each_variant!(self, repo, {
@@ -149,7 +148,10 @@ impl TagStorage for RepositoryHandle {
 }
 
 impl TagStorageMut for RepositoryHandle {
-    fn try_set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Result<Option<PathBuf>> {
+    fn try_set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Result<Option<TagNamespaceBuf>> {
         match self {
             RepositoryHandle::FS(repo) => repo.try_set_tag_namespace(tag_namespace),
             RepositoryHandle::Tar(repo) => repo.try_set_tag_namespace(tag_namespace),
@@ -280,13 +282,13 @@ impl Repository for Arc<RepositoryHandle> {
 #[async_trait::async_trait]
 impl TagStorage for Arc<RepositoryHandle> {
     #[inline]
-    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         RepositoryHandle::get_tag_namespace(self)
     }
 
     async fn resolve_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag_spec: &tracking::TagSpec,
     ) -> Result<tracking::Tag> {
         each_variant!(&**self, repo, {
@@ -296,7 +298,7 @@ impl TagStorage for Arc<RepositoryHandle> {
 
     fn ls_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<super::EntryType>> + Send>> {
         each_variant!(&**self, repo, {
@@ -306,7 +308,7 @@ impl TagStorage for Arc<RepositoryHandle> {
 
     fn find_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
         each_variant!(&**self, repo, {
@@ -316,7 +318,7 @@ impl TagStorage for Arc<RepositoryHandle> {
 
     fn iter_tag_streams_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
         each_variant!(&**self, repo, {
             repo.iter_tag_streams_in_namespace(namespace)
@@ -325,7 +327,7 @@ impl TagStorage for Arc<RepositoryHandle> {
 
     async fn read_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
         each_variant!(&**self, repo, {
@@ -335,7 +337,7 @@ impl TagStorage for Arc<RepositoryHandle> {
 
     async fn insert_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()> {
         each_variant!(&**self, repo, {
@@ -345,7 +347,7 @@ impl TagStorage for Arc<RepositoryHandle> {
 
     async fn remove_tag_stream_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<()> {
         each_variant!(&**self, repo, {
@@ -355,7 +357,7 @@ impl TagStorage for Arc<RepositoryHandle> {
 
     async fn remove_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()> {
         each_variant!(&**self, repo, {

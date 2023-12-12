@@ -52,7 +52,7 @@ pin-project-lite = { workspace = true }
 progress_bar_derive_macro = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
-relative-path = { workspace = true }
+relative-path = { workspace = true, features = ["serde"] }
 ring = { workspace = true }
 semver = "1.0"
 sentry = { workspace = true, optional = true }

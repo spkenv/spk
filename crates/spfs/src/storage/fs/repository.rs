@@ -19,7 +19,13 @@ use super::FsHashStore;
 use crate::config::ToAddress;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
-use crate::storage::{LocalRepository, OpenRepositoryError, OpenRepositoryResult};
+use crate::storage::{
+    LocalRepository,
+    OpenRepositoryError,
+    OpenRepositoryResult,
+    TagNamespace,
+    TagNamespaceBuf,
+};
 use crate::{Error, Result};
 
 /// The directory name within the repo where durable runtimes keep
@@ -55,7 +61,7 @@ pub struct Params {
     pub create: bool,
     #[serde(default)]
     pub lazy: bool,
-    pub tag_namespace: Option<PathBuf>,
+    pub tag_namespace: Option<TagNamespaceBuf>,
 }
 
 #[async_trait::async_trait]
@@ -214,7 +220,7 @@ impl FsRepository {
         }
     }
 
-    pub fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+    pub fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         match &**self.0.load() {
             InnerFsRepository::Open(repo) => repo
                 .get_tag_namespace()
@@ -229,7 +235,10 @@ impl FsRepository {
         }
     }
 
-    pub fn set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Option<PathBuf> {
+    pub fn set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Option<TagNamespaceBuf> {
         let mut old_namespace = None;
         self.0.rcu(|inner| match &**inner {
             InnerFsRepository::Open(repo) => {
@@ -269,7 +278,7 @@ pub struct OpenFsRepository {
     root: PathBuf,
     /// the namespace to use for tag resolution. If set, then this is treated
     /// as "chroot" of the real tag root.
-    tag_namespace: Option<PathBuf>,
+    tag_namespace: Option<TagNamespaceBuf>,
     /// stores the actual file data/payloads of this repo
     pub payloads: FsHashStore,
     /// stores all digraph object data for this repo
@@ -333,7 +342,8 @@ impl OpenFsRepository {
                 tag_namespace: self.tag_namespace.clone(),
             },
         }
-        .to_address().expect("repository address is valid")
+        .to_address()
+        .expect("repository address is valid")
     }
 
     /// The filesystem root path of this repository
@@ -381,13 +391,16 @@ impl OpenFsRepository {
 
     /// Return the configured tag namespace, if any.
     #[inline]
-    pub fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+    pub fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         self.tag_namespace.as_deref().map(Cow::Borrowed)
     }
 
     /// Set the configured tag namespace, returning the old tag namespace,
     /// if there was one.
-    pub fn set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Option<PathBuf> {
+    pub fn set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Option<TagNamespaceBuf> {
         std::mem::replace(&mut self.tag_namespace, tag_namespace)
     }
 

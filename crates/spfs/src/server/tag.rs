@@ -3,23 +3,23 @@
 // https://github.com/imageworks/spk
 
 use std::convert::TryInto;
-use std::path::Path;
 use std::sync::Arc;
 
 use futures::TryStreamExt;
+use relative_path::RelativePath;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 
 use crate::prelude::*;
 use crate::proto::tag_service_server::TagServiceServer;
 use crate::proto::{self, convert_digest, RpcResult};
-use crate::storage;
+use crate::storage::{self, TagNamespace};
 
-fn string_to_namespace(namespace: &String) -> Option<&Path> {
+fn string_to_namespace(namespace: &String) -> Option<&TagNamespace> {
     if namespace.is_empty() {
         None
     } else {
-        Some(Path::new(namespace))
+        Some(TagNamespace::new(RelativePath::new(namespace)))
     }
 }
 

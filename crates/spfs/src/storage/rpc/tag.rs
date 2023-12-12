@@ -4,7 +4,6 @@
 
 use std::borrow::Cow;
 use std::convert::{TryFrom, TryInto};
-use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -14,14 +13,14 @@ use relative_path::RelativePath;
 use crate::proto::tag_service_client::TagServiceClient;
 use crate::proto::{self, RpcResult};
 use crate::storage::tag::TagSpecAndTagStream;
-use crate::storage::{self, EntryType};
+use crate::storage::{self, EntryType, TagNamespace, TagNamespaceBuf};
 use crate::{encoding, tracking, Result};
 
 #[async_trait::async_trait]
 impl storage::TagStorage for super::RpcRepository {
     #[inline]
-    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
-        Self::tag_namespace(self).map(Into::into)
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
+        Self::tag_namespace(self).map(Cow::Borrowed)
     }
 
     async fn resolve_tag(
@@ -32,7 +31,7 @@ impl storage::TagStorage for super::RpcRepository {
             tag_spec: tag_spec.to_string(),
             namespace: self
                 .get_tag_namespace()
-                .map(|p| p.to_string_lossy().into_owned())
+                .map(|p| p.to_string())
                 .unwrap_or_default(),
         };
         let response = self
@@ -53,14 +52,12 @@ impl storage::TagStorage for super::RpcRepository {
 
     fn ls_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
         let request = proto::LsTagsRequest {
             path: path.to_string(),
-            namespace: namespace
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_default(),
+            namespace: namespace.map(|p| p.to_string()).unwrap_or_default(),
         };
         let mut client = self.tag_client.clone();
         let stream = futures::stream::once(async move { client.ls_tags(request).await })
@@ -73,14 +70,12 @@ impl storage::TagStorage for super::RpcRepository {
 
     fn find_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
         let request = proto::FindTagsRequest {
             digest: Some(digest.into()),
-            namespace: namespace
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_default(),
+            namespace: namespace.map(|p| p.to_string()).unwrap_or_default(),
         };
         let mut client = self.tag_client.clone();
         let stream = futures::stream::once(async move { client.find_tags(request).await })
@@ -95,12 +90,10 @@ impl storage::TagStorage for super::RpcRepository {
 
     fn iter_tag_streams_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
         let request = proto::IterTagSpecsRequest {
-            namespace: namespace
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_default(),
+            namespace: namespace.map(|p| p.to_string()).unwrap_or_default(),
         };
         let mut client = self.tag_client.clone();
         let stream = futures::stream::once(async move { client.iter_tag_specs(request).await })
@@ -111,7 +104,7 @@ impl storage::TagStorage for super::RpcRepository {
             })
             .try_flatten();
         let client = self.tag_client.clone();
-        let tag_namespace = Arc::new(namespace.as_deref().map(ToOwned::to_owned));
+        let tag_namespace = Arc::new(namespace.map(ToOwned::to_owned));
         let stream = stream.and_then(move |spec| {
             let client = client.clone();
             let tag_namespace = Arc::clone(&tag_namespace);
@@ -128,7 +121,7 @@ impl storage::TagStorage for super::RpcRepository {
 
     async fn read_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
         read_tag(self.tag_client.clone(), namespace, tag).await
@@ -136,14 +129,12 @@ impl storage::TagStorage for super::RpcRepository {
 
     async fn insert_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()> {
         let request = proto::InsertTagRequest {
             tag: Some(tag.into()),
-            namespace: namespace
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_default(),
+            namespace: namespace.map(|p| p.to_string()).unwrap_or_default(),
         };
         let _response = self
             .tag_client
@@ -157,14 +148,12 @@ impl storage::TagStorage for super::RpcRepository {
 
     async fn remove_tag_stream_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<()> {
         let request = proto::RemoveTagStreamRequest {
             tag_spec: tag.to_string(),
-            namespace: namespace
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_default(),
+            namespace: namespace.map(|p| p.to_string()).unwrap_or_default(),
         };
         let _response = self
             .tag_client
@@ -178,14 +167,12 @@ impl storage::TagStorage for super::RpcRepository {
 
     async fn remove_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()> {
         let request = proto::RemoveTagRequest {
             tag: Some(tag.into()),
-            namespace: namespace
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_default(),
+            namespace: namespace.map(|p| p.to_string()).unwrap_or_default(),
         };
         let _response = self
             .tag_client
@@ -199,21 +186,22 @@ impl storage::TagStorage for super::RpcRepository {
 }
 
 impl storage::TagStorageMut for super::RpcRepository {
-    fn try_set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Result<Option<PathBuf>> {
+    fn try_set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Result<Option<TagNamespaceBuf>> {
         Ok(Self::set_tag_namespace(self, tag_namespace))
     }
 }
 
 async fn read_tag(
     mut client: TagServiceClient<tonic::transport::Channel>,
-    tag_namespace: Option<&Path>,
+    tag_namespace: Option<&TagNamespace>,
     tag: &tracking::TagSpec,
 ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
     let request = proto::ReadTagRequest {
         tag_spec: tag.to_string(),
-        namespace: tag_namespace
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_default(),
+        namespace: tag_namespace.map(|p| p.to_string()).unwrap_or_default(),
     };
     let response = client.read_tag(request).await?.into_inner().to_result()?;
     let items: Result<Vec<_>> = response

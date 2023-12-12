@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::borrow::Cow;
-use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 use chrono::{DateTime, Utc};
@@ -13,7 +12,14 @@ use relative_path::RelativePath;
 use crate::config::ToAddress;
 use crate::prelude::*;
 use crate::storage::tag::TagSpecAndTagStream;
-use crate::storage::{EntryType, OpenRepositoryError, OpenRepositoryResult, TagStorageMut};
+use crate::storage::{
+    EntryType,
+    OpenRepositoryError,
+    OpenRepositoryResult,
+    TagNamespace,
+    TagNamespaceBuf,
+    TagStorageMut,
+};
 use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Result};
 
@@ -236,13 +242,13 @@ impl PayloadStorage for ProxyRepository {
 #[async_trait::async_trait]
 impl TagStorage for ProxyRepository {
     #[inline]
-    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         self.primary.get_tag_namespace()
     }
 
     fn ls_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
         self.primary.ls_tags_in_namespace(namespace, path)
@@ -250,7 +256,7 @@ impl TagStorage for ProxyRepository {
 
     fn find_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
         self.primary.find_tags_in_namespace(namespace, digest)
@@ -258,14 +264,14 @@ impl TagStorage for ProxyRepository {
 
     fn iter_tag_streams_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
         self.primary.iter_tag_streams_in_namespace(namespace)
     }
 
     async fn read_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
         let mut res = self.primary.read_tag_in_namespace(namespace, tag).await;
@@ -285,7 +291,7 @@ impl TagStorage for ProxyRepository {
 
     async fn insert_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()> {
         self.primary.insert_tag_in_namespace(namespace, tag).await?;
@@ -294,7 +300,7 @@ impl TagStorage for ProxyRepository {
 
     async fn remove_tag_stream_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<()> {
         self.primary
@@ -305,7 +311,7 @@ impl TagStorage for ProxyRepository {
 
     async fn remove_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()> {
         self.primary.remove_tag_in_namespace(namespace, tag).await?;
@@ -314,7 +320,10 @@ impl TagStorage for ProxyRepository {
 }
 
 impl TagStorageMut for ProxyRepository {
-    fn try_set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Result<Option<PathBuf>> {
+    fn try_set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Result<Option<TagNamespaceBuf>> {
         self.primary
             .try_as_tag_mut()
             .and_then(|tag| tag.try_set_tag_namespace(tag_namespace))

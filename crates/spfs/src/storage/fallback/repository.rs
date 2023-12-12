@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::borrow::Cow;
-use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -15,7 +14,7 @@ use crate::config::ToAddress;
 use crate::prelude::*;
 use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
 use crate::storage::tag::TagSpecAndTagStream;
-use crate::storage::{EntryType, LocalRepository, TagStorageMut};
+use crate::storage::{EntryType, LocalRepository, TagNamespace, TagNamespaceBuf, TagStorageMut};
 use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
@@ -287,13 +286,13 @@ impl PayloadStorage for FallbackProxy {
 #[async_trait::async_trait]
 impl TagStorage for FallbackProxy {
     #[inline]
-    fn get_tag_namespace(&self) -> Option<Cow<'_, Path>> {
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         self.primary.get_tag_namespace()
     }
 
     fn ls_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
         self.primary.ls_tags_in_namespace(namespace, path)
@@ -301,7 +300,7 @@ impl TagStorage for FallbackProxy {
 
     fn find_tags_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
         self.primary.find_tags_in_namespace(namespace, digest)
@@ -309,14 +308,14 @@ impl TagStorage for FallbackProxy {
 
     fn iter_tag_streams_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
         self.primary.iter_tag_streams_in_namespace(namespace)
     }
 
     async fn read_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
         self.primary.read_tag_in_namespace(namespace, tag).await
@@ -324,7 +323,7 @@ impl TagStorage for FallbackProxy {
 
     async fn insert_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()> {
         self.primary.insert_tag_in_namespace(namespace, tag).await?;
@@ -333,7 +332,7 @@ impl TagStorage for FallbackProxy {
 
     async fn remove_tag_stream_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<()> {
         self.primary
@@ -344,7 +343,7 @@ impl TagStorage for FallbackProxy {
 
     async fn remove_tag_in_namespace(
         &self,
-        namespace: Option<&Path>,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::Tag,
     ) -> Result<()> {
         self.primary.remove_tag_in_namespace(namespace, tag).await?;
@@ -353,7 +352,10 @@ impl TagStorage for FallbackProxy {
 }
 
 impl TagStorageMut for FallbackProxy {
-    fn try_set_tag_namespace(&mut self, tag_namespace: Option<PathBuf>) -> Result<Option<PathBuf>> {
+    fn try_set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Result<Option<TagNamespaceBuf>> {
         Ok(Arc::make_mut(&mut self.primary).set_tag_namespace(tag_namespace))
     }
 }
