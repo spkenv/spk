@@ -238,8 +238,8 @@ impl OptName {
 
 impl OptNameBuf {
     /// Construct a valid OptNameBuf, invalid characters will be
-    /// removed, the length will be padded or truncates, and uppercase
-    /// letter will be lowercased to make a valid option name.
+    /// removed, the length will be padded or truncated, and uppercase
+    /// letters will be lowercased to make a valid option name.
     pub fn new_lossy<S: AsRef<str>>(s: &S) -> OptNameBuf {
         if validate_opt_base_name(s).is_ok() {
             return unsafe { OptNameBuf::from_string(s.as_ref().to_string()) };

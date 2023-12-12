@@ -72,7 +72,7 @@ Fetches and extracts a tar archive as package source files.
 | options     | _List[[BuildOption](#buildoption)]_ | The set of inputs for the package build process                |
 | variants    | _List[[OptionMap](#optionmap)]_     | The default variants of the package options to build           |
 | validation  | _[ValidationSpec](#validationspec)_ | Modifies the default package validation process                |
-| auto_host_vars | _[HostCompat](#hostcompat)_ | The host compatibility setting for the package's builds. It covers distro, arch, os, and distro version |
+| auto_host_vars | _[HostCompat](#hostcompat)_ | The host compatibility setting for the package's builds. Depending on the value, it injects build options like distro, arch, os, and distro version |
 
 ### BuildOption
 
@@ -126,7 +126,7 @@ options to each build, as described in the table:
 
 |  Value     | Adds these host options                        |
 | ---------- | ---------------------------------------------- |
-| **Distro** | "distro", "arch", "os", and the "<distroname>" |
+| **Distro** (default) | "distro", "arch", "os", and the "<distroname>" |
 | **Arch**   | "arch", "os", and the "<distroname>"           |
 | **Os**     | "os"                                           |
 | **None**   |                                                |

@@ -44,12 +44,16 @@ fn get_stub(name: &PkgNameBuf) -> String {
 
 build:
 
-  # Set what level of host compatibility the built package should have:
-  # - full: package can be used on any OS and any architecture
-  # - os: package can be used anywhere that has the same OS type (mac, linux, windows)
-  # - arch: package can be used anywhere that has the same OS and CPU architecture (x86_64, i386)
-  # - distro: package can only be used on the same OS, CPU, and OS distribution version (eg linux distro)
-  host_compat: distro
+  # set which host related vars are added automatically to the built package:
+  # - Distro: adds 'distro', 'arch', 'os' and '<distroname>' vars, so the package
+  #           can only be used on the same OS, CPU, and OS distribution version 
+  #           (e.g. linux distro). This is the default.
+  # - Arch: adds 'arch' and 'os' vars, so the package can be used anywhere that
+  #         has the same OS and CPU architecture (x86_64, i386)
+  # - Os: adds 'os' var, so the package can be used anywhere that has the same 
+  #       OS type (mac, linux, windows)
+  # - None: adds no host vars, so package can be used on any OS and any architecture
+  auto_host_vars: Distro
 
   # options are all the inputs to the package build process, including
   # build-time dependencies

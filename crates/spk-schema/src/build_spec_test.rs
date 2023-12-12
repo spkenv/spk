@@ -19,7 +19,7 @@ fn test_host_compat_default() {
 #[case("None", true)]
 #[case("Tuesday", false)]
 fn test_build_spec_with_host_opt_value(#[case] value: &str, #[case] expected_result: bool) {
-    // Tests the host_compat value is valid
+    // Tests the auto_host_vars value is valid
     let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(&format!(
         "{{
         auto_host_vars: {value},
@@ -38,7 +38,7 @@ fn test_build_spec_with_host_opt_contains_expected_names(
     #[case] value: &str,
     #[case] expected_names: Vec<String>,
 ) {
-    // Test the host_compat value generates the expected named options
+    // Test the auto_host_vars value generates the expected named options
     let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(&format!(
         "{{
         auto_host_vars: {value},
@@ -75,9 +75,9 @@ fn test_build_spec_with_host_opt_does_not_have_disallowed_names(
     #[case] value: &str,
     #[case] invalid_names: Vec<&str>,
 ) {
-    // Test the host_compat value does not create the options names
+    // Test the auto_host_vars value does not create the options names
     // that are disallowed by that value. This test will have to
-    // change if the host_compat validation is disabled.
+    // change if the host compat validation is disabled.
     let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(&format!(
         "{{
         auto_host_vars: {value},
@@ -110,13 +110,14 @@ fn test_build_spec_with_host_opt_does_not_have_disallowed_names(
     }
 }
 
-// #[case("distro")] - not checked, it has no disallowed names
 #[rstest]
+#[should_panic] // distro has no disallowed names
+#[case("distro")]
 #[case("Arch")]
 #[case("Os")]
 #[case("None")]
 fn test_build_spec_with_host_opt_and_disallowed_name(#[case] value: &str) {
-    // Test the host_compat value setting causes an error when there's
+    // Test the auto_host_vars value setting causes an error when there's
     // a disallowed option name in the build options.
     let res: serde_yaml::Result<BuildSpec> = serde_yaml::from_str(&format!(
         "{{
@@ -132,7 +133,7 @@ fn test_build_spec_with_host_opt_and_disallowed_name(#[case] value: &str) {
             let result = build_spec.opts_for_variant(&build_spec.variants[0]);
             assert!(result.is_ok())
         }
-        Err(err) => panic!("Fail: build spec didn't parse with host_compat {value}: {err:?}"),
+        Err(err) => panic!("Fail: build spec didn't parse with 'auto_host_vars: {value}': {err:?}"),
     }
 }
 
