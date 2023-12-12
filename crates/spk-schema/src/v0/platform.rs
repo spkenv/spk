@@ -244,7 +244,7 @@ impl Recipe for Platform<VersionIdent> {
             build_host_options.push(Opt::Var(VarOpt::new(name)?));
         }
         spec.build = BuildSpec {
-            script: Script::new(["true"]),
+            script: Script::new([""]),
             options: build_host_options,
             ..Default::default()
         };
