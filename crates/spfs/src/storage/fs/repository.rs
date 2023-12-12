@@ -325,17 +325,15 @@ impl LocalRepository for OpenFsRepository {
 impl OpenFsRepository {
     /// The address of this repository that can be used to re-open it
     pub fn address(&self) -> url::Url {
-        let mut url = url::Url::from_directory_path(self.root()).unwrap();
-        // Assuming we want runtimes to respect the prevailing tag namespace,
-        // this needs to be included in the address produced here, since
-        // spfs-enter's --runtime-storage argument comes from here.
-        if let Some(tag_namespace) = self.tag_namespace.as_ref() {
-            url.set_query(Some(&format!(
-                "tag_namespace={}",
-                tag_namespace.to_string_lossy()
-            )))
-        };
-        url
+        Config {
+            path: self.root(),
+            params: Params {
+                create: false,
+                lazy: false,
+                tag_namespace: self.tag_namespace.clone(),
+            },
+        }
+        .to_address().expect("repository address is valid")
     }
 
     /// The filesystem root path of this repository
