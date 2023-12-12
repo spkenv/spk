@@ -18,11 +18,8 @@ use crate::{Result, Variant};
 #[path = "./build_spec_test.rs"]
 mod build_spec_test;
 
-// TODO: could move to another file nearer the host_options() function
-// in use super::foundation::option_map
-
-// Each HostCompat value adds a different set of host related options when used.
-// TODO: move these to config
+// Each HostCompat value adds a different set of host related options
+// when used.
 const DISTRO_ADDS: &[&OptName] = &[OptName::os(), OptName::arch(), OptName::distro()];
 const ARCH_ADDS: &[&OptName] = &[OptName::os(), OptName::arch()];
 const OS_ADDS: &[&OptName] = &[OptName::os()];
