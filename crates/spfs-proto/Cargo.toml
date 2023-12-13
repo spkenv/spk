@@ -1,0 +1,17 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+name = "spfs-proto"
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[dependencies]
+flatbuffers = { workspace = true }
+
+[build-dependencies]
+flatc-rust = "0.2"
+
+[dev-dependencies]
+rstest = { version = "0.15.0", default_features = false }

@@ -1,0 +1,58 @@
+// when adding or modifying this file, take care to read
+// the compatibility and evolution notes here:
+// https://flatbuffers.dev/flatbuffers_guide_writing_schema.html
+// In general, only add fields to the end of tables. Never add
+// new fields to struct types.
+
+union Object {
+    Platform,
+    Layer,
+    Manifest,
+    Blob,
+}
+
+table Platform {
+    layers:[Digest] (required);
+}
+
+table Layer {
+    manifest:Manifest (required);
+}
+
+table Manifest {
+    /// The first entry is always the root tree of the manifest
+    trees:[Tree] (required);
+}
+
+table Blob {
+    size:uint64;
+    payload:Digest (required);
+}
+
+struct Digest {
+    bytes:[uint8:32]; // SHA-256 output len (256 / 8)
+}
+
+table Tree {
+    entries:[Entry] (required);
+}
+
+enum EntryKind:uint8 {
+    Tree = 0,
+    Blob,
+    Mask,
+}
+
+table Entry {
+    kind:EntryKind;
+    object:Digest (required);
+    mode:uint32;
+    size:uint64;
+    name:string (required);
+}
+
+
+table AnyObject {
+    object:Object (required);
+}
+root_type AnyObject;
