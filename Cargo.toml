@@ -5,8 +5,9 @@ codegen-units = 1
 [workspace]
 members = [
     "crates/progress_bar_derive_macro",
-    "crates/spfs-encoding",
     "crates/spfs",
+    "crates/spfs-encoding",
+    "crates/spfs-proto",
     "crates/spk-build",
     "crates/spk-cli/*",
     "crates/spfs-cli/*",
@@ -47,6 +48,7 @@ dashmap = "5.4.0"
 dirs = "5.0"
 dunce = "1.0.4"
 dyn-clone = "1.0"
+flatbuffers = "23.5.26"
 futures = "0.3.28"
 futures-core = "0.3.28"
 fuser = "0.12"
