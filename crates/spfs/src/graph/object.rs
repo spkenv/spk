@@ -126,7 +126,7 @@ pub enum ObjectKind {
 }
 
 impl ObjectKind {
-    pub fn from_u64(kind: u64) -> Option<ObjectKind> {
+    pub fn from_u8(kind: u8) -> Option<ObjectKind> {
         match kind {
             0 => Some(Self::Blob),
             1 => Some(Self::Manifest),
@@ -157,7 +157,12 @@ impl encoding::Encodable for Object {
 
     fn encode(&self, mut writer: &mut impl std::io::Write) -> crate::Result<()> {
         encoding::write_header(&mut writer, OBJECT_HEADER)?;
-        encoding::write_uint(&mut writer, self.kind() as u64)?;
+        const EPOCH: u8 = 0;
+        encoding::write_uint8(&mut writer, EPOCH)?;
+        writer
+            .write_all(&[0, 0, 0, 0, 0, 0])
+            .map_err(encoding::Error::FailedWrite)?; // reserved header space
+        encoding::write_uint8(&mut writer, self.kind() as u8)?;
         match self {
             Self::Blob(obj) => obj.encode(&mut writer),
             Self::Manifest(obj) => obj.encode(&mut writer),
@@ -172,8 +177,12 @@ impl encoding::Encodable for Object {
 impl encoding::Decodable for Object {
     fn decode(mut reader: &mut impl BufRead) -> crate::Result<Self> {
         encoding::consume_header(&mut reader, OBJECT_HEADER)?;
-        let type_id = encoding::read_uint(&mut reader)?;
-        match ObjectKind::from_u64(type_id) {
+        let _epoch_id = encoding::read_uint8(&mut reader)?;
+        reader
+            .read_exact(&mut [0, 0, 0, 0, 0, 0])
+            .map_err(encoding::Error::FailedRead)?; // reserved header space
+        let type_id = encoding::read_uint8(&mut reader)?;
+        match ObjectKind::from_u8(type_id) {
             Some(ObjectKind::Blob) => Ok(Self::Blob(Blob::decode(&mut reader)?)),
             Some(ObjectKind::Manifest) => Ok(Self::Manifest(Manifest::decode(&mut reader)?)),
             Some(ObjectKind::Layer) => Ok(Self::Layer(Layer::decode(&mut reader)?)),

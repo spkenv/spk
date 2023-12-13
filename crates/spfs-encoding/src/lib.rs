@@ -21,12 +21,14 @@ pub use binary::{
     read_digest,
     read_int,
     read_string,
-    read_uint,
+    read_uint64,
+    read_uint8,
     write_digest,
     write_header,
     write_int,
     write_string,
-    write_uint,
+    write_uint64,
+    write_uint8,
 };
 pub use error::{Error, Result};
 pub use hash::{
