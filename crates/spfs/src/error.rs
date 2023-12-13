@@ -141,6 +141,9 @@ pub enum Error {
     StorageReadError(&'static str, std::path::PathBuf, #[source] io::Error),
     #[error("Storage write error from {0} at {1}: {2}")]
     StorageWriteError(&'static str, std::path::PathBuf, #[source] io::Error),
+    #[error("Unrecognized object epoch: {0}")]
+    #[diagnostic(help("Your version of spfs may be too old to read this repository"))]
+    UnknownObjectEpoch(u8),
 
     #[error("'{0}' not found in PATH, was it installed properly?")]
     MissingBinary(&'static str),
