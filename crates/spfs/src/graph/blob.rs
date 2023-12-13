@@ -34,7 +34,7 @@ impl encoding::Encodable for Blob {
     }
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_digest(&mut writer, &self.payload)?;
-        encoding::write_uint(writer, self.size)?;
+        encoding::write_uint64(writer, self.size)?;
         Ok(())
     }
 }
@@ -42,7 +42,7 @@ impl encoding::Decodable for Blob {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
         Ok(Blob {
             payload: encoding::read_digest(&mut reader)?,
-            size: encoding::read_uint(reader)?,
+            size: encoding::read_uint64(reader)?,
         })
     }
 }

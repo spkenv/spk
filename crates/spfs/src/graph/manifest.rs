@@ -180,7 +180,7 @@ impl Encodable for Manifest {
 
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         self.root().encode(&mut writer)?;
-        encoding::write_uint(&mut writer, self.tree_order.len() as u64)?;
+        encoding::write_uint64(&mut writer, self.tree_order.len() as u64)?;
         for digest in &self.tree_order {
             match self.trees.get(digest) {
                 Some(tree) => tree.encode(writer)?,
@@ -199,7 +199,7 @@ impl Decodable for Manifest {
             root: Tree::decode(&mut reader)?,
             ..Default::default()
         };
-        let num_trees = encoding::read_uint(&mut reader)?;
+        let num_trees = encoding::read_uint64(&mut reader)?;
         for _ in 0..num_trees {
             let tree = Tree::decode(reader)?;
             manifest.insert_tree(tree)?;
