@@ -45,7 +45,7 @@ impl Encodable for Platform {
         // use a vec to know the name ahead of time and
         // avoid iterating the stack twice
         let digests = self.stack.iter_bottom_up().collect::<Vec<_>>();
-        encoding::write_uint(&mut writer, digests.len() as u64)?;
+        encoding::write_uint64(&mut writer, digests.len() as u64)?;
         // for historical reasons, and to remain backward-compatible, platform
         // stacks are stored in reverse (top-down) order
         for digest in digests.into_iter().rev() {
@@ -57,7 +57,7 @@ impl Encodable for Platform {
 
 impl encoding::Decodable for Platform {
     fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
-        let num_layers = encoding::read_uint(&mut reader)?;
+        let num_layers = encoding::read_uint64(&mut reader)?;
         let mut layers = Vec::with_capacity(num_layers as usize);
         for _ in 0..num_layers {
             layers.push(encoding::read_digest(&mut reader)?);

@@ -3487,6 +3487,7 @@ dependencies = [
  "serde_yaml 0.9.27",
  "serial_test",
  "spfs-encoding",
+ "spfs-proto",
  "static_assertions",
  "strum",
  "tar",

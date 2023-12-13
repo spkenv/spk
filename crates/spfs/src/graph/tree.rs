@@ -91,7 +91,7 @@ impl encoding::Encodable for Tree {
     type Error = Error;
 
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_uint(&mut writer, self.len() as u64)?;
+        encoding::write_uint64(&mut writer, self.len() as u64)?;
         let mut entries: Vec<_> = self.entries.iter().collect();
         // this is not the default sort mode for entries but
         // matches the existing compatible encoding order
@@ -108,7 +108,7 @@ impl encoding::Decodable for Tree {
         let mut tree = Tree {
             entries: Default::default(),
         };
-        let entry_count = encoding::read_uint(&mut reader)?;
+        let entry_count = encoding::read_uint64(&mut reader)?;
         for _ in 0..entry_count {
             tree.entries.insert(Entry::decode(reader)?);
         }
