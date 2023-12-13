@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::borrow::Cow;
-use std::collections::HashSet;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
@@ -370,25 +369,12 @@ impl<'de> serde::de::Visitor<'de> for PlatformRequirementsVisitor {
         Ok(PlatformRequirements::Patch(patch.into()))
     }
 
-    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+    fn visit_seq<A>(self, seq: A) -> std::result::Result<Self::Value, A::Error>
     where
         A: serde::de::SeqAccess<'de>,
     {
-        let mut requirements = RequirementsList::default();
-
-        // XXX: This duplicates the logic in RequirementsList::deserialize,
-        // but without size_hints because there's no constructor for
-        // RequirementsList where we can provide our own Vec.
-        let mut requirement_names = HashSet::new();
-        while let Some(request) = seq.next_element::<Request>()? {
-            let name = request.name();
-            if !requirement_names.insert(name.to_owned()) {
-                return Err(serde::de::Error::custom(format!(
-                    "found multiple platform requirements for '{name}'"
-                )));
-            }
-            requirements.insert_or_replace(request);
-        }
+        let requirements =
+            RequirementsList::deserialize(serde::de::value::SeqAccessDeserializer::new(seq))?;
 
         Ok(PlatformRequirements::BareAdd(requirements))
     }
