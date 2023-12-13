@@ -177,19 +177,22 @@ impl encoding::Encodable for Object {
 impl encoding::Decodable for Object {
     fn decode(mut reader: &mut impl BufRead) -> crate::Result<Self> {
         encoding::consume_header(&mut reader, OBJECT_HEADER)?;
-        let _epoch_id = encoding::read_uint8(&mut reader)?;
+        let epoch_id = encoding::read_uint8(&mut reader)?;
         reader
             .read_exact(&mut [0, 0, 0, 0, 0, 0])
             .map_err(encoding::Error::FailedRead)?; // reserved header space
         let type_id = encoding::read_uint8(&mut reader)?;
-        match ObjectKind::from_u8(type_id) {
-            Some(ObjectKind::Blob) => Ok(Self::Blob(Blob::decode(&mut reader)?)),
-            Some(ObjectKind::Manifest) => Ok(Self::Manifest(Manifest::decode(&mut reader)?)),
-            Some(ObjectKind::Layer) => Ok(Self::Layer(Layer::decode(&mut reader)?)),
-            Some(ObjectKind::Platform) => Ok(Self::Platform(Platform::decode(&mut reader)?)),
-            Some(ObjectKind::Tree) => Ok(Self::Tree(Tree::decode(&mut reader)?)),
-            Some(ObjectKind::Mask) => Ok(Self::Mask),
-            None => Err(format!("Cannot read object: unknown object kind {type_id}").into()),
+        let Some(kind) = ObjectKind::from_u8(type_id) else {
+            return Err(format!("Cannot read object: unknown object kind {type_id}").into());
+        };
+        match (epoch_id, kind) {
+            (0, ObjectKind::Blob) => Ok(Self::Blob(Blob::decode(&mut reader)?)),
+            (0, ObjectKind::Manifest) => Ok(Self::Manifest(Manifest::decode(&mut reader)?)),
+            (0, ObjectKind::Layer) => Ok(Self::Layer(Layer::decode(&mut reader)?)),
+            (0, ObjectKind::Platform) => Ok(Self::Platform(Platform::decode(&mut reader)?)),
+            (0, ObjectKind::Tree) => Ok(Self::Tree(Tree::decode(&mut reader)?)),
+            (_, ObjectKind::Mask) => Ok(Self::Mask),
+            (e, _) => Err(Error::UnknownObjectEpoch(e)),
         }
     }
 }
