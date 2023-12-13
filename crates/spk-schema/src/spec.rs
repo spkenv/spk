@@ -242,7 +242,7 @@ pub enum SpecRecipe {
     #[serde(rename = "v0/package")]
     V0Package(super::v0::Spec<VersionIdent>),
     #[serde(rename = "v0/platform")]
-    V0Platform(super::v0::Platform<VersionIdent>),
+    V0Platform(super::v0::Platform),
 }
 
 impl Recipe for SpecRecipe {

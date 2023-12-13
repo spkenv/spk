@@ -14,7 +14,6 @@ use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
 use spk_schema_foundation::version::Version;
 use spk_schema_ident::{
     BuildIdent,
-    Ident,
     InclusionPolicy,
     PkgRequest,
     Request,
@@ -111,8 +110,8 @@ impl PlatformRequirements {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize)]
-pub struct Platform<Ident> {
-    pub platform: Ident,
+pub struct Platform {
+    pub platform: VersionIdent,
     #[serde(default, skip_serializing_if = "Meta::is_default")]
     pub meta: Meta,
     #[serde(default, skip_serializing_if = "Compat::is_default")]
@@ -120,18 +119,18 @@ pub struct Platform<Ident> {
     #[serde(default, skip_serializing_if = "is_false")]
     pub deprecated: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub base: Option<Ident>,
+    pub base: Option<VersionIdent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requirements: Option<PlatformRequirements>,
 }
 
-impl<Ident> Deprecate for Platform<Ident> {
+impl Deprecate for Platform {
     fn is_deprecated(&self) -> bool {
         self.deprecated
     }
 }
 
-impl<Ident> DeprecateMut for Platform<Ident> {
+impl DeprecateMut for Platform {
     fn deprecate(&mut self) -> Result<()> {
         self.deprecated = true;
         Ok(())
@@ -143,25 +142,25 @@ impl<Ident> DeprecateMut for Platform<Ident> {
     }
 }
 
-impl<Ident: Named> Named for Platform<Ident> {
+impl Named for Platform {
     fn name(&self) -> &PkgName {
         self.platform.name()
     }
 }
 
-impl<Ident: HasVersion> HasVersion for Platform<Ident> {
+impl HasVersion for Platform {
     fn version(&self) -> &Version {
         self.platform.version()
     }
 }
 
-impl<Ident: HasVersion> Versioned for Platform<Ident> {
+impl Versioned for Platform {
     fn compat(&self) -> &Compat {
         &self.compat
     }
 }
 
-impl Recipe for Platform<VersionIdent> {
+impl Recipe for Platform {
     type Output = Spec<BuildIdent>;
     type Variant = super::Variant;
     type Test = TestSpec;
@@ -391,33 +390,18 @@ impl<'de> Deserialize<'de> for PlatformRequirementsVisitor {
     }
 }
 
-struct PlatformVisitor<B, T> {
-    platform: Option<Ident<B, T>>,
-    base: Option<Ident<B, T>>,
+#[derive(Default)]
+struct PlatformVisitor {
+    platform: Option<VersionIdent>,
+    base: Option<VersionIdent>,
     meta: Option<Meta>,
     compat: Option<Compat>,
     deprecated: Option<bool>,
     requirements: Option<PlatformRequirementsVisitor>,
 }
 
-impl<B, T> Default for PlatformVisitor<B, T> {
-    fn default() -> Self {
-        Self {
-            platform: None,
-            base: None,
-            meta: None,
-            compat: None,
-            deprecated: None,
-            requirements: None,
-        }
-    }
-}
-
-impl<'de, B, T> serde::de::Visitor<'de> for PlatformVisitor<B, T>
-where
-    Ident<B, T>: serde::de::DeserializeOwned,
-{
-    type Value = Platform<Ident<B, T>>;
+impl<'de> serde::de::Visitor<'de> for PlatformVisitor {
+    type Value = Platform;
 
     fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str("a platform specification")
@@ -429,8 +413,8 @@ where
     {
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
-                "platform" => self.platform = Some(map.next_value::<Ident<B, T>>()?),
-                "base" => self.base = Some(map.next_value::<Ident<B, T>>()?),
+                "platform" => self.platform = Some(map.next_value::<VersionIdent>()?),
+                "base" => self.base = Some(map.next_value::<VersionIdent>()?),
                 "meta" => self.meta = Some(map.next_value::<Meta>()?),
                 "compat" => self.compat = Some(map.next_value::<Compat>()?),
                 "deprecated" => self.deprecated = Some(map.next_value::<bool>()?),
@@ -461,7 +445,7 @@ where
     }
 }
 
-impl<'de> Deserialize<'de> for Platform<VersionIdent>
+impl<'de> Deserialize<'de> for Platform
 where
     VersionIdent: serde::de::DeserializeOwned,
 {

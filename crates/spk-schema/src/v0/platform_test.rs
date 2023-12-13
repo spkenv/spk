@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use rstest::rstest;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::host_options;
-use spk_schema_ident::{BuildIdent, InclusionPolicy, Request, VersionIdent};
+use spk_schema_ident::{BuildIdent, InclusionPolicy, Request};
 
 use super::Platform;
 use crate::v0::Spec;
@@ -16,7 +16,7 @@ use crate::{BuildEnv, Recipe};
 
 #[rstest]
 fn test_platform_is_valid_with_only_api_and_name() {
-    let _spec: Platform<VersionIdent> = serde_yaml::from_str(
+    let _spec: Platform = serde_yaml::from_str(
         r#"
          platform: test-platform
          api: v0/platform
@@ -60,7 +60,7 @@ fn test_platform_add_pkg_requirement(#[case] spec: &str) {
 
     let build_env = TestBuildEnv();
 
-    let spec: Platform<VersionIdent> = serde_yaml::from_str(spec).unwrap();
+    let spec: Platform = serde_yaml::from_str(spec).unwrap();
 
     let build = spec
         .generate_binary_build(&option_map! {}, &build_env)
@@ -116,7 +116,7 @@ fn test_platform_inheritance() {
 
     let build_env = TestBuildEnv();
 
-    let spec: Platform<VersionIdent> = serde_yaml::from_str(
+    let spec: Platform = serde_yaml::from_str(
         r#"
          platform: test-platform
          base: base
@@ -169,7 +169,7 @@ fn test_platform_inheritance_with_override_and_removal() {
 
     let build_env = TestBuildEnv();
 
-    let spec: Platform<VersionIdent> = serde_yaml::from_str(
+    let spec: Platform = serde_yaml::from_str(
         r#"
          platform: test-platform
          base: base
