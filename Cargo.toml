@@ -64,7 +64,7 @@ progress_bar_derive_macro = { path = "crates/progress_bar_derive_macro" }
 prost = "0.12.1"
 rstest = "0.15.0"
 sentry = { version = "0.27.0" }
-sentry-anyhow = { version = "0.27.0" }
+sentry-miette = { version = "0.1.0", path = "crates/sentry-miette" }
 sentry-tracing = { version = "0.27.0" }
 serde = "1.0"
 serde_json = "1.0"

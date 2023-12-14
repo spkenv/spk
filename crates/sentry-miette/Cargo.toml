@@ -1,0 +1,9 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+name = "sentry-miette"
+version = "0.1.0"
+
+[dependencies]
+miette = { workspace = true }
+sentry = { workspace = true }

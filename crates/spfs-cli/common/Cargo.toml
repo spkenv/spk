@@ -10,11 +10,11 @@ workspace = true
 [features]
 sentry = [
     "dep:sentry",
-    "dep:sentry-anyhow",
     "dep:whoami",
     "spfs/sentry",
     "dep:strip-ansi-escapes",
     "dep:serde_json",
+    "dep:sentry-miette",
     "dep:sentry-tracing",
 ]
 
@@ -24,7 +24,7 @@ libc = { workspace = true }
 miette = { workspace = true, features = ["fancy"] }
 once_cell = { workspace = true }
 sentry = { workspace = true, optional = true }
-sentry-anyhow = { workspace = true, optional = true }
+sentry-miette = { workspace = true, optional = true }
 sentry-tracing = { workspace = true, optional = true }
 serde_json = { version = "1.0.57", optional = true }
 spfs = { path = "../../spfs" }
