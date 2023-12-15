@@ -66,13 +66,13 @@ Fetches and extracts a tar archive as package source files.
 
 ## BuildSpec
 
-| Field       | Type                                | Description                                                    |
-| ----------  | ----------------------------------- | -------------------------------------------------------------- |
-| script      | _str_ or _List[str]_                | The bash script which builds and installs the package to /spfs |
-| options     | _List[[BuildOption](#buildoption)]_ | The set of inputs for the package build process                |
-| variants    | _List[[OptionMap](#optionmap)]_     | The default variants of the package options to build           |
-| validation  | _[ValidationSpec](#validationspec)_ | Modifies the default package validation process                |
-| auto_host_vars | _[HostCompat](#hostcompat)_ | The host compatibility setting for the package's builds. Depending on the value, it injects build options like distro, arch, os, and distro version |
+| Field          | Type                                | Description                                                    |
+| -------------- | ----------------------------------- | -------------------------------------------------------------- |
+| script         | _str_ or _List[str]_                | The bash script which builds and installs the package to /spfs |
+| options        | _List[[BuildOption](#buildoption)]_ | The set of inputs for the package build process                |
+| variants       | _List[[VariantSpec](#variantspec)]_ | The default variants of the package options to build           |
+| validation     | _[ValidationSpec](#validationspec)_ | Modifies the default package validation process                |
+| auto_host_vars | _[HostCompat](#hostcompat)_         | The host compatibility setting for the package's builds. Depending on the value, it injects build options like distro, arch, os, and distro version |
 
 ### BuildOption
 
@@ -99,9 +99,58 @@ Package options define a package that is required at build time.
 | prereleasePolicy | _[PreReleasePolicy](#prereleasepolicy)_ | Defines how pre-release versions should be handled when resolving this request                                                                                                                 |
 | static           | _str_                                   | Defines an unchangeable value for this variable - this is usually reserved for use by the system and is set when a package build is published to save the version of the package at build time |
 
-### OptionMap
+### VariantSpec
 
-An option map is a key-value mapping of option names to option values. In practice, this is just a dictionary: `{debug: on, python: 2.7}`. Any values that are not strings are converted to strings in the normal python fashion.
+A VariantSpec is a key-value mapping that describes a desired combination of
+options or additional packages to use when building a package. By defining
+multiple variants, it is possible to build a package multiple ways with
+different versions of dependencies.
+
+Each entry in the VariantSpec can either:
+
+- Set or override the value of an existing variable option:
+
+  ```yaml
+  build:
+    options:
+      - var: debug
+    variants:
+      - { debug: on }
+      - { debug: off }
+  ```
+
+- Override the version of an existing package option:
+
+  ```yaml
+  build:
+    options:
+      - pkg: gcc/6.3
+    variants:
+      - { gcc: "6.3" }
+      - { gcc: "9.3" }
+  ```
+
+- Add an additional component dependency of an existing package option:
+
+  ```yaml
+  build:
+    options:
+      - pkg: foo/1.0
+    variants:
+      - { "foo:docs": "1.0" }
+      - { "foo:{docs,examples}": "2.0" }
+  ```
+
+- Introduce a new package option:
+
+  ```yaml
+  build:
+    options:
+      - pkg: foo/1.0
+    variants:
+      - { "bar": "1.0" }
+      - { "bar:{extra1,extra2}": "2.0" }
+  ```
 
 ### ValidationSpec
 
@@ -146,6 +195,10 @@ A test spec defines one test script that should be run against the package to va
 | selectors    | _List[[OptionMap](#optionmap)]_ | Identifies which variants this test should be executed against. Variants must match one of the selectors in this list to be tested |
 | requirements | _List[[Request](#request)]_     | Additional packages required in the test environment                                                                               |
 | script       | _str_ or _List[str]_            | The sh script which tests the package                                                                                              |
+
+### OptionMap
+
+An option map is a key-value mapping of option names to option values. In practice, this is just a dictionary: `{debug: on, python: 2.7}`. Any values that are not strings are converted to strings in the normal python fashion.
 
 ## InstallSpec
 
