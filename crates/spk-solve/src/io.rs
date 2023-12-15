@@ -693,6 +693,13 @@ struct SolverTaskDone {
     pub(crate) can_ignore_failure: bool,
 }
 
+struct SolverResult {
+    pub(crate) solver_kind: MultiSolverKind,
+    pub(crate) solve_time: Duration,
+    pub(crate) solver: Solver,
+    pub(crate) result: Result<(Solution, Arc<tokio::sync::RwLock<spk_solve_graph::Graph>>)>,
+}
+
 #[derive(Debug, Clone)]
 pub struct DecisionFormatter {
     pub(crate) settings: DecisionFormatterSettings,
@@ -872,6 +879,57 @@ impl DecisionFormatter {
         tasks
     }
 
+    fn stop_solver_tasks_without_waiting(
+        &self,
+        tasks: &FuturesUnordered<tokio::task::JoinHandle<SolverTaskDone>>,
+    ) {
+        for task in tasks.iter() {
+            task.abort();
+        }
+    }
+
+    fn output_solver_comparsion(&self, solver_results: &[SolverResult]) {
+        let mut lines = Vec::new();
+        let mut max_width = 0;
+
+        for SolverResult {
+            solver_kind,
+            solve_time,
+            solver,
+            result,
+        } in solver_results.iter()
+        {
+            let solved = if result.is_ok() { "solved" } else { "failed" };
+            let seconds = solve_time.as_secs_f64();
+            let total_builds = solver.get_total_builds();
+            let num_steps = solver.get_number_of_steps();
+            let num_steps_back = solver.get_number_of_steps_back();
+
+            let kind = format!("{solver_kind}");
+            let length = kind.len();
+            max_width = max(max_width, length);
+
+            lines.push((
+                kind,
+                solved,
+                seconds,
+                num_steps,
+                num_steps_back,
+                total_builds,
+            ));
+        }
+
+        for (solver_kind, solved, seconds, num_steps, num_steps_back, total_builds) in
+            lines.into_iter()
+        {
+            let padding = " ".repeat(max_width - solver_kind.len());
+            let builds = "build".pluralize(total_builds);
+            let steps = "step".pluralize(num_steps);
+
+            println!("{solver_kind}{padding}: {solved} in {seconds:.6} seconds, {num_steps} {steps} ({num_steps_back} back), {total_builds} {builds} at {:.3} builds/sec", total_builds as f64 / seconds);
+        }
+    }
+
     async fn run_multi_solve(
         &self,
         solvers: Vec<SolverTaskSettings>,
@@ -900,18 +958,12 @@ impl DecisionFormatter {
                         };
                     }
 
-                    // Record end of solve time and stats
                     let solve_time = start.elapsed();
                     #[cfg(feature = "statsd")]
                     self.send_solver_end_metrics(solve_time);
 
                     if !self.settings.compare_solvers {
-                        // Stop the other solver tasks running but don't
-                        // wait for them here because don't want to delay
-                        // this (the main) thread.
-                        for task in tasks.iter() {
-                            task.abort();
-                        }
+                        self.stop_solver_tasks_without_waiting(&tasks);
                     }
 
                     if self.settings.solver_to_run.is_multi() {
@@ -949,7 +1001,12 @@ impl DecisionFormatter {
                     }
 
                     if self.settings.compare_solvers {
-                        solver_results.push((solver_kind, solve_time, runtime.solver, result));
+                        solver_results.push(SolverResult {
+                            solver_kind,
+                            solve_time,
+                            solver: runtime.solver,
+                            result,
+                        });
                     } else {
                         return result;
                     }
@@ -961,43 +1018,12 @@ impl DecisionFormatter {
         }
 
         if self.settings.compare_solvers {
-            let mut lines = Vec::new();
-            let mut max_width = 0;
-            for (solver_kind, duration, solver, result) in solver_results.iter() {
-                let solved = if result.is_ok() { "solved" } else { "failed" };
-                let seconds = duration.as_secs_f64();
-                let total_builds = solver.get_total_builds();
-                let num_steps = solver.get_number_of_steps();
-                let num_steps_back = solver.get_number_of_steps_back();
-
-                let kind = format!("{solver_kind}");
-                let length = kind.len();
-                max_width = max(max_width, length);
-
-                lines.push((
-                    kind,
-                    solved,
-                    seconds,
-                    num_steps,
-                    num_steps_back,
-                    total_builds,
-                ));
-            }
-
-            for (solver_kind, solved, seconds, num_steps, num_steps_back, total_builds) in
-                lines.into_iter()
-            {
-                let padding = " ".repeat(max_width - solver_kind.len());
-                let builds = "build".pluralize(total_builds);
-                let steps = "step".pluralize(num_steps);
-
-                println!("{solver_kind}{padding}: {solved} in {seconds:.6} seconds, {num_steps} {steps} ({num_steps_back} back), {total_builds} {builds} at {:.3} builds/sec", total_builds as f64 / seconds);
-            }
+            self.output_solver_comparsion(&solver_results);
 
             // Give the first result to finish back to the rest of the
             // program as the result.
             match solver_results.first() {
-                Some((_, _, _, result)) => match result {
+                Some(solver_result) => match &solver_result.result {
                     Ok(s) => Ok(s.clone()),
                     Err(e) => Err(Error::String(format!("{e}"))),
                 },
