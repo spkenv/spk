@@ -3683,7 +3683,7 @@ dependencies = [
  "rand",
  "ring",
  "rstest 0.15.0",
- "serde",
+ "spfs-proto",
  "thiserror",
  "tokio",
 ]
@@ -3692,9 +3692,15 @@ dependencies = [
 name = "spfs-proto"
 version = "0.38.0"
 dependencies = [
+ "data-encoding",
  "flatbuffers",
  "flatc-rust",
- "rstest",
+ "futures",
+ "miette",
+ "ring",
+ "rstest 0.15.0",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]

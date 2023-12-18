@@ -5,8 +5,7 @@
 use std::io::{BufRead, Read, Write};
 use std::iter::FromIterator;
 
-use super::hash::{Digest, DIGEST_SIZE, NULL_DIGEST};
-use crate::{Error, Result};
+use crate::{Digest, Error, Result, DIGEST_SIZE, NULL_DIGEST};
 
 const INT64_SIZE: usize = std::mem::size_of::<u64>();
 const INT8_SIZE: usize = std::mem::size_of::<u8>();
@@ -95,7 +94,7 @@ pub fn write_digest(mut writer: impl Write, digest: &Digest) -> Result<()> {
 pub fn read_digest(mut reader: impl Read) -> Result<Digest> {
     let mut buf: [u8; DIGEST_SIZE] = NULL_DIGEST;
     reader.read_exact(buf.as_mut()).map_err(Error::FailedRead)?;
-    Digest::from_bytes(&buf)
+    Ok(Digest::from_bytes(&buf)?)
 }
 
 /// Write a string to the given binary stream.

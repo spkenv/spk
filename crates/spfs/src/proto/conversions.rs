@@ -32,7 +32,7 @@ pub fn convert_digest(source: Option<super::Digest>) -> Result<encoding::Digest>
 impl TryFrom<super::Digest> for encoding::Digest {
     type Error = Error;
     fn try_from(source: super::Digest) -> Result<Self> {
-        Self::from_bytes(source.bytes.as_slice()).map_err(Error::Encoding)
+        Ok(Self::from_bytes(source.bytes.as_slice())?)
     }
 }
 

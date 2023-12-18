@@ -31,17 +31,8 @@ pub use binary::{
     write_uint8,
 };
 pub use error::{Error, Result};
-pub use hash::{
-    parse_digest,
-    Decodable,
-    Digest,
-    Encodable,
-    Hasher,
-    PartialDigest,
-    DIGEST_SIZE,
-    EMPTY_DIGEST,
-    NULL_DIGEST,
-};
+pub use hash::{Decodable, Encodable, Hasher, PartialDigest};
+pub use spfs_proto::{parse_digest, Digest, DIGEST_SIZE, EMPTY_DIGEST, NULL_DIGEST};
 
 /// # Encoding Prelude
 ///
