@@ -1,3 +1,7 @@
+// Copyright (c) Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+
 // when adding or modifying this file, take care to read
 // the compatibility and evolution notes here:
 // https://flatbuffers.dev/flatbuffers_guide_writing_schema.html

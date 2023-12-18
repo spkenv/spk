@@ -7,5 +7,7 @@
 #[allow(clippy::all)]
 #[rustfmt::skip]
 mod spfs_generated;
+pub mod digest;
 
+pub use digest::{parse_digest, DIGEST_SIZE, EMPTY_DIGEST, NULL_DIGEST};
 pub use spfs_generated::*;

@@ -35,7 +35,7 @@ pub struct InMemoryBlobHasher;
 #[tonic::async_trait]
 impl BlobHasher for InMemoryBlobHasher {
     async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
-        Ok(encoding::Digest::from_async_reader(reader).await?)
+        Ok(encoding::Hasher::hash_async_reader(reader).await?)
     }
 }
 

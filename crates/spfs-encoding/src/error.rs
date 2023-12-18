@@ -42,15 +42,10 @@ pub enum Error {
         got: Vec<u8>,
     },
 
-    /// A digest could not be decoded from a string because the
-    /// contained invalid data or was otherwise malformed
-    #[error("Could not decode digest: {0}")]
-    InvalidDigestEncoding(#[source] data_encoding::DecodeError),
-
-    /// A digest could not be created because the wrong number
-    /// of bytes were provided
-    #[error("Invalid number of bytes for digest: {0} != {}", super::DIGEST_SIZE)]
-    InvalidDigestLength(usize),
+    /// An error occurred with the digest protocol format
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
+    Digest(#[from] spfs_proto::digest::Error),
 
     /// A partial digest could not be parsed from a string because
     /// of some issue with the provided data

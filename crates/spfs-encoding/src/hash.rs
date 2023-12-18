@@ -2,18 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 use std::fmt::Display;
 use std::io::{Read, Write};
 use std::pin::Pin;
 use std::task::Poll;
 
 use data_encoding::BASE32;
-use ring::digest::{Context, SHA256, SHA256_OUTPUT_LEN};
-use serde::{Deserialize, Serialize};
+use ring::digest::{Context, SHA256};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::binary;
+use super::{binary, Digest};
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -149,6 +148,26 @@ where
     }
 }
 
+impl Hasher<()> {
+    /// Reads the given async reader to completion, returning
+    /// the digest of its contents.
+    pub async fn hash_async_reader(mut reader: impl AsyncRead + Unpin) -> Result<Digest> {
+        let mut hasher = Hasher::new_async();
+        tokio::io::copy(&mut reader, &mut hasher)
+            .await
+            .map_err(Error::FailedRead)?;
+        Ok(hasher.digest())
+    }
+
+    /// Reads the given reader to completion, returning
+    /// the digest of its contents.
+    pub fn hash_reader(mut reader: impl Read) -> Result<Digest> {
+        let mut hasher = Hasher::new_sync();
+        std::io::copy(&mut reader, &mut hasher).map_err(Error::FailedRead)?;
+        Ok(hasher.digest())
+    }
+}
+
 /// Encodable is a type that can be binary-encoded to a byte stream
 pub trait Encodable
 where
@@ -276,7 +295,7 @@ impl PartialDigest {
 
     /// Return true if this partial digest is actually a full digest
     pub fn is_full(&self) -> bool {
-        self.len() == DIGEST_SIZE
+        self.len() == super::DIGEST_SIZE
     }
 
     /// If this partial digest is actually a full digest, convert it
@@ -344,147 +363,9 @@ impl AsRef<PartialDigest> for PartialDigest {
     }
 }
 
-/// Digest is the result of a hashing operation over binary data.
-#[derive(PartialEq, Eq, Hash, Copy, Clone, Ord, PartialOrd)]
-pub struct Digest([u8; DIGEST_SIZE]);
-
-impl std::ops::Deref for Digest {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0[..]
-    }
-}
-
-impl Default for Digest {
-    fn default() -> Self {
-        NULL_DIGEST.into()
-    }
-}
-
-impl std::fmt::Debug for Digest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.to_string().as_ref())
-    }
-}
-
-impl std::str::FromStr for Digest {
-    type Err = crate::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        Digest::parse(s)
-    }
-}
-
-impl AsRef<[u8]> for Digest {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-impl AsRef<Digest> for Digest {
-    fn as_ref(&self) -> &Self {
-        self
-    }
-}
-
-impl<'a> Digest {
-    /// Yields a view of the underlying bytes for this digest
-    pub fn as_bytes(&'a self) -> &'a [u8] {
-        self.0.as_ref()
-    }
-
-    /// Extract the raw bytes of this digest
-    pub fn into_bytes(self) -> [u8; DIGEST_SIZE] {
-        self.0
-    }
-
-    /// Create a digest from the provided bytes.
-    ///
-    /// The exact [`DIGEST_SIZE`] number of bytes must
-    /// be given.
-    pub fn from_bytes(digest_bytes: &[u8]) -> Result<Self> {
-        match digest_bytes.try_into() {
-            Err(_err) => Err(Error::InvalidDigestLength(digest_bytes.len())),
-            Ok(bytes) => Ok(Self(bytes)),
-        }
-    }
-
-    /// Parse the given string as an encoded digest
-    pub fn parse(digest_str: &str) -> Result<Digest> {
-        digest_str.try_into()
-    }
-
-    /// Reads the given async reader to completion, returning
-    /// the digest of it's contents.
-    pub async fn from_async_reader(mut reader: impl AsyncRead + Unpin) -> Result<Self> {
-        let mut hasher = Hasher::new_async();
-        tokio::io::copy(&mut reader, &mut hasher)
-            .await
-            .map_err(Error::FailedRead)?;
-        Ok(hasher.digest())
-    }
-
-    /// Reads the given reader to completion, returning
-    /// the digest of it's contents.
-    pub fn from_reader(mut reader: impl Read) -> Result<Self> {
-        let mut hasher = Hasher::new_sync();
-        std::io::copy(&mut reader, &mut hasher).map_err(Error::FailedRead)?;
-        Ok(hasher.digest())
-    }
-}
-
-impl Serialize for Digest {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(self.to_string().as_ref())
-    }
-}
-impl<'de> Deserialize<'de> for Digest {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        /// Visits a serialized string, decoding it as a digest
-        struct StringVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for StringVisitor {
-            type Value = Digest;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("base32 encoded digest")
-            }
-
-            fn visit_str<E>(self, value: &str) -> std::result::Result<Digest, E>
-            where
-                E: serde::de::Error,
-            {
-                Digest::try_from(value).map_err(serde::de::Error::custom)
-            }
-        }
-        deserializer.deserialize_str(StringVisitor)
-    }
-}
-
-impl From<[u8; DIGEST_SIZE]> for Digest {
-    fn from(bytes: [u8; DIGEST_SIZE]) -> Self {
-        Digest(bytes)
-    }
-}
-
-impl TryFrom<&str> for Digest {
-    type Error = Error;
-
-    fn try_from(digest_str: &str) -> Result<Digest> {
-        parse_digest(digest_str)
-    }
-}
-
-impl Display for Digest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(BASE32.encode(self.as_bytes()).as_ref())
+impl Decodable for Digest {
+    fn decode(reader: &mut impl std::io::BufRead) -> Result<Self> {
+        binary::read_digest(reader)
     }
 }
 
@@ -498,42 +379,4 @@ impl Encodable for Digest {
     fn digest(&self) -> Result<Digest> {
         Ok(*self)
     }
-}
-
-impl Decodable for Digest {
-    fn decode(reader: &mut impl std::io::BufRead) -> Result<Self> {
-        binary::read_digest(reader)
-    }
-}
-
-/// The number of bytes that make up an spfs digest
-pub const DIGEST_SIZE: usize = SHA256_OUTPUT_LEN;
-
-/// The bytes of an empty digest. This represents the result of hashing no bytes - the initial state.
-///
-/// ```
-/// use std::convert::TryInto;
-/// use ring::digest;
-/// use spfs_encoding::{EMPTY_DIGEST, DIGEST_SIZE};
-///
-/// let empty_digest: [u8; DIGEST_SIZE] = digest::digest(&digest::SHA256, b"").as_ref().try_into().unwrap();
-/// assert_eq!(empty_digest, EMPTY_DIGEST);
-/// ```
-pub const EMPTY_DIGEST: [u8; DIGEST_SIZE] = [
-    227, 176, 196, 66, 152, 252, 28, 20, 154, 251, 244, 200, 153, 111, 185, 36, 39, 174, 65, 228,
-    100, 155, 147, 76, 164, 149, 153, 27, 120, 82, 184, 85,
-];
-
-/// The bytes of an entirely null digest. This does not represent the result of hashing no bytes, because
-/// sha256 has a defined initial state. This is an explicitly unique result of entirely null bytes.
-pub const NULL_DIGEST: [u8; DIGEST_SIZE] = [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-];
-
-/// Parse a string-digest.
-pub fn parse_digest(digest_str: impl AsRef<str>) -> Result<Digest> {
-    let digest_bytes = BASE32
-        .decode(digest_str.as_ref().as_bytes())
-        .map_err(Error::InvalidDigestEncoding)?;
-    Digest::from_bytes(digest_bytes.as_slice())
 }
