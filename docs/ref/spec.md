@@ -127,14 +127,24 @@ options to each build, as described in the table:
 |  Value     | Adds these host options                        |
 | ---------- | ---------------------------------------------- |
 | **Distro** (default) | "distro", "arch", "os", and the "<distroname>" |
-| **Arch**   | "arch", "os", and the "<distroname>"           |
+| **Arch**   | "arch", "os"                                   |
 | **Os**     | "os"                                           |
-| **None**   |                                                |
+| **Full**   |                                                |
 
 If the host OS has no distroname, "unknown_distro" will be used as the
 distro name. If the host OS' distroname is not valid as a var option
 name, it will be converted lossily to a valid var option name.
 
+Example:
+```yaml
+api: v0/package
+pkg: example/0.0.1
+build:
+  auto_host_vars: Distro
+  options:
+     ...
+...
+```
 
 ## TestSpec
 
