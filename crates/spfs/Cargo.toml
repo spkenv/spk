@@ -61,7 +61,7 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 serde_qs = "0.10.1"
 spfs-encoding = { path = "../spfs-encoding" }
-spfs-proto = { path = "../spfs-proto" }
+spfs-proto = { path = "../spfs-proto", features = ["serde"] }
 strum = { workspace = true, features = ["derive"] }
 tar = "0.4.30"
 tempfile = { workspace = true }

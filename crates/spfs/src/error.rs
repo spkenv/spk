@@ -257,37 +257,24 @@ impl From<String> for Error {
         Self::String(err)
     }
 }
+
 impl From<&str> for Error {
     fn from(err: &str) -> Self {
         Self::String(err.to_string())
     }
 }
+
 impl From<std::path::StripPrefixError> for Error {
     fn from(err: std::path::StripPrefixError) -> Self {
         Error::String(err.to_string())
     }
 }
 
-// impl IntoError for storage::OpenRepositoryError {
-//     type Context = url::Url;
-//     type Error = Error;
-
-//     fn into_error(self, context: Self::Context) -> Self::Error {
-//         Error::FailedToOpenRepository {
-//             repository: context.into(),
-//             source: self,
-//         }
-//     }
-// }
-
-// /// A type that can be converted into an error if
-// /// some additional context is provided
-// pub trait IntoError {
-//     type Context;
-//     type Error;
-
-//     fn into_error(self, context: Self::Context) -> Self::Error;
-// }
+impl From<spfs_proto::digest::Error> for Error {
+    fn from(err: spfs_proto::digest::Error) -> Self {
+        Error::Encoding(err.into())
+    }
+}
 
 /// An OS error represents an error that may have an associated
 /// error code from the operating system
