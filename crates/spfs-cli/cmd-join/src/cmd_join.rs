@@ -129,12 +129,9 @@ impl CmdJoin {
                 spfs::build_interactive_shell_command(rt, None)?
             }
         };
-        let mut proc = cmd.into_std();
-        tracing::debug!("{:?}", proc);
-        Ok(proc
-            .status()
-            .map_err(|err| Error::process_spawn_error("exec_runtime_command", err, None))?
-            .code()
-            .unwrap_or(1))
+        tracing::debug!("{cmd:#?}");
+        cmd.exec()
+            .map(|_| 0)
+            .wrap_err("Failed to execute runtime command")
     }
 }
