@@ -268,15 +268,13 @@ where
 
     #[async_recursion::async_recursion]
     pub async fn sync_object(&self, obj: graph::Object) -> Result<SyncObjectResult> {
-        use graph::Object;
+        use graph::object::Enum;
         self.reporter.visit_object(&obj);
-        let res = match obj {
-            Object::Layer(obj) => SyncObjectResult::Layer(self.sync_layer(obj).await?),
-            Object::Platform(obj) => SyncObjectResult::Platform(self.sync_platform(obj).await?),
-            Object::Blob(obj) => SyncObjectResult::Blob(self.sync_blob(obj).await?),
-            Object::Manifest(obj) => SyncObjectResult::Manifest(self.sync_manifest(obj).await?),
-            Object::Tree(obj) => SyncObjectResult::Tree(obj),
-            Object::Mask => SyncObjectResult::Mask,
+        let res = match obj.into_enum() {
+            Enum::Layer(obj) => SyncObjectResult::Layer(self.sync_layer(obj).await?),
+            Enum::Platform(obj) => SyncObjectResult::Platform(self.sync_platform(obj).await?),
+            Enum::Blob(obj) => SyncObjectResult::Blob(self.sync_blob(&obj).await?),
+            Enum::Manifest(obj) => SyncObjectResult::Manifest(self.sync_manifest(obj).await?),
         };
         self.reporter.synced_object(&res);
         Ok(res)
@@ -293,15 +291,15 @@ where
         self.reporter.visit_platform(&platform);
 
         let mut futures = FuturesUnordered::new();
-        for digest in platform.stack.iter_bottom_up() {
-            futures.push(self.sync_digest(digest));
+        for digest in platform.iter_bottom_up() {
+            futures.push(self.sync_digest(*digest));
         }
         let mut results = Vec::with_capacity(futures.len());
         while let Some(result) = futures.try_next().await? {
             results.push(result);
         }
 
-        let platform = self.dest.create_platform(platform.stack).await?;
+        self.dest.write_object(&platform).await?;
 
         let res = SyncPlatformResult::Synced { platform, results };
         self.reporter.synced_platform(&res);
@@ -318,11 +316,9 @@ where
         }
 
         self.reporter.visit_layer(&layer);
-        let manifest = self.src.read_manifest(layer.manifest).await?;
+        let manifest = self.src.read_manifest(*layer.manifest()).await?;
         let result = self.sync_manifest(manifest).await?;
-        self.dest
-            .write_object(&graph::Object::Layer(layer.clone()))
-            .await?;
+        self.dest.write_object(&layer).await?;
         let res = SyncLayerResult::Synced { layer, result };
         self.reporter.synced_layer(&res);
         Ok(res)
@@ -345,8 +341,7 @@ where
 
         let entries: Vec<_> = manifest
             .iter_entries()
-            .filter(|e| e.kind.is_blob())
-            .cloned()
+            .filter(|e| e.kind().is_blob())
             .collect();
         let mut results = Vec::with_capacity(entries.len());
         let mut futures = FuturesUnordered::new();
@@ -357,66 +352,65 @@ where
             results.push(res);
         }
 
-        self.dest
-            .write_object(&graph::Object::Manifest(manifest.clone()))
-            .await?;
+        self.dest.write_object(&manifest).await?;
 
+        drop(futures);
         let res = SyncManifestResult::Synced { manifest, results };
         self.reporter.synced_manifest(&res);
         Ok(res)
     }
 
-    async fn sync_entry(&self, entry: graph::Entry) -> Result<SyncEntryResult> {
-        if !entry.kind.is_blob() {
+    async fn sync_entry(&self, entry: graph::Entry<'_>) -> Result<SyncEntryResult> {
+        if !entry.kind().is_blob() {
             return Ok(SyncEntryResult::Skipped);
         }
         self.reporter.visit_entry(&entry);
-        let blob = graph::Blob {
-            payload: entry.object,
-            size: entry.size,
-        };
+        let blob = graph::Blob::new(entry.object(), entry.size());
         let result = self
-            .sync_blob_with_perms_opt(blob, Some(entry.mode))
+            .sync_blob_with_perms_opt(&blob, Some(entry.mode()))
             .await?;
-        let res = SyncEntryResult::Synced { entry, result };
+        let res = SyncEntryResult::Synced { result };
         self.reporter.synced_entry(&res);
         Ok(res)
     }
 
     /// Sync the identified blob to the destination repository.
-    pub async fn sync_blob(&self, blob: graph::Blob) -> Result<SyncBlobResult> {
+    pub async fn sync_blob(&self, blob: &graph::Blob) -> Result<SyncBlobResult> {
         self.sync_blob_with_perms_opt(blob, None).await
     }
 
     async fn sync_blob_with_perms_opt(
         &self,
-        blob: graph::Blob,
+        blob: &graph::Blob,
         perms: Option<u32>,
     ) -> Result<SyncBlobResult> {
         let digest = blob.digest();
-        if self.processed_digests.contains(&digest) {
+        if self.processed_digests.contains(digest) {
             // do not insert here because blobs share a digest with payloads
             // which should also must be visited at least once if needed
             return Ok(SyncBlobResult::Duplicate);
         }
 
         if self.policy.check_existing_objects()
-            && self.dest.has_object(digest).await
-            && self.dest.has_payload(blob.payload).await
+            && self.dest.has_object(*digest).await
+            && self.dest.has_payload(*blob.payload()).await
         {
-            self.processed_digests.insert(digest);
+            self.processed_digests.insert(*digest);
             return Ok(SyncBlobResult::Skipped);
         }
-        self.reporter.visit_blob(&blob);
+        self.reporter.visit_blob(blob);
         // Safety: sync_payload is unsafe to call unless the blob
         // is synced with it, which is the purpose of this function.
         let result = unsafe {
-            self.sync_payload_with_perms_opt(blob.payload, perms)
+            self.sync_payload_with_perms_opt(*blob.payload(), perms)
                 .await?
         };
-        self.dest.write_blob(blob.clone()).await?;
-        self.processed_digests.insert(digest);
-        let res = SyncBlobResult::Synced { blob, result };
+        self.dest.write_blob(blob.to_owned()).await?;
+        self.processed_digests.insert(*digest);
+        let res = SyncBlobResult::Synced {
+            blob: blob.to_owned(),
+            result,
+        };
         self.reporter.synced_blob(&res);
         Ok(res)
     }
@@ -541,7 +535,7 @@ pub trait SyncReporter: Send + Sync {
     fn synced_manifest(&self, _result: &SyncManifestResult) {}
 
     /// Called when an entry has been identified to sync
-    fn visit_entry(&self, _entry: &graph::Entry) {}
+    fn visit_entry(&self, _entry: &graph::Entry<'_>) {}
 
     /// Called when an entry has finished syncing
     fn synced_entry(&self, _result: &SyncEntryResult) {}
@@ -587,7 +581,7 @@ impl SyncReporter for ConsoleSyncReporter {
     fn visit_blob(&self, blob: &graph::Blob) {
         let bars = self.get_bars();
         bars.payloads.inc_length(1);
-        bars.bytes.inc_length(blob.size);
+        bars.bytes.inc_length(blob.size());
     }
 
     fn synced_blob(&self, result: &SyncBlobResult) {
@@ -749,24 +743,21 @@ pub enum SyncObjectResult {
     Layer(SyncLayerResult),
     Blob(SyncBlobResult),
     Manifest(SyncManifestResult),
-    Tree(graph::Tree),
-    Mask,
 }
 
 impl SyncObjectResult {
     pub fn summary(&self) -> SyncSummary {
-        use SyncObjectResult::*;
+        use SyncObjectResult as R;
         match self {
-            Duplicate => SyncSummary {
+            R::Duplicate => SyncSummary {
                 skipped_objects: 1,
                 ..Default::default()
             },
-            Ignorable => SyncSummary::default(),
-            Platform(res) => res.summary(),
-            Layer(res) => res.summary(),
-            Blob(res) => res.summary(),
-            Manifest(res) => res.summary(),
-            Mask | Tree(_) => SyncSummary::default(),
+            R::Ignorable => SyncSummary::default(),
+            R::Platform(res) => res.summary(),
+            R::Layer(res) => res.summary(),
+            R::Blob(res) => res.summary(),
+            R::Manifest(res) => res.summary(),
         }
     }
 }
@@ -856,10 +847,7 @@ pub enum SyncEntryResult {
     /// The entry was already synced in this session
     Duplicate,
     /// The entry was synced
-    Synced {
-        entry: graph::Entry,
-        result: SyncBlobResult,
-    },
+    Synced { result: SyncBlobResult },
 }
 
 impl SyncEntryResult {

@@ -10,9 +10,8 @@ use std::sync::Arc;
 use rstest::rstest;
 
 use super::Ref;
-use crate::encoding::Encodable;
+use crate::encoding::prelude::*;
 use crate::fixtures::*;
-use crate::graph::Manifest;
 use crate::storage::fs;
 use crate::storage::prelude::*;
 use crate::tracking::TagSpec;
@@ -39,7 +38,7 @@ async fn test_find_aliases(
         .await
         .unwrap();
     let layer = tmprepo
-        .create_layer(&Manifest::from(&manifest))
+        .create_layer(&manifest.to_graph_manifest())
         .await
         .unwrap();
     let test_tag = TagSpec::parse("test-tag").unwrap();
@@ -92,7 +91,7 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
     };
 
     let rendered_dir = fs::Renderer::new(&*tmprepo)
-        .render_manifest(&Manifest::from(&manifest), None)
+        .render_manifest(&manifest.to_graph_manifest(), None)
         .await
         .expect("failed to render manifest");
     let rendered_symlink = rendered_dir.join(symlink_path);
@@ -155,17 +154,15 @@ async fn test_commit_dir(
     ensure(src_dir.join("dir2.0/file.txt"), "evenmoredata");
     ensure(src_dir.join("file.txt"), "rootdata");
 
-    let manifest = Manifest::from(
-        &crate::Committer::new(&tmprepo)
-            .commit_dir(&src_dir)
-            .await
-            .unwrap(),
-    );
-    let manifest2 = Manifest::from(
-        &crate::Committer::new(&tmprepo)
-            .commit_dir(&src_dir)
-            .await
-            .unwrap(),
-    );
-    assert_eq!(manifest, manifest2);
+    let manifest = crate::Committer::new(&tmprepo)
+        .commit_dir(&src_dir)
+        .await
+        .unwrap()
+        .to_graph_manifest();
+    let manifest2 = crate::Committer::new(&tmprepo)
+        .commit_dir(&src_dir)
+        .await
+        .unwrap()
+        .to_graph_manifest();
+    assert_eq!(manifest.digest().unwrap(), manifest2.digest().unwrap());
 }

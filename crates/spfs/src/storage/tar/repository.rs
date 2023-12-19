@@ -14,6 +14,7 @@ use relative_path::RelativePath;
 use tar::{Archive, Builder};
 
 use crate::config::ToAddress;
+use crate::graph::ObjectProto;
 use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::tag::TagSpecAndTagStream;
@@ -248,7 +249,7 @@ impl graph::DatabaseView for TarRepository {
 
 #[async_trait::async_trait]
 impl graph::Database for TarRepository {
-    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
+    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         self.repo.write_object(obj).await?;
         self.up_to_date.store(false, Ordering::Release);
         Ok(())

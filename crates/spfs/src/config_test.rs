@@ -5,6 +5,7 @@
 use rstest::rstest;
 
 use super::{Config, RemoteConfig};
+use crate::storage::prelude::*;
 use crate::storage::RepositoryHandle;
 use crate::{get_config, load_config};
 

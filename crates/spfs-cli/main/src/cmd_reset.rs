@@ -50,7 +50,7 @@ impl CmdReset {
                     .sync_env(env_spec.clone())
                     .await?;
                 for item in synced.env.iter() {
-                    let digest = item.resolve_digest(&*repo).await?;
+                    let digest = item.resolve_digest(&repo).await?;
                     runtime.push_digest(digest);
                 }
             }

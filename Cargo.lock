@@ -1197,6 +1197,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "flatbuffers-owned"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9f483d34a2660327292182068fb822485e53049f15aad623ff04b476417b232"
+dependencies = [
+ "flatbuffers",
+ "paste",
+]
+
+[[package]]
 name = "flatc-rust"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3443,6 +3453,7 @@ dependencies = [
  "async-recursion",
  "async-stream",
  "async-trait",
+ "bytes",
  "cached",
  "caps",
  "chrono",
@@ -3456,6 +3467,7 @@ dependencies = [
  "dirs",
  "dunce",
  "faccess",
+ "flatbuffers",
  "fuser",
  "futures",
  "futures-core",
@@ -3470,6 +3482,7 @@ dependencies = [
  "nonempty",
  "num_cpus",
  "once_cell",
+ "parsedbuf",
  "pin-project-lite",
  "procfs",
  "progress_bar_derive_macro",
@@ -3694,6 +3707,7 @@ version = "0.38.0"
 dependencies = [
  "data-encoding",
  "flatbuffers",
+ "flatbuffers-owned",
  "flatc-rust",
  "futures",
  "miette",
@@ -3939,6 +3953,7 @@ dependencies = [
  "clap 4.5.0",
  "miette",
  "rstest 0.18.2",
+ "spfs",
  "spk-cli-common",
  "spk-cmd-make-binary",
  "spk-cmd-make-source",

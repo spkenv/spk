@@ -20,7 +20,7 @@ use rand::seq::SliceRandom;
 use tokio::io::AsyncReadExt;
 use tokio::sync::Semaphore;
 
-use crate::encoding::{self, Encodable};
+use crate::encoding::prelude::*;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::fs::render_reporter::RenderBlobResult;
 use crate::storage::fs::{
@@ -31,7 +31,7 @@ use crate::storage::fs::{
 };
 use crate::storage::prelude::*;
 use crate::storage::LocalRepository;
-use crate::{get_config, graph, tracking, Error, OsError, Result};
+use crate::{encoding, get_config, graph, tracking, Error, OsError, Result};
 
 #[cfg(test)]
 #[path = "./renderer_test.rs"]
@@ -261,14 +261,15 @@ where
             .map_err(|err| err.wrap("resolve stack to layers"))?;
         let mut futures = futures::stream::FuturesOrdered::new();
         for layer in layers {
+            let digest = *layer.manifest();
             let fut = self
                 .repo
-                .read_manifest(layer.manifest)
-                .map_err(move |err| err.wrap(format!("read manifest {}", layer.manifest)))
+                .read_manifest(digest)
+                .map_err(move |err| err.wrap(format!("read manifest {digest}")))
                 .and_then(move |manifest| async move {
                     self.render_manifest(&manifest, render_type)
                         .await
-                        .map_err(move |err| err.wrap(format!("render manifest {}", layer.manifest)))
+                        .map_err(move |err| err.wrap(format!("render manifest {digest}")))
                 });
             futures.push_back(fut);
         }
@@ -292,13 +293,13 @@ where
         let layers = crate::resolve::resolve_stack_to_layers_with_repo(&stack, self.repo).await?;
         let mut manifests = Vec::with_capacity(layers.len());
         for layer in layers {
-            manifests.push(self.repo.read_manifest(layer.manifest).await?);
+            manifests.push(self.repo.read_manifest(*layer.manifest()).await?);
         }
         let mut manifest = tracking::Manifest::default();
         for next in manifests.into_iter() {
             manifest.update(&next.to_tracking_manifest());
         }
-        let manifest = graph::Manifest::from(&manifest);
+        let manifest = manifest.to_graph_manifest();
         self.render_manifest_into_dir(&manifest, target_dir, render_type)
             .await
     }
@@ -408,7 +409,7 @@ where
         }
 
         let mut res = self
-            .render_into_dir_fd(root_dir, root_node.clone(), manifest, render_type)
+            .render_into_dir_fd(root_dir, root_node, manifest, render_type)
             .await;
         if let Err(Error::StorageWriteError(_, p, _)) = &mut res {
             *p = target_dir.join(p.as_path());
@@ -422,7 +423,7 @@ where
     async fn render_into_dir_fd<Fd>(
         &self,
         root_dir_fd: Fd,
-        tree: graph::Tree,
+        tree: graph::Tree<'async_recursion>,
         manifest: &graph::Manifest,
         render_type: RenderType,
     ) -> Result<()>
@@ -441,42 +442,43 @@ where
         // the same files as one another at the same time. This can happen,
         // for example, when multiple frames land on the same machine in a
         // render farm and they both start to render the same env at the same time
-        let mut entries = tree.entries.into_iter().collect::<Vec<_>>();
+        let mut entries = tree.entries().collect::<Vec<_>>();
         entries.shuffle(&mut rand::thread_rng());
 
         let root_dir_fd = root_dir_fd.as_raw_fd();
         let mut stream = futures::stream::iter(entries)
             .then(move |entry| {
                 let fut = async move {
-                    let mut root_path = PathBuf::from(&entry.name);
-                    match entry.kind {
+                    let mut root_path = PathBuf::from(entry.name());
+                    match entry.kind() {
                         tracking::EntryKind::Tree => {
-                            let tree = manifest.get_tree(&entry.object).ok_or_else(|| {
-                                Error::String(format!("Failed to render: manifest is internally inconsistent (missing child tree {})", entry.object))
+                            let tree = manifest.get_tree(entry.object()).ok_or_else(|| {
+                                Error::String(format!("Failed to render: manifest is internally inconsistent (missing child tree {})", *entry.object()))
                             })?;
 
-                            let child_dir = create_and_open_dir_at(root_dir_fd, entry.name.clone())
+                            let child_dir = create_and_open_dir_at(root_dir_fd, entry.name().to_owned())
                                 .await
                                 .map_err(|err| {
                                     Error::StorageWriteError(
                                         "create dir during render",
-                                        PathBuf::from(&entry.name),
+                                        PathBuf::from(entry.name()),
                                         err,
                                     )
                                 })?;
                             let mut res = self
                                 .render_into_dir_fd(
                                     child_dir.as_raw_fd(),
-                                    tree.clone(),
+                                    tree,
                                     manifest,
                                     render_type,
                                 )
                                 .await;
                             if res.is_ok() {
+                                let mode = Mode::from_bits_truncate(entry.mode());
                                 res = tokio::task::spawn_blocking(move || {
                                     nix::sys::stat::fchmod(
                                         child_dir.as_raw_fd(),
-                                        Mode::from_bits_truncate(entry.mode),
+                                        mode,
                                     )
                                 })
                                 .await
@@ -493,11 +495,11 @@ where
                                 root_path.push(p.as_path());
                                 *p = root_path;
                             }
-                            res.map(|_| None).map_err(|err| err.wrap(format!("render_into_dir '{}'", entry.name)))
+                            res.map(|_| None).map_err(|err| err.wrap(format!("render_into_dir '{}'", entry.name())))
                         }
                         tracking::EntryKind::Mask => Ok(None),
                         tracking::EntryKind::Blob => {
-                            self.render_blob(root_dir_fd, &entry, render_type).await.map(Some).map_err(|err| err.wrap(format!("render blob '{}'", entry.name)))
+                            self.render_blob(root_dir_fd, entry, render_type).await.map(Some).map_err(|err| err.wrap(format!("render blob '{}'", entry.name())))
                         }
                     }.map(|render_blob_result_opt| (entry, render_blob_result_opt))
                 };
@@ -510,10 +512,10 @@ where
             match res {
                 Err(error) => return Err(error),
                 Ok((entry, Some(render_blob_result))) => {
-                    self.reporter.rendered_blob(&entry, &render_blob_result);
-                    self.reporter.rendered_entry(&entry);
+                    self.reporter.rendered_blob(entry, &render_blob_result);
+                    self.reporter.rendered_entry(entry);
                 }
-                Ok((entry, _)) => self.reporter.rendered_entry(&entry),
+                Ok((entry, _)) => self.reporter.rendered_entry(entry),
             }
         }
 
@@ -525,7 +527,7 @@ where
     async fn render_blob<Fd>(
         &self,
         dir_fd: Fd,
-        entry: &graph::Entry,
+        entry: graph::Entry<'_>,
         render_type: RenderType,
     ) -> Result<RenderBlobResult>
     where
@@ -542,7 +544,7 @@ where
     async fn render_blob_with_permit<'a, Fd>(
         &self,
         dir_fd: Fd,
-        entry: &graph::Entry,
+        entry: graph::Entry<'async_recursion>,
         render_type: RenderType,
         permit: BlobSemaphorePermit<'a>,
     ) -> Result<RenderBlobResult>
@@ -559,7 +561,7 @@ where
         // a payload that could have been repaired.
         let (mut reader, filename) = self
             .repo
-            .open_payload(entry.object)
+            .open_payload(*entry.object())
             .await
             .map_err(|err| err.wrap("open payload"))?;
         let target_dir_fd = dir_fd.as_raw_fd();
@@ -571,13 +573,13 @@ where
                 })?;
             }
             return if let Err(err) =
-                nix::unistd::symlinkat(target.as_str(), Some(target_dir_fd), entry.name.as_str())
+                nix::unistd::symlinkat(target.as_str(), Some(target_dir_fd), entry.name())
             {
                 match err {
                     nix::errno::Errno::EEXIST => Ok(RenderBlobResult::SymlinkAlreadyExists),
                     _ => Err(Error::StorageWriteError(
                         "symlink on rendered blob",
-                        PathBuf::from(&entry.name),
+                        PathBuf::from(entry.name()),
                         err.into(),
                     )),
                 }
@@ -588,7 +590,7 @@ where
         // Free up file resources as early as possible.
         drop(reader);
 
-        let mut committed_path = self.repo.payloads().build_digest_path(&entry.object);
+        let mut committed_path = self.repo.payloads().build_digest_path(entry.object());
         Ok(match render_type {
             RenderType::HardLink | RenderType::HardLinkNoProxy => {
                 let mut retry_count = 0;
@@ -607,8 +609,8 @@ where
                     } else if let Ok(render_store) = self.repo.render_store() {
                         let proxy_path = render_store
                             .proxy
-                            .build_digest_path(&entry.object)
-                            .join(entry.mode.to_string());
+                            .build_digest_path(entry.object())
+                            .join(entry.mode().to_string());
                         tracing::trace!(?proxy_path, "proxy");
                         let render_blob_result = if !proxy_path.exists() {
                             let path_to_create = proxy_path.parent().unwrap();
@@ -638,7 +640,7 @@ where
                                 Ok(metadata) => metadata,
                             };
 
-                            let has_correct_mode = metadata.permissions().mode() == entry.mode;
+                            let has_correct_mode = metadata.permissions().mode() == entry.mode();
                             let mut has_correct_owner = metadata.uid() == geteuid().as_raw();
 
                             // Can we still share this payload if it doesn't
@@ -646,7 +648,7 @@ where
                             if has_correct_mode && !has_correct_owner && {
                                 // require that a file has the "other" read bit
                                 // enabled before sharing it with other users.
-                                (entry.mode & 0o004) != 0
+                                (entry.mode() & 0o004) != 0
                             } {
                                 if let Ok(config) = get_config() {
                                     if config.storage.allow_payload_sharing_between_users {
@@ -715,7 +717,7 @@ where
                                 }
                             } else {
                                 if !has_correct_mode {
-                                    tracing::debug!(actual_mode = ?metadata.permissions().mode(), expected_mode = ?entry.mode, ?payload_path, "couldn't skip proxy copy; payload had wrong mode");
+                                    tracing::debug!(actual_mode = ?metadata.permissions().mode(), expected_mode = ?entry.mode(), ?payload_path, "couldn't skip proxy copy; payload had wrong mode");
                                 } else if !has_correct_owner {
                                     tracing::debug!(actual_uid = ?metadata.uid(), expected_uid = ?geteuid().as_raw(), ?payload_path, "couldn't skip proxy copy; payload had wrong uid");
                                 }
@@ -737,7 +739,7 @@ where
                                     tokio::fs::File::open(&payload_path).await.map_err(|err| {
                                         if err.kind() == std::io::ErrorKind::NotFound {
                                             // in the case of a corrupt repository, this is a more appropriate error
-                                            Error::UnknownObject(entry.object)
+                                            Error::UnknownObject(*entry.object())
                                         } else {
                                             Error::StorageReadError(
                                                 "open payload for proxying",
@@ -762,12 +764,12 @@ where
                                     })?;
                                 nix::sys::stat::fchmod(
                                     proxy_file_fd,
-                                    Mode::from_bits_truncate(entry.mode),
+                                    Mode::from_bits_truncate(entry.mode()),
                                 )
                                 .map_err(|err| {
                                     Error::StorageWriteError(
                                         "set permissions on proxy payload",
-                                        PathBuf::from(&entry.name),
+                                        PathBuf::from(entry.name()),
                                         err.into(),
                                     )
                                 })?;
@@ -811,7 +813,7 @@ where
                         None,
                         committed_path.as_path(),
                         Some(target_dir_fd),
-                        std::path::Path::new(&entry.name),
+                        std::path::Path::new(entry.name()),
                         nix::unistd::LinkatFlags::NoSymlinkFollow,
                     ) {
                         match err {
@@ -830,7 +832,7 @@ where
                             nix::errno::Errno::ENOENT if !committed_path.exists() => {
                                 return Err(if committed_path == payload_path {
                                     // in the case of a corrupt repository, this is a more appropriate error
-                                    Error::UnknownObject(entry.object)
+                                    Error::UnknownObject(*entry.object())
                                 } else {
                                     Error::StorageWriteError(
                                         "hard_link from committed path",
@@ -858,14 +860,14 @@ where
                             _ if matches!(render_type, RenderType::HardLink) => {
                                 return Err(Error::StorageWriteError(
                                     "hard_link of blob proxy to rendered path",
-                                    PathBuf::from(&entry.name),
+                                    PathBuf::from(entry.name()),
                                     err.into(),
                                 ))
                             }
                             _ => {
                                 return Err(Error::StorageWriteError(
                                     "hard_link of blob to rendered path",
-                                    PathBuf::from(&entry.name),
+                                    PathBuf::from(entry.name()),
                                     err.into(),
                                 ))
                             }
@@ -876,7 +878,7 @@ where
                 }
             }
             RenderType::Copy => {
-                let name = entry.name.clone();
+                let name = entry.name().to_owned();
                 let mut payload_file =
                     tokio::fs::File::open(&committed_path)
                         .await
@@ -904,7 +906,7 @@ where
                     .map_err(|err| {
                         Error::StorageWriteError(
                             "creation of rendered blob file",
-                            PathBuf::from(&entry.name),
+                            PathBuf::from(entry.name()),
                             err,
                         )
                     })?;
@@ -913,11 +915,11 @@ where
                     .map_err(|err| {
                         Error::StorageWriteError(
                             "copy of blob to rendered file",
-                            PathBuf::from(&entry.name),
+                            PathBuf::from(entry.name()),
                             err,
                         )
                     })?;
-                let mode = entry.mode;
+                let mode = entry.mode();
                 return tokio::task::spawn_blocking(move || {
                     nix::sys::stat::fchmod(
                         rendered_file.as_raw_fd(),
@@ -930,7 +932,7 @@ where
                 .map_err(|err| {
                     Error::StorageWriteError(
                         "set permissions on copied payload",
-                        PathBuf::from(&entry.name),
+                        PathBuf::from(entry.name()),
                         err.into(),
                     )
                 });

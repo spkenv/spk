@@ -4,6 +4,7 @@
 
 use rstest::rstest;
 use spfs::config::Remote;
+use spfs::prelude::*;
 use spfs::RemoteAddress;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_schema::foundation::option_map;

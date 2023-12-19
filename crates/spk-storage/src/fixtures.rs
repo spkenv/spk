@@ -75,9 +75,7 @@ impl std::ops::Deref for TempRepo {
 
 /// Returns an empty spfs layer object for easy testing
 pub fn empty_layer() -> spfs::graph::Layer {
-    spfs::graph::Layer {
-        manifest: Default::default(),
-    }
+    spfs::graph::Layer::new(&spfs::encoding::EMPTY_DIGEST.into())
 }
 
 /// Returns the digest for an empty spfs layer.
@@ -132,11 +130,11 @@ where
             let empty_manifest = spfs::graph::Manifest::default();
             let empty_layer = empty_layer();
             spfs_repo
-                .write_object(&empty_layer.into())
+                .write_object(&empty_layer)
                 .await
                 .expect("failed to save empty layer to spfs repo");
             spfs_repo
-                .write_object(&empty_manifest.into())
+                .write_object(&empty_manifest)
                 .await
                 .expect("failed to save empty manifest to spfs repo");
             assert_eq!(written, spfs::encoding::EMPTY_DIGEST.into());

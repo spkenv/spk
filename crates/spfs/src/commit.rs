@@ -10,7 +10,7 @@ use std::sync::Arc;
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
-use spfs_encoding::Encodable;
+use spfs_encoding::prelude::*;
 
 use super::status::remount_runtime;
 use crate::prelude::*;
@@ -202,7 +202,7 @@ where
         }
         let layer = self
             .repo
-            .create_layer(&graph::Manifest::from(&manifest))
+            .create_layer(&manifest.to_graph_manifest())
             .await?;
         if !manifest.is_empty() {
             // Don't bother putting the empty layer on the stack, the goal
@@ -326,10 +326,8 @@ where
         }
         drop(stream);
 
-        let storable = graph::Manifest::from(&manifest);
-        self.repo
-            .write_object(&graph::Object::Manifest(storable))
-            .await?;
+        let storable = manifest.to_graph_manifest();
+        self.repo.write_object(&storable).await?;
 
         Ok(manifest)
     }

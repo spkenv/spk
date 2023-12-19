@@ -2,56 +2,96 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use super::object::Kind;
-use super::ObjectKind;
-use crate::{encoding, Error, Result};
+use crate::encoding::Digest;
+use crate::{encoding, Result};
 
 /// Blobs represent an arbitrary chunk of binary data, usually a file.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct Blob {
-    pub payload: encoding::Digest,
-    pub size: u64,
+pub type Blob = super::FlatObject<spfs_proto::Blob<'static>>;
+
+impl std::fmt::Debug for Blob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Blob")
+            .field("payload", &self.payload().to_string())
+            .field("size", &self.size())
+            .finish()
+    }
 }
 
 impl Blob {
-    pub fn new(payload: encoding::Digest, size: u64) -> Self {
-        Self { payload, size }
-    }
-
-    pub fn digest(&self) -> encoding::Digest {
-        self.payload
-    }
-
-    /// Return the child object of this one in the object DG.
-    pub fn child_objects(&self) -> Vec<encoding::Digest> {
-        Vec::new()
-    }
-}
-
-impl encoding::Encodable for Blob {
-    type Error = Error;
-
-    fn digest(&self) -> Result<encoding::Digest> {
-        Ok(self.digest())
-    }
-    fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_digest(&mut writer, &self.payload)?;
-        encoding::write_uint64(writer, self.size)?;
-        Ok(())
-    }
-}
-impl encoding::Decodable for Blob {
-    fn decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
-        Ok(Blob {
-            payload: encoding::read_digest(&mut reader)?,
-            size: encoding::read_uint64(reader)?,
+    pub fn new(payload: &Digest, size: u64) -> Self {
+        super::BUILDER.with_borrow_mut(|builder| {
+            let offset = Self::build(builder, payload, size);
+            let obj = unsafe {
+                // Safety: the provided buf and offset mut contain
+                // a valid object and point to the contained blob
+                // which is what we've done
+                Blob::with_default_header(builder.finished_data(), offset)
+            };
+            builder.reset(); // to be used again
+            obj
         })
     }
+
+    /// Builds an [`spfs_proto::AnyObject`] that contains
+    /// a blob, returning the offset of the blob.
+    pub(super) fn build(
+        builder: &mut flatbuffers::FlatBufferBuilder<'_>,
+        payload: &Digest,
+        size: u64,
+    ) -> usize {
+        let blob = spfs_proto::Blob::create(
+            builder,
+            &spfs_proto::BlobArgs {
+                payload: Some(payload),
+                size_: size,
+            },
+        );
+        let any = spfs_proto::AnyObject::create(
+            builder,
+            &spfs_proto::AnyObjectArgs {
+                object_type: spfs_proto::Object::Blob,
+                object: Some(blob.as_union_value()),
+            },
+        );
+        builder.finish_minimal(any);
+        unsafe {
+            // Safety: we have just created this buffer
+            // so already know the root type with certainty
+            flatbuffers::root_unchecked::<spfs_proto::AnyObject>(builder.finished_data())
+                .object_as_blob()
+                .unwrap()
+                ._tab
+                .loc()
+        }
+    }
 }
 
-impl Kind for Blob {
+impl Blob {
     #[inline]
-    fn kind(&self) -> ObjectKind {
-        ObjectKind::Blob
+    pub fn digest(&self) -> &Digest {
+        self.proto().payload()
+    }
+
+    #[inline]
+    pub fn payload(&self) -> &Digest {
+        self.digest()
+    }
+
+    #[inline]
+    pub fn size(&self) -> u64 {
+        self.proto().size_()
+    }
+
+    pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+        encoding::write_digest(&mut writer, self.payload())?;
+        encoding::write_uint64(writer, self.size())?;
+        Ok(())
+    }
+
+    pub(super) fn legacy_decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
+        Ok(Self::new(
+            &encoding::read_digest(&mut reader)?,
+            encoding::read_uint64(reader)?,
+        ))
     }
 }

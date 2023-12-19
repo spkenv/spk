@@ -6,7 +6,7 @@ use std::io::BufRead;
 
 use chrono::prelude::*;
 
-use crate::encoding::Encodable;
+use crate::encoding::prelude::*;
 use crate::{encoding, Error, Result};
 
 #[cfg(test)]
@@ -124,6 +124,16 @@ impl std::fmt::Display for Tag {
             self.user,
             self.time,
         ))
+    }
+}
+
+impl Digestible for Tag {
+    type Error = Error;
+
+    fn digest(&self) -> std::result::Result<spfs_proto::Digest, Self::Error> {
+        let mut hasher = encoding::Hasher::new_sync();
+        self.encode(&mut hasher)?;
+        Ok(hasher.digest())
     }
 }
 

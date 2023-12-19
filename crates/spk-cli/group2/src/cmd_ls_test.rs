@@ -6,6 +6,7 @@ use clap::Parser;
 use futures::prelude::*;
 use relative_path::RelativePathBuf;
 use spfs::config::Remote;
+use spfs::prelude::*;
 use spfs::storage::EntryType;
 use spfs::RemoteAddress;
 use spk_schema::foundation::ident_component::Component;

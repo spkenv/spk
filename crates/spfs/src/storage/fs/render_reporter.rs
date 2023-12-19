@@ -39,18 +39,18 @@ pub trait RenderReporter: Send + Sync {
     fn rendered_layer(&self, _manifest: &graph::Manifest) {}
 
     /// Called when an entry has been identified to render
-    fn visit_entry(&self, _entry: &graph::Entry) {}
+    fn visit_entry(&self, _entry: graph::Entry<'_>) {}
 
     /// Called when a blob has finished rendering.
     ///
     /// [`Self::rendered_entry`] will also be called for the same entry.
-    fn rendered_blob(&self, _entry: &graph::Entry, _render_blob_result: &RenderBlobResult) {}
+    fn rendered_blob(&self, _entry: graph::Entry<'_>, _render_blob_result: &RenderBlobResult) {}
 
     /// Called when an entry has finished rendering.
     ///
     /// [`Self::rendered_blob`] will also be called for the same entry when the entry
     /// is a blob.
-    fn rendered_entry(&self, _entry: &graph::Entry) {}
+    fn rendered_entry(&self, _entry: graph::Entry<'_>) {}
 }
 
 #[derive(Default)]
@@ -80,19 +80,19 @@ impl RenderReporter for ConsoleRenderReporter {
         bars.layers.inc(1);
     }
 
-    fn visit_entry(&self, entry: &graph::Entry) {
+    fn visit_entry(&self, entry: graph::Entry<'_>) {
         let bars = self.get_bars();
         bars.entries.inc_length(1);
-        if entry.kind.is_blob() {
-            bars.bytes.inc_length(entry.size);
+        if entry.kind().is_blob() {
+            bars.bytes.inc_length(entry.size());
         }
     }
 
-    fn rendered_entry(&self, entry: &graph::Entry) {
+    fn rendered_entry(&self, entry: graph::Entry<'_>) {
         let bars = self.get_bars();
         bars.entries.inc(1);
-        if entry.kind.is_blob() {
-            bars.bytes.inc(entry.size);
+        if entry.kind().is_blob() {
+            bars.bytes.inc(entry.size());
         }
     }
 }
@@ -143,19 +143,19 @@ impl<'a> RenderReporter for MultiReporter<'a> {
         }
     }
 
-    fn visit_entry(&self, entry: &graph::Entry) {
+    fn visit_entry(&self, entry: graph::Entry<'_>) {
         for reporter in self.reporters.iter() {
             reporter.visit_entry(entry)
         }
     }
 
-    fn rendered_blob(&self, entry: &graph::Entry, render_blob_result: &RenderBlobResult) {
+    fn rendered_blob(&self, entry: graph::Entry<'_>, render_blob_result: &RenderBlobResult) {
         for reporter in self.reporters.iter() {
             reporter.rendered_blob(entry, render_blob_result)
         }
     }
 
-    fn rendered_entry(&self, entry: &graph::Entry) {
+    fn rendered_entry(&self, entry: graph::Entry<'_>) {
         for reporter in self.reporters.iter() {
             reporter.rendered_entry(entry)
         }

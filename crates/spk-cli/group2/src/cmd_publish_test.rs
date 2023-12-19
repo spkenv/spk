@@ -7,6 +7,7 @@ use futures::prelude::*;
 use relative_path::RelativePathBuf;
 use rstest::rstest;
 use spfs::config::Remote;
+use spfs::prelude::*;
 use spfs::storage::EntryType;
 use spfs::RemoteAddress;
 use spk_schema::foundation::ident_component::Component;

@@ -27,7 +27,7 @@ use fuser::{
     ReplyOpen,
     Request,
 };
-use spfs::storage::FromConfig;
+use spfs::prelude::*;
 #[cfg(feature = "fuse-backend-abi-7-31")]
 use spfs::tracking::BlobRead;
 use spfs::tracking::{Entry, EntryKind, EnvSpec, Manifest};

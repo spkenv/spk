@@ -6,8 +6,9 @@
 #[allow(unsafe_op_in_unsafe_fn)]
 #[allow(clippy::all)]
 #[rustfmt::skip]
-mod spfs_generated;
+pub mod spfs_generated;
 pub mod digest;
 
 pub use digest::{parse_digest, DIGEST_SIZE, EMPTY_DIGEST, NULL_DIGEST};
+pub use flatbuffers;
 pub use spfs_generated::*;

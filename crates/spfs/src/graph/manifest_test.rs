@@ -4,84 +4,84 @@
 
 use rstest::rstest;
 
-use super::Entry;
+use crate::graph::entry::EntryBuf;
 use crate::{encoding, tracking};
 
 #[rstest]
 fn test_entry_blobs_compare_name() {
-    let a = Entry {
-        name: "a".to_string(),
-        kind: tracking::EntryKind::Blob,
-        mode: 0,
-        object: encoding::EMPTY_DIGEST.into(),
-        size: 0,
-    };
-    let b = Entry {
-        name: "b".to_string(),
-        kind: tracking::EntryKind::Blob,
-        mode: 0,
-        object: encoding::EMPTY_DIGEST.into(),
-        size: 0,
-    };
-    assert!(a < b);
-    assert!(b > a);
+    let a = EntryBuf::build(
+        "a",
+        tracking::EntryKind::Blob,
+        0,
+        0,
+        &encoding::EMPTY_DIGEST.into(),
+    );
+    let b = EntryBuf::build(
+        "b",
+        tracking::EntryKind::Blob,
+        0,
+        0,
+        &encoding::EMPTY_DIGEST.into(),
+    );
+    assert!(a.as_entry() < b.as_entry());
+    assert!(b.as_entry() > a.as_entry());
 }
 
 #[rstest]
 fn test_entry_trees_compare_name() {
-    let a = Entry {
-        name: "a".to_string(),
-        kind: tracking::EntryKind::Tree,
-        mode: 0,
-        object: encoding::EMPTY_DIGEST.into(),
-        size: 0,
-    };
-    let b = Entry {
-        name: "b".to_string(),
-        kind: tracking::EntryKind::Tree,
-        mode: 0,
-        object: encoding::EMPTY_DIGEST.into(),
-        size: 0,
-    };
-    assert!(a < b);
-    assert!(b > a);
+    let a = EntryBuf::build(
+        "a",
+        tracking::EntryKind::Tree,
+        0,
+        0,
+        &encoding::EMPTY_DIGEST.into(),
+    );
+    let b = EntryBuf::build(
+        "b",
+        tracking::EntryKind::Tree,
+        0,
+        0,
+        &encoding::EMPTY_DIGEST.into(),
+    );
+    assert!(a.as_entry() < b.as_entry());
+    assert!(b.as_entry() > a.as_entry());
 }
 
 #[rstest]
 fn test_entry_compare_kind() {
-    let blob = Entry {
-        name: "a".to_string(),
-        kind: tracking::EntryKind::Blob,
-        mode: 0,
-        object: encoding::EMPTY_DIGEST.into(),
-        size: 0,
-    };
-    let tree = Entry {
-        name: "b".to_string(),
-        kind: tracking::EntryKind::Tree,
-        mode: 0,
-        object: encoding::EMPTY_DIGEST.into(),
-        size: 0,
-    };
-    assert!(tree > blob);
-    assert!(blob < tree);
+    let blob = EntryBuf::build(
+        "a",
+        tracking::EntryKind::Blob,
+        0,
+        0,
+        &encoding::EMPTY_DIGEST.into(),
+    );
+    let tree = EntryBuf::build(
+        "b",
+        tracking::EntryKind::Tree,
+        0,
+        0,
+        &encoding::EMPTY_DIGEST.into(),
+    );
+    assert!(tree.as_entry() > blob.as_entry());
+    assert!(blob.as_entry() < tree.as_entry());
 }
 
 #[rstest]
 fn test_entry_compare() {
-    let root_file = Entry {
-        name: "file".to_string(),
-        kind: tracking::EntryKind::Blob,
-        mode: 0,
-        object: encoding::NULL_DIGEST.into(),
-        size: 0,
-    };
-    let root_dir = Entry {
-        name: "xdir".to_string(),
-        kind: tracking::EntryKind::Tree,
-        mode: 0,
-        object: encoding::NULL_DIGEST.into(),
-        size: 0,
-    };
-    assert!(root_dir > root_file);
+    let root_file = EntryBuf::build(
+        "file",
+        tracking::EntryKind::Blob,
+        0,
+        0,
+        &encoding::NULL_DIGEST.into(),
+    );
+    let root_dir = EntryBuf::build(
+        "xdir",
+        tracking::EntryKind::Tree,
+        0,
+        0,
+        &encoding::NULL_DIGEST.into(),
+    );
+    assert!(root_dir.as_entry() > root_file.as_entry());
 }
