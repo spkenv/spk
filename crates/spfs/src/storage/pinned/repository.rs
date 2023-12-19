@@ -9,6 +9,7 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 use spfs_encoding as encoding;
 
+use crate::graph::ObjectProto;
 use crate::storage::prelude::*;
 use crate::tracking::BlobRead;
 use crate::{graph, Error, Result};
@@ -89,7 +90,7 @@ impl<T> graph::Database for super::PinnedRepository<T>
 where
     T: graph::Database + 'static,
 {
-    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
+    async fn write_object<O: ObjectProto>(&self, obj: &graph::FlatObject<O>) -> Result<()> {
         // objects are stored by digest, not time, and so can still
         // be safely written to a past repository view. In practice,
         // this allows some recovery and sync operations to still function
@@ -185,6 +186,7 @@ mod test {
         let build =
             || -> super::PinnedRepository<crate::storage::RepositoryHandle> { unimplemented!() };
         let repo = build();
-        let _: &dyn super::Repository = &repo;
+        fn needs_repo(_: &impl super::Repository) {}
+        needs_repo(&repo);
     }
 }

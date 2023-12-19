@@ -11,9 +11,9 @@ use storage::prelude::*;
 use tokio::time::sleep;
 
 use super::{Cleaner, TracingCleanReporter};
-use crate::encoding::Encodable;
+use crate::encoding::prelude::*;
 use crate::fixtures::*;
-use crate::{graph, storage, tracking, Error};
+use crate::{storage, tracking, Error};
 
 #[rstest]
 #[tokio::test]
@@ -54,7 +54,7 @@ async fn test_get_attached_unattached_objects_blob(
         .await
         .unwrap();
     let layer = tmprepo
-        .create_layer(&graph::Manifest::from(&manifest))
+        .create_layer(&manifest.to_graph_manifest())
         .await
         .unwrap();
     let tag = tracking::TagSpec::parse("my_tag").unwrap();
@@ -108,7 +108,7 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
         .await
         .unwrap();
     let layer = tmprepo
-        .create_layer(&graph::Manifest::from(&manifest2))
+        .create_layer(&manifest2.to_graph_manifest())
         .await
         .unwrap();
     let tag = tracking::TagSpec::parse("tagged_manifest").unwrap();
@@ -192,7 +192,7 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
     let tmprepo = tmprepo.await;
     let manifest = tracking::Manifest::<()>::default();
     let layer = tmprepo
-        .create_layer(&graph::Manifest::from(&manifest))
+        .create_layer(&manifest.to_graph_manifest())
         .await
         .unwrap();
     let platform = tmprepo
@@ -240,7 +240,7 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         .await
         .unwrap();
     let layer = tmprepo
-        .create_layer(&graph::Manifest::from(&manifest))
+        .create_layer(&manifest.to_graph_manifest())
         .await
         .unwrap();
     let _platform = tmprepo
@@ -255,7 +255,7 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
     let fs_repo = fs_repo.opened().await.unwrap();
 
     storage::fs::Renderer::new(&*fs_repo)
-        .render_manifest(&graph::Manifest::from(&manifest), None)
+        .render_manifest(&manifest.to_graph_manifest(), None)
         .await
         .unwrap();
 

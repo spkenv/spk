@@ -11,7 +11,7 @@ use futures::{Stream, StreamExt, TryFutureExt};
 use super::{FsRepository, OpenFsRepository};
 use crate::storage::prelude::*;
 use crate::tracking::BlobRead;
-use crate::{encoding, Error, Result};
+use crate::{encoding, graph, Error, Result};
 
 #[async_trait::async_trait]
 impl crate::storage::PayloadStorage for FsRepository {
@@ -82,7 +82,12 @@ impl crate::storage::PayloadStorage for OpenFsRepository {
                     // blob is really unknown or just the payload is missing.
                     match self.read_blob(digest).await {
                         Ok(blob) => Err(Error::ObjectMissingPayload(blob.into(), digest)),
-                        Err(err @ Error::ObjectNotABlob(_, _)) => Err(err),
+                        Err(
+                            err @ Error::NotCorrectKind {
+                                desired: graph::ObjectKind::Blob,
+                                ..
+                            },
+                        ) => Err(err),
                         Err(_) => Err(Error::UnknownObject(digest)),
                     }
                 }

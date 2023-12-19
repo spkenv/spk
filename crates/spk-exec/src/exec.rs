@@ -9,7 +9,6 @@ use async_stream::try_stream;
 use futures::Stream;
 use relative_path::RelativePathBuf;
 use spfs::encoding::Digest;
-use spfs::graph::Object;
 use spfs::prelude::*;
 use spfs::tracking::Entry;
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
@@ -41,19 +40,20 @@ impl ResolvedLayers {
     pub fn iter_entries(
         &self,
     ) -> impl Stream<Item = Result<(RelativePathBuf, Entry, &ResolvedLayer)>> + '_ {
+        use spfs::graph::object::Enum;
         try_stream! {
             for resolved_layer in self.0.iter() {
                 let manifest = match &*resolved_layer.repo {
                     RepositoryHandle::SPFS(repo) => {
                         let object = repo.read_object(resolved_layer.digest).await?;
-                        match object {
-                            Object::Layer(obj) => {
-                                match repo.read_object(obj.manifest).await? {
-                                    Object::Manifest(obj) => obj,
+                        match object.into_enum() {
+                            Enum::Layer(obj) => {
+                                match repo.read_object(*obj.manifest()).await?.into_enum() {
+                                    Enum::Manifest(obj) => obj,
                                     _ => continue,
                                 }
                             }
-                            Object::Manifest(obj) => obj,
+                            Enum::Manifest(obj) => obj,
                             _ => continue,
                         }
                     }

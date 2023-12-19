@@ -844,7 +844,7 @@ where
         .commit_layer(&mut runtime)
         .await?;
     let collected_layer = repo
-        .read_manifest(layer.manifest)
+        .read_manifest(*layer.manifest())
         .await?
         .to_tracking_manifest();
     let manifests = split_manifest_by_component(
@@ -854,15 +854,13 @@ where
     )?;
     let mut components = HashMap::new();
     for (component, manifest) in manifests {
-        let storable_manifest = spfs::graph::Manifest::from(&manifest);
-        let layer = spfs::graph::Layer {
-            manifest: storable_manifest.digest().unwrap(),
-        };
+        let storable_manifest = manifest.to_graph_manifest();
+        let layer = spfs::graph::Layer::new(&storable_manifest.digest().unwrap());
         let layer_digest = layer.digest().unwrap();
         #[rustfmt::skip]
         tokio::try_join!(
-            async { repo.write_object(&storable_manifest.into()).await },
-            async { repo.write_object(&layer.into()).await }
+            async { repo.write_object(&storable_manifest).await },
+            async { repo.write_object(&layer).await }
         )?;
         components.insert(
             component,

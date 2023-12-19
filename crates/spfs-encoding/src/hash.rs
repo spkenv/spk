@@ -168,6 +168,30 @@ impl Hasher<()> {
     }
 }
 
+/// Digestible is a type that can return an `encoding::Digest` for itself.
+pub trait Digestible {
+    /// The flavor of error returned by digesting methods
+    type Error;
+
+    /// Compute the digest for this instance, by
+    /// encoding it into binary form and hashing the result
+    fn digest(&self) -> std::result::Result<Digest, Self::Error>;
+}
+
+impl<T> Digestible for &T
+where
+    T: Digestible,
+{
+    type Error = T::Error;
+
+    /// Meant to represent a hash of the content of this
+    /// item - all unique instances should have a unique digest
+    /// and all instances that are equal should share a digest
+    fn digest(&self) -> std::result::Result<Digest, Self::Error> {
+        (**self).digest()
+    }
+}
+
 /// Encodable is a type that can be binary-encoded to a byte stream
 pub trait Encodable
 where
@@ -175,14 +199,6 @@ where
 {
     /// The flavor of error returned by encoding methods
     type Error;
-
-    /// Compute the digest for this instance, by
-    /// encoding it into binary form and hashing the result
-    fn digest(&self) -> std::result::Result<Digest, Self::Error> {
-        let mut hasher = Hasher::new_sync();
-        self.encode(&mut hasher)?;
-        Ok(hasher.digest())
-    }
 
     /// Write this object in binary format.
     fn encode(&self, writer: &mut impl Write) -> std::result::Result<(), Self::Error>;
@@ -198,7 +214,7 @@ where
 /// Decodable is a type that can be rebuilt from a previously encoded binary stream
 pub trait Decodable
 where
-    Self: Encodable,
+    Self: Encodable + Sized,
 {
     /// Read a previously encoded object from the given binary stream.
     fn decode(reader: &mut impl std::io::BufRead) -> std::result::Result<Self, Self::Error>;
@@ -375,6 +391,10 @@ impl Encodable for Digest {
     fn encode(&self, writer: &mut impl Write) -> Result<()> {
         binary::write_digest(writer, self)
     }
+}
+
+impl Digestible for Digest {
+    type Error = Error;
 
     fn digest(&self) -> Result<Digest> {
         Ok(*self)

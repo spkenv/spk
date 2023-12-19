@@ -3,12 +3,11 @@
 // https://github.com/imageworks/spk
 
 use colored::*;
-use spfs_encoding::Encodable;
+use spfs_encoding::prelude::*;
 
 use crate::find_path::{ObjectPath, ObjectPathEntry};
-use crate::graph::Object;
 use crate::prelude::*;
-use crate::{encoding, storage, tracking, Result};
+use crate::{encoding, graph, storage, tracking, Result};
 
 /// Specifies how a digest should be formatted
 ///
@@ -167,13 +166,11 @@ pub async fn pretty_print_filepath(
 
         match item {
             ObjectPathEntry::Parent(obj) => {
-                let name = match obj {
-                    Object::Platform(_) => "platform",
-                    Object::Layer(_) => "layer",
-                    Object::Manifest(_) => "manifest",
-                    Object::Blob(_) => "blob",
-                    Object::Tree(_) => "tree",
-                    Object::Mask => "mask",
+                let name = match obj.to_enum() {
+                    graph::object::Enum::Platform(_) => "platform",
+                    graph::object::Enum::Layer(_) => "layer",
+                    graph::object::Enum::Manifest(_) => "manifest",
+                    graph::object::Enum::Blob(_) => "blob",
                 };
 
                 println!(

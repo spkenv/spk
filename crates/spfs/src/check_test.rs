@@ -3,10 +3,12 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spfs_encoding::Encodable;
+use spfs_encoding::prelude::*;
 
 use super::{CheckSummary, Checker};
 use crate::fixtures::*;
+use crate::graph::Database;
+use crate::storage::PayloadStorage;
 
 #[rstest]
 #[tokio::test]
@@ -20,9 +22,9 @@ async fn test_check_missing_payload(#[future] tmprepo: TempRepo) {
         .find(|entry| entry.is_regular_file())
         .expect("at least one regular file");
 
-    tracing::info!(digest=?file.object, "remove payload");
+    tracing::info!(digest=%file.object(), "remove payload");
     tmprepo
-        .remove_payload(file.object)
+        .remove_payload(*file.object())
         .await
         .expect("failed to remove payload");
 
@@ -49,7 +51,7 @@ async fn test_check_missing_payload(#[future] tmprepo: TempRepo) {
         "expected all payloads to be visited except missing one"
     );
     assert!(
-        summary.missing_payloads.contains(&file.object),
+        summary.missing_payloads.contains(file.object()),
         "should find one missing payload"
     );
     assert_eq!(
@@ -71,9 +73,9 @@ async fn test_check_missing_object(#[future] tmprepo: TempRepo) {
         .find(|entry| entry.is_regular_file())
         .expect("at least one regular file");
 
-    tracing::info!(digest=?file.object, "remove object");
+    tracing::info!(digest=%file.object(), "remove object");
     tmprepo
-        .remove_object(file.object)
+        .remove_object(*file.object())
         .await
         .expect("failed to remove object");
 
@@ -81,7 +83,7 @@ async fn test_check_missing_object(#[future] tmprepo: TempRepo) {
         .iter_entries()
         .filter(|e| e.is_regular_file())
         .count();
-    let total_objects = total_blobs + 1; //the manifest
+    let total_objects = total_blobs + 1; // the manifest
 
     let results = Checker::new(&tmprepo.repo())
         .check_all_objects()
@@ -101,7 +103,7 @@ async fn test_check_missing_object(#[future] tmprepo: TempRepo) {
         "one payload should not be seen because of missing object"
     );
     assert!(
-        summary.missing_objects.contains(&file.object),
+        summary.missing_objects.contains(file.object()),
         "should find one missing object"
     );
     assert!(
@@ -129,9 +131,9 @@ async fn test_check_missing_payload_recover(#[future] tmprepo: TempRepo) {
         .find(|entry| entry.is_regular_file())
         .expect("at least one regular file");
 
-    tracing::info!(digest=?file.object, "remove payload");
+    tracing::info!(digest=%file.object(), "remove payload");
     tmprepo
-        .remove_payload(file.object)
+        .remove_payload(*file.object())
         .await
         .expect("failed to remove payload");
 
@@ -190,9 +192,9 @@ async fn test_check_missing_object_recover(#[future] tmprepo: TempRepo) {
         .find(|entry| entry.is_regular_file())
         .expect("at least one regular file");
 
-    tracing::info!(digest=?file.object, "remove object");
+    tracing::info!(digest=%file.object(), "remove object");
     tmprepo
-        .remove_object(file.object)
+        .remove_object(*file.object())
         .await
         .expect("failed to remove object");
 

@@ -7,7 +7,6 @@ use colored::*;
 use miette::Result;
 use spfs::env::SPFS_DIR;
 use spfs::find_path::ObjectPathEntry;
-use spfs::graph::Object;
 use spfs::io::{self, DigestFormat, Pluralize};
 use spfs::prelude::*;
 use spfs::{self};
@@ -97,8 +96,9 @@ impl CmdInfo {
         repo: &spfs::storage::RepositoryHandle,
         verbosity: usize,
     ) -> Result<()> {
-        match obj {
-            Object::Platform(obj) => {
+        use spfs::graph::object::Enum;
+        match obj.into_enum() {
+            Enum::Platform(obj) => {
                 println!(
                     "{}:\n{}",
                     self.format_digest(obj.digest()?, repo).await?,
@@ -110,12 +110,12 @@ impl CmdInfo {
                     self.format_digest(obj.digest()?, repo).await?
                 );
                 println!("{}:", "stack (top-down)".bright_blue());
-                for reference in obj.stack.to_top_down() {
+                for reference in obj.to_stack().to_top_down() {
                     println!("  - {}", self.format_digest(reference, repo).await?);
                 }
             }
 
-            Object::Layer(obj) => {
+            Enum::Layer(obj) => {
                 println!(
                     "{}:\n{}",
                     self.format_digest(obj.digest()?, repo).await?,
@@ -129,11 +129,11 @@ impl CmdInfo {
                 println!(
                     " {} {}",
                     "manifest:".bright_blue(),
-                    self.format_digest(obj.manifest, repo).await?
+                    self.format_digest(*obj.manifest(), repo).await?
                 );
             }
 
-            Object::Manifest(obj) => {
+            Enum::Manifest(obj) => {
                 println!(
                     "{}:\n{}",
                     self.format_digest(obj.digest()?, repo).await?,
@@ -161,24 +161,23 @@ impl CmdInfo {
                 }
             }
 
-            Object::Blob(obj) => {
+            Enum::Blob(obj) => {
                 println!(
                     "{}:\n {}:",
-                    self.format_digest(obj.payload, repo).await?,
+                    self.format_digest(*obj.payload(), repo).await?,
                     "blob".green()
                 );
                 println!(
                     " {} {}",
                     "digest:".bright_blue(),
-                    self.format_digest(obj.payload, repo).await?
+                    self.format_digest(*obj.payload(), repo).await?
                 );
                 println!(
                     " {} {}",
                     "size:".bright_blue(),
-                    spfs::io::format_size(obj.size)
+                    spfs::io::format_size(obj.size())
                 );
             }
-            Object::Tree(_) | Object::Mask => println!("{obj:?}"),
         }
         Ok(())
     }

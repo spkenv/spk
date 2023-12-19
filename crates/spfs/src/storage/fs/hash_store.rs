@@ -310,7 +310,7 @@ impl FsHashStore {
                 object_permissions,
             } => {
                 tracing::trace!(
-                    ?digest,
+                    %digest,
                     ?working_file,
                     ?copied,
                     ?object_permissions,

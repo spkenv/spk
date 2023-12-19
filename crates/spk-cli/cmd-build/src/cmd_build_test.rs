@@ -7,6 +7,7 @@ use std::io::Write;
 
 use clap::Parser;
 use rstest::rstest;
+use spfs::storage::prelude::*;
 use spk_cli_common::Run;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::option_map;
@@ -471,7 +472,7 @@ build:
     let layer = repo.read_layer(digest).await.unwrap();
 
     let manifest = repo
-        .read_manifest(layer.manifest)
+        .read_manifest(*layer.manifest())
         .await
         .unwrap()
         .to_tracking_manifest();
@@ -571,7 +572,7 @@ build:
     let layer = repo.read_layer(digest).await.unwrap();
 
     let manifest = repo
-        .read_manifest(layer.manifest)
+        .read_manifest(*layer.manifest())
         .await
         .unwrap()
         .to_tracking_manifest();

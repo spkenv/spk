@@ -15,12 +15,8 @@ pub type BlobStreamItem = Result<(encoding::Digest, graph::Blob)>;
 pub trait BlobStorage: graph::Database + Sync + Send {
     /// Iterate the objects in this storage which are blobs.
     fn iter_blobs<'db>(&'db self) -> Pin<Box<dyn Stream<Item = BlobStreamItem> + 'db>> {
-        use graph::Object;
         let stream = self.iter_objects().filter_map(|res| match res {
-            Ok((digest, obj)) => match obj {
-                Object::Blob(manifest) => Some(Ok((digest, manifest))),
-                _ => None,
-            },
+            Ok((digest, obj)) => obj.into_blob().map(|b| Ok((digest, b))),
             Err(err) => Some(Err(err)),
         });
         Box::pin(stream)
@@ -28,17 +24,19 @@ pub trait BlobStorage: graph::Database + Sync + Send {
 
     /// Return the blob identified by the given digest.
     async fn read_blob(&self, digest: encoding::Digest) -> Result<graph::Blob> {
-        use graph::Object;
-        match self.read_object(digest).await {
+        match self.read_object(digest).await.map(graph::Object::into_blob) {
             Err(err) => Err(err),
-            Ok(Object::Blob(blob)) => Ok(blob),
-            Ok(object) => Err(Error::ObjectNotABlob(object, digest)),
+            Ok(Some(blob)) => Ok(blob),
+            Ok(None) => Err(Error::NotCorrectKind {
+                desired: graph::ObjectKind::Blob,
+                digest,
+            }),
         }
     }
 
     /// Store the given blob
     async fn write_blob(&self, blob: graph::Blob) -> Result<()> {
-        self.write_object(&graph::Object::Blob(blob)).await
+        self.write_object(&blob).await
     }
 }
 

@@ -31,12 +31,12 @@ pub use binary::{
     write_uint8,
 };
 pub use error::{Error, Result};
-pub use hash::{Decodable, Encodable, Hasher, PartialDigest};
+pub use hash::{Decodable, Digestible, Encodable, Hasher, PartialDigest};
 pub use spfs_proto::{parse_digest, Digest, DIGEST_SIZE, EMPTY_DIGEST, NULL_DIGEST};
 
 /// # Encoding Prelude
 ///
 /// A collection of traits commonly used from this crate.
 pub mod prelude {
-    pub use super::{Decodable, Encodable};
+    pub use super::{Decodable, Digestible, Encodable};
 }

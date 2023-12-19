@@ -87,47 +87,6 @@ impl RepositoryHandle {
     }
 }
 
-impl RepositoryHandle {
-    pub fn to_repo(self) -> Box<dyn Repository> {
-        match self {
-            Self::FS(repo) => Box::new(repo),
-            Self::Tar(repo) => Box::new(repo),
-            Self::Rpc(repo) => Box::new(repo),
-            Self::FallbackProxy(repo) => repo,
-            Self::Proxy(repo) => repo,
-            Self::Pinned(repo) => repo,
-        }
-    }
-}
-
-impl std::ops::Deref for RepositoryHandle {
-    type Target = dyn Repository;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            RepositoryHandle::FS(repo) => repo,
-            RepositoryHandle::Tar(repo) => repo,
-            RepositoryHandle::Rpc(repo) => repo,
-            RepositoryHandle::FallbackProxy(repo) => &**repo,
-            RepositoryHandle::Proxy(repo) => &**repo,
-            RepositoryHandle::Pinned(repo) => &**repo,
-        }
-    }
-}
-
-impl std::ops::DerefMut for RepositoryHandle {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        match self {
-            RepositoryHandle::FS(repo) => repo,
-            RepositoryHandle::Tar(repo) => repo,
-            RepositoryHandle::Rpc(repo) => repo,
-            RepositoryHandle::FallbackProxy(repo) => &mut **repo,
-            RepositoryHandle::Proxy(repo) => &mut **repo,
-            RepositoryHandle::Pinned(repo) => &mut **repo,
-        }
-    }
-}
-
 impl From<fs::FsRepository> for RepositoryHandle {
     fn from(repo: fs::FsRepository) -> Self {
         RepositoryHandle::FS(repo)

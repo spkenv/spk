@@ -12,7 +12,7 @@ use futures::{StreamExt, TryStreamExt};
 use miette::{bail, Context, IntoDiagnostic, Result};
 use serde::Serialize;
 use spfs::find_path::ObjectPathEntry;
-use spfs::graph::Object;
+use spfs::graph::{HasKind, ObjectKind};
 use spfs::io::Pluralize;
 use spfs::Digest;
 use spk_cli_common::with_version_and_build_set::WithVersionSet;
@@ -273,10 +273,9 @@ impl View {
         let mut layers_that_contain_filepath = BTreeMap::new();
         let mut stack_order: Vec<Digest> = Vec::new();
         for pathlist in found.iter() {
-            let layer_digest = match pathlist
-                .iter()
-                .find(|item| matches!(item, ObjectPathEntry::Parent(Object::Layer(_))))
-            {
+            let layer_digest = match pathlist.iter().find(
+                |item| matches!(item, ObjectPathEntry::Parent(o) if o.kind() == ObjectKind::Layer),
+            ) {
                 Some(l) => l.digest()?,
                 None => {
                     return Err(spk_cli_common::Error::String(

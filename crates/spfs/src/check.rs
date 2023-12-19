@@ -239,7 +239,7 @@ where
         }
 
         let _permit = self.object_semaphore.acquire().await;
-        tracing::trace!(?digest, "Checking digest");
+        tracing::trace!(%digest, "Checking digest");
         self.reporter.visit_digest(&digest);
         match self.read_object_with_fallback(digest).await {
             Err(Error::UnknownObject(_)) => Ok(CheckObjectResult::Missing(digest)),
@@ -290,7 +290,7 @@ where
         obj: graph::Object,
         perms: Option<u32>,
     ) -> Result<CheckObjectResult> {
-        use graph::Object;
+        use graph::object::Enum;
         if let Some(CheckProgress::CheckStarted) = self
             .processed_digests
             .insert(obj.digest()?, CheckProgress::CheckStarted)
@@ -298,17 +298,15 @@ where
             return Ok(CheckObjectResult::Duplicate);
         }
         self.reporter.visit_object(&obj);
-        let res = match obj {
-            Object::Layer(obj) => CheckObjectResult::Layer(self.check_layer(obj).await?.into()),
-            Object::Platform(obj) => CheckObjectResult::Platform(self.check_platform(obj).await?),
-            Object::Blob(obj) => CheckObjectResult::Blob(unsafe {
+        let res = match obj.into_enum() {
+            Enum::Layer(obj) => CheckObjectResult::Layer(self.check_layer(obj).await?.into()),
+            Enum::Platform(obj) => CheckObjectResult::Platform(self.check_platform(obj).await?),
+            Enum::Blob(obj) => CheckObjectResult::Blob(unsafe {
                 // Safety: it is unsafe to call this function unless the blob
                 // is known to exist, which is the same rule we pass up to the caller
-                self.must_check_blob_with_perms_opt(obj, perms).await?
+                self.must_check_blob_with_perms_opt(&obj, perms).await?
             }),
-            Object::Manifest(obj) => CheckObjectResult::Manifest(self.check_manifest(obj).await?),
-            Object::Tree(obj) => CheckObjectResult::Tree(obj),
-            Object::Mask => CheckObjectResult::Mask,
+            Enum::Manifest(obj) => CheckObjectResult::Manifest(self.check_manifest(obj).await?),
         };
         self.reporter.checked_object(&res);
         Ok(res)
@@ -319,9 +317,8 @@ where
     /// To also check if the platform object exists, use [`Self::check_digest`]
     pub async fn check_platform(&self, platform: graph::Platform) -> Result<CheckPlatformResult> {
         let futures: FuturesUnordered<_> = platform
-            .stack
             .iter_bottom_up()
-            .map(|d| self.check_digest(d))
+            .map(|d| self.check_digest(*d))
             .collect();
         let results = futures.try_collect().await?;
         let res = CheckPlatformResult {
@@ -336,7 +333,7 @@ where
     ///
     /// To also check if the layer object exists, use [`Self::check_digest`]
     pub async fn check_layer(&self, layer: graph::Layer) -> Result<CheckLayerResult> {
-        let result = self.check_digest(layer.manifest).await?;
+        let result = self.check_digest(*layer.manifest()).await?;
         let res = CheckLayerResult {
             layer,
             result,
@@ -351,15 +348,14 @@ where
     pub async fn check_manifest(&self, manifest: graph::Manifest) -> Result<CheckManifestResult> {
         let futures: FuturesUnordered<_> = manifest
             .iter_entries()
-            .filter(|e| e.kind.is_blob())
-            .cloned()
+            .filter(|e| e.kind().is_blob())
             // run through check_digest to ensure that blobs can be loaded
             // from the db and allow for possible repairs
-            .map(|e| self.check_digest_with_perms_opt(e.object, Some(e.mode)))
+            .map(|e| self.check_digest_with_perms_opt(*e.object(), Some(e.mode())))
             .collect();
         let results = futures.try_collect().await?;
         let res = CheckManifestResult {
-            manifest,
+            manifest: manifest.to_owned(),
             results,
             repaired: false,
         };
@@ -374,11 +370,11 @@ where
     /// This function may sync a payload without
     /// syncing the blob, which is unsafe unless the blob
     /// is known to exist in the repository being checked
-    pub async unsafe fn check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
+    pub async unsafe fn check_blob(&self, blob: &graph::Blob) -> Result<CheckBlobResult> {
         let digest = blob.digest();
         if let Some(CheckProgress::CheckStarted) = self
             .processed_digests
-            .insert(digest, CheckProgress::CheckStarted)
+            .insert(*digest, CheckProgress::CheckStarted)
         {
             return Ok(CheckBlobResult::Duplicate);
         }
@@ -401,19 +397,19 @@ where
     /// is known to exist in the repository being checked
     async unsafe fn must_check_blob_with_perms_opt(
         &self,
-        blob: graph::Blob,
+        blob: &graph::Blob,
         perms: Option<u32>,
     ) -> Result<CheckBlobResult> {
-        self.reporter.visit_blob(&blob);
+        self.reporter.visit_blob(blob);
         let result = unsafe {
             // Safety: this function may sync a payload and so
             // is unsafe to call unless we know the blob exists,
             // which is why this is an unsafe function
-            self.check_payload_with_perms_opt(blob.payload, perms)
+            self.check_payload_with_perms_opt(*blob.payload(), perms)
                 .await?
         };
         let res = CheckBlobResult::Checked {
-            blob,
+            blob: blob.to_owned(),
             result,
             repaired: result == CheckPayloadResult::Repaired,
         };
@@ -598,7 +594,7 @@ impl CheckReporter for ConsoleCheckReporter {
 
     fn visit_blob(&self, blob: &graph::Blob) {
         let bars = self.get_bars();
-        bars.bytes.inc_length(blob.size);
+        bars.bytes.inc_length(blob.size());
     }
 
     fn visit_payload(&self, _digest: encoding::Digest) {
@@ -805,8 +801,6 @@ pub enum CheckObjectResult {
     Layer(Box<CheckLayerResult>),
     Blob(CheckBlobResult),
     Manifest(CheckManifestResult),
-    Tree(graph::Tree),
-    Mask,
 }
 
 impl CheckObjectResult {
@@ -821,8 +815,6 @@ impl CheckObjectResult {
             CheckObjectResult::Layer(r) => r.set_repaired(),
             CheckObjectResult::Blob(r) => r.set_repaired(),
             CheckObjectResult::Manifest(r) => r.set_repaired(),
-            CheckObjectResult::Tree(_) => (),
-            CheckObjectResult::Mask => (),
         }
     }
 
@@ -839,7 +831,6 @@ impl CheckObjectResult {
             Layer(res) => res.summary(),
             Blob(res) => res.summary(),
             Manifest(res) => res.summary(),
-            Mask | Tree(_) => CheckSummary::default(),
         }
     }
 }
@@ -918,10 +909,7 @@ pub enum CheckEntryResult {
     /// The entry was not one that needed checking
     Skipped,
     /// The entry was checked
-    Checked {
-        entry: graph::Entry,
-        result: CheckBlobResult,
-    },
+    Checked { result: CheckBlobResult },
 }
 
 impl CheckEntryResult {
@@ -970,7 +958,7 @@ impl CheckBlobResult {
                 let mut summary = result.summary();
                 summary += CheckSummary {
                     checked_objects: 1,
-                    checked_payload_bytes: blob.size,
+                    checked_payload_bytes: blob.size(),
                     repaired_objects: *repaired as usize,
                     ..Default::default()
                 };

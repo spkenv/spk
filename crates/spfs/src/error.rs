@@ -7,7 +7,7 @@ use std::str::Utf8Error;
 use miette::Diagnostic;
 use thiserror::Error;
 
-use crate::{encoding, storage};
+use crate::{encoding, graph, storage};
 
 #[derive(Diagnostic, Debug, Error)]
 #[diagnostic(
@@ -41,6 +41,9 @@ pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
     Encoding(#[from] super::encoding::Error),
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
+    GraphObject(#[from] super::graph::error::ObjectError),
 
     #[error("Invalid repository url: {0:?}")]
     InvalidRemoteUrl(#[from] url::ParseError),
@@ -79,8 +82,11 @@ pub enum Error {
     InvalidReference(String),
     #[error("Repository does not support manifest rendering: {0:?}")]
     NoRenderStorage(url::Url),
-    #[error("Object is not a blob: {1}")]
-    ObjectNotABlob(crate::graph::Object, encoding::Digest),
+    #[error("Object is not a {desired:?}: {digest}")]
+    NotCorrectKind {
+        desired: graph::ObjectKind,
+        digest: encoding::Digest,
+    },
     #[error("Cannot write to a repository which has been pinned in time")]
     RepositoryIsPinned,
 
@@ -140,9 +146,6 @@ pub enum Error {
     StorageReadError(&'static str, std::path::PathBuf, #[source] io::Error),
     #[error("Storage write error from {0} at {1}: {2}")]
     StorageWriteError(&'static str, std::path::PathBuf, #[source] io::Error),
-    #[error("Unrecognized object epoch: {0}")]
-    #[diagnostic(help("Your version of spfs may be too old to read this repository"))]
-    UnknownObjectEpoch(u8),
 
     #[error("'{0}' not found in PATH, was it installed properly?")]
     MissingBinary(&'static str),

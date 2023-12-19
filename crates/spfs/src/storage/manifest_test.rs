@@ -5,9 +5,7 @@
 use rstest::rstest;
 use tokio_stream::StreamExt;
 
-use crate::encoding::Encodable;
 use crate::fixtures::*;
-use crate::graph::Manifest;
 use crate::prelude::*;
 use crate::tracking;
 
@@ -25,15 +23,21 @@ async fn test_read_write_manifest(
     let dir = tmpdir.path();
     let repo = repo.await;
     std::fs::File::create(dir.join("file.txt")).unwrap();
-    let manifest = Manifest::from(&tracking::compute_manifest(&dir).await.unwrap());
+    let manifest = tracking::compute_manifest(&dir)
+        .await
+        .unwrap()
+        .to_graph_manifest();
     let expected = manifest.digest().unwrap();
-    repo.write_object(&manifest.into())
+    repo.write_object(&manifest)
         .await
         .expect("failed to write manifest");
 
     std::fs::write(dir.join("file.txt"), "newrootdata").unwrap();
-    let manifest2 = Manifest::from(&tracking::compute_manifest(dir).await.unwrap());
-    repo.write_object(&manifest2.into()).await.unwrap();
+    let manifest2 = tracking::compute_manifest(dir)
+        .await
+        .unwrap()
+        .to_graph_manifest();
+    repo.write_object(&manifest2).await.unwrap();
 
     let digests: crate::Result<Vec<_>> = repo
         .find_digests(crate::graph::DigestSearchCriteria::All)
@@ -62,9 +66,9 @@ async fn test_manifest_parity(
     std::fs::create_dir(dir.join("dir")).unwrap();
     std::fs::write(dir.join("dir/file.txt"), "").unwrap();
     let expected = tracking::compute_manifest(&dir).await.unwrap();
-    let storable = Manifest::from(&expected);
+    let storable = expected.to_graph_manifest();
     let digest = storable.digest().unwrap();
-    repo.write_object(&storable.into())
+    repo.write_object(&storable)
         .await
         .expect("failed to store manifest object");
     let out = repo

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use relative_path::{RelativePath, RelativePathBuf};
-use spfs::prelude::Encodable;
+use spfs::prelude::*;
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::{Package, PackageMut};

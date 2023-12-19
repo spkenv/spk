@@ -21,10 +21,16 @@ pub struct Stack {
     bottom: Option<Box<Entry>>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 struct Entry {
     value: Digest,
     next: Option<Box<Entry>>,
+}
+
+impl std::fmt::Debug for Entry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{}", self.value))
+    }
 }
 
 impl Entry {
@@ -40,11 +46,11 @@ impl std::fmt::Debug for Stack {
 }
 
 impl Stack {
-    pub fn from_encodable<E, I>(items: I) -> Result<Self>
+    pub fn from_digestible<D, I>(items: I) -> Result<Self>
     where
-        E: encoding::Encodable,
-        Error: std::convert::From<E::Error>,
-        I: IntoIterator<Item = E>,
+        D: encoding::Digestible,
+        Error: std::convert::From<D::Error>,
+        I: IntoIterator<Item = D>,
     {
         let mut stack = Self { bottom: None };
         for item in items.into_iter() {

@@ -20,19 +20,21 @@ table Platform {
 }
 
 table Layer {
-    manifest:Manifest (required);
+    manifest:Digest (required);
 }
 
 table Manifest {
-    /// The first entry is always the root tree of the manifest
+    /// Must be non-empty
     trees:[Tree] (required);
 }
 
+/// Blobs represent an arbitrary chunk of binary data, usually a file.
 table Blob {
     size:uint64;
     payload:Digest (required);
 }
 
+/// Digest is the result of a hashing operation over binary data.
 struct Digest {
     bytes:[uint8:32]; // SHA-256 output len (256 / 8)
 }
@@ -42,9 +44,10 @@ table Tree {
 }
 
 enum EntryKind:uint8 {
-    Tree = 0,
-    Blob,
-    Mask,
+    Blob = 0,
+    /* Aligned to the rust ObjectKind type */
+    Tree = 4,
+    Mask = 5,
 }
 
 table Entry {

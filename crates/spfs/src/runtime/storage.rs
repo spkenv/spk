@@ -27,12 +27,11 @@ use tokio::io::AsyncReadExt;
 use super::startup_ps;
 #[cfg(unix)]
 use super::{startup_csh, startup_sh};
-use crate::encoding::{self, Encodable};
 use crate::env::SPFS_DIR_PREFIX;
 use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::RepositoryHandle;
-use crate::{bootstrap, graph, storage, tracking, Error, Result};
+use crate::{bootstrap, encoding, graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./storage_test.rs"]
@@ -882,11 +881,9 @@ impl Runtime {
     /// Generate a platform with all the layers from this runtime
     /// properly stacked.
     pub fn to_platform(&self) -> graph::Platform {
-        let mut platform = graph::Platform {
-            stack: self.status.stack.clone(),
-        };
-        platform.stack.extend(self.status.flattened_layers.iter());
-        platform
+        let mut stack = self.status.stack.clone();
+        stack.extend(self.status.flattened_layers.iter());
+        stack.into()
     }
 
     /// Write out the startup script data to disk, ensuring
@@ -1217,7 +1214,7 @@ impl Storage {
     pub async fn save_runtime(&self, rt: &Runtime) -> Result<()> {
         let payload_tag = runtime_tag(RuntimeDataType::Payload, rt.name())?;
         let meta_tag = runtime_tag(RuntimeDataType::Metadata, rt.name())?;
-        let platform: graph::Object = rt.to_platform().into();
+        let platform = rt.to_platform();
         let platform_digest = platform.digest()?;
         let config_data = serde_json::to_string(&rt.data)?;
         let (_, config_digest) = tokio::try_join!(

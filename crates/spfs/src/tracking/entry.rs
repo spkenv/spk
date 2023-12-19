@@ -73,6 +73,16 @@ impl FromStr for EntryKind {
     }
 }
 
+impl From<EntryKind> for spfs_proto::EntryKind {
+    fn from(val: EntryKind) -> spfs_proto::EntryKind {
+        match val {
+            EntryKind::Blob => spfs_proto::EntryKind::Blob,
+            EntryKind::Tree => spfs_proto::EntryKind::Tree,
+            EntryKind::Mask => spfs_proto::EntryKind::Mask,
+        }
+    }
+}
+
 impl encoding::Encodable for EntryKind {
     type Error = Error;
 

@@ -156,7 +156,7 @@ impl CmdRender {
                 &render_summary_reporter as &dyn spfs::storage::fs::RenderReporter,
             ]),
         );
-        let stack = layers.into_iter().map(|l| l.manifest).collect();
+        let stack = layers.into_iter().map(|l| *l.manifest()).collect();
         renderer
             .render(&stack, self.strategy)
             .await

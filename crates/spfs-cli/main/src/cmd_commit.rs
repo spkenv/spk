@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use clap::Args;
 use miette::Result;
-use spfs::encoding::Encodable;
+use spfs::encoding::prelude::*;
 use spfs::prelude::*;
 
 /// Commit the current runtime state or a directory to storage
@@ -131,7 +131,7 @@ impl CmdCommit {
                 return Err(spfs::Error::NothingToCommit);
             }
             return Ok(repo
-                .create_layer(&spfs::graph::Manifest::from(&manifest))
+                .create_layer(&manifest.to_graph_manifest())
                 .await?
                 .into());
         }

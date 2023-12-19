@@ -5,8 +5,8 @@
 use rstest::rstest;
 
 use super::{compute_manifest, EntryKind, Manifest};
+use crate::encoding::prelude::*;
 use crate::fixtures::*;
-use crate::graph;
 
 #[rstest]
 #[tokio::test]
@@ -100,7 +100,10 @@ async fn test_layer_manifests(tmpdir: tempfile::TempDir) {
     a.update(&b);
 
     assert_eq!(a, both);
-    assert_eq!(graph::Manifest::from(&a), graph::Manifest::from(&both));
+    assert_eq!(
+        a.to_graph_manifest().digest().unwrap(),
+        both.to_graph_manifest().digest().unwrap()
+    );
 }
 #[rstest]
 #[tokio::test]
