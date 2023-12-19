@@ -5,10 +5,12 @@
 mod spec;
 mod test_spec;
 mod variant;
+mod variant_spec;
 
 pub use spec::Spec;
 pub use test_spec::TestSpec;
 pub use variant::Variant;
+pub use variant_spec::VariantSpec;
 
 #[cfg(test)]
 #[path = "./validators_test.rs"]

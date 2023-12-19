@@ -4,18 +4,21 @@
 
 use std::collections::HashMap;
 use std::io::Write;
+use std::str::FromStr;
 
 use rstest::rstest;
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map;
-use spk_schema_ident::{AnyIdent, BuildIdent, VersionIdent};
+use spk_schema_foundation::version_range::VersionFilter;
+use spk_schema_ident::{AnyIdent, BuildIdent, Request, VersionIdent};
 
 use super::Spec;
 use crate::foundation::fixtures::*;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::FromYaml;
+use crate::option::PkgOpt;
 use crate::spec::SpecTemplate;
-use crate::{BuildEnv, Opt, Recipe, Template, TemplateExt};
+use crate::{BuildEnv, Opt, Recipe, Template, TemplateExt, Variant, VariantExt};
 
 #[rstest]
 fn test_spec_is_valid_with_only_name() {
@@ -288,4 +291,216 @@ fn test_strong_inheritance_injection_transitivity() {
             }),
         "didn't find inherited install requirement"
     );
+}
+
+#[rstest]
+fn test_variants_can_introduce_components() {
+    let spec: Spec<AnyIdent> = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        build:
+          variants:
+            - { "dep-pkg:{comp1,comp2}": "1.2.3" }
+    "#,
+    )
+    .unwrap();
+
+    let comp1 = Component::Named("comp1".to_owned());
+    let comp2 = Component::Named("comp2".to_owned());
+    let ver = VersionFilter::from_str("1.2.3").unwrap();
+
+    let mut found = false;
+    for variant in spec.build.variants {
+        let mut found_opt = false;
+        let mut found_pkg = false;
+
+        for (opt_name, value) in variant.options().iter() {
+            if opt_name == "dep-pkg" && value == "1.2.3" {
+                found_opt = true;
+                break;
+            }
+        }
+
+        for requirement in variant.additional_requirements().iter() {
+            if let Request::Pkg(pkg) = requirement {
+                if pkg.pkg.name == "dep-pkg"
+                    && pkg.pkg.components.contains(&comp1)
+                    && pkg.pkg.components.contains(&comp2)
+                    && pkg.pkg.version == ver
+                {
+                    found_pkg = true;
+                    break;
+                }
+            }
+        }
+
+        if found_opt && found_pkg {
+            found = true;
+            break;
+        }
+    }
+
+    assert!(
+        found,
+        "dep-pkg adds option and package dependency with comp1 and comp2 enabled"
+    )
+}
+
+#[rstest]
+fn test_variants_can_append_components() {
+    struct TestBuildEnv();
+
+    impl BuildEnv for TestBuildEnv {
+        type Package = Spec<BuildIdent>;
+
+        fn build_env(&self) -> Vec<Self::Package> {
+            vec![serde_yaml::from_str(
+                r#"
+                api: v0/package
+                pkg: dep-pkg/1.2.3/3TCOOP2W
+            "#,
+            )
+            .unwrap()]
+        }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::default()
+        }
+    }
+
+    let build_env = TestBuildEnv();
+
+    let spec: Spec<VersionIdent> = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        build:
+          options:
+            - pkg: dep-pkg:comp1/1.2.3
+          variants:
+            - { "dep-pkg:comp2": "1.2.3" }
+    "#,
+    )
+    .unwrap();
+
+    let variants = spec.default_variants();
+
+    let variant = variants[0].clone().with_overrides(option_map! {});
+
+    let built_package = spec.generate_binary_build(&variant, &build_env).unwrap();
+
+    // Verify that after building the first variant, the built package has
+    // requests for both comp1 and comp2 (the requests were merged).
+
+    let comp1 = Component::Named("comp1".to_owned());
+    let comp2 = Component::Named("comp2".to_owned());
+
+    let mut found = false;
+    for option in built_package.build.options.iter() {
+        match option {
+            Opt::Pkg(PkgOpt {
+                pkg,
+                components,
+                default,
+                ..
+            }) if pkg == "dep-pkg"
+                && components.contains(&comp1)
+                && components.contains(&comp2)
+                && default == "1.2.3" =>
+            {
+                found = true;
+                break;
+            }
+            _ => (),
+        };
+    }
+
+    assert!(
+        found,
+        "dep-pkg adds package dependency with comp1 and comp2 enabled"
+    )
+}
+
+#[rstest]
+fn test_variants_can_append_components_and_modify_version() {
+    struct TestBuildEnv();
+
+    impl BuildEnv for TestBuildEnv {
+        type Package = Spec<BuildIdent>;
+
+        fn build_env(&self) -> Vec<Self::Package> {
+            vec![
+                serde_yaml::from_str(
+                    r#"
+                api: v0/package
+                pkg: dep-pkg/1.2.3/3TCOOP2W
+            "#,
+                )
+                .unwrap(),
+                serde_yaml::from_str(
+                    r#"
+                api: v0/package
+                pkg: dep-pkg/1.2.4/3TCOOP2W
+            "#,
+                )
+                .unwrap(),
+            ]
+        }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::default()
+        }
+    }
+
+    let build_env = TestBuildEnv();
+
+    let spec: Spec<VersionIdent> = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        build:
+          options:
+            # base option asks for 1.2.3
+            - pkg: dep-pkg:comp1/1.2.3
+          variants:
+            # variant asks for 1.2.4
+            - { "dep-pkg:comp2": "1.2.4" }
+    "#,
+    )
+    .unwrap();
+
+    let variants = spec.default_variants();
+
+    let variant = variants[0].clone().with_overrides(option_map! {});
+
+    let built_package = spec.generate_binary_build(&variant, &build_env).unwrap();
+
+    // Verify that after building the first variant, the built package has
+    // requests for both comp1 and comp2 (the requests were merged).
+
+    let comp1 = Component::Named("comp1".to_owned());
+    let comp2 = Component::Named("comp2".to_owned());
+
+    let mut found = false;
+    for option in built_package.build.options.iter() {
+        match option {
+            Opt::Pkg(PkgOpt {
+                pkg,
+                components,
+                default,
+                ..
+            }) if pkg == "dep-pkg"
+                && components.contains(&comp1)
+                && components.contains(&comp2)
+                && default == "1.2.4" =>
+            {
+                found = true;
+                break;
+            }
+            x => dbg!(x),
+        };
+    }
+
+    assert!(
+        found,
+        "dep-pkg adds package dependency with comp1 and comp2 enabled and expected version"
+    )
 }

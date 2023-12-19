@@ -181,9 +181,24 @@ The variants section of the build config defines the default set of variants tha
 
 By default, the command line will build all variants defined in your spec file. Supplying any options on the command line will instead build only a single variant using specified options.
 
-{{% notice note %}}
-Make sure that you have defined a build option for whatever you specify in your variants!
-{{% /notice %}}
+Variants can introduce new package options, making a build dependency only
+required when building that variant.
+
+When specifying a package option in a variant, it can name one or more
+components to only add a dependency on those components. The resulting set of
+components is the union of the ones specified in the variant and any existing
+components from the entry in `build.options` (if any).
+
+```yaml
+build:
+  options:
+    - pkg: foo:data/1.0
+  variants:
+    # This variant will depend on `foo:{data,docs}/1.0`.
+    - { "foo:docs": "1.0" }
+    # This variant will depend on `foo:{data,docs,examples}/2.0`.
+    - { "foo:{docs,examples}": "2.0" }
+```
 
 {{% notice tip %}}
 Build requirements can also be updated in the command line: `spk install --save @build build-dependency/1.0`

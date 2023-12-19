@@ -13,7 +13,9 @@ use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::version_range::{VersionFilter, VersionRange};
 use spk_schema_ident::{PkgRequest, RangeIdent, VarRequest};
 
-use crate::{Opt, RequirementsList};
+use super::variant_spec::VariantSpecEntryKey;
+use super::VariantSpec;
+use crate::{Error, Opt, RequirementsList, Result};
 
 /// A simple build variant used by v0 recipes.
 ///
@@ -33,12 +35,48 @@ impl Variant {
     /// the known build options for the package. This uses a set of
     /// heuristics to identify and determine which type of additional
     /// requirements are being specified (if any).
-    pub fn from_options(options: OptionMap, build_options: &[Opt]) -> Self {
+    pub fn from_spec(spec: VariantSpec, build_options: &[Opt]) -> Result<Self> {
+        let mut options = OptionMap::default();
         let mut requirements = RequirementsList::default();
-        for (name, value) in options.iter() {
+
+        for (key, value) in spec.entries.into_iter() {
+            let name = match &key {
+                VariantSpecEntryKey::PkgOrOpt(pkg) => pkg.0.name.as_opt_name().to_owned(),
+                VariantSpecEntryKey::Opt(opt) => opt.to_owned(),
+            };
+            let value = value.as_str();
+            options.insert(name.clone(), value.to_owned());
+
+            // if it was parsed as something with components, then it is a pkg
+            // request.
+            if let VariantSpecEntryKey::PkgOrOpt(pkg) = key {
+                if !pkg.0.components.is_empty() {
+                    let Ok(version_range) = VersionRange::from_str(value) else {
+                        return Err(Error::String(format!(
+                            "invalid version range for package '{}': {}",
+                            name, value
+                        )));
+                    };
+                    requirements.insert_or_replace(
+                        PkgRequest::new(
+                            RangeIdent {
+                                name: pkg.0.name,
+                                version: VersionFilter::single(version_range),
+                                repository_name: None,
+                                components: pkg.0.components.into_inner(),
+                                build: None,
+                            },
+                            spk_schema_ident::RequestedBy::Variant,
+                        )
+                        .into(),
+                    );
+                    continue;
+                }
+            }
+
             // only items that don't already exist in the build
             // options are considered additional requirements
-            if build_options.iter().any(|o| o.full_name() == *name) {
+            if build_options.iter().any(|o| o.full_name() == name) {
                 continue;
             }
 
@@ -46,18 +84,16 @@ impl Variant {
             // a var or a pkg...
             //
             // If it is not a valid package name, assume it is a var.
-            let Ok(pkg_name) = PkgName::new(name) else {
-                requirements.insert_or_replace(
-                    VarRequest::new_with_value(name.clone(), value.clone()).into(),
-                );
+            let Ok(pkg_name) = PkgName::new(name.as_str()) else {
+                requirements
+                    .insert_or_replace(VarRequest::new_with_value(name.clone(), value).into());
                 continue;
             };
             // If the value is not a legal version range, assume it is
             // a var.
             let Ok(version_range) = VersionRange::from_str(value) else {
-                requirements.insert_or_replace(
-                    VarRequest::new_with_value(name.clone(), value.clone()).into(),
-                );
+                requirements
+                    .insert_or_replace(VarRequest::new_with_value(name.clone(), value).into());
                 continue;
             };
             // It is a valid package name and the value is a legal
@@ -77,10 +113,10 @@ impl Variant {
                 .into(),
             );
         }
-        Self {
+        Ok(Self {
             options,
             requirements,
-        }
+        })
     }
 }
 

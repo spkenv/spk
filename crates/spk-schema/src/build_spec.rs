@@ -1,14 +1,13 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 use strum::Display;
 
-use super::foundation::option_map::OptionMap;
 use super::{v0, Opt, ValidationSpec};
 use crate::name::{OptName, OptNameBuf};
 use crate::option::VarOpt;
@@ -156,14 +155,62 @@ impl BuildSpec {
             .map(Opt::full_name)
             .map(ToOwned::to_owned)
             .collect::<HashSet<_>>();
+        let mut known_pkg_options_with_index = opts
+            .iter()
+            .enumerate()
+            .filter_map(|(i, o)| match o {
+                Opt::Pkg(_) => Some((o.full_name().to_owned(), i)),
+                _ => None,
+            })
+            .collect::<HashMap<_, _>>();
 
         // inject additional package options for items in the variant that
         // were not present in the original package
         let reqs = variant.additional_requirements().into_owned();
         for req in reqs.into_iter() {
-            let opt = Opt::try_from(req)?;
+            let mut opt = Opt::try_from(req)?;
+
             if known.insert(opt.full_name().to_owned()) {
+                // Maintain pkg index when inserting a new PkgOpt.
+                if let Opt::Pkg(_) = &opt {
+                    known_pkg_options_with_index.insert(opt.full_name().to_owned(), opts.len());
+                };
+
                 opts.push(opt);
+                continue;
+            }
+
+            if let Opt::Pkg(pkg) = &mut opt {
+                // This is an existing PkgOpt; merge the requests.
+
+                match known_pkg_options_with_index.get(pkg.pkg.as_opt_name()) {
+                    Some(&idx) => {
+                        match &mut opts[idx] {
+                            Opt::Pkg(pkg_in_opts) => {
+                                // Merge the components of the existing option with the
+                                // additional one(s) from the variant.
+                                let pkg_components = std::mem::take(&mut pkg.components);
+                                pkg_in_opts.components.extend(pkg_components.into_inner());
+
+                                // The default value is overridden by the
+                                // variant.
+                                pkg_in_opts.default = std::mem::take(&mut pkg.default);
+                            }
+                            Opt::Var(_) => {
+                                debug_assert!(
+                                    false,
+                                    "known_pkg_options_with_index should only index PkgOpt options"
+                                );
+                            }
+                        };
+                    }
+                    None => {
+                        debug_assert!(
+                            false,
+                            "known_pkg_options_with_index should already contain all PkgOpt names"
+                        );
+                    }
+                };
             }
         }
 
@@ -277,7 +324,7 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
             where
                 A: serde::de::MapAccess<'de>,
             {
-                let mut variants = Vec::<OptionMap>::new();
+                let mut variants = Vec::<v0::VariantSpec>::new();
                 let mut unchecked = BuildSpec::default();
                 while let Some(key) = map.next_key::<Stringified>()? {
                     match key.as_str() {
@@ -321,8 +368,9 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                 // build options have been loaded
                 unchecked.variants = variants
                     .into_iter()
-                    .map(|o| v0::Variant::from_options(o, &unchecked.options))
-                    .collect();
+                    .map(|o| v0::Variant::from_spec(o, &unchecked.options))
+                    .collect::<Result<Vec<_>>>()
+                    .map_err(serde::de::Error::custom)?;
 
                 Ok(UncheckedBuildSpec(unchecked))
             }
