@@ -9,6 +9,7 @@ use futures::Stream;
 use relative_path::RelativePath;
 
 use crate::config::ToAddress;
+use crate::graph::ObjectProto;
 use crate::prelude::*;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{EntryType, OpenRepositoryError, OpenRepositoryResult};
@@ -156,7 +157,7 @@ impl graph::DatabaseView for ProxyRepository {
 
 #[async_trait::async_trait]
 impl graph::Database for ProxyRepository {
-    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
+    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         self.primary.write_object(obj).await?;
         Ok(())
     }

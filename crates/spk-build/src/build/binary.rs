@@ -910,21 +910,19 @@ where
         .commit_layer(runtime)
         .await?;
     let manifest = repo
-        .read_manifest(layer.manifest)
+        .read_manifest(*layer.manifest())
         .await?
         .to_tracking_manifest();
     let manifests = split_manifest_by_component(package.ident(), &manifest, package.components())?;
     let mut committed = HashMap::with_capacity(manifests.len());
     for (component, manifest) in manifests {
-        let manifest = spfs::graph::Manifest::from(&manifest);
-        let layer = spfs::graph::Layer {
-            manifest: manifest.digest().unwrap(),
-        };
+        let manifest = manifest.to_graph_manifest();
+        let layer = spfs::graph::Layer::new(&manifest.digest().unwrap());
         let layer_digest = layer.digest().unwrap();
         #[rustfmt::skip]
         tokio::try_join!(
-            async { repo.write_object(&manifest.into()).await },
-            async { repo.write_object(&layer.into()).await }
+            async { repo.write_object(&manifest).await },
+            async { repo.write_object(&layer).await }
         )?;
         committed.insert(component, layer_digest);
     }

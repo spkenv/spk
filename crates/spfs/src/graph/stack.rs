@@ -40,11 +40,11 @@ impl std::fmt::Debug for Stack {
 }
 
 impl Stack {
-    pub fn from_encodable<E, I>(items: I) -> Result<Self>
+    pub fn from_digestible<D, I>(items: I) -> Result<Self>
     where
-        E: encoding::Encodable,
-        Error: std::convert::From<E::Error>,
-        I: IntoIterator<Item = E>,
+        D: encoding::Digestible,
+        Error: std::convert::From<D::Error>,
+        I: IntoIterator<Item = D>,
     {
         let mut stack = Self { bottom: None };
         for item in items.into_iter() {

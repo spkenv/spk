@@ -18,9 +18,9 @@ message Object {
         Platform platform = 1;
         Layer layer = 2;
         Manifest manifest = 3;
-        Tree tree = 4;
+        Tree tree = 4 [deprecated = true];
         Blob blob = 5;
-        bool mask = 6;
+        bool mask = 6 [deprecated = true];
     }
 }
 

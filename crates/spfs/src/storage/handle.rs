@@ -15,6 +15,7 @@ use super::prelude::*;
 use super::repository::Ref;
 use super::tag::TagSpecAndTagStream;
 use super::RepositoryHandle;
+use crate::graph::ObjectProto;
 use crate::tracking::{self, BlobRead};
 use crate::{graph, Result};
 
@@ -169,7 +170,7 @@ impl DatabaseView for RepositoryHandle {
 
 #[async_trait::async_trait]
 impl Database for RepositoryHandle {
-    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
+    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         each_variant!(self, repo, { repo.write_object(obj).await })
     }
 
@@ -329,7 +330,7 @@ impl DatabaseView for Arc<RepositoryHandle> {
 
 #[async_trait::async_trait]
 impl Database for Arc<RepositoryHandle> {
-    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
+    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         each_variant!(&**self, repo, { repo.write_object(obj).await })
     }
 

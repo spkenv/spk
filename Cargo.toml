@@ -50,6 +50,7 @@ dirs = "5.0"
 dunce = "1.0.4"
 dyn-clone = "1.0"
 flatbuffers = "23.5.26"
+flatbuffers-owned = "0.2"
 futures = "0.3.28"
 futures-core = "0.3.28"
 fuser = "0.12"
@@ -67,7 +68,7 @@ progress_bar_derive_macro = { path = "crates/progress_bar_derive_macro" }
 prost = "0.12.1"
 rand = "0.8.5"
 ring = "0.16.15"
-rstest = "0.15.0"
+rstest = "0.18"
 sentry = { version = "0.27.0" }
 sentry-miette = { version = "0.1.0", path = "crates/sentry-miette" }
 sentry-tracing = { version = "0.27.0" }

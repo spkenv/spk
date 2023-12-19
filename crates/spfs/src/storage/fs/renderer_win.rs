@@ -11,12 +11,11 @@ use chrono::{DateTime, Utc};
 use futures::{Stream, TryFutureExt, TryStreamExt};
 use tokio::sync::Semaphore;
 
-use crate::encoding::{self, Encodable};
+use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::fs::{OpenFsRepository, RenderReporter, SilentRenderReporter};
-use crate::storage::prelude::*;
 use crate::storage::LocalRepository;
-use crate::{graph, tracking, Error, OsError, Result};
+use crate::{encoding, graph, tracking, Error, OsError, Result};
 
 #[cfg(test)]
 #[path = "./renderer_test.rs"]
@@ -241,14 +240,15 @@ where
             .map_err(|err| err.wrap("resolve stack to layers"))?;
         let mut futures = futures::stream::FuturesOrdered::new();
         for layer in layers {
+            let digest = *layer.manifest();
             let fut = self
                 .repo
-                .read_manifest(layer.manifest)
-                .map_err(move |err| err.wrap(format!("read manifest {}", layer.manifest)))
+                .read_manifest(digest)
+                .map_err(move |err| err.wrap(format!("read manifest {digest}")))
                 .and_then(move |manifest| async move {
                     self.render_manifest(&manifest, render_type)
                         .await
-                        .map_err(move |err| err.wrap(format!("render manifest {}", layer.manifest)))
+                        .map_err(move |err| err.wrap(format!("render manifest {digest}")))
                 });
             futures.push_back(fut);
         }
@@ -272,13 +272,13 @@ where
         let layers = crate::resolve::resolve_stack_to_layers_with_repo(&stack, self.repo).await?;
         let mut manifests = Vec::with_capacity(layers.len());
         for layer in layers {
-            manifests.push(self.repo.read_manifest(layer.manifest).await?);
+            manifests.push(self.repo.read_manifest(*layer.manifest()).await?);
         }
         let mut manifest = tracking::Manifest::default();
         for next in manifests.into_iter() {
             manifest.update(&next.to_tracking_manifest());
         }
-        let manifest = graph::Manifest::from(&manifest);
+        let manifest = manifest.to_graph_manifest();
         self.render_manifest_into_dir(&manifest, target_dir, render_type)
             .await
     }

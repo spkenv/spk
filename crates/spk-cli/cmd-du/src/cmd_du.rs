@@ -13,7 +13,8 @@ use colored::Colorize;
 use futures::{Stream, TryStreamExt};
 use itertools::Itertools;
 use miette::Result;
-use spfs::graph::Object;
+use spfs::graph::object::Enum;
+use spfs::prelude::*;
 use spfs::tracking::Entry;
 use spfs::Digest;
 use spk_cli_common::{flags, CommandArgs, Run};
@@ -338,23 +339,23 @@ impl<T: Output> Du<T> {
 
                                 let spk_storage::RepositoryHandle::SPFS(repo) = repo else { continue; };
 
-                                let mut item = repo.read_ref(digest.to_string().as_str()).await?;
+                                let mut item = repo.read_object(digest).await?;
                                 let mut items_to_process: Vec<spfs::graph::Object> = vec![item];
                                 while !items_to_process.is_empty() {
                                     let mut next_iter_objects: Vec<spfs::graph::Object> = Vec::new();
                                     for object in items_to_process.iter() {
-                                        match object {
-                                            Object::Platform(object) => {
-                                                for digest in object.stack.iter_bottom_up() {
-                                                    item = repo.read_object(digest).await?;
+                                        match object.to_enum() {
+                                            Enum::Platform(object) => {
+                                                for digest in object.iter_bottom_up() {
+                                                    item = repo.read_object(*digest).await?;
                                                     next_iter_objects.push(item);
                                                 }
                                             }
-                                            Object::Layer(object) => {
-                                                item = repo.read_object(object.manifest).await?;
+                                            Enum::Layer(object) => {
+                                                item = repo.read_object(*object.manifest()).await?;
                                                 next_iter_objects.push(item);
                                             }
-                                            Object::Manifest(object) => {
+                                            Enum::Manifest(object) => {
                                                 let tracking_manifest = object.to_tracking_manifest();
                                                 let root_entry = tracking_manifest.take_root();
                                                 let mut walked_entries = root_entry.walk();
@@ -367,9 +368,7 @@ impl<T: Output> Du<T> {
                                                     }
                                                 }
                                             }
-                                            Object::Tree(_) => self.output.warn(format_args!("Tree object cannot have disk usage generated")),
-                                            Object::Blob(_) => self.output.warn(format_args!("Blob object cannot have disk usage generated")),
-                                            Object::Mask => ()
+                                            Enum::Blob(_) => self.output.warn(format_args!("Blob object cannot have disk usage generated")),
                                         }
                                     }
                                     items_to_process = std::mem::take(&mut next_iter_objects);

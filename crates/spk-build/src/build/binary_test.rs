@@ -592,7 +592,7 @@ async fn test_build_package_source_cleanup() {
     let repo = config.get_local_repository().await.unwrap();
     let layer = repo.read_layer(digest).await.unwrap();
     let manifest = repo
-        .read_manifest(layer.manifest)
+        .read_manifest(*layer.manifest())
         .await
         .unwrap()
         .to_tracking_manifest();
@@ -682,7 +682,7 @@ async fn test_build_filters_unmodified_files() {
         let repo = config.get_local_repository().await.unwrap();
         let layer = repo.read_layer(digest).await.unwrap();
         let manifest = repo
-            .read_manifest(layer.manifest)
+            .read_manifest(*layer.manifest())
             .await
             .unwrap()
             .to_tracking_manifest();

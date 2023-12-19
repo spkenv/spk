@@ -428,9 +428,9 @@ where
         };
         self.reporter.visit_object(&obj);
         result.visited_objects += 1;
-        if let graph::Object::Blob(b) = &obj {
+        if let graph::object::Enum::Blob(b) = obj.to_enum() {
             result.visited_payloads += 1;
-            self.reporter.visit_payload(b);
+            self.reporter.visit_payload(&b);
         }
         let mut walk_stream = futures::stream::iter(obj.child_objects())
             .then(|child| ready(self.discover_attached_objects(child).boxed()))
@@ -491,8 +491,8 @@ where
             })
             // also try to remove the corresponding payload
             // each removed blob
-            .try_filter_map(|obj| match obj {
-                graph::Object::Blob(blob) => ready(Ok(Some(blob))),
+            .try_filter_map(|obj| match obj.into_enum() {
+                graph::object::Enum::Blob(blob) => ready(Ok(Some(blob))),
                 _ => ready(Ok(None)),
             })
             .and_then(|blob| {
@@ -503,7 +503,7 @@ where
                 result.visited_payloads += 1;
                 let future = self
                     .repo
-                    .remove_payload(blob.payload)
+                    .remove_payload(*blob.payload())
                     .map(|res| {
                         if let Err(Error::UnknownObject(_)) = res {
                             return Ok(());
@@ -517,7 +517,7 @@ where
             .boxed();
         let mut result = CleanResult::default();
         while let Some(blob) = stream.try_next().await? {
-            result.removed_payloads.insert(blob.payload);
+            result.removed_payloads.insert(*blob.payload());
             self.reporter.payload_removed(&blob)
         }
         drop(stream);
@@ -532,7 +532,7 @@ where
                 // TODO: this should be able to get the size of the payload, but
                 // currently there is no way to do this unless you start with
                 // the blob
-                let blob = graph::Blob { payload, size: 0 };
+                let blob = graph::Blob::new(&payload, 0);
                 ready(Ok(Some(blob)))
             })
             .and_then(|blob| {
@@ -543,7 +543,7 @@ where
                 }
                 let future = self
                     .repo
-                    .remove_payload(blob.payload)
+                    .remove_payload(*blob.payload())
                     .map(|res| {
                         if let Err(Error::UnknownObject(_)) = res {
                             return Ok(());
@@ -556,7 +556,7 @@ where
             .try_buffer_unordered(self.removal_concurrency)
             .boxed();
         while let Some(blob) = stream.try_next().await? {
-            result.removed_payloads.insert(blob.payload);
+            result.removed_payloads.insert(*blob.payload());
             self.reporter.payload_removed(&blob)
         }
         drop(stream);
@@ -861,19 +861,19 @@ pub struct TracingCleanReporter;
 
 impl CleanReporter for TracingCleanReporter {
     fn visit_tag(&self, tag: &tracking::Tag) {
-        tracing::info!(?tag, "visit tag");
+        tracing::info!(%tag, "visit tag");
     }
 
     fn tag_removed(&self, tag: &tracking::Tag) {
-        tracing::info!(?tag, "tag removed");
+        tracing::info!(%tag, "tag removed");
     }
 
     fn visit_object(&self, object: &graph::Object) {
-        tracing::info!(?object, "visit object");
+        tracing::info!(%object, "visit object");
     }
 
     fn object_removed(&self, object: &graph::Object) {
-        tracing::info!(?object, "object removed");
+        tracing::info!(%object, "object removed");
     }
 
     fn visit_payload(&self, payload: &graph::Blob) {
@@ -885,19 +885,19 @@ impl CleanReporter for TracingCleanReporter {
     }
 
     fn visit_proxy(&self, proxy: &encoding::Digest) {
-        tracing::info!(?proxy, "visit proxy");
+        tracing::info!(%proxy, "visit proxy");
     }
 
     fn proxy_removed(&self, proxy: &encoding::Digest) {
-        tracing::info!(?proxy, "proxy removed");
+        tracing::info!(%proxy, "proxy removed");
     }
 
     fn visit_render(&self, render: &encoding::Digest) {
-        tracing::info!(?render, "visit render");
+        tracing::info!(%render, "visit render");
     }
 
     fn render_removed(&self, render: &encoding::Digest) {
-        tracing::info!(?render, "render removed");
+        tracing::info!(%render, "render removed");
     }
 
     fn error_encountered(&self, err: &Error) {

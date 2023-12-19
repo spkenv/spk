@@ -5,8 +5,7 @@ use std::collections::HashSet;
 use std::pin::Pin;
 
 use async_trait::async_trait;
-use encoding::Encodable;
-use graph::Blob;
+use encoding::prelude::*;
 use tokio_stream::StreamExt;
 
 use super::fs::{FsHashStore, RenderStore};
@@ -107,8 +106,8 @@ pub trait Repository:
         // Safety: it is unsafe to write data without also creating a blob
         // to track that payload, which is exactly what this function is doing
         let (digest, size) = unsafe { self.write_data(reader).await? };
-        let blob = Blob::new(digest, size);
-        self.write_object(&graph::Object::Blob(blob)).await?;
+        let blob = graph::Blob::new(&digest, size);
+        self.write_object(&blob).await?;
         Ok(digest)
     }
 }

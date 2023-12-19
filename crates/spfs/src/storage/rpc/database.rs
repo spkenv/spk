@@ -8,7 +8,8 @@ use std::pin::Pin;
 use futures::{Stream, TryStreamExt};
 use proto::RpcResult;
 
-use crate::{encoding, graph, proto, storage, Result};
+use crate::graph::{self, ObjectProto};
+use crate::{encoding, proto, storage, Result};
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for super::RpcRepository {
@@ -67,9 +68,9 @@ impl graph::DatabaseView for super::RpcRepository {
 
 #[async_trait::async_trait]
 impl graph::Database for super::RpcRepository {
-    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
+    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         let request = proto::WriteObjectRequest {
-            object: Some(obj.into()),
+            object: Some((&obj.to_enum()).into()),
         };
         self.db_client
             .clone()

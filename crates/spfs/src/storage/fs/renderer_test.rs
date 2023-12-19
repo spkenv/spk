@@ -7,9 +7,8 @@ use std::sync::Arc;
 use rstest::rstest;
 
 use super::was_render_completed;
-use crate::encoding::Encodable;
+use crate::encoding::prelude::*;
 use crate::fixtures::*;
-use crate::graph::Manifest;
 use crate::storage::fs::{FsRepository, OpenFsRepository};
 use crate::storage::{Repository, RepositoryHandle};
 use crate::tracking;
@@ -41,12 +40,15 @@ async fn test_render_manifest(tmpdir: tempfile::TempDir) {
         }
     }
 
-    let expected = Manifest::from(&manifest);
+    let expected = manifest.to_graph_manifest();
     let rendered_path = crate::storage::fs::Renderer::new(&storage)
         .render_manifest(&expected, None)
         .await
         .expect("should successfully render manifest");
-    let actual = Manifest::from(&tracking::compute_manifest(rendered_path).await.unwrap());
+    let actual = tracking::compute_manifest(rendered_path)
+        .await
+        .unwrap()
+        .to_graph_manifest();
     assert_eq!(actual.digest().unwrap(), expected.digest().unwrap());
 }
 
@@ -69,7 +71,7 @@ async fn test_render_manifest_with_repo(tmpdir: tempfile::TempDir) {
         .commit_dir(&src_dir)
         .await
         .unwrap();
-    let manifest = Manifest::from(&expected_manifest);
+    let manifest = expected_manifest.to_graph_manifest();
 
     // Safety: tmprepo was created as an FsRepository
     let tmprepo = match &*tmprepo {
@@ -95,7 +97,7 @@ async fn test_render_manifest_with_repo(tmpdir: tempfile::TempDir) {
     println!("DIFFS:");
     println!("{}", crate::io::format_diffs(diffs.iter()));
     assert_eq!(
-        Manifest::from(&expected_manifest).digest().unwrap(),
-        Manifest::from(&rendered_manifest).digest().unwrap()
+        expected_manifest.to_graph_manifest().digest().unwrap(),
+        rendered_manifest.to_graph_manifest().digest().unwrap()
     );
 }

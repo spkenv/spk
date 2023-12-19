@@ -134,10 +134,10 @@ impl RenderSummaryReporter {
 }
 
 impl RenderReporter for RenderSummaryReporter {
-    fn rendered_blob(&self, entry: &crate::graph::Entry, render_blob_result: &RenderBlobResult) {
+    fn rendered_blob(&self, entry: crate::graph::Entry<'_>, render_blob_result: &RenderBlobResult) {
         self.render_summary.add(RenderBlobResultWithEntrySize(
             render_blob_result,
-            entry.size as usize,
+            entry.size() as usize,
         ));
     }
 }

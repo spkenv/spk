@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use libc::c_void;
+use spfs::prelude::*;
 use spfs::tracking::{Entry, EntryKind};
 use spfs::OsError;
 use tokio::io::AsyncReadExt;
@@ -65,12 +66,12 @@ impl Mount {
         repos: Vec<Arc<spfs::storage::RepositoryHandle>>,
         manifest: spfs::tracking::Manifest,
     ) -> spfs::Result<Self> {
-        /// This syntax describes the default security descriptor settings
-        /// that are used for files and directories in the mounted file system.
-        /// It essentially provides a sane default ownership as well as
-        /// read/write access to all users.
-        /// More information about the SDD language and syntax can be found here:
-        /// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/4f4251cc-23b6-44b6-93ba-69688422cb06
+        // This syntax describes the default security descriptor settings
+        // that are used for files and directories in the mounted file system.
+        // It essentially provides a sane default ownership as well as
+        // read/write access to all users.
+        // More information about the SDD language and syntax can be found here:
+        // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/4f4251cc-23b6-44b6-93ba-69688422cb06
         let sddl = windows::core::w!("O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;WD)");
         let mut psecurity_descriptor = PSECURITY_DESCRIPTOR(std::ptr::null_mut());
         let mut security_descriptor_size: u32 = 0;

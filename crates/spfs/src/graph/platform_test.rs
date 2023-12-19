@@ -6,7 +6,7 @@ use rstest::rstest;
 
 use super::Platform;
 use crate::encoding;
-use crate::encoding::{Decodable, Encodable};
+use crate::encoding::prelude::*;
 
 #[rstest]
 fn test_platform_encoding() {
@@ -16,6 +16,9 @@ fn test_platform_encoding() {
 
     let mut stream = Vec::new();
     expected.encode(&mut stream).unwrap();
-    let actual = Platform::decode(&mut stream.as_slice()).unwrap();
-    assert_eq!(actual, expected);
+    let actual = crate::graph::Object::decode(&mut stream.as_slice())
+        .unwrap()
+        .into_platform()
+        .unwrap();
+    assert_eq!(actual.digest().unwrap(), expected.digest().unwrap());
 }

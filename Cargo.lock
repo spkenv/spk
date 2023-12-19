@@ -1062,6 +1062,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "flatbuffers-owned"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9f483d34a2660327292182068fb822485e53049f15aad623ff04b476417b232"
+dependencies = [
+ "flatbuffers",
+ "paste",
+]
+
+[[package]]
 name = "flatc-rust"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2895,7 +2905,19 @@ checksum = "e9c9dc66cc29792b663ffb5269be669f1613664e69ad56441fdb895c2347b930"
 dependencies = [
  "futures",
  "futures-timer",
- "rstest_macros",
+ "rstest_macros 0.14.0",
+ "rustc_version",
+]
+
+[[package]]
+name = "rstest"
+version = "0.18.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97eeab2f3c0a199bc4be135c36c924b6590b88c377d416494288c14f2db30199"
+dependencies = [
+ "futures",
+ "futures-timer",
+ "rstest_macros 0.18.2",
  "rustc_version",
 ]
 
@@ -2910,6 +2932,23 @@ dependencies = [
  "quote",
  "rustc_version",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "rstest_macros"
+version = "0.18.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d428f8247852f894ee1be110b375111b586d4fa431f6c46e64ba5a0dcccbe605"
+dependencies = [
+ "cfg-if",
+ "glob",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "relative-path",
+ "rustc_version",
+ "syn 2.0.38",
+ "unicode-ident",
 ]
 
 [[package]]
@@ -3376,6 +3415,7 @@ dependencies = [
  "async-recursion",
  "async-stream",
  "async-trait",
+ "bytes",
  "cached",
  "caps",
  "chrono",
@@ -3388,6 +3428,7 @@ dependencies = [
  "dirs",
  "dunce",
  "faccess",
+ "flatbuffers",
  "fuser",
  "futures",
  "futures-core",
@@ -3402,6 +3443,7 @@ dependencies = [
  "nonempty",
  "num_cpus",
  "once_cell",
+ "parsedbuf",
  "pin-project-lite",
  "procfs",
  "progress_bar_derive_macro",
@@ -3410,7 +3452,7 @@ dependencies = [
  "rand 0.8.5",
  "relative-path",
  "ring",
- "rstest",
+ "rstest 0.15.0",
  "semver",
  "sentry",
  "serde",
@@ -3614,7 +3656,7 @@ dependencies = [
  "miette",
  "rand 0.8.5",
  "ring",
- "rstest",
+ "rstest 0.15.0",
  "spfs-proto",
  "thiserror",
  "tokio",
@@ -3626,11 +3668,12 @@ version = "0.38.0"
 dependencies = [
  "data-encoding",
  "flatbuffers",
+ "flatbuffers-owned",
  "flatc-rust",
  "futures",
  "miette",
  "ring",
- "rstest",
+ "rstest 0.15.0",
  "serde",
  "thiserror",
 ]
@@ -3713,7 +3756,7 @@ dependencies = [
  "futures",
  "miette",
  "relative-path",
- "rstest",
+ "rstest 0.18.2",
  "serde",
  "serde_json",
  "serde_yaml 0.9.27",
@@ -3744,7 +3787,7 @@ dependencies = [
  "nom",
  "nom-supreme",
  "once_cell",
- "rstest",
+ "rstest 0.18.2",
  "sentry",
  "sentry-tracing",
  "serde_json",
@@ -3776,7 +3819,7 @@ dependencies = [
  "futures",
  "itertools 0.10.5",
  "miette",
- "rstest",
+ "rstest 0.18.2",
  "serde",
  "serde_json",
  "serde_yaml 0.9.27",
@@ -3803,7 +3846,7 @@ dependencies = [
  "miette",
  "nom",
  "nom-supreme",
- "rstest",
+ "rstest 0.18.2",
  "spfs",
  "spk-cli-common",
  "spk-schema",
@@ -3823,7 +3866,7 @@ dependencies = [
  "colored",
  "futures",
  "miette",
- "rstest",
+ "rstest 0.18.2",
  "spfs",
  "spfs-cli-common",
  "spk-build",
@@ -3866,7 +3909,7 @@ dependencies = [
  "async-trait",
  "clap 4.4.7",
  "miette",
- "rstest",
+ "rstest 0.18.2",
  "spk-cli-common",
  "spk-cmd-make-binary",
  "spk-cmd-make-source",
@@ -3979,7 +4022,7 @@ dependencies = [
  "clap 4.4.7",
  "futures",
  "miette",
- "rstest",
+ "rstest 0.18.2",
  "spfs",
  "spk-build",
  "spk-cli-common",
@@ -4054,7 +4097,7 @@ dependencies = [
  "async-trait",
  "clap 4.4.7",
  "miette",
- "rstest",
+ "rstest 0.18.2",
  "spfs",
  "spk-build",
  "spk-cli-common",
@@ -4076,7 +4119,7 @@ dependencies = [
  "dirs",
  "miette",
  "once_cell",
- "rstest",
+ "rstest 0.15.0",
  "serde",
  "serde_json",
  "thiserror",
@@ -4128,7 +4171,7 @@ dependencies = [
  "regex",
  "relative-path",
  "ring",
- "rstest",
+ "rstest 0.18.2",
  "serde",
  "serde_json",
  "serde_yaml 0.9.27",
@@ -4165,7 +4208,7 @@ dependencies = [
  "rand 0.8.5",
  "relative-path",
  "ring",
- "rstest",
+ "rstest 0.18.2",
  "serde",
  "serde_yaml 0.9.27",
  "spfs",
@@ -4190,7 +4233,7 @@ dependencies = [
  "nom-supreme",
  "proptest",
  "relative-path",
- "rstest",
+ "rstest 0.18.2",
  "serde",
  "serde_yaml 0.9.27",
  "spk-schema-foundation",
@@ -4206,7 +4249,7 @@ dependencies = [
  "liquid-core",
  "once_cell",
  "regex",
- "rstest",
+ "rstest 0.15.0",
  "serde",
  "serde_json",
  "spk-schema-foundation",
@@ -4257,7 +4300,7 @@ dependencies = [
  "num-format",
  "once_cell",
  "priority-queue",
- "rstest",
+ "rstest 0.18.2",
  "sentry",
  "serde_json",
  "signal-hook",
@@ -4292,7 +4335,7 @@ dependencies = [
  "miette",
  "once_cell",
  "priority-queue",
- "rstest",
+ "rstest 0.18.2",
  "serde_json",
  "serde_yaml 0.9.27",
  "spfs",
@@ -4326,7 +4369,7 @@ dependencies = [
  "itertools 0.10.5",
  "miette",
  "once_cell",
- "rstest",
+ "rstest 0.18.2",
  "spk-config",
  "spk-schema",
  "spk-solve-macros",
@@ -4362,7 +4405,7 @@ dependencies = [
  "itertools 0.10.5",
  "miette",
  "once_cell",
- "rstest",
+ "rstest 0.18.2",
  "serde_yaml 0.9.27",
  "spfs",
  "spk-schema",
@@ -4396,7 +4439,7 @@ dependencies = [
  "regex",
  "relative-path",
  "ring",
- "rstest",
+ "rstest 0.18.2",
  "sentry",
  "serde",
  "serde_json",

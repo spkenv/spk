@@ -135,17 +135,15 @@ impl From<super::Error> for Error {
     }
 }
 
-impl From<&graph::Object> for super::Object {
-    fn from(source: &graph::Object) -> Self {
+impl From<&graph::object::Enum> for super::Object {
+    fn from(source: &graph::object::Enum) -> Self {
         use super::object::Kind;
         super::Object {
             kind: Some(match source {
-                graph::Object::Platform(o) => Kind::Platform(o.into()),
-                graph::Object::Layer(o) => Kind::Layer(o.into()),
-                graph::Object::Manifest(o) => Kind::Manifest(o.into()),
-                graph::Object::Tree(o) => Kind::Tree(o.into()),
-                graph::Object::Blob(o) => Kind::Blob(o.into()),
-                graph::Object::Mask => Kind::Mask(true),
+                graph::object::Enum::Platform(o) => Kind::Platform(o.into()),
+                graph::object::Enum::Layer(o) => Kind::Layer(o.into()),
+                graph::object::Enum::Manifest(o) => Kind::Manifest(o.into()),
+                graph::object::Enum::Blob(o) => Kind::Blob(o.into()),
             }),
         }
     }
@@ -165,12 +163,14 @@ impl TryFrom<super::Object> for graph::Object {
     fn try_from(source: super::Object) -> Result<Self> {
         use super::object::Kind;
         match source.kind {
-            Some(Kind::Platform(o)) => Ok(graph::Object::Platform(o.try_into()?)),
-            Some(Kind::Layer(o)) => Ok(graph::Object::Layer(o.try_into()?)),
-            Some(Kind::Manifest(o)) => Ok(graph::Object::Manifest(o.try_into()?)),
-            Some(Kind::Tree(o)) => Ok(graph::Object::Tree(o.try_into()?)),
-            Some(Kind::Blob(o)) => Ok(graph::Object::Blob(o.try_into()?)),
-            Some(Kind::Mask(_)) => Ok(graph::Object::Mask),
+            Some(Kind::Platform(o)) => Ok(graph::Platform::try_from(o)?.into_object()),
+            Some(Kind::Layer(o)) => Ok(graph::Layer::try_from(o)?.into_object()),
+            Some(Kind::Manifest(o)) => Ok(graph::Manifest::try_from(o)?.into_object()),
+            Some(Kind::Blob(o)) => Ok(graph::Blob::try_from(o)?.into_object()),
+            Some(Kind::Tree(_)) | Some(Kind::Mask(_)) => Err(Error::String(format!(
+                "Unexpected and unsupported object kind {:?}",
+                source.kind
+            ))),
             None => Err(Error::String(
                 "Expected non-empty object kind in rpc message".to_string(),
             )),
@@ -181,7 +181,7 @@ impl TryFrom<super::Object> for graph::Object {
 impl From<&graph::Platform> for super::Platform {
     fn from(source: &graph::Platform) -> Self {
         Self {
-            stack: source.stack.iter_bottom_up().map(Into::into).collect(),
+            stack: source.iter_bottom_up().map(Into::into).collect(),
         }
     }
 }
@@ -190,20 +190,20 @@ impl TryFrom<super::Platform> for graph::Platform {
     type Error = Error;
 
     fn try_from(source: super::Platform) -> Result<Self> {
-        Ok(Self {
-            stack: source
+        Ok(Self::from(
+            source
                 .stack
                 .into_iter()
                 .map(TryInto::try_into)
-                .collect::<Result<_>>()?,
-        })
+                .collect::<Result<graph::Stack>>()?,
+        ))
     }
 }
 
 impl From<&graph::Layer> for super::Layer {
     fn from(source: &graph::Layer) -> Self {
         Self {
-            manifest: Some((&source.manifest).into()),
+            manifest: Some(source.manifest().into()),
         }
     }
 }
@@ -211,19 +211,17 @@ impl From<&graph::Layer> for super::Layer {
 impl TryFrom<super::Layer> for graph::Layer {
     type Error = Error;
     fn try_from(source: super::Layer) -> Result<Self> {
-        Ok(Self {
-            manifest: convert_digest(source.manifest)?,
-        })
+        Ok(Self::new(&convert_digest(source.manifest)?))
     }
 }
 
 impl From<&graph::Manifest> for super::Manifest {
     fn from(source: &graph::Manifest) -> Self {
-        let mut trees = source.iter_trees();
-        let root = trees.next().map(Into::into);
+        let mut trees = source.iter_trees().map(|t| (&t).into());
+        let root = trees.next();
         Self {
             root,
-            trees: trees.map(Into::into).collect(),
+            trees: trees.collect(),
         }
     }
 }
@@ -231,85 +229,98 @@ impl From<&graph::Manifest> for super::Manifest {
 impl TryFrom<super::Manifest> for graph::Manifest {
     type Error = Error;
     fn try_from(source: super::Manifest) -> Result<Self> {
-        let mut out = Self::new(source.root.try_into()?);
-        for tree in source.trees.into_iter() {
-            out.insert_tree(tree.try_into()?)?;
-        }
-        Ok(out)
-    }
-}
-
-impl From<&graph::Tree> for super::Tree {
-    fn from(source: &graph::Tree) -> Self {
-        Self {
-            entries: source.entries.iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl TryFrom<Option<super::Tree>> for graph::Tree {
-    type Error = Error;
-    fn try_from(source: Option<super::Tree>) -> Result<Self> {
-        source
-            .ok_or_else(|| Error::String("Expected non-null tree in rpc message".into()))?
-            .try_into()
-    }
-}
-
-impl TryFrom<super::Tree> for graph::Tree {
-    type Error = Error;
-    fn try_from(source: super::Tree) -> Result<Self> {
-        Ok(Self {
-            entries: source
+        let mut builder = flatbuffers::FlatBufferBuilder::with_capacity(256);
+        let make_tree = |entry: super::Tree| {
+            let entries = entry
                 .entries
                 .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<_>>()?,
-        })
+                .map(|entry: super::Entry| {
+                    let kind = match super::EntryKind::try_from(entry.kind) {
+                        Ok(super::EntryKind::Tree) => spfs_proto::EntryKind::Tree,
+                        Ok(super::EntryKind::Blob) => spfs_proto::EntryKind::Blob,
+                        Ok(super::EntryKind::Mask) => spfs_proto::EntryKind::Mask,
+                        Err(_) => return Err("Received unknown entry kind in rpc data".into()),
+                    };
+                    let name = builder.create_string(&entry.name);
+                    Ok(spfs_proto::Entry::create(
+                        &mut builder,
+                        &spfs_proto::EntryArgs {
+                            kind,
+                            object: Some(&convert_digest(entry.object)?),
+                            mode: entry.mode,
+                            size_: entry.size,
+                            name: Some(name),
+                        },
+                    ))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let entries = builder.create_vector(&entries);
+            Ok(spfs_proto::Tree::create(
+                &mut builder,
+                &spfs_proto::TreeArgs {
+                    entries: Some(entries),
+                },
+            ))
+        };
+        let trees = source
+            .root
+            .into_iter()
+            .chain(source.trees)
+            .map(make_tree)
+            .collect::<Result<Vec<_>>>()?;
+        let trees = builder.create_vector(&trees);
+        let manifest = spfs_proto::Manifest::create(
+            &mut builder,
+            &spfs_proto::ManifestArgs { trees: Some(trees) },
+        );
+        let any = spfs_proto::AnyObject::create(
+            &mut builder,
+            &spfs_proto::AnyObjectArgs {
+                object_type: spfs_proto::Object::Manifest,
+                object: Some(manifest.as_union_value()),
+            },
+        );
+        builder.finish_minimal(any);
+        Ok(unsafe {
+            // Safety: buf must contain an AnyObject of the provided
+            // type, which is what we just constructed
+            graph::Object::with_default_header(builder.finished_data(), graph::ObjectKind::Manifest)
+        }
+        .into_manifest()
+        .expect("known to be a manifest"))
     }
 }
 
-impl From<&graph::Entry> for super::Entry {
+impl<'buf> From<&graph::Tree<'buf>> for super::Tree {
+    fn from(source: &graph::Tree) -> Self {
+        Self {
+            entries: source.entries().map(|e| (&e).into()).collect(),
+        }
+    }
+}
+
+impl<'buf> From<&graph::Entry<'buf>> for super::Entry {
     fn from(source: &graph::Entry) -> Self {
-        let kind = match source.kind {
+        let kind = match source.kind() {
             tracking::EntryKind::Tree => super::EntryKind::Tree as i32,
             tracking::EntryKind::Blob => super::EntryKind::Blob as i32,
             tracking::EntryKind::Mask => super::EntryKind::Mask as i32,
         };
         Self {
-            object: Some((&source.object).into()),
+            object: Some((source.object()).into()),
             kind,
-            mode: source.mode,
-            size: source.size,
-            name: source.name.clone(),
+            mode: source.mode(),
+            size: source.size(),
+            name: source.name().to_owned(),
         }
-    }
-}
-
-impl TryFrom<super::Entry> for graph::Entry {
-    type Error = Error;
-    fn try_from(source: super::Entry) -> Result<Self> {
-        let kind = match super::EntryKind::try_from(source.kind) {
-            Ok(super::EntryKind::Tree) => tracking::EntryKind::Tree,
-            Ok(super::EntryKind::Blob) => tracking::EntryKind::Blob,
-            Ok(super::EntryKind::Mask) => tracking::EntryKind::Mask,
-            Err(_) => return Err("Received unknown entry kind in rpm data".into()),
-        };
-        Ok(Self {
-            object: convert_digest(source.object)?,
-            kind,
-            mode: source.mode,
-            size: source.size,
-            name: source.name,
-        })
     }
 }
 
 impl From<&graph::Blob> for super::Blob {
     fn from(source: &graph::Blob) -> Self {
         Self {
-            payload: Some((&source.payload).into()),
-            size: source.size,
+            payload: Some(source.payload().into()),
+            size: source.size(),
         }
     }
 }
@@ -317,10 +328,7 @@ impl From<&graph::Blob> for super::Blob {
 impl TryFrom<super::Blob> for graph::Blob {
     type Error = Error;
     fn try_from(source: super::Blob) -> Result<Self> {
-        Ok(Self {
-            payload: convert_digest(source.payload)?,
-            size: source.size,
-        })
+        Ok(Self::new(&convert_digest(source.payload)?, source.size))
     }
 }
 

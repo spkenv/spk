@@ -4,9 +4,10 @@
 
 use async_recursion::async_recursion;
 use relative_path::RelativePath;
-use spfs_encoding::{Digest, Encodable};
+use spfs_encoding::prelude::*;
+use spfs_encoding::Digest;
 
-use crate::graph::{self, Object};
+use crate::graph::{self, DatabaseView, Object};
 use crate::{env, status, storage, tracking, Error, Result};
 
 /// Used for items in a list of spfs objects that contain a filepath.
@@ -27,14 +28,7 @@ pub enum ObjectPathEntry {
 impl ObjectPathEntry {
     pub fn digest(&self) -> Result<Digest> {
         match self {
-            ObjectPathEntry::Parent(obj) => match obj {
-                Object::Platform(obj) => obj.digest(),
-                Object::Layer(obj) => obj.digest(),
-                Object::Manifest(obj) => obj.digest(),
-                Object::Blob(obj) => Ok(obj.digest()),
-                Object::Tree(obj) => obj.digest(),
-                Object::Mask => Err(Error::String("spfs Mask object has no digest".to_string())),
-            },
+            ObjectPathEntry::Parent(obj) => Ok(obj.digest()?),
             ObjectPathEntry::FilePath(entry) => Ok(entry.object),
         }
     }
@@ -80,38 +74,38 @@ async fn find_path_in_spfs_item(
 ) -> Result<Vec<ObjectPath>> {
     let mut paths: Vec<ObjectPath> = Vec::new();
 
-    match obj {
-        Object::Platform(obj) => {
-            for reference in obj.stack.iter_bottom_up() {
-                let item = repo.read_object(reference).await?;
+    match obj.to_enum() {
+        graph::object::Enum::Platform(obj) => {
+            for reference in obj.iter_bottom_up() {
+                let item = repo.read_object(*reference).await?;
                 let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
                 for path in paths_to_file {
                     let mut new_path: ObjectPath = Vec::new();
-                    new_path.push(ObjectPathEntry::Parent(Object::Platform(obj.clone())));
+                    new_path.push(ObjectPathEntry::Parent(obj.to_object()));
                     new_path.extend(path);
                     paths.push(new_path);
                 }
             }
         }
 
-        Object::Layer(obj) => {
-            let item = repo.read_object(obj.manifest).await?;
+        graph::object::Enum::Layer(obj) => {
+            let item = repo.read_object(*obj.manifest()).await?;
             let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
             for path in paths_to_file {
                 let mut new_path: ObjectPath = Vec::new();
-                new_path.push(ObjectPathEntry::Parent(Object::Layer(obj.clone())));
+                new_path.push(ObjectPathEntry::Parent(obj.to_object()));
                 new_path.extend(path);
                 paths.push(new_path);
             }
         }
 
-        Object::Manifest(obj) => {
+        graph::object::Enum::Manifest(obj) => {
             let path = RelativePath::new(filepath);
 
             for node in obj.to_tracking_manifest().walk_abs(env::SPFS_DIR) {
                 if node.path == path {
                     let new_path = vec![
-                        ObjectPathEntry::Parent(Object::Manifest(obj.clone())),
+                        ObjectPathEntry::Parent(obj.into_object()),
                         ObjectPathEntry::FilePath(node.entry.clone()),
                     ];
                     paths.push(new_path);
@@ -120,7 +114,7 @@ async fn find_path_in_spfs_item(
             }
         }
 
-        Object::Blob(_) | Object::Tree(_) | Object::Mask => {
+        graph::object::Enum::Blob(_) => {
             // These are not examined here when searching for the
             // filepath because the filepath will be found by walking
             // Manifest objects.
