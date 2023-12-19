@@ -173,14 +173,14 @@ The HostCompat value sets which host- and os-related options are
 automatically added to each build. The values add zero, or more, host
 options to each build, as described in the table:
 
-|  Value     | Adds these host options                        |
-| ---------- | ---------------------------------------------- |
-| **Distro** (default) | "distro", "arch", "os", and the "<distroname>" |
-| **Arch**   | "arch", "os"                                   |
-| **Os**     | "os"                                           |
-| **Full**   |                                                |
+|  Value               |  Adds these host var options                               |  Examples of added host var options            |
+| -------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
+| **Distro** (default) | "distro", "arch", "os", and the "\<distroname\>"           | distro=centos, arch=x86_64, os=linux, centos=7 |
+| **Arch**             | "arch", "os"                                               | arch=x86_64, os=linux                          |
+| **Os**               | "os"                                                       | os=linux                                       |
+| **None**             |                                                            |                                                |
 
-If the host OS has no distroname, "unknown_distro" will be used as the
+If the host OS has no distro name, "unknown_distro" will be used as the
 distro name. If the host OS' distroname is not valid as a var option
 name, it will be converted lossily to a valid var option name.
 
