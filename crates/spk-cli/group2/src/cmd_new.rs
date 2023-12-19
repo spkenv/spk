@@ -40,7 +40,8 @@ impl CommandArgs for New {
 
 fn get_stub(name: &PkgNameBuf) -> String {
     format!(
-        r#"pkg: {name}/0.1.0
+        r#"api: v0/package
+pkg: {name}/0.1.0
 
 build:
 
