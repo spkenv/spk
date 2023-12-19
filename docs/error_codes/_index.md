@@ -31,7 +31,7 @@ Possible resolutions:
 
 - Check the spelling of the remote
 - If you mean for the remote to be specified on the command line, ensure that it follows a url format
-- Check the [spfs config]({{< ref "spfs/configuration" >}}) documentation
+- Check the [spfs config]({{< ref "../spfs/configuration" >}}) documentation
 - Contact your system administrator
 
 ### spfs::failed_to_open_repo
@@ -56,7 +56,7 @@ Spfs repositories can be configured using an address/url. Many repository types,
 Possible resolutions:
 
 - Check the error message for information about which part(s) were invalid
-- Check the [spfs config]({{< ref "spfs/configuration" >}}) documentation for information on the url formats
+- Check the [spfs config]({{< ref "../spfs/configuration" >}}) documentation for information on the url formats
 
 #### spfs::storage::missing_query
 
@@ -65,6 +65,6 @@ Spfs repositories can be configured using an address/url. Many repository types,
 Possible resolutions:
 
 - Add a `?` to the end of the url and try again
-- Check the [spfs config]({{< ref "spfs/configuration" >}}) documentation for information on the url formats
+- Check the [spfs config]({{< ref "../spfs/configuration" >}}) documentation for information on the url formats
 
 
