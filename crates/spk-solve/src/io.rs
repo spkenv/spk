@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::cmp::max;
 use std::collections::VecDeque;
 use std::fmt::{Display, Write};
 use std::pin::Pin;
@@ -427,6 +428,7 @@ pub struct DecisionFormatterBuilder {
     status_bar: bool,
     solver_to_run: MultiSolverKind,
     show_search_space_size: bool,
+    compare_solvers: bool,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -444,6 +446,7 @@ impl Default for DecisionFormatterBuilder {
             status_bar: false,
             solver_to_run: MultiSolverKind::Unchanged,
             show_search_space_size: false,
+            compare_solvers: false,
         }
     }
 }
@@ -527,6 +530,11 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_compare_solvers(&mut self, enable: bool) -> &mut Self {
+        self.compare_solvers = enable;
+        self
+    }
+
     pub fn build(&self) -> DecisionFormatter {
         let too_long_seconds = if self.verbosity_increase_seconds == 0
             || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
@@ -566,6 +574,7 @@ impl DecisionFormatterBuilder {
                 status_bar: self.status_bar,
                 solver_to_run: self.solver_to_run.clone(),
                 show_search_space_size: self.show_search_space_size,
+                compare_solvers: self.compare_solvers,
             },
         }
     }
@@ -624,6 +633,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) status_bar: bool,
     pub(crate) solver_to_run: MultiSolverKind,
     pub(crate) show_search_space_size: bool,
+    pub(crate) compare_solvers: bool,
 }
 
 enum LoopOutcome {
@@ -683,6 +693,13 @@ struct SolverTaskDone {
     pub(crate) can_ignore_failure: bool,
 }
 
+struct SolverResult {
+    pub(crate) solver_kind: MultiSolverKind,
+    pub(crate) solve_time: Duration,
+    pub(crate) solver: Solver,
+    pub(crate) result: Result<(Solution, Arc<tokio::sync::RwLock<spk_solve_graph::Graph>>)>,
+}
+
 #[derive(Debug, Clone)]
 pub struct DecisionFormatter {
     pub(crate) settings: DecisionFormatterSettings,
@@ -705,6 +722,7 @@ impl DecisionFormatter {
                 status_bar: false,
                 solver_to_run: MultiSolverKind::Unchanged,
                 show_search_space_size: false,
+                compare_solvers: false,
             },
         }
     }
@@ -734,7 +752,12 @@ impl DecisionFormatter {
         let start = Instant::now();
         let output_to = OutputKind::Println;
         let loop_outcome = self.run_solver_loop(runtime, output_to).await;
-        self.check_and_output_solver_results(loop_outcome, &start, runtime, output_to)
+        let solve_time = start.elapsed();
+
+        #[cfg(feature = "statsd")]
+        self.send_solver_end_metrics(solve_time);
+
+        self.check_and_output_solver_results(loop_outcome, solve_time, runtime, output_to)
             .await
     }
 
@@ -763,7 +786,12 @@ impl DecisionFormatter {
         let start = Instant::now();
         let output_to = OutputKind::Tracing;
         let loop_outcome = self.run_solver_loop(runtime, output_to).await;
-        self.check_and_output_solver_results(loop_outcome, &start, runtime, output_to)
+        let solve_time = start.elapsed();
+
+        #[cfg(feature = "statsd")]
+        self.send_solver_end_metrics(solve_time);
+
+        self.check_and_output_solver_results(loop_outcome, solve_time, runtime, output_to)
             .await
     }
 
@@ -851,12 +879,64 @@ impl DecisionFormatter {
         tasks
     }
 
+    fn stop_solver_tasks_without_waiting(
+        &self,
+        tasks: &FuturesUnordered<tokio::task::JoinHandle<SolverTaskDone>>,
+    ) {
+        for task in tasks.iter() {
+            task.abort();
+        }
+    }
+
+    fn output_solver_comparsion(&self, solver_results: &[SolverResult]) {
+        let mut lines = Vec::new();
+        let mut max_width = 0;
+
+        for SolverResult {
+            solver_kind,
+            solve_time,
+            solver,
+            result,
+        } in solver_results.iter()
+        {
+            let solved = if result.is_ok() { "solved" } else { "failed" };
+            let seconds = solve_time.as_secs_f64();
+            let total_builds = solver.get_total_builds();
+            let num_steps = solver.get_number_of_steps();
+            let num_steps_back = solver.get_number_of_steps_back();
+
+            let kind = format!("{solver_kind}");
+            let length = kind.len();
+            max_width = max(max_width, length);
+
+            lines.push((
+                kind,
+                solved,
+                seconds,
+                num_steps,
+                num_steps_back,
+                total_builds,
+            ));
+        }
+
+        for (solver_kind, solved, seconds, num_steps, num_steps_back, total_builds) in
+            lines.into_iter()
+        {
+            let padding = " ".repeat(max_width - solver_kind.len());
+            let builds = "build".pluralize(total_builds);
+            let steps = "step".pluralize(num_steps);
+
+            println!("{solver_kind}{padding}: {solved} in {seconds:.6} seconds, {num_steps} {steps} ({num_steps_back} back), {total_builds} {builds} at {:.3} builds/sec", total_builds as f64 / seconds);
+        }
+    }
+
     async fn run_multi_solve(
         &self,
         solvers: Vec<SolverTaskSettings>,
         output_location: OutputKind,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         let mut tasks = self.launch_solver_tasks(solvers, output_location);
+        let mut solver_results = Vec::new();
 
         while let Some(result) = tasks.next().await {
             match result {
@@ -878,11 +958,12 @@ impl DecisionFormatter {
                         };
                     }
 
-                    // Stop the other solver tasks running but don't
-                    // wait for them here because don't want to delay
-                    // this (the main) thread.
-                    for task in tasks.iter() {
-                        task.abort();
+                    let solve_time = start.elapsed();
+                    #[cfg(feature = "statsd")]
+                    self.send_solver_end_metrics(solve_time);
+
+                    if !self.settings.compare_solvers {
+                        self.stop_solver_tasks_without_waiting(&tasks);
                     }
 
                     if self.settings.solver_to_run.is_multi() {
@@ -891,15 +972,18 @@ impl DecisionFormatter {
                         } else {
                             "has finished first"
                         };
-                        tracing::debug!(
-                            "{solver_kind} solver {ending}. Stopped remaining solver tasks.",
-                        );
+                        let tasks_action = if self.settings.compare_solvers {
+                            "Letting remaining solver tasks run."
+                        } else {
+                            "Stopped remaining solver tasks."
+                        };
+                        tracing::debug!("{solver_kind} solver {ending}. {tasks_action}");
                     }
 
                     let result = self
                         .check_and_output_solver_results(
                             loop_outcome,
-                            &start,
+                            solve_time,
                             &mut runtime,
                             output_location,
                         )
@@ -916,16 +1000,42 @@ impl DecisionFormatter {
                         tracing::info!("The {solver_kind} solver found {solver_outcome}, but its output was disabled. To see its output, rerun the spk command with '--solver-to-run {name}'" );
                     }
 
-                    return result;
+                    if self.settings.compare_solvers {
+                        solver_results.push(SolverResult {
+                            solver_kind,
+                            solve_time,
+                            solver: runtime.solver,
+                            result,
+                        });
+                    } else {
+                        return result;
+                    }
                 }
                 Err(err) => {
                     return Err(Error::String(format!("Multi-solver task issue: {err}")));
                 }
             }
         }
-        Err(Error::String(
-            "Multi-solver task failed to run any tasks.".to_string(),
-        ))
+
+        if self.settings.compare_solvers {
+            self.output_solver_comparsion(&solver_results);
+
+            // Give the first result to finish back to the rest of the
+            // program as the result.
+            match solver_results.first() {
+                Some(solver_result) => match &solver_result.result {
+                    Ok(s) => Ok(s.clone()),
+                    Err(e) => Err(Error::String(format!("{e}"))),
+                },
+                None => Err(Error::String(
+                    "Multi-solver task failed to run any tasks for comparsion.".to_string(),
+                )),
+            }
+        } else {
+            Err(Error::String(
+                "Multi-solver task failed to run any tasks.".to_string(),
+            ))
+        }
     }
 
     async fn run_solver_loop(
@@ -965,20 +1075,16 @@ impl DecisionFormatter {
     async fn check_and_output_solver_results(
         &self,
         loop_outcome: LoopOutcome,
-        start: &Instant,
+        solve_time: Duration,
         runtime: &mut SolverRuntime,
         output_location: OutputKind,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         match loop_outcome {
             LoopOutcome::Interrupted(mesg) => {
-                // Note: the solution probably won't be
-                // complete because of the interruption.
-                let solve_time = start.elapsed();
-                #[cfg(feature = "statsd")]
-                self.send_solver_end_metrics(solve_time);
-
                 // The solve was interrupted, record time taken and
                 // other the details in sentry for later analysis.
+                // Note: the solution probably won't be complete
+                // because of the interruption.
                 #[cfg(feature = "sentry")]
                 self.send_sentry_warning_message(
                     &runtime.solver,
@@ -1008,24 +1114,16 @@ impl DecisionFormatter {
             }
             LoopOutcome::Failed(e) => {
                 if self.settings.report_time {
-                    let solve_time = start.elapsed();
                     eprintln!("{}", self.format_solve_stats(&runtime.solver, solve_time));
                 }
 
-                #[cfg(feature = "statsd")]
-                self.send_solver_end_metrics(start.elapsed());
-
                 #[cfg(feature = "sentry")]
-                self.add_details_to_next_sentry_event(&runtime.solver, start.elapsed());
+                self.add_details_to_next_sentry_event(&runtime.solver, solve_time);
 
                 return Err(*e);
             }
             LoopOutcome::Success => {}
         };
-
-        let solve_time = start.elapsed();
-        #[cfg(feature = "statsd")]
-        self.send_solver_end_metrics(solve_time);
 
         if solve_time > Duration::from_secs(self.settings.long_solves_threshold) {
             tracing::warn!(
