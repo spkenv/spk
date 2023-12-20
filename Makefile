@@ -46,9 +46,18 @@ clean: packages.clean
 
 .PHONY: lint
 lint: FEATURES?=server,spfs/server
-lint:
+lint: lint-fmt lint-clippy lint-docs
+
+.PHONY: lint-fmt
+lint-fmt:
 	$(CARGO) +nightly fmt --check
+
+.PHONY: lint-clippy
+lint-clippy:
 	$(CARGO) clippy --tests $(cargo_features_arg) $(cargo_packages_arg) -- -Dwarnings
+
+.PHONY: lint-docs
+lint-docs:
 	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps $(cargo_features_arg) $(cargo_packages_arg)
 
 .PHONY: format
