@@ -86,6 +86,10 @@ pub struct MakeBinary {
     /// this package.
     #[clap(long)]
     pub allow_circular_dependencies: bool,
+
+    /// Populated with created specs to generate a summary from the caller.
+    #[clap(skip)]
+    pub created_builds: Vec<String>,
 }
 
 impl CommandArgs for MakeBinary {
@@ -160,6 +164,7 @@ impl Run for MakeBinary {
                 None => Box::new(default_variants.iter()),
             };
 
+            let mut variant_index = 0;
             for variant in variants_to_build {
                 let mut overrides = OptionMap::default();
                 if !self.options.no_host {
@@ -173,7 +178,7 @@ impl Run for MakeBinary {
                     continue;
                 }
 
-                tracing::info!("building variant:\n{variant}");
+                tracing::info!("building for variant index {variant_index}:\n{variant}");
 
                 // Always show the solution packages for the solves
                 let mut fmt_builder = self
@@ -221,6 +226,11 @@ impl Run for MakeBinary {
                     Err(err) => return Err(err.into()),
                 };
                 tracing::info!("created {}", out.ident().format_ident());
+                self.created_builds.push(format!(
+                    "   {} : Variant Index {variant_index}, {}",
+                    out.ident().format_ident(),
+                    variant.options()
+                ));
 
                 if self.env {
                     let request =
@@ -233,6 +243,7 @@ impl Run for MakeBinary {
                     let status = cmd.status().into_diagnostic()?;
                     return Ok(status.code().unwrap_or(1));
                 }
+                variant_index += 1;
             }
         }
         Ok(0)
