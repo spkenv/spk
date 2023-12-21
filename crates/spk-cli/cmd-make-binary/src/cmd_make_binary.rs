@@ -164,7 +164,7 @@ impl Run for MakeBinary {
                 None => Box::new(default_variants.iter()),
             };
 
-            let mut variant_index = 0;
+            let mut variant_index = self.variant.unwrap_or(0);
             for variant in variants_to_build {
                 let mut overrides = OptionMap::default();
                 if !self.options.no_host {
@@ -178,7 +178,7 @@ impl Run for MakeBinary {
                     continue;
                 }
 
-                tracing::info!("building for variant index {variant_index}:\n{variant}");
+                tracing::info!("building variant {variant_index}:\n{variant}");
 
                 // Always show the solution packages for the solves
                 let mut fmt_builder = self
@@ -227,7 +227,7 @@ impl Run for MakeBinary {
                 };
                 tracing::info!("created {}", out.ident().format_ident());
                 self.created_builds.push(format!(
-                    "   {} : Variant Index {variant_index}, {}",
+                    "   {} variant {variant_index}, {}",
                     out.ident().format_ident(),
                     variant.options()
                 ));
