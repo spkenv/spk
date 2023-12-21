@@ -68,14 +68,17 @@ impl Run for Build {
             runs.push(Vec::new());
         }
 
+        let mut builds_for_summary = Vec::new();
         for packages in runs {
             let mut make_source = spk_cmd_make_source::cmd_make_source::MakeSource {
                 options: self.options.clone(),
                 verbose: self.verbose,
                 packages: packages.clone(),
                 runtime: self.runtime.clone(),
+                created_src: Vec::new(),
             };
             let idents = make_source.make_source().await?;
+            builds_for_summary.append(&mut make_source.created_src);
 
             let mut make_binary = spk_cmd_make_binary::cmd_make_binary::MakeBinary {
                 verbose: self.verbose,
@@ -95,11 +98,18 @@ impl Run for Build {
                 variant: self.variant,
                 formatter_settings: self.formatter_settings.clone(),
                 allow_circular_dependencies: self.allow_circular_dependencies,
+                created_builds: Vec::new(),
             };
             let code = make_binary.run().await?;
             if code != 0 {
                 return Ok(code);
             }
+            builds_for_summary.append(&mut make_binary.created_builds);
+        }
+
+        println!("Completed builds:");
+        for msg in builds_for_summary.iter() {
+            println!("{msg}");
         }
 
         Ok(0)

@@ -31,6 +31,9 @@ pub struct MakeSource {
     /// The packages or yaml spec files to collect
     #[clap(name = "PKG|SPEC_FILE")]
     pub packages: Vec<String>,
+
+    /// Populated with the created src to generate a summary from the caller.
+    pub created_src: Vec<String>,
 }
 
 #[async_trait::async_trait]
@@ -95,6 +98,8 @@ impl MakeSource {
                 .await
                 .wrap_err("Failed to collect sources")?;
             tracing::info!("created {}", out.ident().format_ident());
+            self.created_src
+                .push(format!("   {}", out.ident().format_ident()));
             idents.push(out.ident().clone().into_located(local.name().to_owned()));
         }
         Ok(idents)
