@@ -75,10 +75,10 @@ impl Run for Build {
                 verbose: self.verbose,
                 packages: packages.clone(),
                 runtime: self.runtime.clone(),
-                created_src: Vec::new(),
+                created_src: std::mem::take(&mut builds_for_summary),
             };
             let idents = make_source.make_source().await?;
-            builds_for_summary.append(&mut make_source.created_src);
+            builds_for_summary = std::mem::take(&mut make_source.created_src);
 
             let mut make_binary = spk_cmd_make_binary::cmd_make_binary::MakeBinary {
                 verbose: self.verbose,
@@ -98,13 +98,14 @@ impl Run for Build {
                 variant: self.variant,
                 formatter_settings: self.formatter_settings.clone(),
                 allow_circular_dependencies: self.allow_circular_dependencies,
-                created_builds: Vec::new(),
+                created_builds: std::mem::take(&mut builds_for_summary),
             };
             let code = make_binary.run().await?;
             if code != 0 {
                 return Ok(code);
             }
-            builds_for_summary.append(&mut make_binary.created_builds);
+
+            builds_for_summary = std::mem::take(&mut make_binary.created_builds);
         }
 
         println!("Completed builds:");

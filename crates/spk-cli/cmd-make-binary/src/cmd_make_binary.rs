@@ -219,7 +219,14 @@ impl Run for MakeBinary {
                             ),
                         ),
                     ) => {
-                        tracing::error!("variant failed:\n{variant}");
+                        if !self.created_builds.is_empty() {
+                            tracing::warn!("Completed builds:");
+                            for msg in self.created_builds.iter() {
+                                tracing::warn!("{msg}");
+                            }
+                        }
+
+                        tracing::error!("variant {variant_index} failed:\n{variant}");
                         return Err(err.into());
                     }
                     Ok((spec, _cmpts)) => spec,
