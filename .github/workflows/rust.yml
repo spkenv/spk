@@ -24,6 +24,11 @@ jobs:
         uses: crazy-max/ghaction-chocolatey@v3
         with:
           args: install protoc llvm winfsp make
+      - name: Install FlatBuffers Compiler
+        run: |
+          $url = "https://github.com/google/flatbuffers/releases/download/v23.5.26/Windows.flatc.binary.zip"
+          Invoke-WebRequest $url -OutFile C:\flatc.zip
+          Expand-Archive C:\flatc.zip -DestinationPath C:\Windows
       - name: Install Debug SPFS
         run: |
           make install-debug-spfs
@@ -54,6 +59,9 @@ jobs:
           apt-get install -y libcap2-bin sudo cmake tcsh rsync protobuf-compiler fuse libfuse-dev
           # spfs-fuse requires this option enabled
           echo user_allow_other >> /etc/fuse.conf
+          FB_REL=https://github.com/google/flatbuffers/releases/
+          curl --proto '=https' --tlsv1.2 -sSfL ${FB_REL}/download/v23.5.26/Linux.flatc.binary.g++-10.zip | funzip > /usr/bin/flatc
+          chmod +x /usr/bin/flatc
           rustup install nightly
           rustup component add clippy
           rustup component add rustfmt --toolchain nightly

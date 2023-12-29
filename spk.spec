@@ -17,6 +17,8 @@ BuildRequires: fuse-devel
 BuildRequires: m4
 BuildRequires: cmake3
 BuildRequires: make
+# not available in CentOS
+# BuildRequires: flatbuffers-compiler
 Requires: bash
 Requires: fuse
 Requires: rsync
