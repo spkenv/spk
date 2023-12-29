@@ -13,7 +13,6 @@ serde = ["dep:serde"]
 [dependencies]
 data-encoding = { workspace = true }
 flatbuffers = { workspace = true }
-flatbuffers-owned = { workspace = true }
 futures = { workspace = true }
 miette = { workspace = true }
 serde = { workspace = true, optional = true }

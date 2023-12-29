@@ -14,6 +14,8 @@ BuildRequires: cmake3
 BuildRequires: openssl-devel
 BuildRequires: fuse-devel
 BuildRequires: m4
+# not available in CentOS
+# BuildRequires: flatbuffers-compiler
 Requires: fuse
 Requires: rsync
 
