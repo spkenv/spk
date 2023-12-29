@@ -13,6 +13,7 @@ BuildRequires: make
 BuildRequires: cmake3
 BuildRequires: openssl-devel
 BuildRequires: fuse3-devel
+BuildRequires: flatbuffers-compiler
 BuildRequires: m4
 Requires: fuse3
 Requires: rsync

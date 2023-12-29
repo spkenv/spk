@@ -54,7 +54,7 @@ lint-fmt:
 
 .PHONY: lint-clippy
 lint-clippy:
-	$(CARGO) clippy --tests $(cargo_features_arg) $(cargo_packages_arg) -- -Dwarnings
+	$(CARGO) clippy --tests $(cargo_features_arg) $(cargo_packages_arg) $(CARGO_ARGS) -- -Dwarnings
 
 .PHONY: lint-docs
 lint-docs:
@@ -101,7 +101,9 @@ spk-rpm:
 
 .PHONY: rpm-build
 rpm-build: rpm-buildenv
+	# ulimit for faster yum installs
 	docker build . \
+		--ulimit 'nofile=32768:32768' \
 		--target rpm_build \
 		--cache-from build_env \
 		-f rpmbuild.Dockerfile \
@@ -117,10 +119,10 @@ rpm-build: rpm-buildenv
 
 .PHONY: rpm-buildenv
 rpm-buildenv:
+	# ulimit for faster yum installs
 	docker build . \
+		--ulimit 'nofile=32768:32768' \
 		--target build_env \
 		--cache-from build_env \
 		-f rpmbuild.Dockerfile \
 		--tag build_env
-
-

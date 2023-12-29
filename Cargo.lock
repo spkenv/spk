@@ -1197,16 +1197,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "flatbuffers-owned"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9f483d34a2660327292182068fb822485e53049f15aad623ff04b476417b232"
-dependencies = [
- "flatbuffers",
- "paste",
-]
-
-[[package]]
 name = "flatc-rust"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3707,7 +3697,6 @@ version = "0.38.0"
 dependencies = [
  "data-encoding",
  "flatbuffers",
- "flatbuffers-owned",
  "flatc-rust",
  "futures",
  "miette",
