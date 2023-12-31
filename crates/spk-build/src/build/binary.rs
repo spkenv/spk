@@ -855,7 +855,7 @@ where
     let mut components = HashMap::new();
     for (component, manifest) in manifests {
         let storable_manifest = manifest.to_graph_manifest();
-        let layer = spfs::graph::Layer::new(&storable_manifest.digest().unwrap());
+        let layer = spfs::graph::Layer::new(storable_manifest.digest().unwrap());
         let layer_digest = layer.digest().unwrap();
         #[rustfmt::skip]
         tokio::try_join!(

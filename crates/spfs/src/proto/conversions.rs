@@ -212,7 +212,7 @@ impl From<&graph::Layer> for super::Layer {
 impl TryFrom<super::Layer> for graph::Layer {
     type Error = Error;
     fn try_from(source: super::Layer) -> Result<Self> {
-        Ok(Self::new(&convert_digest(source.manifest)?))
+        Ok(Self::new(convert_digest(source.manifest)?))
     }
 }
 
@@ -332,7 +332,7 @@ impl From<&graph::Blob> for super::Blob {
 impl TryFrom<super::Blob> for graph::Blob {
     type Error = Error;
     fn try_from(source: super::Blob) -> Result<Self> {
-        Ok(Self::new(&convert_digest(source.payload)?, source.size))
+        Ok(Self::new(convert_digest(source.payload)?, source.size))
     }
 }
 
