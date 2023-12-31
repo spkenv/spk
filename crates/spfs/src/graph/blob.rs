@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use super::object::HeaderBuilder;
+use super::ObjectKind;
 use crate::encoding::Digest;
 use crate::{encoding, Result};
 
@@ -18,55 +20,19 @@ impl std::fmt::Debug for Blob {
 }
 
 impl Blob {
-    pub fn new(payload: &Digest, size: u64) -> Self {
-        super::BUILDER.with_borrow_mut(|builder| {
-            let offset = Self::build(builder, payload, size);
-            let obj = unsafe {
-                // Safety: the provided buf and offset mut contain
-                // a valid object and point to the contained blob
-                // which is what we've done
-                Blob::new_with_default_header(builder.finished_data(), offset)
-            };
-            builder.reset(); // to be used again
-            obj
-        })
+    /// Construct a new blob with default header values,
+    /// for more configuration use [`Self::builder`]
+    pub fn new(payload: Digest, size: u64) -> Self {
+        Self::builder()
+            .with_payload(payload)
+            .with_size(size)
+            .build()
     }
 
-    /// Builds an [`spfs_proto::AnyObject`] that contains
-    /// a blob, returning the offset of the blob.
-    pub(super) fn build(
-        builder: &mut flatbuffers::FlatBufferBuilder<'_>,
-        payload: &Digest,
-        size: u64,
-    ) -> usize {
-        let blob = spfs_proto::Blob::create(
-            builder,
-            &spfs_proto::BlobArgs {
-                payload: Some(payload),
-                size_: size,
-            },
-        );
-        let any = spfs_proto::AnyObject::create(
-            builder,
-            &spfs_proto::AnyObjectArgs {
-                object_type: spfs_proto::Object::Blob,
-                object: Some(blob.as_union_value()),
-            },
-        );
-        builder.finish_minimal(any);
-        unsafe {
-            // Safety: we have just created this buffer
-            // so already know the root type with certainty
-            flatbuffers::root_unchecked::<spfs_proto::AnyObject>(builder.finished_data())
-                .object_as_blob()
-                .unwrap()
-                ._tab
-                .loc()
-        }
+    pub fn builder() -> BlobBuilder {
+        BlobBuilder::default()
     }
-}
 
-impl Blob {
     #[inline]
     pub fn digest(&self) -> &Digest {
         self.proto().payload()
@@ -90,8 +56,82 @@ impl Blob {
 
     pub(super) fn legacy_decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
         Ok(Self::new(
-            &encoding::read_digest(&mut reader)?,
+            encoding::read_digest(&mut reader)?,
             encoding::read_uint64(reader)?,
         ))
+    }
+}
+
+#[derive(Debug)]
+pub struct BlobBuilder {
+    header: super::object::HeaderBuilder,
+    payload: encoding::Digest,
+    size: u64,
+}
+
+impl Default for BlobBuilder {
+    fn default() -> Self {
+        Self {
+            header: super::object::HeaderBuilder::new(ObjectKind::Blob),
+            payload: Default::default(),
+            size: Default::default(),
+        }
+    }
+}
+
+impl BlobBuilder {
+    pub fn with_header<F>(mut self, mut header: F) -> Self
+    where
+        F: FnMut(HeaderBuilder) -> HeaderBuilder,
+    {
+        self.header = header(self.header).with_kind(ObjectKind::Platform);
+        self
+    }
+
+    pub fn with_payload(mut self, payload: Digest) -> Self {
+        self.payload = payload;
+        self
+    }
+
+    pub fn with_size(mut self, size: u64) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn build(&self) -> Blob {
+        super::BUILDER.with_borrow_mut(|builder| {
+            let blob = spfs_proto::Blob::create(
+                builder,
+                &spfs_proto::BlobArgs {
+                    payload: Some(&self.payload),
+                    size_: self.size,
+                },
+            );
+            let any = spfs_proto::AnyObject::create(
+                builder,
+                &spfs_proto::AnyObjectArgs {
+                    object_type: spfs_proto::Object::Blob,
+                    object: Some(blob.as_union_value()),
+                },
+            );
+            builder.finish_minimal(any);
+            let offset = unsafe {
+                // Safety: we have just created this buffer
+                // so already know the root type with certainty
+                flatbuffers::root_unchecked::<spfs_proto::AnyObject>(builder.finished_data())
+                    .object_as_blob()
+                    .unwrap()
+                    ._tab
+                    .loc()
+            };
+            let obj = unsafe {
+                // Safety: the provided buf and offset mut contain
+                // a valid object and point to the contained blob
+                // which is what we've done
+                Blob::new_with_header(self.header.build(), builder.finished_data(), offset)
+            };
+            builder.reset(); // to be used again
+            obj
+        })
     }
 }

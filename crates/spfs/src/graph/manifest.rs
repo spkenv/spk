@@ -7,7 +7,8 @@ use std::io::BufRead;
 
 use spfs_proto::ManifestArgs;
 
-use super::{Entry, Tree};
+use super::object::HeaderBuilder;
+use super::{Entry, ObjectKind, Tree};
 use crate::prelude::*;
 use crate::{encoding, tracking, Result};
 
@@ -20,7 +21,7 @@ pub type Manifest = super::object::FlatObject<spfs_proto::Manifest<'static>>;
 
 impl Default for Manifest {
     fn default() -> Self {
-        Self::from(&crate::tracking::Entry::<()>::empty_dir_with_open_perms())
+        Self::builder().build(&crate::tracking::Entry::<()>::empty_dir_with_open_perms())
     }
 }
 
@@ -33,55 +34,11 @@ impl std::fmt::Debug for Manifest {
     }
 }
 
-impl<T> From<&tracking::Manifest<T>> for Manifest
-where
-    T: std::cmp::Eq + std::cmp::PartialEq,
-{
-    fn from(source: &tracking::Manifest<T>) -> Self {
-        Self::from(source.root())
-    }
-}
-
-impl<T> From<&tracking::Entry<T>> for Manifest
-where
-    T: std::cmp::Eq + std::cmp::PartialEq,
-{
-    fn from(source: &tracking::Entry<T>) -> Self {
-        super::BUILDER.with_borrow_mut(|builder| {
-            let trees = build_from_entry(builder, source);
-            let trees = builder.create_vector(&trees);
-            let manifest =
-                spfs_proto::Manifest::create(builder, &ManifestArgs { trees: Some(trees) });
-            let any = spfs_proto::AnyObject::create(
-                builder,
-                &spfs_proto::AnyObjectArgs {
-                    object_type: spfs_proto::Object::Manifest,
-                    object: Some(manifest.as_union_value()),
-                },
-            );
-            builder.finish_minimal(any);
-            let offset = unsafe {
-                // Safety: we have just created this buffer
-                // so already know the root type with certainty
-                flatbuffers::root_unchecked::<spfs_proto::AnyObject>(builder.finished_data())
-                    .object_as_manifest()
-                    .unwrap()
-                    ._tab
-                    .loc()
-            };
-            let obj = unsafe {
-                // Safety: the provided buf and offset mut contain
-                // a valid object and point to the contained layer
-                // which is what we've done
-                Self::new_with_default_header(builder.finished_data(), offset)
-            };
-            builder.reset(); // to be used again
-            obj
-        })
-    }
-}
-
 impl Manifest {
+    pub fn builder() -> ManifestBuilder {
+        ManifestBuilder::default()
+    }
+
     /// Return the root tree object of this manifest.
     pub fn root(&self) -> Tree<'_> {
         self.proto()
@@ -212,71 +169,133 @@ impl Manifest {
     }
 }
 
-fn build_from_entry<'buf, T>(
-    builder: &mut flatbuffers::FlatBufferBuilder<'buf>,
-    source: &tracking::Entry<T>,
-) -> Vec<flatbuffers::WIPOffset<spfs_proto::Tree<'buf>>>
-where
-    T: std::cmp::Eq + std::cmp::PartialEq,
-{
-    use flatbuffers::Follow;
+pub struct ManifestBuilder {
+    header: super::object::HeaderBuilder,
+}
 
-    let mut entries: Vec<_> = source.iter_entries().collect();
-    let mut roots = Vec::with_capacity(entries.len());
-    let mut sub_manifests = Vec::new();
-    entries.sort_unstable();
+impl Default for ManifestBuilder {
+    fn default() -> Self {
+        Self {
+            header: super::object::HeaderBuilder::new(ObjectKind::Manifest),
+        }
+    }
+}
 
-    for node in entries {
-        let converted = match node.entry.kind {
-            tracking::EntryKind::Tree => {
-                let sub = build_from_entry(builder, node.entry);
-                let first_offset = sub.first().expect("should always have a root entry");
+impl ManifestBuilder {
+    pub fn with_header<F>(mut self, mut header: F) -> Self
+    where
+        F: FnMut(HeaderBuilder) -> HeaderBuilder,
+    {
+        self.header = header(self.header).with_kind(ObjectKind::Manifest);
+        self
+    }
+
+    /// Build a manifest that contains `source` as the root
+    /// entry. If `source` is not a tree, an empty manifest is
+    /// returned.
+    pub fn build<T>(&self, source: &tracking::Entry<T>) -> Manifest
+    where
+        T: std::cmp::Eq + std::cmp::PartialEq,
+    {
+        super::BUILDER.with_borrow_mut(|builder| {
+            let trees = Self::build_from_entry(builder, source);
+            let trees = builder.create_vector(&trees);
+            let manifest =
+                spfs_proto::Manifest::create(builder, &ManifestArgs { trees: Some(trees) });
+            let any = spfs_proto::AnyObject::create(
+                builder,
+                &spfs_proto::AnyObjectArgs {
+                    object_type: spfs_proto::Object::Manifest,
+                    object: Some(manifest.as_union_value()),
+                },
+            );
+            builder.finish_minimal(any);
+            let offset = unsafe {
+                // Safety: we have just created this buffer
+                // so already know the root type with certainty
+                flatbuffers::root_unchecked::<spfs_proto::AnyObject>(builder.finished_data())
+                    .object_as_manifest()
+                    .unwrap()
+                    ._tab
+                    .loc()
+            };
+            let obj = unsafe {
+                // Safety: the provided buf and offset mut contain
+                // a valid object and point to the contained layer
+                // which is what we've done
+                Manifest::new_with_header(self.header.build(), builder.finished_data(), offset)
+            };
+            builder.reset(); // to be used again
+            obj
+        })
+    }
+
+    fn build_from_entry<'buf, T>(
+        builder: &mut flatbuffers::FlatBufferBuilder<'buf>,
+        source: &tracking::Entry<T>,
+    ) -> Vec<flatbuffers::WIPOffset<spfs_proto::Tree<'buf>>>
+    where
+        T: std::cmp::Eq + std::cmp::PartialEq,
+    {
+        use flatbuffers::Follow;
+
+        let mut entries: Vec<_> = source.iter_entries().collect();
+        let mut roots = Vec::with_capacity(entries.len());
+        let mut sub_manifests = Vec::new();
+        entries.sort_unstable();
+
+        for node in entries {
+            let converted = match node.entry.kind {
+                tracking::EntryKind::Tree => {
+                    let sub = Self::build_from_entry(builder, node.entry);
+                    let first_offset = sub.first().expect("should always have a root entry");
+                    let wip_data = builder.unfinished_data();
+                    // WIPOffset is relative to the end of the buffer
+                    let loc = wip_data.len() - first_offset.value() as usize;
+                    let sub_root = unsafe {
+                        // Safety: follow requires the offset to be valid
+                        // and we trust the one that was just created
+                        spfs_proto::Tree::follow(wip_data, loc)
+                    };
+                    let sub_root_digest = Tree(sub_root)
+                        .digest()
+                        .expect("entry should have a valid digest");
+                    sub_manifests.push(sub);
+                    Entry::build(
+                        builder,
+                        node.path.as_str(),
+                        node.entry.kind,
+                        node.entry.mode,
+                        node.entry.size,
+                        &sub_root_digest,
+                    )
+                }
+                _ => Entry::from(builder, node.path.as_str(), node.entry),
+            };
+            roots.push(converted);
+        }
+        let root_entries = builder.create_vector(&roots);
+        let root = spfs_proto::Tree::create(
+            builder,
+            &spfs_proto::TreeArgs {
+                entries: Some(root_entries),
+            },
+        );
+        let mut seen_trees = std::collections::HashSet::new();
+        std::iter::once(vec![root])
+            .chain(sub_manifests)
+            .flatten()
+            .filter(|t| {
                 let wip_data = builder.unfinished_data();
                 // WIPOffset is relative to the end of the buffer
-                let loc = wip_data.len() - first_offset.value() as usize;
-                let sub_root = unsafe {
+                let loc = wip_data.len() - t.value() as usize;
+                let t = unsafe {
                     // Safety: follow requires the offset to be valid
                     // and we trust the one that was just created
                     spfs_proto::Tree::follow(wip_data, loc)
                 };
-                let sub_root_digest = Tree(sub_root)
-                    .digest()
-                    .expect("entry should have a valid digest");
-                sub_manifests.push(sub);
-                Entry::build(
-                    builder,
-                    node.path.as_str(),
-                    node.entry.kind,
-                    node.entry.mode,
-                    node.entry.size,
-                    &sub_root_digest,
-                )
-            }
-            _ => Entry::from(builder, node.path.as_str(), node.entry),
-        };
-        roots.push(converted);
+                seen_trees.insert(Tree(t).digest().expect("tree should have a valid digest"))
+            })
+            .collect()
     }
-    let root_entries = builder.create_vector(&roots);
-    let root = spfs_proto::Tree::create(
-        builder,
-        &spfs_proto::TreeArgs {
-            entries: Some(root_entries),
-        },
-    );
-    let mut seen_trees = std::collections::HashSet::new();
-    std::iter::once(vec![root])
-        .chain(sub_manifests)
-        .flatten()
-        .filter(|t| {
-            let wip_data = builder.unfinished_data();
-            // WIPOffset is relative to the end of the buffer
-            let loc = wip_data.len() - t.value() as usize;
-            let t = unsafe {
-                // Safety: follow requires the offset to be valid
-                // and we trust the one that was just created
-                spfs_proto::Tree::follow(wip_data, loc)
-            };
-            seen_trees.insert(Tree(t).digest().expect("tree should have a valid digest"))
-        })
-        .collect()
 }

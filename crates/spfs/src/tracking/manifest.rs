@@ -149,7 +149,7 @@ where
     /// Convert this manifest into its encodable,
     /// hashable form for storage.
     pub fn to_graph_manifest(&self) -> crate::graph::Manifest {
-        self.into()
+        crate::graph::Manifest::builder().build(self.root())
     }
 }
 

@@ -4,6 +4,8 @@
 
 use spfs_proto::LayerArgs;
 
+use super::object::HeaderBuilder;
+use super::ObjectKind;
 use crate::{encoding, Error, Result};
 
 #[cfg(test)]
@@ -26,12 +28,83 @@ impl std::fmt::Debug for Layer {
 }
 
 impl Layer {
-    pub fn new(manifest: &encoding::Digest) -> Self {
+    /// Build a layer with the default header that points
+    /// at the provided manifest digest,
+    /// for more configuration use [`Self::builder`]
+    pub fn new(manifest: encoding::Digest) -> Self {
+        Self::builder().with_manifest(manifest).build()
+    }
+
+    pub fn builder() -> LayerBuilder {
+        LayerBuilder::default()
+    }
+
+    pub fn manifest(&self) -> &encoding::Digest {
+        self.proto().manifest()
+    }
+
+    /// Return the child object of this one in the object DG.
+    pub fn child_objects(&self) -> Vec<encoding::Digest> {
+        vec![*self.manifest()]
+    }
+
+    pub(super) fn legacy_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
+        encoding::write_digest(writer, self.manifest()).map_err(Error::Encoding)
+    }
+
+    pub(super) fn legacy_decode(reader: &mut impl std::io::Read) -> Result<Self> {
+        Ok(Layer::new(encoding::read_digest(reader)?))
+    }
+}
+
+impl std::hash::Hash for Layer {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.proto().manifest().hash(state)
+    }
+}
+
+impl std::cmp::PartialEq for Layer {
+    fn eq(&self, other: &Self) -> bool {
+        self.proto().manifest() == other.proto().manifest()
+    }
+}
+
+impl std::cmp::Eq for Layer {}
+
+pub struct LayerBuilder {
+    header: super::object::HeaderBuilder,
+    manifest: encoding::Digest,
+}
+
+impl Default for LayerBuilder {
+    fn default() -> Self {
+        Self {
+            header: super::object::HeaderBuilder::new(ObjectKind::Layer),
+            manifest: encoding::NULL_DIGEST.into(),
+        }
+    }
+}
+
+impl LayerBuilder {
+    pub fn with_header<F>(mut self, mut header: F) -> Self
+    where
+        F: FnMut(HeaderBuilder) -> HeaderBuilder,
+    {
+        self.header = header(self.header).with_kind(ObjectKind::Layer);
+        self
+    }
+
+    pub fn with_manifest(mut self, manifest: encoding::Digest) -> Self {
+        self.manifest = manifest;
+        self
+    }
+
+    pub fn build(&self) -> Layer {
         super::BUILDER.with_borrow_mut(|builder| {
             let layer = spfs_proto::Layer::create(
                 builder,
                 &LayerArgs {
-                    manifest: Some(manifest),
+                    manifest: Some(&self.manifest),
                 },
             );
             let any = spfs_proto::AnyObject::create(
@@ -55,41 +128,10 @@ impl Layer {
                 // Safety: the provided buf and offset mut contain
                 // a valid object and point to the contained layer
                 // which is what we've done
-                Self::new_with_default_header(builder.finished_data(), offset)
+                Layer::new_with_header(self.header.build(), builder.finished_data(), offset)
             };
             builder.reset(); // to be used again
             obj
         })
     }
-
-    pub fn manifest(&self) -> &encoding::Digest {
-        self.proto().manifest()
-    }
-
-    /// Return the child object of this one in the object DG.
-    pub fn child_objects(&self) -> Vec<encoding::Digest> {
-        vec![*self.manifest()]
-    }
-
-    pub(super) fn legacy_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_digest(writer, self.manifest()).map_err(Error::Encoding)
-    }
-
-    pub(super) fn legacy_decode(reader: &mut impl std::io::Read) -> Result<Self> {
-        Ok(Layer::new(&encoding::read_digest(reader)?))
-    }
 }
-
-impl std::hash::Hash for Layer {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.proto().manifest().hash(state)
-    }
-}
-
-impl std::cmp::PartialEq for Layer {
-    fn eq(&self, other: &Self) -> bool {
-        self.proto().manifest() == other.proto().manifest()
-    }
-}
-
-impl std::cmp::Eq for Layer {}

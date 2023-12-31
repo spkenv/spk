@@ -41,7 +41,7 @@ pub trait LayerStorage: graph::Database + Sync + Send {
 
     /// Create and storage a new layer for the given layer.
     async fn create_layer(&self, manifest: &graph::Manifest) -> Result<graph::Layer> {
-        let layer = graph::Layer::new(&manifest.digest()?);
+        let layer = graph::Layer::new(manifest.digest()?);
         self.write_object(&layer).await?;
         Ok(layer)
     }

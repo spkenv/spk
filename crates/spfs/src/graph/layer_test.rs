@@ -11,7 +11,7 @@ use crate::graph::Object;
 
 #[rstest]
 fn test_layer_encoding() {
-    let expected = Layer::new(&encoding::EMPTY_DIGEST.into());
+    let expected = Layer::new(encoding::EMPTY_DIGEST.into());
     let mut stream = Vec::new();
     expected.encode(&mut stream).unwrap();
     let actual = Object::decode(&mut stream.as_slice())

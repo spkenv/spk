@@ -365,7 +365,7 @@ where
             return Ok(SyncEntryResult::Skipped);
         }
         self.reporter.visit_entry(&entry);
-        let blob = graph::Blob::new(entry.object(), entry.size());
+        let blob = graph::Blob::new(*entry.object(), entry.size());
         let result = self
             .sync_blob_with_perms_opt(&blob, Some(entry.mode()))
             .await?;
