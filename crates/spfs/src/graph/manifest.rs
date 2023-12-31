@@ -73,7 +73,7 @@ where
                 // Safety: the provided buf and offset mut contain
                 // a valid object and point to the contained layer
                 // which is what we've done
-                Self::with_default_header(builder.finished_data(), offset)
+                Self::new_with_default_header(builder.finished_data(), offset)
             };
             builder.reset(); // to be used again
             obj
@@ -204,7 +204,7 @@ impl Manifest {
                 // Safety: the provided buf and offset mut contain
                 // a valid object and point to the contained layer
                 // which is what we've done
-                Self::with_default_header(builder.finished_data(), offset)
+                Self::new_with_default_header(builder.finished_data(), offset)
             };
             builder.reset(); // to be used again
             Ok(obj)

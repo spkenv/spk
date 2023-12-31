@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 use std::marker::PhantomData;
 
 use bytes::BufMut;
@@ -12,6 +12,10 @@ use super::error::{ObjectError, ObjectResult};
 use super::{Blob, DatabaseView, HasKind, Kind, Layer, Manifest, ObjectKind, Platform};
 use crate::encoding;
 use crate::storage::RepositoryHandle;
+
+#[cfg(test)]
+#[path = "./object_test.rs"]
+mod object_test;
 
 /// An node in the spfs object graph
 pub type Object = FlatObject<spfs_proto::AnyObject<'static>>;
@@ -46,6 +50,10 @@ impl std::fmt::Debug for Object {
 }
 
 impl Object {
+    /// A salt use to prime the digest calculation so it is less likely to
+    /// collide with digests produced for user content (blob and payloads)
+    const DIGEST_SALT: &'static [u8] = b"spfs digest da8d8e62-9459-11ee-adab-00155dcb338b\0";
+
     /// Create an object from the encoded bytes.
     ///
     /// In memory, objects always use the latest flatbuffer
@@ -76,8 +84,9 @@ impl Object {
             }
             e => return Err(ObjectError::UnknownEncoding(e).into()),
         };
-        // TODO: set the header bits from what was loaded
-        //object.set_header(header);
+        // TODO: copy any original header value back into the
+        // decoded object (which will get a valid, but default one)
+        // object.buf[..Header::SIZE].copy_from_slice(&header.0);
         Ok(object)
     }
 
@@ -86,14 +95,11 @@ impl Object {
     /// # Safety
     /// `buf` must contain a valid flatbuffer with an [`spfs_proto::AnyObject`]
     /// at its root of the provided kind.
-    pub unsafe fn with_default_header(buf: &[u8], kind: ObjectKind) -> Self {
-        let mut bytes = bytes::BytesMut::with_capacity(buf.len() + Header::SIZE);
-        bytes.put(&Header::default_bytes(kind)[..]);
-        bytes.put(buf);
-        Self {
-            buf: bytes.freeze(),
-            offset: 0,
-            _t: PhantomData,
+    pub unsafe fn new_with_default_header(buf: &[u8], kind: ObjectKind) -> Self {
+        unsafe {
+            // Safety: We are building a valid header and passing the other
+            // requirements up to the caller
+            Self::new_with_header(Header::builder(kind).build(), buf, 0)
         }
     }
 
@@ -154,12 +160,37 @@ impl<T: ObjectProto> encoding::Digestible for FlatObject<T> {
     type Error = crate::Error;
 
     fn digest(&self) -> crate::Result<encoding::Digest> {
+        let header = self.header();
+        let strategy = header.digest_strategy().ok_or_else(|| {
+            super::error::ObjectError::UnknownDigestStrategy(header.digest_strategy_number())
+        })?;
+        let variant = self.to_enum();
+        if let Enum::Blob(b) = variant {
+            // blobs share a digest with the payload that they represent.
+            // Much of the codebase leverages this fact to skip additional
+            // steps, just as we are doing here to avoid running the hasher
+            return Ok(*b.payload());
+        };
         let mut hasher = encoding::Hasher::new_sync();
-        match self.to_enum() {
+        match strategy {
+            DigestStrategy::LegacyEncode => {
+                // the original digest strategy did
+                // not include the kind or any special salting
+            }
+            DigestStrategy::EncodeWithKind => {
+                hasher
+                    .write_all(Object::DIGEST_SALT)
+                    .map_err(encoding::Error::FailedWrite)?;
+                hasher
+                    .write_all(&[header.object_kind()])
+                    .map_err(encoding::Error::FailedWrite)?;
+            }
+        }
+        match variant {
             Enum::Platform(obj) => obj.legacy_encode(&mut hasher)?,
             Enum::Layer(obj) => obj.legacy_encode(&mut hasher)?,
             Enum::Manifest(obj) => obj.legacy_encode(&mut hasher)?,
-            Enum::Blob(obj) => return Ok(*obj.payload()),
+            Enum::Blob(_obj) => unreachable!("handled above"),
         }
         Ok(hasher.digest())
     }
@@ -245,9 +276,27 @@ impl<T: ObjectProto + Kind> FlatObject<T> {
     /// `buf` must contain a valid flatbuffer with an [`spfs_proto::AnyObject`]
     /// at its root. Additionally, offset must point to the start of a
     /// valid instance of `T` within the flatbuffer.
-    pub unsafe fn with_default_header(buf: &[u8], offset: usize) -> Self {
+    pub unsafe fn new_with_default_header(buf: &[u8], offset: usize) -> Self {
+        unsafe {
+            // Safety: we are ensuring a good header and pass the other
+            // requirements up to our caller
+            Self::new_with_header(Header::builder(T::kind()).build(), buf, offset)
+        }
+    }
+}
+
+impl<T: ObjectProto> FlatObject<T> {
+    /// Constructs a new [`FlatObject`] instance from the provided
+    /// header, flatbuffer and offset value.
+    ///
+    /// # Safety
+    /// `buf` must contain a valid flatbuffer with an [`spfs_proto::AnyObject`]
+    /// at its root. Additionally, offset must point to the start of a
+    /// valid instance of `T` within the flatbuffer and the header must
+    /// be valid and contain the appropriate type of `T`
+    pub unsafe fn new_with_header(header: [u8; Header::SIZE], buf: &[u8], offset: usize) -> Self {
         let mut bytes = bytes::BytesMut::with_capacity(buf.len() + Header::SIZE);
-        bytes.put(&Header::default_bytes(T::kind())[..]);
+        bytes.put(&header[..]);
         bytes.put(buf);
         Self {
             buf: bytes.freeze(),
@@ -255,9 +304,7 @@ impl<T: ObjectProto + Kind> FlatObject<T> {
             _t: PhantomData,
         }
     }
-}
 
-impl<T: ObjectProto> FlatObject<T> {
     #[inline]
     pub fn header(&self) -> Header<'_> {
         #[cfg(debug_assertions)]
@@ -440,13 +487,8 @@ impl<'buf> Header<'buf> {
     const ENCODING_OFFSET: usize = Self::PREFIX.len() + 1;
     const KIND_OFFSET: usize = Self::PREFIX.len() + 7;
 
-    /// Default header/object settings when no previous opinion
-    /// exists (such as loading from existing storage)
-    pub fn default_bytes(kind: ObjectKind) -> [u8; Header::SIZE] {
-        let mut header = [0; Self::SIZE];
-        header[..Self::PREFIX.len()].copy_from_slice(Self::PREFIX);
-        header[Self::KIND_OFFSET] = kind as u8;
-        header
+    pub fn builder(kind: ObjectKind) -> HeaderBuilder {
+        HeaderBuilder::new(kind)
     }
 
     /// Read the first bytes of `buf` as a header
@@ -475,7 +517,12 @@ impl<'buf> Header<'buf> {
         Self(buf)
     }
 
-    pub fn digest_strategy(&self) -> u8 {
+    /// The [`DigestStrategy`] in this header, if recognized
+    pub fn digest_strategy(&self) -> Option<DigestStrategy> {
+        DigestStrategy::from_u8(self.digest_strategy_number())
+    }
+
+    fn digest_strategy_number(&self) -> u8 {
         self.0[Self::DIGEST_OFFSET]
     }
 
@@ -485,6 +532,64 @@ impl<'buf> Header<'buf> {
 
     pub fn object_kind(&self) -> u8 {
         self.0[Self::KIND_OFFSET]
+    }
+}
+
+#[derive(Debug)]
+pub struct HeaderBuilder {
+    digest_strategy: DigestStrategy,
+    kind: ObjectKind,
+}
+
+impl HeaderBuilder {
+    pub fn new(kind: ObjectKind) -> Self {
+        Self {
+            digest_strategy: DigestStrategy::LegacyEncode,
+            kind,
+        }
+    }
+
+    pub fn with_kind(mut self, kind: ObjectKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    pub fn with_digest_strategy(mut self, digest_strategy: DigestStrategy) -> Self {
+        self.digest_strategy = digest_strategy;
+        self
+    }
+
+    /// Build the header bytes for the current settings
+    pub fn build(&self) -> [u8; Header::SIZE] {
+        let mut header = [0; Header::SIZE];
+        header[..Header::PREFIX.len()].copy_from_slice(Header::PREFIX);
+        header[Header::DIGEST_OFFSET] = self.digest_strategy as u8;
+        header[Header::KIND_OFFSET] = self.kind as u8;
+        header
+    }
+}
+
+/// See [`Header`].
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[repr(u8)]
+pub enum DigestStrategy {
+    /// Encode using the original spfs encoding, which has known
+    /// collision issues. Not recommended for use except for
+    /// backwards-compatibility
+    LegacyEncode = 0,
+    /// Encoding using the original spfs encoding, but adds salt
+    /// and the type of object to mitigate issues found in the
+    /// original encoding mechanism
+    EncodeWithKind = 1,
+}
+
+impl DigestStrategy {
+    pub fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::LegacyEncode),
+            1 => Some(Self::EncodeWithKind),
+            2.. => None,
+        }
     }
 }
 
