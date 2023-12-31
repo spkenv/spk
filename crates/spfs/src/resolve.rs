@@ -418,7 +418,7 @@ where
                 layers.append(&mut expanded);
             }
             graph::object::Enum::Manifest(manifest) => {
-                layers.push(graph::Layer::new(&manifest.digest().unwrap()))
+                layers.push(graph::Layer::new(manifest.digest().unwrap()))
             }
             obj @ graph::object::Enum::Blob(_) => {
                 return Err(format!(
