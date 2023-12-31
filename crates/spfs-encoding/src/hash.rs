@@ -192,6 +192,19 @@ where
     }
 }
 
+impl Digestible for &[u8] {
+    type Error = Error;
+
+    /// Meant to represent a hash of the content of this
+    /// item - all unique instances should have a unique digest
+    /// and all instances that are equal should share a digest
+    fn digest(&self) -> std::result::Result<Digest, Self::Error> {
+        let mut hasher = Hasher::new_sync();
+        hasher.write_all(self).map_err(Error::FailedWrite)?;
+        Ok(hasher.digest())
+    }
+}
+
 /// Encodable is a type that can be binary-encoded to a byte stream
 pub trait Encodable
 where

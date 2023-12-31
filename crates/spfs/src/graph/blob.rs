@@ -25,7 +25,7 @@ impl Blob {
                 // Safety: the provided buf and offset mut contain
                 // a valid object and point to the contained blob
                 // which is what we've done
-                Blob::with_default_header(builder.finished_data(), offset)
+                Blob::new_with_default_header(builder.finished_data(), offset)
             };
             builder.reset(); // to be used again
             obj
