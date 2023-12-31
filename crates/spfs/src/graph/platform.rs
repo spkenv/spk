@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use super::Stack;
+use super::object::HeaderBuilder;
+use super::{ObjectKind, Stack};
 use crate::{encoding, Error, Result};
 
 #[cfg(test)]
@@ -31,45 +32,11 @@ impl Platform {
         Error: std::convert::From<D::Error>,
         I: IntoIterator<Item = D>,
     {
-        Stack::from_digestible(layers).map(Self::build)
+        Stack::from_digestible(layers).map(Into::into)
     }
 
-    pub fn build(stack: Stack) -> Self {
-        super::BUILDER.with_borrow_mut(|builder| {
-            let stack: Vec<_> = stack.iter_bottom_up().collect();
-            let stack = builder.create_vector(&stack);
-            let platform = spfs_proto::Platform::create(
-                builder,
-                &spfs_proto::PlatformArgs {
-                    layers: Some(stack),
-                },
-            );
-            let any = spfs_proto::AnyObject::create(
-                builder,
-                &spfs_proto::AnyObjectArgs {
-                    object_type: spfs_proto::Object::Platform,
-                    object: Some(platform.as_union_value()),
-                },
-            );
-            builder.finish_minimal(any);
-            let offset = unsafe {
-                // Safety: we have just created this buffer
-                // so already know the root type with certainty
-                flatbuffers::root_unchecked::<spfs_proto::AnyObject>(builder.finished_data())
-                    .object_as_platform()
-                    .unwrap()
-                    ._tab
-                    .loc()
-            };
-            let obj = unsafe {
-                // Safety: the provided buf and offset mut contain
-                // a valid object and point to the contained layer
-                // which is what we've done
-                Self::with_default_header(builder.finished_data(), offset)
-            };
-            builder.reset(); // to be used again
-            obj
-        })
+    pub fn builder() -> PlatformBuilder {
+        PlatformBuilder::default()
     }
 
     /// Reconstruct a mutable stack from this platform's layers
@@ -117,7 +84,7 @@ where
     T: Into<Stack>,
 {
     fn from(value: T) -> Self {
-        Self::build(value.into())
+        Self::builder().with_stack(value.into()).build()
     }
 }
 
@@ -126,6 +93,74 @@ where
     Stack: FromIterator<T>,
 {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        Self::build(Stack::from_iter(iter))
+        Self::builder().with_stack(Stack::from_iter(iter)).build()
+    }
+}
+
+#[derive(Debug)]
+pub struct PlatformBuilder {
+    header: HeaderBuilder,
+    stack: Stack,
+}
+
+impl Default for PlatformBuilder {
+    fn default() -> Self {
+        Self {
+            header: HeaderBuilder::new(ObjectKind::Platform),
+            stack: Stack::default(),
+        }
+    }
+}
+
+impl PlatformBuilder {
+    pub fn with_stack(mut self, stack: Stack) -> Self {
+        self.stack.extend(stack.iter_bottom_up());
+        self
+    }
+
+    pub fn with_header<F>(mut self, mut header: F) -> Self
+    where
+        F: FnMut(HeaderBuilder) -> HeaderBuilder,
+    {
+        self.header = header(self.header).with_kind(ObjectKind::Platform);
+        self
+    }
+
+    pub fn build(self) -> Platform {
+        super::BUILDER.with_borrow_mut(|builder| {
+            let stack: Vec<_> = self.stack.iter_bottom_up().collect();
+            let stack = builder.create_vector(&stack);
+            let platform = spfs_proto::Platform::create(
+                builder,
+                &spfs_proto::PlatformArgs {
+                    layers: Some(stack),
+                },
+            );
+            let any = spfs_proto::AnyObject::create(
+                builder,
+                &spfs_proto::AnyObjectArgs {
+                    object_type: spfs_proto::Object::Platform,
+                    object: Some(platform.as_union_value()),
+                },
+            );
+            builder.finish_minimal(any);
+            let offset = unsafe {
+                // Safety: we have just created this buffer
+                // so already know the root type with certainty
+                flatbuffers::root_unchecked::<spfs_proto::AnyObject>(builder.finished_data())
+                    .object_as_platform()
+                    .unwrap()
+                    ._tab
+                    .loc()
+            };
+            let obj = unsafe {
+                // Safety: the provided buf and offset mut contain
+                // a valid object and point to the contained layer
+                // which is what we've done
+                Platform::new_with_header(self.header.build(), builder.finished_data(), offset)
+            };
+            builder.reset(); // to be used again
+            obj
+        })
     }
 }

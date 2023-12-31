@@ -284,7 +284,10 @@ impl TryFrom<super::Manifest> for graph::Manifest {
         Ok(unsafe {
             // Safety: buf must contain an AnyObject of the provided
             // type, which is what we just constructed
-            graph::Object::with_default_header(builder.finished_data(), graph::ObjectKind::Manifest)
+            graph::Object::new_with_default_header(
+                builder.finished_data(),
+                graph::ObjectKind::Manifest,
+            )
         }
         .into_manifest()
         .expect("known to be a manifest"))
