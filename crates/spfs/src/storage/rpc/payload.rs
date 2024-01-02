@@ -101,7 +101,7 @@ impl storage::PayloadStorage for super::RpcRepository {
         let client = hyper::Client::new();
         let url_str = option
             .locations
-            .get(0)
+            .first()
             .ok_or_else(|| crate::Error::String("upload option gave no locations to try".into()))?;
         let req = hyper::Request::builder()
             .uri(url_str)
