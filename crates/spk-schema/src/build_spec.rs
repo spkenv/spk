@@ -140,7 +140,7 @@ impl BuildSpec {
         if variants.len() != 1 {
             return false;
         }
-        variants.get(0) == Some(&v0::Variant::default())
+        variants.first() == Some(&v0::Variant::default())
     }
 
     /// Returns this build's options, plus any additional ones needed

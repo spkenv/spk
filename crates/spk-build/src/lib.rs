@@ -9,5 +9,17 @@ mod error;
 #[path = "./archive_test.rs"]
 mod archive_test;
 
-pub use build::{source_package_path, BinaryPackageBuilder, BuildSource, SourcePackageBuilder};
+pub use build::{
+    build_options_path,
+    build_script_path,
+    build_spec_path,
+    commit_component_layers,
+    component_marker_path,
+    get_package_build_env,
+    source_package_path,
+    validate_source_changeset,
+    BinaryPackageBuilder,
+    BuildSource,
+    SourcePackageBuilder,
+};
 pub use error::{Error, Result};

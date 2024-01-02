@@ -88,7 +88,7 @@ fn test_var_with_build_assigns_build() {
     assert!(!requirements.is_empty());
     // ... a requirement is generated for that specific build.
     assert!(matches!(
-        requirements.get(0).unwrap(),
+        requirements.first().unwrap(),
         Request::Pkg(PkgRequest {
             pkg: RangeIdent { name, build: Some(digest), .. },
             ..
@@ -501,7 +501,7 @@ async fn test_build_var_pinning() {
         .unwrap();
 
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-    let top_req = spec.runtime_requirements().get(0).unwrap().clone();
+    let top_req = spec.runtime_requirements().first().unwrap().clone();
     match top_req {
         Request::Var(r) => assert_eq!(r.value.as_pinned(), Some("topvalue")),
         _ => panic!("expected var request"),
@@ -841,7 +841,7 @@ async fn test_default_build_component() {
 
     let requirements = spec.get_build_requirements(&option_map! {}).unwrap();
     assert_eq!(requirements.len(), 1, "should have one build requirement");
-    let req = requirements.get(0).unwrap();
+    let req = requirements.first().unwrap();
     match req {
         Request::Pkg(req) => {
             assert_eq!(req.pkg.components, vec![Component::default_for_build()].into_iter().collect(),

@@ -46,7 +46,7 @@ fn test_sources_relative_to_spec_file(tmpdir: tempfile::TempDir) {
         .unwrap()
         .generate_source_build(&spec_dir)
         .unwrap();
-    if let Some(super::SourceSpec::Local(local)) = spec.sources.get(0) {
+    if let Some(super::SourceSpec::Local(local)) = spec.sources.first() {
         assert_eq!(local.path, spec_dir);
     } else {
         panic!("expected spec to have one local source spec");

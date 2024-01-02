@@ -454,7 +454,7 @@ impl FsHashStore {
             .collect();
         match options.len() {
             0 => Err(Error::UnknownReference(short_digest)),
-            1 => Ok(dirpath.join(options.get(0).unwrap())),
+            1 => Ok(dirpath.join(options.first().unwrap())),
             _ => Err(Error::AmbiguousReference(short_digest)),
         }
     }

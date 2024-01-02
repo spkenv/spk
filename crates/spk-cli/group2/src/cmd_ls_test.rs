@@ -183,7 +183,7 @@ async fn test_ls_dash_l_shows_local_packages_only() {
     let mut opt = Opt::try_parse_from(["ls", "-L"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 1);
-    assert_eq!(opt.ls.output.vec.get(0).unwrap(), "my-local-pkg");
+    assert_eq!(opt.ls.output.vec.first().unwrap(), "my-local-pkg");
 }
 
 /// `spk ls -r origin` is expected to list packages in both the origin
@@ -282,7 +282,7 @@ async fn test_ls_dash_dash_no_local_repo_shows_remote_packages_only() {
     let mut opt = Opt::try_parse_from(["ls", "--no-local-repo"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 1);
-    assert_eq!(opt.ls.output.vec.get(0).unwrap(), "my-remote-pkg");
+    assert_eq!(opt.ls.output.vec.first().unwrap(), "my-remote-pkg");
 }
 
 /// `spk ls --disable-repo origin` is expected to list packages in only the
@@ -332,7 +332,7 @@ async fn test_ls_dash_dash_disable_repo_shows_local_packages_only() {
     let mut opt = Opt::try_parse_from(["ls", "--disable-repo", "origin"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 1);
-    assert_eq!(opt.ls.output.vec.get(0).unwrap(), "my-local-pkg");
+    assert_eq!(opt.ls.output.vec.first().unwrap(), "my-local-pkg");
 }
 
 #[tokio::test]
@@ -369,7 +369,7 @@ async fn test_ls_succeeds_for_package_with_no_version_spec() {
         opt.ls.output.warnings[0]
     );
     assert_eq!(opt.ls.output.vec.len(), 1);
-    assert_eq!(opt.ls.output.vec.get(0).unwrap(), "1.0.0");
+    assert_eq!(opt.ls.output.vec.first().unwrap(), "1.0.0");
 }
 
 #[tokio::test]
@@ -425,8 +425,8 @@ async fn test_ls_hides_deprecated_version() {
         opt.ls.output.warnings[0]
     );
     assert_eq!(opt.ls.output.vec.len(), 1);
-    assert!(opt.ls.output.vec.get(0).unwrap().contains("1.0.0"));
-    assert!(opt.ls.output.vec.get(0).unwrap().contains("DEPRECATED"));
+    assert!(opt.ls.output.vec.first().unwrap().contains("1.0.0"));
+    assert!(opt.ls.output.vec.first().unwrap().contains("DEPRECATED"));
 }
 
 #[tokio::test]
@@ -481,7 +481,7 @@ async fn test_ls_shows_partially_deprecated_version() {
     // There is at least one non-deprecated build, so the version should be
     // listed.
     assert_eq!(opt.ls.output.vec.len(), 1);
-    assert_eq!(opt.ls.output.vec.get(0).unwrap(), "1.0.0");
+    assert_eq!(opt.ls.output.vec.first().unwrap(), "1.0.0");
 
     // `ls` with showing deprecated
     let mut opt = Opt::try_parse_from(["ls", "--deprecated", "my-pkg"]).unwrap();
@@ -493,7 +493,7 @@ async fn test_ls_shows_partially_deprecated_version() {
         opt.ls.output.warnings[0]
     );
     assert_eq!(opt.ls.output.vec.len(), 1);
-    assert!(opt.ls.output.vec.get(0).unwrap().contains("1.0.0"));
-    assert!(opt.ls.output.vec.get(0).unwrap().contains("partially"));
-    assert!(opt.ls.output.vec.get(0).unwrap().contains("DEPRECATED"));
+    assert!(opt.ls.output.vec.first().unwrap().contains("1.0.0"));
+    assert!(opt.ls.output.vec.first().unwrap().contains("partially"));
+    assert!(opt.ls.output.vec.first().unwrap().contains("DEPRECATED"));
 }

@@ -216,7 +216,7 @@ pub trait DatabaseView: Sync + Send {
 
         match options.len() {
             0 => Err(Error::UnknownReference(partial.to_string())),
-            1 => Ok(options.get(0).unwrap().to_owned()),
+            1 => Ok(options.first().unwrap().to_owned()),
             _ => Err(Error::AmbiguousReference(partial.to_string())),
         }
     }

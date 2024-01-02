@@ -1180,7 +1180,7 @@ impl VersionFilter {
             }
 
             for candidates in rules_as_vec.iter().enumerate().permutations(2) {
-                let (lhs_index, lhs_vr) = candidates.get(0).unwrap();
+                let (lhs_index, lhs_vr) = candidates.first().unwrap();
                 let (_, rhs_vr) = candidates.get(1).unwrap();
 
                 // `Binary:1.2.3` and `=1.2.3` are allowed to merge as a
