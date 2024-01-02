@@ -214,7 +214,7 @@ impl<'a> Dynamic<'a> {
             unreachable!();
         }
 
-        let config = spfs::load_config().expect("loaded spfs config");
+        let config = spfs::get_config().expect("loaded spfs config");
         let local_repo = config
             .get_opened_local_repository()
             .await
