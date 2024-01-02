@@ -116,56 +116,15 @@ impl Manifest {
 
     pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         self.root().legacy_encode(&mut writer)?;
-        // this method encodes the root tree twice. This is not
-        // very efficient but maintains the original format
-        encoding::write_uint64(&mut writer, self.proto().trees().len() as u64)?;
-        for tree in self.iter_trees() {
+        // this method encodes the root tree first, and does not
+        // include it in the count of remaining trees since at least
+        // one root is always required
+        encoding::write_uint64(&mut writer, self.proto().trees().len() as u64 - 1)?;
+        // skip the root tree when saving the rest
+        for tree in self.iter_trees().skip(1) {
             tree.legacy_encode(writer)?;
         }
         Ok(())
-    }
-
-    pub(super) fn legacy_decode(mut reader: &mut impl BufRead) -> Result<Self> {
-        super::BUILDER.with_borrow_mut(|builder| {
-            // historically, the root tree was stored twice and then deduplicated
-            // when loading. In the new flatbuffer format we can simply ignore the
-            // first instance and load the others
-            let _root = Tree::legacy_decode(builder, &mut reader)?;
-            let num_trees = encoding::read_uint64(&mut reader)?;
-            let mut trees = Vec::with_capacity(num_trees as usize);
-            for _ in 0..num_trees {
-                let tree = Tree::legacy_decode(builder, reader)?;
-                trees.push(tree);
-            }
-            let trees = builder.create_vector(&trees);
-            let manifest =
-                spfs_proto::Manifest::create(builder, &ManifestArgs { trees: Some(trees) });
-            let any = spfs_proto::AnyObject::create(
-                builder,
-                &spfs_proto::AnyObjectArgs {
-                    object_type: spfs_proto::Object::Manifest,
-                    object: Some(manifest.as_union_value()),
-                },
-            );
-            builder.finish_minimal(any);
-            let offset = unsafe {
-                // Safety: we have just created this buffer
-                // so already know the root type with certainty
-                flatbuffers::root_unchecked::<spfs_proto::AnyObject>(builder.finished_data())
-                    .object_as_manifest()
-                    .unwrap()
-                    ._tab
-                    .loc()
-            };
-            let obj = unsafe {
-                // Safety: the provided buf and offset mut contain
-                // a valid object and point to the contained layer
-                // which is what we've done
-                Self::new_with_default_header(builder.finished_data(), offset)
-            };
-            builder.reset(); // to be used again
-            Ok(obj)
-        })
     }
 }
 
@@ -186,7 +145,7 @@ impl ManifestBuilder {
     where
         F: FnMut(HeaderBuilder) -> HeaderBuilder,
     {
-        self.header = header(self.header).with_kind(ObjectKind::Manifest);
+        self.header = header(self.header).with_object_kind(ObjectKind::Manifest);
         self
     }
 
@@ -227,6 +186,51 @@ impl ManifestBuilder {
             };
             builder.reset(); // to be used again
             obj
+        })
+    }
+
+    /// Read a data encoded using the legacy format, and
+    /// use the data to fill and complete this builder
+    pub fn legacy_decode(self, mut reader: &mut impl BufRead) -> Result<Manifest> {
+        super::BUILDER.with_borrow_mut(|builder| {
+            // historically, the root tree was stored first an not included in the count
+            // since it is an error to not have at least one root tree
+            let root = Tree::legacy_decode(builder, &mut reader)?;
+            let num_trees = encoding::read_uint64(&mut reader)?;
+            let mut trees = Vec::with_capacity(num_trees as usize + 1);
+            trees.push(root);
+            for _ in 0..num_trees {
+                let tree = Tree::legacy_decode(builder, reader)?;
+                trees.push(tree);
+            }
+            let trees = builder.create_vector(&trees);
+            let manifest =
+                spfs_proto::Manifest::create(builder, &ManifestArgs { trees: Some(trees) });
+            let any = spfs_proto::AnyObject::create(
+                builder,
+                &spfs_proto::AnyObjectArgs {
+                    object_type: spfs_proto::Object::Manifest,
+                    object: Some(manifest.as_union_value()),
+                },
+            );
+            builder.finish_minimal(any);
+            let offset = unsafe {
+                // Safety: we have just created this buffer
+                // so already know the root type with certainty
+                flatbuffers::root_unchecked::<spfs_proto::AnyObject>(builder.finished_data())
+                    .object_as_manifest()
+                    .unwrap()
+                    ._tab
+                    .loc()
+            };
+            let obj = unsafe {
+                // Safety: the provided buf and offset mut contain
+                // a valid object and point to the contained layer
+                // which is what we've done
+                Manifest::new_with_header(self.header.build(), builder.finished_data(), offset)
+            };
+            builder.reset(); // to be used again
+            Ok(obj)
         })
     }
 

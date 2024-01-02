@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 
 use bytes::BufMut;
 use encoding::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use super::error::{ObjectError, ObjectResult};
 use super::{Blob, DatabaseView, HasKind, Kind, Layer, Manifest, ObjectKind, Platform};
@@ -64,30 +65,52 @@ impl Object {
     pub fn new<B: Into<bytes::Bytes>>(buf: B) -> crate::Result<Self> {
         let bytes = buf.into();
         let header = Header::new(&bytes)?;
-        let Some(kind) = ObjectKind::from_u8(header.object_kind()) else {
-            return Err(ObjectError::UnexpectedKind(header.object_kind()).into());
+        let Some(kind) = header.object_kind() else {
+            return Err(ObjectError::UnexpectedKind(header.object_kind_number()).into());
         };
-        let object = match header.encoding_format() {
-            0 => {
+        let Some(format) = header.encoding_format() else {
+            return Err(ObjectError::UnknownEncoding(header.encoding_format_number()).into());
+        };
+        match format {
+            EncodingFormat::Legacy => {
                 let mut reader = std::io::BufReader::new(&bytes[Header::SIZE..]);
-                match kind {
-                    ObjectKind::Blob => Blob::legacy_decode(&mut reader)?.into_object(),
-                    ObjectKind::Manifest => Manifest::legacy_decode(&mut reader)?.into_object(),
-                    ObjectKind::Layer => Layer::legacy_decode(&mut reader)?.into_object(),
-                    ObjectKind::Platform => Platform::legacy_decode(&mut reader)?.into_object(),
+                let object = match kind {
+                    ObjectKind::Blob => Blob::builder()
+                        .with_header(|h| h.copy_from(header))
+                        .legacy_decode(&mut reader)?
+                        .into_object(),
+                    ObjectKind::Manifest => Manifest::builder()
+                        .with_header(|h| h.copy_from(header))
+                        .legacy_decode(&mut reader)?
+                        .into_object(),
+                    ObjectKind::Layer => Layer::builder()
+                        .with_header(|h| h.copy_from(header))
+                        .legacy_decode(&mut reader)?
+                        .into_object(),
+                    ObjectKind::Platform => Platform::builder()
+                        .with_header(|h| h.copy_from(header))
+                        .legacy_decode(&mut reader)?
+                        .into_object(),
                     ObjectKind::Tree | ObjectKind::Mask => {
                         // although these kinds used to be supported, they were never actually encoded
                         // separately into files and so should not appear in this context
                         return Err(ObjectError::UnexpectedKind(kind as u8).into());
                     }
-                }
+                };
+                Ok(object)
             }
-            e => return Err(ObjectError::UnknownEncoding(e).into()),
-        };
-        // TODO: copy any original header value back into the
-        // decoded object (which will get a valid, but default one)
-        // object.buf[..Header::SIZE].copy_from_slice(&header.0);
-        Ok(object)
+            EncodingFormat::FlatBuffers => {
+                // all we need to do with a flatbuffer is validate it, without
+                // any need to change or reallocate the buffer
+                flatbuffers::root::<spfs_proto::AnyObject>(&bytes[Header::SIZE..])
+                    .map_err(ObjectError::InvalidFlatbuffer)?;
+                Ok(Object {
+                    buf: bytes,
+                    offset: 0,
+                    _t: PhantomData,
+                })
+            }
+        }
     }
 
     /// Constructs a new [`Object`] instance from the provided flatbuffer.
@@ -152,7 +175,9 @@ impl Object {
 
 impl HasKind for Object {
     fn kind(&self) -> super::ObjectKind {
-        ObjectKind::from_u8(self.header().object_kind()).expect("buffer already validated")
+        self.header()
+            .object_kind()
+            .expect("buffer already validated")
     }
 }
 
@@ -173,16 +198,16 @@ impl<T: ObjectProto> encoding::Digestible for FlatObject<T> {
         };
         let mut hasher = encoding::Hasher::new_sync();
         match strategy {
-            DigestStrategy::LegacyEncode => {
+            DigestStrategy::Legacy => {
                 // the original digest strategy did
                 // not include the kind or any special salting
             }
-            DigestStrategy::EncodeWithKind => {
+            DigestStrategy::WithKindAndSalt => {
                 hasher
                     .write_all(Object::DIGEST_SALT)
                     .map_err(encoding::Error::FailedWrite)?;
                 hasher
-                    .write_all(&[header.object_kind()])
+                    .write_all(&[header.object_kind_number()])
                     .map_err(encoding::Error::FailedWrite)?;
             }
         }
@@ -200,16 +225,31 @@ impl<T: ObjectProto> encoding::Encodable for FlatObject<T> {
     type Error = crate::Error;
 
     fn encode(&self, mut writer: &mut impl std::io::Write) -> crate::Result<()> {
-        #[cfg(debug_assertions)]
-        Header::new(&self.buf[..]).expect("should have a valid header when writing");
-        writer
-            .write_all(&self.buf[..Header::SIZE])
-            .map_err(encoding::Error::FailedWrite)?;
-        match self.to_enum() {
-            Enum::Blob(obj) => obj.legacy_encode(&mut writer),
-            Enum::Manifest(obj) => obj.legacy_encode(&mut writer),
-            Enum::Layer(obj) => obj.legacy_encode(&mut writer),
-            Enum::Platform(obj) => obj.legacy_encode(&mut writer),
+        let format = self
+            .header()
+            .encoding_format()
+            .expect("an already validated header");
+        match format {
+            EncodingFormat::Legacy => {
+                writer
+                    .write_all(&self.buf[..Header::SIZE])
+                    .map_err(encoding::Error::FailedWrite)?;
+                match self.to_enum() {
+                    Enum::Blob(obj) => obj.legacy_encode(&mut writer),
+                    Enum::Manifest(obj) => obj.legacy_encode(&mut writer),
+                    Enum::Layer(obj) => obj.legacy_encode(&mut writer),
+                    Enum::Platform(obj) => obj.legacy_encode(&mut writer),
+                }
+            }
+            EncodingFormat::FlatBuffers => {
+                // the flatbuffer format is useful exactly because it does
+                // not require the data to be encoded or decoded from the wire
+                // format
+                writer
+                    .write_all(&self.buf)
+                    .map_err(encoding::Error::FailedWrite)?;
+                Ok(())
+            }
         }
     }
 }
@@ -294,9 +334,12 @@ impl<T: ObjectProto> FlatObject<T> {
     /// at its root. Additionally, offset must point to the start of a
     /// valid instance of `T` within the flatbuffer and the header must
     /// be valid and contain the appropriate type of `T`
-    pub unsafe fn new_with_header(header: [u8; Header::SIZE], buf: &[u8], offset: usize) -> Self {
+    pub unsafe fn new_with_header<H>(header: H, buf: &[u8], offset: usize) -> Self
+    where
+        H: AsRef<Header>,
+    {
         let mut bytes = bytes::BytesMut::with_capacity(buf.len() + Header::SIZE);
-        bytes.put(&header[..]);
+        bytes.put(&header.as_ref()[..]);
         bytes.put(buf);
         Self {
             buf: bytes.freeze(),
@@ -306,7 +349,7 @@ impl<T: ObjectProto> FlatObject<T> {
     }
 
     #[inline]
-    pub fn header(&self) -> Header<'_> {
+    pub fn header(&self) -> &'_ Header {
         #[cfg(debug_assertions)]
         {
             Header::new(&self.buf[..]).expect("header should be already validated")
@@ -475,9 +518,34 @@ where
 ///
 /// The original header format was a single 8-byte u64 to denote
 /// the kind of the object, but never defined more than 6
-pub struct Header<'buf>(&'buf [u8]);
+#[derive(Eq, PartialEq, Hash)]
+pub struct Header([u8]);
 
-impl<'buf> Header<'buf> {
+impl std::fmt::Debug for Header {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Header")
+            .field("prefix", &Self::PREFIX)
+            .field("body", &&self.0[Self::PREFIX.len()..])
+            .field("digest_strategy_num", &self.digest_strategy_number())
+            .field("digest_strategy", &self.digest_strategy())
+            .field("encoding_format_num", &self.encoding_format_number())
+            .field("encoding_format", &self.encoding_format())
+            .field("object_kind_num", &self.object_kind_number())
+            .field("object_kind", &self.object_kind())
+            .finish()
+    }
+}
+
+impl std::ops::Deref for Header {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        // dereferences to bytes, but only the header portion
+        &self.0[..Self::SIZE]
+    }
+}
+
+impl Header {
     /// A special string required for all headers
     const PREFIX: &'static [u8] = "--SPFS--\n".as_bytes();
     /// A fixed-size prefix followed by 8 separated byte fields
@@ -495,7 +563,7 @@ impl<'buf> Header<'buf> {
     ///
     /// The buffer can be be longer than just a header
     /// as only the initial header bytes will be validated
-    pub fn new(buf: &'buf [u8]) -> ObjectResult<Self> {
+    pub fn new(buf: &[u8]) -> ObjectResult<&Self> {
         if buf.len() < Self::SIZE {
             return Err(ObjectError::HeaderTooShort);
         }
@@ -513,8 +581,10 @@ impl<'buf> Header<'buf> {
     /// # Safety
     /// This function does not validate that the data buffer
     /// is long enough or has the right shape to be a header.
-    pub unsafe fn new_unchecked(buf: &'buf [u8]) -> Self {
-        Self(buf)
+    pub unsafe fn new_unchecked(buf: &[u8]) -> &Self {
+        // Safety: raw pointer casting is usually unsafe but our type
+        // wraps/is exactly a slice of bytes
+        unsafe { &*(&buf[..Self::SIZE] as *const [u8] as *const Self) }
     }
 
     /// The [`DigestStrategy`] in this header, if recognized
@@ -526,31 +596,89 @@ impl<'buf> Header<'buf> {
         self.0[Self::DIGEST_OFFSET]
     }
 
-    pub fn encoding_format(&self) -> u8 {
+    /// The [`EncodingFormat`] in this header, if recognized
+    pub fn encoding_format(&self) -> Option<EncodingFormat> {
+        EncodingFormat::from_u8(self.encoding_format_number())
+    }
+
+    fn encoding_format_number(&self) -> u8 {
         self.0[Self::ENCODING_OFFSET]
     }
 
-    pub fn object_kind(&self) -> u8 {
+    /// The [`ObjectKind`] in this header, if recognized
+    pub fn object_kind(&self) -> Option<ObjectKind> {
+        ObjectKind::from_u8(self.object_kind_number())
+    }
+
+    fn object_kind_number(&self) -> u8 {
         self.0[Self::KIND_OFFSET]
+    }
+}
+
+/// An owned, mutable [`Header`]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct HeaderBuf([u8; Header::SIZE]);
+
+impl std::ops::Deref for HeaderBuf {
+    type Target = Header;
+
+    fn deref(&self) -> &Self::Target {
+        // Safety: we always contain a valid header
+        unsafe { Header::new_unchecked(&self.0) }
+    }
+}
+
+impl AsRef<Header> for HeaderBuf {
+    fn as_ref(&self) -> &Header {
+        self
+    }
+}
+
+impl HeaderBuf {
+    pub fn new(kind: ObjectKind) -> Self {
+        HeaderBuilder::new(kind).build()
+    }
+
+    pub fn set_object_kind(&mut self, object_kind: ObjectKind) {
+        self.0[Header::KIND_OFFSET] = object_kind as u8;
+    }
+
+    pub fn set_digest_strategy(&mut self, digest_strategy: DigestStrategy) {
+        self.0[Header::DIGEST_OFFSET] = digest_strategy as u8;
+    }
+
+    pub fn set_encoding_format(&mut self, encoding_format: EncodingFormat) {
+        self.0[Header::ENCODING_OFFSET] = encoding_format as u8;
     }
 }
 
 #[derive(Debug)]
 pub struct HeaderBuilder {
     digest_strategy: DigestStrategy,
-    kind: ObjectKind,
+    encoding_format: EncodingFormat,
+    object_kind: ObjectKind,
 }
 
 impl HeaderBuilder {
-    pub fn new(kind: ObjectKind) -> Self {
+    pub fn new(object_kind: ObjectKind) -> Self {
+        let config = crate::get_config();
         Self {
-            digest_strategy: DigestStrategy::LegacyEncode,
-            kind,
+            digest_strategy: config
+                .as_ref()
+                .map(|s| s.storage.digest_strategy)
+                // for safety, default to the oldest supported format
+                .unwrap_or(DigestStrategy::Legacy),
+            encoding_format: config
+                .as_ref()
+                .map(|s| s.storage.encoding_format)
+                // for safety, default to the oldest supported format
+                .unwrap_or(EncodingFormat::Legacy),
+            object_kind,
         }
     }
 
-    pub fn with_kind(mut self, kind: ObjectKind) -> Self {
-        self.kind = kind;
+    pub fn with_object_kind(mut self, object_kind: ObjectKind) -> Self {
+        self.object_kind = object_kind;
         self
     }
 
@@ -559,35 +687,80 @@ impl HeaderBuilder {
         self
     }
 
+    pub fn with_encoding_format(mut self, encoding_format: EncodingFormat) -> Self {
+        self.encoding_format = encoding_format;
+        self
+    }
+
+    /// Copy valid and known components from another header
+    pub fn copy_from(mut self, other: &Header) -> Self {
+        if let Some(digest_strategy) = other.digest_strategy() {
+            self = self.with_digest_strategy(digest_strategy);
+        }
+        if let Some(encoding_format) = other.encoding_format() {
+            self = self.with_encoding_format(encoding_format);
+        }
+        if let Some(object_kind) = other.object_kind() {
+            self = self.with_object_kind(object_kind);
+        }
+        self
+    }
+
     /// Build the header bytes for the current settings
-    pub fn build(&self) -> [u8; Header::SIZE] {
-        let mut header = [0; Header::SIZE];
-        header[..Header::PREFIX.len()].copy_from_slice(Header::PREFIX);
-        header[Header::DIGEST_OFFSET] = self.digest_strategy as u8;
-        header[Header::KIND_OFFSET] = self.kind as u8;
-        header
+    pub fn build(&self) -> HeaderBuf {
+        let mut bytes = [0_u8; Header::SIZE];
+        bytes[..Header::PREFIX.len()].copy_from_slice(Header::PREFIX);
+        let mut buf = HeaderBuf(bytes);
+        buf.set_object_kind(self.object_kind);
+        buf.set_digest_strategy(self.digest_strategy);
+        buf.set_encoding_format(self.encoding_format);
+        buf
     }
 }
 
 /// See [`Header`].
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Deserialize, Serialize)]
 #[repr(u8)]
 pub enum DigestStrategy {
-    /// Encode using the original spfs encoding, which has known
-    /// collision issues. Not recommended for use except for
-    /// backwards-compatibility
-    LegacyEncode = 0,
+    /// Hash the output of the original spfs encoding, which
+    /// has known collision issues. Not recommended for use
+    /// except for backwards-compatibility
+    Legacy = 0,
     /// Encoding using the original spfs encoding, but adds salt
-    /// and the type of object to mitigate issues found in the
+    /// and the [`ObjectKind`] to mitigate issues found in the
     /// original encoding mechanism
-    EncodeWithKind = 1,
+    #[default]
+    WithKindAndSalt = 1,
 }
 
 impl DigestStrategy {
     pub fn from_u8(value: u8) -> Option<Self> {
         match value {
-            0 => Some(Self::LegacyEncode),
-            1 => Some(Self::EncodeWithKind),
+            0 => Some(Self::Legacy),
+            1 => Some(Self::WithKindAndSalt),
+            2.. => None,
+        }
+    }
+}
+
+/// See [`Header`].
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Deserialize, Serialize)]
+#[repr(u8)]
+pub enum EncodingFormat {
+    /// Encode using the original spfs encoding, which uses
+    /// a bespoke binary format
+    Legacy = 0,
+    /// Encode using the [`spfs_proto::AnyObject`] flatbuffers
+    /// schema.
+    #[default]
+    FlatBuffers = 1,
+}
+
+impl EncodingFormat {
+    pub fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::Legacy),
+            1 => Some(Self::FlatBuffers),
             2.. => None,
         }
     }

@@ -14,7 +14,7 @@ use storage::{FromConfig, FromUrl};
 use tokio_stream::StreamExt;
 
 use crate::storage::{TagNamespaceBuf, TagStorageMut};
-use crate::{runtime, storage, tracking, Error, Result};
+use crate::{graph, runtime, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./config_test.rs"]
@@ -83,6 +83,16 @@ pub struct Storage {
     /// payloads readable by "other".
     pub allow_payload_sharing_between_users: bool,
     pub tag_namespace: Option<TagNamespaceBuf>,
+    /// The strategy to use when generating new objects.
+    ///
+    /// All available strategies are still supported for reading.
+    #[serde(default)]
+    pub digest_strategy: graph::object::DigestStrategy,
+    /// The format to use when generating new objects.
+    ///
+    /// All available formats are still supported for reading.
+    #[serde(default)]
+    pub encoding_format: graph::object::EncodingFormat,
 }
 
 impl Storage {
@@ -103,6 +113,8 @@ impl Default for Storage {
                 .unwrap_or_else(|| PathBuf::from(FALLBACK_STORAGE_ROOT)),
             allow_payload_sharing_between_users: false,
             tag_namespace: None,
+            digest_strategy: graph::object::DigestStrategy::default(),
+            encoding_format: graph::object::EncodingFormat::default(),
         }
     }
 }
