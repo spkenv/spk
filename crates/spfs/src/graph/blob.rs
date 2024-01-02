@@ -53,13 +53,6 @@ impl Blob {
         encoding::write_uint64(writer, self.size())?;
         Ok(())
     }
-
-    pub(super) fn legacy_decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
-        Ok(Self::new(
-            encoding::read_digest(&mut reader)?,
-            encoding::read_uint64(reader)?,
-        ))
-    }
 }
 
 #[derive(Debug)]
@@ -84,7 +77,7 @@ impl BlobBuilder {
     where
         F: FnMut(HeaderBuilder) -> HeaderBuilder,
     {
-        self.header = header(self.header).with_kind(ObjectKind::Platform);
+        self.header = header(self.header).with_object_kind(ObjectKind::Platform);
         self
     }
 
@@ -133,5 +126,14 @@ impl BlobBuilder {
             builder.reset(); // to be used again
             obj
         })
+    }
+
+    /// Read a data encoded using the legacy format, and
+    /// use the data to fill and complete this builder
+    pub fn legacy_decode(self, mut reader: &mut impl std::io::Read) -> Result<Blob> {
+        Ok(self
+            .with_payload(encoding::read_digest(&mut reader)?)
+            .with_size(encoding::read_uint64(reader)?)
+            .build())
     }
 }

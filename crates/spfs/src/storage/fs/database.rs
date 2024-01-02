@@ -96,7 +96,10 @@ impl DatabaseView for super::OpenFsRepository {
         file.read_to_end(&mut buf).await.map_err(|err| {
             Error::StorageReadError("read_to_end on object file", filepath.clone(), err)
         })?;
-        Object::decode(&mut buf.as_slice())
+        // if the capacity of the vec already equals the length then a conversion
+        // to the Bytes type in the `new` call will avoid reallocating the data
+        buf.shrink_to_fit();
+        Object::new(buf)
     }
 
     fn find_digests(

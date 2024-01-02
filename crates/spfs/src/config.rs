@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
 use tokio_stream::StreamExt;
 
-use crate::{runtime, storage, tracking, Error, Result};
+use crate::{graph, runtime, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./config_test.rs"]
@@ -79,6 +79,16 @@ pub struct Storage {
     /// is owned by a different user than the current user. Only applies to
     /// payloads readable by "other".
     pub allow_payload_sharing_between_users: bool,
+    /// The strategy to use when generating new objects.
+    ///
+    /// All available strategies are still supported for reading.
+    #[serde(default)]
+    pub digest_strategy: graph::object::DigestStrategy,
+    /// The format to use when generating new objects.
+    ///
+    /// All available formats are still supported for reading.
+    #[serde(default)]
+    pub encoding_format: graph::object::EncodingFormat,
 }
 
 impl Storage {
@@ -98,6 +108,8 @@ impl Default for Storage {
                 .map(|data| data.join(DEFAULT_USER_STORAGE))
                 .unwrap_or_else(|| PathBuf::from(FALLBACK_STORAGE_ROOT)),
             allow_payload_sharing_between_users: false,
+            digest_strategy: graph::object::DigestStrategy::default(),
+            encoding_format: graph::object::EncodingFormat::default(),
         }
     }
 }

@@ -124,49 +124,6 @@ impl Manifest {
         }
         Ok(())
     }
-
-    pub(super) fn legacy_decode(mut reader: &mut impl BufRead) -> Result<Self> {
-        super::BUILDER.with_borrow_mut(|builder| {
-            // historically, the root tree was stored twice and then deduplicated
-            // when loading. In the new flatbuffer format we can simply ignore the
-            // first instance and load the others
-            let _root = Tree::legacy_decode(builder, &mut reader)?;
-            let num_trees = encoding::read_uint64(&mut reader)?;
-            let mut trees = Vec::with_capacity(num_trees as usize);
-            for _ in 0..num_trees {
-                let tree = Tree::legacy_decode(builder, reader)?;
-                trees.push(tree);
-            }
-            let trees = builder.create_vector(&trees);
-            let manifest =
-                spfs_proto::Manifest::create(builder, &ManifestArgs { trees: Some(trees) });
-            let any = spfs_proto::AnyObject::create(
-                builder,
-                &spfs_proto::AnyObjectArgs {
-                    object_type: spfs_proto::Object::Manifest,
-                    object: Some(manifest.as_union_value()),
-                },
-            );
-            builder.finish_minimal(any);
-            let offset = unsafe {
-                // Safety: we have just created this buffer
-                // so already know the root type with certainty
-                flatbuffers::root_unchecked::<spfs_proto::AnyObject>(builder.finished_data())
-                    .object_as_manifest()
-                    .unwrap()
-                    ._tab
-                    .loc()
-            };
-            let obj = unsafe {
-                // Safety: the provided buf and offset mut contain
-                // a valid object and point to the contained layer
-                // which is what we've done
-                Self::new_with_default_header(builder.finished_data(), offset)
-            };
-            builder.reset(); // to be used again
-            Ok(obj)
-        })
-    }
 }
 
 pub struct ManifestBuilder {
@@ -186,7 +143,7 @@ impl ManifestBuilder {
     where
         F: FnMut(HeaderBuilder) -> HeaderBuilder,
     {
-        self.header = header(self.header).with_kind(ObjectKind::Manifest);
+        self.header = header(self.header).with_object_kind(ObjectKind::Manifest);
         self
     }
 
@@ -227,6 +184,51 @@ impl ManifestBuilder {
             };
             builder.reset(); // to be used again
             obj
+        })
+    }
+
+    /// Read a data encoded using the legacy format, and
+    /// use the data to fill and complete this builder
+    pub fn legacy_decode(self, mut reader: &mut impl BufRead) -> Result<Manifest> {
+        super::BUILDER.with_borrow_mut(|builder| {
+            // historically, the root tree was stored twice and then deduplicated
+            // when loading. In the new flatbuffer format we can simply ignore the
+            // first instance and load the others
+            let _root = Tree::legacy_decode(builder, &mut reader)?;
+            let num_trees = encoding::read_uint64(&mut reader)?;
+            let mut trees = Vec::with_capacity(num_trees as usize);
+            for _ in 0..num_trees {
+                let tree = Tree::legacy_decode(builder, reader)?;
+                trees.push(tree);
+            }
+            let trees = builder.create_vector(&trees);
+            let manifest =
+                spfs_proto::Manifest::create(builder, &ManifestArgs { trees: Some(trees) });
+            let any = spfs_proto::AnyObject::create(
+                builder,
+                &spfs_proto::AnyObjectArgs {
+                    object_type: spfs_proto::Object::Manifest,
+                    object: Some(manifest.as_union_value()),
+                },
+            );
+            builder.finish_minimal(any);
+            let offset = unsafe {
+                // Safety: we have just created this buffer
+                // so already know the root type with certainty
+                flatbuffers::root_unchecked::<spfs_proto::AnyObject>(builder.finished_data())
+                    .object_as_manifest()
+                    .unwrap()
+                    ._tab
+                    .loc()
+            };
+            let obj = unsafe {
+                // Safety: the provided buf and offset mut contain
+                // a valid object and point to the contained layer
+                // which is what we've done
+                Manifest::new_with_header(self.header.build(), builder.finished_data(), offset)
+            };
+            builder.reset(); // to be used again
+            Ok(obj)
         })
     }
 

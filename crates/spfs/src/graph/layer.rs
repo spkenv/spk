@@ -51,10 +51,6 @@ impl Layer {
     pub(super) fn legacy_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_digest(writer, self.manifest()).map_err(Error::Encoding)
     }
-
-    pub(super) fn legacy_decode(reader: &mut impl std::io::Read) -> Result<Self> {
-        Ok(Layer::new(encoding::read_digest(reader)?))
-    }
 }
 
 impl std::hash::Hash for Layer {
@@ -90,7 +86,7 @@ impl LayerBuilder {
     where
         F: FnMut(HeaderBuilder) -> HeaderBuilder,
     {
-        self.header = header(self.header).with_kind(ObjectKind::Layer);
+        self.header = header(self.header).with_object_kind(ObjectKind::Layer);
         self
     }
 
@@ -133,5 +129,11 @@ impl LayerBuilder {
             builder.reset(); // to be used again
             obj
         })
+    }
+
+    /// Read a data encoded using the legacy format, and
+    /// use the data to fill and complete this builder
+    pub fn legacy_decode(self, reader: &mut impl std::io::Read) -> Result<Layer> {
+        Ok(self.with_manifest(encoding::read_digest(reader)?).build())
     }
 }
