@@ -741,7 +741,7 @@ async fn test_solver_option_injection(mut solver: Solver) {
         {
             "pkg": "vnp3/2.0.0",
             "build": {
-                "host_compat": "Any",
+                "auto_host_vars": "None",
                 "options": [
                     {"pkg": "python"},
                     {"var": "python.abi/cp27mu"},

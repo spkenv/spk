@@ -4,12 +4,12 @@
 use rstest::rstest;
 use spk_schema_foundation::FromYaml;
 
-use super::{BuildSpec, HostCompat};
+use super::{AutoHostVars, BuildSpec};
 
 #[rstest]
-fn test_host_compat_default() {
-    let host_compat = HostCompat::default();
-    assert!(host_compat.is_default());
+fn test_auto_host_vars_default() {
+    let auto_host_vars = AutoHostVars::default();
+    assert!(auto_host_vars.is_default());
 }
 
 #[rstest]
