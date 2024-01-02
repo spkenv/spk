@@ -1282,6 +1282,8 @@ impl State {
         name: &PkgName,
     ) -> super::error::GetCurrentResolveResult<(&CachedHash<Arc<Spec>>, &PackageSource, &StateId)>
     {
+        // Bug in clippy in 1.75.0: https://github.com/rust-lang/rust-clippy/issues/12043
+        #[allow(clippy::map_identity)]
         self.packages
             .get(name)
             .map(|(s, p, id)| (s, p, id))
