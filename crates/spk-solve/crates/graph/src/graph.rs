@@ -513,7 +513,7 @@ impl Graph {
 
             match self.nodes.get(&new_node_lock.id()) {
                 None => {
-                    let first_change = decision.changes.get(0);
+                    let first_change = decision.changes.first();
 
                     self.nodes.insert(new_node_lock.id(), new_node.clone());
 
@@ -552,7 +552,7 @@ impl Graph {
         // preclude revisiting a `Node` that has unvisited child states.
         if !(decision.changes.len() == 1
             && matches!(
-                unsafe { decision.changes.get(0).unwrap_unchecked() },
+                unsafe { decision.changes.first().unwrap_unchecked() },
                 Change::StepBack(_)
             ))
         {
