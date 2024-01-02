@@ -69,7 +69,7 @@ impl Run for Render {
 
         let path = dunce::canonicalize(&self.target).into_diagnostic()?;
         tracing::info!("Rendering into dir: {path:?}");
-        let config = spfs::load_config().wrap_err("Failed to load spfs config")?;
+        let config = spfs::get_config().wrap_err("Failed to load spfs config")?;
         let local = config
             .get_opened_local_repository()
             .await
