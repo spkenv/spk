@@ -23,7 +23,7 @@ fn test_resolve_options_empty_options() {
 
     let resolved_options = spec.resolve_options(&OptionMap::default()).unwrap();
     // No options were specified and none has magically appeared
-    // because host_compat was set to "None".
+    // because auto_host_vars was set to "None".
     assert!(resolved_options.is_empty());
 }
 

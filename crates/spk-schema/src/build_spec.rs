@@ -17,7 +17,7 @@ use crate::{Result, Variant};
 #[path = "./build_spec_test.rs"]
 mod build_spec_test;
 
-// Each HostCompat value adds a different set of host related options
+// Each AutoHostVars value adds a different set of host related options
 // when used.
 const DISTRO_ADDS: &[&OptName] = &[OptName::os(), OptName::arch(), OptName::distro()];
 const ARCH_ADDS: &[&OptName] = &[OptName::os(), OptName::arch()];
@@ -29,7 +29,7 @@ const NONE_ADDS: &[&OptName] = &[];
 #[derive(
     Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize, Display, Default,
 )]
-pub enum HostCompat {
+pub enum AutoHostVars {
     /// Package can only be used on the same OS distribution. Adds
     /// distro, arch, os, and <distroname> option vars.
     #[default]
@@ -43,17 +43,17 @@ pub enum HostCompat {
     None,
 }
 
-impl HostCompat {
+impl AutoHostVars {
     pub fn is_default(&self) -> bool {
         self == &Self::default()
     }
 
     fn names_added(&self) -> HashSet<&OptName> {
         let names = match self {
-            HostCompat::Distro => DISTRO_ADDS,
-            HostCompat::Arch => ARCH_ADDS,
-            HostCompat::Os => OS_ADDS,
-            HostCompat::None => NONE_ADDS,
+            AutoHostVars::Distro => DISTRO_ADDS,
+            AutoHostVars::Arch => ARCH_ADDS,
+            AutoHostVars::Os => OS_ADDS,
+            AutoHostVars::None => NONE_ADDS,
         };
 
         names.iter().copied().collect::<HashSet<&OptName>>()
@@ -67,7 +67,7 @@ impl HostCompat {
         let mut names_added = self.names_added();
         let distro_name;
         let fallback_name: OptNameBuf;
-        if HostCompat::Distro == *self {
+        if AutoHostVars::Distro == *self {
             match all_host_options.get(OptName::distro()) {
                 Some(distro) => {
                     distro_name = distro.clone();
@@ -116,7 +116,7 @@ pub struct BuildSpec {
     #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
     pub validation: ValidationSpec,
     #[serde(default)]
-    pub host_compat: HostCompat,
+    pub auto_host_vars: AutoHostVars,
 }
 
 impl Default for BuildSpec {
@@ -126,7 +126,7 @@ impl Default for BuildSpec {
             options: Vec::new(),
             variants: vec![v0::Variant::default()],
             validation: ValidationSpec::default(),
-            host_compat: HostCompat::default(),
+            auto_host_vars: AutoHostVars::default(),
         }
     }
 }
@@ -215,7 +215,7 @@ impl BuildSpec {
         }
 
         // Add any host options that are not already present.
-        let host_opts = self.host_compat.host_options()?;
+        let host_opts = self.auto_host_vars.host_options()?;
         for opt in host_opts.iter() {
             if known.insert(opt.full_name().to_owned()) {
                 opts.push(opt.clone());
@@ -349,7 +349,7 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                             unchecked.validation = map.next_value::<ValidationSpec>()?
                         }
                         "auto_host_vars" => {
-                            unchecked.host_compat = map.next_value::<HostCompat>()?
+                            unchecked.auto_host_vars = map.next_value::<AutoHostVars>()?
                         }
                         _ => {
                             // for forwards compatibility we ignore any unrecognized
