@@ -66,17 +66,6 @@ impl Platform {
         }
         Ok(())
     }
-
-    pub(super) fn legacy_decode(mut reader: &mut impl std::io::Read) -> Result<Self> {
-        let num_layers = encoding::read_uint64(&mut reader)?;
-        let mut layers = Vec::with_capacity(num_layers as usize);
-        for _ in 0..num_layers {
-            layers.push(encoding::read_digest(&mut reader)?);
-        }
-        // for historical reasons, and to remain backward-compatible, platform
-        // stacks are stored in reverse (top-down) order
-        Ok(Self::from_iter(layers.into_iter().rev()))
-    }
 }
 
 impl<T> From<T> for Platform
@@ -122,7 +111,7 @@ impl PlatformBuilder {
     where
         F: FnMut(HeaderBuilder) -> HeaderBuilder,
     {
-        self.header = header(self.header).with_kind(ObjectKind::Platform);
+        self.header = header(self.header).with_object_kind(ObjectKind::Platform);
         self
     }
 
@@ -162,5 +151,19 @@ impl PlatformBuilder {
             builder.reset(); // to be used again
             obj
         })
+    }
+
+    /// Read a data encoded using the legacy format, and
+    /// use the data to fill and complete this builder
+    pub fn legacy_decode(self, mut reader: &mut impl std::io::Read) -> Result<Platform> {
+        let num_layers = encoding::read_uint64(&mut reader)?;
+        tracing::error!("read {} layers in platform", num_layers);
+        let mut layers = Vec::with_capacity(num_layers as usize);
+        for _ in 0..num_layers {
+            layers.push(encoding::read_digest(&mut reader)?);
+        }
+        // for historical reasons, and to remain backward-compatible, platform
+        // stacks are stored in reverse (top-down) order
+        Ok(Platform::from_iter(layers.into_iter().rev()))
     }
 }
