@@ -72,7 +72,7 @@ Fetches and extracts a tar archive as package source files.
 | options        | _List[[BuildOption](#buildoption)]_ | The set of inputs for the package build process                |
 | variants       | _List[[VariantSpec](#variantspec)]_ | The default variants of the package options to build           |
 | validation     | _[ValidationSpec](#validationspec)_ | Modifies the default package validation process                |
-| auto_host_vars | _[HostCompat](#hostcompat)_         | The host compatibility setting for the package's builds. Depending on the value, it injects build options like distro, arch, os, and distro version |
+| auto_host_vars | _[AutoHostVars](#autohostvars)_         | The host compatibility setting for the package's builds. Depending on the value, it injects build options like distro, arch, os, and distro version |
 
 ### BuildOption
 
@@ -167,9 +167,9 @@ The ValidationSpec modifies the default validation process for packages, primari
 | MustInstallSomething      | Enabled | Packages must install at least one file or folder during build                                                            |
 | MustNotAlterExistingFiles | Enabled | Packages must not modify the content or metadata of any file that is provided by another package in the build environment |
 
-### HostCompat
+### AutoHostVars
 
-The HostCompat value sets which host- and os-related options are
+The AutoHostVars value sets which host- and os-related options are
 automatically added to each build. The values add zero, or more, host
 options to each build, as described in the table:
 
