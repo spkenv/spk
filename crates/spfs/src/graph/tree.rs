@@ -25,7 +25,7 @@ impl<'buf> From<spfs_proto::Tree<'buf>> for Tree<'buf> {
 }
 
 impl<'buf> Tree<'buf> {
-    pub fn entries(&self) -> impl Iterator<Item = Entry<'_>> {
+    pub fn entries(&self) -> impl Iterator<Item = Entry<'buf>> {
         self.0.entries().iter().map(Into::into)
     }
 

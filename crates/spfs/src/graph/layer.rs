@@ -31,19 +31,23 @@ impl Layer {
     /// Build a layer with the default header that points
     /// at the provided manifest digest,
     /// for more configuration use [`Self::builder`]
+    #[inline]
     pub fn new(manifest: encoding::Digest) -> Self {
         Self::builder().with_manifest(manifest).build()
     }
 
+    #[inline]
     pub fn builder() -> LayerBuilder {
         LayerBuilder::default()
     }
 
+    #[inline]
     pub fn manifest(&self) -> &encoding::Digest {
         self.proto().manifest()
     }
 
     /// Return the child object of this one in the object DG.
+    #[inline]
     pub fn child_objects(&self) -> Vec<encoding::Digest> {
         vec![*self.manifest()]
     }

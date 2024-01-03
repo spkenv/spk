@@ -75,6 +75,7 @@ impl<'buf> Entry<'buf> {
         )
     }
 
+    #[inline]
     pub fn name(&self) -> &'buf str {
         self.0.name()
     }
@@ -88,6 +89,7 @@ impl<'buf> Entry<'buf> {
         }
     }
 
+    #[inline]
     pub fn mode(&self) -> u32 {
         self.0.mode()
     }
@@ -97,18 +99,22 @@ impl<'buf> Entry<'buf> {
         self.0.size_()
     }
 
+    #[inline]
     pub fn object(&self) -> &'buf encoding::Digest {
         self.0.object()
     }
 
+    #[inline]
     pub fn is_symlink(&self) -> bool {
         unix_mode::is_symlink(self.mode())
     }
 
+    #[inline]
     pub fn is_dir(&self) -> bool {
         unix_mode::is_dir(self.mode())
     }
 
+    #[inline]
     pub fn is_regular_file(&self) -> bool {
         unix_mode::is_file(self.mode())
     }

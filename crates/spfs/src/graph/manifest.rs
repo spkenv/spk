@@ -35,6 +35,7 @@ impl std::fmt::Debug for Manifest {
 }
 
 impl Manifest {
+    #[inline]
     pub fn builder() -> ManifestBuilder {
         ManifestBuilder::default()
     }
