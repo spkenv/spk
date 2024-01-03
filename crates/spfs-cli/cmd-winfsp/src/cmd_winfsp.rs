@@ -75,7 +75,7 @@ impl cli::CommandName for CmdWinFsp {
 
 impl CmdWinFsp {
     fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        // the actual winfsp filesystem uses it's own threads, and
+        // the actual winfsp filesystem uses its own threads, and
         // the mount command only needs to send requests to the running
         // service, so a current thread runtime is appropriate
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -215,7 +215,7 @@ impl CmdService {
 #[derive(Debug, Args)]
 struct CmdMount {
     /// The process id for which the mount will be visible, along
-    /// with all of it's children. Defaults to the calling process.
+    /// with all of its children. Defaults to the calling process.
     #[clap(long)]
     root_process: Option<u32>,
 
