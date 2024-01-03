@@ -3,11 +3,65 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
+use strum::IntoEnumIterator;
 
 use super::{DigestStrategy, EncodingFormat, HeaderBuilder};
+use crate::encoding;
 use crate::fixtures::*;
 use crate::graph::{ObjectKind, Platform};
 use crate::prelude::*;
+
+#[rstest]
+fn test_legacy_header_compat() {
+    init_logging();
+
+    // the old spfs codebase used a single u64 instead of 8 x u8
+    // in the header, so make sure that objects saved in the legacy
+    // format an still be read by the new code and visa-versa
+
+    for kind in ObjectKind::iter() {
+        let mut old_style = Vec::new();
+        encoding::write_header(
+            &mut old_style,
+            // this prefix includes the newline that was previously written and
+            // validated separately
+            &super::Header::PREFIX[..super::Header::PREFIX.len() - 1],
+        )
+        .unwrap();
+        encoding::write_uint64(&mut old_style, kind as u8 as u64).unwrap();
+        let old_style = super::Header::new(old_style.as_slice())
+            .expect("old encoding should create a valid header");
+
+        let new_style = HeaderBuilder::new(kind)
+            .with_digest_strategy(DigestStrategy::Legacy)
+            .with_encoding_format(EncodingFormat::Legacy)
+            .build();
+
+        tracing::info!("{kind:?}");
+        tracing::info!("old:    {old_style:?}");
+        tracing::info!("new: {new_style:?}");
+
+        assert_eq!(
+            old_style.object_kind(),
+            Some(kind),
+            "kind should read as u8 when saved via legacy encoding"
+        );
+
+        let mut reader = std::io::Cursor::new(&new_style[..]);
+        encoding::consume_header(
+            &mut reader,
+            // this prefix includes the newline that was previously written and
+            // validated separately
+            &super::Header::PREFIX[..super::Header::PREFIX.len() - 1],
+        )
+        .expect("header prefix should be consumable");
+        let result = encoding::read_uint64(&mut reader).expect("header kind should read as a u64");
+        assert_eq!(
+            kind as u8 as u64, result,
+            "kind should read as u64 when saved via legacy modes"
+        );
+    }
+}
 
 #[rstest]
 fn test_digest_with_salting() {
