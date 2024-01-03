@@ -35,6 +35,7 @@ impl Platform {
         Stack::from_digestible(layers).map(Into::into)
     }
 
+    #[inline]
     pub fn builder() -> PlatformBuilder {
         PlatformBuilder::default()
     }

@@ -16,6 +16,7 @@ pub enum ObjectKind {
 }
 
 impl ObjectKind {
+    #[inline]
     pub fn from_u8(kind: u8) -> Option<ObjectKind> {
         Self::iter().find(|v| *v as u8 == kind)
     }
@@ -44,48 +45,56 @@ pub trait HasKind {
 }
 
 impl<'buf> Kind for spfs_proto::Platform<'buf> {
+    #[inline]
     fn kind() -> ObjectKind {
         ObjectKind::Platform
     }
 }
 
 impl<'buf> HasKind for spfs_proto::Platform<'buf> {
+    #[inline]
     fn kind(&self) -> ObjectKind {
         <Self as Kind>::kind()
     }
 }
 
 impl<'buf> Kind for spfs_proto::Layer<'buf> {
+    #[inline]
     fn kind() -> ObjectKind {
         ObjectKind::Layer
     }
 }
 
 impl<'buf> HasKind for spfs_proto::Layer<'buf> {
+    #[inline]
     fn kind(&self) -> ObjectKind {
         <Self as Kind>::kind()
     }
 }
 
 impl<'buf> Kind for spfs_proto::Manifest<'buf> {
+    #[inline]
     fn kind() -> ObjectKind {
         ObjectKind::Manifest
     }
 }
 
 impl<'buf> HasKind for spfs_proto::Manifest<'buf> {
+    #[inline]
     fn kind(&self) -> ObjectKind {
         <Self as Kind>::kind()
     }
 }
 
 impl<'buf> Kind for spfs_proto::Blob<'buf> {
+    #[inline]
     fn kind() -> ObjectKind {
         ObjectKind::Blob
     }
 }
 
 impl<'buf> HasKind for spfs_proto::Blob<'buf> {
+    #[inline]
     fn kind(&self) -> ObjectKind {
         <Self as Kind>::kind()
     }

@@ -59,10 +59,12 @@ impl Stack {
         Ok(stack)
     }
 
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.bottom.is_none()
     }
 
+    #[inline]
     pub fn clear(&mut self) {
         self.bottom.take();
     }
