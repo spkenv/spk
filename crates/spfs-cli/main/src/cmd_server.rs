@@ -9,7 +9,7 @@ use spfs_cli_common as cli;
 /// Start an spfs server
 ///
 /// The server can be used as a remote repository by
-/// it's clients, communicating over gRPC and http
+/// its clients, communicating over gRPC and http
 #[derive(Debug, Args)]
 pub struct CmdServer {
     #[clap(flatten)]

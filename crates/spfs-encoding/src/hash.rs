@@ -216,7 +216,7 @@ where
     /// Write this object in binary format.
     fn encode(&self, writer: &mut impl Write) -> std::result::Result<(), Self::Error>;
 
-    /// Encode this object into it's binary form in memory.
+    /// Encode this object into its binary form in memory.
     fn encode_to_bytes(&self) -> std::result::Result<Vec<u8>, Self::Error> {
         let mut buf = Vec::new();
         self.encode(&mut buf)?;

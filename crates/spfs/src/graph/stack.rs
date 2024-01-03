@@ -70,7 +70,7 @@ impl Stack {
     /// Add an item to the top of the stack.
     ///
     /// If the digest already exists in this stack, the previous
-    /// one is removed from it's position.
+    /// one is removed from its position.
     ///
     /// False is returned if no change was made to the stack
     /// because the digest was already at the top.
@@ -91,7 +91,7 @@ impl Stack {
                     if entry.next.is_none() {
                         return false;
                     }
-                    // replace this node with it's next entry,
+                    // replace this node with its next entry,
                     // removing it from the stack
                     let replace = entry.next.take();
                     *node = replace;

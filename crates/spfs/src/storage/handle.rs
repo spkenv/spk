@@ -259,7 +259,7 @@ impl Repository for Arc<RepositoryHandle> {
         each_variant!(&**self, repo, { repo.has_ref(reference).await })
     }
 
-    /// Resolve a tag or digest string into it's absolute digest.
+    /// Resolve a tag or digest string into its absolute digest.
     async fn resolve_ref(&self, reference: &str) -> Result<encoding::Digest> {
         each_variant!(&**self, repo, { repo.resolve_ref(reference).await })
     }

@@ -1304,7 +1304,7 @@ async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
     // - the solver will find a solution using the embedded package
     init_logging();
 
-    // Needs a repo with an embedded package, it's parent package, and
+    // Needs a repo with an embedded package, its parent package, and
     // a non-embedded different version of the same package name as
     // the embedded package.
     let repo = make_repo!(
@@ -1986,7 +1986,7 @@ async fn test_solver_component_availability(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_component_requirements(mut solver: Solver) {
-    // test when a component has it's own list of requirements
+    // test when a component has its own list of requirements
     // - the requirements are added to the existing set of requirements
     // - the additional requirements are resolved
     // - even if it's a component that's only used by the one that was requested
@@ -2067,7 +2067,7 @@ async fn test_solver_component_requirements_extending(mut solver: Solver) {
 #[rstest]
 #[tokio::test]
 async fn test_solver_component_embedded(mut solver: Solver) {
-    // test when a component has it's own list of embedded packages
+    // test when a component has its own list of embedded packages
     // - the embedded package is immediately selected
     // - it must be compatible with any previous requirements
 

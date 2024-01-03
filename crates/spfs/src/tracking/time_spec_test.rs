@@ -26,6 +26,6 @@ fn test_parsing(#[case] source: &str) {
     let spec2 = TimeSpec::parse(out).expect("Should re-parse formatted spec");
     assert_eq!(
         spec2, spec,
-        "Re-parsed spec should be the same as it's source"
+        "Re-parsed spec should be the same as its source"
     );
 }
