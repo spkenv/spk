@@ -136,6 +136,7 @@ impl Object {
     }
 
     /// Return true if this Object kind also has a payload
+    #[inline]
     pub fn has_payload(&self) -> bool {
         self.kind() == ObjectKind::Blob
     }
@@ -433,11 +434,13 @@ impl<T: ObjectProto> FlatObject<T> {
     }
 
     /// Clone (cheaply) this object and make a generic one
+    #[inline]
     pub fn to_object(&self) -> Object {
         self.clone().into_object()
     }
 
     /// Clone (cheaply) this object and identify its type
+    #[inline]
     pub fn to_enum(&self) -> Enum {
         self.clone().into_enum()
     }
@@ -540,6 +543,7 @@ impl Header {
     const ENCODING_OFFSET: usize = Self::PREFIX.len() + 1;
     const KIND_OFFSET: usize = Self::PREFIX.len() + 7;
 
+    #[inline]
     pub fn builder(kind: ObjectKind) -> HeaderBuilder {
         HeaderBuilder::new(kind)
     }
@@ -573,28 +577,34 @@ impl Header {
     }
 
     /// The [`DigestStrategy`] in this header, if recognized
+    #[inline]
     pub fn digest_strategy(&self) -> Option<DigestStrategy> {
         DigestStrategy::from_u8(self.digest_strategy_number())
     }
 
+    #[inline]
     fn digest_strategy_number(&self) -> u8 {
         self.0[Self::DIGEST_OFFSET]
     }
 
     /// The [`EncodingFormat`] in this header, if recognized
+    #[inline]
     pub fn encoding_format(&self) -> Option<EncodingFormat> {
         EncodingFormat::from_u8(self.encoding_format_number())
     }
 
+    #[inline]
     fn encoding_format_number(&self) -> u8 {
         self.0[Self::ENCODING_OFFSET]
     }
 
     /// The [`ObjectKind`] in this header, if recognized
+    #[inline]
     pub fn object_kind(&self) -> Option<ObjectKind> {
         ObjectKind::from_u8(self.object_kind_number())
     }
 
+    #[inline]
     fn object_kind_number(&self) -> u8 {
         self.0[Self::KIND_OFFSET]
     }
@@ -614,24 +624,29 @@ impl std::ops::Deref for HeaderBuf {
 }
 
 impl AsRef<Header> for HeaderBuf {
+    #[inline]
     fn as_ref(&self) -> &Header {
         self
     }
 }
 
 impl HeaderBuf {
+    #[inline]
     pub fn new(kind: ObjectKind) -> Self {
         HeaderBuilder::new(kind).build()
     }
 
+    #[inline]
     pub fn set_object_kind(&mut self, object_kind: ObjectKind) {
         self.0[Header::KIND_OFFSET] = object_kind as u8;
     }
 
+    #[inline]
     pub fn set_digest_strategy(&mut self, digest_strategy: DigestStrategy) {
         self.0[Header::DIGEST_OFFSET] = digest_strategy as u8;
     }
 
+    #[inline]
     pub fn set_encoding_format(&mut self, encoding_format: EncodingFormat) {
         self.0[Header::ENCODING_OFFSET] = encoding_format as u8;
     }

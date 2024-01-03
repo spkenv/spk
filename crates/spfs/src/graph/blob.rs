@@ -29,6 +29,7 @@ impl Blob {
             .build()
     }
 
+    #[inline]
     pub fn builder() -> BlobBuilder {
         BlobBuilder::default()
     }
