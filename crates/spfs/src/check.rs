@@ -406,7 +406,7 @@ where
         let res = CheckBlobResult::Checked {
             blob,
             result,
-            repaired: false,
+            repaired: result == CheckPayloadResult::Repaired,
         };
         self.reporter.checked_blob(&res);
         Ok(res)
@@ -958,7 +958,7 @@ impl CheckBlobResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CheckPayloadResult {
     /// The payload is missing from this repository
     Missing(encoding::Digest),
