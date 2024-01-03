@@ -37,7 +37,7 @@ impl<'buf> From<spfs_proto::Entry<'buf>> for Entry<'buf> {
 }
 
 impl<'buf> Entry<'buf> {
-    /// Construct a valid entry from it's component parts
+    /// Construct a valid entry from its component parts
     #[allow(clippy::too_many_arguments)]
     pub fn build<'fbb>(
         builder: &mut flatbuffers::FlatBufferBuilder<'fbb>,

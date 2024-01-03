@@ -103,7 +103,7 @@ impl<T> Manifest<T> {
         self.root.entries.len() == 0
     }
 
-    /// Get an entry in this manifest given it's filepath.
+    /// Get an entry in this manifest given its filepath.
     pub fn get_path<P: AsRef<str>>(&self, path: P) -> Option<&Entry<T>> {
         const TRIM_START: &[char] = &['/', '.'];
         const TRIM_END: &[char] = &['/'];

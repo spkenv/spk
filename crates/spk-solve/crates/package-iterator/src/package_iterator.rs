@@ -535,7 +535,7 @@ impl SortedBuildIterator {
         let mut changes: HashMap<OptNameBuf, ChangeCounter> = HashMap::new();
 
         for (build, _) in self.builds.iter().flat_map(|hm| hm.values()) {
-            // Skip this if it's '/src' build because '/src' builds
+            // Skip this if it's a '/src' build because '/src' builds
             // won't use the build option values in their key, they
             // don't need to be looked at. They have a type of key
             // that always puts them last in the build order.

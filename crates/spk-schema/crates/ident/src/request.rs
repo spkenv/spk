@@ -1002,7 +1002,7 @@ pub fn is_false(value: &bool) -> bool {
 }
 
 /// A deserializable name and optional value where
-/// the value it identified by it's position following
+/// the value it identified by its position following
 /// a forward slash (eg: `/<value>`)
 pub struct NameAndValue<Name = OptNameBuf>(pub Name, pub Option<String>)
 where
