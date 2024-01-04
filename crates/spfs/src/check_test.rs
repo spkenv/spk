@@ -173,12 +173,7 @@ async fn test_check_missing_payload_recover(#[future] tmprepo: TempRepo) {
 
 #[rstest]
 #[tokio::test]
-async fn test_check_missing_object_recover(
-    #[future] tmprepo: TempRepo,
-    #[values(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)] _i: usize,
-    #[values(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)] _j: usize,
-    #[values(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)] _k: usize,
-) {
+async fn test_check_missing_object_recover(#[future] tmprepo: TempRepo) {
     init_logging();
     let tmprepo = tmprepo.await;
     let repo2 = crate::fixtures::tmprepo("fs").await;
