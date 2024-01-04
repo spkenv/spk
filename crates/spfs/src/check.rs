@@ -27,7 +27,7 @@ pub struct Checker<'repo, 'sync, Reporter: CheckReporter = SilentCheckReporter> 
     repo: &'repo storage::RepositoryHandle,
     repair_with: Option<super::Syncer<'sync, 'repo>>,
     reporter: Arc<Reporter>,
-    processed_digests: Arc<dashmap::DashSet<encoding::Digest>>,
+    processed_digests: Arc<dashmap::DashMap<encoding::Digest, CheckProgress>>,
     tag_stream_semaphore: Semaphore,
     object_semaphore: Semaphore,
 }
@@ -231,8 +231,11 @@ where
         // don't write the digest here, as that is the responsibility
         // of the function that actually handles the data copying.
         // a short-circuit is still nice when possible, though
-        if self.processed_digests.contains(&digest) {
-            return Ok(CheckObjectResult::Duplicate);
+        match self.processed_digests.entry(digest) {
+            dashmap::mapref::entry::Entry::Occupied(_) => return Ok(CheckObjectResult::Duplicate),
+            dashmap::mapref::entry::Entry::Vacant(v) => {
+                v.insert(CheckProgress::LoadStarted);
+            }
         }
 
         let _permit = self.object_semaphore.acquire().await;
@@ -288,7 +291,10 @@ where
         perms: Option<u32>,
     ) -> Result<CheckObjectResult> {
         use graph::Object;
-        if !self.processed_digests.insert(obj.digest()?) {
+        if let Some(CheckProgress::CheckStarted) = self
+            .processed_digests
+            .insert(obj.digest()?, CheckProgress::CheckStarted)
+        {
             return Ok(CheckObjectResult::Duplicate);
         }
         self.reporter.visit_object(&obj);
@@ -370,7 +376,10 @@ where
     /// is known to exist in the repository being checked
     pub async unsafe fn check_blob(&self, blob: graph::Blob) -> Result<CheckBlobResult> {
         let digest = blob.digest();
-        if !self.processed_digests.insert(digest) {
+        if let Some(CheckProgress::CheckStarted) = self
+            .processed_digests
+            .insert(digest, CheckProgress::CheckStarted)
+        {
             return Ok(CheckBlobResult::Duplicate);
         }
         // Safety: this function may sync a payload and so
@@ -490,6 +499,19 @@ enum Fallback {
     None,
     /// The item was not present but was successfully repaired
     Repaired,
+}
+
+enum CheckProgress {
+    /// The digest has been seen and begun being loaded for validation.
+    ///
+    /// This is a placeholder to stop new threads from loading
+    /// and possibly trying to repair objects that have already
+    /// begun this process, but should not block the actual check
+    /// functions from running repairs are complete.
+    LoadStarted,
+    /// The digest has been seen and the check process was started.
+    /// Another load or check should not be started for this object
+    CheckStarted,
 }
 
 /// Receives updates from a check process to be reported.
