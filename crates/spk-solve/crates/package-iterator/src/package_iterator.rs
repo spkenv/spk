@@ -163,60 +163,69 @@ impl PackageIterator for RepositoryPackageIterator {
         Box<dyn futures::Future<Output = crate::Result<Option<PackageIteratorItem>>> + Send + 'a>,
     > {
         Box::pin(async move {
-            if self.versions.is_none() {
-                self.start().await?
-            }
-
-            if self.active_version.is_none() {
-                self.active_version = self.versions.as_mut().and_then(|i| i.next());
-            }
-            let version = if let Some(active_version) = self.active_version.as_ref() {
-                active_version
-            } else if !self.embedded_stubs {
-                // After exhausting the non-stub options, try the stubs.
-                self.embedded_stubs = true;
-                // Walk the versions again (reusing the existing version_map).
-                self.restart_version_iterator().await?;
-                // Clear the builds in order to repopulate them with stubs
-                // this time around.
-                self.builds_map.clear();
-                return self.next().await;
-            } else {
-                return Ok(None);
-            };
-            let repos = if let Some(repo) = self.version_map.get(version) {
-                repo
-            } else {
-                return Err(crate::Error::String(
-                    "version not found in version_map".to_owned(),
-                ));
-            };
-            let pkg =
-                VersionIdent::new(self.package_name.clone(), (**version).clone()).into_any(None);
-            if !self.builds_map.contains_key(version) {
-                match RepositoryBuildIterator::new(pkg.clone(), repos.clone(), self.embedded_stubs)
-                    .await
-                {
-                    Ok(iter) => {
-                        self.builds_map
-                            .insert((**version).clone(), Arc::new(tokio::sync::Mutex::new(iter)));
-                    }
-                    Err(
-                        err @ Error::SpkStorageError(spk_storage::Error::InvalidPackageSpec(..)),
-                    ) => {
-                        tracing::warn!("Skipping: {}", err);
-                        self.active_version = None;
-                        return self.next().await;
-                    }
-                    Err(err) => return Err(err),
+            'retry: loop {
+                if self.versions.is_none() {
+                    self.start().await?
                 }
+
+                if self.active_version.is_none() {
+                    self.active_version = self.versions.as_mut().and_then(|i| i.next());
+                }
+                let version = if let Some(active_version) = self.active_version.as_ref() {
+                    active_version
+                } else if !self.embedded_stubs {
+                    // After exhausting the non-stub options, try the stubs.
+                    self.embedded_stubs = true;
+                    // Walk the versions again (reusing the existing version_map).
+                    self.restart_version_iterator().await?;
+                    // Clear the builds in order to repopulate them with stubs
+                    // this time around.
+                    self.builds_map.clear();
+                    continue 'retry;
+                } else {
+                    return Ok(None);
+                };
+                let repos = if let Some(repo) = self.version_map.get(version) {
+                    repo
+                } else {
+                    return Err(crate::Error::String(
+                        "version not found in version_map".to_owned(),
+                    ));
+                };
+                let pkg = VersionIdent::new(self.package_name.clone(), (**version).clone())
+                    .into_any(None);
+                if !self.builds_map.contains_key(version) {
+                    match RepositoryBuildIterator::new(
+                        pkg.clone(),
+                        repos.clone(),
+                        self.embedded_stubs,
+                    )
+                    .await
+                    {
+                        Ok(iter) => {
+                            self.builds_map.insert(
+                                (**version).clone(),
+                                Arc::new(tokio::sync::Mutex::new(iter)),
+                            );
+                        }
+                        Err(
+                            err
+                            @ Error::SpkStorageError(spk_storage::Error::InvalidPackageSpec(..)),
+                        ) => {
+                            tracing::warn!("Skipping: {}", err);
+                            self.active_version = None;
+                            continue 'retry;
+                        }
+                        Err(err) => return Err(err),
+                    }
+                }
+                let builds = self.builds_map.get(version).unwrap();
+                if builds.lock().await.is_empty() {
+                    self.active_version = None;
+                    continue 'retry;
+                }
+                break Ok(Some((pkg, builds.clone())));
             }
-            let builds = self.builds_map.get(version).unwrap();
-            if builds.lock().await.is_empty() {
-                self.active_version = None;
-                return self.next().await;
-            }
-            Ok(Some((pkg, builds.clone())))
         })
     }
 
