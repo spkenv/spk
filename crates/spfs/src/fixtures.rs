@@ -229,6 +229,7 @@ pub async fn generate_tree(tmprepo: &TempRepo) -> crate::tracking::Manifest {
 
     generate_subtree(tmpdir.path(), max_depth);
     crate::Committer::new(tmprepo)
+        .with_max_concurrent_blobs(100)
         .commit_dir(tmpdir.path())
         .await
         .expect("Failed to commit generated tree")
