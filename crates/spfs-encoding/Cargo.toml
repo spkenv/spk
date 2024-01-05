@@ -9,7 +9,7 @@ workspace = true
 
 [dependencies]
 data-encoding = "2.3"
-ring = "0.16.15"
+ring = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tokio = { version = "1.20", features = ["io-util", "io-std"] }
 thiserror = { workspace = true }
