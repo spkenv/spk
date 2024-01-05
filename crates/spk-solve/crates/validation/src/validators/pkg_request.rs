@@ -82,7 +82,7 @@ impl ValidatorT for PkgRequestValidator {
                     )));
                 }
                 PackageSource::Repository { .. } => {} // okay
-                PackageSource::Embedded { parent } => {
+                PackageSource::Embedded { parent, .. } => {
                     // TODO: from the right repo still?
                     return Ok(Compatibility::incompatible(format!(
                         "package did not come from requested repo (it was embedded in {parent})"

@@ -48,7 +48,10 @@ pub enum PackageSource {
         recipe: Arc<SpecRecipe>,
     },
     /// The package was embedded in another.
-    Embedded { parent: BuildIdent },
+    Embedded {
+        parent: BuildIdent,
+        components: HashSet<Component>,
+    },
     /// Only for a package being used in spk' automated (unit) test code
     /// when the source of the package is not relevant for the test.
     SpkInternalTest,
@@ -125,15 +128,25 @@ impl SolvedRequest {
             PkgRequest::from_ident(self.spec.ident().to_any(), RequestedBy::DoesNotMatter);
 
         let mut repo_name: Option<RepositoryNameBuf> = None;
-        if let PackageSource::Repository { repo, components } = &self.source {
-            repo_name = Some(repo.name().to_owned());
+        match &self.source {
+            PackageSource::Repository { repo, components } => {
+                repo_name = Some(repo.name().to_owned());
 
-            let mut installed_components = self.request.pkg.components.clone();
-            if installed_components.remove(&Component::All) {
-                installed_components.extend(components.keys().cloned());
+                let mut installed_components = self.request.pkg.components.clone();
+                if installed_components.remove(&Component::All) {
+                    installed_components.extend(components.keys().cloned());
+                }
+                installed.pkg.components = installed_components;
             }
-            installed.pkg.components = installed_components;
-        }
+            PackageSource::Embedded { components, .. } => {
+                let mut installed_components = self.request.pkg.components.clone();
+                if installed_components.remove(&Component::All) {
+                    installed_components.extend(components.iter().cloned());
+                }
+                installed.pkg.components = installed_components;
+            }
+            _ => {}
+        };
 
         // Pass zero verbosity to format_request(), via the format
         // change options, to stop it outputting the internal details.

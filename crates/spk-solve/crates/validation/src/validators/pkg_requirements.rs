@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use itertools::Itertools;
+use spk_schema::version::{ComponentsMissing, IncompatibleReason};
 
 use super::prelude::*;
 use crate::validators::EmbeddedPackageValidator;
@@ -71,24 +71,41 @@ impl PkgRequirementsValidator {
             Err(err) => return Err(err.into()),
         };
 
+        let mut was_embedded = None;
+
         let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
             Ok((spec, source, _)) => match source {
                 PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
-                PackageSource::BuildFromSource { .. }
-                | PackageSource::Embedded { .. }
-                | PackageSource::SpkInternalTest => (spec, spec.components().names()),
+                PackageSource::Embedded { parent, components } => {
+                    was_embedded = Some(parent);
+                    (spec, components.iter().collect())
+                }
+                PackageSource::BuildFromSource { .. } | PackageSource::SpkInternalTest => {
+                    (spec, spec.components().names())
+                }
             },
             Err(spk_solve_graph::GetCurrentResolveError::PackageNotResolved(_)) => {
                 return Ok(Compatible)
             }
         };
 
-        let compat = Self::validate_request_against_existing_resolve(
+        let compat = match Self::validate_request_against_existing_resolve(
             &request,
             resolved,
             provided_components,
-        )?;
-        if !&compat {
+        )? {
+            Compatible => Compatible,
+            Compatibility::Incompatible(reason) => match (reason, was_embedded) {
+                (IncompatibleReason::ComponentsMissing(missing), Some(parent)) => {
+                    Compatibility::Incompatible(IncompatibleReason::EmbeddedComponentsMissing(
+                        parent.name().to_owned(),
+                        missing,
+                    ))
+                }
+                (reason, _) => Compatibility::Incompatible(reason),
+            },
+        };
+        if !compat.is_ok() {
             return Ok(compat);
         }
 
@@ -105,23 +122,29 @@ impl PkgRequirementsValidator {
             if !required_components.contains(&component.name) {
                 continue;
             }
-            for embedded in component.embedded.iter() {
-                let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
-                    &**resolved,
-                    embedded,
-                    state,
-                )?;
-                if !&compat {
-                    return Ok(Compatibility::incompatible(format!(
-                        "requires {}:{} which embeds {}, and {}",
-                        resolved.name(),
-                        component.name,
-                        embedded.name(),
-                        compat,
-                    )));
+            for embedded_package in component.embedded_packages.iter() {
+                for embedded in resolved
+                    .embedded()
+                    .packages_matching_embedded_package(embedded_package)
+                {
+                    let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
+                        &**resolved,
+                        embedded,
+                        state,
+                    )?;
+                    if !compat.is_ok() {
+                        return Ok(Compatibility::incompatible(format!(
+                            "requires {}:{} which embeds {}, and {}",
+                            resolved.name(),
+                            component.name,
+                            embedded.name(),
+                            compat,
+                        )));
+                    }
                 }
             }
         }
+
         Ok(Compatible)
     }
 
@@ -141,29 +164,19 @@ impl PkgRequirementsValidator {
         let required_components = resolved
             .components()
             .resolve_uses(request.pkg.components.iter());
-        let missing_components: Vec<_> = required_components
+        let missing_components: std::collections::HashSet<_> = required_components
             .iter()
             .filter(|c| !provided_components.contains(c))
+            .cloned()
             .collect();
         if !missing_components.is_empty() {
-            return Ok(Compatibility::incompatible(format!(
-                "resolved package {} does not provide all required components: needed {}, have {}",
-                request.pkg.name,
-                missing_components
-                    .into_iter()
-                    .map(Component::to_string)
-                    .join("\n"),
-                {
-                    if provided_components.is_empty() {
-                        "none".to_owned()
-                    } else {
-                        provided_components
-                            .into_iter()
-                            .map(Component::to_string)
-                            .join("\n")
-                    }
-                }
-            )));
+            return Ok(Compatibility::Incompatible(
+                IncompatibleReason::ComponentsMissing(ComponentsMissing {
+                    package: request.pkg.name.clone(),
+                    provided: provided_components.into_iter().cloned().collect(),
+                    missing: missing_components,
+                }),
+            ));
         }
 
         Ok(Compatible)

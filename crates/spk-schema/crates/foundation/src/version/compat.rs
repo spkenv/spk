@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::cmp::{Ord, Ordering};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::convert::TryFrom;
 use std::str::FromStr;
 
@@ -10,6 +10,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::{Error, Result, Version, VERSION_SEP};
+use crate::ident_component::Component;
 use crate::name::PkgNameBuf;
 use crate::version;
 
@@ -86,21 +87,75 @@ impl Ord for CompatRule {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ComponentsMissing {
+    pub package: PkgNameBuf,
+    pub provided: HashSet<Component>,
+    pub missing: HashSet<Component>,
+}
+
 /// Denotes whether or not something is compatible.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IncompatibleReason {
+    ComponentsMissing(ComponentsMissing),
     ConflictingEmbeddedPackage(PkgNameBuf),
+    EmbeddedComponentsMissing(PkgNameBuf, ComponentsMissing),
     Other(String),
 }
 
 impl std::fmt::Display for IncompatibleReason {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            IncompatibleReason::ComponentsMissing(ComponentsMissing {
+                package,
+                provided,
+                missing,
+            }) => {
+                write!(f, "resolved package {package} does not provide all required components: needed {}, have {}",
+                 missing
+                     .iter()
+                     .map(Component::to_string)
+                     .join("\n"),
+                 {
+                     if provided.is_empty() {
+                         "none".to_owned()
+                     } else {
+                         provided
+                             .iter()
+                             .map(Component::to_string)
+                             .join("\n")
+                     }
+                 })
+            }
             IncompatibleReason::ConflictingEmbeddedPackage(pkg) => {
                 write!(
                     f,
                     "embedded package conflicts with existing package in solve: {pkg}"
                 )
+            }
+            IncompatibleReason::EmbeddedComponentsMissing(
+                pkg,
+                ComponentsMissing {
+                    package,
+                    provided,
+                    missing,
+                },
+            ) => {
+                write!(f, "{pkg} embeds {package} but does not provide all required components: needed {}, have {}",
+                 missing
+                     .iter()
+                     .map(Component::to_string)
+                     .join("\n"),
+                 {
+                     if provided.is_empty() {
+                         "none".to_owned()
+                     } else {
+                         provided
+                             .iter()
+                             .map(Component::to_string)
+                             .join("\n")
+                     }
+                 })
             }
             IncompatibleReason::Other(msg) => f.write_str(msg),
         }

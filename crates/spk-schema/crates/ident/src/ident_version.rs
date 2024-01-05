@@ -60,27 +60,12 @@ impl VersionIdent {
 
 macro_rules! version_ident_methods {
     ($Ident:ty $(, .$($access:ident).+)?) => {
-        impl $Ident {
-            /// The name of the identified package
-            pub fn name(&self) -> &PkgName {
-                self$(.$($access).+)?.base().as_ref()
-            }
+        $crate::ident_optversion::opt_version_ident_methods!($Ident $(, .$($access).+)?);
 
+        impl $Ident {
             /// The version number identified for this package
             pub fn version(&self) -> &Version {
                 self$(.$($access).+)?.target()
-            }
-
-            /// Set the package name of this package identifier
-            pub fn set_name<T: Into<PkgNameBuf>>(&mut self, name: T) {
-                self$(.$($access).+)?.base = name.into();
-            }
-
-            /// Return a copy of this identifier with the given name instead
-            pub fn with_name<T: Into<PkgNameBuf>>(&self, name: T) -> Self {
-                let mut new = self.clone();
-                new$(.$($access).+)?.set_name(name);
-                new
             }
 
             /// Set the version number of this package identifier
@@ -93,12 +78,6 @@ macro_rules! version_ident_methods {
                 let mut new = self.clone();
                 new$(.$($access).+)?.set_version(version);
                 new
-            }
-        }
-
-        impl spk_schema_foundation::spec_ops::Named for $Ident {
-            fn name(&self) -> &PkgName {
-                self.name()
             }
         }
 

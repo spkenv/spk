@@ -12,7 +12,7 @@ use spk_schema_foundation::ident_ops::parsing::{version_and_build, version_and_r
 use spk_schema_foundation::name::parsing::package_name;
 use spk_schema_foundation::version::parsing::version;
 
-use crate::{AnyIdent, BuildIdent, VersionIdent};
+use crate::{AnyIdent, BuildIdent, OptVersionIdent, VersionIdent};
 
 /// Parse a package identity into an [`AnyIdent`].
 ///
@@ -41,6 +41,26 @@ where
         }
         None => Ok((input, ident)),
     }
+}
+
+/// Parse a package identity into a [`OptVersionIdent`].
+///
+/// Examples:
+/// - `"pkg-name"`
+/// - `"pkg-name/1.0"`
+pub fn opt_version_ident<'b, E>(input: &'b str) -> IResult<&'b str, OptVersionIdent, E>
+where
+    E: ParseError<&'b str>
+        + ContextError<&'b str>
+        + FromExternalError<&'b str, crate::error::Error>
+        + FromExternalError<&'b str, spk_schema_foundation::ident_build::Error>
+        + FromExternalError<&'b str, spk_schema_foundation::version::Error>
+        + FromExternalError<&'b str, std::num::ParseIntError>
+        + TagError<&'b str, &'static str>,
+{
+    let (input, ident) = package_ident(input)?;
+    let (input, v) = opt(preceded(char('/'), version))(input)?;
+    Ok((input, OptVersionIdent::new(ident.base, v)))
 }
 
 /// Parse a package identity into a [`VersionIdent`].
