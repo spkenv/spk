@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 mod build;
+mod digest;
 mod error;
 mod format;
 pub mod parsing;
@@ -16,4 +17,5 @@ pub use build::{
     EMBEDDED,
     SRC,
 };
+pub use digest::{Digest, DIGEST_SIZE};
 pub use error::{Error, Result};

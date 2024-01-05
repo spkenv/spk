@@ -28,8 +28,8 @@ where
 {
     verify(
         take_while_m_n(
-            crate::option_map::DIGEST_SIZE,
-            crate::option_map::DIGEST_SIZE,
+            crate::ident_build::DIGEST_SIZE,
+            crate::ident_build::DIGEST_SIZE,
             is_base32_digit,
         ),
         |bytes: &str| data_encoding::BASE32.decode(bytes.as_bytes()).is_ok(),

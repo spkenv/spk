@@ -5,7 +5,7 @@
 use rstest::rstest;
 
 use super::{parse_build, Build, SRC};
-use crate::option_map::{self, OptionMap};
+use crate::ident_build::{Digest, DIGEST_SIZE};
 
 #[rstest]
 fn test_parse_build_src() {
@@ -15,7 +15,7 @@ fn test_parse_build_src() {
 
 #[rstest]
 fn test_parse_build() {
-    assert!(parse_build(OptionMap::default().digest_str()).is_ok());
+    assert!(parse_build(Digest::default().to_string()).is_ok());
     assert!(parse_build("not eight characters").is_err());
     assert!(parse_build("invalid.").is_err())
 }
@@ -26,7 +26,7 @@ fn test_null_is_null() {
         spfs::Digest::from(spfs::encoding::NULL_DIGEST)
             .to_string()
             .chars()
-            .take(option_map::DIGEST_SIZE)
+            .take(DIGEST_SIZE)
             .collect::<Vec<_>>()
             .try_into()
             .expect("digest string has at least the characters needed"),
@@ -40,7 +40,7 @@ fn test_null_is_null() {
 
 #[rstest]
 fn test_empty_is_empty() {
-    let expected = Build::Digest(OptionMap::default().digest());
+    let expected = Build::Digest(Digest::default());
     let actual = Build::empty();
     assert_eq!(
         actual, &expected,

@@ -3,13 +3,15 @@
 // https://github.com/imageworks/spk
 
 use serde::de::MapAccess;
-use serde::Deserialize;
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::OptNameBuf;
 use spk_schema_foundation::option_map::Stringified;
 
 use crate::option::PkgNameWithComponents;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
 pub struct PkgNameWithComponentsWithoutVersion(pub PkgNameWithComponents);
 
 impl TryFrom<PkgNameWithComponents> for PkgNameWithComponentsWithoutVersion {
@@ -36,14 +38,14 @@ impl<'de> Deserialize<'de> for PkgNameWithComponentsWithoutVersion {
 }
 
 /// Accept either a package name that might specify components, or an option name.
-#[derive(Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(untagged)]
 pub enum VariantSpecEntryKey {
     PkgOrOpt(PkgNameWithComponentsWithoutVersion),
     Opt(OptNameBuf),
 }
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct VariantSpec {
     pub entries: Vec<(VariantSpecEntryKey, Stringified)>,
 }
@@ -79,5 +81,18 @@ impl<'de> Deserialize<'de> for VariantSpec {
         }
 
         deserializer.deserialize_map(VariantSpecVisitor)
+    }
+}
+
+impl Serialize for VariantSpec {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.entries.len()))?;
+        for (key, value) in &self.entries {
+            map.serialize_entry(key, value)?;
+        }
+        map.end()
     }
 }

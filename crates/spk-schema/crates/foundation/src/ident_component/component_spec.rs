@@ -1,16 +1,15 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::{BTreeSet, HashSet};
+
+use std::collections::BTreeSet;
 use std::convert::TryFrom;
 use std::fmt::{Display, Write};
 
-use colored::Colorize;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::{Error, Result};
-use crate::format::FormatComponents;
 use crate::name::PkgName;
 
 #[cfg(test)]
@@ -190,88 +189,5 @@ impl Serialize for Component {
         S: serde::Serializer,
     {
         self.as_str().serialize(serializer)
-    }
-}
-
-#[derive(Default)]
-pub struct ComponentSet(HashSet<Component>);
-
-impl ComponentSet {
-    pub fn new() -> Self {
-        Self(HashSet::new())
-    }
-}
-
-impl std::ops::Deref for ComponentSet {
-    type Target = HashSet<Component>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for ComponentSet {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl<I> From<I> for ComponentSet
-where
-    I: IntoIterator<Item = Component>,
-{
-    fn from(iter: I) -> Self {
-        Self(iter.into_iter().collect())
-    }
-}
-
-impl FormatComponents for ComponentSet {
-    fn format_components(&self) -> String {
-        let mut components: Vec<_> = self.0.iter().map(Component::to_string).collect();
-        components.sort();
-        let mut out = components.join(",");
-        if components.len() > 1 {
-            out = format!("{}{}{}", "{".dimmed(), out, "}".dimmed(),)
-        }
-        out
-    }
-}
-
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct ComponentBTreeSet(BTreeSet<Component>);
-
-impl ComponentBTreeSet {
-    /// Consume self and return the inner `BTreeSet<Component>`.
-    pub fn into_inner(self) -> BTreeSet<Component> {
-        self.0
-    }
-}
-
-impl<I> From<I> for ComponentBTreeSet
-where
-    I: IntoIterator<Item = Component>,
-{
-    fn from(iter: I) -> Self {
-        Self(iter.into_iter().collect())
-    }
-}
-
-impl std::ops::Deref for ComponentBTreeSet {
-    type Target = BTreeSet<Component>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for ComponentBTreeSet {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl std::fmt::Display for ComponentBTreeSet {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.fmt_component_set(f)
     }
 }

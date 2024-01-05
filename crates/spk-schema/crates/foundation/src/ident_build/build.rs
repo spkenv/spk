@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use std::collections::BTreeSet;
 use std::str::FromStr;
 
@@ -8,6 +9,7 @@ use miette::Diagnostic;
 use relative_path::RelativePathBuf;
 use thiserror::Error;
 
+use super::Digest;
 use crate::ident_component::{Component, Components};
 use crate::ident_ops::parsing::IdentPartsBuf;
 use crate::ident_ops::{MetadataPath, TagPath};
@@ -95,21 +97,21 @@ impl std::fmt::Display for EmbeddedSource {
 pub enum Build {
     Source,
     Embedded(EmbeddedSource),
-    Digest([char; crate::option_map::DIGEST_SIZE]),
+    Digest(Digest),
 }
 
 impl Build {
     /// An empty build is the build digest created from
     /// an empty option map
     pub fn empty() -> &'static Build {
-        static EMPTY: Build = Build::Digest(['3', 'I', '4', '2', 'H', '3', 'S', '6']);
+        static EMPTY: Build = Build::Digest(Digest::new(['3', 'I', '4', '2', 'H', '3', 'S', '6']));
         &EMPTY
     }
 
     /// A null build is the build digest created by
     /// encoded a series of all zeros (ie: [`spfs::encoding::NULL_DIGEST`])
     pub fn null() -> &'static Build {
-        static NULL: Build = Build::Digest(['A', 'A', 'A', 'A', 'A', 'A', 'A', 'A']);
+        static NULL: Build = Build::Digest(Digest::new(['A', 'A', 'A', 'A', 'A', 'A', 'A', 'A']));
         &NULL
     }
 
@@ -123,7 +125,7 @@ impl Build {
         match self {
             Build::Source => SRC.to_string(),
             Build::Embedded(by) => by.to_string(),
-            Build::Digest(d) => d.iter().collect(),
+            Build::Digest(d) => d.to_string(),
         }
     }
 

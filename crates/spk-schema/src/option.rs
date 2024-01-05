@@ -7,7 +7,7 @@ use std::str::FromStr;
 
 use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident_component::ComponentBTreeSet;
+use spk_schema_foundation::ident_component::ComponentBTreeSetBuf;
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_ident::{NameAndValue, PinnableValue, RangeIdent};
 
@@ -472,7 +472,7 @@ impl Serialize for VarOpt {
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PkgOpt {
     pub pkg: PkgNameBuf,
-    pub components: ComponentBTreeSet,
+    pub components: ComponentBTreeSetBuf,
     pub default: String,
     pub prerelease_policy: Option<PreReleasePolicy>,
     pub required_compat: Option<CompatRule>,
@@ -580,10 +580,10 @@ impl PkgOpt {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PkgNameWithComponents {
     pub name: PkgNameBuf,
-    pub components: ComponentBTreeSet,
+    pub components: ComponentBTreeSetBuf,
     pub default: Option<String>,
 }
 

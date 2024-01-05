@@ -104,8 +104,7 @@ where
         // Request the specific build that goes with the selected build variant.
         let build_digest_for_variant = self
             .recipe
-            .resolve_options(&self.variant.clone().with_overrides(self.options.clone()))?
-            .digest();
+            .build_digest(&self.variant.clone().with_overrides(self.options.clone()))?;
 
         let build_to_test = self
             .recipe

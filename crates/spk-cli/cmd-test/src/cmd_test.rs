@@ -111,23 +111,28 @@ impl Run for CmdTest {
                 };
 
                 for variant in variants_to_test {
-                    let mut opts = match self.options.no_host {
-                        true => OptionMap::default(),
-                        false => host_options()?,
+                    let variant = {
+                        let mut opts = match self.options.no_host {
+                            true => OptionMap::default(),
+                            false => host_options()?,
+                        };
+
+                        opts.extend(variant.options().into_owned());
+                        opts.extend(options.clone());
+
+                        variant.with_overrides(opts)
                     };
 
-                    opts.extend(variant.options().into_owned());
-                    opts.extend(options.clone());
-                    let digest = opts.digest();
+                    let digest = recipe.build_digest(&variant)?;
                     if !tested.insert(digest) {
                         continue;
                     }
 
                     let selected = recipe
-                        .get_tests(stage, &opts)
+                        .get_tests(stage, &variant)
                         .wrap_err("Failed to select tests for this variant")?;
                     tracing::info!(
-                        variant=%opts.format_option_map(),
+                        variant=%variant.options().format_option_map(),
                         "Running {} relevant tests for this variant",
                         selected.len()
                     );
@@ -148,7 +153,7 @@ impl Run for CmdTest {
                                     PackageSourceTester::new((*recipe).clone(), test.script());
 
                                 tester
-                                    .with_options(opts.clone())
+                                    .with_options(variant.options().into_owned())
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(test.additional_requirements())
                                     .with_source(source.clone())
@@ -162,9 +167,15 @@ impl Run for CmdTest {
                                     PackageBuildTester::new((*recipe).clone(), test.script());
 
                                 tester
-                                    .with_options(opts.clone())
+                                    .with_options(variant.options().into_owned())
                                     .with_repositories(repos.iter().cloned())
-                                    .with_requirements(test.additional_requirements())
+                                    .with_requirements(
+                                        variant
+                                            .additional_requirements()
+                                            .iter()
+                                            .cloned()
+                                            .chain(test.additional_requirements()),
+                                    )
                                     .with_source(
                                         source.clone().map(BuildSource::LocalPath).unwrap_or_else(
                                             || {
@@ -187,11 +198,11 @@ impl Run for CmdTest {
                                 let mut tester = PackageInstallTester::new(
                                     (*recipe).clone(),
                                     test.script(),
-                                    variant,
+                                    &variant,
                                 );
 
                                 tester
-                                    .with_options(opts.clone())
+                                    .with_options(variant.options().into_owned())
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(test.additional_requirements())
                                     .with_source(source.clone())
@@ -202,7 +213,7 @@ impl Run for CmdTest {
                         };
 
                         tracing::info!(
-                            variant=%opts.format_option_map(),
+                            variant=%variant.options().format_option_map(),
                             "Running selected test #{index}",
                         );
 

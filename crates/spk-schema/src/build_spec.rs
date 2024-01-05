@@ -1,17 +1,21 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::{HashMap, HashSet};
 
-use itertools::Itertools;
+use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
+
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::option_map::Stringified;
+use spk_schema_foundation::ident_build::Digest;
+use spk_schema_foundation::name::PkgName;
+use spk_schema_foundation::option_map::{OptionMap, Stringified};
+use spk_schema_ident::{PkgRequest, RangeIdent, Request};
 use strum::Display;
 
 use super::{v0, Opt, ValidationSpec};
 use crate::name::{OptName, OptNameBuf};
 use crate::option::VarOpt;
-use crate::{Result, Variant};
+use crate::{Error, Result, Variant};
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
@@ -106,12 +110,24 @@ impl AutoHostVars {
 }
 
 /// A set of structured inputs used to build a package.
+///
+/// Note: A BuildSpec cannot be correctly deserialized without an associated
+/// PkgName. Deserialize is not implemented for this type.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct BuildSpec {
     pub script: Script,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<Opt>,
-    #[serde(default, skip_serializing_if = "BuildSpec::is_default_variants")]
+    /// The raw variant specs as they were parsed from the recipe, so the
+    /// recipe can be serialized back out with the same variant spec.
+    #[serde(
+        default,
+        rename = "variants",
+        skip_serializing_if = "BuildSpec::is_default_variants"
+    )]
+    pub raw_variants: Vec<v0::VariantSpec>,
+    /// The parsed variants, which are used for building.
+    #[serde(skip)]
     pub variants: Vec<v0::Variant>,
     #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
     pub validation: ValidationSpec,
@@ -124,6 +140,7 @@ impl Default for BuildSpec {
         Self {
             script: Script(vec!["sh ./build.sh".into()]),
             options: Vec::new(),
+            raw_variants: vec![v0::VariantSpec::default()],
             variants: vec![v0::Variant::default()],
             validation: ValidationSpec::default(),
             auto_host_vars: AutoHostVars::default(),
@@ -136,11 +153,11 @@ impl BuildSpec {
         self == &Self::default()
     }
 
-    fn is_default_variants(variants: &[v0::Variant]) -> bool {
+    fn is_default_variants(variants: &[v0::VariantSpec]) -> bool {
         if variants.len() != 1 {
             return false;
         }
-        variants.first() == Some(&v0::Variant::default())
+        variants.first() == Some(&v0::VariantSpec::default())
     }
 
     /// Returns this build's options, plus any additional ones needed
@@ -225,6 +242,38 @@ impl BuildSpec {
         Ok(opts)
     }
 
+    pub fn resolve_options_for_pkg_name<V>(
+        &self,
+        pkg_name: &PkgName,
+        variant: &V,
+    ) -> Result<OptionMap>
+    where
+        V: Variant,
+    {
+        let given = variant.options();
+        let opts = self.opts_for_variant(variant)?;
+        let mut resolved = OptionMap::default();
+
+        for opt in opts {
+            let given_value = match opt.full_name().namespace() {
+                Some(_) => given
+                    .get(opt.full_name())
+                    .or_else(|| given.get(opt.full_name().without_namespace())),
+                None => given
+                    .get(&opt.full_name().with_namespace(pkg_name))
+                    .or_else(|| given.get(opt.full_name())),
+            };
+            let value = opt.get_value(given_value.map(String::as_ref));
+            let compat = opt.validate(Some(&value));
+            if !compat.is_ok() {
+                return Err(Error::String(compat.to_string()));
+            }
+            resolved.insert(opt.full_name().to_owned(), value);
+        }
+
+        Ok(resolved)
+    }
+
     /// Add or update an option in this build spec.
     ///
     /// An option is replaced if it shares a name with the given option,
@@ -238,30 +287,75 @@ impl BuildSpec {
         }
         self.options.push(opt);
     }
+
+    pub(crate) fn build_digest<V>(&self, pkg_name: &PkgName, variant: &V) -> Result<Digest>
+    where
+        V: Variant,
+    {
+        let options = self.resolve_options_for_pkg_name(pkg_name, variant)?;
+        let mut hasher = ring::digest::Context::new(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY);
+        for (name, value) in options.iter() {
+            hasher.update(name.as_bytes());
+            hasher.update(b"=");
+            hasher.update(value.as_bytes());
+            hasher.update(&[0]);
+        }
+        // TODO: This won't see component requests on the base options
+        for requirement in variant.additional_requirements().iter() {
+            let Request::Pkg(PkgRequest {
+                pkg: RangeIdent {
+                    name, components, ..
+                },
+                ..
+            }) = requirement
+            else {
+                continue;
+            };
+            if components.is_empty() {
+                continue;
+            }
+            hasher.update(name.as_bytes());
+            hasher.update(b"=");
+            for component in components.iter() {
+                // It is not possible to have a custom named component with
+                // the same name as a reserved name, so taking the stringified
+                // name is enough to ensure uniqueness.
+                hasher.update(component.as_str().as_bytes());
+                hasher.update(b",");
+            }
+            hasher.update(&[1]);
+        }
+        let digest = hasher.finish();
+        Ok(Digest::new_from_bytes(digest.as_ref()))
+    }
 }
 
-impl TryFrom<UncheckedBuildSpec> for BuildSpec {
+impl TryFrom<(&PkgName, UncheckedBuildSpec)> for BuildSpec {
     type Error = crate::Error;
 
-    fn try_from(bs: UncheckedBuildSpec) -> std::result::Result<Self, Self::Error> {
+    fn try_from(
+        pkg_name_and_bs: (&PkgName, UncheckedBuildSpec),
+    ) -> std::result::Result<Self, Self::Error> {
+        let (pkg_name, bs) = pkg_name_and_bs;
+
         let bs = unsafe {
             // Safety: this function bypasses checks, but we are
             // going to perform those checks before returning the value
             bs.into_inner()
         };
 
-        let mut variant_builds = Vec::new();
-        let mut unique_variants = HashSet::new();
+        let mut unique_variants = HashMap::new();
         for variant in bs.variants.iter() {
-            let options = variant.options().into_owned();
-            let digest = options.digest();
-            variant_builds.push((digest, options));
-            unique_variants.insert(digest);
-        }
-        if unique_variants.len() < variant_builds.len() {
-            let details = variant_builds
+            let options = bs.resolve_options_for_pkg_name(pkg_name, variant)?;
+            let digest = bs.build_digest(pkg_name, variant)?;
+            let vec = unique_variants.entry(digest).or_insert_with(Vec::new);
+            vec.push(options);
+            if vec.len() < 2 {
+                continue;
+            }
+            let details = vec
                 .iter()
-                .map(|(h, o)| format!("  - {} ({})", o, h.iter().join("")))
+                .map(|o| format!("  - {o} {digest}"))
                 .collect::<Vec<_>>()
                 .join("\n");
             return Err(crate::Error::String(format!(
@@ -270,16 +364,6 @@ impl TryFrom<UncheckedBuildSpec> for BuildSpec {
         }
 
         Ok(bs)
-    }
-}
-
-impl<'de> Deserialize<'de> for BuildSpec {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        UncheckedBuildSpec::deserialize(deserializer)
-            .and_then(|bs| bs.try_into().map_err(serde::de::Error::custom))
     }
 }
 
@@ -343,7 +427,7 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                             }
                         }
                         "variants" => {
-                            variants = map.next_value()?;
+                            unchecked.raw_variants = map.next_value()?;
                         }
                         "validation" => {
                             unchecked.validation = map.next_value::<ValidationSpec>()?
@@ -366,9 +450,10 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
 
                 // we can only parse out the final variant forms after all the
                 // build options have been loaded
-                unchecked.variants = variants
-                    .into_iter()
-                    .map(|o| v0::Variant::from_spec(o, &unchecked.options))
+                unchecked.variants = unchecked
+                    .raw_variants
+                    .iter()
+                    .map(|o| v0::Variant::from_spec(o.clone(), &unchecked.options))
                     .collect::<Result<Vec<_>>>()
                     .map_err(serde::de::Error::custom)?;
 

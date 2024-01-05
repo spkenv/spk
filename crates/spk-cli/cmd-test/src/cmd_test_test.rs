@@ -353,3 +353,148 @@ tests:
         .await
         .expect("spk test should not have a solver error");
 }
+
+#[rstest]
+#[tokio::test]
+async fn test_selectors_with_component_names_match_correctly(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    let _ = build_package!(
+        tmpdir,
+        "base.spk.yaml",
+        br#"
+pkg: base/1.0.0
+build:
+  script:
+    - touch "$PREFIX"/comp1
+    - touch "$PREFIX"/comp2
+
+install:
+  components:
+    - name: comp1
+      files:
+        - comp1
+    - name: comp2
+      files:
+        - comp2
+"#
+    );
+
+    // This package is expected to pass both tests.
+
+    let filename_str = build_package!(
+        tmpdir,
+        "simple1.spk.yaml",
+        br#"
+pkg: simple1/1.0.0
+build:
+  script:
+    - "true"
+  variants:
+    - { "base:comp1": "1.0.0" }
+    - { "base:comp2": "1.0.0" }
+
+tests:
+  - stage: build
+    selectors:
+      - { "base:comp1": "1.0.0" }
+    script:
+      - test -f "$PREFIX"/comp1
+  - stage: build
+    selectors:
+      - { "base:comp2": "1.0.0" }
+    script:
+      - test -f "$PREFIX"/comp2
+"#
+    );
+
+    let mut opt = TestOpt::try_parse_from([
+        "test",
+        // Don't exec a new process to move into a new runtime, this confuses
+        // coverage testing.
+        "--no-runtime",
+        "--disable-repo=origin",
+        filename_str,
+    ])
+    .unwrap();
+    opt.test.run().await.unwrap();
+
+    // The above test would also pass if all the tests were skipped, so the
+    // next tests verify that the tests are actually run.
+
+    let filename_str = build_package!(
+        tmpdir,
+        "simple2.spk.yaml",
+        br#"
+pkg: simple2/1.0.0
+build:
+  script:
+    - "true"
+  variants:
+    - { "base:comp1": "1.0.0" }
+    - { "base:comp2": "1.0.0" }
+
+tests:
+  - stage: build
+    selectors:
+      - { "base:comp1": "1.0.0" }
+    script:
+      # Comp2 is expected to not exist and make this test fail.
+      # If the whole test run fails we know that this selector matched as
+      # expected.
+      - test -f "$PREFIX"/comp2
+"#
+    );
+
+    let mut opt = TestOpt::try_parse_from([
+        "test",
+        // Don't exec a new process to move into a new runtime, this confuses
+        // coverage testing.
+        "--no-runtime",
+        "--disable-repo=origin",
+        filename_str,
+    ])
+    .unwrap();
+    opt.test
+        .run()
+        .await
+        .expect_err("the test run should fail, otherwise the selectors aren't working properly");
+
+    let filename_str = build_package!(
+        tmpdir,
+        "simple3.spk.yaml",
+        br#"
+pkg: simple3/1.0.0
+build:
+  script:
+    - "true"
+  variants:
+    - { "base:comp1": "1.0.0" }
+    - { "base:comp2": "1.0.0" }
+
+tests:
+  - stage: build
+    selectors:
+      - { "base:comp2": "1.0.0" }
+    script:
+      # Comp1 is expected to not exist and make this test fail.
+      # If the whole test run fails we know that this selector matched as
+      # expected.
+      - test -f "$PREFIX"/comp1
+"#
+    );
+
+    let mut opt = TestOpt::try_parse_from([
+        "test",
+        // Don't exec a new process to move into a new runtime, this confuses
+        // coverage testing.
+        "--no-runtime",
+        "--disable-repo=origin",
+        filename_str,
+    ])
+    .unwrap();
+    opt.test
+        .run()
+        .await
+        .expect_err("the test run should fail, otherwise the selectors aren't working properly");
+}
