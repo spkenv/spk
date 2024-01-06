@@ -342,9 +342,6 @@ tests:
         // coverage testing.
         "--no-runtime",
         "--disable-repo=origin",
-        // Add a command line override.
-        "--opt",
-        "dep-a=1.2.4",
         filename_str,
     ])
     .unwrap();
