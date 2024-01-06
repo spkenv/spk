@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use clap::Args;
@@ -21,7 +21,7 @@ use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::Request;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::version::Version;
-use spk_schema::{AnyIdent, BuildIdent, Recipe, Spec, Template, VersionIdent};
+use spk_schema::{AnyIdent, BuildIdent, Recipe, Spec, Template, Variant, VersionIdent};
 use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
 use spk_storage;
 use strum::{Display, EnumString, EnumVariantNames};
@@ -193,10 +193,31 @@ impl View {
         let recipe = template.render(options)?;
 
         let default_variants = recipe.default_variants();
-        for (index, variant) in default_variants.iter().enumerate() {
-            println!("{index}: {variant:#}");
-        }
+        match &self.format {
+            OutputFormat::Yaml => {
+                // Variants are not printed in yaml format
+                for (index, variant) in default_variants.iter().enumerate() {
+                    println!("{index}: {variant:#}");
+                }
+            }
+            OutputFormat::Json => {
+                let mut variants = HashMap::new();
+                for (index, variant) in default_variants.iter().enumerate() {
+                    let variant_info = HashMap::from([
+                        ("options", format!("{}", variant.options())),
+                        (
+                            "additional_requirements",
+                            format!("{}", variant.additional_requirements()),
+                        ),
+                    ]);
+                    variants.insert(index, variant_info);
+                }
 
+                serde_json::to_writer(std::io::stdout(), &variants)
+                    .into_diagnostic()
+                    .wrap_err("Failed to serialize loaded spec")?
+            }
+        }
         Ok(0)
     }
 
