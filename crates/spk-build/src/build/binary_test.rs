@@ -524,7 +524,7 @@ async fn test_build_bad_options() {
                 "script": [
                     "touch /spfs/top-file",
                 ],
-                "options": [{"var": "debug", "choices": ["on", "off"]}],
+                "options": [{"var": "debug/off", "choices": ["on", "off"]}],
             },
         }
     );
