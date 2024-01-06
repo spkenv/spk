@@ -17,4 +17,4 @@ miette = { workspace = true }
 
 [dev-dependencies]
 rstest = { version = "0.15.0", default_features = false }
-rand = "0.8.5"
+rand = { workspace = true }
