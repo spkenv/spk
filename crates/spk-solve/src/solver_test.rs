@@ -664,7 +664,7 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
             "build": {
                 // The 'by_distance' build sorting method relied on this for the
                 // tests to pass:
-                // favoritize 2.7, otherwise an option of python=2 doesn't actually
+                // favor 2.7, otherwise an option of python=2 doesn't actually
                 // exclude python 3 from being resolved
                 "options": [{"pkg": "python/~2.7"}],
                 "variants": [{"python": "3.7"}, {"python": "2.7"}],

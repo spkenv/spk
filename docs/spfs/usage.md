@@ -109,7 +109,7 @@ The spfs runtime uses a temporary, in-memory filesystem, which means that large 
 
 ## Live Layers: external directories and files in a spfs runtime
 
-Spfs supports adding external directories and files on top of an /spfs runtime. These are known as live layers in Spfs. They can be used to include things like local git repo checkouts of code directly inside /spfs to aid development, debugging, and allow normal git commands to operate insdie that part of /spfs.
+Spfs supports adding external directories and files on top of an /spfs runtime. These are known as live layers in Spfs. They can be used to include things like local git repo checkouts of code directly inside /spfs to aid development, debugging, and allow normal git commands to operate inside that part of /spfs.
 
 A live layer is configured by a yaml file, called `layer.spfs.yaml` by default.
 
