@@ -74,7 +74,7 @@ impl CmdRuntimePrune {
         #[cfg(windows)]
         let boot_time = Utc::now()
             - Duration::milliseconds(unsafe {
-                // Safety: this is a raw system API, but seems infallible nontheless
+                // Safety: this is a raw system API, but seems infallible nonetheless
                 windows::Win32::System::SystemInformation::GetTickCount64() as i64
             });
 

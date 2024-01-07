@@ -209,7 +209,7 @@ async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(mut so
                 // requests pass and this allows the solver to run and
                 // find a solution.
             }
-            Err(err) => panic!("expected an Ok(_) soluation, got: {err}"),
+            Err(err) => panic!("expected an Ok(_) solution, got: {err}"),
         }
     }
 }

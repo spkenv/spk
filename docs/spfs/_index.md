@@ -132,7 +132,7 @@ Normally in edit mode, all changes are stored in memory and are lost when you ex
 
 Using `--keep-runtime` with `spfs run` will tell spfs to make a durable runtime. The runtime and any edits made while it is running will be kept around until you delete the runtime, see `spfs runtime rm -h`. It is worth using `--runtime-name <NAME>` to give the runtime a memorable name when you are use `--keep-runtime`. The default runtime names are uuids that do not provide any useful insight above what is in the runtime. You can use `--runtime-name <NAME>` without `--keep-time` as well.
 
-You can restart a durable runtime you previously exited by using `spfs run --rerun <RUNTIME-NAME> ...`. This will restore the original layers and any edits that were made in the durableruntime, whether or not they were committed. Committed edits will be in the top most spfs object in the layers. Uncommited ones will be normal edits as described above.
+You can restart a durable runtime you previously exited by using `spfs run --rerun <RUNTIME-NAME> ...`. This will restore the original layers and any edits that were made in the durableruntime, whether or not they were committed. Committed edits will be in the top most spfs object in the layers. Uncommitted ones will be normal edits as described above.
 
 
 ### Sharing References

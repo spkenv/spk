@@ -250,7 +250,7 @@ pub(crate) async fn change_deprecation_state(
         return Ok(4);
     }
 
-    // Summarise what is about to be actioned. Note, this does not
+    // Summarize what is about to be actioned. Note, this does not
     // show whether the action will change any of the items.
     let pkg_text = if to_action.len() > 1 {
         "packages"

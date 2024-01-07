@@ -267,7 +267,7 @@ impl Solver {
             ErrorDetails::CouldNotSatisfy(request_string, requesters) => {
                 // Store counts of "could not satisfy" errors keyed by
                 // their request_strings, and keep information on each
-                // request_string to summarise these errors later: the
+                // request_string to summarize these errors later: the
                 // requesters from the first occurring example of the
                 // request_string error, and a set of all the requesters
                 // so they can be examined once the solve has finished.
@@ -615,7 +615,7 @@ impl Solver {
                                         )
                                         .await?;
                                     if !compat.is_ok() {
-                                        // This build would add an impossible requst,
+                                        // This build would add an impossible request,
                                         // which is a bad choice for any solve, so
                                         // discard this build and try another.
                                         notes.push(Note::SkipPackageNote(SkipPackageNote::new(

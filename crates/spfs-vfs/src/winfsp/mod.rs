@@ -76,7 +76,7 @@ impl Service {
         let repos = repo.into_stack().into_iter().map(Arc::new).collect();
 
         // as of writing, the descriptor mode is the only one that works in
-        // winsfp-rs without causing crashes
+        // winfsp-rs without causing crashes
         let mode = winfsp::host::FileContextMode::Descriptor;
         let mut params = winfsp::host::VolumeParams::new(mode);
         params

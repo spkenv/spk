@@ -113,7 +113,7 @@ Spfs supports adding external directories and files on top of an /spfs runtime. 
 
 A live layer is configured by a yaml file, called `layer.spfs.yaml` by default.
 
-You can give `spfs run` the path to a live layer file, or the path to a directory that contains a 'layer.spfs.yaml' file, as one of the REFS on the command line that will make up the spfs runtime, e.g. `spfs run digest+digest+liverlayerfile+tag+digest`. Multiple files can be specified on the command line. `spfs run` will put a live layer into /spfs each for config file specified.
+You can give `spfs run` the path to a live layer file, or the path to a directory that contains a 'layer.spfs.yaml' file, as one of the REFS on the command line that will make up the spfs runtime, e.g. `spfs run digest+digest+livelayerfile+tag+digest`. Multiple files can be specified on the command line. `spfs run` will put a live layer into /spfs each for config file specified.
 
 Example `layer.spfs.yaml` file in `/some/directory/somewhere/`:
 
