@@ -165,7 +165,7 @@ impl HostController {
     /// and false if the filesystem appears to have already stopped or
     /// crashed.
     pub fn shutdown(&self) -> impl std::future::Future<Output = bool> + 'static {
-        // do not hold a reference to self accross the await so that
+        // do not hold a reference to self across the await so that
         // the future returned by this function can be considered 'static
         let tx = self.shutdown.clone();
         async move { tx.send(()).await.is_ok() }

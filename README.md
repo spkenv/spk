@@ -64,7 +64,7 @@ For details on architecture and design of the codebase, see the [developer docs]
 # once cargo is installed, you can build and install both projects with
 make build
 
-# additionaly features can be activated in all relevant cargo commands as desired
+# additionally features can be activated in all relevant cargo commands as desired
 #   protobuf-src will
 make build FEATURES=spfs/protobuf-src
 ```
@@ -126,7 +126,7 @@ Some of these package specs have not yet been used or tested fully or ironed out
 Currently, this process can only be run on an rpm-based system, as it relies on some rpm packages being installed on the host in order to bootstrap the build process. If you are not running on an rpm-based system, you can run the process in a container instead:
 
 ```sh
-# build boostrap packages in a docker image
+# build bootstrap packages in a docker image
 # (can also build any other packages.* rule, though the container startup is heavy)
 make packages.docker.python2
 # build all core packages
@@ -153,7 +153,7 @@ spk convert pip --help
 
 #### Other Notes
 
-- The make `packages.python2` and `packages.python3` targets can be used to boostrap just enough to be able to build python for spk. The python recipes will build multiple python versions for each gcc48 and 63 as well as for the different python abi's
+- The make `packages.python2` and `packages.python3` targets can be used to bootstrap just enough to be able to build python for spk. The python recipes will build multiple python versions for each gcc48 and 63 as well as for the different python abi's
 - The make `packages.gnu` target can be used to bootstrap just enough to get "native" spk packages for gcc48 and gcc63
 
 Of course, the packages themselves can also be build with the `spk build <spec_file>` command directly, though you may find that some required build dependencies need to be generated with the `make packages.bootstrap.full` command first.

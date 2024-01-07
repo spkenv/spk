@@ -157,7 +157,7 @@ pub(crate) enum ErrorDetails {
 pub struct CouldNotSatisfyRecord {
     /// The unique set of requesters involved in all instances of the error
     pub requesters: HashSet<RequestedBy>,
-    /// The requesters from the first occurrance of the error
+    /// The requesters from the first occurrence of the error
     pub first_example: Vec<RequestedBy>,
 }
 
@@ -268,7 +268,7 @@ impl Solver {
                 // Store counts of "could not satisfy" errors keyed by
                 // their request_strings, and keep information on each
                 // request_string to summarise these errors later: the
-                // requesters from the first occuring example of the
+                // requesters from the first occurring example of the
                 // request_string error, and a set of all the requesters
                 // so they can be examined once the solve has finished.
                 let counter = self
@@ -823,7 +823,7 @@ impl Solver {
             // requirements (i.e. the 'req' being checked here).
             //
             // The count is used as a fake version number to
-            // distinquish which initial request is being checked in
+            // distinguish which initial request is being checked in
             // each dummy package.
             let recipe = try_recipe!({"pkg": format!("initialrequest/{}", count + 1),
                                       "install": {
@@ -858,7 +858,7 @@ impl Solver {
                 (task_req, result)
             };
 
-            // The tasks are run concurrenly via async, in the same thread.
+            // The tasks are run concurrently via async, in the same thread.
             tasks.push(task);
         }
 

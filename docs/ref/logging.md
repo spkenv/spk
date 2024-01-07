@@ -37,7 +37,7 @@ The number of times `--verbose (-v)` is specified is the verbosity level. Verbos
 
 ## Logging Controls
 
-Logging output is primarily controlled by verbosity level, see above. But it can be overridden by the `SPK_LOG` and `RUST_LOG` enviroment variables. For spk commands, the settings based on verbosity are applied first, then those from `SPK_LOG`, and finally any from `RUST_LOG`. For spfs commands, only `RUST_LOG` is used.
+Logging output is primarily controlled by verbosity level, see above. But it can be overridden by the `SPK_LOG` and `RUST_LOG` environment variables. For spk commands, the settings based on verbosity are applied first, then those from `SPK_LOG`, and finally any from `RUST_LOG`. For spfs commands, only `RUST_LOG` is used.
 
 `SPK_LOG` and `RUST_LOG` can contain comma-separated list of tracing directives. Each directive can be a `log-level` or `target=log-level`, e.g. `debug` or `spk=debug`. A log-level on its own sets the default logging level. The target names can be any module or crate name in spk or its dependencies, or any of the additional names defined in spk.
 

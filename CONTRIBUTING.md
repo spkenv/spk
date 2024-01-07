@@ -22,7 +22,7 @@ process.
   Please use [GitHub Issues](https://github.com/imageworks/spk/issues).
 
   Eventually, the spk, spfs, and spawn repos will all be merged into a single
-  respository. In the mean time, please use the spfs and spawn issues only
+  repository. In the mean time, please use the spfs and spawn issues only
   for items specific to the code in those repos, and for any general topics,
   file issues in the spk repository so they will stick with what will
   eventually be the one true project.

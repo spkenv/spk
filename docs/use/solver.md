@@ -6,7 +6,7 @@ weight: 100
 
 The `spk env` creates a brand new environment with some set of packages installed into it. Once you are in an environment, the `spk install` command can be used to add additional packages or upgrade existing packages in the current environment.
 
-Both of these operations take a set of package requests and try to figure out the best way to satisfy them all (more info on [package requests]({{< ref "use/versioning" >}})). The solver is responsible for taking the set of requested packages and ensuring that all dependencies are pulled in and all packages are compatible in the final environment. If this is deeped not possible, then you will see an error related to why the requests could not be satisfied.
+Both of these operations take a set of package requests and try to figure out the best way to satisfy them all (more info on [package requests]({{< ref "use/versioning" >}})). The solver is responsible for taking the set of requested packages and ensuring that all dependencies are pulled in and all packages are compatible in the final environment. If this is deemed not possible, then you will see an error related to why the requests could not be satisfied.
 
 ## Understanding Solver Errors
 
@@ -79,7 +79,7 @@ In this example, we've specifically requested an environment where the `os` opti
 
 ### Solver Patterns
 
-In most cases, the solver will encouter multiple issues as it tries to find an appropriate solution to the set of requested packages. Not all errors are bad, and some are even expected. Here are some common patterns that you may see in your solver decision tree which can help to differentiate benign issues from actual problems.
+In most cases, the solver will encounter multiple issues as it tries to find an appropriate solution to the set of requested packages. Not all errors are bad, and some are even expected. Here are some common patterns that you may see in your solver decision tree which can help to differentiate benign issues from actual problems.
 
 #### Incompatible Dependencies
 
@@ -150,7 +150,7 @@ Packages can be deprecated by package owners when an issue is found or an older 
 
 ##### Possible Solutions
 
-- Generally, you want to update to a newer version of the package that has not been deprecated. Package maintainers should not deprecate packages without providing a resonable alternative.
+- Generally, you want to update to a newer version of the package that has not been deprecated. Package maintainers should not deprecate packages without providing a reasonable alternative.
 - If you are really stuck, note that the error message says _was not specifically requested_. This means that if you request the deprecated build exactly, then it will still resolve the environment for you, eg `spk env my-tool/1.2.0/STLY6HNC`.
 
 #### Embedded Packages

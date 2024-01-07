@@ -65,7 +65,7 @@ fn test_resolve_options_variant_adds_new_var_option(
     // Now do the same thing but add-in an override for the option.
 
     let overrides = option_map! { opt_name => override_value };
-    let overriden = (&variants[0]).with_overrides(overrides.clone());
+    let overridden = (&variants[0]).with_overrides(overrides.clone());
 
     // The "default" variant still has empty options.
     let resolved_options = spec.resolve_options(&overrides).unwrap();
@@ -73,7 +73,7 @@ fn test_resolve_options_variant_adds_new_var_option(
     assert!(resolved_options.is_empty());
 
     // The first variant is not empty.
-    let resolved_options = spec.resolve_options(&overriden).unwrap();
+    let resolved_options = spec.resolve_options(&overridden).unwrap();
     // One option expected.
     assert_eq!(resolved_options.len(), 1);
     // The override should have won.
