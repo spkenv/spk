@@ -206,7 +206,7 @@ where
             tracking::EnvSpecItem::TagSpec(tag_spec) => {
                 self.sync_tag(tag_spec).await.map(SyncEnvItemResult::Tag)?
             }
-            // These are not objects in spfs, so they are not synable
+            // These are not objects in spfs, so they are not syncable
             tracking::EnvSpecItem::LiveLayerFile(_) => {
                 return Ok(SyncEnvItemResult::Object(SyncObjectResult::Ignorable))
             }
@@ -466,7 +466,7 @@ where
         }
 
         // Safety: this is the unsafe part where we actually create
-        // the payload without a corresponsing blob
+        // the payload without a corresponding blob
         let (created_digest, size) = unsafe { self.dest.write_data(payload).await? };
         if digest != created_digest {
             return Err(Error::String(format!(

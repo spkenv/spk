@@ -41,7 +41,7 @@ if [ -d $CLANGHOME ] ; then
 fi
 
 TARGETS="host;NVPTX"
-SANATIZERS="Address;Memory;MemoryWithOrigins;Undefined;Thread;DataFlow"
+SANITIZERS="Address;Memory;MemoryWithOrigins;Undefined;Thread;DataFlow"
 PROJECTS="clang;libcxx;libcxxabi;libunwind;compiler-rt;lld"
 
 # requires CUDA_TOOLKIT_ROOT_DIR for OpenMP+CUDA

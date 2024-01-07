@@ -19,7 +19,7 @@ pub fn event_from_error(err: &miette::Error) -> Event<'static> {
 
     let mut event = sentry::event_from_error(dyn_err);
 
-    // Use the miette formated version of the error in the sentry
+    // Use the miette formatted version of the error in the sentry
     // event's message when it doesn't already have a message.
     if event.message.is_none() {
         event.message = Some(format!("{err:?}"));

@@ -9,7 +9,7 @@ build:
     # We are explicitly not using the builtin env support because
     # this package is expected to initialize the core environment
     # as early as possible
-    # Intitialization for bash environments
+    # Initialization for bash environments
     - cat << EOF > /spfs/etc/spfs/startup.d/00_stdfs.sh
     - export LD_LIBRARY_PATH="/spfs/lib:\${LD_LIBRARY_PATH}"
     - export LIBRARY_PATH="/spfs/lib:\${LIBRARY_PATH}"

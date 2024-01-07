@@ -76,7 +76,7 @@ impl Service {
         let repos = repo.into_stack().into_iter().map(Arc::new).collect();
 
         // as of writing, the descriptor mode is the only one that works in
-        // winsfp-rs without causing crashes
+        // winfsp-rs without causing crashes
         let mode = winfsp::host::FileContextMode::Descriptor;
         let mut params = winfsp::host::VolumeParams::new(mode);
         params
@@ -165,7 +165,7 @@ impl HostController {
     /// and false if the filesystem appears to have already stopped or
     /// crashed.
     pub fn shutdown(&self) -> impl std::future::Future<Output = bool> + 'static {
-        // do not hold a reference to self accross the await so that
+        // do not hold a reference to self across the await so that
         // the future returned by this function can be considered 'static
         let tx = self.shutdown.clone();
         async move { tx.send(()).await.is_ok() }

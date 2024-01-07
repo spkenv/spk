@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # https://github.com/imageworks/spk
 
-## Run all integration tests in the priviledged folder
+## Run all integration tests in the privileged folder
 # these are expected to be run off of the installed spfs binaries
 # with the proper capabilities
 

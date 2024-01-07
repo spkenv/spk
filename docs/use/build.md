@@ -46,7 +46,7 @@ When building from a source package, the build environment will be resolved with
 
 Assuming that the build script completes successfully, spk will reset the sources area in spfs, removing all build artifacts that were not installed. For this reason, your build script can make any changes to the source files that are needed, but no files in this area will become part of the published package.
 
-The most common example of this process is when using cmake. The build script usally creates a `build` folder in the source directory to compile in, but then installs the final binaries into `/spfs/lib`, `/spfs/bin` etc. For a build of `my-package`, for example, when the build script is finished I will have made changes in three locations:
+The most common example of this process is when using cmake. The build script usually creates a `build` folder in the source directory to compile in, but then installs the final binaries into `/spfs/lib`, `/spfs/bin` etc. For a build of `my-package`, for example, when the build script is finished I will have made changes in three locations:
 
 ```
 /spfs/spk/pkg/my-package/1.0.0/src/build <- directory added for cmake config/build
@@ -60,7 +60,7 @@ The most common example of this process is when using cmake. The build script us
 
 Binary packages can be created without the use of source packages by running the `spk make-binary` command and adding the `--here` flag. This flag tells spk that the build script should be run in the current directory, which is often helpful for quickly iterating on a local set of source files.
 
-In this scenario, spk will not do anything to the source folder after build, allowing build artifacts and chaches to be maintained and reused between builds.
+In this scenario, spk will not do anything to the source folder after build, allowing build artifacts and caches to be maintained and reused between builds.
 
 ```sh
 # enter a local clone of the source code

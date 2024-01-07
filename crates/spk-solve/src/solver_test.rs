@@ -209,7 +209,7 @@ async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(mut so
                 // requests pass and this allows the solver to run and
                 // find a solution.
             }
-            Err(err) => panic!("expected an Ok(_) soluation, got: {err}"),
+            Err(err) => panic!("expected an Ok(_) solution, got: {err}"),
         }
     }
 }
@@ -664,7 +664,7 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
             "build": {
                 // The 'by_distance' build sorting method relied on this for the
                 // tests to pass:
-                // favoritize 2.7, otherwise an option of python=2 doesn't actually
+                // favor 2.7, otherwise an option of python=2 doesn't actually
                 // exclude python 3 from being resolved
                 "options": [{"pkg": "python/~2.7"}],
                 "variants": [{"python": "3.7"}, {"python": "2.7"}],
@@ -1110,7 +1110,7 @@ async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
             // enabled because: the initial checks for impossible
             // requests pass because the :all component matches the
             // :src component of the non-deprecated build and this allows
-            // the solver to run. The solver finds the package/verison
+            // the solver to run. The solver finds the package/version
             // recipe is deprecated and refuses to build a binary from
             // the source package.
         }
@@ -2359,7 +2359,7 @@ fn test_error_frequency_get_message_for_couldnotsatisfy_error_multiple() {
 
     match errors.get(&request.pkg.to_string()) {
         Some(error_freq) => {
-            assert!(error_freq.counter == 2, "error frequency counter for 2 occurances of the same 'could not satisfy' error should be 2, not: {}", error_freq.counter );
+            assert!(error_freq.counter == 2, "error frequency counter for 2 occurrences of the same 'could not satisfy' error should be 2, not: {}", error_freq.counter );
             assert!(error_freq.get_message(request.pkg.to_string()) != request.pkg.to_string(),
             " error frequency get_message for a 'could not satisfy' error should be more than the error key not: {}",
             error_freq.get_message(request.pkg.to_string())

@@ -9,8 +9,8 @@ packages: \
 	ninja \
 	opentimelineio
 
-.PHONY: bootstrap boostrap.full
-# boostrap just enough to get a real linker and compiler
+.PHONY: bootstrap bootstrap.full
+# bootstrap just enough to get a real linker and compiler
 # under /spfs, then move on from there
 bootstrap: \
 	stdfs/stdfs.spk \

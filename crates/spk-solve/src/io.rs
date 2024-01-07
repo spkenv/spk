@@ -740,8 +740,8 @@ impl DecisionFormatter {
     }
 
     /// Run the solver runtime to completion, printing each step to
-    /// stdout as appropriate. This does run multiple solver and won't
-    /// benefit from running solvers in parallell/
+    /// stdout as appropriate. This does run multiple solvers and won't
+    /// benefit from running solvers in parallel.
     pub async fn run_and_print_decisions(
         &self,
         runtime: &mut SolverRuntime,
@@ -776,7 +776,7 @@ impl DecisionFormatter {
     /// Run the solver runtime to completion, logging each step as a
     /// tracing info-level event as appropriate. This does run
     /// multiple solver and won't benefit from running solvers in
-    /// parallell.
+    /// parallel.
     pub async fn run_and_log_decisions(
         &self,
         runtime: &mut SolverRuntime,
@@ -888,7 +888,7 @@ impl DecisionFormatter {
         }
     }
 
-    fn output_solver_comparsion(&self, solver_results: &[SolverResult]) {
+    fn output_solver_comparison(&self, solver_results: &[SolverResult]) {
         let mut lines = Vec::new();
         let mut max_width = 0;
 
@@ -1018,7 +1018,7 @@ impl DecisionFormatter {
         }
 
         if self.settings.compare_solvers {
-            self.output_solver_comparsion(&solver_results);
+            self.output_solver_comparison(&solver_results);
 
             // Give the first result to finish back to the rest of the
             // program as the result.
@@ -1028,7 +1028,7 @@ impl DecisionFormatter {
                     Err(e) => Err(Error::String(format!("{e}"))),
                 },
                 None => Err(Error::String(
-                    "Multi-solver task failed to run any tasks for comparsion.".to_string(),
+                    "Multi-solver task failed to run any tasks for comparison.".to_string(),
                 )),
             }
         } else {
@@ -1491,7 +1491,7 @@ impl DecisionFormatter {
 
             sorted_by_count.sort_by(|a, b| b.1.counter.cmp(&a.1.counter));
 
-            // The numer of errors shown is limited by
+            // The number of errors shown is limited by
             // max_frequent_errors setting to ensure the user isn't
             // unexpectedly overwhelmed by large volumes of low
             // frequency errors.

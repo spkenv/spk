@@ -775,7 +775,7 @@ where
             Some(cmd) => cmd,
             None => {
                 return Err(Error::RuntimeChangeToDurableError(
-                    "rysnc is not available on this host".to_string(),
+                    "rsync is not available on this host".to_string(),
                 ))
             }
         };
@@ -1013,14 +1013,14 @@ pub(crate) struct OverlayMountOptions {
     ///
     /// This is the desired default behavior for
     /// spfs, since we rely on hardlinks for deduplication but
-    /// expect that file to be able to appear in mutliple places
+    /// expect that file to be able to appear in multiple places
     /// as separate files that just so happen to share the same content.
     ///
     /// When disabled, there will be additional restrictions on
     /// remounting the environment since the filesystem will hold
     /// additional handles and may not unmount while files remain held
     ///
-    /// It needs to be disabled for durable runtimes becaues the
+    /// It needs to be disabled for durable runtimes because the
     /// overlayfs index option it enables prevents sharing across
     /// subsequent invocations of durable runtimes.
     /// https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#sharing-and-copying-layers

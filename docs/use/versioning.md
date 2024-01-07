@@ -12,7 +12,7 @@ Version numbers in spk are made up of at least three dot-separated digits (eg: `
 
 Version numbers can have optional release tags appended to the end, which denote pre and post releases.
 
-Pre-releases are understood to come before the normal release of the same number, and are not considered when resolving packages unless specifically requested. The `-` symbol preceeds pre-release tags. Each tag is made up of a name and single integer version (eg `name.0`). Multiple of these tags can be included, separated by a comma.
+Pre-releases are understood to come before the normal release of the same number, and are not considered when resolving packages unless specifically requested. The `-` symbol precedes pre-release tags. Each tag is made up of a name and single integer version (eg `name.0`). Multiple of these tags can be included, separated by a comma.
 
 ```txt
 1.0.0-pre.1
@@ -31,7 +31,7 @@ Post-releases come after the normal release of the same number, and must come af
 ##### Sorting of Release Tags
 
 - A pre-release version will always be less than the same version number with no tags
-- A post-release version will always be greater than the same verison number with no tags
+- A post-release version will always be greater than the same version number with no tags
 - All release tags are sorted alphabetically, and by number
 
 ```txt
@@ -49,9 +49,9 @@ The version range specifiers are largely based on those from Rust's Cargo toolch
 
 #### Default Compatibility
 
-When a version number is specified with none of the operators below, it is assumes to follow the requested packages compatibility specification. In this case the given version number reresents a minimum version required, allowing newer version only if the requested package recognizes it as compatible with the desired minumum.
+When a version number is specified with none of the operators below, it is assumes to follow the requested packages compatibility specification. In this case the given version number represents a minimum version required, allowing newer version only if the requested package recognizes it as compatible with the desired minimum.
 
-When building a package it's direct build dependencies are resolved for API compatibility. Also, when you request a package on the commmand line, the request will by default be for an API compatible version. In all other circumstances, spk will resolve for binary compatibility.
+When building a package it's direct build dependencies are resolved for API compatibility. Also, when you request a package on the command line, the request will by default be for an API compatible version. In all other circumstances, spk will resolve for binary compatibility.
 
 {{% notice tip %}}
 Using the default compatibility is the recommended because it can be specified by the package maintainer.
@@ -59,7 +59,7 @@ Using the default compatibility is the recommended because it can be specified b
 
 #### Override Compatibility
 
-In some circumstances, it can be necessary to override the default compatibility that spk resolves for. This can be done by prefixing the verision number with the desired compatibility, either `API`, or `Binary`.
+In some circumstances, it can be necessary to override the default compatibility that spk resolves for. This can be done by prefixing the version number with the desired compatibility, either `API`, or `Binary`.
 
 ```
    API:1.2.3

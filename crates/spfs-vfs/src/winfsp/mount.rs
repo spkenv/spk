@@ -86,7 +86,7 @@ impl Mount {
         };
 
         // Safety: windows has allocated this pointer, which we are now going to take
-        // owenership of so that it can be used and managed safely. Notably, the above function
+        // ownership of so that it can be used and managed safely. Notably, the above function
         // creates a self-relative descriptor, which stores it's information in a contiguous
         // block of memory which we can safely copy for replication later on. This seems the
         // easiest way to create safe rust code that understands the thread safety of

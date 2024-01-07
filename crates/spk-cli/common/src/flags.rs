@@ -815,7 +815,7 @@ pub struct Repositories {
     /// a path on disk or a full remote repository url. Repositories can also
     /// be limited to a specific time by appending a relative or absolute time
     /// specifier (eg: origin~10m, origin~5weeks, origin@2022-10-11,
-    /// origin@2022-10-11T13:00.12). This time affects all interations and
+    /// origin@2022-10-11T13:00.12). This time affects all interactions and
     /// queries in the repository, effectively making it look like it did in the past.
     /// It will cause errors for any operation that attempts to make changes to
     /// the repository, even if the time is in the future.
@@ -834,7 +834,7 @@ pub struct Repositories {
     /// (eg: ~10m, ~5weeks, @2022-10-11, @2022-10-11T13:00.12). This value is superseded
     /// at an individual level by any time specifier added to the --enable-repo/-r flag.
     ///
-    /// This time affects all interations and queries in the repository, effectively making
+    /// This time affects all interactions and queries in the repository, effectively making
     /// it look like spk is being run in the past. It will cause errors for any operation
     /// that attempts to make changes to a repository, even if the time is in the future.
     #[clap(long)]

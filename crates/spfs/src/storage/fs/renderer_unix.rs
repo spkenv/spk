@@ -736,7 +736,7 @@ where
                                 let mut payload_file =
                                     tokio::fs::File::open(&payload_path).await.map_err(|err| {
                                         if err.kind() == std::io::ErrorKind::NotFound {
-                                            // in the case of a corrupt repository, this is a more appropate error
+                                            // in the case of a corrupt repository, this is a more appropriate error
                                             Error::UnknownObject(entry.object)
                                         } else {
                                             Error::StorageReadError(
@@ -829,7 +829,7 @@ where
                             }
                             nix::errno::Errno::ENOENT if !committed_path.exists() => {
                                 return Err(if committed_path == payload_path {
-                                    // in the case of a corrupt repository, this is a more appropate error
+                                    // in the case of a corrupt repository, this is a more appropriate error
                                     Error::UnknownObject(entry.object)
                                 } else {
                                     Error::StorageWriteError(

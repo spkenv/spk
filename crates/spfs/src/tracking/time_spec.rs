@@ -25,7 +25,7 @@ pub enum TimeSpec {
 }
 
 impl TimeSpec {
-    /// Create a new timespec that repesent the current point in time
+    /// Create a new timespec that represent the current point in time
     pub fn now() -> Self {
         Self::Absolute(Utc::now())
     }
@@ -49,14 +49,14 @@ impl TimeSpec {
         }
     }
 
-    /// Create an abolute representation of this spec.
+    /// Create an absolute representation of this spec.
     ///
     /// If this spec is already absolute, this will create a clone.
     pub fn to_abs(&self, from: &DateTime<Utc>) -> Self {
         Self::Absolute(self.to_datetime(from))
     }
 
-    /// Create an abolute representation of this spec.
+    /// Create an absolute representation of this spec.
     ///
     /// If this spec is already absolute, this will create a clone.
     pub fn to_abs_from_now(&self) -> Self {
@@ -268,7 +268,7 @@ impl<'de> serde::de::Deserialize<'de> for TimeSpec {
             type Value = TimeSpec;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a relative or absolute time specificer (eg: ~10m, @2022-01-01)")
+                f.write_str("a relative or absolute time specifier (eg: ~10m, @2022-01-01)")
             }
 
             fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>

@@ -32,7 +32,7 @@ install:
     - pkg: python
       fromBuildEnv: Binary
 
-  componenents:
+  components:
     - name: run
       files:
         - /bin/

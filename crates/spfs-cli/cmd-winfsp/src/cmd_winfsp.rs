@@ -108,7 +108,7 @@ struct CmdService {
 
     /// The local address to listen on for filesystem control
     ///
-    /// If the default value is overriden, any subsequent control commands must
+    /// If the default value is overridden, any subsequent control commands must
     /// also be given this new value. Conversely, changing the mount point from
     /// its default value should require a change to this value
     #[clap(
@@ -221,7 +221,7 @@ struct CmdMount {
 
     /// The local address to connect to for filesystem control
     ///
-    /// If the default value is overriden, any subsequent control commands must
+    /// If the default value is overridden, any subsequent control commands must
     /// also be given this new value. Conversely, changing the mount point from
     /// its default value should require a change to this value
     #[clap(

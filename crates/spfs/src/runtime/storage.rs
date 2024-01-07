@@ -44,7 +44,7 @@ pub const STARTUP_FILES_LOCATION: &str = "/spfs/etc/spfs/startup.d";
 /// The environment variable that can be used to specify the runtime fs size
 const SPFS_FILESYSTEM_TMPFS_SIZE: &str = "SPFS_FILESYSTEM_TMPFS_SIZE";
 
-// For durable paramater of create_runtime()
+// For durable parameter of create_runtime()
 #[cfg(test)]
 const TRANSIENT: bool = false;
 
@@ -950,7 +950,7 @@ impl Runtime {
         // The runtime's name is used in the identifying token in the
         // durable upper dir's root path. This is stored in the local
         // repo in a known location so they are durable across
-        // invocations. The local repo is used bcause the durable_path
+        // invocations. The local repo is used because the durable_path
         // must not be on NFS or else any mount overlayfs operation
         // that uses it will fail.
         let name = String::from(self.name());
@@ -1029,7 +1029,7 @@ impl Storage {
         let durable_path = self.durable_path(name.as_ref().to_string()).await?;
         if durable_path.exists() {
             // Removing the durable upper path requires elevated privileges so:
-            // 'spfs-clean --remove-durable RUNTIME_NAAME --runtime-storage STORAGE_URL'
+            // 'spfs-clean --remove-durable RUNTIME_NAME --runtime-storage STORAGE_URL'
             // is run to do it.
             let mut cmd = bootstrap::build_spfs_remove_durable_command(
                 name.as_ref().to_string(),

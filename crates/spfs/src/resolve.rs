@@ -340,7 +340,7 @@ where
     Ok(resolved_manifests)
 }
 
-/// Compile the set of directories to be overlayed for a runtime, and
+/// Compile the set of directories to be overlaid for a runtime, and
 /// render them.
 ///
 /// These are returned as a list, from bottom to top.

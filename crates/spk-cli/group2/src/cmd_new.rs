@@ -61,7 +61,7 @@ build:
   options:
     # var options define environment/string values that affect the build.
     # The value is defined in the build environment as SPK_OPT_{{name}}
-    # - var: somename/somvevalue
+    # - var: somename/somevalue
 
     # pkg options request packages that need to be present
     # in the build environment. You can specify a version number

@@ -88,7 +88,7 @@ impl Router {
 
     fn get_filesystem_for_calling_process(&self) -> Result<Arc<Mount>> {
         let stack = self.get_process_stack()?;
-        let routes = self.routes.read().expect("Lock is never poioned");
+        let routes = self.routes.read().expect("Lock is never poisoned");
         for pid in stack {
             if let Some(mount) = routes.get(&pid).map(Arc::clone) {
                 return Ok(mount);

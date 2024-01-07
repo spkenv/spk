@@ -38,7 +38,7 @@ The compat field of the new version is checked before install/update. Because of
 
 ### Sources
 
-The `sources` section of the package spec tells spk where to collect and how to arrange the source files required to build the package. Currently, it defaults to collecting the entire directory where the spec file is loaded from, but can be overriden with a number of different sources.
+The `sources` section of the package spec tells spk where to collect and how to arrange the source files required to build the package. Currently, it defaults to collecting the entire directory where the spec file is loaded from, but can be overridden with a number of different sources.
 
 #### Local Source
 
@@ -65,7 +65,7 @@ sources:
 
 #### Tar Source
 
-Tar sources can reference both local tar files and remote ones, which will be downloaded first to a temporary location. The tar file is extraced automatically into the source area for use during the build.
+Tar sources can reference both local tar files and remote ones, which will be downloaded first to a temporary location. The tar file is extracted automatically into the source area for use during the build.
 
 ```yaml
 sources:
@@ -87,7 +87,7 @@ sources:
 
 #### Multiple Sources
 
-You can include sources from mulitple location, but will need to specify a subdirectory for each source in order to make sure that they are each downloaded/fetched into their own location in the source package. Some sources can be intermixed into the same location (such as local sources) but others require their own location (such as git sources).
+You can include sources from multiple locations, but will need to specify a subdirectory for each source in order to make sure that they are each downloaded/fetched into their own location in the source package. Some sources can be intermixed into the same location (such as local sources) but others require their own location (such as git sources).
 
 ```yaml
 sources:
@@ -102,7 +102,7 @@ sources:
 
 ### Build Configuration
 
-The build section of the package spec tells spk how to properly compile and cature your software as a package.
+The build section of the package spec tells spk how to properly compile and capture your software as a package.
 
 #### Options
 
@@ -125,12 +125,12 @@ Best practice for defining boolean options is to follow the cmake convention of 
 {{% /notice %}}
 
 {{% notice tip %}}
-Best practice for package requrements is to specify a minimum version number only, and leverage the compatibility specification defined by the package itself rather than enforcing something else (eg use `default: 3.16` instead of `default: ^3.16`)
+Best practice for package requirements is to specify a minimum version number only, and leverage the compatibility specification defined by the package itself rather than enforcing something else (eg use `default: 3.16` instead of `default: ^3.16`)
 {{% /notice %}}
 
 ##### Common Build Options
 
-There are some build options that are either provided by the system or are used enough to create a comon convention.
+There are some build options that are either provided by the system or are used enough to create a common convention.
 
 | Option Name | Value(s)                                       | Example                |
 | ----------- | ---------------------------------------------- | ---------------------- |
@@ -158,7 +158,7 @@ build:
 
 The build script is bash code which builds your package. The script is responsible for installing your software into the `/spfs` directory.
 
-spk assumes that your installed files will be layed out similarly to the unix statndard filesystem hierarchy. Most build systems can be configured with a **prefix**-type argument like the cmake example above which will handle this for you. If you are create python code, spk works just like an python virtual environment, and your code can be pip-installed using the /spfs/bin/pip that is included in the spk python packages or by manually copying to the appropriate `/spfs/lib/python<version>/site-packages` folder.
+spk assumes that your installed files will be layed out similarly to the unix standard filesystem hierarchy. Most build systems can be configured with a **prefix**-type argument like the cmake example above which will handle this for you. If you are create python code, spk works just like an python virtual environment, and your code can be pip-installed using the /spfs/bin/pip that is included in the spk python packages or by manually copying to the appropriate `/spfs/lib/python<version>/site-packages` folder.
 
 {{% notice tip %}}
 If your build script is getting long or feels obstructive in your spec file, you can also create a build.sh script in your source tree which will be run if no build script is specified.
@@ -381,7 +381,7 @@ tests:
 
 #### Stages
 
-The **stage** of each test identifies when and where the test should be run. There are three stages that can curently be tested:
+The **stage** of each test identifies when and where the test should be run. There are three stages that can currently be tested:
 
 | stage   | description                                                                                             |
 | ------- | ------------------------------------------------------------------------------------------------------- |
@@ -421,7 +421,7 @@ Selectors must match exactly the build option values from the build variants. Fo
 
 #### Requirements
 
-You can specfiy additional requirements for any defined test. These requirements are merged with those of test environment so be sure that they do not conflict with what you are testing.
+You can specify additional requirements for any defined test. These requirements are merged with those of test environment so be sure that they do not conflict with what you are testing.
 
 ```yaml
 build:
