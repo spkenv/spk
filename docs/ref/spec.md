@@ -201,7 +201,7 @@ A test spec defines one test script that should be run against the package to va
 
 | Field        | Type                                | Description                                                                                                                        |
 | ------------ | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| stage        | _str_                               | The stage that this test validates, one of:**sources**, **build**, **install**                                                     |
+| stage        | _str_                               | The stage that this test validates, one of: **sources**, **build**, **install**                                                    |
 | selectors    | _List[[VariantSpec](#variantspec)]_ | Identifies which variants this test should be executed against. Variants must match one of the selectors in this list to be tested |
 | requirements | _List[[Request](#request)]_         | Additional packages required in the test environment                                                                               |
 | script       | _str_ or _List[str]_                | The sh script which tests the package                                                                                              |
