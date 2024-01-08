@@ -9,7 +9,7 @@ use std::path::Path;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident_build::Digest;
+use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::Stringified;
@@ -359,7 +359,7 @@ impl Recipe for Spec<VersionIdent> {
     }
 
     #[inline]
-    fn build_digest<V>(&self, variant: &V) -> Result<Digest>
+    fn build_digest<V>(&self, variant: &V) -> Result<BuildId>
     where
         V: Variant,
     {
@@ -384,7 +384,7 @@ impl Recipe for Spec<VersionIdent> {
     {
         let opts = self.build.opts_for_variant(variant)?;
         let options = self.resolve_options(variant)?;
-        let build_digest = Build::Digest(self.build_digest(variant)?);
+        let build_digest = Build::BuildId(self.build_digest(variant)?);
         let mut requests = RequirementsList::default();
         for opt in opts {
             match opt {
@@ -636,7 +636,7 @@ impl Recipe for Spec<VersionIdent> {
         // by `build_env`. The digest is expected to be based solely on the
         // input options and recipe.
         let digest = self.build_digest(variant.input_variant())?;
-        Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
+        Ok(updated.map_ident(|i| i.into_build(Build::BuildId(digest))))
     }
 }
 

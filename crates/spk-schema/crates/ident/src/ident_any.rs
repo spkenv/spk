@@ -64,7 +64,7 @@ impl AnyIdent {
     /// Return if this identifier can possibly have embedded packages.
     pub fn can_embed(&self) -> bool {
         // Only builds can have embeds.
-        matches!(self.build(), Some(Build::Digest(_)))
+        matches!(self.build(), Some(Build::BuildId(_)))
     }
 
     /// Return true if this identifier is for an embedded package.

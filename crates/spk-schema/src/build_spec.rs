@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident_build::Digest;
+use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::{OptionMap, Stringified};
 use spk_schema_ident::{PkgRequest, RangeIdent, Request};
@@ -288,7 +288,7 @@ impl BuildSpec {
         self.options.push(opt);
     }
 
-    pub(crate) fn build_digest<V>(&self, pkg_name: &PkgName, variant: &V) -> Result<Digest>
+    pub(crate) fn build_digest<V>(&self, pkg_name: &PkgName, variant: &V) -> Result<BuildId>
     where
         V: Variant,
     {
@@ -326,7 +326,7 @@ impl BuildSpec {
             hasher.update(&[1]);
         }
         let digest = hasher.finish();
-        Ok(Digest::new_from_bytes(digest.as_ref()))
+        Ok(BuildId::new_from_bytes(digest.as_ref()))
     }
 }
 

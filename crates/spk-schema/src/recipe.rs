@@ -8,7 +8,7 @@ use std::path::Path;
 
 use spk_schema_ident::VersionIdent;
 
-use crate::foundation::ident_build::Digest;
+use crate::foundation::ident_build::BuildId;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
 use crate::{InputVariant, Package, RequirementsList, Result, TestStage, Variant};
@@ -38,7 +38,7 @@ pub trait Recipe:
 
     /// Calculate the build digest that would be produced by building this
     /// recipe with the given options.
-    fn build_digest<V>(&self, variant: &V) -> Result<Digest>
+    fn build_digest<V>(&self, variant: &V) -> Result<BuildId>
     where
         V: Variant;
 
@@ -90,7 +90,7 @@ where
         (**self).ident()
     }
 
-    fn build_digest<V>(&self, variant: &V) -> Result<Digest>
+    fn build_digest<V>(&self, variant: &V) -> Result<BuildId>
     where
         V: Variant,
     {
@@ -148,7 +148,7 @@ where
         (**self).ident()
     }
 
-    fn build_digest<V>(&self, variant: &V) -> Result<Digest>
+    fn build_digest<V>(&self, variant: &V) -> Result<BuildId>
     where
         V: Variant,
     {

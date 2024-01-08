@@ -3,9 +3,9 @@
 // https://github.com/imageworks/spk
 
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Digest([char; Self::SIZE]);
+pub struct BuildId([char; Self::SIZE]);
 
-impl Digest {
+impl BuildId {
     // given option digests are namespaced by the package itself,
     // there is a slim likelihood of collision, so we roll the dice
     // also must be a multiple of 8 to be decodable which is generally
@@ -30,7 +30,7 @@ impl Digest {
     }
 }
 
-impl Default for Digest {
+impl Default for BuildId {
     fn default() -> Self {
         // For legacy reasons, the default digest is what one would get
         // previously from OptionMap::digest() on a default OptionMap.
@@ -41,7 +41,7 @@ impl Default for Digest {
     }
 }
 
-impl std::fmt::Display for Digest {
+impl std::fmt::Display for BuildId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for c in &self.0 {
             write!(f, "{c}")?;
@@ -50,13 +50,13 @@ impl std::fmt::Display for Digest {
     }
 }
 
-impl From<[char; Self::SIZE]> for Digest {
+impl From<[char; Self::SIZE]> for BuildId {
     fn from(chars: [char; Self::SIZE]) -> Self {
         Self::new(chars)
     }
 }
 
-impl TryFrom<Vec<char>> for Digest {
+impl TryFrom<Vec<char>> for BuildId {
     type Error = ();
 
     fn try_from(value: Vec<char>) -> Result<Self, Self::Error> {

@@ -110,7 +110,7 @@ where
             .recipe
             .ident()
             .to_any(None)
-            .with_build(Some(Build::Digest(build_digest_for_variant)));
+            .with_build(Some(Build::BuildId(build_digest_for_variant)));
 
         let pkg = RangeIdent::double_equals(&build_to_test, [Component::All]);
         let request = PkgRequest::new(pkg, RequestedBy::InstallTest(self.recipe.ident().clone()))

@@ -8,7 +8,7 @@ use rstest::fixture;
 use tracing_capture::{CaptureLayer, SharedStorage};
 use tracing_subscriber::prelude::*;
 
-use crate::ident_build::Digest;
+use crate::ident_build::BuildId;
 
 static TRACING_STORAGE: Lazy<SharedStorage> = Lazy::new(SharedStorage::default);
 
@@ -36,9 +36,9 @@ pub fn tmpdir() -> tempfile::TempDir {
 }
 
 #[fixture]
-pub fn random_digest() -> Digest {
+pub fn random_build_id() -> BuildId {
     let mut rng = rand::thread_rng();
-    let mut bytes = [0u8; Digest::SIZE * 2];
+    let mut bytes = [0u8; BuildId::SIZE * 2];
     rng.fill(&mut bytes);
-    Digest::new_from_bytes(&bytes)
+    BuildId::new_from_bytes(&bytes)
 }
