@@ -286,7 +286,13 @@ impl ImpossibleRequestsChecker {
 
         // Embedded packages in the package are only considered for
         // the checks if there is also an unresolved request for the
-        // same package.
+        // same package. This is because the implicit request
+        // generated when an embedded package is added to the solve
+        // may be impossible only when combined with an existing
+        // unresolved request. The implicit embedded request will be
+        // possible on its own because the embedded package will
+        // satisfy it, so it doesn't need to be checked for
+        // impossibility here.
         for embedded_package in package.embedded().iter() {
             let embedded_id = embedded_package.ident().clone().to_version();
             tracing::debug!(target: IMPOSSIBLE_CHECKS_TARGET, "{} Embedded id: {embedded_id}", package.ident());
