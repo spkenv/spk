@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::{BTreeMap, HashMap};
+use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
 use miette::{bail, Context, IntoDiagnostic, Result};
+use serde::Serialize;
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::Object;
 use spfs::io::Pluralize;
@@ -21,7 +23,16 @@ use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::Request;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::version::Version;
-use spk_schema::{AnyIdent, BuildIdent, Recipe, Spec, Template, Variant, VersionIdent};
+use spk_schema::{
+    AnyIdent,
+    BuildIdent,
+    Recipe,
+    RequirementsList,
+    Spec,
+    Template,
+    Variant,
+    VersionIdent,
+};
 use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
 use spk_storage;
 use strum::{Display, EnumString, EnumVariantNames};
@@ -169,6 +180,12 @@ impl CommandArgs for View {
     }
 }
 
+#[derive(Serialize)]
+pub struct PrintVariant<'a> {
+    options: Cow<'a, OptionMap>,
+    additional_requirements: Cow<'a, RequirementsList>,
+}
+
 impl View {
     async fn print_current_env(&self) -> Result<i32> {
         let solution = current_env().await?;
@@ -201,15 +218,12 @@ impl View {
                 }
             }
             OutputFormat::Json => {
-                let mut variants = HashMap::new();
+                let mut variants = BTreeMap::new();
                 for (index, variant) in default_variants.iter().enumerate() {
-                    let variant_info = HashMap::from([
-                        ("options", format!("{}", variant.options())),
-                        (
-                            "additional_requirements",
-                            format!("{}", variant.additional_requirements()),
-                        ),
-                    ]);
+                    let variant_info = PrintVariant {
+                        options: variant.options(),
+                        additional_requirements: variant.additional_requirements(),
+                    };
                     variants.insert(index, variant_info);
                 }
 
