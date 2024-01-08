@@ -125,7 +125,7 @@ pub struct BuildSpec {
         rename = "variants",
         skip_serializing_if = "BuildSpec::is_default_variants"
     )]
-    pub raw_variants: Vec<v0::VariantSpec>,
+    raw_variants: Vec<v0::VariantSpec>,
     /// The parsed variants, which are used for building.
     #[serde(skip)]
     pub variants: Vec<v0::Variant>,
