@@ -63,6 +63,11 @@ impl EnvSpecItem {
             _ => Ok(Cow::Borrowed(self)),
         }
     }
+
+    /// Returns true if this item is a live layer file
+    pub fn is_livelayerfile(&self) -> bool {
+        matches!(self, Self::LiveLayerFile(_))
+    }
 }
 
 impl std::fmt::Display for EnvSpecItem {

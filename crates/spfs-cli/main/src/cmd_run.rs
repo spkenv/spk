@@ -185,7 +185,7 @@ impl CmdRun {
                 let repo = spfs::storage::ProxyRepository::from_config(proxy_config)
                     .await
                     .wrap_err("Failed to build proxy repository for environment resolution")?;
-                for item in reference.iter() {
+                for item in reference.iter().filter(|i| !i.is_livelayerfile()) {
                     let digest = item.resolve_digest(&repo).await?;
                     runtime.push_digest(digest);
                 }
