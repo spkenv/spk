@@ -2,17 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-// given option digests are namespaced by the package itself,
-// there is a slim likelihood of collision, so we roll the dice
-// also must be a multiple of 8 to be decodable which is generally
-// a nice way to handle validation / and 16 is a lot
-pub const DIGEST_SIZE: usize = 8;
-
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Digest([char; DIGEST_SIZE]);
+pub struct Digest([char; Self::SIZE]);
 
 impl Digest {
-    pub const fn new(chars: [char; DIGEST_SIZE]) -> Self {
+    // given option digests are namespaced by the package itself,
+    // there is a slim likelihood of collision, so we roll the dice
+    // also must be a multiple of 8 to be decodable which is generally
+    // a nice way to handle validation / and 16 is a lot
+    pub const SIZE: usize = 8;
+
+    pub const fn new(chars: [char; Self::SIZE]) -> Self {
         Self(chars)
     }
 
@@ -22,7 +22,7 @@ impl Digest {
             encoded
                 .chars()
                 .chain(std::iter::repeat('0'))
-                .take(DIGEST_SIZE)
+                .take(Self::SIZE)
                 .collect::<Vec<_>>()
                 .try_into()
                 .expect("always enough bytes available"),
@@ -50,8 +50,8 @@ impl std::fmt::Display for Digest {
     }
 }
 
-impl From<[char; DIGEST_SIZE]> for Digest {
-    fn from(chars: [char; DIGEST_SIZE]) -> Self {
+impl From<[char; Self::SIZE]> for Digest {
+    fn from(chars: [char; Self::SIZE]) -> Self {
         Self::new(chars)
     }
 }
@@ -60,10 +60,10 @@ impl TryFrom<Vec<char>> for Digest {
     type Error = ();
 
     fn try_from(value: Vec<char>) -> Result<Self, Self::Error> {
-        if value.len() != DIGEST_SIZE {
+        if value.len() != Self::SIZE {
             Err(())
         } else {
-            let mut chars = [0 as char; DIGEST_SIZE];
+            let mut chars = [0 as char; Self::SIZE];
             chars.copy_from_slice(&value);
             Ok(Self::new(chars))
         }

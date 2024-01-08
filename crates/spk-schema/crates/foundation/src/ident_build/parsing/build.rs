@@ -21,15 +21,15 @@ use crate::ident_ops::parsing::ident_parts_with_components;
 ///
 /// Example: `"CU7ZWOIF"`
 ///
-/// The input must be of length [`crate::ident_build::DIGEST_SIZE`].
+/// The input must be of length [`crate::ident_build::Digest::SIZE`].
 pub(crate) fn base32_build<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {
     verify(
         take_while_m_n(
-            crate::ident_build::DIGEST_SIZE,
-            crate::ident_build::DIGEST_SIZE,
+            crate::ident_build::Digest::SIZE,
+            crate::ident_build::Digest::SIZE,
             is_base32_digit,
         ),
         |bytes: &str| data_encoding::BASE32.decode(bytes.as_bytes()).is_ok(),

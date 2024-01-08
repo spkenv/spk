@@ -17,5 +17,5 @@ pub use build::{
     EMBEDDED,
     SRC,
 };
-pub use digest::{Digest, DIGEST_SIZE};
+pub use digest::Digest;
 pub use error::{Error, Result};

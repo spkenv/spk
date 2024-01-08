@@ -5,7 +5,7 @@
 use rstest::rstest;
 
 use super::{parse_build, Build, SRC};
-use crate::ident_build::{Digest, DIGEST_SIZE};
+use crate::ident_build::Digest;
 
 #[rstest]
 fn test_parse_build_src() {
@@ -26,7 +26,7 @@ fn test_null_is_null() {
         spfs::Digest::from(spfs::encoding::NULL_DIGEST)
             .to_string()
             .chars()
-            .take(DIGEST_SIZE)
+            .take(Digest::SIZE)
             .collect::<Vec<_>>()
             .try_into()
             .expect("digest string has at least the characters needed"),
