@@ -181,7 +181,7 @@ impl CommandArgs for View {
 }
 
 #[derive(Serialize)]
-pub struct PrintVariant<'a> {
+struct PrintVariant<'a> {
     options: Cow<'a, OptionMap>,
     additional_requirements: Cow<'a, RequirementsList>,
 }
