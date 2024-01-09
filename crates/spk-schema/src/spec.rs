@@ -477,15 +477,12 @@ impl Test for SpecTest {
 pub enum Spec {
     #[serde(rename = "v0/package")]
     V0Package(super::v0::Spec<BuildIdent>),
-    #[serde(rename = "v0/platform")]
-    V0Platform(super::v0::BuiltPlatform),
 }
 
 impl Satisfy<PkgRequest> for Spec {
     fn check_satisfies_request(&self, request: &PkgRequest) -> Compatibility {
         match self {
             Spec::V0Package(r) => r.check_satisfies_request(request),
-            Spec::V0Platform(r) => r.check_satisfies_request(request),
         }
     }
 }
@@ -494,7 +491,6 @@ impl Satisfy<VarRequest> for Spec {
     fn check_satisfies_request(&self, request: &VarRequest) -> Compatibility {
         match self {
             Spec::V0Package(r) => r.check_satisfies_request(request),
-            Spec::V0Platform(r) => r.check_satisfies_request(request),
         }
     }
 }
@@ -503,7 +499,6 @@ impl Named for Spec {
     fn name(&self) -> &PkgName {
         match self {
             Spec::V0Package(r) => r.name(),
-            Spec::V0Platform(r) => r.name(),
         }
     }
 }
@@ -512,7 +507,6 @@ impl HasVersion for Spec {
     fn version(&self) -> &Version {
         match self {
             Spec::V0Package(r) => r.version(),
-            Spec::V0Platform(r) => r.version(),
         }
     }
 }
@@ -521,7 +515,6 @@ impl Versioned for Spec {
     fn compat(&self) -> &Compat {
         match self {
             Spec::V0Package(spec) => spec.compat(),
-            Spec::V0Platform(spec) => spec.compat(),
         }
     }
 }
@@ -533,28 +526,24 @@ impl Package for Spec {
     fn ident(&self) -> &BuildIdent {
         match self {
             Spec::V0Package(spec) => Package::ident(spec),
-            Spec::V0Platform(spec) => Package::ident(spec),
         }
     }
 
     fn option_values(&self) -> OptionMap {
         match self {
             Spec::V0Package(spec) => spec.option_values(),
-            Spec::V0Platform(spec) => spec.option_values(),
         }
     }
 
     fn sources(&self) -> &Vec<super::SourceSpec> {
         match self {
             Spec::V0Package(spec) => spec.sources(),
-            Spec::V0Platform(spec) => spec.sources(),
         }
     }
 
     fn embedded(&self) -> &super::EmbeddedPackagesList {
         match self {
             Spec::V0Package(spec) => spec.embedded(),
-            Spec::V0Platform(spec) => spec.embedded(),
         }
     }
 
@@ -565,51 +554,42 @@ impl Package for Spec {
             Spec::V0Package(spec) => spec
                 .embedded_as_packages()
                 .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
-            Spec::V0Platform(spec) => spec
-                .embedded_as_packages()
-                .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
         }
     }
 
     fn components(&self) -> &super::ComponentSpecList {
         match self {
             Spec::V0Package(spec) => spec.components(),
-            Spec::V0Platform(spec) => spec.components(),
         }
     }
 
     fn runtime_environment(&self) -> &Vec<super::EnvOp> {
         match self {
             Spec::V0Package(spec) => spec.runtime_environment(),
-            Spec::V0Platform(spec) => spec.runtime_environment(),
         }
     }
 
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
         match self {
             Spec::V0Package(spec) => spec.get_build_requirements(),
-            Spec::V0Platform(spec) => spec.get_build_requirements(),
         }
     }
 
     fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList> {
         match self {
             Spec::V0Package(spec) => spec.runtime_requirements(),
-            Spec::V0Platform(spec) => spec.runtime_requirements(),
         }
     }
 
     fn validation(&self) -> &super::ValidationSpec {
         match self {
             Spec::V0Package(spec) => spec.validation(),
-            Spec::V0Platform(spec) => spec.validation(),
         }
     }
 
     fn build_script(&self) -> String {
         match self {
             Spec::V0Package(spec) => spec.build_script(),
-            Spec::V0Platform(spec) => spec.build_script(),
         }
     }
 
@@ -619,7 +599,6 @@ impl Package for Spec {
     ) -> Cow<'_, crate::RequirementsList> {
         match self {
             Spec::V0Package(spec) => spec.downstream_build_requirements(components),
-            Spec::V0Platform(spec) => spec.downstream_build_requirements(components),
         }
     }
 
@@ -629,14 +608,12 @@ impl Package for Spec {
     ) -> Cow<'_, crate::RequirementsList> {
         match self {
             Spec::V0Package(spec) => spec.downstream_runtime_requirements(components),
-            Spec::V0Platform(spec) => spec.downstream_runtime_requirements(components),
         }
     }
 
     fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
         match self {
             Spec::V0Package(spec) => spec.validate_options(given_options),
-            Spec::V0Platform(spec) => spec.validate_options(given_options),
         }
     }
 }
@@ -645,7 +622,6 @@ impl PackageMut for Spec {
     fn set_build(&mut self, build: Build) {
         match self {
             Spec::V0Package(spec) => spec.set_build(build),
-            Spec::V0Platform(spec) => spec.set_build(build),
         }
     }
 }
@@ -689,7 +665,7 @@ impl FromYaml for Spec {
             ApiVersion::V0Platform => {
                 let inner = serde_yaml::from_str(&yaml)
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
-                Ok(Self::V0Platform(inner))
+                Ok(Self::V0Package(inner))
             }
         }
     }
