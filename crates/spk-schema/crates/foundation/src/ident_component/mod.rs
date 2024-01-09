@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+mod component_set;
 mod component_spec;
 mod error;
 pub mod parsing;
 
-pub use component_spec::{Component, ComponentBTreeSet, ComponentSet, Components};
+pub use component_set::{ComponentBTreeSet, ComponentBTreeSetBuf, ComponentSet};
+pub use component_spec::{Component, Components};
 pub use error::{Error, Result};

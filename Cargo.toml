@@ -62,6 +62,8 @@ pin-project-lite = "0.2.0"
 procfs = "0.13.2"
 progress_bar_derive_macro = { path = "crates/progress_bar_derive_macro" }
 prost = "0.12.1"
+rand = "0.8.5"
+ring = "0.16.15"
 rstest = "0.15.0"
 sentry = { version = "0.27.0" }
 sentry-miette = { version = "0.1.0", path = "crates/sentry-miette" }

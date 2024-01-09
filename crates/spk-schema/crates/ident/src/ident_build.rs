@@ -69,7 +69,7 @@ macro_rules! build_ident_methods {
             /// Return if this identifier can possibly have embedded packages
             pub fn can_embed(&self) -> bool {
                 // Only true builds can have embeds.
-                matches!(self.build(), Build::Digest(_))
+                matches!(self.build(), Build::BuildId(_))
             }
 
             /// Return true if this identifier is for an embedded package

@@ -10,7 +10,7 @@ use std::str::FromStr;
 use enum_dispatch::enum_dispatch;
 use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident_build::Build;
+use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::SerdeYamlError;
 use spk_schema_ident::{BuildIdent, VersionIdent};
@@ -243,6 +243,15 @@ impl Recipe for SpecRecipe {
     fn ident(&self) -> &VersionIdent {
         match self {
             SpecRecipe::V0Package(r) => Recipe::ident(r),
+        }
+    }
+
+    fn build_digest<V>(&self, variant: &V) -> Result<BuildId>
+    where
+        V: Variant,
+    {
+        match self {
+            SpecRecipe::V0Package(r) => Recipe::build_digest(r, variant),
         }
     }
 

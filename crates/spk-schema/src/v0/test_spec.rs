@@ -4,9 +4,12 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::foundation::option_map::OptionMap;
 use crate::ident::Request;
 use crate::{Script, TestStage};
+
+#[cfg(test)]
+#[path = "./test_spec_test.rs"]
+mod test_spec_test;
 
 /// A set of structured inputs used to build a package.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -15,7 +18,7 @@ pub struct TestSpec {
     pub stage: TestStage,
     pub script: Script,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub selectors: Vec<OptionMap>,
+    pub selectors: Vec<super::VariantSpec>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requirements: Vec<Request>,
 }

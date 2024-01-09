@@ -47,7 +47,7 @@ impl Run for Debug {
         let mut source_layers = HashMap::new();
 
         'next_request: for solved in env.items() {
-            if let Some(Build::Digest(_)) = solved.request.pkg.build.as_ref() {
+            if let Some(Build::BuildId(_)) = solved.request.pkg.build.as_ref() {
                 let mut source_pkg = solved.request.pkg.clone();
                 source_pkg.build = Some(Build::Source);
 

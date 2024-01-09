@@ -104,14 +104,13 @@ where
         // Request the specific build that goes with the selected build variant.
         let build_digest_for_variant = self
             .recipe
-            .resolve_options(&self.variant.clone().with_overrides(self.options.clone()))?
-            .digest();
+            .build_digest(&self.variant.clone().with_overrides(self.options.clone()))?;
 
         let build_to_test = self
             .recipe
             .ident()
             .to_any(None)
-            .with_build(Some(Build::Digest(build_digest_for_variant)));
+            .with_build(Some(Build::BuildId(build_digest_for_variant)));
 
         let pkg = RangeIdent::double_equals(&build_to_test, [Component::All]);
         let request = PkgRequest::new(pkg, RequestedBy::InstallTest(self.recipe.ident().clone()))

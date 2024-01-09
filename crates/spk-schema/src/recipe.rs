@@ -8,6 +8,7 @@ use std::path::Path;
 
 use spk_schema_ident::VersionIdent;
 
+use crate::foundation::ident_build::BuildId;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
 use crate::{InputVariant, Package, RequirementsList, Result, TestStage, Variant};
@@ -34,6 +35,12 @@ pub trait Recipe:
     ///
     /// The returned identifier will never have an associated build.
     fn ident(&self) -> &VersionIdent;
+
+    /// Calculate the build digest that would be produced by building this
+    /// recipe with the given options.
+    fn build_digest<V>(&self, variant: &V) -> Result<BuildId>
+    where
+        V: Variant;
 
     /// Return the default variants defined in this recipe.
     fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>>;
@@ -81,6 +88,13 @@ where
 
     fn ident(&self) -> &VersionIdent {
         (**self).ident()
+    }
+
+    fn build_digest<V>(&self, variant: &V) -> Result<BuildId>
+    where
+        V: Variant,
+    {
+        (**self).build_digest(variant)
     }
 
     fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
@@ -132,6 +146,13 @@ where
 
     fn ident(&self) -> &VersionIdent {
         (**self).ident()
+    }
+
+    fn build_digest<V>(&self, variant: &V) -> Result<BuildId>
+    where
+        V: Variant,
+    {
+        (**self).build_digest(variant)
     }
 
     fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {

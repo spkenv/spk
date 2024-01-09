@@ -9,10 +9,13 @@ use std::path::Path;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::ident_build::BuildId;
+use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::Stringified;
-use spk_schema_ident::{AnyIdent, BuildIdent, Ident, VersionIdent};
+use spk_schema_ident::{AnyIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
 
+use super::variant_spec::VariantSpecEntryKey;
 use super::TestSpec;
 use crate::build_spec::UncheckedBuildSpec;
 use crate::foundation::ident_build::Build;
@@ -355,6 +358,14 @@ impl Recipe for Spec<VersionIdent> {
         &self.pkg
     }
 
+    #[inline]
+    fn build_digest<V>(&self, variant: &V) -> Result<BuildId>
+    where
+        V: Variant,
+    {
+        self.build.build_digest(self.pkg.name(), variant)
+    }
+
     fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
         Cow::Borrowed(&self.build.variants)
     }
@@ -363,28 +374,9 @@ impl Recipe for Spec<VersionIdent> {
     where
         V: Variant,
     {
-        let given = variant.options();
-        let opts = self.build.opts_for_variant(variant)?;
-        let mut resolved = OptionMap::default();
-
-        for opt in opts {
-            let given_value = match opt.full_name().namespace() {
-                Some(_) => given
-                    .get(opt.full_name())
-                    .or_else(|| given.get(opt.full_name().without_namespace())),
-                None => given
-                    .get(&opt.full_name().with_namespace(self.name()))
-                    .or_else(|| given.get(opt.full_name())),
-            };
-            let value = opt.get_value(given_value.map(String::as_ref));
-            let compat = opt.validate(Some(&value));
-            if !compat.is_ok() {
-                return Err(Error::String(compat.to_string()));
-            }
-            resolved.insert(opt.full_name().to_owned(), value);
-        }
-
-        Ok(resolved)
+        self.build
+            .resolve_options_for_pkg_name(self.name(), variant)
+            .map(|(options, _)| options)
     }
 
     fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
@@ -393,7 +385,7 @@ impl Recipe for Spec<VersionIdent> {
     {
         let opts = self.build.opts_for_variant(variant)?;
         let options = self.resolve_options(variant)?;
-        let build_digest = Build::Digest(options.digest());
+        let build_digest = Build::BuildId(self.build_digest(variant)?);
         let mut requests = RequirementsList::default();
         for opt in opts {
             match opt {
@@ -428,8 +420,7 @@ impl Recipe for Spec<VersionIdent> {
     where
         V: Variant,
     {
-        let options = variant.options();
-        let digest = options.digest();
+        let options = self.resolve_options(variant)?;
         Ok(self
             .tests
             .iter()
@@ -439,13 +430,52 @@ impl Recipe for Spec<VersionIdent> {
                     return true;
                 }
                 for selector in t.selectors.iter() {
-                    let mut selected_opts = (*options).clone();
-                    selected_opts.extend(selector.clone());
-                    if selected_opts.digest() == digest {
-                        return true;
+                    // We need to check if this selector matches the variant.
+                    // It isn't required to specify everything from the variant,
+                    // just everything specified in the selector has to match
+                    // what is in the variant.
+                    for (key, value) in &selector.entries {
+                        match key {
+                            VariantSpecEntryKey::PkgOrOpt(pkg) => {
+                                // First the version asked for must match.
+                                if options.get(pkg.0.name.as_opt_name()) != Some(value) {
+                                    return false;
+                                }
+                                // Then the components asked for must be a
+                                // subset of what is present.
+                                if !self
+                                    .get_build_requirements(variant)
+                                    .unwrap_or_default()
+                                    .iter()
+                                    .any(|req| {
+                                        let Request::Pkg(PkgRequest {
+                                            pkg:
+                                                RangeIdent {
+                                                    name, components, ..
+                                                },
+                                            ..
+                                        }) = req
+                                        else {
+                                            return false;
+                                        };
+                                        *name == pkg.0.name
+                                            && ComponentBTreeSet::new(components).satisfies(
+                                                &ComponentBTreeSet::new(&pkg.0.components),
+                                            )
+                                    })
+                                {
+                                    return false;
+                                }
+                            }
+                            VariantSpecEntryKey::Opt(opt) => {
+                                if options.get(opt) != Some(value) {
+                                    return false;
+                                }
+                            }
+                        }
                     }
                 }
-                false
+                true
             })
             .cloned()
             .collect())
@@ -602,8 +632,8 @@ impl Recipe for Spec<VersionIdent> {
         // Calculate the digest from the non-updated spec so it isn't affected
         // by `build_env`. The digest is expected to be based solely on the
         // input options and recipe.
-        let digest = self.resolve_options(variant.input_variant())?.digest();
-        Ok(updated.map_ident(|i| i.into_build(Build::Digest(digest))))
+        let digest = self.build_digest(variant.input_variant())?;
+        Ok(updated.map_ident(|i| i.into_build(Build::BuildId(digest))))
     }
 }
 
@@ -837,7 +867,7 @@ impl SpecVisitor<VersionIdent, Build> {
 
 impl<'de, B, T> serde::de::Visitor<'de> for SpecVisitor<B, T>
 where
-    Ident<B, T>: serde::de::DeserializeOwned,
+    Ident<B, T>: Named + serde::de::DeserializeOwned,
 {
     type Value = Spec<Ident<B, T>>;
 
@@ -884,7 +914,9 @@ where
                     // Safety: see the SpecVisitor::package constructor
                     unsafe { build_spec.into_inner() }
                 }
-                Some(build_spec) => build_spec.try_into().map_err(serde::de::Error::custom)?,
+                Some(build_spec) => (pkg.name(), build_spec)
+                    .try_into()
+                    .map_err(serde::de::Error::custom)?,
                 None => Default::default(),
             },
             tests: self.tests.take().unwrap_or_default(),

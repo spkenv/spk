@@ -6,7 +6,6 @@ use std::sync::Arc;
 use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
 use spk_schema::foundation::fixtures::*;
-use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::opt_name;
 use spk_schema::ident::{
@@ -19,7 +18,7 @@ use spk_schema::ident::{
     RequestedBy,
     VarRequest,
 };
-use spk_schema::ident_build::EmbeddedSource;
+use spk_schema::ident_build::{Build, BuildId, EmbeddedSource};
 use spk_schema::prelude::*;
 use spk_schema::{recipe, v0};
 use spk_solve_macros::{make_build, make_build_and_components, make_repo, request};
@@ -133,14 +132,11 @@ async fn test_solver_no_requests(mut solver: Solver) {
 
 #[rstest]
 #[tokio::test]
-async fn test_solver_package_with_no_recipe(mut solver: Solver) {
+async fn test_solver_package_with_no_recipe(mut solver: Solver, random_build_id: BuildId) {
     let repo = RepositoryHandle::new_mem();
 
     let options = option_map! {};
-    let spec = v0::Spec::new(build_ident!(format!(
-        "my-pkg/1.0.0/{}",
-        options.digest_str()
-    )));
+    let spec = v0::Spec::new(build_ident!(format!("my-pkg/1.0.0/{random_build_id}")));
 
     // publish package without publishing spec
     let components = vec![
@@ -167,12 +163,15 @@ async fn test_solver_package_with_no_recipe(mut solver: Solver) {
 
 #[rstest]
 #[tokio::test]
-async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(mut solver: Solver) {
+async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(
+    mut solver: Solver,
+    random_build_id: BuildId,
+) {
     init_logging();
     let repo = RepositoryHandle::new_mem();
 
     let options = option_map! {};
-    let spec = spec!({ "pkg": format!("my-pkg/1.0.0/{}", options.digest_str()) });
+    let spec = spec!({ "pkg": format!("my-pkg/1.0.0/{random_build_id}") });
 
     // publish package without publishing spec
     let components = vec![(Component::Run, EMPTY_DIGEST.into())]

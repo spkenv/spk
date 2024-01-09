@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use std::collections::BTreeSet;
 use std::str::FromStr;
 
@@ -8,6 +9,7 @@ use miette::Diagnostic;
 use relative_path::RelativePathBuf;
 use thiserror::Error;
 
+use super::BuildId;
 use crate::ident_component::{Component, Components};
 use crate::ident_ops::parsing::IdentPartsBuf;
 use crate::ident_ops::{MetadataPath, TagPath};
@@ -95,21 +97,22 @@ impl std::fmt::Display for EmbeddedSource {
 pub enum Build {
     Source,
     Embedded(EmbeddedSource),
-    Digest([char; crate::option_map::DIGEST_SIZE]),
+    BuildId(BuildId),
 }
 
 impl Build {
     /// An empty build is the build digest created from
     /// an empty option map
     pub fn empty() -> &'static Build {
-        static EMPTY: Build = Build::Digest(['3', 'I', '4', '2', 'H', '3', 'S', '6']);
+        static EMPTY: Build =
+            Build::BuildId(BuildId::new(['3', 'I', '4', '2', 'H', '3', 'S', '6']));
         &EMPTY
     }
 
     /// A null build is the build digest created by
     /// encoded a series of all zeros (ie: [`spfs::encoding::NULL_DIGEST`])
     pub fn null() -> &'static Build {
-        static NULL: Build = Build::Digest(['A', 'A', 'A', 'A', 'A', 'A', 'A', 'A']);
+        static NULL: Build = Build::BuildId(BuildId::new(['A', 'A', 'A', 'A', 'A', 'A', 'A', 'A']));
         &NULL
     }
 
@@ -123,7 +126,7 @@ impl Build {
         match self {
             Build::Source => SRC.to_string(),
             Build::Embedded(by) => by.to_string(),
-            Build::Digest(d) => d.iter().collect(),
+            Build::BuildId(d) => d.to_string(),
         }
     }
 
@@ -143,7 +146,7 @@ impl Build {
 impl MetadataPath for Build {
     fn metadata_path(&self) -> RelativePathBuf {
         match self {
-            Build::Source | Build::Digest(_) => RelativePathBuf::from(self.digest()),
+            Build::Source | Build::BuildId(_) => RelativePathBuf::from(self.digest()),
             Build::Embedded(embedded) => embedded.metadata_path(),
         }
     }

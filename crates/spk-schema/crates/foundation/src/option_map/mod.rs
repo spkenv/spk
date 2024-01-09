@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use std::collections::{BTreeMap, HashMap};
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 use std::iter::FromIterator;
 use std::sync::Arc;
 
@@ -19,14 +19,6 @@ pub use error::{Error, Result};
 #[cfg(test)]
 #[path = "./option_map_test.rs"]
 mod option_map_test;
-
-// given option digests are namespaced by the package itself,
-// there is a slim likelihood of collision, so we roll the dice
-// also must be a multiple of 8 to be decodable which is generally
-// a nice way to handle validation / and 16 is a lot
-pub const DIGEST_SIZE: usize = 8;
-
-type Digest = [char; DIGEST_SIZE];
 
 /// Create a set of options from a simple mapping.
 ///
@@ -156,37 +148,6 @@ impl OptionMap {
         out
     }
 
-    fn items(&self) -> Vec<(OptNameBuf, String)> {
-        self.options
-            .iter()
-            .map(|(k, v)| (k.to_owned(), v.to_owned()))
-            .collect()
-    }
-
-    pub fn digest(&self) -> Digest {
-        let mut hasher = ring::digest::Context::new(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY);
-        for (name, value) in self.items() {
-            hasher.update(name.as_bytes());
-            hasher.update(b"=");
-            hasher.update(value.as_bytes());
-            hasher.update(&[0]);
-        }
-
-        let digest = hasher.finish();
-        let encoded = data_encoding::BASE32.encode(digest.as_ref());
-        encoded
-            .chars()
-            .take(DIGEST_SIZE)
-            .collect_vec()
-            .try_into()
-            .unwrap() // sha1 digests are always greater than 8 characters
-    }
-
-    /// The digest of this option map as a proper length string
-    pub fn digest_str(&self) -> String {
-        self.digest().iter().collect()
-    }
-
     /// Return only the options in this map that are not package-specific
     pub fn global_options(&self) -> Self {
         self.iter()
@@ -294,6 +255,8 @@ impl<'de> Deserialize<'de> for OptionMap {
 /// This allows non-string fields in yaml, such as `true`, to be
 /// read-in as a string (eg: `"true"`) without getting an
 /// unexpected or invalid type error
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
 pub struct Stringified(pub String);
 
 impl std::ops::Deref for Stringified {
