@@ -176,6 +176,7 @@ impl TryFrom<Request> for Opt {
                 default: value.as_pinned().map(str::to_string).unwrap_or_default(),
                 choices: Default::default(),
                 inheritance: Default::default(),
+                description: None,
                 value: None,
             })),
         }
@@ -213,6 +214,7 @@ impl<'de> Deserialize<'de> for Opt {
             // Both
             default: Option<String>,
             value: Option<String>,
+            description: Option<String>,
         }
 
         impl<'de> serde::de::Visitor<'de> for OptVisitor {
@@ -270,6 +272,9 @@ impl<'de> Deserialize<'de> for Opt {
                             self.default = Some(map.next_value::<Stringified>()?.0);
                         }
                         "static" => self.value = Some(map.next_value::<Stringified>()?.0),
+                        "description" => {
+                            self.description = Some(map.next_value::<Stringified>()?.0);
+                        }
                         _ => {
                             // unrecognized fields are explicitly ignored in case
                             // they were added in a newer version of spk. We assume
@@ -294,6 +299,7 @@ impl<'de> Deserialize<'de> for Opt {
                         choices: self.choices.unwrap_or_default(),
                         inheritance: self.inheritance.unwrap_or_default(),
                         default: self.default.unwrap_or_default(),
+                        description: self.description,
                         value: self.value,
                     })),
                     (Some(_), Some(_)) => Err(serde::de::Error::custom(
@@ -316,6 +322,7 @@ pub struct VarOpt {
     pub default: String,
     pub choices: IndexSet<String>,
     pub inheritance: Inheritance,
+    pub description: Option<String>,
     value: Option<String>,
 }
 
@@ -331,6 +338,7 @@ impl std::hash::Hash for VarOpt {
             choice.hash(state);
         }
         self.inheritance.hash(state);
+        self.description.hash(state);
         self.value.hash(state)
     }
 }
@@ -353,6 +361,7 @@ impl Ord for VarOpt {
             std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
+        let _ = self.description.cmp(&other.value);
         self.value.cmp(&other.value)
     }
 }
@@ -370,6 +379,7 @@ impl VarOpt {
             default: String::default(),
             choices: IndexSet::default(),
             inheritance: Inheritance::default(),
+            description: None,
             value: None,
         })
     }
@@ -446,6 +456,8 @@ struct VarOptSchema {
     choices: Vec<String>,
     #[serde(skip_serializing_if = "Inheritance::is_default")]
     inheritance: Inheritance,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    description: String,
     #[serde(rename = "static", skip_serializing_if = "String::is_empty")]
     value: String,
 }
@@ -459,6 +471,7 @@ impl Serialize for VarOpt {
             var: self.var.to_string(),
             choices: self.choices.iter().map(String::to_owned).collect(),
             inheritance: self.inheritance,
+            description: self.description.clone().unwrap_or_default(),
             value: self.value.clone().unwrap_or_default(),
         };
         if !self.default.is_empty() {
