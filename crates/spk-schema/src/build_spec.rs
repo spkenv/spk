@@ -5,16 +5,16 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::{OptionMap, Stringified};
-use spk_schema_ident::{PkgRequest, RangeIdent, Request};
 use strum::Display;
 
 use super::{v0, Opt, ValidationSpec};
 use crate::name::{OptName, OptNameBuf};
-use crate::option::VarOpt;
+use crate::option::{PkgOpt, VarOpt};
 use crate::{Error, Result, Variant};
 
 #[cfg(test)]
@@ -246,7 +246,7 @@ impl BuildSpec {
         &self,
         pkg_name: &PkgName,
         variant: &V,
-    ) -> Result<OptionMap>
+    ) -> Result<(OptionMap, Vec<Opt>)>
     where
         V: Variant,
     {
@@ -254,7 +254,7 @@ impl BuildSpec {
         let opts = self.opts_for_variant(variant)?;
         let mut resolved = OptionMap::default();
 
-        for opt in opts {
+        for opt in &opts {
             let given_value = match opt.full_name().namespace() {
                 Some(_) => given
                     .get(opt.full_name())
@@ -271,7 +271,7 @@ impl BuildSpec {
             resolved.insert(opt.full_name().to_owned(), value);
         }
 
-        Ok(resolved)
+        Ok((resolved, opts))
     }
 
     /// Add or update an option in this build spec.
@@ -292,7 +292,7 @@ impl BuildSpec {
     where
         V: Variant,
     {
-        let options = self.resolve_options_for_pkg_name(pkg_name, variant)?;
+        let (options, opts) = self.resolve_options_for_pkg_name(pkg_name, variant)?;
         let mut hasher = ring::digest::Context::new(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY);
         for (name, value) in options.iter() {
             hasher.update(name.as_bytes());
@@ -300,21 +300,21 @@ impl BuildSpec {
             hasher.update(value.as_bytes());
             hasher.update(&[0]);
         }
-        // TODO: This won't see component requests on the base options
-        for requirement in variant.additional_requirements().iter() {
-            let Request::Pkg(PkgRequest {
-                pkg: RangeIdent {
-                    name, components, ..
-                },
-                ..
-            }) = requirement
-            else {
-                continue;
-            };
+        for requirement in opts
+            .into_iter()
+            .filter_map(|opt| match opt {
+                Opt::Pkg(pkg) => Some(pkg),
+                Opt::Var(_) => None,
+            })
+            .sorted_unstable_by_key(|o| o.pkg.clone())
+        {
+            let PkgOpt {
+                pkg, components, ..
+            } = requirement;
             if components.is_empty() {
                 continue;
             }
-            hasher.update(name.as_bytes());
+            hasher.update(pkg.as_bytes());
             hasher.update(b"=");
             for component in components.iter() {
                 // It is not possible to have a custom named component with
@@ -346,7 +346,7 @@ impl TryFrom<(&PkgName, UncheckedBuildSpec)> for BuildSpec {
 
         let mut unique_variants = HashMap::new();
         for variant in bs.variants.iter() {
-            let options = bs.resolve_options_for_pkg_name(pkg_name, variant)?;
+            let options = bs.resolve_options_for_pkg_name(pkg_name, variant)?.0;
             let digest = bs.build_digest(pkg_name, variant)?;
             let vec = unique_variants.entry(digest).or_insert_with(Vec::new);
             vec.push(options);

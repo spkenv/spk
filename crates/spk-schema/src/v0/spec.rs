@@ -376,6 +376,7 @@ impl Recipe for Spec<VersionIdent> {
     {
         self.build
             .resolve_options_for_pkg_name(self.name(), variant)
+            .map(|(options, _)| options)
     }
 
     fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>

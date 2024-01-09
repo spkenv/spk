@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 use rstest::rstest;
-use spk_schema_foundation::pkg_name;
+use spk_schema_foundation::{option_map, pkg_name};
 
 use super::{AutoHostVars, BuildSpec};
 use crate::build_spec::UncheckedBuildSpec;
@@ -209,4 +209,35 @@ variants:
     // making the old form of this test fail.
     // Can we get the error to render like a yaml parse error again?
     assert!(message.contains("Multiple variants would produce the same build"));
+}
+
+#[rstest]
+fn test_options_with_components_produce_different_build_ids() {
+    let yaml1 = r#"
+options:
+  - pkg: pkg:comp1
+"#;
+    let yaml2 = r#"
+options:
+  - pkg: pkg:comp2
+"#;
+    let res1 = serde_yaml::from_str::<UncheckedBuildSpec>(yaml1)
+        .map_err(|_| false)
+        .and_then(|unchecked| {
+            BuildSpec::try_from((pkg_name!("dummy"), unchecked)).map_err(|_| false)
+        })
+        .unwrap();
+    let res2 = serde_yaml::from_str::<UncheckedBuildSpec>(yaml2)
+        .map_err(|_| false)
+        .and_then(|unchecked| {
+            BuildSpec::try_from((pkg_name!("dummy"), unchecked)).map_err(|_| false)
+        })
+        .unwrap();
+    let build_id1 = res1
+        .build_digest(pkg_name!("dummy"), &option_map! {})
+        .unwrap();
+    let build_id2 = res2
+        .build_digest(pkg_name!("dummy"), &option_map! {})
+        .unwrap();
+    assert_ne!(build_id1, build_id2);
 }
