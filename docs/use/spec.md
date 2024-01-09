@@ -421,7 +421,6 @@ platform: dcc-platform
 base: company-platform
 api: v0/platform
 requirements:
-  - pkg: some-package/1.2.3
   add:
     - pkg: python: 3.7
   remove:
