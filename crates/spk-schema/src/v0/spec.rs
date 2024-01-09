@@ -443,13 +443,9 @@ impl Recipe for Spec<VersionIdent> {
                                 // Then the components asked for must be a
                                 // subset of what is present.
                                 if !self
-                                    // XXX get_build_requirements(variant)
-                                    // doesn't include
-                                    // variant.additional_requirements?
                                     .get_build_requirements(variant)
                                     .unwrap_or_default()
                                     .iter()
-                                    .chain(variant.additional_requirements().iter())
                                     .any(|req| {
                                         let Request::Pkg(PkgRequest {
                                             pkg:
