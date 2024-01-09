@@ -324,6 +324,63 @@ async fn test_impossible_requests_checker_validate_pkg_requests_impossible() {
 
 #[rstest]
 #[tokio::test]
+async fn test_impossible_requests_checker_validate_pkg_requests_include_embedded_impossible() {
+    init_logging();
+
+    let repo = make_repo!(
+        [
+            { "pkg": "new-pkg/2.0.0/3I42H3S6" },
+            { "pkg": "new-pkg/2.0.0/src" },
+
+            { "pkg": "my-pkg/2.0.0/3I42H3S6" },
+            { "pkg": "my-pkg/1.0.0/3I42H3S6" },
+            { "pkg": "my-pkg/1.0.0/src" },
+
+            { "pkg": "my-pkg-b/3.0.0/3I42H3S6" },
+            { "pkg": "my-pkg-b/3.1.1/3I42H3S6" },
+            { "pkg": "my-pkg-b/3.0.0/src" },
+        ]
+    );
+    let arc_repo = Arc::new(repo);
+
+    // Thie second request is the impossible one. The IfAlreadyPresent
+    // request is possible because it is just IfAlreadyPresent and has
+    // not be requested by anything else yet.
+    let spec = spec!(
+        { "pkg": "about-to-resolve/1.0.0/3I42H3S6",
+           "install": {
+               "requirements": [{"pkg": "my-pkg-b/3.1.1"},
+                                {"var": "python.abi/3.9.7"}],
+               "embedded": [ { "pkg": "my-pkg/1.0.0/embedded" } ]
+           }
+        }
+    );
+
+    // This should combine with the embedded package and create an
+    // impossible request.
+    let same_pkg_request = PkgRequest::from_ident(
+        version_ident!("my-pkg/2").to_any(None),
+        RequestedBy::SpkInternalTest,
+    );
+    let mut unresolved_requests: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
+    unresolved_requests.insert(same_pkg_request.pkg.name.clone(), same_pkg_request.clone());
+
+    // Test: a package that adds an impossible request
+    let requests_checker = ImpossibleRequestsChecker::default();
+    requests_checker.set_binary_only(true);
+    let compat = requests_checker
+        .validate_pkg_requests(&spec, &unresolved_requests, &[Arc::clone(&arc_repo)])
+        .await
+        .unwrap();
+
+    assert!(
+        !compat.is_ok(),
+        "Should make an impossible request but it hasn't"
+    );
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_impossible_requests_checker_validate_pkg_requests_no_requirements() {
     init_logging();
 
