@@ -3811,6 +3811,7 @@ dependencies = [
  "futures",
  "itertools 0.10.5",
  "miette",
+ "serde",
  "serde_json",
  "serde_yaml 0.9.27",
  "spfs",
