@@ -27,7 +27,7 @@ sentry = { workspace = true, optional = true }
 sentry-miette = { workspace = true, optional = true }
 sentry-tracing = { workspace = true, optional = true }
 serde_json = { version = "1.0.57", optional = true }
-spfs = { path = "../../spfs" }
+spfs = { workspace = true }
 strip-ansi-escapes = { workspace = true, optional = true }
 syslog-tracing = "0.2.0"
 tracing = { workspace = true }

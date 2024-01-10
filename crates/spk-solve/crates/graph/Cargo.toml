@@ -29,12 +29,12 @@ itertools = { workspace = true }
 once_cell = { workspace = true }
 priority-queue = "1.2"
 serde_json = { workspace = true }
-spfs = { path = "../../../spfs" }
-spk-config = { path = "../../../spk-config" }
-spk-solve-package-iterator = { path = "../package-iterator" }
-spk-solve-solution = { path = "../solution" }
-spk-schema = { path = "../../../spk-schema" }
-spk-storage = { path = "../../../spk-storage" }
+spfs = { workspace = true }
+spk-config = { workspace = true }
+spk-solve-package-iterator = { workspace = true }
+spk-solve-solution = { workspace = true }
+spk-schema = { workspace = true }
+spk-storage = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }

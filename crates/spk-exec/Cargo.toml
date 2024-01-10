@@ -18,10 +18,10 @@ migration-to-components = [
 async-stream = "0.3"
 futures = { workspace = true }
 relative-path = "1.3"
-spfs = { path = "../spfs" }
-spk-schema = { path = '../spk-schema' }
-spk-storage = { path = "../spk-storage" }
-spk-solve = { path = "../spk-solve" }
+spfs = { workspace = true }
+spk-schema = { workspace = true }
+spk-storage = { workspace = true }
+spk-solve = { workspace = true }
 thiserror = { workspace = true }
 miette = { workspace = true }
 tracing = { workspace = true }

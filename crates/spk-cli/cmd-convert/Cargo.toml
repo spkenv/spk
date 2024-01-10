@@ -11,5 +11,5 @@ workspace = true
 miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }
 clap = { workspace = true }
-spk-cli-common = { path = '../common' }
-spk-cmd-env = { path = "../cmd-env" }
+spk-cli-common = { workspace = true }
+spk-cmd-env = { workspace = true }

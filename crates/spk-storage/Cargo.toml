@@ -35,8 +35,8 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 sentry = { workspace = true, optional = true }
-spfs = { path = "../spfs" }
-spk-schema = { path = "../spk-schema" }
+spfs = { workspace = true }
+spk-schema = { workspace = true }
 sys-info = "0.9.0"
 tar = "0.4.30"
 tempfile = { workspace = true }

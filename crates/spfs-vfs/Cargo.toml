@@ -34,7 +34,7 @@ nix = { workspace = true, features = ["process"] }
 libc = "0.2"
 miette = { workspace = true, features = ["fancy"] }
 prost = { workspace = true, optional = true }
-spfs = { path = "../spfs" }
+spfs = { workspace = true }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }
 tonic = { workspace = true, optional = true }

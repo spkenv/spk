@@ -20,8 +20,8 @@ dunce = { workspace = true }
 futures = { workspace = true }
 miette = { workspace = true, features = ["fancy"] }
 serde_json = { workspace = true }
-spfs = { path = "../../spfs" }
-spfs-cli-common = { path = "../common" }
+spfs = { workspace = true }
+spfs-cli-common = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }

@@ -20,11 +20,11 @@ miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }
 clap = { workspace = true }
 futures = { workspace = true }
-spfs = { path = '../../spfs' }
-spk-build = { path = '../../spk-build' }
-spk-cli-common = { path = '../common' }
-spk-schema = { path = '../../spk-schema' }
-spk-storage = { path = '../../spk-storage' }
+spfs = { workspace = true }
+spk-build = { workspace = true }
+spk-cli-common = { workspace = true }
+spk-schema = { workspace = true }
+spk-storage = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 

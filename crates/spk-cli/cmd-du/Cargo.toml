@@ -15,11 +15,11 @@ clap = { workspace = true }
 colored = { workspace = true }
 futures = "0.3.9"
 itertools = { workspace = true }
-spfs = { path = "../../spfs" }
-spk-build = { path = '../../spk-build' }
-spk-cli-common = { path = '../common' }
-spk-solve = { path = '../../spk-solve' }
-spk-storage = { path = '../../spk-storage' }
-spk-schema = { path = '../../spk-schema' }
+spfs = { workspace = true }
+spk-build = { workspace = true }
+spk-cli-common = { workspace = true }
+spk-solve = { workspace = true }
+spk-storage = { workspace = true }
+spk-schema = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
