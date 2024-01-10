@@ -38,10 +38,11 @@ use spk_storage;
 use strum::{Display, EnumString, EnumVariantNames};
 
 /// Constants for the valid output formats
-#[derive(Display, EnumString, EnumVariantNames, Clone)]
+#[derive(Default, Display, EnumString, EnumVariantNames, Clone)]
 #[strum(serialize_all = "lowercase")]
 pub enum OutputFormat {
     Json,
+    #[default]
     Yaml,
 }
 
@@ -80,8 +81,8 @@ pub struct View {
     pub verbose: u8,
 
     /// Format to output package data in
-    #[clap(short = 'f', long, default_value_t = OutputFormat::Yaml)]
-    pub format: OutputFormat,
+    #[clap(short = 'f', long)]
+    pub format: Option<OutputFormat>,
 
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,
@@ -211,25 +212,28 @@ impl View {
 
         let default_variants = recipe.default_variants();
         match &self.format {
-            OutputFormat::Yaml => {
+            Some(format) => match format {
+                OutputFormat::Yaml => tracing::warn!("No yaml format for variants"),
+                OutputFormat::Json => {
+                    let mut variants = BTreeMap::new();
+                    for (index, variant) in default_variants.iter().enumerate() {
+                        let variant_info = PrintVariant {
+                            options: variant.options(),
+                            additional_requirements: variant.additional_requirements(),
+                        };
+                        variants.insert(index, variant_info);
+                    }
+
+                    serde_json::to_writer(std::io::stdout(), &variants)
+                        .into_diagnostic()
+                        .wrap_err("Failed to serialize loaded spec")?
+                }
+            },
+            None => {
                 // Variants are not printed in yaml format
                 for (index, variant) in default_variants.iter().enumerate() {
                     println!("{index}: {variant:#}");
                 }
-            }
-            OutputFormat::Json => {
-                let mut variants = BTreeMap::new();
-                for (index, variant) in default_variants.iter().enumerate() {
-                    let variant_info = PrintVariant {
-                        options: variant.options(),
-                        additional_requirements: variant.additional_requirements(),
-                    };
-                    variants.insert(index, variant_info);
-                }
-
-                serde_json::to_writer(std::io::stdout(), &variants)
-                    .into_diagnostic()
-                    .wrap_err("Failed to serialize loaded spec")?
             }
         }
         Ok(0)
@@ -387,7 +391,7 @@ impl View {
 
     /// Display the contents of a package spec
     fn print_build_spec(&self, package_spec: Arc<Spec>) -> Result<i32> {
-        match &self.format {
+        match &self.format.clone().unwrap_or_default() {
             OutputFormat::Yaml => serde_yaml::to_writer(std::io::stdout(), &*package_spec)
                 .into_diagnostic()
                 .wrap_err("Failed to serialize loaded spec")?,
@@ -458,7 +462,7 @@ impl View {
             for repo in repos {
                 match repo.read_recipe(&ident).await {
                     Ok(version_recipe) => {
-                        match &self.format {
+                        match &self.format.clone().unwrap_or_default() {
                             OutputFormat::Yaml => {
                                 serde_yaml::to_writer(std::io::stdout(), &*version_recipe)
                                     .into_diagnostic()
