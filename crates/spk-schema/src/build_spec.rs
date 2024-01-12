@@ -131,7 +131,7 @@ pub struct BuildSpec {
     pub variants: Vec<v0::Variant>,
     #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
     pub validation: ValidationSpec,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "AutoHostVars::is_default")]
     pub auto_host_vars: AutoHostVars,
 }
 
