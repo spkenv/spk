@@ -9,7 +9,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::name::PkgName;
-use spk_schema_foundation::option_map::{OptionMap, Stringified};
+use spk_schema_foundation::option_map::{OptionMap, Stringified, HOST_OPTIONS};
 use strum::Display;
 
 use super::{v0, Opt, ValidationSpec};
@@ -66,7 +66,7 @@ impl AutoHostVars {
     /// Get host_options after filtering based on the cross Os
     /// compatibility setting.
     pub fn host_options(&self) -> Result<Vec<Opt>> {
-        let all_host_options = spk_schema_foundation::option_map::host_options()?;
+        let all_host_options = HOST_OPTIONS.clone()?;
 
         let mut names_added = self.names_added();
         let distro_name;

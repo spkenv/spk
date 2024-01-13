@@ -11,7 +11,7 @@ use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{flags, spk_exe, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::{PkgRequest, RangeIdent, RequestedBy};
-use spk_schema::option_map::host_options;
+use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::prelude::*;
 use spk_schema::OptionMap;
 use spk_storage as storage;
@@ -168,7 +168,7 @@ impl Run for MakeBinary {
             for variant in variants_to_build {
                 let mut overrides = OptionMap::default();
                 if !self.options.no_host {
-                    overrides.extend(host_options()?);
+                    overrides.extend(HOST_OPTIONS.clone()?);
                 }
                 overrides.extend(options.clone());
                 let variant = variant.with_overrides(overrides);

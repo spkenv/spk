@@ -14,10 +14,11 @@ use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::OptName;
-use spk_schema::foundation::option_map::{host_options, OptionMap};
+use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{parse_ident, AnyIdent, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage, VariantExt};
 #[cfg(feature = "statsd")]
 use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
@@ -283,7 +284,9 @@ impl Options {
     pub fn get_options(&self) -> Result<OptionMap> {
         let mut opts = match self.no_host {
             true => OptionMap::default(),
-            false => host_options().wrap_err("Failed to compute options for current host")?,
+            false => HOST_OPTIONS
+                .clone()
+                .wrap_err("Failed to compute options for current host")?,
         };
 
         for filename in self.options_file.iter() {

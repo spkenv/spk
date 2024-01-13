@@ -10,7 +10,7 @@ use spk_build::BuildSource;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_build::Build;
-use spk_schema::foundation::option_map::{host_options, OptionMap};
+use spk_schema::foundation::option_map::{OptionMap, HOST_OPTIONS};
 use spk_schema::prelude::*;
 use spk_schema::{Recipe, TestStage};
 
@@ -114,7 +114,7 @@ impl Run for CmdTest {
                     let variant = {
                         let mut opts = match self.options.no_host {
                             true => OptionMap::default(),
-                            false => host_options()?,
+                            false => HOST_OPTIONS.clone()?,
                         };
 
                         opts.extend(variant.options().into_owned());
