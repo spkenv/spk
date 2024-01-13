@@ -917,9 +917,7 @@ where
                     // Safety: see the SpecVisitor::package constructor
                     unsafe { build_spec.into_inner() }
                 }
-                Some(build_spec) => (pkg.name(), build_spec)
-                    .try_into()
-                    .map_err(serde::de::Error::custom)?,
+                Some(build_spec) => build_spec.try_into().map_err(serde::de::Error::custom)?,
                 None => Default::default(),
             },
             tests: self.tests.take().unwrap_or_default(),
