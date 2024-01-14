@@ -8,10 +8,10 @@ use serde_json::json;
 #[rstest]
 fn test_parse_version_access_basic() {
     let options = json!({});
-    static TPL: &str = r#"{{ "1.2.3.4.5-beta.1+r.0" | parse_version: minor }}"#;
+    static TPL: &str = r#"{{ "1.2.3.4.5-beta.1+r.0" | parse_version(field="minor") }}"#;
     static EXPECTED: &str = r#"2"#;
     let rendered =
-        crate::render_template(TPL, &options).expect("template should not fail to render");
+        crate::render_template("test", TPL, &options).expect("template should not fail to render");
     assert_eq!(rendered, EXPECTED);
 }
 
@@ -19,7 +19,7 @@ fn test_parse_version_access_basic() {
 fn test_parse_version_access_block_params() {
     let options = json!({"version": "1.2.3.4.5-beta.1+r.0"});
     static TPL: &str = r#"
-{% assign v = version | parse_version %}
+{% set v = version | parse_version %}
 {{version}}
 {{v.base}}
 {{v.major}}
@@ -42,6 +42,6 @@ fn test_parse_version_access_block_params() {
 1
 "#;
     let rendered =
-        crate::render_template(TPL, &options).expect("template should not fail to render");
+        crate::render_template("test", TPL, &options).expect("template should not fail to render");
     assert_eq!(rendered.trim(), EXPECTED.trim());
 }

@@ -1,10 +1,10 @@
-# {% assign version =  opt.version | default: "3.7.3" %}
-# {% assign cpXX = version | replace_re: "(\d+)\.(\d+).*", "cp$1$2" %}
-pkg: python/{{ version }}
+# {% set opt = opt | default_opts(version="3.7.3") %}
+# {% set cpXX = opt.version | replace_regex(from="(\d+)\.(\d+).*", to="cp$1$2") %}
+pkg: python/{{ opt.version }}
 api: v0/package
 sources:
   - git: https://github.com/python/cpython
-    ref: v{{ version }}
+    ref: v{{ opt.version }}
 build:
   options:
     - var: os

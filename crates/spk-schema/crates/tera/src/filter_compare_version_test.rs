@@ -12,8 +12,8 @@ fn test_template_rendering_version_range() {
 
     let options = json!({});
     static TPL: &str = r#"
-{% default version = "1.2.3" %}
-{% assign use_new_download = version | compare_version: ">=1.0" %}
+{% set version = opt.version | default(value="1.2.3") %}
+{% set use_new_download = version | compare_version(op=">=1.0") %}
 pkg: package/{{ version }}
 sources:
 {%- if use_new_download %}
@@ -30,6 +30,6 @@ sources:
   - git: https://downloads.testing/package/v1.2.3
 "#;
     let rendered =
-        crate::render_template(TPL, &options).expect("template should not fail to render");
+        crate::render_template("test", TPL, &options).expect("template should not fail to render");
     assert_eq!(rendered, EXPECTED);
 }

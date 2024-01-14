@@ -1,5 +1,5 @@
-# {% default version = "3.18.2" %}
-pkg: cmake/{{ version }}
+# {% set opt = opt | default_opts(version="3.18.2") %}
+pkg: cmake/{{ opt.version }}
 api: v0/package
 
 sources:
@@ -8,8 +8,8 @@ sources:
   # the tar file.
   - path: ./
   - script:
-    - export TARFILE=cmake-{{ version }}-Linux-x86_64.tar.gz
-    - if [ ! -e ./$TARFILE ] ; then wget https://github.com/Kitware/CMake/releases/download/v{{ version }}/$TARFILE ; fi
+    - export TARFILE=cmake-{{ opt.version }}-Linux-x86_64.tar.gz
+    - if [ ! -e ./$TARFILE ] ; then wget https://github.com/Kitware/CMake/releases/download/v{{ opt.version }}/$TARFILE ; fi
 
 build:
   options:
@@ -18,7 +18,7 @@ build:
   script:
     - mkdir -p build; cd build
     - tar -xvf
-        ../cmake-{{ version }}-Linux-x86_64.tar.gz
+        ../cmake-{{ opt.version }}-Linux-x86_64.tar.gz
         --strip-components=1
         --exclude=doc
         --exclude=Help

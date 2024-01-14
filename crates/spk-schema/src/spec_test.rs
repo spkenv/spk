@@ -329,15 +329,9 @@ sources:
     let err = tpl
         .render(&options)
         .expect_err("expect template rendering to fail");
-    let expected = r#"
-liquid: Unknown index
-  with:
-    variable=opt
-    requested index=typo
-    available indexes=version
-"#;
-    let message = err.to_string();
-    assert_eq!(message.trim(), expected.trim());
+    let expected = "Variable `opt.typo` not found";
+    let message = format!("{err:?}");
+    assert!(message.contains(expected));
 }
 
 #[rstest]

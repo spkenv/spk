@@ -1,9 +1,9 @@
-# {% assign version = opt.version | default: "4.8.5" %}
-pkg: gcc/{{ version }}
+# {% set opt = opt | default_opts(version="4.8.5") %}
+pkg: gcc/{{ opt.version }}
 api: v0/package
 
 sources:
-  - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-{{ version }}/gcc-{{ version }}.tar.gz
+  - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-{{ opt.version }}/gcc-{{ opt.version }}.tar.gz
   - path: patch-gcc46-texi.diff
 
 build:
@@ -25,10 +25,10 @@ build:
     - pkg: coreutils
     - pkg: binutils
     - pkg: make
-    - pkg: gcc/<={{ version }}
+    - pkg: gcc/<={{ opt.version }}
   script:
-    - patch -d gcc-{{ version }} -p0 <patch-gcc46-texi.diff
-    - cd gcc-{{ version }}
+    - patch -d gcc-{{ opt.version }} -p0 <patch-gcc46-texi.diff
+    - cd gcc-{{ opt.version }}
     - ./configure
       --prefix=/spfs
       --with-mpfr=/spfs
