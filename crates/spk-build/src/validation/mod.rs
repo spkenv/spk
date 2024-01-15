@@ -19,7 +19,7 @@ pub use collect_existing_files::CollectExistingFilesValidator;
 pub use empty_package::EmptyPackageValidator;
 pub use error::{Error, Result};
 pub use inherit_requirements::InheritRequirementsValidator;
-pub use limit_desc_length::LimitDescLengthValidator;
+pub use limit_desc_length::LongDescriptionValidator;
 pub use recursive_build::RecursiveBuildValidator;
 pub use require_desc::RequireDescriptionValidator;
 pub use validator::{Outcome, Report, Status, Subject, Validator};

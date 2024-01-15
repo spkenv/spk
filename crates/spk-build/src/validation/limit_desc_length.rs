@@ -11,15 +11,16 @@ use spk_schema::{Opt, Package, Variant};
 use super::{Error, Outcome, Report, Status, Subject};
 use crate::report::BuildSetupReport;
 
-pub struct LimitDescLengthValidator {
+const MAX_LENGTH: usize = 256;
+
+pub struct LongDescriptionValidator {
     pub kind: RuleKind,
-    pub limit: usize,
 }
 
-impl super::validator::sealed::Sealed for LimitDescLengthValidator {}
+impl super::validator::sealed::Sealed for LongDescriptionValidator {}
 
 #[async_trait::async_trait]
-impl super::Validator for LimitDescLengthValidator {
+impl super::Validator for LongDescriptionValidator {
     async fn validate_setup<P, V>(&self, setup: &BuildSetupReport<P, V>) -> Report
     where
         P: Package,
@@ -31,21 +32,35 @@ impl super::Validator for LimitDescLengthValidator {
                 Opt::Pkg(_) => continue,
                 Opt::Var(v) => match &v.description {
                     Some(desc) => {
-                        let status = if desc.chars().count() <= self.limit {
-                            Status::Allowed
-                        } else {
-                            Status::Denied(Error::DescriptionOverLimit { limit: self.limit })
-                        };
-
-                        results.push(Outcome {
-                            condition: ValidationMatcherDiscriminants::LimitDescLength,
-                            locality: String::new(),
-                            subject: Subject::Package(setup.package.ident().clone()),
-                            status,
-                        });
-                    }
+                        match &self.kind {
+                            RuleKind::Deny if desc.chars().count() > MAX_LENGTH => {
+                                results.push(Outcome {
+                                    condition: ValidationMatcherDiscriminants::LongDescription,
+                                    locality: String::new(),
+                                    subject: Subject::Package(setup.package.ident().clone()),
+                                    status: Status::Denied(Error::DescriptionOverLimit),
+                                });
+                            }
+                            RuleKind::Require if desc.chars().count() > MAX_LENGTH => {
+                                results.push(Outcome {
+                                    condition: ValidationMatcherDiscriminants::LongDescription,
+                                    locality: String::new(),
+                                    subject: Subject::Package(setup.package.ident().clone()),
+                                    status: Status::Allowed,
+                                });
+                            }
+                            _ => {
+                                results.push(Outcome {
+                                    condition: ValidationMatcherDiscriminants::LongDescription,
+                                    locality: String::new(),
+                                    subject: Subject::Package(setup.package.ident().clone()),
+                                    status: Status::Allowed,
+                                });
+                            }
+                        }
+                    },
                     None => continue,
-                },
+                }
             }
         }
         Report::from_iter(results)

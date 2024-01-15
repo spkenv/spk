@@ -10,8 +10,6 @@ use spk_schema_foundation::name::{PkgName, PkgNameBuf};
 #[path = "./validation_test.rs"]
 mod validation_test;
 
-const MAX_LENGTH: usize = 256;
-
 /// A Validator validates packages after they have been built
 ///
 /// This type has been deprecated in favor of the more extensible
@@ -93,8 +91,8 @@ impl ValidationSpec {
                     packages: Vec::new(),
                 },
             },
-            ValidationRule::Require {
-                condition: ValidationMatcher::LimitDescLength { limit: MAX_LENGTH },
+            ValidationRule::Deny {
+                condition: ValidationMatcher::LongDescription,
             },
             ValidationRule::Require {
                 condition: ValidationMatcher::InheritRequirements {
@@ -220,9 +218,7 @@ pub enum ValidationMatcher {
     EmptyPackage,
     CollectAllFiles,
     RequireDescription,
-    LimitDescLength {
-        limit: usize,
-    },
+    LongDescription,
     AlterExistingFiles {
         packages: Vec<NameOrCurrent>,
         action: Option<FileAlteration>,
@@ -326,16 +322,7 @@ impl<'de> Deserialize<'de> for ValidationRule {
                     Kind::EmptyPackage => Ok(ValidationMatcher::EmptyPackage),
                     Kind::CollectAllFiles => Ok(ValidationMatcher::EmptyPackage),
                     Kind::RequireDescription => Ok(ValidationMatcher::RequireDescription),
-                    Kind::LimitDescLength => {
-                        return Err(serde::de::Error::custom("Error: fjdsjkfhsdkjlfdsfs"))
-                        // let limit = if let Some(l) = map.next_key::<usize>()? {
-                        //     l
-                        // } else {
-                        //     MAX_LENGTH
-                        // };
-
-                        // Ok(ValidationMatcher::LimitDescLength { limit })
-                    }
+                    Kind::LongDescription => Ok(ValidationMatcher::LongDescription),
                     Kind::AlterExistingFiles => {
                         let mut packages = Default::default();
                         let mut action = None;
@@ -402,6 +389,7 @@ impl Serialize for ValidationRule {
             ValidationMatcher::RecursiveBuild
             | ValidationMatcher::CollectAllFiles
             | ValidationMatcher::RequireDescription
+            | ValidationMatcher::LongDescription
             | ValidationMatcher::EmptyPackage => {}
             ValidationMatcher::InheritRequirements { packages } => {
                 if !packages.is_empty() {
@@ -420,9 +408,6 @@ impl Serialize for ValidationRule {
                 if !packages.is_empty() {
                     map.serialize_entry("packages", packages)?;
                 }
-            }
-            ValidationMatcher::LimitDescLength { limit } => {
-                map.serialize_entry("limit", limit)?;
             }
         }
         map.end()
