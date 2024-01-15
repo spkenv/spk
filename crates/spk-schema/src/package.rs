@@ -12,7 +12,7 @@ use super::RequirementsList;
 use crate::foundation::ident_component::Component;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::version::Compatibility;
-use crate::DeprecateMut;
+use crate::{DeprecateMut, Opt};
 
 #[cfg(test)]
 #[path = "./package_test.rs"]
@@ -54,6 +54,9 @@ pub trait Package:
 
     /// The set of operations to perform on the environment when running this package
     fn runtime_environment(&self) -> &Vec<super::EnvOp>;
+
+    /// The set of build options for this package
+    fn get_build_options(&self) -> &Vec<Opt>;
 
     /// Identify the requirements for a build of this package.
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>>;
@@ -129,6 +132,10 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).runtime_environment()
     }
 
+    fn get_build_options(&self) -> &Vec<Opt> {
+        (**self).get_build_options()
+    }
+
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
         (**self).get_build_requirements()
     }
@@ -197,6 +204,10 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).runtime_environment()
     }
 
+    fn get_build_options(&self) -> &Vec<Opt> {
+        (**self).get_build_options()
+    }
+
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
         (**self).get_build_requirements()
     }
@@ -263,6 +274,10 @@ impl<T: Package + Send + Sync> Package for &T {
 
     fn runtime_environment(&self) -> &Vec<super::EnvOp> {
         (**self).runtime_environment()
+    }
+
+    fn get_build_options(&self) -> &Vec<Opt> {
+        (**self).get_build_options()
     }
 
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {

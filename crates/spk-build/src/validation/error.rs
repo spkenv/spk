@@ -150,4 +150,10 @@ pub enum Error {
         help("This would need to be explicitly enabled in the package spec, which might have additional details")
     )]
     RecursiveBuildRequired(spk_schema::foundation::name::PkgNameBuf),
+    #[error("Description over {limit} character limit")]
+    #[diagnostic(severity(warning), code(spk::build::validation::limit_desc_length))]
+    DescriptionOverLimit { limit: usize },
+    #[error("Strongly inherited vars require a description")]
+    #[diagnostic(severity(warning), code(spk::build::validation::require_desc))]
+    NoDescription,
 }

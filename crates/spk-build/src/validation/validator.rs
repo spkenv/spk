@@ -50,6 +50,17 @@ macro_rules! rule_to_validator {
                 let $bind = super::CollectAllFilesValidator { kind };
                 $op
             }
+            ValidationMatcher::RequireDescription => {
+                let $bind = super::RequireDescriptionValidator { kind };
+                $op
+            }
+            ValidationMatcher::LimitDescLength { limit } => {
+                let $bind = super::LimitDescLengthValidator {
+                    kind,
+                    limit: *limit,
+                };
+                $op
+            }
             ValidationMatcher::AlterExistingFiles { packages, action } => {
                 let $bind = super::AlterExistingFilesValidator {
                     kind,

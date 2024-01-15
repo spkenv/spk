@@ -259,6 +259,10 @@ impl Package for Spec<BuildIdent> {
         &self.install.environment
     }
 
+    fn get_build_options(&self) -> &Vec<Opt> {
+        &self.build.options
+    }
+
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
         let mut requests = RequirementsList::default();
         for opt in self.build.options.iter() {

@@ -10,6 +10,8 @@ use spk_schema_foundation::name::{PkgName, PkgNameBuf};
 #[path = "./validation_test.rs"]
 mod validation_test;
 
+const MAX_LENGTH: usize = 256;
+
 /// A Validator validates packages after they have been built
 ///
 /// This type has been deprecated in favor of the more extensible
@@ -78,6 +80,9 @@ impl ValidationSpec {
                 condition: ValidationMatcher::RecursiveBuild,
             },
             ValidationRule::Deny {
+                condition: ValidationMatcher::RequireDescription,
+            },
+            ValidationRule::Deny {
                 condition: ValidationMatcher::AlterExistingFiles {
                     packages: Vec::new(),
                     action: None,
@@ -87,6 +92,9 @@ impl ValidationSpec {
                 condition: ValidationMatcher::CollectExistingFiles {
                     packages: Vec::new(),
                 },
+            },
+            ValidationRule::Require {
+                condition: ValidationMatcher::LimitDescLength { limit: MAX_LENGTH },
             },
             ValidationRule::Require {
                 condition: ValidationMatcher::InheritRequirements {
@@ -211,6 +219,10 @@ impl ValidationRule {
 pub enum ValidationMatcher {
     EmptyPackage,
     CollectAllFiles,
+    RequireDescription,
+    LimitDescLength {
+        limit: usize,
+    },
     AlterExistingFiles {
         packages: Vec<NameOrCurrent>,
         action: Option<FileAlteration>,
@@ -313,6 +325,17 @@ impl<'de> Deserialize<'de> for ValidationRule {
                 match kind {
                     Kind::EmptyPackage => Ok(ValidationMatcher::EmptyPackage),
                     Kind::CollectAllFiles => Ok(ValidationMatcher::EmptyPackage),
+                    Kind::RequireDescription => Ok(ValidationMatcher::RequireDescription),
+                    Kind::LimitDescLength => {
+                        return Err(serde::de::Error::custom("Error: fjdsjkfhsdkjlfdsfs"))
+                        // let limit = if let Some(l) = map.next_key::<usize>()? {
+                        //     l
+                        // } else {
+                        //     MAX_LENGTH
+                        // };
+
+                        // Ok(ValidationMatcher::LimitDescLength { limit })
+                    }
                     Kind::AlterExistingFiles => {
                         let mut packages = Default::default();
                         let mut action = None;
@@ -378,6 +401,7 @@ impl Serialize for ValidationRule {
         match condition {
             ValidationMatcher::RecursiveBuild
             | ValidationMatcher::CollectAllFiles
+            | ValidationMatcher::RequireDescription
             | ValidationMatcher::EmptyPackage => {}
             ValidationMatcher::InheritRequirements { packages } => {
                 if !packages.is_empty() {
@@ -396,6 +420,9 @@ impl Serialize for ValidationRule {
                 if !packages.is_empty() {
                     map.serialize_entry("packages", packages)?;
                 }
+            }
+            ValidationMatcher::LimitDescLength { limit } => {
+                map.serialize_entry("limit", limit)?;
             }
         }
         map.end()

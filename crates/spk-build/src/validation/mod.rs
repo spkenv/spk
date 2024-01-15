@@ -8,7 +8,9 @@ mod collect_existing_files;
 mod empty_package;
 mod error;
 mod inherit_requirements;
+mod limit_desc_length;
 mod recursive_build;
+mod require_desc;
 mod validator;
 
 pub use alter_existing_files::AlterExistingFilesValidator;
@@ -17,5 +19,7 @@ pub use collect_existing_files::CollectExistingFilesValidator;
 pub use empty_package::EmptyPackageValidator;
 pub use error::{Error, Result};
 pub use inherit_requirements::InheritRequirementsValidator;
+pub use limit_desc_length::LimitDescLengthValidator;
 pub use recursive_build::RecursiveBuildValidator;
+pub use require_desc::RequireDescriptionValidator;
 pub use validator::{Outcome, Report, Status, Subject, Validator};
