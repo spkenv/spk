@@ -77,7 +77,7 @@ impl ValidationSpec {
             ValidationRule::Deny {
                 condition: ValidationMatcher::RecursiveBuild,
             },
-            ValidationRule::Deny {
+            ValidationRule::Require {
                 condition: ValidationMatcher::RequireDescription,
             },
             ValidationRule::Deny {

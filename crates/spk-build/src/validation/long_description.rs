@@ -6,19 +6,21 @@ use spk_schema::validation::{
     ValidationMatcherDiscriminants,
     ValidationRuleDiscriminants as RuleKind,
 };
-use spk_schema::{Inheritance, Opt, Package, Variant};
+use spk_schema::{Opt, Package, Variant};
 
 use super::{Error, Outcome, Report, Status, Subject};
 use crate::report::BuildSetupReport;
 
-pub struct RequireDescriptionValidator {
+const MAX_LENGTH: usize = 256;
+
+pub struct LongDescriptionValidator {
     pub kind: RuleKind,
 }
 
-impl super::validator::sealed::Sealed for RequireDescriptionValidator {}
+impl super::validator::sealed::Sealed for LongDescriptionValidator {}
 
 #[async_trait::async_trait]
-impl super::Validator for RequireDescriptionValidator {
+impl super::Validator for LongDescriptionValidator {
     async fn validate_setup<P, V>(&self, setup: &BuildSetupReport<P, V>) -> Report
     where
         P: Package,
@@ -28,11 +30,10 @@ impl super::Validator for RequireDescriptionValidator {
         for opt in setup.package.get_build_options().iter() {
             match opt {
                 Opt::Pkg(_) => continue,
-                Opt::Var(v) => match v.inheritance {
-                    Inheritance::Weak => continue,
-                    _ => {
+                Opt::Var(v) => match &v.description {
+                    Some(desc) => {
                         let mut outcome = Outcome {
-                            condition: ValidationMatcherDiscriminants::RequireDescription,
+                            condition: ValidationMatcherDiscriminants::LongDescription,
                             locality: v
                                 .var
                                 .with_default_namespace(setup.package.ident().name())
@@ -43,21 +44,21 @@ impl super::Validator for RequireDescriptionValidator {
 
                         match &self.kind {
                             RuleKind::Deny => {
-                                if v.description.is_some() {
-                                    outcome.status = Status::Denied(Error::DescriptionNotRequired);
+                                if desc.chars().count() > MAX_LENGTH {
+                                    outcome.status = Status::Denied(Error::DescriptionOverLimit);
                                 };
                             }
                             RuleKind::Require => {
-                                if v.description.is_none() {
-                                    outcome.status = Status::Denied(Error::NoDescription);
+                                if desc.chars().count() <= MAX_LENGTH {
+                                    outcome.status = Status::Denied(Error::DescriptionTooShort);
                                 };
                             }
                             RuleKind::Allow => (),
                         }
-
                         results.push(outcome);
                     }
-                }
+                    None => continue,
+                },
             }
         }
         Report::from_iter(results)
