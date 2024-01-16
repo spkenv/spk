@@ -3,8 +3,6 @@
 // https://github.com/imageworks/spk
 
 use miette::Diagnostic;
-use spk_schema::BuildIdent;
-use spk_solve::Request;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -32,23 +30,10 @@ pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
     ProcessSpawnError(spfs::Error),
-    #[error("Package must include a build requirement for {request}, because it's being built against {required_by}, but {problem}")]
-    MissingDownstreamBuildRequest {
-        /// The package that was in the build environment and created the need for this request
-        required_by: BuildIdent,
-        /// The minimum request that is required downstream
-        request: Request,
-        /// Additional reasoning why an existing request was not sufficient
-        problem: String,
-    },
-    #[error("Package must include a runtime requirement for {request}, because it's being built against {required_by}, but {problem}")]
-    MissingDownstreamRuntimeRequest {
-        /// The package that was in the build environment and created the need for this request
-        required_by: BuildIdent,
-        /// The minimum request that is required downstream
-        request: Request,
-        /// Additional reasoning why an existing request was not sufficient
-        problem: String,
+    #[error("Package validation failed")]
+    ValidationFailed {
+        #[related]
+        errors: Vec<crate::validation::Error>,
     },
     #[error(transparent)]
     #[diagnostic(forward(0))]
@@ -73,4 +58,10 @@ pub enum Error {
     SpkStorageError(#[from] spk_storage::Error),
     #[error("Error: {0}")]
     String(String),
+
+    #[error("Use of obsolete validators via 'build.validation.disabled'")]
+    #[diagnostic(
+        help = "Replace them with the new 'build.validation.rules', as appropriate. http://getspk.io/ref/spec/#validationspec"
+    )]
+    UseOfObsoleteValidators,
 }

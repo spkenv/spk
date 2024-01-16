@@ -147,7 +147,7 @@ impl std::ops::Drop for SpfsRepository {
 #[derive(Clone)]
 enum CacheValue<T> {
     InvalidPackageSpec(AnyIdent, String),
-    PackageNotFoundError(AnyIdent),
+    PackageNotFound(AnyIdent),
     StringError(String),
     StringifiedError(String),
     Success(T),
@@ -157,9 +157,7 @@ impl<T> From<CacheValue<T>> for Result<T> {
     fn from(cv: CacheValue<T>) -> Self {
         match cv {
             CacheValue::InvalidPackageSpec(i, err) => Err(crate::Error::InvalidPackageSpec(i, err)),
-            CacheValue::PackageNotFoundError(i) => Err(crate::Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(i),
-            )),
+            CacheValue::PackageNotFound(i) => Err(Error::PackageNotFound(i)),
             CacheValue::StringError(s) => Err(s.into()),
             CacheValue::StringifiedError(s) => Err(s.into()),
             CacheValue::Success(v) => Ok(v),
@@ -174,9 +172,7 @@ impl<T> From<std::result::Result<T, &crate::Error>> for CacheValue<T> {
             Err(crate::Error::InvalidPackageSpec(i, err)) => {
                 CacheValue::InvalidPackageSpec(i.clone(), err.to_string())
             }
-            Err(crate::Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(i),
-            )) => CacheValue::PackageNotFoundError(i.clone()),
+            Err(Error::PackageNotFound(i)) => CacheValue::PackageNotFound(i.clone()),
             Err(crate::Error::String(s)) => CacheValue::StringError(s.clone()),
             // Decorate the error message so we can tell it was a custom error
             // downgraded to a String.
@@ -411,9 +407,7 @@ impl Storage for SpfsRepository {
         {
             // BUG(rbottriell): this creates a race condition but is not super dangerous
             // because of the non-destructive tag history
-            return Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::VersionExistsError(ident.clone()),
-            ));
+            return Err(Error::VersionExists(ident.clone()));
         }
 
         let payload = serde_yaml::to_string(&spec)
@@ -482,9 +476,7 @@ impl Storage for SpfsRepository {
         let tag_path = self.build_spec_tag(pkg);
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
         match self.inner.remove_tag_stream(&tag_spec).await {
-            Err(spfs::Error::UnknownReference(_)) => Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
-            )),
+            Err(spfs::Error::UnknownReference(_)) => Err(Error::PackageNotFound(pkg.to_any())),
             Err(err) => Err(err.into()),
             Ok(_) => {
                 self.invalidate_caches();
@@ -541,9 +533,7 @@ impl Storage for SpfsRepository {
             let tag_path = self.build_spec_tag(pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
             match self.inner.remove_tag_stream(&tag_spec).await {
-                Err(spfs::Error::UnknownReference(_)) => Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
-                )),
+                Err(spfs::Error::UnknownReference(_)) => Err(Error::PackageNotFound(pkg.to_any())),
                 Err(err) => Err(err.into()),
                 Ok(_) => Ok(true),
             }
@@ -557,7 +547,7 @@ impl Storage for SpfsRepository {
         self.invalidate_caches();
 
         // If any of the three sub-tasks successfully deleted something *and*
-        // the only failures otherwise was `PackageNotFoundError`, then return
+        // the only failures otherwise was `PackageNotFound`, then return
         // success. Since something was deleted then the package was
         // technically "found."
         //
@@ -572,9 +562,9 @@ impl Storage for SpfsRepository {
         ]
         .into_iter()
         .fold(Ok::<_, Error>(false), |acc, x| match (acc, x) {
-            // Preserve the first non-PackageNotFoundError encountered.
+            // Preserve the first non-PackageNotFound encountered.
             (Err(err), _) if !err.is_package_not_found() => Err(err),
-            // Incoming error is not PackageNotFoundError.
+            // Incoming error is not PackageNotFound.
             (_, Err(err)) if !err.is_package_not_found() => Err(err),
             // Successes merge with successes and retain "deleted
             // something" if either did.
@@ -591,9 +581,7 @@ impl Storage for SpfsRepository {
             if deleted_something {
                 Ok(())
             } else {
-                Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
-                ))
+                Err(Error::PackageNotFound(pkg.to_any()))
             }
         })
     }
@@ -671,9 +659,7 @@ impl crate::Repository for SpfsRepository {
         } else {
             match self.lookup_package(pkg).await {
                 Ok(p) => Ok(p.into_components().into_keys().collect()),
-                Err(Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(_),
-                )) => Ok(Vec::new()),
+                Err(Error::PackageNotFound(_)) => Ok(Vec::new()),
                 Err(err) => Err(err),
             }
         };
@@ -760,9 +746,7 @@ impl crate::Repository for SpfsRepository {
         let tag_path = self.build_spec_tag(pkg);
         let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
         match self.inner.remove_tag_stream(&tag_spec).await {
-            Err(spfs::Error::UnknownReference(_)) => Err(Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(pkg.to_any(None)),
-            )),
+            Err(spfs::Error::UnknownReference(_)) => Err(Error::PackageNotFound(pkg.to_any(None))),
             Err(err) => Err(err.into()),
             Ok(_) => {
                 self.invalidate_caches();
@@ -943,9 +927,7 @@ impl SpfsRepository {
             .resolve_tag(tag_spec)
             .await
             .map_err(|err| match err {
-                spfs::Error::UnknownReference(_) => Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(for_pkg()),
-                ),
+                spfs::Error::UnknownReference(_) => Error::PackageNotFound(for_pkg()),
                 err => err.into(),
             });
 
@@ -993,9 +975,7 @@ impl SpfsRepository {
         if self.has_tag(|| pkg.to_any(), &tag_spec).await {
             return Ok(StoredPackage::WithoutComponents(tag_spec));
         }
-        Err(Error::SpkValidatorsError(
-            spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
-        ))
+        Err(Error::PackageNotFound(pkg.to_any()))
     }
 
     /// Construct an spfs tag string to represent a binary package layer.

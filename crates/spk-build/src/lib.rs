@@ -4,6 +4,8 @@
 
 mod build;
 mod error;
+pub mod report;
+pub mod validation;
 
 #[cfg(test)]
 #[path = "./archive_test.rs"]

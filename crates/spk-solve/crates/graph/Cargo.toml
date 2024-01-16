@@ -25,7 +25,7 @@ colored = { workspace = true }
 ctrlc = "3.2"
 dyn-clone = { workspace = true }
 futures = { workspace = true }
-itertools = "0.10"
+itertools = { workspace = true }
 once_cell = { workspace = true }
 priority-queue = "1.2"
 serde_json = { workspace = true }

@@ -14,7 +14,7 @@ fn test_diff_str() {
     let display = format!(
         "{}",
         Diff {
-            mode: DiffMode::Added(Entry::<()>::empty_dir_with_open_perms()),
+            mode: DiffMode::<(), ()>::Added(Entry::empty_dir_with_open_perms()),
             path: "some_path".into(),
         }
     );
@@ -23,8 +23,8 @@ fn test_diff_str() {
 
 #[rstest]
 fn test_compute_diff_empty() {
-    let a = Manifest::default();
-    let b = Manifest::default();
+    let a = Manifest::<()>::default();
+    let b = Manifest::<()>::default();
 
     assert_eq!(compute_diff(&a, &b), Vec::new());
 }

@@ -23,7 +23,6 @@ use tokio::sync::mpsc::{self, Sender};
 use crate::validators::{
     BinaryOnlyValidator,
     ComponentsValidator,
-    DenyPackageWithNameValidator,
     DeprecationValidator,
     PkgRequestValidator,
 };
@@ -158,13 +157,6 @@ impl ImpossibleRequestsChecker {
             // Remove all BinaryOnly validators because one was found
             (*validators_lock).retain(|v| !matches!(v, Validators::BinaryOnly(_)));
         }
-    }
-
-    /// If true, do not allow the solver to resolve a package with the given
-    /// name.
-    pub fn set_reject_package_with_name(&self, pkg_name: &PkgName, reject: bool) {
-        let mut validators_lock = self.validators.lock().unwrap();
-        DenyPackageWithNameValidator::update_validators(pkg_name, reject, &mut validators_lock);
     }
 
     /// Reset the ImpossibleChecker's counters and request caches
@@ -611,9 +603,7 @@ async fn get_mock_build_components(
                 components.insert(c.clone(), spfs::encoding::Digest::default());
             }
         }
-        Err(spk_storage::Error::SpkValidatorsError(
-            spk_schema::validators::Error::PackageNotFoundError(..),
-        )) => {}
+        Err(spk_storage::Error::PackageNotFound(_)) => {}
         Err(err) => return Err(Error::SpkStorageError(err)),
     };
 

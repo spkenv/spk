@@ -1,7 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::Write;
 use std::iter::FromIterator;
 use std::sync::Arc;
@@ -119,20 +119,32 @@ impl SolvedRequest {
         matches!(self.source, PackageSource::BuildFromSource { .. })
     }
 
+    /// The expanded list of components selected for this resolved item
+    pub fn selected_components(&self) -> BTreeSet<&Component> {
+        let mut installed_components: BTreeSet<_> = self.request.pkg.components.iter().collect();
+        if installed_components.is_empty() || installed_components.remove(&Component::All) {
+            if let PackageSource::Repository { components, .. } = &self.source {
+                installed_components.extend(components.keys());
+            } else {
+                installed_components.extend(self.spec.components().names());
+            }
+        }
+        installed_components
+    }
+
     /// Format this solved request as an installed package(build)
     pub fn format_as_installed_package(&self) -> String {
         let mut installed =
             PkgRequest::from_ident(self.spec.ident().to_any(), RequestedBy::DoesNotMatter);
+        installed.pkg.components = self
+            .selected_components()
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect();
 
         let mut repo_name: Option<RepositoryNameBuf> = None;
-        if let PackageSource::Repository { repo, components } = &self.source {
+        if let PackageSource::Repository { repo, .. } = &self.source {
             repo_name = Some(repo.name().to_owned());
-
-            let mut installed_components = self.request.pkg.components.clone();
-            if installed_components.remove(&Component::All) {
-                installed_components.extend(components.keys().cloned());
-            }
-            installed.pkg.components = installed_components;
         }
 
         // Pass zero verbosity to format_request(), via the format

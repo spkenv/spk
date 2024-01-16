@@ -43,7 +43,7 @@ use spk_solve_package_iterator::{
     SortedBuildIterator,
 };
 use spk_solve_solution::{PackageSource, Solution};
-use spk_solve_validation::validators::{BinaryOnlyValidator, DenyPackageWithNameValidator};
+use spk_solve_validation::validators::BinaryOnlyValidator;
 use spk_solve_validation::{
     default_validators,
     ImpossibleRequestsChecker,
@@ -517,8 +517,8 @@ impl Solver {
             let (pkg, builds) = match iterator_lock.next().await {
                 Ok(Some((pkg, builds))) => (pkg, builds),
                 Ok(None) => break,
-                Err(spk_solve_package_iterator::Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(_),
+                Err(spk_solve_package_iterator::Error::SpkStorageError(
+                    spk_storage::Error::PackageNotFound(_),
                 )) => {
                     // Intercept this error in this situation to
                     // capture the request for the package that turned
@@ -695,9 +695,7 @@ impl Solver {
                             }
                             Ok(r) => r,
                             Err(spk_solve_solution::Error::SpkStorageError(
-                                spk_storage::Error::SpkValidatorsError(
-                                    spk_schema::validators::Error::PackageNotFoundError(pkg),
-                                ),
+                                spk_storage::Error::PackageNotFound(pkg),
                             )) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
@@ -950,17 +948,6 @@ impl Solver {
                 .filter(|v| !matches!(v, Validators::BinaryOnly(_)))
                 .collect();
         }
-    }
-
-    /// If true, do not allow the solver to resolve a package with the given
-    /// name.
-    pub fn set_reject_package_with_name(&mut self, pkg_name: &PkgName, reject: bool) {
-        self.request_validator
-            .set_reject_package_with_name(pkg_name, reject);
-
-        let mut validators = take(self.validators.to_mut());
-        DenyPackageWithNameValidator::update_validators(pkg_name, reject, &mut validators);
-        self.validators = validators.into();
     }
 
     /// Enable or disable running impossible checks on the initial requests

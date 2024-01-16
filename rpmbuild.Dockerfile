@@ -7,8 +7,15 @@ RUN yum install -y \
     && yum clean all
 
 RUN ln -s cmake3 /usr/bin/cmake
+
+# Rust Toolchain
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y --default-toolchain=1.75.0
 ENV PATH $PATH:/root/.cargo/bin
+
+# Protobuf compiler (more recent than yum package)
+ENV PB_REL="https://github.com/protocolbuffers/protobuf/releases"
+RUN curl -LO $PB_REL/download/v3.15.8/protoc-3.15.8-linux-x86_64.zip
+RUN unzip protoc-3.15.8-linux-x86_64.zip -d /
 
 RUN mkdir -p /root/rpmbuild/{SOURCES,SPECS,RPMS,SRPMS}
 

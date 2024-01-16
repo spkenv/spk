@@ -204,6 +204,10 @@ build:
 Build requirements can also be updated in the command line: `spk install --save @build build-dependency/1.0`
 {{% /notice %}}
 
+#### Validation
+
+The spk build system performs a number of validations against the package created during a build. These validators can be overridden and further refined using the `validation` portion of the build spec. See [validation rules]({{< ref "ref/spec" >}}#validationspec)
+
 ### Install Configuration
 
 The install configuration specifies the environment that your package needs when it is installed or included in an spk environment.
@@ -523,4 +527,17 @@ The `replace_re` filter works like the built-in `replace` filter, except that it
 {% assign version = opt.version | default: "2.3.4" %}
 {% assign major_minor = version | replace_re: "(\d+)\.(\d+).*", "$1.$2" %}
 {{ major_minor }} # 2.3
+```
+
+### Recursive Builds
+
+By default, builds will fail if another version of the package being built ends up in the build environment, either as a direct or indirect dependency. There are packages, however, that bootstrap their own build process and require this (for example: compilers like gcc or package systems like pip). Furthermore, these recursive builds often perform an in-place upgrade, writing over some or all the previous versions files which is typically not allowed.
+
+The [validation](#validation) rule `RecursiveBuild` can be used to reconfigure the validation process for these scenarios:
+
+```yaml
+build:
+  validation:
+    rules:
+      - allow: RecursiveBuild
 ```

@@ -22,7 +22,6 @@ mod validation_test;
 pub enum Validators {
     BinaryOnly(BinaryOnlyValidator),
     Components(ComponentsValidator),
-    DenyPackageWithName(DenyPackageWithNameValidator),
     Deprecation(DeprecationValidator),
     EmbeddedPackage(EmbeddedPackageValidator),
     Options(OptionsValidator),

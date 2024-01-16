@@ -1103,12 +1103,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fuchsia-cprng"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a06f77d526c1a601b7c4cdd98f54b5eaabffc14d5f2f0296febdc7f357c6d3ba"
-
-[[package]]
 name = "fuser"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1603,6 +1597,15 @@ name = "itertools"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25db6b064527c5d482d0423354fcd07a89a2dfe07b67892e62411946db7f07b0"
 dependencies = [
  "either",
 ]
@@ -2476,7 +2479,7 @@ dependencies = [
  "bitflags 2.4.1",
  "lazy_static",
  "num-traits",
- "rand 0.8.5",
+ "rand",
  "rand_chacha",
  "rand_xorshift",
  "regex-syntax 0.7.5",
@@ -2594,26 +2597,13 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "552840b97013b1a26992c11eac34bdd778e464601a4c2054b5f0bff7c6761293"
-dependencies = [
- "fuchsia-cprng",
- "libc",
- "rand_core 0.3.1",
- "rdrand",
- "winapi 0.3.9",
-]
-
-[[package]]
-name = "rand"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
  "rand_chacha",
- "rand_core 0.6.4",
+ "rand_core",
 ]
 
 [[package]]
@@ -2623,23 +2613,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
- "rand_core 0.6.4",
+ "rand_core",
 ]
-
-[[package]]
-name = "rand_core"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a6fdeb83b075e8266dcc8762c22776f6877a63111121f5f8c7411e5be7eed4b"
-dependencies = [
- "rand_core 0.4.2",
-]
-
-[[package]]
-name = "rand_core"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c33a3c44ca05fa6f1807d8e6743f3824e8509beca625669633be0acbdf509dc"
 
 [[package]]
 name = "rand_core"
@@ -2656,7 +2631,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d25bf25ec5ae4a3f1b92f929810509a2f53d7dca2f50b794ff57e3face536c8f"
 dependencies = [
- "rand_core 0.6.4",
+ "rand_core",
 ]
 
 [[package]]
@@ -2677,15 +2652,6 @@ checksum = "5ce3fb6ad83f861aac485e76e1985cd109d9a3713802152be56c3b1f0e0658ed"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
-]
-
-[[package]]
-name = "rdrand"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "678054eb77286b51581ba43620cc911abf02758c91f93f479767aed0f90458b2"
-dependencies = [
- "rand_core 0.3.1",
 ]
 
 [[package]]
@@ -2794,15 +2760,6 @@ name = "relative-path"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c707298afce11da2efef2f600116fa93ffa7a032b5d7b628aa17711ec81383ca"
-
-[[package]]
-name = "remove_dir_all"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3acd125665422973a33ac9d3dd2df85edad0f4ae9b00dafb1a05e43a9f5ef8e7"
-dependencies = [
- "winapi 0.3.9",
-]
 
 [[package]]
 name = "reqwest"
@@ -3075,7 +3032,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a4591a2d128af73b1b819ab95f143bc6a2fbe48cd23a4c45e1ee32177e66ae6"
 dependencies = [
  "once_cell",
- "rand 0.8.5",
+ "rand",
  "sentry-types",
  "serde",
  "serde_json",
@@ -3388,7 +3345,7 @@ dependencies = [
  "progress_bar_derive_macro",
  "prost 0.12.1",
  "protobuf-src",
- "rand 0.8.5",
+ "rand",
  "relative-path",
  "ring",
  "rstest",
@@ -3592,7 +3549,7 @@ version = "0.38.0"
 dependencies = [
  "data-encoding",
  "miette",
- "rand 0.8.5",
+ "rand",
  "ring",
  "rstest",
  "serde",
@@ -3674,8 +3631,10 @@ dependencies = [
 name = "spk-build"
 version = "0.38.0"
 dependencies = [
+ "async-trait",
  "dunce",
  "futures",
+ "itertools 0.12.0",
  "miette",
  "relative-path",
  "rstest",
@@ -3685,9 +3644,9 @@ dependencies = [
  "spfs",
  "spk-exec",
  "spk-schema",
- "spk-schema-validators",
  "spk-solve",
  "spk-storage",
+ "strum",
  "tar",
  "tempfile",
  "thiserror",
@@ -3739,7 +3698,7 @@ dependencies = [
  "clap_complete",
  "colored",
  "futures",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "rstest",
  "serde",
@@ -3764,7 +3723,7 @@ dependencies = [
  "async-trait",
  "clap 4.4.7",
  "colored",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "nom",
  "nom-supreme",
@@ -3809,7 +3768,7 @@ dependencies = [
  "colored",
  "dunce",
  "futures",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "serde",
  "serde_json",
@@ -3879,7 +3838,7 @@ dependencies = [
  "clap 4.4.7",
  "colored",
  "futures",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "spfs",
  "spk-build",
@@ -4086,7 +4045,7 @@ dependencies = [
  "format_serde_error",
  "ignore",
  "indexmap 1.9.3",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "nom",
  "proptest",
@@ -4103,7 +4062,6 @@ dependencies = [
  "spk-schema-foundation",
  "spk-schema-ident",
  "spk-schema-liquid",
- "spk-schema-validators",
  "strum",
  "sys-info",
  "tempfile",
@@ -4120,14 +4078,14 @@ dependencies = [
  "enum_dispatch",
  "format_serde_error",
  "ignore",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "nom",
  "nom-supreme",
  "once_cell",
  "parsedbuf",
  "paste",
- "rand 0.8.5",
+ "rand",
  "relative-path",
  "ring",
  "rstest",
@@ -4149,7 +4107,7 @@ dependencies = [
  "colored",
  "data-encoding",
  "format_serde_error",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "nom",
  "nom-supreme",
@@ -4179,31 +4137,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spk-schema-validators"
-version = "0.38.0"
-dependencies = [
- "data-encoding",
- "ignore",
- "indexmap 1.9.3",
- "itertools 0.10.5",
- "miette",
- "nom",
- "regex",
- "relative-path",
- "ring",
- "serde",
- "serde_json",
- "serde_yaml 0.9.27",
- "spfs",
- "spk-schema-foundation",
- "spk-schema-ident",
- "sys-info",
- "tempdir",
- "thiserror",
- "tracing",
-]
-
-[[package]]
 name = "spk-solve"
 version = "0.38.0"
 dependencies = [
@@ -4216,7 +4149,7 @@ dependencies = [
  "ctrlc",
  "dyn-clone",
  "futures",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "num-bigint",
  "num-format",
@@ -4253,7 +4186,7 @@ dependencies = [
  "ctrlc",
  "dyn-clone",
  "futures",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "once_cell",
  "priority-queue",
@@ -4288,7 +4221,7 @@ dependencies = [
  "dyn-clone",
  "futures",
  "glob",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "once_cell",
  "rstest",
@@ -4308,7 +4241,7 @@ version = "0.38.0"
 dependencies = [
  "colored",
  "console",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "spfs",
  "spk-schema",
@@ -4324,7 +4257,7 @@ dependencies = [
  "dashmap",
  "enum_dispatch",
  "futures",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "once_cell",
  "rstest",
@@ -4354,7 +4287,7 @@ dependencies = [
  "glob",
  "ignore",
  "indexmap 1.9.3",
- "itertools 0.10.5",
+ "itertools 0.12.0",
  "miette",
  "nom",
  "once_cell",
@@ -4390,7 +4323,7 @@ version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df1efceb4bf2c0b5ebec94354285a43bbbed1375605bdf2ebe4132299434a330"
 dependencies = [
- "rand 0.8.5",
+ "rand",
 ]
 
 [[package]]
@@ -4537,16 +4470,6 @@ dependencies = [
  "filetime",
  "libc",
  "xattr",
-]
-
-[[package]]
-name = "tempdir"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
-dependencies = [
- "rand 0.4.6",
- "remove_dir_all",
 ]
 
 [[package]]
@@ -4732,7 +4655,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f57eb36ecbe0fc510036adff84824dd3c24bb781e21bfa67b69d556aa85214f"
 dependencies = [
  "pin-project",
- "rand 0.8.5",
+ "rand",
  "tokio",
 ]
 
@@ -4822,7 +4745,7 @@ dependencies = [
  "indexmap 1.9.3",
  "pin-project",
  "pin-project-lite",
- "rand 0.8.5",
+ "rand",
  "slab",
  "tokio",
  "tokio-util",
@@ -4952,7 +4875,7 @@ version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e37c4b6cbcc59a8dcd09a6429fbc7890286bcbb79215cea7b38a3c4c0921d93"
 dependencies = [
- "rand 0.8.5",
+ "rand",
 ]
 
 [[package]]

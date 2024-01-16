@@ -179,7 +179,7 @@ impl RuntimeRepository {
             .await
             .map_err(|err| {
                 if let Error::SPFS(spfs::Error::UnknownReference(path)) = &err {
-                    // In order to return a `PackageNotFoundError` we need to look
+                    // In order to return a `PackageNotFound` we need to look
                     // for what package owned the path in this `UnknownReference`
                     // error.
                     filenames_to_resolve
@@ -191,11 +191,7 @@ impl RuntimeRepository {
                                 .any(|(_, p)| *p == *path)
                         })
                         .map(|component_filenames| {
-                            Error::SpkValidatorsError(
-                                spk_schema::validators::Error::PackageNotFoundError(
-                                    (pkgs[component_filenames.index]).to_any(),
-                                ),
-                            )
+                            Error::PackageNotFound((pkgs[component_filenames.index]).to_any())
                         })
                         .unwrap_or(err)
                 } else {
@@ -327,9 +323,7 @@ impl Storage for RuntimeRepository {
                 .await
                 .map_err(|err| {
                     if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                        Error::SpkValidatorsError(
-                            spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
-                        )
+                        Error::PackageNotFound(pkg.to_any())
                     } else {
                         err
                     }
@@ -344,9 +338,7 @@ impl Storage for RuntimeRepository {
             // package digest.
             let digest = find_layer_by_filename(path).await.map_err(|err| {
                 if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                    Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                        pkg.to_any(),
-                    ))
+                    Error::PackageNotFound(pkg.to_any())
                 } else {
                     err
                 }
@@ -366,9 +358,7 @@ impl Storage for RuntimeRepository {
 
         let mut reader = std::fs::File::open(&path).map_err(|err| {
             if err.kind() == std::io::ErrorKind::NotFound {
-                Error::SpkValidatorsError(spk_schema::validators::Error::PackageNotFoundError(
-                    pkg.to_any(),
-                ))
+                Error::PackageNotFound(pkg.to_any())
             } else {
                 Error::FileOpenError(path.to_owned(), err)
             }
@@ -453,15 +443,11 @@ impl Repository for RuntimeRepository {
     }
 
     async fn read_embed_stub(&self, pkg: &BuildIdent) -> Result<Arc<Self::Package>> {
-        Err(Error::SpkValidatorsError(
-            spk_schema::validators::Error::PackageNotFoundError(pkg.to_any()),
-        ))
+        Err(Error::PackageNotFound(pkg.to_any()))
     }
 
     async fn read_recipe(&self, pkg: &VersionIdent) -> Result<Arc<Self::Recipe>> {
-        Err(Error::SpkValidatorsError(
-            spk_schema::validators::Error::PackageNotFoundError(pkg.to_any(None)),
-        ))
+        Err(Error::PackageNotFound(pkg.to_any(None)))
     }
 
     async fn remove_recipe(&self, _pkg: &VersionIdent) -> Result<()> {

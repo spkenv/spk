@@ -64,10 +64,7 @@ impl Run for Export {
         // TODO: this doesn't take the repos as an argument, but probably
         // should. It assumes/uses 'local' and 'origin' repos internally.
         let res = storage::export_package(&pkg, &filename).await;
-        if let Err(spk_storage::Error::SpkValidatorsError(
-            spk_schema::validators::Error::PackageNotFoundError(_),
-        )) = res
-        {
+        if let Err(spk_storage::Error::PackageNotFound(_)) = res {
             tracing::warn!("Ensure that you are specifying at least a package and");
             tracing::warn!("version number when exporting from the local repository");
         }

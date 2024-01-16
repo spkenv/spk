@@ -66,13 +66,14 @@ Fetches and extracts a tar archive as package source files.
 
 ## BuildSpec
 
-| Field          | Type                                | Description                                                    |
-| -------------- | ----------------------------------- | -------------------------------------------------------------- |
-| script         | _str_ or _List[str]_                | The bash script which builds and installs the package to /spfs |
-| options        | _List[[BuildOption](#buildoption)]_ | The set of inputs for the package build process                |
-| variants       | _List[[VariantSpec](#variantspec)]_ | The default variants of the package options to build           |
-| validation     | _[ValidationSpec](#validationspec)_ | Modifies the default package validation process                |
-| auto_host_vars | _[AutoHostVars](#autohostvars)_         | The host compatibility setting for the package's builds. Depending on the value, it injects build options like distro, arch, os, and distro version |
+| Field          | Type                                | Description                                                                                                                                         |
+| -------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| script         | _str_ or _List[str]_                | The bash script which builds and installs the package to /spfs                                                                                      |
+| options        | _List[[BuildOption](#buildoption)]_ | The set of inputs for the package build process                                                                                                     |
+| variants       | _List[[VariantSpec](#variantspec)]_ | The default variants of the package options to build                                                                                                |
+| validation     | _[ValidationSpec](#validationspec)_ | Modifies the default package validation process                                                                                                     |
+| auto_host_vars | _[AutoHostVars](#autohostvars)_     | The host compatibility setting for the package's builds. Depending on the value, it injects build options like distro, arch, os, and distro version |
+
 
 ### BuildOption
 
@@ -156,11 +157,66 @@ Each entry in the VariantSpec can either:
 
 The ValidationSpec modifies the default validation process for packages, primarily providing the ability to disable validators which may be incorrectly failing a package build.
 
-| Field    | Type        | Description                                                            |
-| -------- | ----------- | ---------------------------------------------------------------------- |
-| disabled | _List[str]_ | Default validators to disable, see [Available Validators](#validators) |
+| Field    | Type                                      | Description                                                                                               |
+| -------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| rules    | _List[[ValidationRule](#validationrule)]_ | The set of rules applied to this package (not allowed when `disabled` is given)                           |
+| disabled | _List[str]_                               | Default validators to disable, see [Validators](#validators-deprecated) (deprecated, use `rules` instead) |
 
-#### Validators
+#### ValidationRule
+
+| Field   | Type  | Description                                          |
+| ------- | ----- | ---------------------------------------------------- |
+| allow   | _str_ | If matched, the package is still considered valid    |
+| deny    | _str_ | When matched, the package will be deemed invalid     |
+| require | _str_ | When not matched, the package will be deemed invalid |
+
+Each validation rule may have additional properties which allow it to be further configured as noted below. You can specify the same rule more than once with different properties depending on the use case, and the last matched instance for any particular validation will be taken as the final result, unless an earlier rule was more specific. For example:
+
+```yaml
+build:
+  validation:
+    rules:
+      # override the default rule by allowing the build
+      # to modify files from other packages
+      - allow: AlterExistingFiles
+      # Refine the above rule by not allowing modification
+      # of files from the python or gcc packages. Because this
+      # rule is more specific than the last (names individual packages)
+      # it will override the above rule no matter which order they
+      # appear in this list
+      - deny: AlterExistingFiles
+        packages: [python, gcc]
+```
+
+##### Available Validation Rules
+
+| Name (default)                 | Property | Type          | Description                                                                                                                                                                                                                                                                |
+| ------------------------------ | -------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| EmptyPackage (Deny)            |          |               | Matched when no files are installed to spfs during the build                                                                                                                                                                                                               |
+| AlterExistingFiles (Deny)      |          |               | Matched when a package modifies files from other packages when building                                                                                                                                                                                                    |
+|                                | packages | _List[_str_]_ | Only match when the modified files belong to one of these named packages                                                                                                                                                                                                   |
+|                                | action   | _str_         | Only match this type of change, one of `Change`, `Remove`, or `Touch`                                                                                                                                                                                                      |
+| CollectExistingFiles (Deny)    |          |               | Matched when a package collects files from other packages in the build environment                                                                                                                                                                                         |
+|                                | packages | _List[_str_]_ | Only match when the modified files belong to one of these named packages. The special `Self` value can be used to refer to the current package's name.                                                                                                                     |
+| InheritRequirements (Required) |          |               | Matched when a package in the build environment has an inherited requirement that is not present in the package generated by this build.                                                                                                                                   |
+|                                | packages | _List[_str_]_ | Only match when the inherited requirement comes from one of these named packages.                                                                                                                                                                                          |
+| RecursiveBuild (Deny)          |          |               | Matched when the build environment contains another version of the package being built. This rule implicitly enables rules to allow modifying and collecting files from the previous version of this package. Additional rules can be added to reverse these implicit ones |
+
+For example:
+
+```yaml
+build:
+  validation:
+    # Allow recursive builds, aka building a new version of this package
+    # using a previous version.
+    - allow: RecursiveBuild
+    # Reverse the implicit rule from above that would allow including files
+    # from the previous version of this package
+    - deny: CollectExistingFiles
+      packages: [Self]
+```
+
+#### Validators (deprecated)
 
 | Name                      | Default | Description                                                                                                               |
 | ------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -173,12 +229,12 @@ The AutoHostVars value sets which host- and os-related options are
 automatically added to each build. The values add zero, or more, host
 options to each build, as described in the table:
 
-|  Value               |  Adds these host var options                               |  Examples of added host var options            |
-| -------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
-| **Distro** (default) | "distro", "arch", "os", and the "\<distroname\>"           | distro=centos, arch=x86_64, os=linux, centos=7 |
-| **Arch**             | "arch", "os"                                               | arch=x86_64, os=linux                          |
-| **Os**               | "os"                                                       | os=linux                                       |
-| **None**             |                                                            |                                                |
+| Value                | Adds these host var options                      | Examples of added host var options             |
+| -------------------- | ------------------------------------------------ | ---------------------------------------------- |
+| **Distro** (default) | "distro", "arch", "os", and the "\<distroname\>" | distro=centos, arch=x86_64, os=linux, centos=7 |
+| **Arch**             | "arch", "os"                                     | arch=x86_64, os=linux                          |
+| **Os**               | "os"                                             | os=linux                                       |
+| **None**             |                                                  |                                                |
 
 If the host OS has no distro name, "unknown_distro" will be used as the
 distro name. If the host OS' distroname is not valid as a var option
@@ -211,7 +267,7 @@ A test spec defines one test script that should be run against the package to va
 | Field        | Type                                    | Description                                                                                                                                                          |
 | ------------ | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | requirements | _List[[Request](#request)]_             | The set of packages required at runtime, this list applies universally to all components.                                                                            |
-| embedded     | _List[[Spec](#spec)]_                   | A list of packages that come bundled in this one                                                                                                                     |
+| embedded     | _List[[Spec](#package-spec)]_           | A list of packages that come bundled in this one                                                                                                                     |
 | components   | _List[[ComponentSpec](#componentspec)]_ | The set of components that this package provides. If not otherwise specified, a `build` and `run` component are automatically generated and inserted into this list. |
 | environment  | _List[[EnvOp](#envop)]_                 | Environment variable manipulations to make at runtime                                                                                                                |
 
@@ -219,14 +275,14 @@ A test spec defines one test script that should be run against the package to va
 
 The component spec defines a single component of a package. Components can be individually requested for a package. The `build` and `run` components are generated automatically unless they are defined explicitly for a package.
 
-| Field            | Type                                                      | Description                                                                                                                                             |
-| ---------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| name             | _string_                                                  | The name of this component                                                                                                                              |
-| files            | _List[string]_                                            | A list of patterns that identify which files belong to this component. Patterns follow the same syntax as gitignore files                               |
-| uses             | _List[string]_                                            | A list of other components from this package that this component uses, and are therefore also included whenever this component is included.             |
-| requirements     | _List[[Request](#request)]_                               | A list of requirements that this component has. These requirements are **in addition to** any requirements defined at the `install.requirements` level. |
-| embedded         | _List[[Spec](#spec)]_                                     | A list of packages that are embedded in this component                                                                                                  |
-| file_match_mode  | _List[[ComponentFileMatchMode](#componentfilematchmode)]_ | Control how the file filters are applied.                                                                                                               |
+| Field           | Type                                                      | Description                                                                                                                                             |
+| --------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| name            | _string_                                                  | The name of this component                                                                                                                              |
+| files           | _List[string]_                                            | A list of patterns that identify which files belong to this component. Patterns follow the same syntax as gitignore files                               |
+| uses            | _List[string]_                                            | A list of other components from this package that this component uses, and are therefore also included whenever this component is included.             |
+| requirements    | _List[[Request](#request)]_                               | A list of requirements that this component has. These requirements are **in addition to** any requirements defined at the `install.requirements` level. |
+| embedded        | _List[[Spec](#package-spec)]_                             | A list of packages that are embedded in this component                                                                                                  |
+| file_match_mode | _List[[ComponentFileMatchMode](#componentfilematchmode)]_ | Control how the file filters are applied.                                                                                                               |
 
 #### ComponentFileMatchMode
 
@@ -265,15 +321,15 @@ Other configuration include setting the priority of the generated activation scr
 
 #### Comment
 
-| Field   | Type  | Description                       |
-| ------- | ----- | -------------------------------   |
-| comment | _str_ | The comment to add                |
+| Field   | Type  | Description        |
+| ------- | ----- | ------------------ |
+| comment | _str_ | The comment to add |
 
 #### Priority
 
-| Field    | Type | Description                                                                       |
-| -------- | ---- | --------------------------------------------------------------------------------  |
-| priority | _u8_ | The priority value to be added onto the filename, only the last priority is used  |
+| Field    | Type | Description                                                                      |
+| -------- | ---- | -------------------------------------------------------------------------------- |
+| priority | _u8_ | The priority value to be added onto the filename, only the last priority is used |
 
 ### Request
 
@@ -289,13 +345,13 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 
 #### PackageRequest
 
-| Field            | Type                                    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Field               | Type                                    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | pkg                 | _[`RangeIdentifier`](#rangeidentifier)_ | Specifies a desired package, components and acceptable version range.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | prereleasePolicy    | _[PreReleasePolicy](#prereleasepolicy)_ | Defines how pre-release versions should be handled when resolving this request                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | inclusionPolicy     | _[InclusionPolicy](#inclusionpolicy)_   | Defines when the requested package should be included in the environment                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | fromBuildEnv        | _str_ or _bool_                         | Either true, or a template to generate this request from using the version of the package that was resolved into the build environment. This template takes the form`x.x.x`, where any _x_ is replaced by digits in the version number. For example, if `python/2.7.5` is in the build environment, the template `~x.x` would become `~2.7`. The special values of `Binary` and `API` can be used to request a binary or api compatible package to the one in the build environment, respectively. For Example, if `mypkg/1.2.3.4` is in the build environment, the template `API` would become `API:1.2.3.4`. A value of `true` works the same as `Binary`. |
-| ifPresentInBuildEnv | _bool_                                  | Either true or false; if true, then `fromBuildEnv` only applies if the package was present in the build environment. This allows different variants to have different runtime requirements. |
+| ifPresentInBuildEnv | _bool_                                  | Either true or false; if true, then `fromBuildEnv` only applies if the package was present in the build environment. This allows different variants to have different runtime requirements.                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 #### RangeIdentifier
 
@@ -327,11 +383,11 @@ mypkg:{lib,dev,debug}/1.0.0
 
 The package identifier takes the form `<name>[/<version>[/<build>]]`, where:
 
-| Component | Description                                                                                                                                                                                                                                                                      |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| name      | The package name, can only have lowercase letter and dashes (`-`)                                                                                                                                                                                                                |
-| version   | The version number, see[versioning]({{< ref "use/versioning" >}})                                                                                                                                                                                                                               |
-| build     | The build string, should not be specified in a spec file as it is generated by the system at build time. Digests are calculated based on the package build options, and there are two special values`src` and `embedded` for source packages and embedded packages, respectively |
+| Component | Description                                                                                                                                                                                                                                                                       |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| name      | The package name, can only have lowercase letter and dashes (`-`)                                                                                                                                                                                                                 |
+| version   | The version number, see [versioning]({{< ref "use/versioning" >}})                                                                                                                                                                                                                |
+| build     | The build string, should not be specified in a spec file as it is generated by the system at build time. Digests are calculated based on the package build options, and there are two special values `src` and `embedded` for source packages and embedded packages, respectively |
 
 ## Compat
 

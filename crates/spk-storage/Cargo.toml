@@ -24,7 +24,7 @@ futures = { workspace = true }
 glob = { workspace = true }
 ignore = "0.4.18"
 indexmap = "1.7.0"
-itertools = "0.10"
+itertools = { workspace = true }
 nom = { workspace = true }
 once_cell = { workspace = true }
 regex = "1.5.4"

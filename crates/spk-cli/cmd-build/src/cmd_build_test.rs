@@ -10,6 +10,7 @@ use rstest::rstest;
 use spk_cli_common::Run;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::ident::version_ident;
+use spk_schema::ident_component::Component;
 use spk_storage::fixtures::*;
 
 use super::Build;
@@ -33,6 +34,7 @@ async fn test_variant_options_contribute_to_build_hash(tmpdir: tempfile::TempDir
         tmpdir,
         "three-variants.spk.yaml",
         br#"
+api: v0/package
 pkg: three-variants/1.0.0
 
 build:
@@ -70,6 +72,7 @@ async fn test_build_hash_not_affected_by_dependency_version(tmpdir: tempfile::Te
         tmpdir,
         "dependency.spk.yaml",
         br#"
+api: v0/package
 pkg: dependency/1.0.0
 
 build:
@@ -83,6 +86,7 @@ build:
         tmpdir,
         "package.spk.yaml",
         br#"
+api: v0/package
 pkg: package/1.0.0
 
 build:
@@ -98,6 +102,7 @@ build:
         tmpdir,
         "dependency.spk.yaml",
         br#"
+api: v0/package
 pkg: dependency/1.0.1
 
 build:
@@ -131,7 +136,7 @@ build:
 #[case::cli("cli")]
 #[case::checks("checks")]
 #[tokio::test]
-async fn test_build_with_circular_dependency(
+async fn test_build_with_circular_dependency_allow_with_validation(
     tmpdir: tempfile::TempDir,
     #[case] solver_to_run: &str,
 ) {
@@ -140,27 +145,29 @@ async fn test_build_with_circular_dependency(
     let _rt = spfs_runtime().await;
 
     // Start out with a package with no dependencies.
-    let (_, r) = try_build_package!(
+    let r = try_build_package!(
         tmpdir,
         "one.spk.yaml",
         br#"
+api: v0/package
 pkg: one/1.0.0
 
 build:
   script:
     - "true"
-"#
+"#,
         "--solver-to-run",
         solver_to_run
     );
 
-    r.expect("Expected initial build of one to succeed");
+    r.1.expect("Expected initial build of one to succeed");
 
     // Build a package that depends on "one".
-    let (_, r) = try_build_package!(
+    let r = try_build_package!(
         tmpdir,
         "two.spk.yaml",
         br#"
+api: v0/package
 pkg: two/1.0.0
 
 build:
@@ -178,13 +185,14 @@ install:
         solver_to_run
     );
 
-    r.expect("Expected build of two to succeed");
+    r.1.expect("Expected build of two to succeed");
 
     // Now build a newer version of "one" that depends on "two".
-    let (_, r) = try_build_package!(
+    let r = try_build_package!(
         tmpdir,
         "one.spk.yaml",
         br#"
+api: v0/package
 pkg: one/1.0.0
 
 build:
@@ -192,6 +200,9 @@ build:
     - pkg: two
   script:
     - "true"
+  validation:
+    rules:
+      - allow: RecursiveBuild
 
 install:
   requirements:
@@ -202,86 +213,372 @@ install:
         solver_to_run
     );
 
-    r.expect_err("Expected build to fail");
+    r.1.expect("Expected build of one to succeed");
 }
 
 #[rstest]
-#[case::cli("cli")]
-#[case::checks("checks")]
 #[tokio::test]
-async fn test_build_with_circular_dependency_allow_with_flag(
-    tmpdir: tempfile::TempDir,
-    #[case] solver_to_run: &str,
-) {
-    // The system should not allow a package to be built that has a circular
-    // dependency.
+async fn test_package_with_circular_dep_can_modify_files(tmpdir: tempfile::TempDir) {
+    // A package that depends on itself should be able to modify files
+    // belonging to itself.
     let _rt = spfs_runtime().await;
 
-    // Start out with a package with no dependencies.
-    let (_, r) = try_build_package!(
+    build_package!(
         tmpdir,
-        "one.spk.yaml",
+        "other.spk.yaml",
         br#"
-pkg: one/1.0.0
-
+api: v0/package
+pkg: other/1.0.0
 build:
   script:
-    - "true"
+    - echo "1.0.0" > $PREFIX/a.txt
+    - echo "1.0.0" > $PREFIX/z.txt
 "#
-        "--solver-to-run",
-        solver_to_run
     );
 
-    r.expect("Expected initial build of one to succeed");
-
-    // Build a package that depends on "one".
-    let (_, r) = try_build_package!(
+    build_package!(
         tmpdir,
-        "two.spk.yaml",
+        "circ.spk.yaml",
         br#"
-pkg: two/1.0.0
+api: v0/package
+pkg: circ/1.0.0
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/version.txt
+"#
+    );
 
+    // Force middle to pick up exactly 1.0.0 so for the multiple builds below
+    // it doesn't pick up an already-built 1.0.1 of circ and the contents of
+    // version.txt will still be "1.0.0" during the build of circ.
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+api: v0/package
+pkg: middle/1.0.0
 build:
   options:
-    - pkg: one
+    - pkg: circ/=1.0.0
   script:
     - "true"
-
 install:
   requirements:
-    - pkg: one
-      fromBuildEnv: true
+    - pkg: circ/=1.0.0
 "#,
-        "--solver-to-run",
-        solver_to_run
     );
 
-    r.expect("Expected build of two to succeed");
-
-    // Now build a newer version of "one" that depends on "two".
-    let (_, r) = try_build_package!(
+    // Attempt to build a newer version of circ, but now it depends on `middle`
+    // creating a circular dependency. This build should succeed even though it
+    // modifies a file belonging to "existing files" because the file it
+    // modifies belongs to [a different version of] the same package as is
+    // being built.
+    build_package!(
         tmpdir,
-        "one.spk.yaml",
+        "circ.spk.yaml",
         br#"
-pkg: one/1.0.0
-
+api: v0/package
+pkg: circ/1.0.1
 build:
   options:
-    - pkg: two
+    - pkg: middle
   script:
-    - "true"
-
-install:
-  requirements:
-    - pkg: two
-      fromBuildEnv: true
+    # this test is only valid if $PREFIX/version.txt exists already
+    - test -f $PREFIX/version.txt
+    - echo "1.0.1" > $PREFIX/version.txt
+  validation:
+    rules:
+      - allow: RecursiveBuild
 "#,
-        "--solver-to-run",
-        solver_to_run,
-        "--allow-circular-dependencies"
     );
 
-    r.expect("Expected build of one to succeed");
+    for other_file in ["a", "z"] {
+        // Attempt to build a new version of circ but also modify a file belonging
+        // to some other package. This should still be caught as an illegal
+        // operation.
+        //
+        // We attempt this twice with two different filenames, one that sorts
+        // before "version.txt" and one that sorts after, to exercise the case
+        // where modifying the file from our own package is encountered first,
+        // to prove that even though it allows the first modification, it still
+        // checks for more.
+        try_build_package!(
+            tmpdir,
+            "circ.spk.yaml",
+            format!(
+                r#"
+pkg: circ/1.0.1
+build:
+  options:
+    - pkg: middle
+    - pkg: other
+  script:
+    # this test is only valid if $PREFIX/version.txt exists already
+    - test -f $PREFIX/version.txt
+    - echo "1.0.1" > $PREFIX/version.txt
+    # try to modify a file belonging to 'other' too
+    - echo "1.0.1" > $PREFIX/{other_file}.txt
+"#
+            ),
+        )
+        .1
+        .expect_err("Expected build to fail");
+    }
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_package_with_circular_dep_can_build_major_version_change(tmpdir: tempfile::TempDir) {
+    // A package that depends on itself should be able to build a new major
+    // version of itself, as in something not compatible with the version
+    // being brought in via the circular dependency.
+    let _rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+api: v0/package
+pkg: circ/1.0.0
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/version.txt
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+api: v0/package
+pkg: middle/1.0.0
+build:
+  options:
+    - pkg: circ
+  script:
+    - "true"
+install:
+  requirements:
+    - pkg: circ
+      fromBuildEnv: true
+"#,
+    );
+
+    // Attempt to build a 2.0.0 version of circ, which shouldn't prevent
+    // middle from being able to resolve the 1.0.0 version of circ.
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+api: v0/package
+pkg: circ/2.0.0
+build:
+  options:
+    - pkg: middle
+  script:
+    - echo "2.0.0" > $PREFIX/version.txt
+  validation:
+    rules:
+      - allow: RecursiveBuild
+"#,
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_package_with_circular_dep_collects_all_files(tmpdir: tempfile::TempDir) {
+    // Building a new version of a package that depends on itself should
+    // produce a package containing all the expected files, even if the new
+    // build creates files with the same content as the previous build.
+    let rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+api: v0/package
+pkg: circ/1.0.0
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/version.txt
+    - echo "hello world" > $PREFIX/hello.txt
+    - echo "unchanged" > $PREFIX/unchanged.txt
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+api: v0/package
+pkg: middle/1.0.0
+build:
+  options:
+    - pkg: circ
+  script:
+    - "true"
+install:
+  requirements:
+    - pkg: circ
+      fromBuildEnv: true
+"#,
+    );
+
+    // This build overwrites a file from the previous build, but it has the same
+    // contents. It should still be detected as a file that needs to be part of
+    // the newly made package.
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+api: v0/package
+pkg: circ/2.0.0
+build:
+  options:
+    - pkg: middle
+  script:
+    - echo "2.0.0" > $PREFIX/version.txt
+    - echo "hello world" > $PREFIX/hello.txt
+  validation:
+    rules:
+      - allow: RecursiveBuild
+"#,
+    );
+
+    let build = rt
+        .tmprepo
+        .list_package_builds(&version_ident!("circ/2.0.0"))
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|b| !b.is_source())
+        .unwrap();
+
+    let digest = *rt
+        .tmprepo
+        .read_components(&build)
+        .await
+        .unwrap()
+        .get(&Component::Run)
+        .unwrap();
+
+    let spk_storage::RepositoryHandle::SPFS(repo) = &*rt.tmprepo else {
+        panic!("Expected SPFS repo");
+    };
+
+    let layer = repo.read_layer(digest).await.unwrap();
+
+    let manifest = repo
+        .read_manifest(layer.manifest)
+        .await
+        .unwrap()
+        .to_tracking_manifest();
+
+    let entry = manifest.get_path("hello.txt");
+    assert!(
+        entry.is_some(),
+        "should capture file created in build but unmodified from previous build"
+    );
+    let entry = manifest.get_path("unchanged.txt");
+    assert!(
+        entry.is_none(),
+        "should not capture file from old build that was not modified in new build"
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_package_with_circular_dep_does_not_collect_file_removals(tmpdir: tempfile::TempDir) {
+    // Building a new version of a package that depends on itself should not
+    // collect "negative files" (e.g., files that were removed in the new
+    // build).
+    let rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+api: v0/package
+pkg: circ/1.0.0
+build:
+  script:
+    - echo "1.0.0" > $PREFIX/version.txt
+    - echo "hello world" > $PREFIX/hello.txt
+"#
+    );
+
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+api: v0/package
+pkg: middle/1.0.0
+build:
+  options:
+    - pkg: circ
+  script:
+    - "true"
+install:
+  requirements:
+    - pkg: circ
+      fromBuildEnv: true
+"#,
+    );
+
+    // This build deletes a file that is owned by the previous build. It should
+    // not be collected as part of the new build.
+    build_package!(
+        tmpdir,
+        "circ.spk.yaml",
+        br#"
+api: v0/package
+pkg: circ/2.0.0
+build:
+  options:
+    - pkg: middle
+  script:
+    - echo "2.0.0" > $PREFIX/version.txt
+    - rm $PREFIX/hello.txt
+  validation:
+    rules:
+      - allow: RecursiveBuild
+"#,
+    );
+
+    let build = rt
+        .tmprepo
+        .list_package_builds(&version_ident!("circ/2.0.0"))
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|b| !b.is_source())
+        .unwrap();
+
+    let digest = *rt
+        .tmprepo
+        .read_components(&build)
+        .await
+        .unwrap()
+        .get(&Component::Run)
+        .unwrap();
+
+    let spk_storage::RepositoryHandle::SPFS(repo) = &*rt.tmprepo else {
+        panic!("Expected SPFS repo");
+    };
+
+    let layer = repo.read_layer(digest).await.unwrap();
+
+    let manifest = repo
+        .read_manifest(layer.manifest)
+        .await
+        .unwrap()
+        .to_tracking_manifest();
+
+    let entry = manifest.get_path("hello.txt");
+    assert!(
+        entry.is_none(),
+        "should not capture file deleted in new build"
+    );
 }
 
 #[rstest]

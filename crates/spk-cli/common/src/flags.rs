@@ -776,9 +776,8 @@ where
                                     );
                                     return Ok((recipe, std::path::PathBuf::from(&name.as_ref())));
                                 }
-                                Err(spk_storage::Error::SpkValidatorsError(
-                                    spk_schema::validators::Error::PackageNotFoundError(_),
-                                )) => continue,
+
+                                Err(spk_storage::Error::PackageNotFound(_)) => continue,
                                 Err(err) => return Err(err.into()),
                             }
                         }

@@ -81,18 +81,12 @@ impl Publisher {
         match with_cache_policy!(self.from, CachePolicy::BypassCache, {
             self.from.read_recipe(recipe_ident).await
         }) {
-            Err(
-                err @ spk_storage::Error::SpkValidatorsError(
-                    spk_schema::validators::Error::PackageNotFoundError(_),
-                ),
-            ) if self.force => {
+            Err(err @ spk_storage::Error::PackageNotFound(_)) if self.force => {
                 return Err(
                     format!("Can't force publish; missing package spec locally: {err}").into(),
                 );
             }
-            Err(spk_storage::Error::SpkValidatorsError(
-                spk_schema::validators::Error::PackageNotFoundError(_),
-            )) => {
+            Err(spk_storage::Error::PackageNotFound(_)) => {
                 // If it was not found locally, allow the publish to proceed;
                 // if it is also missing on the remote, that will be caught
                 // and the publish will be rejected by the storage.
@@ -107,9 +101,7 @@ impl Publisher {
                         Ok(_) => {
                             // Do nothing if no errors.
                         }
-                        Err(spk_storage::Error::SpkValidatorsError(
-                            spk_schema::validators::Error::VersionExistsError(_),
-                        )) => {
+                        Err(spk_storage::Error::VersionExists(_)) => {
                             match pkg.build() {
                                 Some(_) => (), // If build provided, we can silently fail.
                                 None => {

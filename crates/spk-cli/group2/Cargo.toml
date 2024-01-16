@@ -12,7 +12,7 @@ miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }
 clap = { workspace = true }
 colored = { workspace = true }
-itertools = "0.10"
+itertools = { workspace = true }
 nom = { workspace = true }
 nom-supreme = { workspace = true }
 spfs = { path = "../../spfs" }
