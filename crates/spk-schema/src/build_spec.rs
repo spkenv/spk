@@ -9,7 +9,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::name::PkgName;
-use spk_schema_foundation::option_map::{OptionMap, Stringified};
+use spk_schema_foundation::option_map::{OptionMap, Stringified, HOST_OPTIONS};
 use strum::Display;
 
 use super::{v0, Opt, ValidationSpec};
@@ -66,7 +66,7 @@ impl AutoHostVars {
     /// Get host_options after filtering based on the cross Os
     /// compatibility setting.
     pub fn host_options(&self) -> Result<Vec<Opt>> {
-        let all_host_options = spk_schema_foundation::option_map::host_options()?;
+        let all_host_options = HOST_OPTIONS.clone()?;
 
         let mut names_added = self.names_added();
         let distro_name;
@@ -110,9 +110,6 @@ impl AutoHostVars {
 }
 
 /// A set of structured inputs used to build a package.
-///
-/// Note: A BuildSpec cannot be correctly deserialized without an associated
-/// PkgName. Deserialize is not implemented for this type.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct BuildSpec {
     pub script: Script,
@@ -330,32 +327,49 @@ impl BuildSpec {
     }
 }
 
-impl TryFrom<(&PkgName, UncheckedBuildSpec)> for BuildSpec {
+impl TryFrom<UncheckedBuildSpec> for BuildSpec {
     type Error = crate::Error;
 
-    fn try_from(
-        pkg_name_and_bs: (&PkgName, UncheckedBuildSpec),
-    ) -> std::result::Result<Self, Self::Error> {
-        let (pkg_name, bs) = pkg_name_and_bs;
-
+    fn try_from(bs: UncheckedBuildSpec) -> std::result::Result<Self, Self::Error> {
         let bs = unsafe {
             // Safety: this function bypasses checks, but we are
             // going to perform those checks before returning the value
             bs.into_inner()
         };
 
+        // Calculating the build ids of the variants here would require having
+        // access to the package name, what option overrides are in effect,
+        // if host options are are disabled, or what the host options are.
+        //
+        // Instead of comparing via build id, we just compare the variant
+        // content to check that they are unique.
+
         let mut unique_variants = HashMap::new();
         for variant in bs.variants.iter() {
-            let options = bs.resolve_options_for_pkg_name(pkg_name, variant)?.0;
-            let digest = bs.build_digest(pkg_name, variant)?;
-            let vec = unique_variants.entry(digest).or_insert_with(Vec::new);
-            vec.push(options);
-            if vec.len() < 2 {
+            let variant_uniqueness_key = {
+                // OptionMaps are already sorted.
+                let options = variant.options();
+                // Sort the additional requirements so two variants with the
+                // same requirements but in a different order are still
+                // considered the same.
+                let requirements = variant
+                    .additional_requirements()
+                    .iter()
+                    .cloned()
+                    .sorted()
+                    .collect::<Vec<_>>();
+                (options, requirements)
+            };
+            let variants_with_key = unique_variants
+                .entry(variant_uniqueness_key)
+                .or_insert_with(Vec::new);
+            variants_with_key.push(variant);
+            if variants_with_key.len() < 2 {
                 continue;
             }
-            let details = vec
+            let details = variants_with_key
                 .iter()
-                .map(|o| format!("  - {o} {digest}"))
+                .map(|o| format!("  - {o:#}"))
                 .collect::<Vec<_>>()
                 .join("\n");
             return Err(crate::Error::String(format!(
@@ -364,6 +378,16 @@ impl TryFrom<(&PkgName, UncheckedBuildSpec)> for BuildSpec {
         }
 
         Ok(bs)
+    }
+}
+
+impl<'de> Deserialize<'de> for BuildSpec {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        UncheckedBuildSpec::deserialize(deserializer)
+            .and_then(|bs| bs.try_into().map_err(serde::de::Error::custom))
     }
 }
 

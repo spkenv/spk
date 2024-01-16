@@ -829,8 +829,9 @@ struct SpecVisitor<B, T> {
     check_build_spec: bool,
 }
 
-impl<B, T> Default for SpecVisitor<B, T> {
-    fn default() -> Self {
+impl<B, T> SpecVisitor<B, T> {
+    #[inline]
+    pub fn with_check_build_spec(check_build_spec: bool) -> Self {
         Self {
             pkg: None,
             meta: None,
@@ -840,8 +841,15 @@ impl<B, T> Default for SpecVisitor<B, T> {
             build: None,
             tests: None,
             install: None,
-            check_build_spec: true,
+            check_build_spec,
         }
+    }
+}
+
+impl<B, T> Default for SpecVisitor<B, T> {
+    #[inline]
+    fn default() -> Self {
+        Self::with_check_build_spec(true)
     }
 }
 
@@ -852,16 +860,11 @@ impl SpecVisitor<PkgNameBuf, Version> {
 }
 
 impl SpecVisitor<VersionIdent, Build> {
-    // the reassignment here is a simple boolean switch so not a heavy operation
-    // or worth having all the extra fields being redefined as None here
-    // just like in the default
     #[allow(clippy::field_reassign_with_default)]
     pub fn package() -> Self {
-        let mut v = Self::default();
         // if the build is set, we assume that this is a rendered spec and we do
         // not want to make an existing rendered build spec unloadable
-        v.check_build_spec = false;
-        v
+        Self::with_check_build_spec(false)
     }
 }
 
@@ -914,9 +917,7 @@ where
                     // Safety: see the SpecVisitor::package constructor
                     unsafe { build_spec.into_inner() }
                 }
-                Some(build_spec) => (pkg.name(), build_spec)
-                    .try_into()
-                    .map_err(serde::de::Error::custom)?,
+                Some(build_spec) => build_spec.try_into().map_err(serde::de::Error::custom)?,
                 None => Default::default(),
             },
             tests: self.tests.take().unwrap_or_default(),

@@ -7,7 +7,7 @@ use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Diagnostic, Debug, Error)]
+#[derive(Clone, Diagnostic, Debug, Error)]
 #[diagnostic(
     url(
         "https://getspk.io/error_codes#{}",

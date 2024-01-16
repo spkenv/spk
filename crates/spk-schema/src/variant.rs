@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::fmt::Write;
 
 use spk_schema_foundation::format::FormatOptionMap;
-use spk_schema_foundation::option_map::{host_options, OptionMap};
+use spk_schema_foundation::option_map::{OptionMap, HOST_OPTIONS};
 
 use crate::{RequirementsList, Result};
 
@@ -72,7 +72,7 @@ where
     ///
     /// Variant options will still override and host options
     fn with_host_options(self) -> Result<Override<Self>> {
-        Ok(self.with_overrides(host_options()?))
+        Ok(self.with_overrides(HOST_OPTIONS.clone()?))
     }
 
     /// Add options to override any provided by the base variant

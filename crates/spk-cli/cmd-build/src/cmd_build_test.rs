@@ -283,3 +283,62 @@ install:
 
     r.expect("Expected build of one to succeed");
 }
+
+#[rstest]
+// cases not involving host options
+#[should_panic]
+#[case::empty_value_fails("varname", "", &["yes", "no"], true)]
+#[case::non_empty_value_succeeds("varname/yes", "", &["yes", "no"], true)]
+#[should_panic]
+#[case::non_empty_value_bad_value_fails("varname/what", "", &["yes", "no"], true)]
+// cases involving host options
+#[case::empty_value_for_host_option_succeeds("os", "", &["linux", "windows"], true)]
+#[case::non_empty_value_for_host_option_succeeds("os", "linux", &["linux", "windows"], true)]
+#[should_panic]
+#[case::empty_value_for_host_option_fails_if_host_options_disabled("os", "", &["linux", "windows"], false)]
+// this case verifies that the --no-host option is respected
+#[case::non_empty_value_for_host_option_good_value_succeeds_with_host_options_disabled("os", "beos", &["beos"], false)]
+#[should_panic]
+#[case::non_empty_value_for_host_option_bad_value_fails_with_host_options_disabled("os", "beos", &["linux", "windows"], false)]
+// this case passes because host options override default values, and the
+// provided host option value of "linux" is a valid choice.
+#[case::non_empty_value_for_host_option_bad_value_succeeds_with_host_options_enabled("os", "beos", &["linux", "windows"], true)]
+#[tokio::test]
+async fn test_options_with_choices_and_empty_values(
+    tmpdir: tempfile::TempDir,
+    #[case] name: &str,
+    #[case] value: &str,
+    #[case] choices: &[&str],
+    #[case] host_options_enabled: bool,
+) {
+    let _rt = spfs_runtime().await;
+
+    // TODO
+    // Hard code "os" to "linux" for purposes of making this test work on any
+    // OS.
+
+    let name_maybe_value = if value.is_empty() {
+        name.to_string()
+    } else {
+        format!("{name}/{value}")
+    };
+    let generated_spec = format!(
+        r#"
+pkg: dummy/1.0.0
+api: v0/package
+build:
+    options:
+        - var: {name_maybe_value}
+          choices: [{choices}]
+    script:
+        - "true"
+"#,
+        choices = choices.join(", ")
+    );
+
+    if !host_options_enabled {
+        build_package!(tmpdir, "dummy.spk.yaml", generated_spec, "--no-host");
+    } else {
+        build_package!(tmpdir, "dummy.spk.yaml", generated_spec);
+    }
+}

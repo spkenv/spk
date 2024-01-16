@@ -7,6 +7,7 @@ use std::iter::FromIterator;
 use std::sync::Arc;
 
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::name::{OptName, OptNameBuf, PkgName};
@@ -50,8 +51,10 @@ macro_rules! option_map {
     }};
 }
 
+pub static HOST_OPTIONS: Lazy<Result<OptionMap>> = Lazy::new(host_options);
+
 /// Detect and return the default options for the current host system.
-pub fn host_options() -> Result<OptionMap> {
+fn host_options() -> Result<OptionMap> {
     let mut opts = OptionMap::default();
     opts.insert(OptName::os().to_owned(), std::env::consts::OS.into());
     opts.insert(OptName::arch().to_owned(), std::env::consts::ARCH.into());
