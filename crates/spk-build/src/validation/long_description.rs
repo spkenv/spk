@@ -13,6 +13,10 @@ use crate::report::BuildSetupReport;
 
 const MAX_LENGTH: usize = 256;
 
+#[cfg(test)]
+#[path = "./long_description_test.rs"]
+mod long_description_test;
+
 pub struct LongDescriptionValidator {
     pub kind: RuleKind,
 }

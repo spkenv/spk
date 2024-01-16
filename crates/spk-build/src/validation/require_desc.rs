@@ -11,6 +11,10 @@ use spk_schema::{Inheritance, Opt, Package, Variant};
 use super::{Error, Outcome, Report, Status, Subject};
 use crate::report::BuildSetupReport;
 
+#[cfg(test)]
+#[path = "./require_desc_test.rs"]
+mod require_desc_test;
+
 pub struct RequireDescriptionValidator {
     pub kind: RuleKind,
 }
