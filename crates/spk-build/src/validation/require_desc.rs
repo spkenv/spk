@@ -54,10 +54,9 @@ impl super::Validator for RequireDescriptionValidator {
                             }
                             RuleKind::Allow => (),
                         }
-
                         results.push(outcome);
                     }
-                }
+                },
             }
         }
         Report::from_iter(results)
