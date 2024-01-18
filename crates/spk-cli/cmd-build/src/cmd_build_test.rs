@@ -9,8 +9,10 @@ use clap::Parser;
 use rstest::rstest;
 use spk_cli_common::Run;
 use spk_schema::foundation::fixtures::*;
+use spk_schema::foundation::option_map;
 use spk_schema::ident::version_ident;
 use spk_schema::ident_component::Component;
+use spk_schema::option_map::HOST_OPTIONS;
 use spk_storage::fixtures::*;
 
 use super::Build;
@@ -603,24 +605,23 @@ build:
 #[tokio::test]
 async fn test_options_with_choices_and_empty_values(
     tmpdir: tempfile::TempDir,
-    #[case] name: &str,
-    #[case] value: &str,
-    #[case] choices: &[&str],
+    #[case] name: &'static str,
+    #[case] value: &'static str,
+    #[case] choices: &'static [&'static str],
     #[case] host_options_enabled: bool,
 ) {
     let _rt = spfs_runtime().await;
 
-    // TODO
-    // Hard code "os" to "linux" for purposes of making this test work on any
-    // OS.
-
-    let name_maybe_value = if value.is_empty() {
-        name.to_string()
-    } else {
-        format!("{name}/{value}")
-    };
-    let generated_spec = format!(
-        r#"
+    // Force "os" host option to "linux" to make this test pass on any OS.
+    HOST_OPTIONS
+        .scoped_options(Ok(option_map! { "os" => "linux" }), async move {
+            let name_maybe_value = if value.is_empty() {
+                name.to_string()
+            } else {
+                format!("{name}/{value}")
+            };
+            let generated_spec = format!(
+                r#"
 pkg: dummy/1.0.0
 api: v0/package
 build:
@@ -630,12 +631,17 @@ build:
     script:
         - "true"
 "#,
-        choices = choices.join(", ")
-    );
+                choices = choices.join(", ")
+            );
 
-    if !host_options_enabled {
-        build_package!(tmpdir, "dummy.spk.yaml", generated_spec, "--no-host");
-    } else {
-        build_package!(tmpdir, "dummy.spk.yaml", generated_spec);
-    }
+            if !host_options_enabled {
+                build_package!(tmpdir, "dummy.spk.yaml", generated_spec, "--no-host");
+            } else {
+                build_package!(tmpdir, "dummy.spk.yaml", generated_spec);
+            }
+
+            Ok::<_, ()>(())
+        })
+        .await
+        .unwrap();
 }
