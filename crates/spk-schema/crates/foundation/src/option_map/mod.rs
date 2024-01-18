@@ -110,9 +110,9 @@ impl HostOptions {
         T: Future + Send + 'static,
         T::Output: Send + 'static,
     {
-        let current_options = self.0.swap(Arc::new(substitute_host_options));
+        let current_options = HOST_OPTIONS.0.swap(Arc::new(substitute_host_options));
         let result = f.await;
-        self.0.store(current_options);
+        HOST_OPTIONS.0.store(current_options);
         result
     }
 }
