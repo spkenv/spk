@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
+use std::future::Future;
 use std::iter::FromIterator;
 use std::sync::Arc;
 
@@ -91,6 +92,28 @@ impl HostOptions {
         }
 
         Ok(opts)
+    }
+
+    /// Change [`HOST_OPTIONS`] to return the provided substitute options for
+    /// the duration of the given future.
+    ///
+    /// There is no guarantee that some other concurrent task doesn't also
+    /// change the options before the given future completes.
+    ///
+    /// This method is intended to only be used by tests.
+    pub async fn scoped_options<T>(
+        &self,
+        substitute_host_options: Result<OptionMap>,
+        f: T,
+    ) -> T::Output
+    where
+        T: Future + Send + 'static,
+        T::Output: Send + 'static,
+    {
+        let current_options = self.0.swap(Arc::new(substitute_host_options));
+        let result = f.await;
+        self.0.store(current_options);
+        result
     }
 }
 
