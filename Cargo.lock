@@ -4073,6 +4073,7 @@ dependencies = [
 name = "spk-schema-foundation"
 version = "0.38.0"
 dependencies = [
+ "arc-swap",
  "colored",
  "data-encoding",
  "enum_dispatch",

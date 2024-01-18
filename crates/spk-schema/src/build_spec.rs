@@ -66,7 +66,7 @@ impl AutoHostVars {
     /// Get host_options after filtering based on the cross Os
     /// compatibility setting.
     pub fn host_options(&self) -> Result<Vec<Opt>> {
-        let all_host_options = HOST_OPTIONS.clone()?;
+        let all_host_options = HOST_OPTIONS.get()?;
 
         let mut names_added = self.names_added();
         let distro_name;

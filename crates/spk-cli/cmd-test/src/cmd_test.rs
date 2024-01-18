@@ -114,7 +114,7 @@ impl Run for CmdTest {
                     let variant = {
                         let mut opts = match self.options.no_host {
                             true => OptionMap::default(),
-                            false => HOST_OPTIONS.clone()?,
+                            false => HOST_OPTIONS.get()?,
                         };
 
                         opts.extend(variant.options().into_owned());
