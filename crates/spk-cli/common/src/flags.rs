@@ -285,7 +285,7 @@ impl Options {
         let mut opts = match self.no_host {
             true => OptionMap::default(),
             false => HOST_OPTIONS
-                .clone()
+                .get()
                 .wrap_err("Failed to compute options for current host")?,
         };
 

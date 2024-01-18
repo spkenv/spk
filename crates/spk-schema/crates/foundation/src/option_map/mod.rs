@@ -3,9 +3,11 @@
 // https://github.com/imageworks/spk
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
+use std::future::Future;
 use std::iter::FromIterator;
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -51,35 +53,73 @@ macro_rules! option_map {
     }};
 }
 
-pub static HOST_OPTIONS: Lazy<Result<OptionMap>> = Lazy::new(host_options);
+/// A lazy, thread-safe, cache of the host options.
+///
+/// Use [`HostOptions::get`] to get an owned copy of the options.
+pub struct HostOptions(Lazy<ArcSwap<Result<OptionMap>>>);
 
-/// Detect and return the default options for the current host system.
-fn host_options() -> Result<OptionMap> {
-    let mut opts = OptionMap::default();
-    opts.insert(OptName::os().to_owned(), std::env::consts::OS.into());
-    opts.insert(OptName::arch().to_owned(), std::env::consts::ARCH.into());
-
-    let info = match sys_info::linux_os_release() {
-        Ok(i) => i,
-        Err(err) => return Err(Error::String(format!("Failed to get linux info: {err:?}"))),
-    };
-
-    if let Some(id) = info.id {
-        opts.insert(OptName::distro().to_owned(), id.clone());
-        match OptNameBuf::try_from(id) {
-            Ok(id) => {
-                if let Some(version_id) = info.version_id {
-                    opts.insert(id, version_id);
-                }
-            }
-            Err(err) => {
-                tracing::warn!("Reported distro id is not a valid option name: {err}");
-            }
-        }
+impl HostOptions {
+    /// Return an owned copy of the host options.
+    pub fn get(&self) -> Result<OptionMap> {
+        (**self.0.load()).clone()
     }
 
-    Ok(opts)
+    /// Detect and return the default options for the current host system.
+    fn host_options() -> Result<OptionMap> {
+        let mut opts = OptionMap::default();
+        opts.insert(OptName::os().to_owned(), std::env::consts::OS.into());
+        opts.insert(OptName::arch().to_owned(), std::env::consts::ARCH.into());
+
+        let info = match sys_info::linux_os_release() {
+            Ok(i) => i,
+            Err(err) => {
+                return Err(Error::String(format!("Failed to get linux info: {err:?}")));
+            }
+        };
+
+        if let Some(id) = info.id {
+            opts.insert(OptName::distro().to_owned(), id.clone());
+            match OptNameBuf::try_from(id) {
+                Ok(id) => {
+                    if let Some(version_id) = info.version_id {
+                        opts.insert(id, version_id);
+                    }
+                }
+                Err(err) => {
+                    tracing::warn!("Reported distro id is not a valid option name: {err}");
+                }
+            }
+        }
+
+        Ok(opts)
+    }
+
+    /// Change [`HOST_OPTIONS`] to return the provided substitute options for
+    /// the duration of the given future.
+    ///
+    /// There is no guarantee that some other concurrent task doesn't also
+    /// change the options before the given future completes.
+    ///
+    /// This method is intended to only be used by tests.
+    pub async fn scoped_options<T>(
+        &self,
+        substitute_host_options: Result<OptionMap>,
+        f: T,
+    ) -> T::Output
+    where
+        T: Future + Send + 'static,
+        T::Output: Send + 'static,
+    {
+        let current_options = HOST_OPTIONS.0.swap(Arc::new(substitute_host_options));
+        let result = f.await;
+        HOST_OPTIONS.0.store(current_options);
+        result
+    }
 }
+
+pub static HOST_OPTIONS: HostOptions = HostOptions(Lazy::new(|| {
+    ArcSwap::new(Arc::new(HostOptions::host_options()))
+}));
 
 /// A set of values for package build options.
 #[derive(Default, Clone, Hash, PartialEq, Eq, Serialize, Ord, PartialOrd)]

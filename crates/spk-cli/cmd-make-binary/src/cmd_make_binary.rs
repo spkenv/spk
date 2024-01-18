@@ -168,7 +168,7 @@ impl Run for MakeBinary {
             for variant in variants_to_build {
                 let mut overrides = OptionMap::default();
                 if !self.options.no_host {
-                    overrides.extend(HOST_OPTIONS.clone()?);
+                    overrides.extend(HOST_OPTIONS.get()?);
                 }
                 overrides.extend(options.clone());
                 let variant = variant.with_overrides(overrides);

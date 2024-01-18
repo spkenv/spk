@@ -72,7 +72,7 @@ where
     ///
     /// Variant options will still override and host options
     fn with_host_options(self) -> Result<Override<Self>> {
-        Ok(self.with_overrides(HOST_OPTIONS.clone()?))
+        Ok(self.with_overrides(HOST_OPTIONS.get()?))
     }
 
     /// Add options to override any provided by the base variant
