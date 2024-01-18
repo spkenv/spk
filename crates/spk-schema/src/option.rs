@@ -171,12 +171,16 @@ impl TryFrom<Request> for Opt {
                     required_compat: request.required_compat,
                 }))
             }
-            Request::Var(VarRequest { var, value }) => Ok(Opt::Var(VarOpt {
+            Request::Var(VarRequest {
+                var,
+                value,
+                description,
+            }) => Ok(Opt::Var(VarOpt {
                 var,
                 default: value.as_pinned().map(str::to_string).unwrap_or_default(),
                 choices: Default::default(),
                 inheritance: Default::default(),
-                description: None,
+                description,
                 value: None,
             })),
         }
@@ -445,6 +449,7 @@ impl VarOpt {
         VarRequest {
             var: self.var.clone(),
             value: PinnableValue::Pinned(value.into()),
+            description: self.description.clone(),
         }
     }
 }

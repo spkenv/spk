@@ -251,6 +251,7 @@ impl<'de> Deserialize<'de> for Request {
             // VarRequest
             var: Option<OptNameBuf>,
             value: Option<String>,
+            description: Option<String>,
 
             // Both
             pin: Option<PinValue>,
@@ -287,6 +288,7 @@ impl<'de> Deserialize<'de> for Request {
                             self.value = value;
                         }
                         "value" => self.value = Some(map.next_value::<String>()?),
+                        "description" => self.description = Some(map.next_value::<String>()?),
                         _ => {
                             // unrecognized fields are explicitly ignored in case
                             // they were added in a newer version of spk. We assume
@@ -320,6 +322,7 @@ impl<'de> Deserialize<'de> for Request {
                         Ok(Request::Var(VarRequest {
                             var,
                             value,
+                            description: self.description.clone(),
                         }))
                     },
                     (Some(_), Some(_)) => Err(serde::de::Error::custom(
@@ -342,6 +345,7 @@ impl<'de> Deserialize<'de> for Request {
 pub struct VarRequest<T = PinnableValue> {
     pub var: OptNameBuf,
     pub value: T,
+    pub description: Option<String>,
 }
 
 impl<T: Default> VarRequest<T> {
@@ -350,6 +354,7 @@ impl<T: Default> VarRequest<T> {
         Self {
             var: name.into(),
             value: Default::default(),
+            description: None,
         }
     }
 }
@@ -364,6 +369,20 @@ impl<T> VarRequest<T> {
         Self {
             var: name.into(),
             value: value.into(),
+            description: None,
+        }
+    }
+
+    /// Same as new_with_value but also include a description
+    pub fn new_with_description<N, V>(name: N, value: V, desc: &Option<String>) -> Self
+    where
+        N: Into<OptNameBuf>,
+        V: Into<T>,
+    {
+        Self {
+            var: name.into(),
+            value: value.into(),
+            description: desc.clone(),
         }
     }
 }
@@ -380,6 +399,7 @@ impl VarRequest<PinnableValue> {
         Ok(VarRequest {
             var: self.var.clone(),
             value: PinnableValue::Pinned(value.into()),
+            description: self.description.clone(),
         })
     }
 
@@ -394,6 +414,7 @@ impl VarRequest<PinnableValue> {
         Ok(VarRequest {
             var: self.var,
             value: value.into(),
+            description: self.description,
         })
     }
 
@@ -444,7 +465,11 @@ impl std::fmt::Display for VarRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // break apart to ensure that new fields are incorporated into this
         // function if they are added in the future
-        let Self { var, value } = self;
+        let Self {
+            var,
+            value,
+            description,
+        } = self;
         f.write_str("var: ")?;
         var.fmt(f)?;
         match value.as_pinned() {
@@ -454,6 +479,15 @@ impl std::fmt::Display for VarRequest {
             }
             None => {
                 f.write_str("/<fromBuildEnv>")?;
+            }
+        }
+        match description {
+            Some(desc) => {
+                f.write_char('/')?;
+                desc.fmt(f)?;
+            }
+            None => {
+                f.write_str("/None")?;
             }
         }
         Ok(())
@@ -473,15 +507,18 @@ impl Serialize for VarRequest<PinnableValue> {
             PinnableValue::FromBuildEnv => {
                 map.serialize_entry("var", &self.var)?;
                 map.serialize_entry("fromBuildEnv", &true)?;
+                map.serialize_entry("description", &self.description.clone().unwrap_or_default())?;
             }
             PinnableValue::FromBuildEnvIfPresent => {
                 map.serialize_entry("var", &self.var)?;
                 map.serialize_entry("fromBuildEnv", &true)?;
                 map.serialize_entry("ifPresentInBuildEnv", &true)?;
+                map.serialize_entry("description", &self.description.clone().unwrap_or_default())?;
             }
             PinnableValue::Pinned(v) => {
                 let var = format!("{}/{v}", self.var);
                 map.serialize_entry("var", &var)?;
+                map.serialize_entry("description", &self.description.clone().unwrap_or_default())?;
             }
         }
         map.end()

@@ -20,7 +20,7 @@ use super::TestSpec;
 use crate::build_spec::UncheckedBuildSpec;
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
-use crate::foundation::name::PkgName;
+use crate::foundation::name::{OptNameBuf, PkgName};
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
@@ -165,6 +165,7 @@ impl Spec<BuildIdent> {
                     // we are assuming that the var here will have a value because
                     // this is a built binary package
                     value: o.get_value(None).unwrap_or_default().into(),
+                    description: o.description.clone(),
                 }
             })
             .map(Request::Var);
@@ -568,7 +569,8 @@ impl Recipe for Spec<VersionIdent> {
         updated.install.environment.append(&mut updated_ops);
 
         let mut missing_build_requirements = HashMap::new();
-        let mut missing_runtime_requirements = HashMap::new();
+        let mut missing_runtime_requirements: HashMap<OptNameBuf, (String, Option<String>)> =
+            HashMap::new();
 
         for (_, spec) in specs {
             let downstream_build = spec.downstream_build_requirements([]);
@@ -607,12 +609,12 @@ impl Recipe for Spec<VersionIdent> {
                             };
                             match missing_runtime_requirements.entry(var.var.clone()) {
                                 std::collections::hash_map::Entry::Occupied(entry) => {
-                                    if entry.get() != value {
-                                        return Err(Error::String(format!("Multiple conflicting downstream runtime requirements found for {}: {} and {}", var.var, entry.get(), value)));
+                                    if entry.get().0 != value {
+                                        return Err(Error::String(format!("Multiple conflicting downstream runtime requirements found for {}: {} and {}", var.var, &entry.get().0, value)));
                                     }
                                 }
                                 std::collections::hash_map::Entry::Vacant(vacant) => {
-                                    vacant.insert(value.to_string());
+                                    vacant.insert((value.to_string(), var.description.clone()));
                                 }
                             }
                         }
@@ -627,10 +629,9 @@ impl Recipe for Spec<VersionIdent> {
             updated.build.options.push(Opt::Var(var));
         }
         for req in missing_runtime_requirements {
-            updated
-                .install
-                .requirements
-                .insert_or_merge(Request::Var(VarRequest::new_with_value(req.0, req.1)))?;
+            updated.install.requirements.insert_or_merge(Request::Var(
+                VarRequest::new_with_description(req.0, req.1 .0, &req.1 .1),
+            ))?;
         }
 
         // Calculate the digest from the non-updated spec so it isn't affected
