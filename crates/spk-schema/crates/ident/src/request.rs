@@ -468,7 +468,7 @@ impl std::fmt::Display for VarRequest {
         let Self {
             var,
             value,
-            description,
+            description: _,
         } = self;
         f.write_str("var: ")?;
         var.fmt(f)?;
@@ -479,15 +479,6 @@ impl std::fmt::Display for VarRequest {
             }
             None => {
                 f.write_str("/<fromBuildEnv>")?;
-            }
-        }
-        match description {
-            Some(desc) => {
-                f.write_char('/')?;
-                desc.fmt(f)?;
-            }
-            None => {
-                f.write_str("/None")?;
             }
         }
         Ok(())

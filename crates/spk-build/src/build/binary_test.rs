@@ -409,7 +409,7 @@ async fn test_build_var_pinning_optional_requirement() {
             // first variant should not have any var requirements
             None,
             // second variant does
-            Some("var: dep2.color/blue/None".to_string()),
+            Some("var: dep2.color/blue".to_string()),
         ]
         .into_iter(),
     ) {
