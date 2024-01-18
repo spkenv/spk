@@ -507,20 +507,22 @@ impl Serialize for VarRequest<PinnableValue> {
             PinnableValue::FromBuildEnv => {
                 map.serialize_entry("var", &self.var)?;
                 map.serialize_entry("fromBuildEnv", &true)?;
-                map.serialize_entry("description", &self.description.clone().unwrap_or_default())?;
             }
             PinnableValue::FromBuildEnvIfPresent => {
                 map.serialize_entry("var", &self.var)?;
                 map.serialize_entry("fromBuildEnv", &true)?;
                 map.serialize_entry("ifPresentInBuildEnv", &true)?;
-                map.serialize_entry("description", &self.description.clone().unwrap_or_default())?;
             }
             PinnableValue::Pinned(v) => {
                 let var = format!("{}/{v}", self.var);
                 map.serialize_entry("var", &var)?;
-                map.serialize_entry("description", &self.description.clone().unwrap_or_default())?;
             }
         }
+
+        if self.description.is_some() {
+            map.serialize_entry("description", &self.description.clone().unwrap_or_default())?;
+        }
+
         map.end()
     }
 }
