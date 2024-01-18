@@ -1,35 +1,18 @@
-pkg: stdfs/1.0.0
+pkg: stdfs/1.1.0
 api: v0/package
 compat: x.ab
 build:
+  # Using `Os` since this package assumes a linux-like filesystem layout.
+  auto_host_vars: Os
   script:
     - mkdir /spfs/{bin,lib,etc}
-    - mkdir -p /spfs/etc/spfs/startup.d
     - ln -s lib /spfs/lib64
-    # We are explicitly not using the builtin env support because
-    # this package is expected to initialize the core environment
-    # as early as possible
-    # Initialization for bash environments
-    - cat << EOF > /spfs/etc/spfs/startup.d/00_stdfs.sh
-    - export LD_LIBRARY_PATH="/spfs/lib:\${LD_LIBRARY_PATH}"
-    - export LIBRARY_PATH="/spfs/lib:\${LIBRARY_PATH}"
-    - export PATH="/spfs/bin:\${PATH}"
-    - EOF
-    # Initialization for csh environments
-    - cat << EOF > /spfs/etc/spfs/startup.d/00_stdfs.csh
-    - if ( \$?LD_LIBRARY_PATH ) then
-    - setenv LD_LIBRARY_PATH "/spfs/lib:\${LD_LIBRARY_PATH}"
-    - else
-    - setenv LD_LIBRARY_PATH "/spfs/lib"
-    - endif
-    - if ( \$?LIBRARY_PATH ) then
-    - setenv LIBRARY_PATH "/spfs/lib:\${LIBRARY_PATH}"
-    - else
-    - setenv LIBRARY_PATH "/spfs/lib"
-    - endif
-    - if ( \$?PATH ) then
-    - setenv PATH "/spfs/bin:\${PATH}"
-    - else
-    - setenv PATH "/spfs/bin"
-    - endif
-    - EOF
+install:
+  environment:
+    - prepend: LD_LIBRARY_PATH
+      value: /spfs/lib
+    - prepend: LIBRARY_PATH
+      value: /spfs/lib
+    - prepend: PATH
+      value: /spfs/bin
+    - priority: 0
