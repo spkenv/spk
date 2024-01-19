@@ -35,7 +35,6 @@ pub enum OpKind {
     Prepend,
     Priority,
     Set,
-    UnrecognizedKey,
 }
 
 /// An operation performed to the environment
@@ -47,7 +46,6 @@ pub enum EnvOp {
     Prepend(PrependEnv),
     Priority(EnvPriority),
     Set(SetEnv),
-    UnrecognizedKey(UnrecognizedKey),
 }
 
 impl EnvOp {
@@ -58,7 +56,6 @@ impl EnvOp {
             EnvOp::Prepend(_) => OpKind::Prepend,
             EnvOp::Priority(_) => OpKind::Priority,
             EnvOp::Set(_) => OpKind::Set,
-            EnvOp::UnrecognizedKey(_) => OpKind::UnrecognizedKey,
         }
     }
 
@@ -69,7 +66,6 @@ impl EnvOp {
             EnvOp::Prepend(_) => "",
             EnvOp::Priority(_) => "",
             EnvOp::Set(_) => "",
-            EnvOp::UnrecognizedKey(e) => e.error.as_str(),
         }
     }
 
@@ -147,7 +143,6 @@ impl EnvOp {
             Self::Prepend(op) => op.bash_source(),
             Self::Priority(op) => op.bash_source(),
             Self::Set(op) => op.bash_source(),
-            Self::UnrecognizedKey(op) => op.bash_source(),
         }
     }
 
@@ -159,7 +154,6 @@ impl EnvOp {
             Self::Prepend(op) => op.tcsh_source(),
             Self::Priority(op) => op.tcsh_source(),
             Self::Set(op) => op.tcsh_source(),
-            Self::UnrecognizedKey(op) => op.tcsh_source(),
         }
     }
 
@@ -230,9 +224,6 @@ impl From<EnvOpVisitor> for EnvOp {
             }),
             OpKind::Priority => EnvOp::Priority(EnvPriority {
                 priority: var.get_priority(),
-            }),
-            OpKind::UnrecognizedKey => EnvOp::UnrecognizedKey(UnrecognizedKey {
-                error: var.get_op(),
             }),
         }
     }
@@ -524,22 +515,5 @@ impl SetEnv {
     /// Construct the tcsh source representation for this operation
     pub fn tcsh_source(&self) -> String {
         format!("setenv {} \"{}\"", self.set, self.value)
-    }
-}
-
-/// Stores the error message of the unrecognized key
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct UnrecognizedKey {
-    pub error: String,
-}
-
-impl UnrecognizedKey {
-    /// Empty bash source
-    pub fn bash_source(&self) -> String {
-        String::from("")
-    }
-    /// Empty tcsh source
-    pub fn tcsh_source(&self) -> String {
-        String::from("")
     }
 }
