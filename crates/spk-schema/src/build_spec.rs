@@ -19,8 +19,8 @@ use strum::Display;
 
 use super::{v0, Opt, ValidationSpec};
 use crate::name::{OptName, OptNameBuf};
-use crate::option::VarOpt;
-use crate::{Lint, LintedItem, Lints, Result, UnknownKey, Variant};
+use crate::option::{PkgOpt, VarOpt};
+use crate::{Error, Lint, LintedItem, Lints, Result, UnknownKey, Variant};
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
@@ -411,6 +411,7 @@ impl<'de> Deserialize<'de> for BuildSpec {
 /// being deserialized must be trusted (eg it's from a repository)
 /// but may also not adhere to all of the (potentially new) validation
 /// that is done on the normal build spec
+#[derive(Default)]
 pub(crate) struct UncheckedBuildSpec(BuildSpec);
 
 impl UncheckedBuildSpec {

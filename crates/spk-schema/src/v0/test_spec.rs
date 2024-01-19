@@ -61,7 +61,7 @@ impl crate::Test for TestSpec {
 struct TestSpecVisitor {
     stage: Option<TestStage>,
     script: Option<Script>,
-    selectors: Vec<OptionMap>,
+    selectors: Vec<super::VariantSpec>,
     requirements: Vec<Request>,
     #[field_names_as_array(skip)]
     lints: Vec<Lint>,
@@ -121,7 +121,7 @@ impl<'de> serde::de::Visitor<'de> for TestSpecVisitor {
             match key.as_str() {
                 "stage" => self.stage = Some(map.next_value::<TestStage>()?),
                 "script" => self.script = Some(map.next_value::<Script>()?),
-                "selectors" => self.selectors = map.next_value::<Vec<OptionMap>>()?,
+                "selectors" => self.selectors = map.next_value::<Vec<super::VariantSpec>>()?,
                 "requirements" => self.requirements = map.next_value::<Vec<Request>>()?,
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(

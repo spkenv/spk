@@ -73,7 +73,6 @@ pub enum OpKind {
     Prepend,
     Priority,
     Set,
-    UnrecognizedKey,
 }
 
 /// An operation performed to the environment
@@ -95,6 +94,16 @@ impl EnvOp {
             EnvOp::Prepend(_) => OpKind::Prepend,
             EnvOp::Priority(_) => OpKind::Priority,
             EnvOp::Set(_) => OpKind::Set,
+        }
+    }
+
+    pub fn error(&self) -> &str {
+        match self {
+            EnvOp::Append(_) => "",
+            EnvOp::Comment(_) => "",
+            EnvOp::Prepend(_) => "",
+            EnvOp::Priority(_) => "",
+            EnvOp::Set(_) => "",
         }
     }
 
@@ -276,9 +285,6 @@ impl From<EnvOpVisitor> for EnvOp {
             }),
             OpKind::Priority => EnvOp::Priority(EnvPriority {
                 priority: var.get_priority(),
-            }),
-            OpKind::UnrecognizedKey => EnvOp::UnrecognizedKey(UnrecognizedKey {
-                error: var.get_op(),
             }),
         }
     }

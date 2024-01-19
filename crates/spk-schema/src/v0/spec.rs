@@ -1009,7 +1009,7 @@ impl<B, T> SpecVisitor<B, T> {
             build: None,
             tests: None,
             install: None,
-            lints: None,
+            lints: Vec::default(),
             check_build_spec,
         }
     }
@@ -1079,6 +1079,13 @@ impl<B, T> Lints for SpecVisitor<B, T> {
         }
 
         std::mem::take(&mut self.lints)
+    }
+}
+
+impl<B, T> Default for SpecVisitor<B, T> {
+    #[inline]
+    fn default() -> Self {
+        Self::with_check_build_spec(true)
     }
 }
 
