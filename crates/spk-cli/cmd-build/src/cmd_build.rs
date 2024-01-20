@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::collections::BTreeMap;
+
 use clap::Args;
 use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_cmd_make_binary::cmd_make_binary::PackageSpecifier;
+use spk_schema::Lint::Key;
 
 #[cfg(test)]
 #[path = "./cmd_build_test/mod.rs"]
@@ -83,6 +86,8 @@ impl Run for Build {
         }
 
         let mut builds_for_summary = spk_cli_common::BuildResult::default();
+        let mut generated_lints = BTreeMap::new();
+
         for packages in runs {
             let mut make_source = spk_cmd_make_source::cmd_make_source::MakeSource {
                 options: self.options.clone(),
@@ -90,9 +95,12 @@ impl Run for Build {
                 packages: packages.clone(),
                 runtime: self.runtime.clone(),
                 created_src: spk_cli_common::BuildResult::default(),
+                lints: BTreeMap::new(),
             };
             let idents = make_source.make_source().await?;
             builds_for_summary.extend(make_source.created_src);
+
+            generated_lints.extend(std::mem::take(&mut make_source.lints));
 
             let mut make_binary = spk_cmd_make_binary::cmd_make_binary::MakeBinary {
                 verbose: self.verbose,
@@ -127,6 +135,17 @@ impl Run for Build {
         println!("Completed builds:");
         for (_, artifact) in builds_for_summary.iter() {
             println!("   {artifact}");
+        }
+
+        if !generated_lints.is_empty() {
+            println!("Lints:");
+            for (pkg, lints) in generated_lints.iter() {
+                for lint in lints.iter() {
+                    match lint {
+                        Key(k) => tracing::warn!("{} {}", pkg, k.generate_message()),
+                    }
+                }
+            }
         }
 
         Ok(BuildResult {
