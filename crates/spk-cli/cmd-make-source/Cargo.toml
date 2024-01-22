@@ -19,6 +19,7 @@ migration-to-components = [
 miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }
 clap = { workspace = true }
+serde_yaml = { workspace = true }
 spfs = { path = '../../spfs' }
 spk-build = { path = '../../spk-build' }
 spk-cli-common = { path = '../common' }

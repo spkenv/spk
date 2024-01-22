@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -12,7 +13,17 @@ use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::LocatedBuildIdent;
-use spk_schema::{Package, Recipe, SpecTemplate, Template, TemplateExt};
+use spk_schema::v0::Spec;
+use spk_schema::{
+    AnyIdent,
+    Lint,
+    LintedItem,
+    Package,
+    Recipe,
+    SpecTemplate,
+    Template,
+    TemplateExt,
+};
 use spk_storage as storage;
 
 /// Build a source package from a spec file.
@@ -33,7 +44,12 @@ pub struct MakeSource {
     pub packages: Vec<String>,
 
     /// Populated with the created src to generate a summary from the caller.
+    #[clap(skip)]
     pub created_src: Vec<String>,
+
+    /// Used to gather lints to output at the end of a build.
+    #[clap(skip)]
+    pub lints: BTreeMap<String, Vec<Lint>>,
 }
 
 #[async_trait::async_trait]
@@ -79,6 +95,7 @@ impl MakeSource {
                     template
                 }
             };
+
             let root = template
                 .file_path()
                 .parent()
@@ -88,6 +105,20 @@ impl MakeSource {
             tracing::info!("rendering template for {}", template.name());
             let recipe = template.render(&options)?;
             let ident = recipe.ident();
+
+            let lints: std::result::Result<LintedItem<Spec<AnyIdent>>, serde_yaml::Error> =
+                serde_yaml::from_str(&template.render_to_string(&options)?);
+
+            match lints {
+                Ok(linted_item) => match linted_item.lints.is_empty() {
+                    true => (),
+                    false => {
+                        self.lints
+                            .insert(ident.format_ident(), linted_item.lints.clone());
+                    }
+                },
+                Err(e) => tracing::error!("Failed to retrieve lints: {e}"),
+            }
 
             tracing::info!("saving package recipe for {}", ident.format_ident());
             local.force_publish_recipe(&recipe).await?;
