@@ -7,14 +7,16 @@ use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
 use spk_config::Metadata;
+use spk_schema_foundation::option_map::Stringified;
+use struct_field_names_as_array::FieldNamesAsArray;
 
-use crate::{Error, Result};
+use crate::{Error, Lint, LintedItem, Lints, Result, UnknownKey};
 
 #[cfg(test)]
 #[path = "./meta_test.rs"]
 mod meta_test;
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Meta {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -91,5 +93,81 @@ impl Meta {
             }
         }
         Ok(0)
+    }
+}
+
+#[derive(Default, FieldNamesAsArray)]
+struct MetaVisitor {
+    description: Option<String>,
+    homepage: Option<String>,
+    license: Option<String>,
+    labels: Option<BTreeMap<String, String>>,
+    #[field_names_as_array(skip)]
+    lints: Vec<Lint>,
+}
+
+impl Lints for MetaVisitor {
+    fn lints(&mut self) -> Vec<Lint> {
+        std::mem::take(&mut self.lints)
+    }
+}
+
+impl From<MetaVisitor> for Meta {
+    fn from(value: MetaVisitor) -> Self {
+        Self {
+            description: value.description,
+            homepage: value.homepage,
+            license: value.license.unwrap_or(Meta::default_license()),
+            labels: value.labels.unwrap_or_default(),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Meta {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer.deserialize_map(MetaVisitor::default())?.into())
+    }
+}
+
+impl<'de> Deserialize<'de> for LintedItem<Meta> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer.deserialize_map(MetaVisitor::default())?.into())
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for MetaVisitor {
+    type Value = MetaVisitor;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a meta specification")
+    }
+
+    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while let Some(key) = map.next_key::<Stringified>()? {
+            match key.as_str() {
+                "description" => self.description = Some(map.next_value::<Stringified>()?.0),
+                "homepage" => self.homepage = Some(map.next_value::<Stringified>()?.0),
+                "license" => self.license = Some(map.next_value::<Stringified>()?.0),
+                "labels" => self.labels = Some(map.next_value::<BTreeMap<String, String>>()?),
+                unknown_key => {
+                    self.lints.push(Lint::Key(UnknownKey::new(
+                        unknown_key,
+                        MetaVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
+                    )));
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                }
+            }
+        }
+
+        Ok(self)
     }
 }
