@@ -49,12 +49,12 @@ impl super::Validator for LongDescriptionValidator {
                         match &self.kind {
                             RuleKind::Deny => {
                                 if desc.chars().count() > MAX_LENGTH {
-                                    outcome.status = Status::Denied(Error::DescriptionOverLimit);
+                                    outcome.status = Status::Denied(Error::DescriptionDenied);
                                 };
                             }
                             RuleKind::Require => {
                                 if desc.chars().count() <= MAX_LENGTH {
-                                    outcome.status = Status::Denied(Error::DescriptionTooShort);
+                                    outcome.status = Status::Denied(Error::LongDescriptionRequired);
                                 };
                             }
                             RuleKind::Allow => (),

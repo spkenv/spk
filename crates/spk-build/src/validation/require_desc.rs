@@ -45,19 +45,10 @@ impl super::Validator for RequireDescriptionValidator {
                             status: Status::Allowed,
                         };
 
-                        match &self.kind {
-                            RuleKind::Deny => {
-                                if v.description.is_some() {
-                                    outcome.status = Status::Denied(Error::DescriptionNotAllowed);
-                                };
-                            }
-                            RuleKind::Require => {
-                                if v.description.is_none() {
-                                    outcome.status = Status::Denied(Error::NoDescription);
-                                };
-                            }
-                            RuleKind::Allow => (),
+                        if self.kind == RuleKind::Require && v.description.is_none() {
+                            outcome.status = Status::Denied(Error::DescriptionRequired);
                         }
+
                         results.push(outcome);
                     }
                 },
