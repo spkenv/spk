@@ -44,6 +44,18 @@ This validation is triggered when a version of the package being built appears i
 
 In the case that this is expected and desired, see the documentation section on [recursive builds]({{< ref "use/spec" >}}#recursivebuilds)
 
+#### `spk::build::validation::long_description`
+
+This validation is triggered when a description greater than 256 characters is found for build variables.
+
+In cases where a longer description is required, see the documentation section on [build variable description]({{< ref "use/spec" >}}#buildvariabledescription)
+
+#### `spk::build::validation::require_desc`
+
+This validation is triggered when a description is not provided for strong inheritance variables.
+
+In cases where a description is not required, see the documentation section on [build variable description]({{< ref "use/spec" >}}#buildvariabledescription)
+
 ## Spfs Errors
 
 ### `spfs::generic`
