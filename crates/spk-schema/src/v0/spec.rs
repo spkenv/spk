@@ -630,7 +630,7 @@ impl Recipe for Spec<VersionIdent> {
         }
         for req in missing_runtime_requirements {
             updated.install.requirements.insert_or_merge(Request::Var(
-                VarRequest::new_with_description(req.0, req.1 .0, &req.1 .1),
+                VarRequest::new_with_description(req.0, req.1 .0, req.1 .1.as_ref()),
             ))?;
         }
 

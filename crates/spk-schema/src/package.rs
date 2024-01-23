@@ -55,7 +55,7 @@ pub trait Package:
     /// The set of operations to perform on the environment when running this package
     fn runtime_environment(&self) -> &Vec<super::EnvOp>;
 
-    /// The set of build options for this package
+    /// The list of build options for this package
     fn get_build_options(&self) -> &Vec<Opt>;
 
     /// Identify the requirements for a build of this package.

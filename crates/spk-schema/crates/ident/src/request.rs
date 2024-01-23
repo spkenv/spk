@@ -373,8 +373,8 @@ impl<T> VarRequest<T> {
         }
     }
 
-    /// Same as new_with_value but also include a description
-    pub fn new_with_description<N, V>(name: N, value: V, desc: &Option<String>) -> Self
+    /// Same as [`VarRequest::new_with_value`] but also include a description
+    pub fn new_with_description<N, V>(name: N, value: V, desc: Option<&String>) -> Self
     where
         N: Into<OptNameBuf>,
         V: Into<T>,
@@ -382,7 +382,7 @@ impl<T> VarRequest<T> {
         Self {
             var: name.into(),
             value: value.into(),
-            description: desc.clone(),
+            description: desc.cloned(),
         }
     }
 }

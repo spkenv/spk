@@ -159,7 +159,7 @@ pub enum Error {
     #[error("Description required for strongly inherited vars")]
     #[diagnostic(severity(warning), code(spk::build::validation::require_desc))]
     NoDescription,
-    #[error("Description not required for build vars")]
+    #[error("Description not allowed for build vars")]
     #[diagnostic(severity(warning), code(spk::build::validation::require_desc))]
-    DescriptionNotRequired,
+    DescriptionNotAllowed,
 }

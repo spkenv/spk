@@ -48,7 +48,7 @@ impl super::Validator for RequireDescriptionValidator {
                         match &self.kind {
                             RuleKind::Deny => {
                                 if v.description.is_some() {
-                                    outcome.status = Status::Denied(Error::DescriptionNotRequired);
+                                    outcome.status = Status::Denied(Error::DescriptionNotAllowed);
                                 };
                             }
                             RuleKind::Require => {
