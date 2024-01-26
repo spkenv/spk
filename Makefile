@@ -82,7 +82,7 @@ release-spfs:
 .PHONY: test
 test: FEATURES?=server,spfs/server
 test:
-	spfs run - -- cargo test $(cargo_features_arg) $(cargo_packages_arg)
+	spfs run - -- cargo test $(cargo_features_arg) $(cargo_packages_arg) -- $(TEST_ARGS)
 
 .PHONY: converters
 converters:
