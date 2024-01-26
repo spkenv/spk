@@ -725,11 +725,11 @@ pub enum DigestStrategy {
     /// Hash the output of the original spfs encoding, which
     /// has known collision issues. Not recommended for use
     /// except for backwards-compatibility
+    #[default]
     Legacy = 0,
     /// Encoding using the original spfs encoding, but adds salt
     /// and the [`ObjectKind`] to mitigate issues found in the
     /// original encoding mechanism
-    #[default]
     WithKindAndSalt = 1,
 }
 
@@ -749,10 +749,10 @@ impl DigestStrategy {
 pub enum EncodingFormat {
     /// Encode using the original spfs encoding, which uses
     /// a bespoke binary format
+    #[default]
     Legacy = 0,
     /// Encode using the [`spfs_proto::AnyObject`] flatbuffers
     /// schema.
-    #[default]
     FlatBuffers = 1,
 }
 
