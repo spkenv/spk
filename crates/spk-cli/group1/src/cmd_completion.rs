@@ -5,6 +5,7 @@
 //! Generate shell completions for "spk"
 
 use std::io::Write;
+use std::process::ExitStatus;
 
 use clap::{value_parser, Command, Parser};
 use clap_complete;
@@ -22,12 +23,12 @@ pub struct Completion {
 }
 
 impl Completion {
-    pub fn run(&self, mut cmd: Command) -> Result<i32> {
+    pub fn run(&self, mut cmd: Command) -> Result<ExitStatus> {
         let mut buf = vec![];
         clap_complete::generate(self.shell, &mut cmd, "spk", &mut buf);
         std::io::stdout().write_all(&buf).unwrap_or(());
 
-        Ok(0)
+        Ok(ExitStatus::default())
     }
 }
 

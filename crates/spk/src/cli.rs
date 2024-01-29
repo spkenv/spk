@@ -4,6 +4,12 @@
 
 //! Main entry points and utilities for command line interface and interaction.
 
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
+#[cfg(windows)]
+use std::os::windows::process::ExitStatusExt;
+use std::process::{ExitCode, ExitStatus};
+
 use clap::{CommandFactory, Parser, Subcommand};
 use colored::Colorize;
 use miette::{Context, Result};
@@ -48,7 +54,7 @@ pub struct Opt {
 }
 
 impl Opt {
-    pub async fn run(&mut self) -> Result<i32> {
+    pub async fn run(&mut self) -> Result<ExitStatus> {
         #[cfg(feature = "sentry")]
         let _sentry_guard = configure_sentry();
 
@@ -68,7 +74,7 @@ impl Opt {
             if let Some(client) = statsd_client {
                 client.incr(&SPK_ERROR_COUNT_METRIC)
             }
-            return Ok(1);
+            return Ok(ExitStatus::from_raw(1));
         }
 
         // Disable this clippy warning because the result value is
@@ -174,7 +180,9 @@ pub enum Command {
 
 #[async_trait::async_trait]
 impl Run for Command {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = ExitStatus;
+
+    async fn run(&mut self) -> Result<ExitStatus> {
         match self {
             Command::Bake(cmd) => cmd.run().await,
             Command::Build(cmd) => cmd.run().await,
@@ -244,7 +252,7 @@ impl CommandArgs for Command {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     let mut opts = Opt::parse();
     let code = match opts.run().await {
         Ok(code) => code,
@@ -255,8 +263,12 @@ async fn main() {
             } else {
                 tracing::error!("{:?}", err);
             }
-            1
+            ExitStatus::from_raw(1)
         }
     };
-    std::process::exit(code);
+    ExitCode::from(
+        code.code()
+            .and_then(|code| u8::try_from(code).ok())
+            .unwrap_or(1),
+    )
 }

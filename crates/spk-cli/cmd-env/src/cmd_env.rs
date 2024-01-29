@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::process::ExitStatus;
+
 use clap::Args;
 use miette::{Context, Result};
 use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
@@ -45,7 +47,9 @@ pub struct Env {
 
 #[async_trait::async_trait]
 impl Run for Env {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = ExitStatus;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let mut rt = self
             .runtime
             .ensure_active_runtime(&["env", "run", "shell"])
@@ -112,7 +116,7 @@ impl Run for Env {
 
         command
             .exec()
-            .map(|_| 0)
+            .map(|_| ExitStatus::default())
             .wrap_err("Failed to execute runtime command")
     }
 }

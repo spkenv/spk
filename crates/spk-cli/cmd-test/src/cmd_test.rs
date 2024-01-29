@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::process::ExitStatus;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -60,7 +61,9 @@ pub struct CmdTest {
 
 #[async_trait::async_trait]
 impl Run for CmdTest {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = ExitStatus;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let options = self.options.get_options()?;
         let (_runtime, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(&["test"]),
@@ -223,7 +226,7 @@ impl Run for CmdTest {
                 }
             }
         }
-        Ok(0)
+        Ok(ExitStatus::default())
     }
 }
 

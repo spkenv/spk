@@ -2,6 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
+#[cfg(windows)]
+use std::os::windows::process::ExitStatusExt;
+use std::process::ExitStatus;
+
 use clap::{Args, Subcommand};
 use miette::{Context, Result};
 use spk_cli_common::{CommandArgs, Run};
@@ -17,7 +23,9 @@ pub struct Repo {
 
 #[async_trait::async_trait]
 impl Run for Repo {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = ExitStatus;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         self.command.run().await
     }
 }
@@ -46,7 +54,7 @@ pub enum RepoCommand {
 }
 
 impl RepoCommand {
-    pub async fn run(&mut self) -> Result<i32> {
+    pub async fn run(&mut self) -> Result<ExitStatus> {
         let repo = match &self {
             Self::Upgrade { repo } => repo,
         };
@@ -56,6 +64,6 @@ impl RepoCommand {
         };
         let status = repo.upgrade().await.wrap_err("Upgrade failed")?;
         tracing::info!("{}", status);
-        Ok(1)
+        Ok(ExitStatus::from_raw(1))
     }
 }

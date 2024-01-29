@@ -33,7 +33,7 @@ async fn test_undeprecate_without_prompt() {
     let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes).await;
 
     match result {
-        Ok(r) => assert_eq!(r, 0),
+        Ok(r) => assert!(r.success()),
         Err(e) => {
             // This should not happen
             println!("{e}");
@@ -71,7 +71,7 @@ async fn test_undeprecate_no_repos() {
     let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes).await;
 
     match result {
-        Ok(r) => assert_eq!(r, 1),
+        Ok(r) => assert_eq!(r.code(), Some(1)),
         Err(e) => {
             // This should not happen
             println!("{e}");
@@ -97,7 +97,7 @@ async fn test_undeprecate_no_version() {
     let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes).await;
 
     match result {
-        Ok(r) => assert_eq!(r, 2),
+        Ok(r) => assert_eq!(r.code(), Some(2)),
         Err(e) => {
             // This should not happen
             println!("{e}");
@@ -123,7 +123,7 @@ async fn test_undeprecate_no_version_but_trailing_slash() {
     let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes).await;
 
     match result {
-        Ok(r) => assert_eq!(r, 3),
+        Ok(r) => assert_eq!(r.code(), Some(3)),
         Err(e) => {
             // This should not happen
             println!("{e}");
@@ -153,7 +153,7 @@ async fn test_undeprecate_with_no_package_found() {
     let result = change_deprecation_state(ChangeAction::Undeprecate, &repos, &packages, yes).await;
 
     match result {
-        Ok(r) => assert_eq!(r, 4),
+        Ok(r) => assert_eq!(r.code(), Some(4)),
         Err(e) => {
             // This should not happen
             println!("{e}");

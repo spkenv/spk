@@ -3,6 +3,11 @@
 // https://github.com/imageworks/spk
 
 use std::io::Write;
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
+#[cfg(windows)]
+use std::os::windows::process::ExitStatusExt;
+use std::process::ExitStatus;
 use std::sync::Arc;
 
 use clap::Args;
@@ -93,7 +98,9 @@ pub struct DeprecateCmd {
 /// Deprecate (hide) packages in a repository
 #[async_trait::async_trait]
 impl Run for DeprecateCmd {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = ExitStatus;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         change_deprecation_state(
             ChangeAction::Deprecate,
             &self.repos.get_repos_for_destructive_operation().await?,
@@ -134,7 +141,7 @@ pub(crate) async fn change_deprecation_state(
     repositories: &[(String, storage::RepositoryHandle)],
     packages: &[String],
     yes: bool,
-) -> Result<i32> {
+) -> Result<ExitStatus> {
     let repos: Vec<_> = repositories
         .iter()
         .map(|(name, repo)| (name, Arc::new(repo)))
@@ -145,7 +152,7 @@ pub(crate) async fn change_deprecation_state(
             "No repositories selected, specify --enable-repo (-r), or remove --no-local-repo"
                 .yellow()
         );
-        return Ok(1);
+        return Ok(ExitStatus::from_raw(1));
     }
 
     // Find and load everything that we want to action first to avoid
@@ -159,11 +166,11 @@ pub(crate) async fn change_deprecation_state(
             tracing::error!(
                 " > use 'spk ls {name}' or 'spk ls {name} -r <REPO_NAME>' to view available versions"
             );
-            return Ok(2);
+            return Ok(ExitStatus::from_raw(2));
         }
         if name.ends_with('/') {
             tracing::error!("A trailing '/' isn't a valid version number or build digest in '{name}'. Please remove the trailing '/', or specify a version number or build digest after it.");
-            return Ok(3);
+            return Ok(ExitStatus::from_raw(3));
         }
 
         let ident = parse_ident(name)?;
@@ -248,7 +255,7 @@ pub(crate) async fn change_deprecation_state(
     // Tell the user when there are no packages to action
     if to_action.is_empty() {
         println!("No packages found to {}. Nothing to do.", action.as_str());
-        return Ok(4);
+        return Ok(ExitStatus::from_raw(4));
     }
 
     // Summarize what is about to be actioned. Note, this does not
@@ -286,7 +293,7 @@ pub(crate) async fn change_deprecation_state(
                     "{} canceled. Things will remain as they were.",
                     action.as_capitalized()
                 );
-                return Ok(5);
+                return Ok(ExitStatus::from_raw(5));
             }
         }
     }
@@ -318,7 +325,7 @@ pub(crate) async fn change_deprecation_state(
         }
         tracing::info!(repo=%repo_name, "{} {fmt}", action.as_past_tense());
     }
-    Ok(0)
+    Ok(ExitStatus::default())
 }
 enum DeprecationTarget {
     Recipe(Arc<SpecRecipe>),

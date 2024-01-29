@@ -3,6 +3,7 @@
 // https://github.com/imageworks/spk
 
 use std::path::PathBuf;
+use std::process::ExitStatus;
 use std::sync::Arc;
 
 use clap::Args;
@@ -38,8 +39,10 @@ pub struct MakeSource {
 
 #[async_trait::async_trait]
 impl Run for MakeSource {
-    async fn run(&mut self) -> Result<i32> {
-        self.make_source().await.map(|_| 0)
+    type Output = ExitStatus;
+
+    async fn run(&mut self) -> Result<Self::Output> {
+        self.make_source().await.map(|_| ExitStatus::default())
     }
 }
 

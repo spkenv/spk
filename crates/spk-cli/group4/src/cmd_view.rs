@@ -4,6 +4,11 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
+#[cfg(windows)]
+use std::os::windows::process::ExitStatusExt;
+use std::process::ExitStatus;
 use std::sync::Arc;
 
 use clap::Args;
@@ -112,7 +117,9 @@ pub struct View {
 
 #[async_trait::async_trait]
 impl Run for View {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = ExitStatus;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         if self.variants {
             let options = self.options.get_options()?;
             return self.print_variants_info(&options);
@@ -188,7 +195,7 @@ struct PrintVariant<'a> {
 }
 
 impl View {
-    async fn print_current_env(&self) -> Result<i32> {
+    async fn print_current_env(&self) -> Result<ExitStatus> {
         let solution = current_env().await?;
         let solver = self.solver.get_solver(&self.options).await?;
         println!(
@@ -201,10 +208,10 @@ impl View {
                 )
                 .await?
         );
-        Ok(0)
+        Ok(ExitStatus::default())
     }
 
-    fn print_variants_info(&self, options: &OptionMap) -> Result<i32> {
+    fn print_variants_info(&self, options: &OptionMap) -> Result<ExitStatus> {
         let (_, template) = flags::find_package_template(self.package.as_ref())
             .wrap_err("find package template")?
             .must_be_found();
@@ -236,11 +243,11 @@ impl View {
                 }
             }
         }
-        Ok(0)
+        Ok(ExitStatus::default())
     }
 
     /// Given a filepath inside /spfs, print out the package(s) and spfs entries for it.
-    async fn print_filepath_info(&self, filepath: &str) -> Result<i32> {
+    async fn print_filepath_info(&self, filepath: &str) -> Result<ExitStatus> {
         // First, we need a list of all the providing pathlists that
         // contain this file. Each of them should contain at least a
         // layer and the filepath entry, but might contain other spfs
@@ -265,7 +272,7 @@ impl View {
                     "No active runtime".red()
                 }
             );
-            return Ok(1);
+            return Ok(ExitStatus::from_raw(1));
         }
 
         // The layers need to be pulled out of each pathlist in order
@@ -386,11 +393,11 @@ impl View {
             }
         }
 
-        Ok(0)
+        Ok(ExitStatus::default())
     }
 
     /// Display the contents of a package spec
-    fn print_build_spec(&self, package_spec: Arc<Spec>) -> Result<i32> {
+    fn print_build_spec(&self, package_spec: Arc<Spec>) -> Result<ExitStatus> {
         match &self.format.clone().unwrap_or_default() {
             OutputFormat::Yaml => serde_yaml::to_writer(std::io::stdout(), &*package_spec)
                 .into_diagnostic()
@@ -399,7 +406,7 @@ impl View {
                 .into_diagnostic()
                 .wrap_err("Failed to serialize loaded spec")?,
         }
-        Ok(0)
+        Ok(ExitStatus::default())
     }
 
     /// Display information on the package by looking up its
@@ -413,7 +420,7 @@ impl View {
     /// spk info python/3.7.3/src <-- outputs the build spec
     /// spk info python/3.7.3/F4E632 <-- outputs the build spec
     /// ```
-    async fn print_package_info(&self, package: &String) -> Result<i32> {
+    async fn print_package_info(&self, package: &String) -> Result<ExitStatus> {
         let solver = self.solver.get_solver(&self.options).await?;
         let repos = solver.repositories();
 
@@ -445,7 +452,7 @@ impl View {
             }
 
             tracing::error!("Error: no such package/version/build found: {package}",);
-            return Ok(1);
+            return Ok(ExitStatus::from_raw(1));
         }
 
         // Request is just a package name, e.g.
@@ -474,7 +481,7 @@ impl View {
                                     .wrap_err("Failed to serialize loaded spec")?
                             }
                         }
-                        return Ok(0);
+                        return Ok(ExitStatus::default());
                     }
                     Err(err) => {
                         tracing::debug!("Unable to read recipe from {}: {err}", repo.name());
@@ -528,7 +535,7 @@ impl View {
                 .join("\n")
         );
 
-        Ok(0)
+        Ok(ExitStatus::default())
     }
 
     /// Helper to get all the versions for the given package name in these repo
@@ -554,7 +561,7 @@ impl View {
     /// Original info gathering process using a solver to resolve the
     /// request for package and select the package build in the
     /// solution as the one to display information about.
-    async fn print_package_info_from_solve(&self, package: &String) -> Result<i32> {
+    async fn print_package_info_from_solve(&self, package: &String) -> Result<ExitStatus> {
         let mut solver = self.solver.get_solver(&self.options).await?;
 
         let request = match self
@@ -604,7 +611,7 @@ impl View {
                     }
                 }
 
-                return Ok(1);
+                return Ok(ExitStatus::from_raw(1));
             }
         };
 
@@ -615,6 +622,6 @@ impl View {
         }
 
         tracing::error!("Internal Error: requested package was not in solution");
-        Ok(1)
+        Ok(ExitStatus::from_raw(1))
     }
 }

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::process::ExitStatus;
+
 use clap::Args;
 use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
@@ -45,7 +47,9 @@ pub struct Explain {
 
 #[async_trait::async_trait]
 impl Run for Explain {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = ExitStatus;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         // Warn about deprecated arguments.
         if self.no_runtime {
             tracing::warn!("When using explain, --no-runtime is deprecated and has no effect");
@@ -84,7 +88,7 @@ impl Run for Explain {
             .build();
         formatter.run_and_print_resolve(&solver).await?;
 
-        Ok(0)
+        Ok(ExitStatus::default())
     }
 }
 

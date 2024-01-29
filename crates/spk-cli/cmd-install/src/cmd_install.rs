@@ -4,6 +4,11 @@
 
 use std::collections::HashSet;
 use std::io::Write;
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
+#[cfg(windows)]
+use std::os::windows::process::ExitStatusExt;
+use std::process::ExitStatus;
 
 use clap::Args;
 use colored::Colorize;
@@ -42,7 +47,9 @@ pub struct Install {
 
 #[async_trait::async_trait]
 impl Run for Install {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = ExitStatus;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let (mut solver, env) = tokio::try_join!(
             self.solver.get_solver(&self.options),
             current_env().map_err(|err| err.into())
@@ -112,7 +119,7 @@ impl Run for Install {
                 "y" | "yes" => {}
                 _ => {
                     println!("Installation cancelled");
-                    return Ok(1);
+                    return Ok(ExitStatus::from_raw(1));
                 }
             }
         }
@@ -121,7 +128,7 @@ impl Run for Install {
             .await
             .wrap_err("Failed to build one or more packages from source")?;
         setup_current_runtime(&compiled_solution).await?;
-        Ok(0)
+        Ok(ExitStatus::default())
     }
 }
 

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::process::ExitStatus;
+
 use clap::Args;
 use futures::TryStreamExt;
 use miette::{Context, Result};
@@ -25,7 +27,9 @@ pub struct Import {
 
 #[async_trait::async_trait]
 impl Run for Import {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = ExitStatus;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let mut summary = spfs::sync::SyncSummary::default();
         let local_repo = spk_storage::local_repository().await?;
         // src and dst are the same here which is useless, but we will
@@ -49,7 +53,7 @@ impl Run for Import {
                 .summary();
         }
         tracing::info!("{:#?}", summary);
-        Ok(0)
+        Ok(ExitStatus::default())
     }
 }
 

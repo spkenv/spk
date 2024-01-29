@@ -78,5 +78,8 @@ async fn test_archive_io() {
     }
     .run()
     .await;
-    assert!(matches!(result, Ok(0)), "import should not fail");
+    assert!(
+        matches!(result, Ok(s) if s.success()),
+        "import should not fail"
+    );
 }

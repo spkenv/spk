@@ -5,6 +5,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Arguments;
 use std::pin::Pin;
+use std::process::ExitStatus;
 use std::sync::Arc;
 
 use async_stream::try_stream;
@@ -165,14 +166,16 @@ pub struct Du<Output: Default = Console> {
 
 #[async_trait::async_trait]
 impl<T: Output> Run for Du<T> {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = ExitStatus;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let input_depth = self.path.split(LEVEL_SEPARATOR).collect_vec().len();
         if self.summarize {
             self.print_grouped_entries(input_depth).await?;
         } else {
             self.print_all_entries(input_depth).await?;
         }
-        Ok(0)
+        Ok(ExitStatus::default())
     }
 }
 

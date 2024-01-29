@@ -3,6 +3,11 @@
 // https://github.com/imageworks/spk
 
 use std::io::Write;
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
+#[cfg(windows)]
+use std::os::windows::process::ExitStatusExt;
+use std::process::ExitStatus;
 
 use clap::Args;
 use colored::Colorize;
@@ -31,14 +36,16 @@ pub struct Remove {
 
 #[async_trait::async_trait]
 impl Run for Remove {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = ExitStatus;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let repos = self.repos.get_repos_for_destructive_operation().await?;
         if repos.is_empty() {
             eprintln!(
                 "{}",
                 "No repositories selected, specify --enable-repo (-r)".yellow()
             );
-            return Ok(1);
+            return Ok(ExitStatus::from_raw(1));
         }
 
         for name in &self.packages {
@@ -58,7 +65,7 @@ impl Run for Remove {
                     "y" | "yes" => {}
                     _ => {
                         println!("Removal cancelled");
-                        return Ok(1);
+                        return Ok(ExitStatus::from_raw(1));
                     }
                 }
             }
@@ -87,7 +94,7 @@ impl Run for Remove {
                 }
             }
         }
-        Ok(0)
+        Ok(ExitStatus::default())
     }
 }
 
