@@ -35,7 +35,7 @@ macro_rules! build_package {
 
 #[macro_export]
 macro_rules! try_build_package {
-    ($tmpdir:ident, $filename:literal, $recipe:literal $(,)? $($extra_build_args:expr),*) => {{
+    ($tmpdir:ident, $filename:literal, $recipe:literal $(,$extra_build_args:expr)* $(,)?) => {{
         // Leak `filename` for convenience.
         let filename = Box::leak(Box::new($tmpdir.path().join($filename)));
         {
@@ -48,7 +48,7 @@ macro_rules! try_build_package {
         $crate::try_build_package!($tmpdir, filename_str, $($extra_build_args),*)
     }};
 
-    ($tmpdir:ident, $filename:literal, $recipe:expr, $($extra_build_args:expr),*) => {{
+    ($tmpdir:ident, $filename:literal, $recipe:expr $(,$extra_build_args:expr)* $(,)?) => {{
         // Leak `filename` for convenience.
         let filename = Box::leak(Box::new($tmpdir.path().join($filename)));
         {
@@ -61,7 +61,7 @@ macro_rules! try_build_package {
         $crate::try_build_package!($tmpdir, filename_str, $($extra_build_args),*)
     }};
 
-    ($tmpdir:ident, $filename:ident $(,)? $($extra_build_args:expr),*) => {{
+    ($tmpdir:ident, $filename:ident $(,$extra_build_args:expr)* $(,)?) => {{
         // Build the package so it can be tested.
         let mut opt = $crate::macros::BuildOpt::try_parse_from([
             "build",
