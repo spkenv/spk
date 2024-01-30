@@ -148,3 +148,93 @@ build:
         "Expected the first variant to be built, and color=green"
     );
 }
+
+#[rstest]
+#[tokio::test]
+async fn test_build_with_opts_acts_as_variant_filter_two_opts(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    let (_, result) = try_build_package!(
+        tmpdir,
+        "three-variants.spk.yaml",
+        br#"
+pkg: three-variants/1.0.0
+api: v0/package
+build:
+    options:
+        - var: color
+        - var: fruit
+    script:
+        - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
+    variants:
+        - { color: red, fruit: banana }
+        - { color: green, fruit: apple }
+        - { color: blue, fruit: orange }
+        "#,
+        // By saying --opt color=green, we are asking for the second variant
+        "--opt",
+        "color=green",
+        // Our choice of fruit has to match the same variant
+        "--opt",
+        "fruit=apple",
+    );
+
+    let mut result = result.expect("Expected build to succeed");
+
+    // Only care about binary builds (not source builds)
+    result
+        .created_builds
+        .artifacts
+        .retain(|(_, artifact)| matches!(artifact, BuildArtifact::Binary(_, _, _)));
+
+    assert_eq!(
+        result.created_builds.artifacts.len(),
+        1,
+        "Expected one build to be created"
+    );
+
+    let opt_name_color = opt_name!("color");
+    let opt_name_fruit = opt_name!("fruit");
+
+    assert!(
+        matches!(
+            &result.created_builds.artifacts[0].1,
+            BuildArtifact::Binary(_, 1, options) if
+            matches!(options.get(opt_name_color), Some(color) if color == "green")
+            && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "apple")
+        ),
+        "Expected the second variant to be built, with color=green and fruit=apple"
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_with_opts_acts_as_variant_filter_two_opts_no_match(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    let (_, result) = try_build_package!(
+        tmpdir,
+        "three-variants.spk.yaml",
+        br#"
+pkg: three-variants/1.0.0
+api: v0/package
+build:
+    options:
+        - var: color
+        - var: fruit
+    script:
+        - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
+    variants:
+        - { color: red, fruit: banana }
+        - { color: green, fruit: apple }
+        - { color: blue, fruit: orange }
+        "#,
+        // The first option matches, but the second doesn't
+        "--opt",
+        "color=green",
+        "--opt",
+        "fruit=orange",
+    );
+
+    result.expect_err("Expected build to fail");
+}
