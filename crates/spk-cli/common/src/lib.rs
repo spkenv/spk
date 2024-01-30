@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+mod build_result;
 mod cli;
 mod env;
 mod error;
@@ -11,6 +12,7 @@ pub mod parsing;
 mod publish;
 pub mod with_version_and_build_set;
 
+pub use build_result::{BuildArtifact, BuildResult};
 pub use cli::{CommandArgs, Run};
 #[cfg(feature = "sentry")]
 pub use env::configure_sentry;
