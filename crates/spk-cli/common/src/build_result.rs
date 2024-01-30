@@ -38,6 +38,11 @@ pub struct BuildResult {
 }
 
 impl BuildResult {
+    /// Extend the artifacts with another result.
+    pub fn extend(&mut self, other: BuildResult) {
+        self.artifacts.extend(other.artifacts);
+    }
+
     /// Return if the result is empty.
     pub fn is_empty(&self) -> bool {
         self.artifacts.is_empty()

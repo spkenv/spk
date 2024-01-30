@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use clap::Args;
@@ -151,10 +152,10 @@ impl Run for MakeBinary {
 
             let default_variants = recipe.default_variants();
             let variants_to_build: Box<
-                dyn Iterator<Item = &spk_schema::SpecVariant> + Send + Sync,
+                dyn Iterator<Item = (usize, &spk_schema::SpecVariant)> + Send + Sync,
             > = match self.variant {
                 Some(index) if index < default_variants.len() => {
-                    Box::new(default_variants.iter().skip(index).take(1))
+                    Box::new(default_variants.iter().enumerate().skip(index).take(1))
                 }
                 Some(index) => {
                     miette::bail!(
@@ -163,11 +164,24 @@ impl Run for MakeBinary {
                         recipe.ident().format_ident(),
                     );
                 }
-                None => Box::new(default_variants.iter()),
+                None => {
+                    let options_ref = &options;
+                    let override_option_keys = options.keys().collect::<HashSet<_>>();
+                    Box::new(default_variants.iter().enumerate().filter(move |(_, v)| {
+                        // Variants are filtered based on the options (and host
+                        // options) that are set. A variant is included unless
+                        // it has an option set that doesn't match the value
+                        // provided by the user.
+                        let variant_options = v.options();
+                        let variant_option_keys = variant_options.keys().collect::<HashSet<_>>();
+                        let mut intersecting_options =
+                            override_option_keys.intersection(&variant_option_keys);
+                        intersecting_options.all(|k| options_ref.get(*k) == variant_options.get(*k))
+                    }))
+                }
             };
 
-            let mut variant_index = self.variant.unwrap_or(0);
-            for variant in variants_to_build {
+            for (variant_index, variant) in variants_to_build {
                 let mut overrides = OptionMap::default();
                 if !self.options.no_host {
                     overrides.extend(HOST_OPTIONS.get()?);
@@ -258,9 +272,15 @@ impl Run for MakeBinary {
                     let status = cmd.status().into_diagnostic()?;
                     return Ok(status.code().unwrap_or(1));
                 }
-                variant_index += 1;
             }
         }
+
+        // If nothing was built (i.e., variant filters didn't match anything),
+        // treat this as an error.
+        if self.created_builds.is_empty() {
+            bail!("No packages were built");
+        }
+
         Ok(0)
     }
 }
