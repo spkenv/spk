@@ -25,6 +25,9 @@ components:
         - proxy
       variables:
         FEATURES: migration-to-components,sentry,spfs/protobuf-src
+        # Current defaults, may change layer
+        SPFS_STORAGE__DIGEST_STRATEGY: Legacy
+        SPFS_STORAGE__ENCODING_FORMAT: Legacy
 
   - kind: RustCrate
     name: spk-no-sentry
@@ -34,6 +37,44 @@ components:
         - proxy
       variables:
         FEATURES: migration-to-components,spfs/protobuf-src
+        SPFS_STORAGE__DIGEST_STRATEGY: Legacy
+        SPFS_STORAGE__ENCODING_FORMAT: Legacy
+
+  - kind: RustCrate
+    name: spk-withkindandsalt-flatbuffers
+    ci_config:
+      parallel: true
+      tags:
+        - proxy
+      variables:
+        FEATURES: migration-to-components,sentry,spfs/protobuf-src
+        # New digests and new encoding
+        SPFS_STORAGE__DIGEST_STRATEGY: WithKindAndSalt
+        SPFS_STORAGE__ENCODING_FORMAT: FlatBuffers
+
+  - kind: RustCrate
+    name: spk-legacy-flatbuffers
+    ci_config:
+      parallel: true
+      tags:
+        - proxy
+      variables:
+        FEATURES: migration-to-components,sentry,spfs/protobuf-src
+        # Legacy digests and new encoding
+        SPFS_STORAGE__DIGEST_STRATEGY: Legacy
+        SPFS_STORAGE__ENCODING_FORMAT: FlatBuffers
+
+  - kind: RustCrate
+    name: spk-withkindandsalt-legacy
+    ci_config:
+      parallel: true
+      tags:
+        - proxy
+      variables:
+        FEATURES: migration-to-components,sentry,spfs/protobuf-src
+        # New digests and legacy encoding
+        SPFS_STORAGE__DIGEST_STRATEGY: WithKindAndSalt
+        SPFS_STORAGE__ENCODING_FORMAT: Legacy
 
   - kind: HugoDocs
     name: docs
