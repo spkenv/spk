@@ -539,6 +539,16 @@ impl std::fmt::Debug for Header {
     }
 }
 
+impl std::borrow::ToOwned for Header {
+    type Owned = HeaderBuf;
+
+    fn to_owned(&self) -> Self::Owned {
+        let mut buf = HeaderBuf(Default::default());
+        buf.0[..].clone_from_slice(&self.0);
+        buf
+    }
+}
+
 impl std::ops::Deref for Header {
     type Target = [u8];
 
@@ -635,6 +645,12 @@ impl std::ops::Deref for HeaderBuf {
     fn deref(&self) -> &Self::Target {
         // Safety: we always contain a valid header
         unsafe { Header::new_unchecked(&self.0) }
+    }
+}
+
+impl std::borrow::Borrow<Header> for HeaderBuf {
+    fn borrow(&self) -> &Header {
+        self
     }
 }
 

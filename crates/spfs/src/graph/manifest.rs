@@ -112,7 +112,11 @@ impl Manifest {
         }
 
         iter_tree(self, self.root(), &mut root);
-        tracking::Manifest::new(root)
+        let mut manifest = tracking::Manifest::new(root);
+        // ensure that the manifest will round-trip in the case of it
+        // being converted back into this type
+        manifest.set_header(self.header().to_owned());
+        manifest
     }
 
     pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
