@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::process::ExitStatus;
-
 use clap::Args;
 use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
@@ -47,7 +45,7 @@ pub struct Explain {
 
 #[async_trait::async_trait]
 impl Run for Explain {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         // Warn about deprecated arguments.
@@ -88,7 +86,7 @@ impl Run for Explain {
             .build();
         formatter.run_and_print_resolve(&solver).await?;
 
-        Ok(ExitStatus::default())
+        Ok(0)
     }
 }
 

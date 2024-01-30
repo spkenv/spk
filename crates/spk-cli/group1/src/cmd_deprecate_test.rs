@@ -33,7 +33,7 @@ async fn test_deprecate_without_prompt() {
     let result = change_deprecation_state(ChangeAction::Deprecate, &repos, &packages, yes).await;
 
     match result {
-        Ok(r) => assert!(r.success()),
+        Ok(r) => assert_eq!(r, 0),
         Err(e) => {
             // This should not happen
             println!("{e}");

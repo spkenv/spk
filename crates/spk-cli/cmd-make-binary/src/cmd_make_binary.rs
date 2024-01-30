@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::process::ExitStatus;
 use std::sync::Arc;
 
 use clap::Args;
@@ -106,7 +105,7 @@ impl CommandArgs for MakeBinary {
 
 #[async_trait::async_trait]
 impl Run for MakeBinary {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         if spfs::get_config()?
@@ -253,11 +252,12 @@ impl Run for MakeBinary {
                         .arg(request.pkg.to_string());
                     tracing::info!("entering environment with new package...");
                     tracing::debug!("{:?}", cmd);
-                    return cmd.status().into_diagnostic();
+                    let status = cmd.status().into_diagnostic()?;
+                    return Ok(status.code().unwrap_or(1));
                 }
                 variant_index += 1;
             }
         }
-        Ok(ExitStatus::default())
+        Ok(0)
     }
 }

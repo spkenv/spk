@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::process::ExitStatus;
-
 use clap::Args;
 use futures::TryFutureExt;
 use miette::IntoDiagnostic;
@@ -92,7 +90,7 @@ const UNKNOWN_COMPONENT: &str = "";
 
 #[async_trait::async_trait]
 impl Run for Bake {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> miette::Result<Self::Output> {
         // Get the layer data from either the active runtime, or the
@@ -136,7 +134,7 @@ impl Run for Bake {
             }
         };
         println!("{data}");
-        Ok(ExitStatus::default())
+        Ok(0)
     }
 }
 

@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::process::ExitStatus;
-
 use clap::Args;
 use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
@@ -59,7 +57,7 @@ pub struct Build {
 /// Runs make-source and then make-binary
 #[async_trait::async_trait]
 impl Run for Build {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         self.runtime
@@ -104,9 +102,9 @@ impl Run for Build {
                 allow_circular_dependencies: self.allow_circular_dependencies,
                 created_builds: std::mem::take(&mut builds_for_summary),
             };
-            let exit_status = make_binary.run().await?;
-            if !exit_status.success() {
-                return Ok(exit_status);
+            let code = make_binary.run().await?;
+            if code != 0 {
+                return Ok(code);
             }
 
             builds_for_summary = std::mem::take(&mut make_binary.created_builds);
@@ -117,7 +115,7 @@ impl Run for Build {
             println!("{msg}");
         }
 
-        Ok(ExitStatus::default())
+        Ok(0)
     }
 }
 

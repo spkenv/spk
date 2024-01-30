@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::process::ExitStatus;
-
 use clap::Args;
 use futures::TryStreamExt;
 use miette::{Context, Result};
@@ -27,7 +25,7 @@ pub struct Import {
 
 #[async_trait::async_trait]
 impl Run for Import {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         let mut summary = spfs::sync::SyncSummary::default();
@@ -53,7 +51,7 @@ impl Run for Import {
                 .summary();
         }
         tracing::info!("{:#?}", summary);
-        Ok(ExitStatus::default())
+        Ok(0)
     }
 }
 

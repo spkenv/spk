@@ -2,12 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-#[cfg(unix)]
-use std::os::unix::process::ExitStatusExt;
-#[cfg(windows)]
-use std::os::windows::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
-use std::process::ExitStatus;
 
 use clap::Args;
 use colored::Colorize;
@@ -27,7 +22,7 @@ pub struct Lint {
 
 #[async_trait::async_trait]
 impl Run for Lint {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         let options = self.options.get_options()?;
@@ -47,7 +42,7 @@ impl Run for Lint {
                 }
             }
         }
-        Ok(ExitStatus::from_raw(out))
+        Ok(out)
     }
 }
 

@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::process::ExitStatus;
-
 use clap::Args;
 use colored::Colorize;
 use miette::{IntoDiagnostic, Result};
@@ -24,7 +22,7 @@ pub struct New {
 
 #[async_trait::async_trait]
 impl Run for New {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         let spec = get_stub(&self.name);
@@ -32,7 +30,7 @@ impl Run for New {
         let spec_file = format!("{}.spk.yaml", self.name);
         std::fs::write(&spec_file, spec).into_diagnostic()?;
         println!("{}: {}", "Created".green(), spec_file);
-        Ok(ExitStatus::default())
+        Ok(0)
     }
 }
 

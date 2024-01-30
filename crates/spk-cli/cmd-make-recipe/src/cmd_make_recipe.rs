@@ -2,11 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-#[cfg(unix)]
-use std::os::unix::process::ExitStatusExt;
-#[cfg(windows)]
-use std::os::windows::process::ExitStatusExt;
-use std::process::ExitStatus;
 use std::sync::Arc;
 
 use clap::Args;
@@ -46,7 +41,7 @@ impl CommandArgs for MakeRecipe {
 
 #[async_trait::async_trait]
 impl Run for MakeRecipe {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         let options = self.options.get_options()?;
@@ -73,11 +68,11 @@ impl Run for MakeRecipe {
         match template.render(&options) {
             Err(err) => {
                 tracing::error!("This template did not render into a valid spec {err}");
-                Ok(ExitStatus::from_raw(1))
+                Ok(1)
             }
             Ok(_) => {
                 tracing::info!("Successfully rendered a valid spec");
-                Ok(ExitStatus::default())
+                Ok(0)
             }
         }
     }

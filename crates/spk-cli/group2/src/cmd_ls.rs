@@ -4,7 +4,6 @@
 
 use std::collections::BTreeSet;
 use std::fmt::Write;
-use std::process::ExitStatus;
 
 use clap::Args;
 use colored::Colorize;
@@ -78,7 +77,7 @@ pub struct Ls<Output: Default = Console> {
 
 #[async_trait::async_trait]
 impl<T: Output> Run for Ls<T> {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         let repos = self.repos.get_repos_for_non_destructive_operation().await?;
@@ -219,7 +218,7 @@ impl<T: Output> Run for Ls<T> {
         for item in results {
             self.output.println(item.to_string());
         }
-        Ok(ExitStatus::default())
+        Ok(0)
     }
 }
 
@@ -237,7 +236,7 @@ impl<T: Output> Ls<T> {
     async fn list_recursively(
         &mut self,
         repos: Vec<(String, storage::RepositoryHandle)>,
-    ) -> Result<ExitStatus> {
+    ) -> Result<i32> {
         let search_term = self
             .package
             .as_ref()
@@ -336,7 +335,7 @@ impl<T: Output> Ls<T> {
                 }
             }
         }
-        Ok(ExitStatus::default())
+        Ok(0)
     }
 
     async fn format_build(&self, spec: &Spec, repo: &storage::RepositoryHandle) -> Result<String> {

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::process::ExitStatus;
 use std::sync::Arc;
 
 use clap::Args;
@@ -45,7 +44,7 @@ pub struct Publish {
 
 #[async_trait::async_trait]
 impl Run for Publish {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         let (source, target) = tokio::try_join!(
@@ -69,7 +68,7 @@ impl Run for Publish {
         }
 
         tracing::info!("done");
-        Ok(ExitStatus::default())
+        Ok(0)
     }
 }
 

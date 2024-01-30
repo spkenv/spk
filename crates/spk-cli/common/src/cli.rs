@@ -4,8 +4,6 @@
 
 //! Main entry points and utilities for command line interface and interaction.
 
-use std::process::ExitStatus;
-
 use miette::Result;
 
 /// Trait all cli commands must implement to be runnable.
@@ -14,8 +12,8 @@ pub trait Run {
     /// The return value of the command.
     ///
     /// A command may return rich information, but the type must be
-    /// able to convert itself into an `ExitStatus`.
-    type Output: Into<ExitStatus>;
+    /// able to convert itself into an `i32`.
+    type Output: Into<i32>;
 
     async fn run(&mut self) -> Result<Self::Output>;
 }

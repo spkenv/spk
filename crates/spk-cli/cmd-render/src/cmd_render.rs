@@ -3,7 +3,6 @@
 // https://github.com/imageworks/spk
 
 use std::path::PathBuf;
-use std::process::ExitStatus;
 
 use clap::Args;
 use miette::{bail, Context, IntoDiagnostic, Result};
@@ -38,7 +37,7 @@ pub struct Render {
 
 #[async_trait::async_trait]
 impl Run for Render {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         let mut solver = self.solver.get_solver(&self.options).await?;
@@ -105,7 +104,7 @@ impl Run for Render {
         }
 
         tracing::info!("Render completed: {path:?}");
-        Ok(ExitStatus::default())
+        Ok(0)
     }
 }
 

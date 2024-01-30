@@ -4,7 +4,6 @@
 
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::process::ExitStatus;
 
 use clap::Args;
 use futures::TryFutureExt;
@@ -32,7 +31,7 @@ pub struct Debug {
 
 #[async_trait::async_trait]
 impl Run for Debug {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         let (env, mut repos, local_repo) = tokio::try_join!(
@@ -85,7 +84,7 @@ impl Run for Debug {
 
         if source_layers.is_empty() {
             tracing::info!("No source packages were found for the current environment.");
-            return Ok(ExitStatus::default());
+            return Ok(0);
         }
 
         let mut rt = spfs::active_runtime().await?;
@@ -105,7 +104,7 @@ impl Run for Debug {
         rt.save_state_to_storage().await?;
         spfs::remount_runtime(&rt).await?;
 
-        Ok(ExitStatus::default())
+        Ok(0)
     }
 }
 

@@ -2,12 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-#[cfg(unix)]
-use std::os::unix::process::ExitStatusExt;
-#[cfg(windows)]
-use std::os::windows::process::ExitStatusExt;
-use std::process::ExitStatus;
-
 use clap::Args;
 use colored::Colorize;
 use miette::Result;
@@ -34,7 +28,7 @@ pub struct Search {
 
 #[async_trait::async_trait]
 impl Run for Search {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         let repos = self.repos.get_repos_for_non_destructive_operation().await?;
@@ -111,7 +105,7 @@ impl Run for Search {
                 }
             }
         }
-        Ok(ExitStatus::from_raw(exit))
+        Ok(exit)
     }
 }
 

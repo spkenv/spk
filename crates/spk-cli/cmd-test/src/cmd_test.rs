@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::process::ExitStatus;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -61,7 +60,7 @@ pub struct CmdTest {
 
 #[async_trait::async_trait]
 impl Run for CmdTest {
-    type Output = ExitStatus;
+    type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
         let options = self.options.get_options()?;
@@ -226,7 +225,7 @@ impl Run for CmdTest {
                 }
             }
         }
-        Ok(ExitStatus::default())
+        Ok(0)
     }
 }
 
