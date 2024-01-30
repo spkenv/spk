@@ -238,3 +238,116 @@ build:
 
     result.expect_err("Expected build to fail");
 }
+
+#[rstest]
+#[tokio::test]
+async fn test_build_with_opts_acts_as_variant_filter_and_override(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    let (_, result) = try_build_package!(
+        tmpdir,
+        "three-variants.spk.yaml",
+        br#"
+pkg: three-variants/1.0.0
+api: v0/package
+build:
+    options:
+        - var: color
+        - var: fruit/banana
+    script:
+        - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
+    variants:
+        - { color: red }
+        - { color: green }
+        - { color: blue }
+        "#,
+        // By saying --opt color=green, we are asking for the second variant
+        "--opt",
+        "color=green",
+        // We are overriding the green variant's fruit to be apple
+        "--opt",
+        "fruit=apple",
+    );
+
+    let mut result = result.expect("Expected build to succeed");
+
+    // Only care about binary builds (not source builds)
+    result
+        .created_builds
+        .artifacts
+        .retain(|(_, artifact)| matches!(artifact, BuildArtifact::Binary(_, _, _)));
+
+    assert_eq!(
+        result.created_builds.artifacts.len(),
+        1,
+        "Expected one build to be created"
+    );
+
+    let opt_name_color = opt_name!("color");
+    let opt_name_fruit = opt_name!("fruit");
+
+    assert!(
+        matches!(
+            &result.created_builds.artifacts[0].1,
+            BuildArtifact::Binary(_, 1, options) if
+            matches!(options.get(opt_name_color), Some(color) if color == "green")
+            && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "apple")
+        ),
+        "Expected the second variant to be built, with color=green and fruit=apple"
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_with_opts_acts_as_an_override(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    let (_, result) = try_build_package!(
+        tmpdir,
+        "three-variants.spk.yaml",
+        br#"
+pkg: three-variants/1.0.0
+api: v0/package
+build:
+    options:
+        - var: color
+        - var: fruit/banana
+    script:
+        - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
+    variants:
+        - { color: red }
+        - { color: green }
+        - { color: blue }
+        "#,
+        // Setting an option that doesn't appear in the variants will
+        // not filter out any variants, but will override the default
+        "--opt",
+        "fruit=apple",
+    );
+
+    let mut result = result.expect("Expected build to succeed");
+
+    // Only care about binary builds (not source builds)
+    result
+        .created_builds
+        .artifacts
+        .retain(|(_, artifact)| matches!(artifact, BuildArtifact::Binary(_, _, _)));
+
+    assert_eq!(
+        result.created_builds.artifacts.len(),
+        3,
+        "Expected three builds to be created"
+    );
+
+    let opt_name_fruit = opt_name!("fruit");
+
+    assert!(
+        result.created_builds.artifacts.iter().all(|(_, artifact)| {
+            matches!(
+                artifact,
+                BuildArtifact::Binary(_, _, options) if matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "apple")
+            )
+        }),
+        "Expected all variants to be built with fruit=apple"
+    );
+}
