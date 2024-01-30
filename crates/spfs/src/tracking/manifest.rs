@@ -90,8 +90,12 @@ impl<T> Manifest<T> {
         }
     }
 
+    pub fn header(&self) -> &graph::object::Header {
+        &self.header
+    }
+
     pub fn set_header(&mut self, mut header: graph::object::HeaderBuf) {
-        // an different object kind would cause bugs and should never be allowed
+        // a different object kind would cause bugs and should never be allowed
         header.set_object_kind(graph::ObjectKind::Manifest);
         self.header = header;
     }
