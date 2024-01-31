@@ -22,7 +22,9 @@ pub struct Lint {
 
 #[async_trait::async_trait]
 impl Run for Lint {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let options = self.options.get_options()?;
         let mut out = 0;
         for spec in self.packages.iter() {

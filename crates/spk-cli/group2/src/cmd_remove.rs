@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use std::io::Write;
 
 use clap::Args;
@@ -30,7 +31,9 @@ pub struct Remove {
 
 #[async_trait::async_trait]
 impl Run for Remove {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let repos = self.repos.get_repos_for_destructive_operation().await?;
         if repos.is_empty() {
             eprintln!(

@@ -17,7 +17,9 @@ pub struct Repo {
 
 #[async_trait::async_trait]
 impl Run for Repo {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         self.command.run().await
     }
 }

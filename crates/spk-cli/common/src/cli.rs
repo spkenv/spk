@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 //! Main entry points and utilities for command line interface and interaction.
 
 use miette::Result;
@@ -8,7 +9,13 @@ use miette::Result;
 /// Trait all cli commands must implement to be runnable.
 #[async_trait::async_trait]
 pub trait Run {
-    async fn run(&mut self) -> Result<i32>;
+    /// The return value of the command.
+    ///
+    /// A command may return rich information, but the type must be
+    /// able to convert itself into an `i32`.
+    type Output: Into<i32>;
+
+    async fn run(&mut self) -> Result<Self::Output>;
 }
 
 /// Trait all cli commands must implement to provide a list of the

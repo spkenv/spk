@@ -90,7 +90,9 @@ const UNKNOWN_COMPONENT: &str = "";
 
 #[async_trait::async_trait]
 impl Run for Bake {
-    async fn run(&mut self) -> miette::Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> miette::Result<Self::Output> {
         // Get the layer data from either the active runtime, or the
         // requests made on the command line
         let layers = if self.requested.is_empty() {

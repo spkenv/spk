@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use std::sync::Arc;
 
 use clap::Args;
@@ -43,7 +44,9 @@ pub struct Publish {
 
 #[async_trait::async_trait]
 impl Run for Publish {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let (source, target) = tokio::try_join!(
             storage::local_repository(),
             storage::remote_repository(&self.target_repo)

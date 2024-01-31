@@ -37,7 +37,9 @@ pub struct Render {
 
 #[async_trait::async_trait]
 impl Run for Render {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let mut solver = self.solver.get_solver(&self.options).await?;
 
         let requests = self

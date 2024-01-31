@@ -165,7 +165,9 @@ pub struct Du<Output: Default = Console> {
 
 #[async_trait::async_trait]
 impl<T: Output> Run for Du<T> {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let input_depth = self.path.split(LEVEL_SEPARATOR).collect_vec().len();
         if self.summarize {
             self.print_grouped_entries(input_depth).await?;

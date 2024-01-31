@@ -4,6 +4,8 @@
 
 //! Main entry points and utilities for command line interface and interaction.
 
+use std::process::ExitCode;
+
 use clap::{CommandFactory, Parser, Subcommand};
 use colored::Colorize;
 use miette::{Context, Result};
@@ -174,6 +176,8 @@ pub enum Command {
 
 #[async_trait::async_trait]
 impl Run for Command {
+    type Output = i32;
+
     async fn run(&mut self) -> Result<i32> {
         match self {
             Command::Bake(cmd) => cmd.run().await,
@@ -244,7 +248,7 @@ impl CommandArgs for Command {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     let mut opts = Opt::parse();
     let code = match opts.run().await {
         Ok(code) => code,
@@ -258,5 +262,5 @@ async fn main() {
             1
         }
     };
-    std::process::exit(code);
+    ExitCode::from(u8::try_from(code).ok().unwrap_or(1))
 }

@@ -1,3 +1,7 @@
+// Copyright (c) Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+
 use rstest::rstest;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::Run;

@@ -39,7 +39,9 @@ pub struct Undeprecate {
 /// Undeprecates package builds in a repository.
 #[async_trait::async_trait]
 impl Run for Undeprecate {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         change_deprecation_state(
             ChangeAction::Undeprecate,
             &self.repos.get_repos_for_destructive_operation().await?,

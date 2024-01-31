@@ -105,7 +105,9 @@ impl CommandArgs for MakeBinary {
 
 #[async_trait::async_trait]
 impl Run for MakeBinary {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         if spfs::get_config()?
             .storage
             .allow_payload_sharing_between_users

@@ -77,7 +77,9 @@ pub struct Ls<Output: Default = Console> {
 
 #[async_trait::async_trait]
 impl<T: Output> Run for Ls<T> {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let repos = self.repos.get_repos_for_non_destructive_operation().await?;
 
         if self.recursive {

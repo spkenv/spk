@@ -45,7 +45,9 @@ pub struct Explain {
 
 #[async_trait::async_trait]
 impl Run for Explain {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         // Warn about deprecated arguments.
         if self.no_runtime {
             tracing::warn!("When using explain, --no-runtime is deprecated and has no effect");

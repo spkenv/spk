@@ -45,7 +45,9 @@ pub struct Env {
 
 #[async_trait::async_trait]
 impl Run for Env {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let mut rt = self
             .runtime
             .ensure_active_runtime(&["env", "run", "shell"])

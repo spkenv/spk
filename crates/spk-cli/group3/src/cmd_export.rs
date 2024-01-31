@@ -38,7 +38,9 @@ pub struct Export {
 
 #[async_trait::async_trait]
 impl Run for Export {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let options = self.options.get_options()?;
 
         let names_and_repos = self.repos.get_repos_for_non_destructive_operation().await?;

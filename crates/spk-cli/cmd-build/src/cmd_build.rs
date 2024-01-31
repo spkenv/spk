@@ -57,7 +57,9 @@ pub struct Build {
 /// Runs make-source and then make-binary
 #[async_trait::async_trait]
 impl Run for Build {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         self.runtime
             .ensure_active_runtime(&["build", "make", "mk"])
             .await?;

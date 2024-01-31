@@ -41,7 +41,9 @@ impl CommandArgs for MakeRecipe {
 
 #[async_trait::async_trait]
 impl Run for MakeRecipe {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let options = self.options.get_options()?;
 
         let template = match flags::find_package_template(self.package.as_ref())? {

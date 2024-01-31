@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use clap::Args;
 use colored::Colorize;
 use miette::{IntoDiagnostic, Result};
@@ -21,7 +22,9 @@ pub struct New {
 
 #[async_trait::async_trait]
 impl Run for New {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let spec = get_stub(&self.name);
 
         let spec_file = format!("{}.spk.yaml", self.name);

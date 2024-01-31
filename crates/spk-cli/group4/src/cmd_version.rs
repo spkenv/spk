@@ -12,7 +12,9 @@ pub struct Version {}
 
 #[async_trait::async_trait]
 impl Run for Version {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         println!(" spk {VERSION}");
         println!("spfs {}", spfs::VERSION);
         Ok(0)

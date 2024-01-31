@@ -31,7 +31,9 @@ pub struct Debug {
 
 #[async_trait::async_trait]
 impl Run for Debug {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let (env, mut repos, local_repo) = tokio::try_join!(
             current_env().map_err(|err| err.into()),
             self.solver.repos.get_repos_for_non_destructive_operation(),

@@ -42,7 +42,9 @@ pub struct Install {
 
 #[async_trait::async_trait]
 impl Run for Install {
-    async fn run(&mut self) -> Result<i32> {
+    type Output = i32;
+
+    async fn run(&mut self) -> Result<Self::Output> {
         let (mut solver, env) = tokio::try_join!(
             self.solver.get_solver(&self.options),
             current_env().map_err(|err| err.into())
