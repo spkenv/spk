@@ -8,7 +8,7 @@ use clap::Args;
 use futures::TryFutureExt;
 use miette::{bail, Context, IntoDiagnostic, Result};
 use spk_build::{BinaryPackageBuilder, BuildSource};
-use spk_cli_common::{flags, spk_exe, CommandArgs, Run};
+use spk_cli_common::{flags, spk_exe, BuildArtifact, BuildResult, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::{PkgRequest, RangeIdent, RequestedBy};
 use spk_schema::option_map::HOST_OPTIONS;
@@ -89,7 +89,7 @@ pub struct MakeBinary {
 
     /// Populated with created specs to generate a summary from the caller.
     #[clap(skip)]
-    pub created_builds: Vec<String>,
+    pub created_builds: BuildResult,
 }
 
 impl CommandArgs for MakeBinary {
@@ -135,7 +135,7 @@ impl Run for MakeBinary {
         }
 
         for package in packages {
-            let (recipe, _) = flags::find_package_recipe_from_template_or_repo(
+            let (recipe, filename) = flags::find_package_recipe_from_template_or_repo(
                 package.as_ref().map(|p| p.get_specifier()),
                 &options,
                 &repos,
@@ -226,8 +226,8 @@ impl Run for MakeBinary {
                     ) => {
                         if !self.created_builds.is_empty() {
                             tracing::warn!("Completed builds:");
-                            for msg in self.created_builds.iter() {
-                                tracing::warn!("{msg}");
+                            for (_, artifact) in self.created_builds.iter() {
+                                tracing::warn!("   {artifact}");
                             }
                         }
 
@@ -238,11 +238,14 @@ impl Run for MakeBinary {
                     Err(err) => return Err(err.into()),
                 };
                 tracing::info!("created {}", out.ident().format_ident());
-                self.created_builds.push(format!(
-                    "   {} variant {variant_index}, {}",
-                    out.ident().format_ident(),
-                    variant.options()
-                ));
+                self.created_builds.push(
+                    filename.to_string_lossy().to_string(),
+                    BuildArtifact::Binary(
+                        out.ident().clone(),
+                        variant_index,
+                        variant.options().into_owned(),
+                    ),
+                );
 
                 if self.env {
                     let request =

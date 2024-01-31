@@ -8,7 +8,7 @@ use std::sync::Arc;
 use clap::Args;
 use miette::{bail, Context, Result};
 use spk_build::SourcePackageBuilder;
-use spk_cli_common::{flags, CommandArgs, Run};
+use spk_cli_common::{flags, BuildArtifact, BuildResult, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::LocatedBuildIdent;
@@ -33,7 +33,8 @@ pub struct MakeSource {
     pub packages: Vec<String>,
 
     /// Populated with the created src to generate a summary from the caller.
-    pub created_src: Vec<String>,
+    #[clap(skip)]
+    pub created_src: BuildResult,
 }
 
 #[async_trait::async_trait]
@@ -100,8 +101,10 @@ impl MakeSource {
                 .await
                 .wrap_err("Failed to collect sources")?;
             tracing::info!("created {}", out.ident().format_ident());
-            self.created_src
-                .push(format!("   {}", out.ident().format_ident()));
+            self.created_src.push(
+                template.file_path().display().to_string(),
+                BuildArtifact::Source(out.ident().clone()),
+            );
             idents.push(out.ident().clone().into_located(local.name().to_owned()));
         }
         Ok(idents)

@@ -70,7 +70,7 @@ impl Run for Build {
             runs.push(Vec::new());
         }
 
-        let mut builds_for_summary = Vec::new();
+        let mut builds_for_summary = spk_cli_common::BuildResult::default();
         for packages in runs {
             let mut make_source = spk_cmd_make_source::cmd_make_source::MakeSource {
                 options: self.options.clone(),
@@ -111,8 +111,8 @@ impl Run for Build {
         }
 
         println!("Completed builds:");
-        for msg in builds_for_summary.iter() {
-            println!("{msg}");
+        for (_, artifact) in builds_for_summary.iter() {
+            println!("   {artifact}");
         }
 
         Ok(0)

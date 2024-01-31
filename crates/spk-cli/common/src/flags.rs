@@ -715,7 +715,7 @@ where
 /// directory, or published version of the requested package, if any.
 ///
 /// This function tries to discover the matching yaml template file
-/// and populate it using the options. If it cannot file a file, it
+/// and populate it using the options. If it cannot find a file, it
 /// will try to find the matching package/version in the repo and use
 /// the recipe published for that.
 ///
