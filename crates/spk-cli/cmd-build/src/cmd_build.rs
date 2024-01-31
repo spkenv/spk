@@ -41,9 +41,9 @@ pub struct Build {
     #[clap(name = "NAME|SPEC_FILE")]
     packages: Vec<String>,
 
-    /// Build only the specified variant, by index, if defined
-    #[clap(long, hide = true)]
-    variant: Option<usize>,
+    /// Build only the specified variants
+    #[clap(flatten)]
+    variant: flags::Variant,
 
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,
@@ -109,7 +109,7 @@ impl Run for Build {
                         PackageSpecifier::WithSourceIdent((package, ident.into()))
                     })
                     .collect(),
-                variant: self.variant,
+                variant: self.variant.clone(),
                 formatter_settings: self.formatter_settings.clone(),
                 allow_circular_dependencies: self.allow_circular_dependencies,
                 created_builds: spk_cli_common::BuildResult::default(),

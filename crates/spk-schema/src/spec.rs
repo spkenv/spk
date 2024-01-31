@@ -246,6 +246,16 @@ pub enum SpecRecipe {
     V0Platform(super::v0::Platform),
 }
 
+impl SpecRecipe {
+    /// Access the recipe's build options
+    pub fn build_options(&self) -> Cow<'_, [Opt]> {
+        match self {
+            SpecRecipe::V0Package(r) => r.build_options(),
+            SpecRecipe::V0Platform(r) => r.build_options(),
+        }
+    }
+}
+
 impl Recipe for SpecRecipe {
     type Output = Spec;
     type Variant = SpecVariant;

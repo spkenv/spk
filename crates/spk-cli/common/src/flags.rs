@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::convert::From;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use clap::{Args, ValueEnum, ValueHint};
@@ -19,7 +21,16 @@ use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{parse_ident, AnyIdent, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::option_map::HOST_OPTIONS;
-use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage, VariantExt};
+use spk_schema::{
+    Recipe,
+    SpecRecipe,
+    SpecTemplate,
+    Template,
+    TemplateExt,
+    TestStage,
+    Variant as _,
+    VariantExt,
+};
 #[cfg(feature = "statsd")]
 use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
 use {spk_solve as solve, spk_storage as storage};
@@ -1092,5 +1103,102 @@ impl DecisionFormatterSettings {
             .with_search_space_size(self.show_search_size)
             .with_compare_solvers(self.compare_solvers);
         Ok(builder)
+    }
+}
+
+#[derive(Clone)]
+pub enum VariantSpec {
+    /// A variant index
+    Index(usize),
+    /// A bespoke variant recipe
+    Bespoke(String),
+}
+
+impl FromStr for VariantSpec {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        if let Ok(index) = s.parse() {
+            return Ok(VariantSpec::Index(index));
+        }
+        Ok(VariantSpec::Bespoke(s.to_string()))
+    }
+}
+
+#[derive(Args, Clone)]
+pub struct Variant {
+    #[clap(long = "variant")]
+    pub variants: Vec<VariantSpec>,
+}
+
+impl Variant {
+    /// Return an iterator over the variants that have been requested.
+    ///
+    /// The items of the iterator are a tuple of the variant index and
+    /// the [`spk_schema::SpecVariant`].
+    ///
+    /// `options` is an OptionMap of all the overrides provided on the command
+    /// line as well as the host options (if not disabled).
+    pub fn requested_variants<'v, 'r, 'o, 'i>(
+        &'v self,
+        recipe: &'r spk_schema::SpecRecipe,
+        default_variants: &'r [spk_schema::SpecVariant],
+        options: &'o OptionMap,
+    ) -> Box<
+        dyn Iterator<Item = Result<(usize, Cow<'r, spk_schema::SpecVariant>)>> + Send + Sync + 'i,
+    >
+    where
+        'v: 'i,
+        'r: 'i,
+        'o: 'i,
+    {
+        if self.variants.is_empty() {
+            let override_option_keys = options.keys().collect::<HashSet<_>>();
+            Box::new(
+                default_variants
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(index, v)| {
+                        // Variants are filtered based on the options (and host
+                        // options) that are set. A variant is included unless
+                        // it has an option set that doesn't match the value
+                        // provided by the user.
+                        let variant_options = v.options();
+                        let variant_option_keys = variant_options.keys().collect::<HashSet<_>>();
+                        let mut intersecting_options =
+                            override_option_keys.intersection(&variant_option_keys);
+                        intersecting_options
+                            .all(|k| options.get(*k) == variant_options.get(*k))
+                            .then_some(Ok((index, Cow::Borrowed(v))))
+                    }),
+            )
+        } else {
+            Box::new(self.variants.iter().enumerate().map(move |(index, s)| {
+                match s {
+                    VariantSpec::Index(i) if *i < default_variants.len() => {
+                        Ok((*i, Cow::Borrowed(&default_variants[*i])))
+                    }
+                    VariantSpec::Index(i) => bail!(
+                        "--variant {i} is out of range; {} variant(s) found in {}",
+                        default_variants.len(),
+                        recipe.ident().format_ident(),
+                    ),
+                    VariantSpec::Bespoke(s) => {
+                        serde_json::from_str::<spk_schema::v0::VariantSpec>(s)
+                            .map_err(|e| miette!(e))
+                            .and_then(|v| {
+                                spk_schema::v0::Variant::from_spec(v, &recipe.build_options())
+                                    .map_err(|e| miette!(e))
+                                    .map(|v| {
+                                        (
+                                            default_variants.len() + index,
+                                            Cow::Owned(spk_schema::SpecVariant::V0(v)),
+                                        )
+                                    })
+                            })
+                    }
+                }
+            }))
+        }
     }
 }

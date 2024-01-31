@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use clap::Args;
@@ -76,9 +75,9 @@ pub struct MakeBinary {
     #[clap(name = "SPEC_FILE|PKG/VER")]
     pub packages: Vec<PackageSpecifier>,
 
-    /// Build only the specified variant, by index, if defined
-    #[clap(long)]
-    pub variant: Option<usize>,
+    /// Build only the specified variants
+    #[clap(flatten)]
+    pub variant: flags::Variant,
 
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,
@@ -151,35 +150,10 @@ impl Run for MakeBinary {
             let mut built = std::collections::HashSet::new();
 
             let default_variants = recipe.default_variants();
-            let variants_to_build: Box<
-                dyn Iterator<Item = (usize, &spk_schema::SpecVariant)> + Send + Sync,
-            > = match self.variant {
-                Some(index) if index < default_variants.len() => {
-                    Box::new(default_variants.iter().enumerate().skip(index).take(1))
-                }
-                Some(index) => {
-                    miette::bail!(
-                        "--variant {index} is out of range; {} variant(s) found in {}",
-                        default_variants.len(),
-                        recipe.ident().format_ident(),
-                    );
-                }
-                None => {
-                    let options_ref = &options;
-                    let override_option_keys = options.keys().collect::<HashSet<_>>();
-                    Box::new(default_variants.iter().enumerate().filter(move |(_, v)| {
-                        // Variants are filtered based on the options (and host
-                        // options) that are set. A variant is included unless
-                        // it has an option set that doesn't match the value
-                        // provided by the user.
-                        let variant_options = v.options();
-                        let variant_option_keys = variant_options.keys().collect::<HashSet<_>>();
-                        let mut intersecting_options =
-                            override_option_keys.intersection(&variant_option_keys);
-                        intersecting_options.all(|k| options_ref.get(*k) == variant_options.get(*k))
-                    }))
-                }
-            };
+            let variants_to_build = self
+                .variant
+                .requested_variants(&recipe, &default_variants, &options)
+                .collect::<Result<Vec<_>>>()?;
 
             for (variant_index, variant) in variants_to_build {
                 let mut overrides = OptionMap::default();
@@ -187,7 +161,7 @@ impl Run for MakeBinary {
                     overrides.extend(HOST_OPTIONS.get()?);
                 }
                 overrides.extend(options.clone());
-                let variant = variant.with_overrides(overrides);
+                let variant = (*variant).clone().with_overrides(overrides);
 
                 if !built.insert(variant.clone()) {
                     tracing::debug!("Skipping variant that was already built:\n{variant}");

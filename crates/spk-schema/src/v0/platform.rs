@@ -123,6 +123,13 @@ pub struct Platform {
     pub requirements: Option<PlatformRequirements>,
 }
 
+impl Platform {
+    pub fn build_options(&self) -> Cow<'_, [Opt]> {
+        // Platforms have no build!
+        Cow::Borrowed(&[])
+    }
+}
+
 impl Deprecate for Platform {
     fn is_deprecated(&self) -> bool {
         self.deprecated

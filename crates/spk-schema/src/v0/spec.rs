@@ -100,6 +100,10 @@ impl<Ident> Spec<Ident> {
         }
     }
 
+    pub fn build_options(&self) -> Cow<'_, [Opt]> {
+        Cow::Borrowed(self.build.options.as_slice())
+    }
+
     /// Convert the ident type associated to this package
     pub fn map_ident<F, ToIdent>(self, map: F) -> Spec<ToIdent>
     where
