@@ -272,6 +272,15 @@ pub struct Options {
     /// build environment. In other cases, the options are used to
     /// limit which packages builds can be used/resolved.
     ///
+    /// When building packages that have variants defined, and when not also
+    /// using the `--variant` flag, these options also act as a variant filter.
+    /// For example, given a recipe that has two variants, one with python set
+    /// to 3.7 and one set to python 3.9, `--opt python=3.9` will build only the
+    /// variant with python 3.9 specified. `--opt` can still be used to override
+    /// a default value that does not appear in a variant. Consider using
+    /// `--variant` with a bespoke variant spec for complete control over what
+    /// is to be built.
+    ///
     /// Options are specified as key/value pairs separated by either
     /// an equals sign or colon (--opt name=value --opt other:value).
     /// Additionally, many options can be specified at once in yaml
@@ -1127,6 +1136,27 @@ impl FromStr for VariantSpec {
 
 #[derive(Args, Clone)]
 pub struct Variant {
+    /// Specify variants of a package to be built
+    ///
+    /// When this flag is not present, the default behavior is to build/test
+    /// all the variants of a package, or if a package has no variants, to
+    /// build/test the package using its base defaults.
+    ///
+    /// Variants can be specified by index or by bespoke variant spec.
+    /// For example, `--variant 0` will build the first variant of a package,
+    /// and only the first variant.
+    ///
+    /// A bespoke variant spec is specified as a json value. Anything that
+    /// would be accepted in a recipe as a variant entry can be specified here.
+    /// For example, `--variant '{ "python": "3.9" }'` will build a variant
+    /// with python 3.9, ignoring any variants defined in the recipe.
+    ///
+    /// The `--opt` flag can be used in combination to override the default
+    /// value(s) specified in the recipe. Or if a bespoke variant is specified,
+    /// `--opt` will still override any value defined in the bespoke variant.
+    ///
+    /// This flag can be repeated to request multiple builds/tests in the same
+    /// run.
     #[clap(long = "variant")]
     pub variants: Vec<VariantSpec>,
 }
