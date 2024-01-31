@@ -351,3 +351,181 @@ build:
         "Expected all variants to be built with fruit=apple"
     );
 }
+
+#[rstest]
+#[tokio::test]
+async fn test_build_with_opts_and_variant_index_overrules_filter(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    let (_, result) = try_build_package!(
+        tmpdir,
+        "three-variants.spk.yaml",
+        br#"
+pkg: three-variants/1.0.0
+api: v0/package
+build:
+    options:
+        - var: color
+        - var: fruit
+    script:
+        - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
+    variants:
+        - { color: red, fruit: banana }
+        - { color: green, fruit: apple }
+        - { color: blue, fruit: orange }
+        "#,
+        // By saying --variant 0, we are explicitly asking for the first variant
+        "--variant",
+        "0",
+        // By saying --opt color=green, we are overriding the first variant's
+        // color
+        "--opt",
+        "color=green",
+    );
+
+    let mut result = result.expect("Expected build to succeed");
+
+    // Only care about binary builds (not source builds)
+    result
+        .created_builds
+        .artifacts
+        .retain(|(_, artifact)| matches!(artifact, BuildArtifact::Binary(_, _, _)));
+
+    assert_eq!(
+        result.created_builds.artifacts.len(),
+        1,
+        "Expected one build to be created"
+    );
+
+    let opt_name_color = opt_name!("color");
+    let opt_name_fruit = opt_name!("fruit");
+
+    assert!(
+        matches!(
+            &result.created_builds.artifacts[0].1,
+            BuildArtifact::Binary(_, 0, options) if
+            matches!(options.get(opt_name_color), Some(color) if color == "green")
+            && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "banana")
+        ),
+        "Expected the first variant to be built, with color=green and fruit=banana"
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_with_variant_spec(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    let (_, result) = try_build_package!(
+        tmpdir,
+        "three-variants.spk.yaml",
+        br#"
+pkg: three-variants/1.0.0
+api: v0/package
+build:
+    options:
+        - var: color
+        - var: fruit
+    script:
+        - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
+    variants:
+        - { color: red, fruit: banana }
+        - { color: green, fruit: apple }
+        - { color: blue, fruit: orange }
+        "#,
+        // By supplying a variant spec, we are asking for a bespoke variant
+        "--variant",
+        r#"{ "color": "brown", "fruit": "kiwi" }"#,
+    );
+
+    let mut result = result.expect("Expected build to succeed");
+
+    // Only care about binary builds (not source builds)
+    result
+        .created_builds
+        .artifacts
+        .retain(|(_, artifact)| matches!(artifact, BuildArtifact::Binary(_, _, _)));
+
+    assert_eq!(
+        result.created_builds.artifacts.len(),
+        1,
+        "Expected one build to be created"
+    );
+
+    let opt_name_color = opt_name!("color");
+    let opt_name_fruit = opt_name!("fruit");
+
+    assert!(
+        matches!(
+            &result.created_builds.artifacts[0].1,
+            BuildArtifact::Binary(
+                _,
+                // 3 is the next index after the last variant found in the recipe
+                3,
+                options) if matches!(options.get(opt_name_color), Some(color) if color == "brown")
+            && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "kiwi")
+        ),
+        "Expected the first extra-variant to be built, with color=brown and fruit=kiwi"
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_with_variant_spec_and_override(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    let (_, result) = try_build_package!(
+        tmpdir,
+        "three-variants.spk.yaml",
+        br#"
+pkg: three-variants/1.0.0
+api: v0/package
+build:
+    options:
+        - var: color
+        - var: fruit
+    script:
+        - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
+    variants:
+        - { color: red, fruit: banana }
+        - { color: green, fruit: apple }
+        - { color: blue, fruit: orange }
+        "#,
+        // By supplying a variant spec, we are asking for a bespoke variant
+        "--variant",
+        r#"{ "color": "brown", "fruit": "kiwi" }"#,
+        // But by also supplying --opt, we are overriding the bespoke variant
+        "--opt",
+        "color=green",
+    );
+
+    let mut result = result.expect("Expected build to succeed");
+
+    // Only care about binary builds (not source builds)
+    result
+        .created_builds
+        .artifacts
+        .retain(|(_, artifact)| matches!(artifact, BuildArtifact::Binary(_, _, _)));
+
+    assert_eq!(
+        result.created_builds.artifacts.len(),
+        1,
+        "Expected one build to be created"
+    );
+
+    let opt_name_color = opt_name!("color");
+    let opt_name_fruit = opt_name!("fruit");
+
+    assert!(
+        matches!(
+            &result.created_builds.artifacts[0].1,
+            BuildArtifact::Binary(
+                _,
+                // 3 is the next index after the last variant found in the recipe
+                3,
+                options) if matches!(options.get(opt_name_color), Some(color) if color == "green")
+            && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "kiwi")
+        ),
+        "Expected the first extra-variant to be built, with color=green and fruit=kiwi"
+    );
+}
