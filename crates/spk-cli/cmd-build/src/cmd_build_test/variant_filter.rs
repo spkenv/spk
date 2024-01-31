@@ -9,7 +9,9 @@ use clap::Parser;
 use rstest::rstest;
 use spk_cli_common::{BuildArtifact, Run};
 use spk_schema::foundation::fixtures::*;
+use spk_schema::foundation::option_map;
 use spk_schema::opt_name;
+use spk_schema::option_map::HOST_OPTIONS;
 use spk_storage::fixtures::*;
 
 use super::Build;
@@ -528,4 +530,61 @@ build:
         ),
         "Expected the first extra-variant to be built, with color=green and fruit=kiwi"
     );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_filters_variants_based_on_host_opts(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    // Force "distro" host option to "centos" to make this test pass on any OS.
+    HOST_OPTIONS
+        .scoped_options(Ok(option_map! { "distro" => "centos" }), async move {
+
+        let (_, result) = try_build_package!(
+            tmpdir,
+            "three-variants.spk.yaml",
+            br#"
+    pkg: three-variants/1.0.0
+    api: v0/package
+    build:
+        options:
+            - var: color
+        script:
+            - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
+        variants:
+            - { distro: centos, color: red }
+            - { distro: rocky, color: green }
+            - { distro: centos, color: blue }
+            "#,
+        );
+
+        let mut result = result.expect("Expected build to succeed");
+
+        // Only care about binary builds (not source builds)
+        result
+            .created_builds
+            .artifacts
+            .retain(|(_, artifact)| matches!(artifact, BuildArtifact::Binary(_, _, _)));
+
+        assert_eq!(
+            result.created_builds.artifacts.len(),
+            2,
+            "Expected two builds to be created"
+        );
+
+        let opt_name_distro = opt_name!("distro");
+
+        assert!(
+            result.created_builds.artifacts.iter().all(|(_, artifact)| {
+                matches!(
+                    artifact,
+                    BuildArtifact::Binary(_, _, options) if matches!(options.get(opt_name_distro), Some(distro) if distro == "centos")
+                )
+            }),
+            "Expected all variants to be built with distro=centos"
+        );
+
+        Ok::<_, ()>(())
+    }).await.unwrap();
 }
