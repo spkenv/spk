@@ -9,7 +9,7 @@ use clap::Args;
 use miette::{Context, Result};
 use spk_build::BuildSource;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
+use spk_schema::foundation::format::FormatOptionMap;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::option_map::{OptionMap, HOST_OPTIONS};
 use spk_schema::prelude::*;
@@ -53,9 +53,9 @@ pub struct CmdTest {
     #[clap(name = "FILE|PKG/VER[@STAGE]", required = true)]
     packages: Vec<String>,
 
-    /// Test only the specified variant, by index, if defined
-    #[clap(long, hide = true)]
-    pub variant: Option<usize>,
+    /// Test only the specified variants
+    #[clap(flatten)]
+    pub variant: flags::Variant,
 }
 
 #[async_trait::async_trait]
@@ -97,23 +97,12 @@ impl Run for CmdTest {
                 let mut tested = std::collections::HashSet::new();
 
                 let default_variants = recipe.default_variants();
-                let variants_to_test: Box<
-                    dyn Iterator<Item = &spk_schema::SpecVariant> + Send + Sync,
-                > = match self.variant {
-                    Some(index) if index < default_variants.len() => {
-                        Box::new(default_variants.iter().skip(index).take(1))
-                    }
-                    Some(index) => {
-                        miette::bail!(
-                            "--variant {index} is out of range; {} variant(s) found in {}",
-                            default_variants.len(),
-                            recipe.ident().format_ident(),
-                        );
-                    }
-                    None => Box::new(default_variants.iter()),
-                };
+                let variants_to_test = self
+                    .variant
+                    .requested_variants(&recipe, &default_variants, &options)
+                    .collect::<Result<Vec<_>>>()?;
 
-                for variant in variants_to_test {
+                for (_, variant) in variants_to_test {
                     let variant = {
                         let mut opts = match self.options.no_host {
                             true => OptionMap::default(),
@@ -123,7 +112,7 @@ impl Run for CmdTest {
                         opts.extend(variant.options().into_owned());
                         opts.extend(options.clone());
 
-                        variant.with_overrides(opts)
+                        (*variant).clone().with_overrides(opts)
                     };
 
                     let digest = recipe.build_digest(&variant)?;
