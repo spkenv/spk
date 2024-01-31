@@ -167,22 +167,22 @@ install:
         Control what color the lights will be when lit.
 ```
 
-If a longer description is required, the [validation](#validation) rule `LongDescription` can be used to reconfigure the validation process to allow for longer descriptions:
+If a longer description is required, the [validation](#validation) rule `LongVarDescription` can be used to reconfigure the validation process to allow for longer descriptions:
 
 ```yaml
 build:
   validation:
     rules:
-      - allow: LongDescription
+      - allow: LongVarDescription
 ```
 
-Furthermore, strong inheritance variables will require a description. To also reconfigure this validation process, the [validation](#validation) rule `RequireDescription` can be used to disable this validation.
+Furthermore, strong inheritance variables will require a description. To also reconfigure this validation process, the [validation](#validation) rule `StrongInheritanceVarDescription` can be used to disable this validation.
 
 ```yaml
 build:
   validation:
     rules:
-      - deny: RequireDescription
+      - deny: StrongInheritanceVarDescription
 ```
 
 #### Script

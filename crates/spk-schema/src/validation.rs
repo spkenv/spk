@@ -78,7 +78,7 @@ impl ValidationSpec {
                 condition: ValidationMatcher::RecursiveBuild,
             },
             ValidationRule::Require {
-                condition: ValidationMatcher::RequireDescription,
+                condition: ValidationMatcher::StrongInheritanceVarDescription,
             },
             ValidationRule::Deny {
                 condition: ValidationMatcher::AlterExistingFiles {
@@ -92,7 +92,7 @@ impl ValidationSpec {
                 },
             },
             ValidationRule::Deny {
-                condition: ValidationMatcher::LongDescription,
+                condition: ValidationMatcher::LongVarDescription,
             },
             ValidationRule::Require {
                 condition: ValidationMatcher::InheritRequirements {
@@ -217,8 +217,8 @@ impl ValidationRule {
 pub enum ValidationMatcher {
     EmptyPackage,
     CollectAllFiles,
-    RequireDescription,
-    LongDescription,
+    StrongInheritanceVarDescription,
+    LongVarDescription,
     AlterExistingFiles {
         packages: Vec<NameOrCurrent>,
         action: Option<FileAlteration>,
@@ -321,8 +321,10 @@ impl<'de> Deserialize<'de> for ValidationRule {
                 match kind {
                     Kind::EmptyPackage => Ok(ValidationMatcher::EmptyPackage),
                     Kind::CollectAllFiles => Ok(ValidationMatcher::EmptyPackage),
-                    Kind::RequireDescription => Ok(ValidationMatcher::RequireDescription),
-                    Kind::LongDescription => Ok(ValidationMatcher::LongDescription),
+                    Kind::StrongInheritanceVarDescription => {
+                        Ok(ValidationMatcher::StrongInheritanceVarDescription)
+                    }
+                    Kind::LongVarDescription => Ok(ValidationMatcher::LongVarDescription),
                     Kind::AlterExistingFiles => {
                         let mut packages = Default::default();
                         let mut action = None;
@@ -388,8 +390,8 @@ impl Serialize for ValidationRule {
         match condition {
             ValidationMatcher::RecursiveBuild
             | ValidationMatcher::CollectAllFiles
-            | ValidationMatcher::RequireDescription
-            | ValidationMatcher::LongDescription
+            | ValidationMatcher::StrongInheritanceVarDescription
+            | ValidationMatcher::LongVarDescription
             | ValidationMatcher::EmptyPackage => {}
             ValidationMatcher::InheritRequirements { packages } => {
                 if !packages.is_empty() {

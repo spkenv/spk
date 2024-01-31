@@ -151,12 +151,15 @@ pub enum Error {
     )]
     RecursiveBuildRequired(spk_schema::foundation::name::PkgNameBuf),
     #[error("Description over character limit")]
-    #[diagnostic(severity(warning), code(spk::build::validation::long_description))]
-    DescriptionDenied,
+    #[diagnostic(severity(warning), code(spk::build::validation::long_var_description))]
+    LongVarDescriptionDenied,
     #[error("Longer description required")]
-    #[diagnostic(severity(warning), code(spk::build::validation::long_description))]
-    LongDescriptionRequired,
+    #[diagnostic(severity(warning), code(spk::build::validation::long_var_description))]
+    LongVarDescriptionRequired,
     #[error("Description required for strong inheritance vars")]
-    #[diagnostic(severity(warning), code(spk::build::validation::require_desc))]
-    DescriptionRequired,
+    #[diagnostic(
+        severity(warning),
+        code(spk::build::validation::strong_inheritance_var_desc)
+    )]
+    StrongInheritanceVarDescRequired,
 }

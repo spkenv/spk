@@ -628,9 +628,9 @@ impl Recipe for Spec<VersionIdent> {
             var.set_value(req.1)?;
             updated.build.options.push(Opt::Var(var));
         }
-        for req in missing_runtime_requirements {
+        for (name, (value, description)) in missing_runtime_requirements {
             updated.install.requirements.insert_or_merge(Request::Var(
-                VarRequest::new_with_description(req.0, req.1 .0, req.1 .1.as_ref()),
+                VarRequest::new_with_description(name, value, description.as_ref()),
             ))?;
         }
 

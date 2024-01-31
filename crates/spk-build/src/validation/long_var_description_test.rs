@@ -15,13 +15,17 @@ use crate::report::BuildSetupReport;
 use crate::validation::Validator;
 
 #[tokio::test]
-async fn test_strongly_inherited_vars_require_desc() {
+async fn test_for_description_over_limit() {
+    let description = "This is a test description. This is a test description. This is a test description. This is a test description.
+    This is a test description. This is a test description. This is a test description. This is a test description. This is a test description. 
+    This is a test description. This is a test description. This is a test description. This is a test description. This is a test description.";
+
     let package = Arc::new(spec!(
         {
             "pkg": "base/1.0.0/3TCOOP2W",
             "sources": [],
             "build": {
-                "options": [{"var": "inherited/val", "inheritance": "Strong"}],
+                "options": [{"var": "inherited/val", "description": description}],
                 "script": "echo building...",
             },
         }
@@ -43,11 +47,11 @@ async fn test_strongly_inherited_vars_require_desc() {
         package,
     };
 
-    ValidationRule::Require {
-        condition: ValidationMatcher::RequireDescription,
+    ValidationRule::Deny {
+        condition: ValidationMatcher::LongVarDescription,
     }
     .validate_setup(&setup)
     .await
     .into_result()
-    .expect_err("Should return error when no description is provided for strongly inherited vars");
+    .expect_err("Should return error when description is over limit");
 }

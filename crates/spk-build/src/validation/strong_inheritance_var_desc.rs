@@ -6,25 +6,23 @@ use spk_schema::validation::{
     ValidationMatcherDiscriminants,
     ValidationRuleDiscriminants as RuleKind,
 };
-use spk_schema::{Opt, Package, Variant};
+use spk_schema::{Inheritance, Opt, Package, Variant};
 
 use super::{Error, Outcome, Report, Status, Subject};
 use crate::report::BuildSetupReport;
 
-const MAX_LENGTH: usize = 256;
-
 #[cfg(test)]
-#[path = "./long_description_test.rs"]
-mod long_description_test;
+#[path = "./strong_inheritance_var_desc_test.rs"]
+mod strong_inheritance_var_desc_test;
 
-pub struct LongDescriptionValidator {
+pub struct StrongInheritanceVarDescriptionValidator {
     pub kind: RuleKind,
 }
 
-impl super::validator::sealed::Sealed for LongDescriptionValidator {}
+impl super::validator::sealed::Sealed for StrongInheritanceVarDescriptionValidator {}
 
 #[async_trait::async_trait]
-impl super::Validator for LongDescriptionValidator {
+impl super::Validator for StrongInheritanceVarDescriptionValidator {
     async fn validate_setup<P, V>(&self, setup: &BuildSetupReport<P, V>) -> Report
     where
         P: Package,
@@ -34,10 +32,12 @@ impl super::Validator for LongDescriptionValidator {
         for opt in setup.package.get_build_options().iter() {
             match opt {
                 Opt::Pkg(_) => continue,
-                Opt::Var(v) => match &v.description {
-                    Some(desc) => {
+                Opt::Var(v) => match v.inheritance {
+                    Inheritance::Weak => continue,
+                    _ => {
                         let mut outcome = Outcome {
-                            condition: ValidationMatcherDiscriminants::LongDescription,
+                            condition:
+                                ValidationMatcherDiscriminants::StrongInheritanceVarDescription,
                             locality: v
                                 .var
                                 .with_default_namespace(setup.package.ident().name())
@@ -46,22 +46,13 @@ impl super::Validator for LongDescriptionValidator {
                             status: Status::Allowed,
                         };
 
-                        match &self.kind {
-                            RuleKind::Deny => {
-                                if desc.chars().count() > MAX_LENGTH {
-                                    outcome.status = Status::Denied(Error::DescriptionDenied);
-                                };
-                            }
-                            RuleKind::Require => {
-                                if desc.chars().count() <= MAX_LENGTH {
-                                    outcome.status = Status::Denied(Error::LongDescriptionRequired);
-                                };
-                            }
-                            RuleKind::Allow => (),
+                        if self.kind == RuleKind::Require && v.description.is_none() {
+                            outcome.status =
+                                Status::Denied(Error::StrongInheritanceVarDescRequired);
                         }
+
                         results.push(outcome);
                     }
-                    None => continue,
                 },
             }
         }
