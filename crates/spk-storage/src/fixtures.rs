@@ -47,7 +47,7 @@ impl Drop for RuntimeLock {
 }
 
 /// The types of temporary repositories that can be created.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RepoKind {
     Mem,
     Spfs,
