@@ -12,7 +12,7 @@ anyhow = "1.0"
 async-trait = "0.1"
 miette = { workspace = true, features = ["fancy"] }
 clap = { workspace = true, features = ["derive", "env"] }
-spk-cli-common = { path = '../common' }
-spk-schema = { path = '../../spk-schema' }
-spk-schema-liquid = { path = '../../spk-schema/crates/liquid' }
+spk-cli-common = { workspace = true }
+spk-schema = { workspace = true }
+spk-schema-liquid = { workspace = true }
 tracing = "0.1.35"

@@ -18,13 +18,13 @@ migration-to-components = [
 miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }
 clap = { workspace = true }
-spk-cli-common = { path = '../common' }
-spk-cmd-make-binary = { path = '../cmd-make-binary' }
-spk-cmd-make-source = { path = '../cmd-make-source' }
+spk-cli-common = { workspace = true }
+spk-cmd-make-binary = { workspace = true }
+spk-cmd-make-source = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
-spk-schema = { path = '../../spk-schema' }
-spk-storage = { path = '../../spk-storage' }
+spk-schema = { workspace = true }
+spk-storage = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

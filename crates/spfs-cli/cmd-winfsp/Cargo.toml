@@ -20,9 +20,9 @@ dashmap = { workspace = true }
 libc = "0.2"
 miette = { workspace = true, features = ["fancy"] }
 nix = { workspace = true, features = ["process"] }
-spfs-vfs = { path = "../../spfs-vfs", features = ["winfsp-backend"] }
-spfs = { path = "../../spfs", features = ["winfsp-backend"] }
-spfs-cli-common = { path = "../common" }
+spfs-vfs = { workspace = true, features = ["winfsp-backend"] }
+spfs = { workspace = true, features = ["winfsp-backend"] }
+spfs-cli-common = { workspace = true }
 tokio = { version = "1.20", features = ["rt"] }
 tracing = { workspace = true }
 tonic = { workspace = true }

@@ -18,7 +18,7 @@ sentry = ["spfs-cli-common/sentry"]
 clap = { workspace = true }
 futures = { workspace = true }
 miette = { workspace = true, features = ["fancy"] }
-spfs = { path = "../../spfs" }
-spfs-cli-common = { path = "../common" }
+spfs = { workspace = true }
+spfs-cli-common = { workspace = true }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }

@@ -21,16 +21,16 @@ itertools = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
-spfs = { path = "../../spfs" }
-spk-cli-common = { path = '../common' }
-spk-solve = { path = '../../spk-solve' }
-spk-schema = { path = '../../spk-schema' }
-spk-storage = { path = '../../spk-storage' }
+spfs = { workspace = true }
+spk-cli-common = { workspace = true }
+spk-solve = { workspace = true }
+spk-schema = { workspace = true }
+spk-storage = { workspace = true }
 strip-ansi-escapes = { version = "0.1.1" }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
-spk-solve-macros = { path = '../../spk-solve/crates/macros' }
-spk-solve-solution = { path = '../../spk-solve/crates/solution' }
+spk-solve-macros = { workspace = true }
+spk-solve-solution = { workspace = true }

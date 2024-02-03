@@ -13,7 +13,7 @@ async-trait = { workspace = true }
 clap = { workspace = true }
 colored = { workspace = true }
 futures = { workspace = true }
-spk-cli-common = { path = '../common' }
-spk-exec = { path = '../../spk-exec' }
-spk-schema = { path = '../../spk-schema' }
+spk-cli-common = { workspace = true }
+spk-exec = { workspace = true }
+spk-schema = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }

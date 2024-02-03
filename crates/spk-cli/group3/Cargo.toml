@@ -13,15 +13,15 @@ async-trait = { workspace = true }
 clap = { workspace = true }
 colored = { workspace = true }
 futures = { workspace = true }
-spfs = { path = "../../spfs" }
-spk-cli-common = { path = '../common' }
-spk-storage = { path = '../../spk-storage' }
-spk-schema = { path = '../../spk-schema' }
-spfs-cli-common = { path = '../../spfs-cli/common' }
+spfs = { workspace = true }
+spk-cli-common = { workspace = true }
+spk-storage = { workspace = true }
+spk-schema = { workspace = true }
+spfs-cli-common = { workspace = true }
 tracing = { workspace = true }
 tokio = "1.20"
 
 [dev-dependencies]
 tar = "0.4.3"
-spk-build = { path = '../../spk-build' }
+spk-build = { workspace = true }
 rstest = { workspace = true }

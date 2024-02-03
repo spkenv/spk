@@ -12,5 +12,5 @@ migration-to-components = []
 
 [dependencies]
 serde_json = { workspace = true }
-spfs = { path = "../../../spfs" }
-spk-schema = { path = "../../../spk-schema" }
+spfs = { workspace = true }
+spk-schema = { workspace = true }

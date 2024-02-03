@@ -13,10 +13,10 @@ async-trait = "0.1"
 clap = { workspace = true, features = ["derive", "env"] }
 futures = { workspace = true }
 miette = { workspace = true, features = ["fancy"] }
-spfs = { path = "../../spfs" }
-spk-cli-common = { path = '../common' }
-spk-exec = { path = '../../spk-exec' }
-spk-schema = { path = '../../spk-schema' }
-spk-storage = { path = '../../spk-storage' }
+spfs = { workspace = true }
+spk-cli-common = { workspace = true }
+spk-exec = { workspace = true }
+spk-schema = { workspace = true }
+spk-storage = { workspace = true }
 tokio = { version = "1.20", features = ["rt"] }
 tracing = "0.1.35"

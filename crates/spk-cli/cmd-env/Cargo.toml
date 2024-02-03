@@ -14,10 +14,10 @@ statsd = ["dep:statsd"]
 miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }
 clap = { workspace = true }
-spfs = { path = "../../spfs" }
-spk-cli-common = { path = '../common' }
-spk-exec = { path = '../../spk-exec' }
-spk-solve = { path = '../../spk-solve' }
+spfs = { workspace = true }
+spk-cli-common = { workspace = true }
+spk-exec = { workspace = true }
+spk-solve = { workspace = true }
 statsd = { version = "0.15.0", optional = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }

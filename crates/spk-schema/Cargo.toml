@@ -28,12 +28,12 @@ ring = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml = { workspace = true }
 serde_json = { workspace = true }
-spfs = { path = "../spfs" }
+spfs = { workspace = true }
 shellexpand = "3.1.0"
-spk-config = { path = "../spk-config" }
-spk-schema-foundation = { path = "./crates/foundation" }
-spk-schema-ident = { path = "./crates/ident" }
-spk-schema-liquid = { path = "./crates/liquid" }
+spk-config = { workspace = true }
+spk-schema-foundation = { workspace = true }
+spk-schema-ident = { workspace = true }
+spk-schema-liquid = { workspace = true }
 strum = { workspace = true }
 sys-info = "0.9.0"
 tempfile = { workspace = true }

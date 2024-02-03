@@ -12,9 +12,9 @@ miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }
 clap = { workspace = true }
 dunce = { workspace = true }
-spfs = { path = "../../spfs" }
-spk-cli-common = { path = '../common' }
-spk-exec = { path = '../../spk-exec' }
-spk-storage = { path = '../../spk-storage' }
+spfs = { workspace = true }
+spk-cli-common = { workspace = true }
+spk-exec = { workspace = true }
+spk-storage = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }

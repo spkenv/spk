@@ -12,6 +12,6 @@ workspace = true
 [dependencies]
 miette = { workspace = true, features = ["fancy"] }
 nix = { workspace = true }
-spfs = { path = "../spfs" }
+spfs = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
