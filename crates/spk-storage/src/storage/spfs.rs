@@ -10,7 +10,8 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use dashmap::DashMap;
-use futures::{Future, StreamExt};
+use futures::stream::FuturesUnordered;
+use futures::{Future, StreamExt, TryStreamExt};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use relative_path::RelativePathBuf;
@@ -301,7 +302,10 @@ where
     type Recipe = SpecRecipe;
     type Package = Spec;
 
-    async fn get_concrete_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>> {
+    async fn get_concrete_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>>
+    where
+        Self: Clone,
+    {
         // It is possible for a `spk/spec/pkgname/1.0.0/BUILDKEY` tag to
         // exist without a corresponding `spk/spk/pkgname/1.0.0/BUILDKEY`
         // tag. In this scenario, "pkgname" will appear in the results of
@@ -312,41 +316,53 @@ where
         // method needs to return a union of all the build tags of both the
         // `spk/spec/` and `spk/pkg/` tag trees.
 
+        let repo = self.clone();
+        let mut build_futures = FuturesUnordered::from_iter(
+            Self::iter_possible_parts(pkg, self.legacy_spk_version_tags).map(move |pkg| {
+                let repo = repo.clone();
+                tokio::spawn(async move {
+                    let spec_base = verbatim_build_spec_tag_if_enabled!(repo, &pkg);
+                    let package_base = verbatim_build_package_tag_if_enabled!(repo, &pkg);
+
+                    let spec_tags = repo.ls_tags(&spec_base);
+                    let package_tags = repo.ls_tags(&package_base);
+
+                    let (spec_tags, package_tags) = tokio::join!(spec_tags, package_tags);
+
+                    spec_tags
+                        .into_iter()
+                        .chain(package_tags)
+                        .filter_map(|entry| match entry {
+                            Ok(EntryType::Tag(name))
+                                if !name.starts_with(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX) =>
+                            {
+                                Some(name)
+                            }
+                            Ok(EntryType::Tag(_)) => None,
+                            Ok(EntryType::Folder(name)) => Some(name),
+                            Ok(EntryType::Namespace { .. }) => None,
+                            Err(_) => None,
+                        })
+                        .filter_map(|b| match parse_build(&b) {
+                            Ok(v) => Some(v),
+                            Err(_) => {
+                                tracing::warn!("Invalid build found in spfs tags: {}", b);
+                                None
+                            }
+                        })
+                        .map(|b| pkg.to_build(b))
+                        .collect::<HashSet<_>>()
+                })
+            }),
+        );
+
         let mut builds = HashSet::new();
-
-        for pkg in Self::iter_possible_parts(pkg, self.legacy_spk_version_tags) {
-            let spec_base = verbatim_build_spec_tag_if_enabled!(self, &pkg);
-            let package_base = verbatim_build_package_tag_if_enabled!(self, &pkg);
-
-            let spec_tags = self.ls_tags(&spec_base);
-            let package_tags = self.ls_tags(&package_base);
-
-            let (spec_tags, package_tags) = tokio::join!(spec_tags, package_tags);
-
-            builds.extend(
-                spec_tags
-                    .into_iter()
-                    .chain(package_tags)
-                    .filter_map(|entry| match entry {
-                        Ok(EntryType::Tag(name))
-                            if !name.starts_with(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX) =>
-                        {
-                            Some(name)
-                        }
-                        Ok(EntryType::Tag(_)) => None,
-                        Ok(EntryType::Folder(name)) => Some(name),
-                        Ok(EntryType::Namespace { .. }) => None,
-                        Err(_) => None,
-                    })
-                    .filter_map(|b| match parse_build(&b) {
-                        Ok(v) => Some(v),
-                        Err(_) => {
-                            tracing::warn!("Invalid build found in spfs tags: {}", b);
-                            None
-                        }
-                    })
-                    .map(|b| pkg.to_build(b)),
-            );
+        while let Some(b) = build_futures
+            .try_next()
+            .await
+            .map_err(|err| Error::String(format!("Tokio join error: {err}")))?
+        {
+            builds.extend(b);
         }
 
         Ok(builds)

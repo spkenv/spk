@@ -14,13 +14,13 @@ pub enum TagPathStrategyType {
 }
 
 /// Specify what strategy to use for generating tag paths.
-pub trait TagPathStrategy {
+pub trait TagPathStrategy: Clone + 'static {
     fn strategy_type() -> TagPathStrategyType;
 }
 
 /// When creating a tag path that contains a version, this strategy will
 /// normalize the version.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct NormalizedTagStrategy {}
 
 impl TagPathStrategy for NormalizedTagStrategy {
@@ -33,7 +33,7 @@ impl TagPathStrategy for NormalizedTagStrategy {
 /// When creating a tag path that contains a version, this strategy will
 /// render the version as specified in the version object, without any
 /// normalization.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct VerbatimTagStrategy {}
 
 impl TagPathStrategy for VerbatimTagStrategy {
