@@ -1223,8 +1223,8 @@ where
         tag
     }
 
-    pub fn flush(&mut self) -> Result<()> {
-        match &mut self.inner {
+    pub fn flush(&self) -> Result<()> {
+        match &self.inner {
             spfs::storage::RepositoryHandle::Tar(tar) => Ok(tar.flush()?),
             _ => Ok(()),
         }

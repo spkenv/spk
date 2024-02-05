@@ -161,7 +161,7 @@ impl TarRepository {
         })
     }
 
-    pub fn flush(&mut self) -> Result<()> {
+    pub fn flush(&self) -> Result<()> {
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .truncate(true)
