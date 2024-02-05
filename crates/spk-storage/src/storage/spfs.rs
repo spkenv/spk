@@ -71,12 +71,12 @@ macro_rules! verbatim_tag_if_enabled {
     }};
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SpfsRepository<S> {
     address: url::Url,
     name: RepositoryNameBuf,
-    inner: spfs::storage::RepositoryHandle,
-    cache_policy: ArcSwap<CachePolicy>,
+    inner: Arc<spfs::storage::RepositoryHandle>,
+    cache_policy: Arc<ArcSwap<CachePolicy>>,
     caches: CachesForAddress,
     tag_strategy: PhantomData<S>,
     legacy_spk_version_tags: bool,
@@ -116,15 +116,6 @@ where
 
     fn deref(&self) -> &Self::Target {
         &self.inner
-    }
-}
-
-impl<TagStrategy> std::ops::DerefMut for SpfsRepository<TagStrategy>
-where
-    TagStrategy: TagPathStrategy + Send + Sync,
-{
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
     }
 }
 
@@ -172,8 +163,8 @@ where
             caches: CachesForAddress::new(&address),
             address,
             name: name_and_repo.name.as_ref().try_into()?,
-            inner,
-            cache_policy: ArcSwap::new(Arc::new(CachePolicy::CacheOk)),
+            inner: Arc::new(inner),
+            cache_policy: Arc::new(ArcSwap::new(Arc::new(CachePolicy::CacheOk))),
             tag_strategy: PhantomData,
             legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
         })
@@ -188,8 +179,8 @@ impl<S> SpfsRepository<S> {
             caches: CachesForAddress::new(&address),
             address,
             name: name.try_into()?,
-            inner,
-            cache_policy: ArcSwap::new(Arc::new(CachePolicy::CacheOk)),
+            inner: Arc::new(inner),
+            cache_policy: Arc::new(ArcSwap::new(Arc::new(CachePolicy::CacheOk))),
             tag_strategy: PhantomData,
             legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
         })
@@ -201,12 +192,12 @@ impl<S> SpfsRepository<S> {
         // Safety: we are going to mutate and replace the value that
         // is being read here, and know that self.inner is both
         // initialized and valid for reads
-        let tmp = unsafe { std::ptr::read(&self.inner) };
+        let tmp = unsafe { std::ptr::read(&*self.inner) };
         let new = tmp.into_pinned(ts.to_datetime_from_now());
         // Safety: we are replacing the old value with a moved copy
         // of itself, and so explicitly do not want the old value
         // dropped or accessed in any way
-        unsafe { std::ptr::write(&mut self.inner, new) };
+        unsafe { std::ptr::write(Arc::as_ptr(&self.inner) as *mut _, new) };
         self.address
             .query_pairs_mut()
             .append_pair("when", &ts.to_string());
@@ -1224,7 +1215,7 @@ where
     }
 
     pub fn flush(&self) -> Result<()> {
-        match &self.inner {
+        match &*self.inner {
             spfs::storage::RepositoryHandle::Tar(tar) => Ok(tar.flush()?),
             _ => Ok(()),
         }
@@ -1285,8 +1276,8 @@ pub async fn local_repository() -> Result<SpfsRepository<NormalizedTagStrategy>>
         caches: CachesForAddress::new(&address),
         address,
         name: "local".try_into()?,
-        inner,
-        cache_policy: ArcSwap::new(Arc::new(CachePolicy::CacheOk)),
+        inner: Arc::new(inner),
+        cache_policy: Arc::new(ArcSwap::new(Arc::new(CachePolicy::CacheOk))),
         tag_strategy: PhantomData,
         legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
     })
@@ -1305,8 +1296,8 @@ pub async fn remote_repository<S: AsRef<str>, TagStrategy>(
         caches: CachesForAddress::new(&address),
         address,
         name: name.as_ref().try_into()?,
-        inner,
-        cache_policy: ArcSwap::new(Arc::new(CachePolicy::CacheOk)),
+        inner: Arc::new(inner),
+        cache_policy: Arc::new(ArcSwap::new(Arc::new(CachePolicy::CacheOk))),
         tag_strategy: PhantomData,
         legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
     })
