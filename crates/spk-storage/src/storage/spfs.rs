@@ -6,9 +6,9 @@ use std::collections::{hash_map, HashMap, HashSet};
 use std::convert::{TryFrom, TryInto};
 use std::marker::PhantomData;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use dashmap::DashMap;
 use futures::{Future, StreamExt};
 use itertools::Itertools;
@@ -76,7 +76,7 @@ pub struct SpfsRepository<S> {
     address: url::Url,
     name: RepositoryNameBuf,
     inner: spfs::storage::RepositoryHandle,
-    cache_policy: AtomicPtr<CachePolicy>,
+    cache_policy: ArcSwap<CachePolicy>,
     caches: CachesForAddress,
     tag_strategy: PhantomData<S>,
     legacy_spk_version_tags: bool,
@@ -173,7 +173,7 @@ where
             address,
             name: name_and_repo.name.as_ref().try_into()?,
             inner,
-            cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+            cache_policy: ArcSwap::new(Arc::new(CachePolicy::CacheOk)),
             tag_strategy: PhantomData,
             legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
         })
@@ -189,7 +189,7 @@ impl<S> SpfsRepository<S> {
             address,
             name: name.try_into()?,
             inner,
-            cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+            cache_policy: ArcSwap::new(Arc::new(CachePolicy::CacheOk)),
             tag_strategy: PhantomData,
             legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
         })
@@ -215,15 +215,6 @@ impl<S> SpfsRepository<S> {
     /// Enable or disable the use of legacy spk version tags
     pub fn set_legacy_spk_version_tags(&mut self, enabled: bool) {
         self.legacy_spk_version_tags = enabled;
-    }
-}
-
-impl<S> std::ops::Drop for SpfsRepository<S> {
-    fn drop(&mut self) {
-        // Safety: We only put valid `Box` pointers into `self.cache_policy`.
-        unsafe {
-            let _ = Box::from_raw(self.cache_policy.load(Ordering::Relaxed));
-        }
     }
 }
 
@@ -931,12 +922,7 @@ where
     }
 
     fn set_cache_policy(&self, cache_policy: CachePolicy) -> CachePolicy {
-        let orig = self
-            .cache_policy
-            .swap(Box::leak(Box::new(cache_policy)), Ordering::Relaxed);
-
-        // Safety: We only put valid `Box` pointers into `self.cache_policy`.
-        *unsafe { Box::from_raw(orig) }
+        *self.cache_policy.swap(Arc::new(cache_policy))
     }
 }
 
@@ -945,8 +931,7 @@ where
     TagStrategy: TagPathStrategy + Send + Sync,
 {
     fn cached_result_permitted(&self) -> bool {
-        // Safety: We only put valid `Box` pointers into `self.cache_policy`.
-        unsafe { *self.cache_policy.load(Ordering::Relaxed) }.cached_result_permitted()
+        self.cache_policy.load().cached_result_permitted()
     }
 
     async fn has_tag<F>(&self, for_pkg: F, tag: &tracking::TagSpec) -> bool
@@ -1301,7 +1286,7 @@ pub async fn local_repository() -> Result<SpfsRepository<NormalizedTagStrategy>>
         address,
         name: "local".try_into()?,
         inner,
-        cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+        cache_policy: ArcSwap::new(Arc::new(CachePolicy::CacheOk)),
         tag_strategy: PhantomData,
         legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
     })
@@ -1321,7 +1306,7 @@ pub async fn remote_repository<S: AsRef<str>, TagStrategy>(
         address,
         name: name.as_ref().try_into()?,
         inner,
-        cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+        cache_policy: ArcSwap::new(Arc::new(CachePolicy::CacheOk)),
         tag_strategy: PhantomData,
         legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
     })
