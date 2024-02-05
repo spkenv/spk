@@ -64,9 +64,9 @@ macro_rules! verbatim_build_package_tag_if_enabled {
 macro_rules! verbatim_tag_if_enabled {
     ($self:expr, $tag:tt, $output:ty, $ident:expr) => {{
         if $self.legacy_spk_version_tags {
-            $self.$tag::<VerbatimTagStrategy, $output>($ident)
+            Self::$tag::<VerbatimTagStrategy, $output>($ident)
         } else {
-            $self.$tag::<NormalizedTagStrategy, $output>($ident)
+            Self::$tag::<NormalizedTagStrategy, $output>($ident)
         }
     }};
 }
@@ -430,7 +430,7 @@ where
 
     async fn publish_embed_stub_to_storage(&self, spec: &Self::Package) -> Result<()> {
         let ident = spec.ident();
-        let tag_path = self.build_spec_tag::<TagStrategy, _>(ident);
+        let tag_path = Self::build_spec_tag::<TagStrategy, _>(ident);
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
 
         let payload = serde_yaml::to_string(&spec)
@@ -449,7 +449,7 @@ where
         package: &<Self::Recipe as spk_schema::Recipe>::Output,
         components: &HashMap<Component, spfs::encoding::Digest>,
     ) -> Result<()> {
-        let tag_path = self.build_package_tag::<TagStrategy, _>(package.ident());
+        let tag_path = Self::build_package_tag::<TagStrategy, _>(package.ident());
 
         // We will also publish the 'run' component in the old style
         // for compatibility with older versions of the spk command.
@@ -479,7 +479,7 @@ where
         }
 
         // TODO: dedupe this part with force_publish_recipe
-        let tag_path = self.build_spec_tag::<TagStrategy, _>(package.ident());
+        let tag_path = Self::build_spec_tag::<TagStrategy, _>(package.ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
         let payload = serde_yaml::to_string(&package)
             .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
@@ -498,7 +498,7 @@ where
         publish_policy: PublishPolicy,
     ) -> Result<()> {
         let ident = spec.ident();
-        let tag_path = self.build_spec_tag::<TagStrategy, _>(ident);
+        let tag_path = Self::build_spec_tag::<TagStrategy, _>(ident);
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
         if matches!(publish_policy, PublishPolicy::DoNotOverwriteVersion)
             && self.inner.has_tag(&tag_spec).await
@@ -717,7 +717,7 @@ where
             }
         }
         let r: Result<Arc<_>> = async {
-            let path = self.build_spec_tag::<NormalizedTagStrategy, _>(
+            let path = Self::build_spec_tag::<NormalizedTagStrategy, _>(
                 &VersionIdent::new_zero(name).into_any(None),
             );
             let versions: HashSet<_> = self
@@ -903,8 +903,7 @@ where
                     let components = stored.into_components();
                     for (name, tag_spec) in components.into_iter() {
                         let tag = self.inner.resolve_tag(&tag_spec).await?;
-                        let new_tag_path = self
-                            .build_package_tag::<TagStrategy, _>(&build)
+                        let new_tag_path = Self::build_package_tag::<TagStrategy, _>(&build)
                             .join(name.to_string());
                         let new_tag_spec = spfs::tracking::TagSpec::parse(&new_tag_path)?;
 
@@ -1214,7 +1213,7 @@ where
     }
 
     /// Construct an spfs tag string to represent a binary package layer.
-    fn build_package_tag<S, T>(&self, pkg: &T) -> RelativePathBuf
+    fn build_package_tag<S, T>(pkg: &T) -> RelativePathBuf
     where
         S: TagPathStrategy,
         T: TagPath,
@@ -1227,7 +1226,7 @@ where
     }
 
     /// Construct an spfs tag string to represent a spec file blob.
-    fn build_spec_tag<S, T>(&self, pkg: &T) -> RelativePathBuf
+    fn build_spec_tag<S, T>(pkg: &T) -> RelativePathBuf
     where
         S: TagPathStrategy,
         T: TagPath,
