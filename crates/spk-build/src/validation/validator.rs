@@ -50,6 +50,14 @@ macro_rules! rule_to_validator {
                 let $bind = super::CollectAllFilesValidator { kind };
                 $op
             }
+            ValidationMatcher::StrongInheritanceVarDescription => {
+                let $bind = super::StrongInheritanceVarDescriptionValidator { kind };
+                $op
+            }
+            ValidationMatcher::LongVarDescription => {
+                let $bind = super::LongVarDescriptionValidator { kind };
+                $op
+            }
             ValidationMatcher::AlterExistingFiles { packages, action } => {
                 let $bind = super::AlterExistingFilesValidator {
                     kind,

@@ -140,6 +140,51 @@ There are some build options that are either provided by the system or are used 
 | centos      | The centos major version number, if applicable | 7, 8, ...              |
 | debug       | Denotes a build with debug information         | on, off                |
 
+##### Build Variable Description
+
+For build variables, a description of up to 256 characters can be provided.
+
+```yaml
+build:
+  options:
+    - var: color/blue
+      choices: [red, blue, green]
+      inheritance: Strong
+      description: |
+        Control what color the lights will be when lit.
+```
+
+When a downstream package depends on this package the description will also get propagated into the build.
+
+```yaml
+pkg: user-of-lights/1.0.0/BUILDGST
+...
+install:
+  requirements:
+    - pkg: lights/Binary:1.0.0
+    - var: lights.color/green
+      description: |
+        Control what color the lights will be when lit.
+```
+
+If a longer description is required, the [validation](#validation) rule `LongVarDescription` can be used to reconfigure the validation process to allow for longer descriptions:
+
+```yaml
+build:
+  validation:
+    rules:
+      - allow: LongVarDescription
+```
+
+Furthermore, strong inheritance variables will require a description. To also reconfigure this validation process, the [validation](#validation) rule `StrongInheritanceVarDescription` can be used to disable this validation.
+
+```yaml
+build:
+  validation:
+    rules:
+      - deny: StrongInheritanceVarDescription
+```
+
 #### Script
 
 ```yaml

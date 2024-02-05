@@ -704,6 +704,7 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
             VarRequest {
                 var: opt_name!("python").to_owned(),
                 value: pyver.into(),
+                description: None,
             }
             .into(),
         );

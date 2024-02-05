@@ -28,6 +28,7 @@ use crate::{
     Error,
     FromYaml,
     InputVariant,
+    Opt,
     Package,
     PackageMut,
     Recipe,
@@ -535,6 +536,12 @@ impl Package for Spec {
     fn runtime_environment(&self) -> &Vec<super::EnvOp> {
         match self {
             Spec::V0Package(spec) => spec.runtime_environment(),
+        }
+    }
+
+    fn get_build_options(&self) -> &Vec<Opt> {
+        match self {
+            Spec::V0Package(spec) => spec.get_build_options(),
         }
     }
 
