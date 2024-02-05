@@ -159,7 +159,7 @@ pub enum Error {
     #[error("Description required for strong inheritance vars")]
     #[diagnostic(
         severity(warning),
-        code(spk::build::validation::strong_inheritance_var_desc)
+        code(spk::build::validation::strong_inheritance_var_description)
     )]
-    StrongInheritanceVarDescRequired,
+    StrongInheritanceVarDescriptionRequired,
 }

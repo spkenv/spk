@@ -16,10 +16,7 @@ use crate::validation::Validator;
 
 #[tokio::test]
 async fn test_for_description_over_limit() {
-    let description = "This is a test description. This is a test description. This is a test description. This is a test description.
-    This is a test description. This is a test description. This is a test description. This is a test description. This is a test description. 
-    This is a test description. This is a test description. This is a test description. This is a test description. This is a test description.";
-
+    let description = "This is a test description.".repeat(14);
     let package = Arc::new(spec!(
         {
             "pkg": "base/1.0.0/3TCOOP2W",

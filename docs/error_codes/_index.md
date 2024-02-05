@@ -50,7 +50,7 @@ This validation is triggered when a build var description is greater than 256 ch
 
 In cases where a longer description is required, see the documentation section on [build variable description]({{< ref "use/spec" >}}#buildvariabledescription)
 
-#### `spk::build::validation::strong_inheritance_var_desc`
+#### `spk::build::validation::strong_inheritance_var_description`
 
 This validation is triggered when a description is not provided for strong inheritance build variables.
 

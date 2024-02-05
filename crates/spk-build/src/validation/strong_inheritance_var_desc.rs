@@ -48,7 +48,7 @@ impl super::Validator for StrongInheritanceVarDescriptionValidator {
 
                         if self.kind == RuleKind::Require && v.description.is_none() {
                             outcome.status =
-                                Status::Denied(Error::StrongInheritanceVarDescRequired);
+                                Status::Denied(Error::StrongInheritanceVarDescriptionRequired);
                         }
 
                         results.push(outcome);
