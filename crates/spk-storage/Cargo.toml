@@ -45,4 +45,5 @@ miette = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 tracing-subscriber = "0.3.17"
+ulid = { workspace = true }
 url = "2.2"

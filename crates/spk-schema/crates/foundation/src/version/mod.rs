@@ -6,6 +6,7 @@ mod compat;
 mod error;
 pub mod parsing;
 
+use std::borrow::Cow;
 use std::cmp::{Ord, Ordering};
 use std::convert::TryFrom;
 use std::fmt::Write;
@@ -199,6 +200,50 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> Result<TagSet> {
 pub struct VersionParts {
     pub parts: Vec<u32>,
     pub plus_epsilon: bool,
+}
+
+impl VersionParts {
+    /// Return a normalized copy of this version.
+    ///
+    /// A normalized version has no trailing zeros.
+    ///
+    /// ```
+    /// # use spk_schema_foundation::version::VersionParts;
+    /// assert_eq!(
+    ///     VersionParts::from(vec![1, 0, 0]).normalize().parts,
+    ///     VersionParts::from(vec![1]).parts
+    /// );
+    /// assert_eq!(
+    ///     VersionParts::from(vec![1, 2, 3]).normalize().parts,
+    ///     VersionParts::from(vec![1, 2, 3]).parts
+    /// );
+    /// assert_eq!(
+    ///     VersionParts::from(vec![0, 0, 0]).normalize().parts,
+    ///     VersionParts::from(vec![]).parts
+    /// );
+    /// ```
+    pub fn normalize(&self) -> Cow<'_, Self> {
+        let Some(index_of_last_non_zero) = self.parts.iter().rposition(|p| p != &0) else {
+            return Cow::Owned(VersionParts {
+                parts: vec![],
+                plus_epsilon: self.plus_epsilon,
+            });
+        };
+
+        if index_of_last_non_zero == self.parts.len() - 1 {
+            return Cow::Borrowed(self);
+        }
+
+        Cow::Owned(VersionParts {
+            parts: self
+                .parts
+                .iter()
+                .take(index_of_last_non_zero + 1)
+                .copied()
+                .collect(),
+            plus_epsilon: self.plus_epsilon,
+        })
+    }
 }
 
 impl Deref for VersionParts {

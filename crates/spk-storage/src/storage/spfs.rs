@@ -24,6 +24,7 @@ use spk_schema::ident::VersionIdent;
 use spk_schema::ident_build::parsing::embedded_source_package;
 use spk_schema::ident_build::{EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema::ident_ops::TagPath;
+use spk_schema::version::VersionParts;
 use spk_schema::{AnyIdent, BuildIdent, FromYaml, Package, Recipe, Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
@@ -243,36 +244,86 @@ impl Storage for SpfsRepository {
         // the build spec, e.g., for `spk rm pkgname/1.0.0` to work, this
         // method needs to return a union of all the build tags of both the
         // `spk/spec/` and `spk/pkg/` tag trees.
-        let spec_base = self.build_spec_tag(pkg);
-        let package_base = self.build_package_tag(pkg);
 
-        let spec_tags = self.ls_tags(&spec_base);
-        let package_tags = self.ls_tags(&package_base);
+        let mut builds = HashSet::new();
 
-        let (spec_tags, package_tags) = tokio::join!(spec_tags, package_tags);
+        // The repo may contain tags with different numbers of parts in the
+        // version, but we treat different amounts of trailing zeros as equal,
+        // e.g., 1.0 == 1.0.0. So first we normalize the provided version to
+        // remove any trailing zeros, but then we look in the repo for various
+        // lengths of trailing zeros. This is capped at 5 to handle all known
+        // existing packages (at SPI).
+        //
+        // Example:
+        //
+        //     `pkg` == "pkgname/1.2.0"
+        //
+        //     `normalized_parts` == [1, 2]
+        //
+        //     Check the following tag paths:
+        //         - spk/{spec,pkg}/pkgname/1.2
+        //         - spk/{spec,pkg}/pkgname/1.2.0
+        //         - spk/{spec,pkg}/pkgname/1.2.0.0
+        //         - spk/{spec,pkg}/pkgname/1.2.0.0.0
+        let normalized_parts = pkg.version().parts.normalize();
+        for num_parts in (1..=5)
+            // Handle all the part lengths that are bigger than the normalized
+            // parts, except for the normalized parts length itself, which may
+            // be larger than 5 and not hit by this range.
+            .filter(|num_parts| *num_parts > normalized_parts.len())
+            // Then, handle the normalized parts length itself, which is
+            // skipped by the filter above so it isn't processed twice,
+            // and is handled even if the length is outside the above range.
+            .chain(std::iter::once(normalized_parts.len()))
+        {
+            let new_parts = normalized_parts
+                .iter()
+                .chain(std::iter::repeat(&0))
+                .take(num_parts)
+                .copied()
+                .collect::<Vec<_>>();
 
-        let builds: HashSet<_> = spec_tags
-            .into_iter()
-            .chain(package_tags)
-            .filter_map(|entry| match entry {
-                Ok(EntryType::Tag(name))
-                    if !name.starts_with(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX) =>
-                {
-                    Some(name)
-                }
-                Ok(EntryType::Tag(_)) => None,
-                Ok(EntryType::Folder(name)) => Some(name),
-                Err(_) => None,
-            })
-            .filter_map(|b| match parse_build(&b) {
-                Ok(v) => Some(v),
-                Err(_) => {
-                    tracing::warn!("Invalid build found in spfs tags: {}", b);
-                    None
-                }
-            })
-            .map(|b| pkg.to_build(b))
-            .collect();
+            let pkg = pkg.with_version(Version {
+                parts: VersionParts {
+                    parts: new_parts,
+                    plus_epsilon: normalized_parts.plus_epsilon,
+                },
+                pre: pkg.version().pre.clone(),
+                post: pkg.version().post.clone(),
+            });
+
+            let spec_base = self.build_spec_tag(&pkg);
+            let package_base = self.build_package_tag(&pkg);
+
+            let spec_tags = self.ls_tags(&spec_base);
+            let package_tags = self.ls_tags(&package_base);
+
+            let (spec_tags, package_tags) = tokio::join!(spec_tags, package_tags);
+
+            builds.extend(
+                spec_tags
+                    .into_iter()
+                    .chain(package_tags)
+                    .filter_map(|entry| match entry {
+                        Ok(EntryType::Tag(name))
+                            if !name.starts_with(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX) =>
+                        {
+                            Some(name)
+                        }
+                        Ok(EntryType::Tag(_)) => None,
+                        Ok(EntryType::Folder(name)) => Some(name),
+                        Err(_) => None,
+                    })
+                    .filter_map(|b| match parse_build(&b) {
+                        Ok(v) => Some(v),
+                        Err(_) => {
+                            tracing::warn!("Invalid build found in spfs tags: {}", b);
+                            None
+                        }
+                    })
+                    .map(|b| pkg.to_build(b)),
+            );
+        }
 
         Ok(builds)
     }

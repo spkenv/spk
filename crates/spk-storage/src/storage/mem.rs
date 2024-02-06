@@ -49,7 +49,9 @@ where
             .expect("[INTERNAL ERROR] hex address should always create a valid url");
         Self {
             address,
-            name: "mem".try_into().expect("valid repository name"),
+            name: format!("mem-{}", ulid::Ulid::new().to_string().to_lowercase())
+                .try_into()
+                .expect("valid repository name"),
             specs,
             packages: Arc::default(),
             embedded_stubs: Arc::default(),

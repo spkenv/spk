@@ -21,8 +21,9 @@ use spk_schema::ident::{
 use spk_schema::ident_build::{Build, BuildId, EmbeddedSource};
 use spk_schema::prelude::*;
 use spk_schema::{recipe, v0};
-use spk_solve_macros::{make_build, make_build_and_components, make_repo, request};
+use spk_solve_macros::{make_build, make_build_and_components, make_package, make_repo, request};
 use spk_solve_solution::PackageSource;
+use spk_storage::fixtures::*;
 use spk_storage::RepositoryHandle;
 
 use super::{ErrorDetails, Solver};
@@ -2392,4 +2393,93 @@ fn test_problem_packages() {
         ),
         None => panic!("problem package count was missing, should have been 2"),
     };
+}
+
+/// Test that if a package is published with a two part version number, e.g.,
+/// "1.0", in one repo, and the same package is published with a three part
+/// version number, e.g., "1.0.0", in another repo, the solver is still
+/// able to resolve either package.
+#[rstest]
+#[case::resolve_three_part_flavor("red", "1.0.0")]
+#[case::resolve_two_part_flavor("blue", "1.0")]
+#[tokio::test]
+async fn test_version_number_masking(
+    mut solver: Solver,
+    #[case] color_to_solve_for: &str,
+    #[case] expected_resolved_version: &str,
+    #[values(RepoKind::Mem, RepoKind::Spfs)] repo: RepoKind,
+) {
+    init_logging();
+
+    let repo1 = make_repo(repo).await;
+    let repo2 = make_repo(repo).await;
+
+    let options = option_map! { "color" => "red" };
+    let (s, cmpts) = make_package!(
+        repo1,
+        {
+            "pkg": "my-pkg/1.0.0",
+            "build": {"options": [{"var": "color"}]},
+        },
+        options
+    );
+    repo1.publish_package(&s, &cmpts).await.unwrap();
+    tracing::info!(pkg=%spk_schema::Package::ident(&s), "published package to repo1");
+    let options = option_map! { "color" => "blue" };
+    let (s, cmpts) = make_package!(
+        repo2,
+        {
+            "pkg": "my-pkg/1.0",
+            "build": {"options": [{"var": "color"}]},
+        },
+        options
+    );
+    repo2.publish_package(&s, &cmpts).await.unwrap();
+    tracing::info!(pkg=%spk_schema::Package::ident(&s), "published package to repo2");
+
+    // `build_version_map` maintains a version-to-repo mapping that uses the
+    // repo name, so the two repos generated here need to have different names.
+    assert_ne!(
+        repo1.name(),
+        repo2.name(),
+        "test repos must have unique names"
+    );
+
+    // This test is intended to ensure that if a repo already has content like
+    // this (maybe from past/future bugs), the solver will still work. If things
+    // change so my-pkg/1.0 gets published as my-pkg/1.0.0, then this test would
+    // stop creating the proper setup to test this properly.
+    //
+    // The next section checks that the built package still has a two-part
+    // version number. If that changes, then this test will need to be updated
+    // so it can still create a build with a two-part version number.
+
+    let builds = repo2
+        .list_package_builds(&version_ident!("my-pkg/1.0"))
+        .await
+        .unwrap();
+    let package = repo2.read_package(&builds[0]).await.unwrap();
+    assert_eq!(package.ident().version().parts.len(), 2);
+
+    let options = option_map! {};
+    solver.update_options(options);
+    solver.add_repository(Arc::clone(&repo1.repo));
+    solver.add_repository(Arc::clone(&repo2.repo));
+    solver.add_request(request!("my-pkg"));
+    solver.add_request(
+        VarRequest {
+            var: opt_name!("color").to_owned(),
+            value: color_to_solve_for.into(),
+        }
+        .into(),
+    );
+
+    let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
+    assert_eq!(packages.len(), 1, "expected one resolved package");
+    let resolved = packages.get("my-pkg").unwrap();
+    assert_eq!(
+        &resolved.spec.version().to_string(),
+        expected_resolved_version
+    );
+    assert_ne!(resolved.spec.ident().build(), &Build::Source);
 }

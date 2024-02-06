@@ -47,7 +47,7 @@ impl Drop for RuntimeLock {
 }
 
 /// The types of temporary repositories that can be created.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RepoKind {
     Mem,
     Spfs,
@@ -124,7 +124,14 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
                 .await
                 .expect("failed to save empty manifest to spfs repo");
             assert_eq!(written, spfs::encoding::EMPTY_DIGEST.into());
-            storage::RepositoryHandle::SPFS(("temp-repo", spfs_repo).try_into().unwrap())
+            storage::RepositoryHandle::SPFS(
+                (
+                    format!("temp-repo-{}", ulid::Ulid::new().to_string().to_lowercase()),
+                    spfs_repo,
+                )
+                    .try_into()
+                    .unwrap(),
+            )
         }
         RepoKind::Mem => storage::RepositoryHandle::new_mem(),
     };
