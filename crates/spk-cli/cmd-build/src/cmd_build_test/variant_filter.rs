@@ -25,7 +25,7 @@ struct Opt {
 
 #[rstest]
 #[tokio::test]
-async fn test_build_with_opts_acts_as_variant_filter(tmpdir: tempfile::TempDir) {
+async fn test_build_with_variant_acts_as_variant_filter(tmpdir: tempfile::TempDir) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -44,8 +44,8 @@ build:
         - { color: green }
         - { color: blue }
         "#,
-        // By saying --opt color=green, we are asking for the second variant
-        "--opt",
+        // By saying --variant color=green, we are asking for the second variant
+        "--variant",
         "color=green",
     );
 
@@ -76,7 +76,7 @@ build:
 
 #[rstest]
 #[tokio::test]
-async fn test_build_with_opts_acts_as_variant_filter_no_match(tmpdir: tempfile::TempDir) {
+async fn test_build_with_opts_acts_as_override(tmpdir: tempfile::TempDir) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -95,33 +95,8 @@ build:
         - { color: green }
         - { color: blue }
         "#,
-        // By saying --opt color=purple, we are asking for a variant that
-        // doesn't exist.
-        "--opt",
-        "color=purple",
-    );
-
-    result.expect_err("Expected build to fail");
-}
-
-#[rstest]
-#[tokio::test]
-async fn test_build_with_opts_on_recipe_with_no_variants(tmpdir: tempfile::TempDir) {
-    let _rt = spfs_runtime().await;
-
-    let (_, result) = try_build_package!(
-        tmpdir,
-        "no-variants.spk.yaml",
-        br#"
-pkg: no-variants/1.0.0
-api: v0/package
-build:
-    options:
-        - var: color/blue
-    script:
-        - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
-    "#,
-        // By saying --opt color=green, we are asking for a bespoke variant
+        // By saying --opt color=green, we are asking to override the color in
+        // all the variants (pruning duplicates).
         "--opt",
         "color=green",
     );
@@ -153,7 +128,161 @@ build:
 
 #[rstest]
 #[tokio::test]
-async fn test_build_with_opts_acts_as_variant_filter_two_opts(tmpdir: tempfile::TempDir) {
+async fn test_build_with_variant_acts_as_variant_filter_no_match(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    let (_, result) = try_build_package!(
+        tmpdir,
+        "three-variants.spk.yaml",
+        br#"
+pkg: three-variants/1.0.0
+api: v0/package
+build:
+    options:
+        - var: color
+    script:
+        - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
+    variants:
+        - { color: red }
+        - { color: green }
+        - { color: blue }
+        "#,
+        // By saying --variant color=purple, we are asking for a variant that
+        // doesn't exist.
+        "--variant",
+        "color=purple",
+    );
+
+    result.expect_err("Expected build to fail");
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_with_variant_on_recipe_with_no_variants_match_default(
+    tmpdir: tempfile::TempDir,
+) {
+    let _rt = spfs_runtime().await;
+
+    let (_, result) = try_build_package!(
+        tmpdir,
+        "no-variants.spk.yaml",
+        br#"
+pkg: no-variants/1.0.0
+api: v0/package
+build:
+    options:
+        - var: color/blue
+    script:
+        - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
+    "#,
+        // By saying --variant color=blue, we are asking for the "default"
+        // variant, because the default color is blue.
+        "--variant",
+        "color=blue",
+    );
+
+    let mut result = result.expect("Expected build to succeed");
+
+    // Only care about binary builds (not source builds)
+    result
+        .created_builds
+        .artifacts
+        .retain(|(_, artifact)| matches!(artifact, BuildArtifact::Binary(_, _, _)));
+
+    assert_eq!(
+        result.created_builds.artifacts.len(),
+        1,
+        "Expected one build to be created"
+    );
+
+    let opt_name_color = opt_name!("color");
+
+    assert!(
+        matches!(
+            &result.created_builds.artifacts[0].1,
+            BuildArtifact::Binary(_, 0, options) if matches!(options.get(opt_name_color), Some(color) if color == "blue")
+        ),
+        "Expected the first variant to be built, and color=blue"
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_with_variant_on_recipe_with_no_variants_no_match(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    let (_, result) = try_build_package!(
+        tmpdir,
+        "no-variants.spk.yaml",
+        br#"
+pkg: no-variants/1.0.0
+api: v0/package
+build:
+    options:
+        - var: color/blue
+    script:
+        - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
+    "#,
+        // By saying --variant color=green, we are asking for a variant that
+        // doesn't exist.
+        "--variant",
+        "color=green",
+    );
+
+    result.expect_err("Expected build to fail");
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_with_new_variant_on_recipe_with_no_variants(tmpdir: tempfile::TempDir) {
+    let _rt = spfs_runtime().await;
+
+    let (_, result) = try_build_package!(
+        tmpdir,
+        "no-variants.spk.yaml",
+        br#"
+pkg: no-variants/1.0.0
+api: v0/package
+build:
+    options:
+        - var: color/blue
+    script:
+        - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
+    "#,
+        // By saying --new-variant with color=green, we are asking for a bespoke
+        // variant
+        "--new-variant",
+        r#"{ "color": "green" }"#,
+    );
+
+    let mut result = result.expect("Expected build to succeed");
+
+    // Only care about binary builds (not source builds)
+    result
+        .created_builds
+        .artifacts
+        .retain(|(_, artifact)| matches!(artifact, BuildArtifact::Binary(_, _, _)));
+
+    assert_eq!(
+        result.created_builds.artifacts.len(),
+        1,
+        "Expected one build to be created"
+    );
+
+    let opt_name_color = opt_name!("color");
+
+    assert!(
+        matches!(
+            &result.created_builds.artifacts[0].1,
+            BuildArtifact::Binary(_, 1, options) if matches!(options.get(opt_name_color), Some(color) if color == "green")
+        ),
+        "Expected the first extra-variant to be built, and color=green"
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_build_with_variant_acts_as_variant_filter_two_opts(tmpdir: tempfile::TempDir) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -173,12 +302,10 @@ build:
         - { color: green, fruit: apple }
         - { color: blue, fruit: orange }
         "#,
-        // By saying --opt color=green, we are asking for the second variant
-        "--opt",
-        "color=green",
-        // Our choice of fruit has to match the same variant
-        "--opt",
-        "fruit=apple",
+        // By saying --variant color=green,fruit=apple we are asking for the
+        // second variant
+        "--variant",
+        "color=green,fruit=apple",
     );
 
     let mut result = result.expect("Expected build to succeed");
@@ -211,7 +338,9 @@ build:
 
 #[rstest]
 #[tokio::test]
-async fn test_build_with_opts_acts_as_variant_filter_two_opts_no_match(tmpdir: tempfile::TempDir) {
+async fn test_build_with_variant_acts_as_variant_filter_two_opts_no_match(
+    tmpdir: tempfile::TempDir,
+) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -232,10 +361,8 @@ build:
         - { color: blue, fruit: orange }
         "#,
         // The first option matches, but the second doesn't
-        "--opt",
-        "color=green",
-        "--opt",
-        "fruit=orange",
+        "--variant",
+        "color=green,fruit=orange",
     );
 
     result.expect_err("Expected build to fail");
@@ -243,7 +370,9 @@ build:
 
 #[rstest]
 #[tokio::test]
-async fn test_build_with_opts_acts_as_variant_filter_and_override(tmpdir: tempfile::TempDir) {
+async fn test_build_with_variant_and_opts_acts_as_variant_filter_and_override(
+    tmpdir: tempfile::TempDir,
+) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -263,8 +392,8 @@ build:
         - { color: green }
         - { color: blue }
         "#,
-        // By saying --opt color=green, we are asking for the second variant
-        "--opt",
+        // By saying --variant color=green, we are asking for the second variant
+        "--variant",
         "color=green",
         // We are overriding the green variant's fruit to be apple
         "--opt",
@@ -356,7 +485,7 @@ build:
 
 #[rstest]
 #[tokio::test]
-async fn test_build_with_opts_and_variant_index_overrules_filter(tmpdir: tempfile::TempDir) {
+async fn test_build_with_opts_and_variant_index(tmpdir: tempfile::TempDir) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -436,7 +565,7 @@ build:
         - { color: blue, fruit: orange }
         "#,
         // By supplying a variant spec, we are asking for a bespoke variant
-        "--variant",
+        "--new-variant",
         r#"{ "color": "brown", "fruit": "kiwi" }"#,
     );
 
@@ -494,7 +623,7 @@ build:
         - { color: blue, fruit: orange }
         "#,
         // By supplying a variant spec, we are asking for a bespoke variant
-        "--variant",
+        "--new-variant",
         r#"{ "color": "brown", "fruit": "kiwi" }"#,
         // But by also supplying --opt, we are overriding the bespoke variant
         "--opt",

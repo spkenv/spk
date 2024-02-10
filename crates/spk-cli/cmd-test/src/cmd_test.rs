@@ -75,6 +75,9 @@ impl Run for CmdTest {
 
         let source = if self.here { Some(".".into()) } else { None };
 
+        let opt_host_options =
+            (!self.options.no_host).then(|| HOST_OPTIONS.get().unwrap_or_default());
+
         for package in &self.packages {
             let (name, stages) = match package.split_once('@') {
                 Some((name, stage)) => {
@@ -99,7 +102,7 @@ impl Run for CmdTest {
                 let default_variants = recipe.default_variants(&options);
                 let variants_to_test = self
                     .variant
-                    .requested_variants(&recipe, &default_variants, &options)
+                    .requested_variants(&recipe, &default_variants, opt_host_options.as_ref())
                     .collect::<Result<Vec<_>>>()?;
 
                 for (_, variant) in variants_to_test {

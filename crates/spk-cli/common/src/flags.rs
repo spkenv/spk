@@ -20,6 +20,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{parse_ident, AnyIdent, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::name::OptNameBuf;
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{
     Recipe,
@@ -271,15 +272,6 @@ pub struct Options {
     /// inputs to the build itself as well as parameters for resolving the
     /// build environment. In other cases, the options are used to
     /// limit which packages builds can be used/resolved.
-    ///
-    /// When building packages that have variants defined, and when not also
-    /// using the `--variant` flag, these options also act as a variant filter.
-    /// For example, given a recipe that has two variants, one with python set
-    /// to 3.7 and one set to python 3.9, `--opt python=3.9` will build only the
-    /// variant with python 3.9 specified. `--opt` can still be used to override
-    /// a default value that does not appear in a variant. Consider using
-    /// `--variant` with a bespoke variant spec for complete control over what
-    /// is to be built.
     ///
     /// Options are specified as key/value pairs separated by either
     /// an equals sign or colon (--opt name=value --opt other:value).
@@ -1119,8 +1111,8 @@ impl DecisionFormatterSettings {
 pub enum VariantSpec {
     /// A variant index
     Index(usize),
-    /// A bespoke variant recipe
-    Bespoke(String),
+    /// A variant filter on one or more options
+    Filter(OptionMap),
 }
 
 impl FromStr for VariantSpec {
@@ -1130,30 +1122,68 @@ impl FromStr for VariantSpec {
         if let Ok(index) = s.parse() {
             return Ok(VariantSpec::Index(index));
         }
-        Ok(VariantSpec::Bespoke(s.to_string()))
+        let s = s.trim();
+        if s.starts_with('{') {
+            let filter = serde_json::from_str::<OptionMap>(s).map_err(|err| {
+                Error::String(format!("failed to parse variant string as json: {err}"))
+            })?;
+            return Ok(VariantSpec::Filter(filter));
+        }
+        s.split(',')
+            .map(|pair| {
+                let (name, value) = pair
+                    .split_once('=')
+                    .ok_or_else(|| {
+                        Error::String(format!(
+                            "Invalid option: {pair} (should be in the form name=value)"
+                        ))
+                    })
+                    .and_then(|(name, value)| {
+                        Ok((OptNameBuf::try_from(name)?, value.to_string()))
+                    })?;
+                Ok((name, value))
+            })
+            .collect::<std::result::Result<OptionMap, Self::Err>>()
+            .map(VariantSpec::Filter)
     }
 }
 
 #[derive(Args, Clone)]
 pub struct Variant {
-    /// Specify variants of a package to be built
+    /// Specify a new variant of a package to be built
     ///
-    /// When this flag is not present, the default behavior is to build/test
-    /// all the variants of a package, or if a package has no variants, to
-    /// build/test the package using its base defaults.
+    /// When this flag and --variants are not present, the default behavior is
+    /// to build/test all the variants of a package, or if a package has no
+    /// variants, to build/test the package using its base defaults.
     ///
-    /// Variants can be specified by index or by bespoke variant spec.
-    /// For example, `--variant 0` will build the first variant of a package,
-    /// and only the first variant.
-    ///
-    /// A bespoke variant spec is specified as a json value. Anything that
-    /// would be accepted in a recipe as a variant entry can be specified here.
-    /// For example, `--variant '{ "python": "3.9" }'` will build a variant
+    /// A new variant is specified as a json value. Anything that would be
+    /// accepted in a recipe as a variant entry can be specified here.
+    /// For example, `--new-variant '{ "python": "3.9" }'` will build a variant
     /// with python 3.9, ignoring any variants defined in the recipe.
     ///
     /// The `--opt` flag can be used in combination to override the default
     /// value(s) specified in the recipe. Or if a bespoke variant is specified,
     /// `--opt` will still override any value defined in the bespoke variant.
+    ///
+    /// This flag can be repeated to request multiple builds/tests in the same
+    /// run.
+    #[clap(long = "new-variant")]
+    pub new_variant: Vec<String>,
+
+    /// Specify variants of a package to be built
+    ///
+    /// When this flag and --new-variant are not present, the default behavior
+    /// is to build/test all the variants of a package, or if a package has no
+    /// variants, to build/test the package using its base defaults.
+    ///
+    /// --variant NUM may be used to build a specific variant as defined
+    /// in the recipe, by index, starting at 0.
+    ///
+    /// --variant key=value[,key=value...] may be used to filter on the
+    /// variants defined in the recipe. Only variants that specify the same
+    /// keys and values as the filter will be built. If a value needs to contain
+    /// a comma, a json value can be provided, such as:
+    /// `{ "key": "value,with,commas" }`
     ///
     /// This flag can be repeated to request multiple builds/tests in the same
     /// run.
@@ -1167,13 +1197,13 @@ impl Variant {
     /// The items of the iterator are a tuple of the variant index and
     /// the [`spk_schema::SpecVariant`].
     ///
-    /// `options` is an OptionMap of all the overrides provided on the command
-    /// line as well as the host options (if not disabled).
+    /// `host_options` is an OptionMap of all the host options (if not
+    /// disabled).
     pub fn requested_variants<'v, 'r, 'o, 'i>(
         &'v self,
         recipe: &'r spk_schema::SpecRecipe,
         default_variants: &'r [spk_schema::SpecVariant],
-        options: &'o OptionMap,
+        host_options: Option<&'o OptionMap>,
     ) -> Box<
         dyn Iterator<Item = Result<(usize, Cow<'r, spk_schema::SpecVariant>)>> + Send + Sync + 'i,
     >
@@ -1182,38 +1212,82 @@ impl Variant {
         'r: 'i,
         'o: 'i,
     {
-        if self.variants.is_empty() {
-            let override_option_keys = options.keys().collect::<HashSet<_>>();
+        if self.variants.is_empty() && self.new_variant.is_empty() {
+            let host_option_keys = host_options
+                .map(|o| o.keys().collect::<HashSet<_>>())
+                .unwrap_or_default();
             Box::new(
                 default_variants
                     .iter()
                     .enumerate()
                     .filter_map(move |(index, v)| {
-                        // Variants are filtered based on the options (and host
-                        // options) that are set. A variant is included unless
-                        // it has an option set that doesn't match the value
-                        // provided by the user.
+                        // Even if no filter is specified, variants are still
+                        // filtered based on the host options (if any).
                         let variant_options = v.options();
                         let variant_option_keys = variant_options.keys().collect::<HashSet<_>>();
-                        let mut intersecting_options =
-                            override_option_keys.intersection(&variant_option_keys);
-                        intersecting_options
-                            .all(|k| options.get(*k) == variant_options.get(*k))
+                        let mut intersecting_host_options =
+                            host_option_keys.intersection(&variant_option_keys);
+                        intersecting_host_options
+                            .all(|k| host_options.unwrap().get(*k) == variant_options.get(*k))
                             .then_some(Ok((index, Cow::Borrowed(v))))
                     }),
             )
         } else {
-            Box::new(self.variants.iter().enumerate().map(move |(index, s)| {
-                match s {
-                    VariantSpec::Index(i) if *i < default_variants.len() => {
-                        Ok((*i, Cow::Borrowed(&default_variants[*i])))
-                    }
-                    VariantSpec::Index(i) => bail!(
-                        "--variant {i} is out of range; {} variant(s) found in {}",
-                        default_variants.len(),
-                        recipe.ident().format_ident(),
-                    ),
-                    VariantSpec::Bespoke(s) => {
+            Box::new(
+                self.variants
+                    .iter()
+                    .flat_map(
+                        move |s| -> Box<
+                            dyn Iterator<Item = Result<(usize, Cow<'r, spk_schema::SpecVariant>)>>
+                                + Send
+                                + Sync
+                                + 'i,
+                        > {
+                            match s {
+                                VariantSpec::Index(i) if *i < default_variants.len() => Box::new(
+                                    [Ok((*i, Cow::Borrowed(&default_variants[*i])))].into_iter(),
+                                ),
+                                VariantSpec::Index(i) => Box::new(
+                                    [Err(miette!(
+                                        "--variant {i} is out of range; {} variant(s) found in {}",
+                                        default_variants.len(),
+                                        recipe.ident().format_ident(),
+                                    ))]
+                                    .into_iter(),
+                                ),
+                                VariantSpec::Filter(filter_options) => {
+                                    let host_option_keys = host_options
+                                        .map(|o| o.keys().collect::<HashSet<_>>())
+                                        .unwrap_or_default();
+                                    Box::new(default_variants.iter().enumerate().filter_map(
+                                        move |(index, v)| {
+                                            // Variants are filtered based on
+                                            // the filter options (and host
+                                            // options) that are set. A variant
+                                            // is only included if it matches
+                                            // all the filter options,
+                                            // and doesn't conflict with the
+                                            // host options.
+                                            let variant_options = v.options();
+                                            let variant_option_keys =
+                                                variant_options.keys().collect::<HashSet<_>>();
+                                            let mut intersecting_host_options =
+                                                host_option_keys.intersection(&variant_option_keys);
+                                            (filter_options
+                                                .iter()
+                                                .all(|(k, v)| variant_options.get(k) == Some(v))
+                                                && intersecting_host_options.all(|k| {
+                                                    host_options.unwrap().get(*k)
+                                                        == variant_options.get(*k)
+                                                }))
+                                            .then_some(Ok((index, Cow::Borrowed(v))))
+                                        },
+                                    ))
+                                }
+                            }
+                        },
+                    )
+                    .chain(self.new_variant.iter().enumerate().map(move |(index, s)| {
                         serde_json::from_str::<spk_schema::v0::VariantSpec>(s)
                             .map_err(|e| miette!(e))
                             .and_then(|v| {
@@ -1226,9 +1300,8 @@ impl Variant {
                                         )
                                     })
                             })
-                    }
-                }
-            }))
+                    })),
+            )
         }
     }
 }

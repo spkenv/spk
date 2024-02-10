@@ -134,6 +134,9 @@ impl Run for MakeBinary {
             packages.push(None)
         }
 
+        let opt_host_options =
+            (!self.options.no_host).then(|| HOST_OPTIONS.get().unwrap_or_default());
+
         for package in packages {
             let (recipe, filename) = flags::find_package_recipe_from_template_or_repo(
                 package.as_ref().map(|p| p.get_specifier()),
@@ -152,7 +155,7 @@ impl Run for MakeBinary {
             let default_variants = recipe.default_variants(&options);
             let variants_to_build = self
                 .variant
-                .requested_variants(&recipe, &default_variants, &options)
+                .requested_variants(&recipe, &default_variants, opt_host_options.as_ref())
                 .collect::<Result<Vec<_>>>()?;
 
             for (variant_index, variant) in variants_to_build {
