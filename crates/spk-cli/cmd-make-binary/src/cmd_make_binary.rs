@@ -163,7 +163,8 @@ impl Run for MakeBinary {
                 overrides.extend(options.clone());
                 let variant = (*variant).clone().with_overrides(overrides);
 
-                if !built.insert(variant.clone()) {
+                // Need to hash on the overridden options to find duplicates.
+                if !built.insert(variant.options().into_owned()) {
                     tracing::debug!("Skipping variant that was already built:\n{variant}");
                     continue;
                 }
