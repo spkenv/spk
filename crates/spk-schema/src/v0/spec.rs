@@ -375,8 +375,15 @@ impl Recipe for Spec<VersionIdent> {
         self.build.build_digest(self.pkg.name(), variant)
     }
 
-    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
-        Cow::Borrowed(&self.build.variants)
+    fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
+        if self.build.variants.is_empty() {
+            Cow::Owned(vec![super::Variant::from_build_options(
+                &self.build.options,
+                options,
+            )])
+        } else {
+            Cow::Borrowed(&self.build.variants)
+        }
     }
 
     fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>

@@ -31,6 +31,33 @@ pub struct Variant {
 }
 
 impl Variant {
+    /// Construct a build variant using the provided build options.
+    /// Only the options that have a default value are included in
+    /// the variant.
+    pub fn from_build_options(build_options: &[Opt], options: &OptionMap) -> Self {
+        let options = build_options
+            .iter()
+            .filter_map(|o| {
+                let Opt::Var(o) = o else {
+                    return None;
+                };
+                (!o.default.is_empty()).then(|| {
+                    (
+                        o.var.clone(),
+                        options
+                            .get(&o.var)
+                            .cloned()
+                            .unwrap_or_else(|| o.default.clone()),
+                    )
+                })
+            })
+            .collect();
+        Self {
+            options,
+            requirements: RequirementsList::default(),
+        }
+    }
+
     /// Construct a build variant using a set of provided options and
     /// the known build options for the package. This uses a set of
     /// heuristics to identify and determine which type of additional

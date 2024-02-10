@@ -149,7 +149,7 @@ impl Run for MakeBinary {
             tracing::info!("building binary package(s) for {}", ident.format_ident());
             let mut built = std::collections::HashSet::new();
 
-            let default_variants = recipe.default_variants();
+            let default_variants = recipe.default_variants(&options);
             let variants_to_build = self
                 .variant
                 .requested_variants(&recipe, &default_variants, &options)

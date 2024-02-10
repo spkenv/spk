@@ -212,7 +212,7 @@ impl View {
             .must_be_found();
         let recipe = template.render(options)?;
 
-        let default_variants = recipe.default_variants();
+        let default_variants = recipe.default_variants(options);
         match &self.format {
             Some(format) => match format {
                 OutputFormat::Yaml => tracing::warn!("No yaml format for variants"),

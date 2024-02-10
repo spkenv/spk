@@ -184,7 +184,8 @@ impl Recipe for Platform {
         BuildSpec::default().build_digest(self.name(), variant)
     }
 
-    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
+    fn default_variants(&self, _options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
+        // Platforms have no build!
         Cow::Owned(vec![Self::Variant::default()])
     }
 

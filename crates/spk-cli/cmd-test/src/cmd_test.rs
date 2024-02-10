@@ -96,7 +96,7 @@ impl Run for CmdTest {
 
                 let mut tested = std::collections::HashSet::new();
 
-                let default_variants = recipe.default_variants();
+                let default_variants = recipe.default_variants(&options);
                 let variants_to_test = self
                     .variant
                     .requested_variants(&recipe, &default_variants, &options)

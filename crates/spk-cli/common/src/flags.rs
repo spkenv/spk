@@ -449,7 +449,7 @@ impl Requests {
                     TestStage::Build => {
                         let requirements = match build_variant {
                             Some(VariantIndex(index)) => {
-                                let default_variants = recipe.default_variants();
+                                let default_variants = recipe.default_variants(&options);
                                 let variant =
                                     default_variants
                                         .iter()

@@ -50,7 +50,7 @@ fn test_build_spec_with_host_opt_contains_expected_names(
     match res {
         Ok(build_spec) => {
             let opt_names: Vec<String> = build_spec
-                .opts_for_variant(&build_spec.variants[0])
+                .opts_for_variant(&build_spec.variants.first().cloned().unwrap_or_default())
                 .unwrap()
                 .iter()
                 .map(|o| o.full_name().to_string())
@@ -94,7 +94,7 @@ fn test_build_spec_with_host_opt_does_not_have_disallowed_names(
     match res {
         Ok(build_spec) => {
             let opt_names: Vec<String> = build_spec
-                .opts_for_variant(&build_spec.variants[0])
+                .opts_for_variant(&build_spec.variants.first().cloned().unwrap_or_default())
                 .unwrap()
                 .iter()
                 .map(|o| o.full_name().to_string())
@@ -131,7 +131,8 @@ fn test_build_spec_with_host_opt_and_disallowed_name(#[case] value: &str) {
         Ok(build_spec) => {
             // This return an error because of the "distro/centos" var
             // setting in the variant
-            let result = build_spec.opts_for_variant(&build_spec.variants[0]);
+            let result = build_spec
+                .opts_for_variant(&build_spec.variants.first().cloned().unwrap_or_default());
             assert!(result.is_ok())
         }
         Err(err) => panic!("Fail: build spec didn't parse with 'auto_host_vars: {value}': {err:?}"),

@@ -43,7 +43,10 @@ pub trait Recipe:
         V: Variant;
 
     /// Return the default variants defined in this recipe.
-    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>>;
+    ///
+    /// The prevailing option overrides are needed to return a correct default
+    /// variant, including host options if they are enabled.
+    fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>>;
 
     /// Produce the full set of build options given the inputs.
     ///
@@ -97,8 +100,8 @@ where
         (**self).build_digest(variant)
     }
 
-    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
-        (**self).default_variants()
+    fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
+        (**self).default_variants(options)
     }
 
     fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>
@@ -155,8 +158,8 @@ where
         (**self).build_digest(variant)
     }
 
-    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
-        (**self).default_variants()
+    fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
+        (**self).default_variants(options)
     }
 
     fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>

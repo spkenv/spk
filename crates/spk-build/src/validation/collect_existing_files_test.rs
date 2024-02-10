@@ -41,7 +41,7 @@ async fn test_validate_build_changeset_collect_existing() {
         },
         setup: BuildSetupReport {
             environment: Solution::default(),
-            variant: package.build.variants[0].clone(),
+            variant: package.build.variants.first().cloned().unwrap_or_default(),
             environment_filesystem,
             package,
         },

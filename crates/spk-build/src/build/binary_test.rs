@@ -12,7 +12,7 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::{opt_name, option_map};
 use spk_schema::ident::{PkgRequest, RangeIdent, Request};
-use spk_schema::{recipe, ComponentSpecList, FromYaml, Package, Recipe, SpecRecipe};
+use spk_schema::{recipe, ComponentSpecList, FromYaml, OptionMap, Package, Recipe, SpecRecipe};
 use spk_solve::Solution;
 use spk_storage::fixtures::*;
 use spk_storage::{self as storage, Repository};
@@ -281,7 +281,7 @@ async fn test_build_package_pinning_optional_requirement() {
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let default_variants = spec.default_variants();
+    let default_variants = spec.default_variants(&OptionMap::default());
     for (variant, expected_dep) in default_variants.iter().zip(["dep1", "dep2"].iter()) {
         let (spec, _) = BinaryPackageBuilder::from_recipe(spec.clone())
             .with_source(BuildSource::LocalPath(".".into()))
@@ -343,7 +343,7 @@ async fn test_build_package_pinning_optional_requirement_without_frombuildenv() 
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let default_variants = spec.default_variants();
+    let default_variants = spec.default_variants(&OptionMap::default());
     for (variant, expected_dep) in default_variants.iter().zip(["dep1", "dep2"].iter()) {
         let (spec, _) = BinaryPackageBuilder::from_recipe(spec.clone())
             .with_source(BuildSource::LocalPath(".".into()))
@@ -405,7 +405,7 @@ async fn test_build_var_pinning_optional_requirement() {
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let default_variants = spec.default_variants();
+    let default_variants = spec.default_variants(&OptionMap::default());
     for (variant, expected_dep) in default_variants.iter().zip(
         [
             // first variant should not have any var requirements

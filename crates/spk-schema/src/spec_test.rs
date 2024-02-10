@@ -47,7 +47,7 @@ fn test_resolve_options_variant_adds_new_var_option(
         },
     });
 
-    let variants = spec.default_variants();
+    let variants = spec.default_variants(&OptionMap::default());
 
     // The "default" variant still has empty options.
     let resolved_options = spec.resolve_options(&OptionMap::default()).unwrap();
@@ -121,7 +121,7 @@ fn test_resolve_options_variant_treated_as_new_pkg() {
         },
     });
 
-    let variants = spec.default_variants();
+    let variants = spec.default_variants(&OptionMap::default());
     let (v_0, v_1, v_2) = (&variants[0], &variants[1], &variants[2]);
 
     let resolved_options_default = spec.resolve_options(&OptionMap::default()).unwrap();
@@ -224,7 +224,7 @@ fn test_get_build_requirements_variant_treated_as_new_pkg() {
         },
     });
 
-    let variants = spec.default_variants();
+    let variants = spec.default_variants(&OptionMap::default());
     let (v_0, v_1, v_2) = (&variants[0], &variants[1], &variants[2]);
 
     let build_requirements_default = spec.get_build_requirements(&OptionMap::default()).unwrap();
@@ -289,7 +289,7 @@ fn test_get_build_requirements_pkg_in_variant_preserves_order() {
         },
     });
 
-    let variants = spec.default_variants();
+    let variants = spec.default_variants(&OptionMap::default());
     let variant_0 = &variants[0];
 
     let build_requirements_variant_0 = spec.get_build_requirements(&variant_0).unwrap();
