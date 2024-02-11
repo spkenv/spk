@@ -7,7 +7,7 @@ use std::sync::Arc;
 use clap::Args;
 use futures::TryFutureExt;
 use itertools::Itertools;
-use miette::{bail, Context, IntoDiagnostic, Result};
+use miette::{bail, miette, Context, IntoDiagnostic, Report, Result};
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{flags, spk_exe, BuildArtifact, BuildResult, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
@@ -163,8 +163,8 @@ impl Run for MakeBinary {
                 )
                 .collect::<Result<Vec<_>>>()?;
 
-            for variant_info in variants_to_build {
-                let variant = match variant_info.build_status {
+            for variant_info in &variants_to_build {
+                let variant = match &variant_info.build_status {
                     flags::VariantBuildStatus::Enabled(variant) => variant,
                     flags::VariantBuildStatus::FilteredOut(mismatches) => {
                         tracing::debug!("Skipping variant that was filtered out:\n{this_location} didn't match on {mismatches}", this_location = variant_info.location, mismatches = mismatches.keys().join(", "));
@@ -181,7 +181,7 @@ impl Run for MakeBinary {
                     overrides.extend(HOST_OPTIONS.get()?);
                 }
                 overrides.extend(options.clone());
-                let variant = (*variant).clone().with_overrides(overrides);
+                let variant = (**variant).clone().with_overrides(overrides);
 
                 tracing::info!(
                     "building {location}:\n{variant}",
@@ -268,12 +268,49 @@ impl Run for MakeBinary {
                     return Ok(status.code().unwrap_or(1));
                 }
             }
-        }
 
-        // If nothing was built (i.e., variant filters didn't match anything),
-        // treat this as an error.
-        if self.created_builds.is_empty() {
-            bail!("No packages were built");
+            // If nothing was built (i.e., variant filters didn't match anything),
+            // treat this as an error.
+            if self.created_builds.is_empty() {
+                let help = "Check --variant filters or host options match at least one variant";
+                let mut report: Option<Report> = None;
+                for variant_info in variants_to_build.iter().rev() {
+                    if let flags::VariantBuildStatus::FilteredOut(mismatches) =
+                        &variant_info.build_status
+                    {
+                        let message = format!(
+                            "{location} didn't match on {mismatches}",
+                            location = variant_info.location,
+                            mismatches = mismatches
+                                .iter()
+                                .map(|(k, v)| {
+                                    if let Some(actual) = &v.actual {
+                                        format!(
+                                            "{k} (expected {expected}, variant has {actual})",
+                                            expected = v.expected
+                                        )
+                                    } else {
+                                        format!("{k} (missing from variant)")
+                                    }
+                                })
+                                .join(", ")
+                        );
+
+                        match report {
+                            Some(r) => report = Some(r.wrap_err(message)),
+                            None => {
+                                report = Some(miette!(help = help, "{message}"));
+                            }
+                        }
+                    }
+                }
+                return Err(match report {
+                    Some(report) => report.wrap_err("No packages were built"),
+                    None => {
+                        miette!(help = help, "No packages were built")
+                    }
+                });
+            }
         }
 
         Ok(0)
