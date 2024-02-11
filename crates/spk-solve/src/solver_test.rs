@@ -2470,6 +2470,7 @@ async fn test_version_number_masking(
         VarRequest {
             var: opt_name!("color").to_owned(),
             value: color_to_solve_for.into(),
+            description: None,
         }
         .into(),
     );
