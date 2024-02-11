@@ -85,6 +85,7 @@ where
 }
 
 /// The type returned by [`VariantExt::with_overrides`].
+#[derive(Debug)]
 pub struct Override<T> {
     inner: T,
     overrides: OptionMap,

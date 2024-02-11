@@ -5,24 +5,24 @@
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::{BuildIdent, OptionMap};
 
+use crate::flags::VariantLocation;
+
 /// Details on a single build artifact.
 #[derive(Debug)]
 pub enum BuildArtifact {
     /// A source build
     Source(BuildIdent),
     /// A binary build and its variant index and options
-    Binary(BuildIdent, usize, OptionMap),
+    Binary(BuildIdent, VariantLocation, OptionMap),
 }
 
 impl std::fmt::Display for BuildArtifact {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             BuildArtifact::Source(ident) => write!(f, "{}", ident.format_ident()),
-            BuildArtifact::Binary(ident, variant_index, options) => write!(
-                f,
-                "{} variant {variant_index}, {options}",
-                ident.format_ident()
-            ),
+            BuildArtifact::Binary(ident, variant_location, options) => {
+                write!(f, "{} {variant_location}, {options}", ident.format_ident())
+            }
         }
     }
 }

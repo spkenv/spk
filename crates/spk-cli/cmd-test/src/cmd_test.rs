@@ -8,6 +8,7 @@ use std::sync::Arc;
 use clap::Args;
 use miette::{Context, Result};
 use spk_build::BuildSource;
+use spk_cli_common::flags::VariantBuildStatus;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatOptionMap;
 use spk_schema::foundation::ident_build::Build;
@@ -97,15 +98,22 @@ impl Run for CmdTest {
             for stage in stages {
                 tracing::info!("Testing {}@{stage}...", filename.display());
 
-                let mut tested = std::collections::HashSet::new();
-
                 let default_variants = recipe.default_variants(&options);
                 let variants_to_test = self
                     .variant
-                    .requested_variants(&recipe, &default_variants, opt_host_options.as_ref())
+                    .requested_variants(
+                        &recipe,
+                        &default_variants,
+                        &options,
+                        opt_host_options.as_ref(),
+                    )
                     .collect::<Result<Vec<_>>>()?;
 
-                for (_, variant) in variants_to_test {
+                for variant_info in variants_to_test {
+                    let VariantBuildStatus::Enabled(variant) = variant_info.build_status else {
+                        continue;
+                    };
+
                     let variant = {
                         let mut opts = match self.options.no_host {
                             true => OptionMap::default(),
@@ -117,11 +125,6 @@ impl Run for CmdTest {
 
                         (*variant).clone().with_overrides(opts)
                     };
-
-                    let digest = recipe.build_digest(&variant)?;
-                    if !tested.insert(digest) {
-                        continue;
-                    }
 
                     let selected = recipe
                         .get_tests(stage, &variant)

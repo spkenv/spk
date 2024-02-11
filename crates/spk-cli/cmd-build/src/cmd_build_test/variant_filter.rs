@@ -7,6 +7,7 @@ use std::io::Write;
 
 use clap::Parser;
 use rstest::rstest;
+use spk_cli_common::flags::VariantLocation;
 use spk_cli_common::{BuildArtifact, Run};
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::option_map;
@@ -68,7 +69,7 @@ build:
     assert!(
         matches!(
             &result.created_builds.artifacts[0].1,
-            BuildArtifact::Binary(_, 1, options) if matches!(options.get(opt_name_color), Some(color) if color == "green")
+            BuildArtifact::Binary(_, VariantLocation::Index(index), options) if *index == 1 && matches!(options.get(opt_name_color), Some(color) if color == "green")
         ),
         "Expected the second variant to be built, and color=green"
     );
@@ -120,7 +121,7 @@ build:
     assert!(
         matches!(
             &result.created_builds.artifacts[0].1,
-            BuildArtifact::Binary(_, 0, options) if matches!(options.get(opt_name_color), Some(color) if color == "green")
+            BuildArtifact::Binary(_, VariantLocation::Index(index), options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if color == "green")
         ),
         "Expected the first variant to be built, and color=green"
     );
@@ -200,7 +201,7 @@ build:
     assert!(
         matches!(
             &result.created_builds.artifacts[0].1,
-            BuildArtifact::Binary(_, 0, options) if matches!(options.get(opt_name_color), Some(color) if color == "blue")
+            BuildArtifact::Binary(_, VariantLocation::Index(index), options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if color == "blue")
         ),
         "Expected the first variant to be built, and color=blue"
     );
@@ -274,7 +275,7 @@ build:
     assert!(
         matches!(
             &result.created_builds.artifacts[0].1,
-            BuildArtifact::Binary(_, 1, options) if matches!(options.get(opt_name_color), Some(color) if color == "green")
+            BuildArtifact::Binary(_, VariantLocation::Bespoke(index), options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if color == "green")
         ),
         "Expected the first extra-variant to be built, and color=green"
     );
@@ -328,7 +329,8 @@ build:
     assert!(
         matches!(
             &result.created_builds.artifacts[0].1,
-            BuildArtifact::Binary(_, 1, options) if
+            BuildArtifact::Binary(_, VariantLocation::Index(index), options) if
+            *index == 1 &&
             matches!(options.get(opt_name_color), Some(color) if color == "green")
             && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "apple")
         ),
@@ -420,7 +422,8 @@ build:
     assert!(
         matches!(
             &result.created_builds.artifacts[0].1,
-            BuildArtifact::Binary(_, 1, options) if
+            BuildArtifact::Binary(_, VariantLocation::Index(index), options) if
+            *index == 1 &&
             matches!(options.get(opt_name_color), Some(color) if color == "green")
             && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "apple")
         ),
@@ -534,7 +537,8 @@ build:
     assert!(
         matches!(
             &result.created_builds.artifacts[0].1,
-            BuildArtifact::Binary(_, 0, options) if
+            BuildArtifact::Binary(_, VariantLocation::Index(index), options) if
+            *index == 0 &&
             matches!(options.get(opt_name_color), Some(color) if color == "green")
             && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "banana")
         ),
@@ -591,9 +595,8 @@ build:
             &result.created_builds.artifacts[0].1,
             BuildArtifact::Binary(
                 _,
-                // 3 is the next index after the last variant found in the recipe
-                3,
-                options) if matches!(options.get(opt_name_color), Some(color) if color == "brown")
+                VariantLocation::Bespoke(index),
+                options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if color == "brown")
             && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "kiwi")
         ),
         "Expected the first extra-variant to be built, with color=brown and fruit=kiwi"
@@ -652,9 +655,8 @@ build:
             &result.created_builds.artifacts[0].1,
             BuildArtifact::Binary(
                 _,
-                // 3 is the next index after the last variant found in the recipe
-                3,
-                options) if matches!(options.get(opt_name_color), Some(color) if color == "green")
+                VariantLocation::Bespoke(index),
+                options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if color == "green")
             && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "kiwi")
         ),
         "Expected the first extra-variant to be built, with color=green and fruit=kiwi"

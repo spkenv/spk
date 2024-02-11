@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use clap::Args;
 use futures::TryFutureExt;
+use itertools::Itertools;
 use miette::{bail, Context, IntoDiagnostic, Result};
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{flags, spk_exe, BuildArtifact, BuildResult, CommandArgs, Run};
@@ -150,15 +151,31 @@ impl Run for MakeBinary {
             local.force_publish_recipe(&recipe).await?;
 
             tracing::info!("building binary package(s) for {}", ident.format_ident());
-            let mut built = std::collections::HashSet::new();
 
             let default_variants = recipe.default_variants(&options);
             let variants_to_build = self
                 .variant
-                .requested_variants(&recipe, &default_variants, opt_host_options.as_ref())
+                .requested_variants(
+                    &recipe,
+                    &default_variants,
+                    &options,
+                    opt_host_options.as_ref(),
+                )
                 .collect::<Result<Vec<_>>>()?;
 
-            for (variant_index, variant) in variants_to_build {
+            for variant_info in variants_to_build {
+                let variant = match variant_info.build_status {
+                    flags::VariantBuildStatus::Enabled(variant) => variant,
+                    flags::VariantBuildStatus::FilteredOut(mismatches) => {
+                        tracing::debug!("Skipping variant that was filtered out:\n{this_location} didn't match on {mismatches}", this_location = variant_info.location, mismatches = mismatches.keys().join(", "));
+                        continue;
+                    }
+                    flags::VariantBuildStatus::Duplicate(location) => {
+                        tracing::debug!("Skipping variant that was already built:\n{this_location} is a duplicate of {location}", this_location = variant_info.location);
+                        continue;
+                    }
+                };
+
                 let mut overrides = OptionMap::default();
                 if !self.options.no_host {
                     overrides.extend(HOST_OPTIONS.get()?);
@@ -166,13 +183,10 @@ impl Run for MakeBinary {
                 overrides.extend(options.clone());
                 let variant = (*variant).clone().with_overrides(overrides);
 
-                // Need to hash on the overridden options to find duplicates.
-                if !built.insert(variant.options().into_owned()) {
-                    tracing::debug!("Skipping variant that was already built:\n{variant}");
-                    continue;
-                }
-
-                tracing::info!("building variant {variant_index}:\n{variant}");
+                tracing::info!(
+                    "building {location}:\n{variant}",
+                    location = variant_info.location
+                );
 
                 // Always show the solution packages for the solves
                 let mut fmt_builder = self
@@ -223,7 +237,10 @@ impl Run for MakeBinary {
                             }
                         }
 
-                        tracing::error!("variant {variant_index} failed:\n{variant}");
+                        tracing::error!(
+                            "{location} failed:\n{variant}",
+                            location = variant_info.location
+                        );
                         return Err(err.into());
                     }
                     Ok((spec, _cmpts)) => spec,
@@ -234,7 +251,7 @@ impl Run for MakeBinary {
                     filename.to_string_lossy().to_string(),
                     BuildArtifact::Binary(
                         out.ident().clone(),
-                        variant_index,
+                        variant_info.location,
                         variant.options().into_owned(),
                     ),
                 );
