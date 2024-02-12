@@ -5,6 +5,7 @@
 mod compat;
 mod error;
 pub mod parsing;
+mod parts_iter;
 
 use std::borrow::Cow;
 use std::cmp::{Ord, Ordering};
@@ -24,11 +25,13 @@ pub use compat::{
     BINARY_STR,
 };
 pub use error::{Error, Result};
+use itertools::Itertools;
 use miette::Diagnostic;
 use relative_path::RelativePathBuf;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
+use self::parts_iter::{MinimumPartsPartIter, NormalizedPartsIter};
 use crate::ident_ops::{MetadataPath, TagPath};
 use crate::name::validate_tag_name;
 
@@ -203,6 +206,16 @@ pub struct VersionParts {
 }
 
 impl VersionParts {
+    /// Return an iterator over the parts of this version.
+    fn iter_for_display(&self, minimum_parts: usize) -> impl Iterator<Item = u32> + '_ {
+        MinimumPartsPartIter::new(self.parts.as_slice(), minimum_parts)
+    }
+
+    /// Return an iterator over the normalized parts of this version.
+    fn iter_for_storage(&self) -> impl Iterator<Item = u32> + '_ {
+        NormalizedPartsIter::new(self.parts.as_slice())
+    }
+
     /// Return a normalized copy of this version.
     ///
     /// A normalized version has no trailing zeros.
@@ -321,6 +334,11 @@ where
 }
 
 impl Version {
+    /// How many version parts are always shown when displaying a version.
+    ///
+    /// If a version has fewer parts than this, it will be padded with zeros.
+    const MINIMUM_PARTS_FOR_DISPLAY: usize = 3;
+
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
         Version {
             parts: vec![major, minor, patch].into(),
@@ -379,15 +397,34 @@ impl Version {
         }
     }
 
+    /// The base integer portion of this version as a string.
+    ///
+    /// The version number will be normalized to at least three parts.
+    #[inline]
+    pub fn base_normalized(&self) -> String {
+        self.base(self.parts.iter_for_display(Self::MINIMUM_PARTS_FOR_DISPLAY))
+    }
+
+    /// The base integer portion of this version as a string.
+    ///
+    /// The version number will have the same precision as originally parsed.
+    #[inline]
+    pub fn base_verbatim(&self) -> String {
+        self.base(self.parts.iter())
+    }
+
     /// The base integer portion of this version as a string
-    pub fn base(&self) -> String {
-        let mut part_strings: Vec<_> = self.parts.iter().map(ToString::to_string).collect();
-        if part_strings.is_empty() {
+    fn base<I, D>(&self, mut iter: I) -> String
+    where
+        I: Iterator<Item = D>,
+        D: std::fmt::Display,
+    {
+        let mut s = iter.join(VERSION_SEP);
+        if s.is_empty() {
             // the base version cannot ever be an empty string, as that
             // is not a valid version
-            part_strings.push(String::from("0"));
+            s.push('0');
         }
-        let mut s = part_strings.join(VERSION_SEP);
         // This suffix is useful to not confuse users when used in
         // rendering the message for `Incompatible` results from
         // `Ranged::intersects` and should generally not show up in
@@ -416,10 +453,21 @@ impl MetadataPath for Version {
 
 impl TagPath for Version {
     fn tag_path(&self) -> RelativePathBuf {
-        // the "+" character is not a valid spfs tag character,
-        // so we 'encode' it with two dots, which is not a valid sequence
-        // for spk package names
-        RelativePathBuf::from(self.to_string().replace('+', ".."))
+        RelativePathBuf::from(format!(
+            "{base}{pre_sep}{pre}{post_sep}{post}",
+            base = self
+                .parts
+                .iter_for_storage()
+                .map(|p| p.to_string())
+                .join(VERSION_SEP),
+            pre_sep = if self.pre.is_empty() { "" } else { "-" },
+            pre = self.pre.to_string(),
+            // the "+" character is not a valid spfs tag character,
+            // so we 'encode' it with two dots, which is not a valid sequence
+            // for spk package names
+            post_sep = if self.post.is_empty() { "" } else { ".." },
+            post = self.post.to_string(),
+        ))
     }
 }
 
@@ -448,9 +496,17 @@ impl FromStr for Version {
     }
 }
 
+/// Format a version number as a string.
+///
+/// If the alternate flag is set, the version will be formatted as written,
+/// otherwise it will be normalized to at least three parts.
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(&self.base())?;
+        if f.alternate() {
+            f.write_str(&self.base_verbatim())?;
+        } else {
+            f.write_str(&self.base_normalized())?;
+        }
         self.format_tags(f)
     }
 }
@@ -553,7 +609,9 @@ impl Serialize for Version {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        // Preserve the original version string as parsed.
+        let version_string = format!("{:#}", self);
+        serializer.serialize_str(&version_string)
     }
 }
 

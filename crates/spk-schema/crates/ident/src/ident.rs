@@ -161,7 +161,9 @@ where
     where
         S: Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        // Preserve the original version string as parsed.
+        let ident_string = format!("{:#}", self);
+        serializer.serialize_str(&ident_string)
     }
 }
 

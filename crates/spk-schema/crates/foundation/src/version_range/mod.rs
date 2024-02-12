@@ -1072,7 +1072,7 @@ impl Display for CompatRange {
             f.write_fmt(format_args!("{r:#}"))?;
             f.write_char(':')?;
         }
-        f.write_str(&self.base.to_string())
+        self.base.fmt(f)
     }
 }
 

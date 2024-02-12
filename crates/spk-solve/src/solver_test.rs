@@ -2478,7 +2478,7 @@ async fn test_version_number_masking(
     assert_eq!(packages.len(), 1, "expected one resolved package");
     let resolved = packages.get("my-pkg").unwrap();
     assert_eq!(
-        &resolved.spec.version().to_string(),
+        format!("{:#}", &resolved.spec.version()),
         expected_resolved_version
     );
     assert_ne!(resolved.spec.ident().build(), &Build::Source);

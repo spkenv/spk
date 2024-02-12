@@ -528,8 +528,8 @@ fn test_contains(#[case] range1: &str, #[case] range2: &str, #[case] expected: b
 
 #[rstest]
 #[case(">1.0,>2.0", Some(">2.0"))]
-#[case("<2.0,>1.0", None)]
-#[case("<1.0,>2.0", None)]
+#[case("<2.0.0,>1.0.0", None)]
+#[case("<1.0.0,>2.0.0", None)]
 #[case(">=1.0,>=2.0", Some(">=2.0"))]
 // Merge should happen recursively
 #[case(">=1.0,>=3.0,>=2.0", Some(">=3.0"))]
