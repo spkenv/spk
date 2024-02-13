@@ -8,6 +8,7 @@ version = { workspace = true }
 workspace = true
 
 [features]
+legacy-spk-version-tags = []
 migration-to-components = ["spk-schema/migration-to-components"]
 
 [dependencies]

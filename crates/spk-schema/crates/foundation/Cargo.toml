@@ -12,6 +12,7 @@ default = ["parsedbuf-serde"]
 # activates serde within the generated code from parsedbuf macros
 parsedbuf-serde = []
 migration-to-components = []
+legacy-spk-version-tags = []
 
 [dependencies]
 arc-swap = { workspace = true }

@@ -24,7 +24,9 @@ use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::ident::{ToAnyWithoutBuild, VersionIdent};
 use spk_schema::ident_build::parsing::embedded_source_package;
 use spk_schema::ident_build::{EmbeddedSource, EmbeddedSourcePackage};
-use spk_schema::ident_ops::{NormalizedTagStrategy, TagPath, TagPathStrategy, VerbatimTagStrategy};
+#[cfg(feature = "legacy-spk-version-tags")]
+use spk_schema::ident_ops::VerbatimTagStrategy;
+use spk_schema::ident_ops::{NormalizedTagStrategy, TagPath, TagPathStrategy};
 use spk_schema::spec_ops::{HasVersion, WithVersion};
 use spk_schema::version::VersionParts;
 use spk_schema::{AnyIdent, BuildIdent, FromYaml, Package, Recipe, Spec, SpecRecipe};
@@ -41,6 +43,37 @@ mod spfs_test;
 
 const REPO_METADATA_TAG: &str = "spk/repo";
 const REPO_VERSION: &str = "1.0.0";
+
+macro_rules! verbatim_build_spec_tag_if_enabled {
+    ($self:expr, $output:ty, $ident:expr) => {{
+        verbatim_tag_if_enabled!($self, build_spec_tag, $output, $ident)
+    }};
+    ($self:expr, $ident:expr) => {{
+        verbatim_build_spec_tag_if_enabled!($self, _, $ident)
+    }};
+}
+
+macro_rules! verbatim_build_package_tag_if_enabled {
+    ($self:expr, $output:ty, $ident:expr) => {{
+        verbatim_tag_if_enabled!($self, build_package_tag, $output, $ident)
+    }};
+    ($self:expr, $ident:expr) => {{
+        verbatim_build_package_tag_if_enabled!($self, _, $ident)
+    }};
+}
+
+macro_rules! verbatim_tag_if_enabled {
+    ($self:expr, $tag:tt, $output:ty, $ident:expr) => {{
+        #[cfg(feature = "legacy-spk-version-tags")]
+        {
+            $self.$tag::<VerbatimTagStrategy, $output>($ident)
+        }
+        #[cfg(not(feature = "legacy-spk-version-tags"))]
+        {
+            $self.$tag::<NormalizedTagStrategy, $output>($ident)
+        }
+    }};
+}
 
 #[derive(Debug)]
 pub struct SpfsRepository {
@@ -249,27 +282,9 @@ impl Storage for SpfsRepository {
 
         let mut builds = HashSet::new();
 
-        // The repo may contain tags with different numbers of parts in the
-        // version, but we treat different amounts of trailing zeros as equal,
-        // e.g., 1.0 == 1.0.0. So first we normalize the provided version to
-        // remove any trailing zeros, but then we look in the repo for various
-        // lengths of trailing zeros. This is capped at 5 to handle all known
-        // existing packages (at SPI).
-        //
-        // Example:
-        //
-        //     `pkg` == "pkgname/1.2.0"
-        //
-        //     `normalized_parts` == [1, 2]
-        //
-        //     Check the following tag paths:
-        //         - spk/{spec,pkg}/pkgname/1.2
-        //         - spk/{spec,pkg}/pkgname/1.2.0
-        //         - spk/{spec,pkg}/pkgname/1.2.0.0
-        //         - spk/{spec,pkg}/pkgname/1.2.0.0.0
         for pkg in Self::iter_possible_parts(pkg) {
-            let spec_base = self.build_spec_tag::<VerbatimTagStrategy, _>(&pkg);
-            let package_base = self.build_package_tag::<VerbatimTagStrategy, _>(&pkg);
+            let spec_base = verbatim_build_spec_tag_if_enabled!(self, &pkg);
+            let package_base = verbatim_build_package_tag_if_enabled!(self, &pkg);
 
             let spec_tags = self.ls_tags(&spec_base);
             let package_tags = self.ls_tags(&package_base);
@@ -309,7 +324,7 @@ impl Storage for SpfsRepository {
 
         let pkg = pkg.to_any(Some(Build::Source));
         for pkg in Self::iter_possible_parts(&pkg) {
-            let mut base = self.build_spec_tag::<VerbatimTagStrategy, _>(&pkg);
+            let mut base = verbatim_build_spec_tag_if_enabled!(self, &pkg);
             // the package tag contains the name and build, but we need to
             // remove the trailing build in order to list the containing 'folder'
             // eg: pkg/1.0.0/src => pkg/1.0.0
@@ -895,6 +910,28 @@ impl SpfsRepository {
 
     /// Return all the possible part lengths for a version that should be
     /// checked when looking for a package in the repository.
+    ///
+    /// The repo may contain tags with different numbers of parts in the
+    /// version, but we treat different amounts of trailing zeros as equal,
+    /// e.g., 1.0 == 1.0.0. So first we normalize the provided version to
+    /// remove any trailing zeros, but then we look in the repo for various
+    /// lengths of trailing zeros. This is capped at 5 to handle all known
+    /// existing packages (at SPI).
+    ///
+    /// Example:
+    ///
+    ///   `pkg` == "pkgname/1.2.0"
+    ///
+    ///   `normalized_parts` == [1, 2]
+    ///
+    ///   Check the following tag paths:
+    ///       - spk/{spec,pkg}/pkgname/1.2
+    ///       - spk/{spec,pkg}/pkgname/1.2.0
+    ///       - spk/{spec,pkg}/pkgname/1.2.0.0
+    ///       - spk/{spec,pkg}/pkgname/1.2.0.0.0
+    ///
+    /// If spk is built without the `legacy-spk-version-tags` feature enabled,
+    /// then only the one canonical normalized part will be returned.
     fn iter_possible_parts<I>(pkg: &I) -> impl Iterator<Item = I::Output> + '_
     where
         I: HasVersion + WithVersion,
@@ -905,7 +942,9 @@ impl SpfsRepository {
             // Handle all the part lengths that are bigger than the normalized
             // parts, except for the normalized parts length itself, which may
             // be larger than 5 and not hit by this range.
-            .filter(move |num_parts| *num_parts > normalized_parts_len)
+            .filter(move |num_parts| {
+                cfg!(feature = "legacy-spk-version-tags") && *num_parts > normalized_parts_len
+            })
             // Then, handle the normalized parts length itself, which is
             // skipped by the filter above so it isn't processed twice,
             // and is handled even if the length is outside the above range.
@@ -938,7 +977,7 @@ impl SpfsRepository {
     {
         self.with_tag_for_pkg(
             pkg,
-            |pkg| self.build_spec_tag::<VerbatimTagStrategy, <I as WithVersion>::Output>(pkg),
+            |pkg| verbatim_build_spec_tag_if_enabled!(self, <I as WithVersion>::Output, pkg),
             f,
         )
         .await
@@ -954,7 +993,7 @@ impl SpfsRepository {
     {
         self.with_tag_for_pkg(
             pkg,
-            |pkg| self.build_package_tag::<VerbatimTagStrategy, <I as WithVersion>::Output>(pkg),
+            |pkg| verbatim_build_package_tag_if_enabled!(self, <I as WithVersion>::Output, pkg),
             f,
         )
         .await
@@ -1085,7 +1124,7 @@ impl SpfsRepository {
     async fn lookup_package(&self, pkg: &BuildIdent) -> Result<StoredPackage> {
         let mut first_resolve_err = None;
         for pkg in Self::iter_possible_parts(pkg) {
-            let tag_path = self.build_package_tag::<VerbatimTagStrategy, _>(&pkg);
+            let tag_path = verbatim_build_package_tag_if_enabled!(self, &pkg);
             let tag_specs: HashMap<Component, TagSpec> = self
                 .ls_tags(&tag_path)
                 .await
