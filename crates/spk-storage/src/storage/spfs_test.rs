@@ -9,6 +9,7 @@ use rstest::rstest;
 use spfs::prelude::*;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::version::Version;
+use spk_schema::ident_ops::NormalizedTagStrategy;
 use spk_schema::BuildIdent;
 
 use super::SpfsRepository;
@@ -84,13 +85,20 @@ async fn test_upgrade_changes_tags(tmpdir: tempfile::TempDir) {
     let ident = BuildIdent::from_str("mypkg/1.0.0/src").unwrap();
 
     // publish an "old style" package spec and build
-    let mut old_path =
-        spfs::tracking::TagSpec::from_str(repo.build_package_tag(&ident).as_str()).unwrap();
+    let mut old_path = spfs::tracking::TagSpec::from_str(
+        repo.build_package_tag::<NormalizedTagStrategy, _>(&ident)
+            .as_str(),
+    )
+    .unwrap();
     spfs_repo
         .push_tag(&old_path, &spfs::encoding::EMPTY_DIGEST.into())
         .await
         .unwrap();
-    old_path = spfs::tracking::TagSpec::from_str(repo.build_spec_tag(&ident).as_str()).unwrap();
+    old_path = spfs::tracking::TagSpec::from_str(
+        repo.build_spec_tag::<NormalizedTagStrategy, _>(&ident)
+            .as_str(),
+    )
+    .unwrap();
     spfs_repo
         .push_tag(&old_path, &spfs::encoding::EMPTY_DIGEST.into())
         .await

@@ -130,6 +130,7 @@ whoami = "1.2"
 windows = "0.51"
 winfsp = { version = "0.9.3", default-features = false }
 winfsp-sys = "0.2"
+variantly = "0.4"
 
 [workspace.lints.clippy]
 fn_params_excessive_bools = "warn"

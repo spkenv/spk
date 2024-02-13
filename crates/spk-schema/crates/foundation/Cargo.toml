@@ -43,6 +43,7 @@ miette = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-capture = { workspace = true }
+variantly = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
