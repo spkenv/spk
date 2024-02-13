@@ -8,13 +8,22 @@ use std::str::FromStr;
 use relative_path::RelativePathBuf;
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
-use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
+use spk_schema_foundation::ident_ops::{MetadataPath, TagPath, TagPathVerbatim};
 use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
 use spk_schema_foundation::spec_ops::prelude::*;
 use spk_schema_foundation::version::Version;
 
 use crate::ident_version::VersionIdent;
-use crate::{parsing, AnyIdent, Error, Ident, LocatedBuildIdent, RangeIdent, Result};
+use crate::{
+    parsing,
+    AnyIdent,
+    Error,
+    Ident,
+    LocatedBuildIdent,
+    RangeIdent,
+    Result,
+    ToAnyWithoutBuild,
+};
 
 /// Identifies a specific package name, version and build
 pub type BuildIdent = Ident<VersionIdent, Build>;
@@ -176,6 +185,21 @@ impl TagPath for BuildIdent {
         RelativePathBuf::from(self.name().as_str())
             .join(self.version().tag_path())
             .join(self.build().tag_path())
+    }
+}
+
+impl TagPathVerbatim for BuildIdent {
+    fn tag_path_verbatim(&self) -> RelativePathBuf {
+        RelativePathBuf::from(self.name().as_str())
+            .join(self.version().tag_path_verbatim())
+            .join(self.build().tag_path())
+    }
+}
+
+impl ToAnyWithoutBuild for BuildIdent {
+    #[inline]
+    fn to_any_without_build(&self) -> AnyIdent {
+        self.to_any()
     }
 }
 

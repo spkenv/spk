@@ -12,6 +12,14 @@ pub trait HasVersion {
     fn version(&self) -> &Version;
 }
 
+/// Some item that can have its version replaced.
+pub trait WithVersion {
+    type Output;
+
+    /// Return a copy of this identifier with the given version number instead
+    fn with_version(&self, version: Version) -> Self::Output;
+}
+
 /// An item which represents one version of itself in a
 /// series of possible versions.
 #[enum_dispatch::enum_dispatch]

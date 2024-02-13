@@ -11,6 +11,7 @@ use miette::{IntoDiagnostic, Result};
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::parse_ident;
+use spk_schema::spec_ops::WithVersion;
 use spk_schema::{BuildIdent, VersionIdent};
 use spk_storage as storage;
 

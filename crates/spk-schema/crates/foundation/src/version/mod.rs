@@ -32,7 +32,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
 use self::parts_iter::{MinimumPartsPartIter, NormalizedPartsIter};
-use crate::ident_ops::{MetadataPath, TagPath};
+use crate::ident_ops::{MetadataPath, TagPath, TagPathVerbatim};
 use crate::name::validate_tag_name;
 
 #[cfg(test)]
@@ -218,7 +218,8 @@ impl VersionParts {
 
     /// Return a normalized copy of this version.
     ///
-    /// A normalized version has no trailing zeros.
+    /// A normalized version has no trailing zeros, except if that would make
+    /// the parts list empty.
     ///
     /// ```
     /// # use spk_schema_foundation::version::VersionParts;
@@ -232,13 +233,13 @@ impl VersionParts {
     /// );
     /// assert_eq!(
     ///     VersionParts::from(vec![0, 0, 0]).normalize().parts,
-    ///     VersionParts::from(vec![]).parts
+    ///     VersionParts::from(vec![0]).parts
     /// );
     /// ```
     pub fn normalize(&self) -> Cow<'_, Self> {
         let Some(index_of_last_non_zero) = self.parts.iter().rposition(|p| p != &0) else {
             return Cow::Owned(VersionParts {
-                parts: vec![],
+                parts: vec![0],
                 plus_epsilon: self.plus_epsilon,
             });
         };
@@ -458,6 +459,26 @@ impl TagPath for Version {
             base = self
                 .parts
                 .iter_for_storage()
+                .map(|p| p.to_string())
+                .join(VERSION_SEP),
+            pre_sep = if self.pre.is_empty() { "" } else { "-" },
+            pre = self.pre.to_string(),
+            // the "+" character is not a valid spfs tag character,
+            // so we 'encode' it with two dots, which is not a valid sequence
+            // for spk package names
+            post_sep = if self.post.is_empty() { "" } else { ".." },
+            post = self.post.to_string(),
+        ))
+    }
+}
+
+impl TagPathVerbatim for Version {
+    fn tag_path_verbatim(&self) -> RelativePathBuf {
+        RelativePathBuf::from(format!(
+            "{base}{pre_sep}{pre}{post_sep}{post}",
+            base = self
+                .parts
+                .iter_for_display(1)
                 .map(|p| p.to_string())
                 .join(VERSION_SEP),
             pre_sep = if self.pre.is_empty() { "" } else { "-" },

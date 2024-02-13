@@ -8,7 +8,7 @@ use std::str::FromStr;
 use relative_path::RelativePathBuf;
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
-use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
+use spk_schema_foundation::ident_ops::{MetadataPath, TagPath, TagPathVerbatim};
 use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
 use spk_schema_foundation::version::Version;
 
@@ -162,6 +162,24 @@ impl TagPath for AnyIdent {
     }
 }
 
+impl TagPathVerbatim for AnyIdent {
+    fn tag_path_verbatim(&self) -> RelativePathBuf {
+        let path = RelativePathBuf::from(self.name().as_str());
+        match self.build() {
+            Some(build) => path
+                .join(self.version().tag_path_verbatim())
+                .join(build.tag_path()),
+            None => {
+                if self.version().is_zero() {
+                    path
+                } else {
+                    path.join(self.version().tag_path_verbatim())
+                }
+            }
+        }
+    }
+}
+
 impl FromStr for AnyIdent {
     type Err = crate::Error;
 
@@ -255,4 +273,9 @@ impl TryFrom<&RangeIdent> for AnyIdent {
 /// Parse a package identifier string with optional build.
 pub fn parse_ident<S: AsRef<str>>(source: S) -> Result<AnyIdent> {
     Ident::from_str(source.as_ref())
+}
+
+pub trait ToAnyWithoutBuild {
+    /// Copy this identifier and remove the build, if any.
+    fn to_any_without_build(&self) -> AnyIdent;
 }
