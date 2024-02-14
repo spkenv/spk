@@ -189,31 +189,39 @@ impl TemplateExt for SpecTemplate {
             Ok(v) => v,
         };
 
-        let pkg = template_value
-            .get(&serde_yaml::Value::String("pkg".to_string()))
-            .ok_or_else(|| {
-                crate::Error::String(format!("Missing pkg field in spec file: {file_path:?}"))
-            })?;
-        let pkg = pkg.as_str().ok_or_else(|| {
-            crate::Error::String(format!(
-                "Invalid value for 'pkg' field: expected string, got {pkg:?} in {file_path:?}"
-            ))
-        })?;
-        let name = PkgNameBuf::from_str(
-            // it should never be possible for split to return 0 results
-            // but this trick avoids the use of unwrap
-            pkg.split('/').next().unwrap_or(pkg),
-        )?;
+        let api = template_value.get(&serde_yaml::Value::String("api".to_string()));
 
-        if template_value
-            .get(&serde_yaml::Value::String("api".to_string()))
-            .is_none()
-        {
+        if api.is_none() {
             tracing::warn!(
                 "Spec file is missing the 'api' field, this may be an error in the future"
             );
             tracing::warn!(" > for specs in the original spk format, add 'api: v0/package'");
         }
+
+        let name_field = match api {
+            Some(serde_yaml::Value::String(api)) if api == "v0/platform" => "platform",
+            _ => "pkg",
+        };
+
+        let pkg = template_value
+            .get(&serde_yaml::Value::String(name_field.to_string()))
+            .ok_or_else(|| {
+                crate::Error::String(format!(
+                    "Missing {name_field} field in spec file: {file_path:?}"
+                ))
+            })?;
+
+        let pkg = pkg.as_str().ok_or_else(|| {
+            crate::Error::String(format!(
+                "Invalid value for '{name_field}' field: expected string, got {pkg:?} in {file_path:?}"
+            ))
+        })?;
+
+        let name = PkgNameBuf::from_str(
+            // it should never be possible for split to return 0 results
+            // but this trick avoids the use of unwrap
+            pkg.split('/').next().unwrap_or(pkg),
+        )?;
 
         Ok(Self {
             file_path,
@@ -234,6 +242,8 @@ impl TemplateExt for SpecTemplate {
 pub enum SpecRecipe {
     #[serde(rename = "v0/package")]
     V0Package(super::v0::Spec<VersionIdent>),
+    #[serde(rename = "v0/platform")]
+    V0Platform(super::v0::Platform),
 }
 
 impl Recipe for SpecRecipe {
@@ -244,6 +254,7 @@ impl Recipe for SpecRecipe {
     fn ident(&self) -> &VersionIdent {
         match self {
             SpecRecipe::V0Package(r) => Recipe::ident(r),
+            SpecRecipe::V0Platform(r) => Recipe::ident(r),
         }
     }
 
@@ -268,6 +279,16 @@ impl Recipe for SpecRecipe {
                     .map(SpecVariant::V0)
                     .collect(),
             ),
+            SpecRecipe::V0Platform(r) => Cow::Owned(
+                // use into_owned instead of iter().cloned() in case it's
+                // already an owned instance
+                #[allow(clippy::unnecessary_to_owned)]
+                r.default_variants()
+                    .into_owned()
+                    .into_iter()
+                    .map(SpecVariant::V0)
+                    .collect(),
+            ),
         }
     }
 
@@ -277,6 +298,7 @@ impl Recipe for SpecRecipe {
     {
         match self {
             SpecRecipe::V0Package(r) => r.resolve_options(variant),
+            SpecRecipe::V0Platform(r) => r.resolve_options(variant),
         }
     }
 
@@ -286,6 +308,7 @@ impl Recipe for SpecRecipe {
     {
         match self {
             SpecRecipe::V0Package(r) => r.get_build_requirements(variant),
+            SpecRecipe::V0Platform(r) => r.get_build_requirements(variant),
         }
     }
 
@@ -299,12 +322,18 @@ impl Recipe for SpecRecipe {
                 .into_iter()
                 .map(SpecTest::V0)
                 .collect()),
+            SpecRecipe::V0Platform(r) => Ok(r
+                .get_tests(stage, variant)?
+                .into_iter()
+                .map(SpecTest::V0)
+                .collect()),
         }
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
         match self {
             SpecRecipe::V0Package(r) => r.generate_source_build(root).map(Spec::V0Package),
+            SpecRecipe::V0Platform(r) => r.generate_source_build(root).map(Spec::V0Package),
         }
     }
 
@@ -318,6 +347,9 @@ impl Recipe for SpecRecipe {
             SpecRecipe::V0Package(r) => r
                 .generate_binary_build(variant, build_env)
                 .map(Spec::V0Package),
+            SpecRecipe::V0Platform(r) => r
+                .generate_binary_build(variant, build_env)
+                .map(Spec::V0Package),
         }
     }
 }
@@ -326,6 +358,7 @@ impl Named for SpecRecipe {
     fn name(&self) -> &PkgName {
         match self {
             SpecRecipe::V0Package(r) => r.name(),
+            SpecRecipe::V0Platform(r) => r.name(),
         }
     }
 }
@@ -334,6 +367,7 @@ impl HasVersion for SpecRecipe {
     fn version(&self) -> &Version {
         match self {
             SpecRecipe::V0Package(r) => r.version(),
+            SpecRecipe::V0Platform(r) => r.version(),
         }
     }
 }
@@ -342,6 +376,7 @@ impl Versioned for SpecRecipe {
     fn compat(&self) -> &Compat {
         match self {
             SpecRecipe::V0Package(spec) => spec.compat(),
+            SpecRecipe::V0Platform(spec) => spec.compat(),
         }
     }
 }
@@ -381,6 +416,11 @@ impl FromYaml for SpecRecipe {
                 let inner = serde_yaml::from_str(&yaml)
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Package(inner))
+            }
+            ApiVersion::V0Platform => {
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                Ok(Self::V0Platform(inner))
             }
         }
     }
@@ -638,6 +678,11 @@ impl FromYaml for Spec {
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Package(inner))
             }
+            ApiVersion::V0Platform => {
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                Ok(Self::V0Package(inner))
+            }
         }
     }
 }
@@ -652,6 +697,8 @@ impl AsRef<Spec> for Spec {
 pub enum ApiVersion {
     #[serde(rename = "v0/package")]
     V0Package,
+    #[serde(rename = "v0/platform")]
+    V0Platform,
 }
 
 impl Default for ApiVersion {
