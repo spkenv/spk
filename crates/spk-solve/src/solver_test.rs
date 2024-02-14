@@ -883,9 +883,7 @@ async fn test_solver_build_from_source_unsolvable(mut solver: Solver) {
         let Some(msg) = e.message() else {
             return false;
         };
-        let Ok(msg) = strip_ansi_escapes::strip(msg) else {
-            return false;
-        };
+        let msg = strip_ansi_escapes::strip(msg);
         let msg = String::from_utf8_lossy(&msg);
         msg.ends_with("TRY my-tool/1.2.0/src - cannot resolve build env: Failed to resolve")
     });

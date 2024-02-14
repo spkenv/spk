@@ -108,7 +108,7 @@ impl ValidationSpec {
 /// These rules are meant to be evaluated in order with later rules
 /// taking precedence over earlier ones with the same level of specificity
 #[derive(Debug, Clone, Eq, Hash, Ord, PartialEq, PartialOrd, strum::EnumDiscriminants)]
-#[strum_discriminants(derive(strum::EnumVariantNames, Serialize, Deserialize))]
+#[strum_discriminants(derive(strum::VariantNames, Serialize, Deserialize))]
 #[strum_discriminants(serde(rename_all = "lowercase"))]
 #[strum_discriminants(strum(serialize_all = "lowercase"))]
 pub enum ValidationRule {
@@ -204,16 +204,9 @@ impl ValidationRule {
     Deserialize,
     Serialize,
     strum::EnumDiscriminants,
-    strum::EnumVariantNames,
+    strum::VariantNames,
 )]
-#[strum_discriminants(derive(
-    Hash,
-    PartialOrd,
-    Ord,
-    strum::EnumVariantNames,
-    Deserialize,
-    Serialize
-))]
+#[strum_discriminants(derive(Hash, PartialOrd, Ord, strum::VariantNames, Deserialize, Serialize))]
 pub enum ValidationMatcher {
     EmptyPackage,
     CollectAllFiles,

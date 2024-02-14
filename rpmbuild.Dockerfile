@@ -9,7 +9,7 @@ RUN yum install -y \
 RUN ln -s cmake3 /usr/bin/cmake
 
 # Rust Toolchain
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y --default-toolchain=1.75.0
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y --default-toolchain=1.76.0
 ENV PATH $PATH:/root/.cargo/bin
 
 # Protobuf compiler (more recent than yum package)

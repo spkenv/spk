@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::path::PathBuf;
+
 use rstest::rstest;
 use spfs::encoding::EMPTY_DIGEST;
 use spfs::prelude::*;
@@ -928,13 +930,9 @@ async fn test_variable_substitution_in_build_env(tmpdir: tempfile::TempDir) {
         .await
         .unwrap();
 
-    let bash_file = tmpdir
-        .path()
-        .join("/spfs/etc/spfs/startup.d/spk_testpkg.sh");
+    let bash_file = PathBuf::from("/spfs/etc/spfs/startup.d/spk_testpkg.sh");
     assert!(bash_file.exists());
-    let tcsh_file = tmpdir
-        .path()
-        .join("/spfs/etc/spfs/startup.d/spk_testpkg.csh");
+    let tcsh_file = PathBuf::from("/spfs/etc/spfs/startup.d/spk_testpkg.csh");
     assert!(tcsh_file.exists());
 
     let bash_value = std::process::Command::new("bash")

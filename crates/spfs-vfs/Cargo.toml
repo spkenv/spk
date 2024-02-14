@@ -30,7 +30,7 @@ bytes = { workspace = true }
 clap = { workspace = true }
 dashmap = { workspace = true }
 futures-core = { workspace = true, optional = true }
-nix = { workspace = true, features = ["process"] }
+nix = { workspace = true, features = ["fs", "process", "signal"] }
 libc = "0.2"
 miette = { workspace = true, features = ["fancy"] }
 prost = { workspace = true, optional = true }

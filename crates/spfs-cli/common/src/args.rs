@@ -155,10 +155,9 @@ fn get_cli_context(command: String) -> std::collections::BTreeMap<String, serde_
 
 #[cfg(feature = "sentry")]
 fn remove_ansi_escapes(message: String) -> String {
-    if let Ok(b) = strip_ansi_escapes::strip(message.clone()) {
-        if let Ok(s) = std::str::from_utf8(&b) {
-            return s.to_string();
-        }
+    let b = strip_ansi_escapes::strip(&message);
+    if let Ok(s) = std::str::from_utf8(&b) {
+        return s.to_string();
     }
     message
 }
@@ -197,7 +196,7 @@ pub fn configure_sentry(
                     whoami::username()
                 });
 
-            let guard = match catch_unwind(|| {
+            let sentry_init_result = catch_unwind(|| {
                 let mut opts = sentry::ClientOptions {
                     dsn: "http://3dd72e3b4b9a4032947304fabf29966e@sentry.spimageworks.com/4"
                         .into_dsn()
@@ -243,7 +242,9 @@ pub fn configure_sentry(
                 }
 
                 sentry::init(opts)
-            }) {
+            });
+
+            match sentry_init_result {
                 Ok(g) => {
                     let data = get_cli_context(command.clone());
 
@@ -275,9 +276,7 @@ pub fn configure_sentry(
                     eprintln!("WARNING: configuring Sentry for spfs failed: {:?}", cause);
                     None
                 }
-            };
-
-            guard
+            }
         })
         .as_ref()
 }

@@ -99,7 +99,10 @@ impl OpenRepositoryError {
             miette::SourceOffset::from_location(&address, 1, address.len() - query_location + 2);
         Self::InvalidQuery {
             address,
-            query_span: miette::SourceSpan::new(source_start, source_length),
+            query_span: miette::SourceSpan::new(
+                source_start,
+                source_length.offset() - source_start.offset(),
+            ),
             source,
         }
     }
@@ -110,7 +113,10 @@ impl OpenRepositoryError {
         let source_length = miette::SourceOffset::from_location(&address, 1, address.len());
         Self::MissingQuery {
             address,
-            query_span: miette::SourceSpan::new(source_start, source_length),
+            query_span: miette::SourceSpan::new(
+                source_start,
+                source_length.offset() - source_start.offset(),
+            ),
         }
     }
 }
