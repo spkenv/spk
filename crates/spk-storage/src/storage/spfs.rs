@@ -4,6 +4,7 @@
 
 use std::collections::{hash_map, HashMap, HashSet};
 use std::convert::{TryFrom, TryInto};
+use std::marker::PhantomData;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::Arc;
@@ -76,12 +77,13 @@ macro_rules! verbatim_tag_if_enabled {
 }
 
 #[derive(Debug)]
-pub struct SpfsRepository {
+pub struct SpfsRepository<S = NormalizedTagStrategy> {
     address: url::Url,
     name: RepositoryNameBuf,
     inner: spfs::storage::RepositoryHandle,
     cache_policy: AtomicPtr<CachePolicy>,
     caches: CachesForAddress,
+    tag_strategy: PhantomData<S>,
 }
 
 impl std::hash::Hash for SpfsRepository {
@@ -110,7 +112,10 @@ impl PartialEq for SpfsRepository {
 
 impl Eq for SpfsRepository {}
 
-impl std::ops::Deref for SpfsRepository {
+impl<TagStrategy> std::ops::Deref for SpfsRepository<TagStrategy>
+where
+    TagStrategy: TagPathStrategy + Send + Sync,
+{
     type Target = spfs::storage::RepositoryHandle;
 
     fn deref(&self) -> &Self::Target {
@@ -118,7 +123,10 @@ impl std::ops::Deref for SpfsRepository {
     }
 }
 
-impl std::ops::DerefMut for SpfsRepository {
+impl<TagStrategy> std::ops::DerefMut for SpfsRepository<TagStrategy>
+where
+    TagStrategy: TagPathStrategy + Send + Sync,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
@@ -136,6 +144,7 @@ impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> TryFrom<(S, T)> fo
             name: name_and_repo.0.as_ref().try_into()?,
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+            tag_strategy: PhantomData,
         })
     }
 }
@@ -150,6 +159,7 @@ impl SpfsRepository {
             name: name.try_into()?,
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+            tag_strategy: PhantomData,
         })
     }
 
@@ -171,7 +181,7 @@ impl SpfsRepository {
     }
 }
 
-impl std::ops::Drop for SpfsRepository {
+impl<S> std::ops::Drop for SpfsRepository<S> {
     fn drop(&mut self) {
         // Safety: We only put valid `Box` pointers into `self.cache_policy`.
         unsafe {
@@ -265,7 +275,10 @@ impl std::fmt::Debug for CachesForAddress {
 }
 
 #[async_trait::async_trait]
-impl Storage for SpfsRepository {
+impl<TagStrategy> Storage for SpfsRepository<TagStrategy>
+where
+    TagStrategy: TagPathStrategy + Send + Sync,
+{
     type Recipe = SpecRecipe;
     type Package = Spec;
 
@@ -378,7 +391,7 @@ impl Storage for SpfsRepository {
 
     async fn publish_embed_stub_to_storage(&self, spec: &Self::Package) -> Result<()> {
         let ident = spec.ident();
-        let tag_path = self.build_spec_tag::<NormalizedTagStrategy, _>(ident);
+        let tag_path = self.build_spec_tag::<TagStrategy, _>(ident);
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
 
         let payload = serde_yaml::to_string(&spec)
@@ -397,7 +410,7 @@ impl Storage for SpfsRepository {
         package: &<Self::Recipe as spk_schema::Recipe>::Output,
         components: &HashMap<Component, spfs::encoding::Digest>,
     ) -> Result<()> {
-        let tag_path = self.build_package_tag::<NormalizedTagStrategy, _>(package.ident());
+        let tag_path = self.build_package_tag::<TagStrategy, _>(package.ident());
 
         // We will also publish the 'run' component in the old style
         // for compatibility with older versions of the spk command.
@@ -427,7 +440,7 @@ impl Storage for SpfsRepository {
         }
 
         // TODO: dedupe this part with force_publish_recipe
-        let tag_path = self.build_spec_tag::<NormalizedTagStrategy, _>(package.ident());
+        let tag_path = self.build_spec_tag::<TagStrategy, _>(package.ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
         let payload = serde_yaml::to_string(&package)
             .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
@@ -446,7 +459,7 @@ impl Storage for SpfsRepository {
         publish_policy: PublishPolicy,
     ) -> Result<()> {
         let ident = spec.ident();
-        let tag_path = self.build_spec_tag::<NormalizedTagStrategy, _>(ident);
+        let tag_path = self.build_spec_tag::<TagStrategy, _>(ident);
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
         if matches!(publish_policy, PublishPolicy::DoNotOverwriteVersion)
             && self.inner.has_tag(&tag_spec).await
@@ -634,7 +647,10 @@ impl Storage for SpfsRepository {
 }
 
 #[async_trait::async_trait]
-impl crate::Repository for SpfsRepository {
+impl<TagStrategy> crate::Repository for SpfsRepository<TagStrategy>
+where
+    TagStrategy: TagPathStrategy + Send + Sync,
+{
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -847,7 +863,7 @@ impl crate::Repository for SpfsRepository {
                     for (name, tag_spec) in components.into_iter() {
                         let tag = self.inner.resolve_tag(&tag_spec).await?;
                         let new_tag_path = self
-                            .build_package_tag::<NormalizedTagStrategy, _>(&build)
+                            .build_package_tag::<TagStrategy, _>(&build)
                             .join(name.to_string());
                         let new_tag_spec = spfs::tracking::TagSpec::parse(&new_tag_path)?;
 
@@ -884,7 +900,10 @@ impl crate::Repository for SpfsRepository {
     }
 }
 
-impl SpfsRepository {
+impl<TagStrategy> SpfsRepository<TagStrategy>
+where
+    TagStrategy: TagPathStrategy + Send + Sync,
+{
     fn cached_result_permitted(&self) -> bool {
         // Safety: We only put valid `Box` pointers into `self.cache_policy`.
         unsafe { *self.cache_policy.load(Ordering::Relaxed) }.cached_result_permitted()
@@ -1241,6 +1260,7 @@ pub async fn local_repository() -> Result<SpfsRepository> {
         name: "local".try_into()?,
         inner,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+        tag_strategy: PhantomData,
     })
 }
 
@@ -1257,5 +1277,6 @@ pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SpfsRepository>
         name: name.as_ref().try_into()?,
         inner,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+        tag_strategy: PhantomData,
     })
 }

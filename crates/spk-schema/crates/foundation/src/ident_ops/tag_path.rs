@@ -21,6 +21,7 @@ pub trait TagPathStrategy {
 
 /// When creating a tag path that contains a version, this strategy will
 /// normalize the version.
+#[derive(Debug)]
 pub struct NormalizedTagStrategy {}
 
 impl TagPathStrategy for NormalizedTagStrategy {
