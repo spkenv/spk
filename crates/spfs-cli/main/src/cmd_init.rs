@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Subcommand};
 use miette::Result;
+use spfs::storage::fs::ValidRenderStoreForCurrentUser;
 
 /// Create an empty filesystem repository
 #[derive(Debug, Args)]
@@ -35,7 +36,8 @@ impl InitSubcommand {
     pub async fn run(&self, _config: &spfs::Config) -> Result<i32> {
         match self {
             Self::Repo { path } => {
-                spfs::storage::fs::FsRepository::create(&path).await?;
+                spfs::storage::fs::FsRepository::<ValidRenderStoreForCurrentUser>::create(&path)
+                    .await?;
                 Ok(0)
             }
         }

@@ -18,7 +18,7 @@ use futures::{Future, Stream, StreamExt, TryFutureExt};
 use relative_path::RelativePath;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 
-use super::{FsRepository, OpenFsRepository};
+use super::{FsRepository, OpenFsRepository, RenderStoreMode};
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
 use crate::storage::TagStorage;
 use crate::{encoding, tracking, Error, OsError, OsErrorExt, Result};
@@ -26,7 +26,10 @@ use crate::{encoding, tracking, Error, OsError, OsErrorExt, Result};
 const TAG_EXT: &str = "tag";
 
 #[async_trait::async_trait]
-impl TagStorage for FsRepository {
+impl<T> TagStorage for FsRepository<T>
+where
+    T: RenderStoreMode,
+{
     fn ls_tags(
         &self,
         path: &RelativePath,
@@ -81,14 +84,20 @@ impl TagStorage for FsRepository {
     }
 }
 
-impl OpenFsRepository {
+impl<T> OpenFsRepository<T>
+where
+    T: RenderStoreMode,
+{
     fn tags_root(&self) -> PathBuf {
         self.root().join("tags")
     }
 }
 
 #[async_trait::async_trait]
-impl TagStorage for OpenFsRepository {
+impl<T> TagStorage for OpenFsRepository<T>
+where
+    T: RenderStoreMode,
+{
     fn ls_tags(
         &self,
         path: &RelativePath,

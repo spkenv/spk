@@ -13,11 +13,15 @@ use futures::{Stream, StreamExt, TryFutureExt};
 use graph::DatabaseView;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+use super::RenderStoreMode;
 use crate::graph::Object;
 use crate::{encoding, graph, Error, Result};
 
 #[async_trait::async_trait]
-impl DatabaseView for super::FsRepository {
+impl<T> DatabaseView for super::FsRepository<T>
+where
+    T: RenderStoreMode,
+{
     async fn has_object(&self, digest: encoding::Digest) -> bool {
         let Ok(opened) = self.opened().await else {
             return false;
@@ -56,7 +60,10 @@ impl DatabaseView for super::FsRepository {
 }
 
 #[async_trait::async_trait]
-impl graph::Database for super::FsRepository {
+impl<T> graph::Database for super::FsRepository<T>
+where
+    T: RenderStoreMode,
+{
     async fn write_object(&self, obj: &graph::Object) -> Result<()> {
         self.opened().await?.write_object(obj).await
     }
@@ -78,7 +85,10 @@ impl graph::Database for super::FsRepository {
 }
 
 #[async_trait::async_trait]
-impl DatabaseView for super::OpenFsRepository {
+impl<T> DatabaseView for super::OpenFsRepository<T>
+where
+    T: RenderStoreMode,
+{
     async fn has_object(&self, digest: encoding::Digest) -> bool {
         let filepath = self.objects.build_digest_path(&digest);
         tokio::fs::symlink_metadata(filepath).await.is_ok()
@@ -124,7 +134,10 @@ impl DatabaseView for super::OpenFsRepository {
 }
 
 #[async_trait::async_trait]
-impl graph::Database for super::OpenFsRepository {
+impl<T> graph::Database for super::OpenFsRepository<T>
+where
+    T: RenderStoreMode,
+{
     async fn write_object(&self, obj: &graph::Object) -> Result<()> {
         let digest = obj.digest()?;
         let filepath = self.objects.build_digest_path(&digest);

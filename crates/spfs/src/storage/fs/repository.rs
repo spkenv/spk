@@ -113,29 +113,45 @@ impl Clone for RenderStore {
 /// An [`OpenFsRepository`] is more useful than this one, but
 /// can also be easily retrieved via the [`Self::opened`].
 #[derive(Clone)]
-pub struct FsRepository(Arc<ArcSwap<InnerFsRepository>>);
+pub struct FsRepository<RenderStoreStatus = ValidRenderStoreForCurrentUser>(
+    Arc<ArcSwap<InnerFsRepository<RenderStoreStatus>>>,
+)
+where
+    RenderStoreStatus: RenderStoreMode;
 
-enum InnerFsRepository {
+enum InnerFsRepository<RenderStoreStatus = ValidRenderStoreForCurrentUser>
+where
+    RenderStoreStatus: RenderStoreMode,
+{
     Closed(Config),
-    Open(Arc<OpenFsRepository>),
+    Open(Arc<OpenFsRepository<RenderStoreStatus>>),
 }
 
-impl From<OpenFsRepository> for FsRepository {
-    fn from(value: OpenFsRepository) -> Self {
+impl<T> From<OpenFsRepository<T>> for FsRepository<T>
+where
+    T: RenderStoreMode,
+{
+    fn from(value: OpenFsRepository<T>) -> Self {
         Arc::new(value).into()
     }
 }
 
-impl From<Arc<OpenFsRepository>> for FsRepository {
-    fn from(value: Arc<OpenFsRepository>) -> Self {
-        Self(Arc::new(ArcSwap::new(Arc::new(InnerFsRepository::Open(
-            value,
-        )))))
+impl<T> From<Arc<OpenFsRepository<T>>> for FsRepository<T>
+where
+    T: RenderStoreMode,
+{
+    fn from(value: Arc<OpenFsRepository<T>>) -> Self {
+        Self(Arc::new(ArcSwap::new(Arc::new(
+            InnerFsRepository::<T>::Open(value),
+        ))))
     }
 }
 
 #[async_trait::async_trait]
-impl FromConfig for FsRepository {
+impl<T> FromConfig for FsRepository<T>
+where
+    T: RenderStoreMode,
+{
     type Config = Config;
 
     async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
@@ -144,12 +160,15 @@ impl FromConfig for FsRepository {
                 InnerFsRepository::Closed(config),
             )))))
         } else {
-            Ok(OpenFsRepository::from_config(config).await?.into())
+            Ok(OpenFsRepository::<T>::from_config(config).await?.into())
         }
     }
 }
 
-impl FsRepository {
+impl<T> FsRepository<T>
+where
+    T: RenderStoreMode + 'static,
+{
     /// Open a filesystem repository, creating it if necessary
     pub async fn create<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
         Ok(Self(Arc::new(ArcSwap::new(Arc::new(
@@ -168,7 +187,9 @@ impl FsRepository {
 
     /// Get the opened version of this repository, performing
     /// any required opening and validation as needed
-    pub fn opened(&self) -> impl futures::Future<Output = Result<Arc<OpenFsRepository>>> + 'static {
+    pub fn opened(
+        &self,
+    ) -> impl futures::Future<Output = Result<Arc<OpenFsRepository<T>>>> + 'static {
         self.opened_and_map_err(Error::failed_to_open_repository)
     }
 
@@ -176,14 +197,15 @@ impl FsRepository {
     /// any required opening and validation as needed
     pub fn try_open(
         &self,
-    ) -> impl futures::Future<Output = OpenRepositoryResult<Arc<OpenFsRepository>>> + 'static {
+    ) -> impl futures::Future<Output = OpenRepositoryResult<Arc<OpenFsRepository<T>>>> + 'static
+    {
         self.opened_and_map_err(|_, e| e)
     }
 
     fn opened_and_map_err<F, E>(
         &self,
         map: F,
-    ) -> impl futures::Future<Output = std::result::Result<Arc<OpenFsRepository>, E>> + 'static
+    ) -> impl futures::Future<Output = std::result::Result<Arc<OpenFsRepository<T>>, E>> + 'static
     where
         F: FnOnce(&Self, OpenRepositoryError) -> E + 'static,
     {
@@ -192,7 +214,7 @@ impl FsRepository {
             match &**inner.load() {
                 InnerFsRepository::Closed(config) => {
                     let config = config.clone();
-                    let opened = match OpenFsRepository::from_config(config).await {
+                    let opened = match OpenFsRepository::<T>::from_config(config).await {
                         Ok(o) => Arc::new(o),
                         Err(err) => return Err(map(&Self(inner), err)),
                     };
@@ -211,26 +233,72 @@ impl FsRepository {
             InnerFsRepository::Open(o) => o.root(),
         }
     }
+
+    pub fn try_into_valid_user_render(
+        self,
+    ) -> Result<FsRepository<ValidRenderStoreForCurrentUser>> {
+        todo!()
+    }
+
+    pub fn try_into_no_user_render(self) -> Result<FsRepository<NoRenderStoreForCurrentUser>> {
+        todo!()
+    }
 }
 
-impl BlobStorage for FsRepository {}
-impl ManifestStorage for FsRepository {}
-impl LayerStorage for FsRepository {}
-impl PlatformStorage for FsRepository {}
-impl Repository for FsRepository {
+impl<T> BlobStorage for FsRepository<T> where T: RenderStoreMode {}
+impl<T> ManifestStorage for FsRepository<T> where T: RenderStoreMode {}
+impl<T> LayerStorage for FsRepository<T> where T: RenderStoreMode {}
+impl<T> PlatformStorage for FsRepository<T> where T: RenderStoreMode {}
+impl<T> Repository for FsRepository<T>
+where
+    T: RenderStoreMode,
+{
     fn address(&self) -> url::Url {
         url::Url::from_directory_path(self.root()).unwrap()
     }
 }
 
-impl std::fmt::Debug for FsRepository {
+impl<T> std::fmt::Debug for FsRepository<T>
+where
+    T: RenderStoreMode,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("FsRepository @ {:?}", self.root()))
     }
 }
 
+pub trait RenderStoreMode: Send + Sync + 'static {
+    /// True if this render store requires a valid user render directory.
+    fn create_user_render_store() -> bool;
+}
+
+/// This opened repository has a render store for the current user.
+#[derive(Debug)]
+pub struct ValidRenderStoreForCurrentUser;
+
+impl RenderStoreMode for ValidRenderStoreForCurrentUser {
+    fn create_user_render_store() -> bool {
+        true
+    }
+}
+
+/// This opened repository may not have a render store for the current user.
+///
+/// One may happen to exist but it is not guaranteed to.
+#[derive(Debug)]
+pub struct NoRenderStoreForCurrentUser;
+
+impl RenderStoreMode for NoRenderStoreForCurrentUser {
+    fn create_user_render_store() -> bool {
+        false
+    }
+}
+
 /// A validated and opened fs repository.
-pub struct OpenFsRepository {
+pub struct OpenFsRepository<RenderStoreStatus = ValidRenderStoreForCurrentUser>
+where
+    RenderStoreStatus: RenderStoreMode,
+{
     root: PathBuf,
     /// stores the actual file data/payloads of this repo
     pub payloads: FsHashStore,
@@ -238,10 +306,14 @@ pub struct OpenFsRepository {
     pub objects: FsHashStore,
     /// stores rendered file system layers for use in overlayfs
     pub renders: Option<RenderStore>,
+    _render_store_status: std::marker::PhantomData<RenderStoreStatus>,
 }
 
 #[async_trait::async_trait]
-impl FromConfig for OpenFsRepository {
+impl<T> FromConfig for OpenFsRepository<T>
+where
+    T: RenderStoreMode,
+{
     type Config = Config;
 
     async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
@@ -261,6 +333,7 @@ impl Clone for OpenFsRepository {
             payloads: FsHashStore::open_unchecked(root.join("payloads")),
             renders: self.renders.clone(),
             root,
+            _render_store_status: std::marker::PhantomData,
         }
     }
 }
@@ -279,7 +352,10 @@ impl LocalRepository for OpenFsRepository {
     }
 }
 
-impl OpenFsRepository {
+impl<T> OpenFsRepository<T>
+where
+    T: RenderStoreMode,
+{
     /// The address of this repository that can be used to re-open it
     pub fn address(&self) -> url::Url {
         url::Url::from_directory_path(self.root()).unwrap()
@@ -309,13 +385,19 @@ impl OpenFsRepository {
             }
         })?;
         let username = whoami::username();
-        for path in [
+
+        let mut paths_to_create = vec![
             root.join("tags"),
             root.join("objects"),
             root.join("payloads"),
-            root.join("renders").join(username).join(PROXY_DIRNAME),
             root.join(DURABLE_EDITS_DIR),
-        ] {
+        ];
+
+        if T::create_user_render_store() {
+            paths_to_create.push(root.join("renders").join(username).join(PROXY_DIRNAME));
+        }
+
+        for path in paths_to_create {
             makedirs_with_perms(&path, 0o777)
                 .map_err(|source| OpenRepositoryError::PathNotInitialized { path, source })?;
         }
@@ -377,6 +459,7 @@ impl OpenFsRepository {
             payloads: FsHashStore::open(root.join("payloads"))?,
             renders: RenderStore::for_user(root, username).ok(),
             root: root.to_owned(),
+            _render_store_status: std::marker::PhantomData,
         })
     }
 
@@ -448,24 +531,41 @@ impl OpenFsRepository {
                             .as_ref()
                             .and_then(|_| RenderStore::for_user(self.root.as_ref(), dir).ok()),
                         root: self.root.clone(),
+                        _render_store_status: std::marker::PhantomData,
                     },
                 )
             })
             .collect())
     }
+
+    pub fn try_into_valid_user_render(
+        self,
+    ) -> Result<FsRepository<ValidRenderStoreForCurrentUser>> {
+        todo!()
+    }
+
+    pub fn try_into_no_user_render(self) -> Result<FsRepository<NoRenderStoreForCurrentUser>> {
+        todo!()
+    }
 }
 
-impl BlobStorage for OpenFsRepository {}
-impl ManifestStorage for OpenFsRepository {}
-impl LayerStorage for OpenFsRepository {}
-impl PlatformStorage for OpenFsRepository {}
-impl Repository for OpenFsRepository {
+impl<T> BlobStorage for OpenFsRepository<T> where T: RenderStoreMode {}
+impl<T> ManifestStorage for OpenFsRepository<T> where T: RenderStoreMode {}
+impl<T> LayerStorage for OpenFsRepository<T> where T: RenderStoreMode {}
+impl<T> PlatformStorage for OpenFsRepository<T> where T: RenderStoreMode {}
+impl<T> Repository for OpenFsRepository<T>
+where
+    T: RenderStoreMode,
+{
     fn address(&self) -> url::Url {
         url::Url::from_directory_path(self.root()).unwrap()
     }
 }
 
-impl std::fmt::Debug for OpenFsRepository {
+impl<T> std::fmt::Debug for OpenFsRepository<T>
+where
+    T: RenderStoreMode,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("OpenFsRepository @ {:?}", self.root()))
     }

@@ -35,11 +35,13 @@ pub use repository::{LocalRepository, Repository};
 pub use tag::{EntryType, TagStorage};
 
 pub use self::config::{FromConfig, FromUrl, OpenRepositoryResult};
+use self::fs::{NoRenderStoreForCurrentUser, ValidRenderStoreForCurrentUser};
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
-    FS(fs::FsRepository),
+    FS(fs::FsRepository<ValidRenderStoreForCurrentUser>),
+    FSNoUserRenders(fs::FsRepository<NoRenderStoreForCurrentUser>),
     Tar(tar::TarRepository),
     Rpc(rpc::RpcRepository),
     FallbackProxy(Box<fallback::FallbackProxy>),
@@ -91,6 +93,7 @@ impl RepositoryHandle {
     pub fn to_repo(self) -> Box<dyn Repository> {
         match self {
             Self::FS(repo) => Box::new(repo),
+            Self::FSNoUserRenders(repo) => Box::new(repo),
             Self::Tar(repo) => Box::new(repo),
             Self::Rpc(repo) => Box::new(repo),
             Self::FallbackProxy(repo) => repo,
@@ -106,6 +109,7 @@ impl std::ops::Deref for RepositoryHandle {
     fn deref(&self) -> &Self::Target {
         match self {
             RepositoryHandle::FS(repo) => repo,
+            RepositoryHandle::FSNoUserRenders(repo) => repo,
             RepositoryHandle::Tar(repo) => repo,
             RepositoryHandle::Rpc(repo) => repo,
             RepositoryHandle::FallbackProxy(repo) => &**repo,
@@ -119,6 +123,7 @@ impl std::ops::DerefMut for RepositoryHandle {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             RepositoryHandle::FS(repo) => repo,
+            RepositoryHandle::FSNoUserRenders(repo) => repo,
             RepositoryHandle::Tar(repo) => repo,
             RepositoryHandle::Rpc(repo) => repo,
             RepositoryHandle::FallbackProxy(repo) => &mut **repo,
@@ -128,21 +133,50 @@ impl std::ops::DerefMut for RepositoryHandle {
     }
 }
 
-impl From<fs::FsRepository> for RepositoryHandle {
-    fn from(repo: fs::FsRepository) -> Self {
-        RepositoryHandle::FS(repo)
+impl<T> From<fs::FsRepository<T>> for RepositoryHandle
+where
+    T: fs::RenderStoreMode,
+{
+    fn from(repo: fs::FsRepository<T>) -> Self {
+        if T::create_user_render_store() {
+            RepositoryHandle::FS(
+                repo.try_into_valid_user_render()
+                    .expect("conversion always valid"),
+            )
+        } else {
+            RepositoryHandle::FSNoUserRenders(
+                repo.try_into_no_user_render()
+                    .expect("conversion always valid"),
+            )
+        }
     }
 }
 
-impl From<fs::OpenFsRepository> for RepositoryHandle {
-    fn from(repo: fs::OpenFsRepository) -> Self {
-        RepositoryHandle::FS(repo.into())
+impl<T> From<fs::OpenFsRepository<T>> for RepositoryHandle
+where
+    T: fs::RenderStoreMode,
+{
+    fn from(repo: fs::OpenFsRepository<T>) -> Self {
+        if T::create_user_render_store() {
+            RepositoryHandle::FS(
+                repo.try_into_valid_user_render()
+                    .expect("conversion always valid"),
+            )
+        } else {
+            RepositoryHandle::FSNoUserRenders(
+                repo.try_into_no_user_render()
+                    .expect("conversion always valid"),
+            )
+        }
     }
 }
 
-impl From<Arc<fs::OpenFsRepository>> for RepositoryHandle {
-    fn from(repo: Arc<fs::OpenFsRepository>) -> Self {
-        RepositoryHandle::FS(repo.into())
+impl<T> From<Arc<fs::OpenFsRepository<T>>> for RepositoryHandle
+where
+    T: fs::RenderStoreMode,
+{
+    fn from(repo: Arc<fs::OpenFsRepository<T>>) -> Self {
+        todo!()
     }
 }
 

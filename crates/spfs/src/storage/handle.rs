@@ -25,6 +25,7 @@ macro_rules! each_variant {
     ($repo:expr, $inner:ident, $ops:tt) => {
         match $repo {
             RepositoryHandle::FS($inner) => $ops,
+            RepositoryHandle::FSNoUserRenders($inner) => $ops,
             RepositoryHandle::Tar($inner) => $ops,
             RepositoryHandle::Rpc($inner) => $ops,
             RepositoryHandle::FallbackProxy($inner) => $ops,
