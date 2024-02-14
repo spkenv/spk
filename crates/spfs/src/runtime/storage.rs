@@ -462,7 +462,7 @@ impl Config {
     PartialEq,
     strum::Display,
     strum::EnumString,
-    strum::EnumVariantNames,
+    strum::VariantNames,
     Serialize,
     Deserialize,
 )]

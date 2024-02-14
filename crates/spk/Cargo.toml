@@ -79,6 +79,6 @@ spk-exec = { workspace = true }
 spk-schema = { workspace = true }
 spk-solve = { workspace = true }
 spk-storage = { workspace = true }
-statsd = { version = "0.15.0", optional = true }
+statsd = { version = "0.16.0", optional = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }

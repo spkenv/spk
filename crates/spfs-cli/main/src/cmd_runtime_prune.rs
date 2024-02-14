@@ -5,6 +5,8 @@
 use chrono::{Duration, Utc};
 use clap::Args;
 use miette::Result;
+#[cfg(unix)]
+use procfs::Current;
 use tokio_stream::StreamExt;
 
 use super::cmd_runtime_remove::is_monitor_running;
@@ -59,7 +61,7 @@ impl CmdRuntimePrune {
         let default_author = spfs::runtime::Author::default();
 
         #[cfg(unix)]
-        let boot_time = match procfs::Uptime::new() {
+        let boot_time = match procfs::Uptime::current() {
             Ok(uptime) => {
                 Utc::now()
                     - Duration::from_std(uptime.uptime_duration()).map_err(|err| {

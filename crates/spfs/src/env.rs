@@ -4,7 +4,7 @@
 
 //! Functions related to the setup and teardown of the spfs runtime environment
 //! and related system namespacing
-use std::os::unix::io::AsRawFd;
+
 use std::path::{Path, PathBuf};
 
 use super::runtime;
@@ -248,7 +248,7 @@ impl<User> RuntimeConfigurator<User, NoMountNamespace> {
             }
         };
 
-        if let Err(err) = nix::sched::setns(file.as_raw_fd(), nix::sched::CloneFlags::empty()) {
+        if let Err(err) = nix::sched::setns(file, nix::sched::CloneFlags::empty()) {
             return Err(match err {
                 nix::errno::Errno::EPERM => Error::new_errno(
                     libc::EPERM,

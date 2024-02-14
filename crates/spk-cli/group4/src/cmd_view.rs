@@ -35,10 +35,10 @@ use spk_schema::{
 };
 use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
 use spk_storage;
-use strum::{Display, EnumString, EnumVariantNames};
+use strum::{Display, EnumString, VariantNames};
 
 /// Constants for the valid output formats
-#[derive(Default, Display, EnumString, EnumVariantNames, Clone)]
+#[derive(Default, Display, EnumString, VariantNames, Clone)]
 #[strum(serialize_all = "lowercase")]
 pub enum OutputFormat {
     Json,
