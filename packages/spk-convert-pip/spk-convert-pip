@@ -72,10 +72,11 @@ def main() -> int:
         metavar="NAME[VERSION]",
         help="The pip packages to import (eg: pytest,  PySide2>=5)",
     )
+    original_cmd_and_args = " ".join(sys.argv)
     args = pip_cmd.parse_args()
 
     specs = []
-    importer = PipImporter().recursive(args.deps)
+    importer = PipImporter().with_cli_args(original_cmd_and_args).recursive(args.deps)
     if args.python_version:
         importer.with_python_version(args.python_version)
     if args.python_abi:
@@ -127,6 +128,11 @@ class PipImporter:
         self._python_abi: Optional[str] = "cp37m"
         self._follow_deps = True
         self._visited: Dict[str, VisitedPackage] = {}
+        self._cli_args = ""
+
+    def with_cli_args(self, cli_args: str) -> "PipImporter":
+        self._cli_args = cli_args
+        return self
 
     def with_python_version(self, version: str) -> "PipImporter":
         assert (
@@ -250,6 +256,14 @@ class PipImporter:
         spec = {
             "pkg": f"{_to_spk_name(info.name)}/{_to_spk_version(info.version)}",
             "sources": [],
+            "meta": {
+                "license": "Unknown",
+                "labels": {
+                    "spk:generated_by": "spk-convert-pip",
+                    "spk-convert-pip:cli": self._cli_args,
+                    },
+            },
+            
             "build": {
                 "options": [
                     {"var": "os"},
