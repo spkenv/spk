@@ -25,9 +25,7 @@ use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::ident::{ToAnyWithoutBuild, VersionIdent};
 use spk_schema::ident_build::parsing::embedded_source_package;
 use spk_schema::ident_build::{EmbeddedSource, EmbeddedSourcePackage};
-#[cfg(feature = "legacy-spk-version-tags")]
-use spk_schema::ident_ops::VerbatimTagStrategy;
-use spk_schema::ident_ops::{NormalizedTagStrategy, TagPath, TagPathStrategy};
+use spk_schema::ident_ops::{NormalizedTagStrategy, TagPath, TagPathStrategy, VerbatimTagStrategy};
 use spk_schema::spec_ops::{HasVersion, WithVersion};
 use spk_schema::version::VersionParts;
 use spk_schema::{AnyIdent, BuildIdent, FromYaml, Package, Recipe, Spec, SpecRecipe};
@@ -65,12 +63,9 @@ macro_rules! verbatim_build_package_tag_if_enabled {
 
 macro_rules! verbatim_tag_if_enabled {
     ($self:expr, $tag:tt, $output:ty, $ident:expr) => {{
-        #[cfg(feature = "legacy-spk-version-tags")]
-        {
+        if $self.legacy_spk_version_tags {
             $self.$tag::<VerbatimTagStrategy, $output>($ident)
-        }
-        #[cfg(not(feature = "legacy-spk-version-tags"))]
-        {
+        } else {
             $self.$tag::<NormalizedTagStrategy, $output>($ident)
         }
     }};
@@ -84,6 +79,7 @@ pub struct SpfsRepository<S = NormalizedTagStrategy> {
     cache_policy: AtomicPtr<CachePolicy>,
     caches: CachesForAddress,
     tag_strategy: PhantomData<S>,
+    legacy_spk_version_tags: bool,
 }
 
 impl<S> std::hash::Hash for SpfsRepository<S> {
@@ -145,6 +141,7 @@ impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> TryFrom<(S, T)> fo
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
             tag_strategy: PhantomData,
+            legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
         })
     }
 }
@@ -196,6 +193,7 @@ where
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
             tag_strategy: PhantomData,
+            legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
         })
     }
 }
@@ -211,6 +209,7 @@ impl SpfsRepository {
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
             tag_strategy: PhantomData,
+            legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
         })
     }
 
@@ -229,6 +228,11 @@ impl SpfsRepository {
         self.address
             .query_pairs_mut()
             .append_pair("when", &ts.to_string());
+    }
+
+    /// Enable or disable the use of legacy spk version tags
+    pub fn set_legacy_spk_version_tags(&mut self, enabled: bool) {
+        self.legacy_spk_version_tags = enabled;
     }
 }
 
@@ -346,7 +350,7 @@ where
 
         let mut builds = HashSet::new();
 
-        for pkg in Self::iter_possible_parts(pkg) {
+        for pkg in Self::iter_possible_parts(pkg, self.legacy_spk_version_tags) {
             let spec_base = verbatim_build_spec_tag_if_enabled!(self, &pkg);
             let package_base = verbatim_build_package_tag_if_enabled!(self, &pkg);
 
@@ -387,7 +391,7 @@ where
         let mut builds = HashSet::new();
 
         let pkg = pkg.to_any(Some(Build::Source));
-        for pkg in Self::iter_possible_parts(&pkg) {
+        for pkg in Self::iter_possible_parts(&pkg, self.legacy_spk_version_tags) {
             let mut base = verbatim_build_spec_tag_if_enabled!(self, &pkg);
             // the package tag contains the name and build, but we need to
             // remove the trailing build in order to list the containing 'folder'
@@ -1002,7 +1006,10 @@ where
     ///
     /// If spk is built without the `legacy-spk-version-tags` feature enabled,
     /// then only the one canonical normalized part will be returned.
-    fn iter_possible_parts<I>(pkg: &I) -> impl Iterator<Item = I::Output> + '_
+    fn iter_possible_parts<I>(
+        pkg: &I,
+        legacy_spk_version_tags: bool,
+    ) -> impl Iterator<Item = I::Output> + '_
     where
         I: HasVersion + WithVersion,
     {
@@ -1012,9 +1019,7 @@ where
             // Handle all the part lengths that are bigger than the normalized
             // parts, except for the normalized parts length itself, which may
             // be larger than 5 and not hit by this range.
-            .filter(move |num_parts| {
-                cfg!(feature = "legacy-spk-version-tags") && *num_parts > normalized_parts_len
-            })
+            .filter(move |num_parts| legacy_spk_version_tags && *num_parts > normalized_parts_len)
             // Then, handle the normalized parts length itself, which is
             // skipped by the filter above so it isn't processed twice,
             // and is handled even if the length is outside the above range.
@@ -1078,7 +1083,7 @@ where
         Fut: Future<Output = Result<R>>,
     {
         let mut first_resolve_err = None;
-        for pkg in Self::iter_possible_parts(pkg) {
+        for pkg in Self::iter_possible_parts(pkg, self.legacy_spk_version_tags) {
             let tag_path = tag_path(&pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
             let tag = match self
@@ -1193,7 +1198,7 @@ where
     /// (with or without package components)
     async fn lookup_package(&self, pkg: &BuildIdent) -> Result<StoredPackage> {
         let mut first_resolve_err = None;
-        for pkg in Self::iter_possible_parts(pkg) {
+        for pkg in Self::iter_possible_parts(pkg, self.legacy_spk_version_tags) {
             let tag_path = verbatim_build_package_tag_if_enabled!(self, &pkg);
             let tag_specs: HashMap<Component, TagSpec> = self
                 .ls_tags(&tag_path)
@@ -1312,6 +1317,7 @@ pub async fn local_repository() -> Result<SpfsRepository> {
         inner,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
         tag_strategy: PhantomData,
+        legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
     })
 }
 
@@ -1329,5 +1335,6 @@ pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SpfsRepository>
         inner,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
         tag_strategy: PhantomData,
+        legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
     })
 }

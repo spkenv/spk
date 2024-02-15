@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-#[cfg(feature = "legacy-spk-version-tags")]
 use spk_schema::ident_ops::VerbatimTagStrategy;
 use spk_schema::{Spec, SpecRecipe};
 
@@ -14,7 +13,6 @@ type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
     SPFS(super::SpfsRepository),
-    #[cfg(feature = "legacy-spk-version-tags")]
     SPFSWithVerbatimTags(super::SpfsRepository<VerbatimTagStrategy>),
     Mem(super::MemRepository<SpecRecipe>),
     Runtime(super::RuntimeRepository),
@@ -34,14 +32,8 @@ impl RepositoryHandle {
         Self::Runtime(Default::default())
     }
 
-    #[cfg(feature = "legacy-spk-version-tags")]
     pub fn is_spfs(&self) -> bool {
         matches!(self, Self::SPFS(_) | Self::SPFSWithVerbatimTags(_))
-    }
-
-    #[cfg(not(feature = "legacy-spk-version-tags"))]
-    pub fn is_spfs(&self) -> bool {
-        matches!(self, Self::SPFS(_))
     }
 
     pub fn is_mem(&self) -> bool {
@@ -55,7 +47,6 @@ impl RepositoryHandle {
     pub fn to_repo(self) -> Box<Handle> {
         match self {
             Self::SPFS(repo) => Box::new(repo),
-            #[cfg(feature = "legacy-spk-version-tags")]
             Self::SPFSWithVerbatimTags(repo) => Box::new(repo),
             Self::Mem(repo) => Box::new(repo),
             Self::Runtime(repo) => Box::new(repo),
@@ -69,7 +60,6 @@ impl std::ops::Deref for RepositoryHandle {
     fn deref(&self) -> &Self::Target {
         match self {
             RepositoryHandle::SPFS(repo) => repo,
-            #[cfg(feature = "legacy-spk-version-tags")]
             RepositoryHandle::SPFSWithVerbatimTags(repo) => repo,
             RepositoryHandle::Mem(repo) => repo,
             RepositoryHandle::Runtime(repo) => repo,
@@ -81,7 +71,6 @@ impl std::ops::DerefMut for RepositoryHandle {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             RepositoryHandle::SPFS(repo) => repo,
-            #[cfg(feature = "legacy-spk-version-tags")]
             RepositoryHandle::SPFSWithVerbatimTags(repo) => repo,
             RepositoryHandle::Mem(repo) => repo,
             RepositoryHandle::Runtime(repo) => repo,

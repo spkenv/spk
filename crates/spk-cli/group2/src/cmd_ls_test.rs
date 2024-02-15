@@ -3,12 +3,17 @@
 // https://github.com/imageworks/spk
 
 use clap::Parser;
+use futures::prelude::*;
+use relative_path::RelativePathBuf;
 use spfs::config::Remote;
+use spfs::storage::EntryType;
 use spfs::RemoteAddress;
 use spk_schema::foundation::ident_component::Component;
+use spk_schema::ident_ops::VerbatimTagStrategy;
 use spk_schema::recipe;
 use spk_solve::spec;
 use spk_storage::fixtures::*;
+use spk_storage::RepositoryHandle;
 
 use super::{Ls, Output, Run};
 
@@ -501,15 +506,8 @@ async fn test_ls_shows_partially_deprecated_version() {
 /// When the legacy-spk-version-tags feature is enabled, and when a package
 /// is published with a non-normalized version tag, `spk ls` is expected to
 /// list the package.
-#[cfg(feature = "legacy-spk-version-tags")]
 #[tokio::test]
 async fn test_ls_succeeds_for_package_saved_with_legacy_version_tag() {
-    use futures::prelude::*;
-    use relative_path::RelativePathBuf;
-    use spfs::storage::EntryType;
-    use spk_schema::ident_ops::VerbatimTagStrategy;
-    use spk_storage::RepositoryHandle;
-
     let mut rt = spfs_runtime_with_tag_strategy::<VerbatimTagStrategy>().await;
     let remote_repo = spfsrepo().await;
 
@@ -551,7 +549,7 @@ async fn test_ls_succeeds_for_package_saved_with_legacy_version_tag() {
         _ => panic!("expected SPFSWithVerbatimTags"),
     }
 
-    let mut opt = Opt::try_parse_from(["ls", "my-local-pkg"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--legacy-spk-version-tags", "my-local-pkg"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 1);
 }

@@ -11,9 +11,12 @@ use spfs::config::Remote;
 use spfs::prelude::*;
 use spfs::Result;
 use spk_schema::foundation::fixtures::*;
-#[cfg(feature = "legacy-spk-version-tags")]
-use spk_schema::ident_ops::VerbatimTagStrategy;
-use spk_schema::ident_ops::{NormalizedTagStrategy, TagPathStrategy, TagPathStrategyType};
+use spk_schema::ident_ops::{
+    NormalizedTagStrategy,
+    TagPathStrategy,
+    TagPathStrategyType,
+    VerbatimTagStrategy,
+};
 use tokio::sync::{Mutex, MutexGuard};
 
 use crate as storage;
@@ -147,7 +150,6 @@ where
                     )
                     .unwrap(),
                 ),
-                #[cfg(feature = "legacy-spk-version-tags")]
                 TagPathStrategyType::Verbatim => storage::RepositoryHandle::SPFSWithVerbatimTags(
                     storage::SpfsRepository::<VerbatimTagStrategy>::try_from(
                         NameAndRepositoryWithTagStrategy::<_, _, VerbatimTagStrategy>::new(
