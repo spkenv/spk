@@ -86,31 +86,31 @@ pub struct SpfsRepository<S = NormalizedTagStrategy> {
     tag_strategy: PhantomData<S>,
 }
 
-impl std::hash::Hash for SpfsRepository {
+impl<S> std::hash::Hash for SpfsRepository<S> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.address.hash(state);
     }
 }
 
-impl Ord for SpfsRepository {
+impl<S> Ord for SpfsRepository<S> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.address.cmp(&other.address)
     }
 }
 
-impl PartialOrd for SpfsRepository {
+impl<S> PartialOrd for SpfsRepository<S> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for SpfsRepository {
+impl<S> PartialEq for SpfsRepository<S> {
     fn eq(&self, other: &Self) -> bool {
         self.address == other.address
     }
 }
 
-impl Eq for SpfsRepository {}
+impl<S> Eq for SpfsRepository<S> {}
 
 impl<TagStrategy> std::ops::Deref for SpfsRepository<TagStrategy>
 where
@@ -142,6 +142,57 @@ impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> TryFrom<(S, T)> fo
             caches: CachesForAddress::new(&address),
             address,
             name: name_and_repo.0.as_ref().try_into()?,
+            inner,
+            cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+            tag_strategy: PhantomData,
+        })
+    }
+}
+
+pub struct NameAndRepositoryWithTagStrategy<S, T, TagStrategy>
+where
+    S: AsRef<str>,
+    T: Into<spfs::storage::RepositoryHandle>,
+    TagStrategy: TagPathStrategy,
+{
+    name: S,
+    repo: T,
+    _phantom: PhantomData<TagStrategy>,
+}
+
+impl<S, T, TagStrategy> NameAndRepositoryWithTagStrategy<S, T, TagStrategy>
+where
+    S: AsRef<str>,
+    T: Into<spfs::storage::RepositoryHandle>,
+    TagStrategy: TagPathStrategy,
+{
+    pub fn new(name: S, repo: T) -> Self {
+        Self {
+            name,
+            repo,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, T, TagStrategy> TryFrom<NameAndRepositoryWithTagStrategy<S, T, TagStrategy>>
+    for SpfsRepository<TagStrategy>
+where
+    S: AsRef<str>,
+    T: Into<spfs::storage::RepositoryHandle>,
+    TagStrategy: TagPathStrategy,
+{
+    type Error = crate::Error;
+
+    fn try_from(
+        name_and_repo: NameAndRepositoryWithTagStrategy<S, T, TagStrategy>,
+    ) -> Result<Self> {
+        let inner = name_and_repo.repo.into();
+        let address = inner.address();
+        Ok(Self {
+            caches: CachesForAddress::new(&address),
+            address,
+            name: name_and_repo.name.as_ref().try_into()?,
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
             tag_strategy: PhantomData,

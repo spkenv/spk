@@ -497,3 +497,61 @@ async fn test_ls_shows_partially_deprecated_version() {
     assert!(opt.ls.output.vec.first().unwrap().contains("partially"));
     assert!(opt.ls.output.vec.first().unwrap().contains("DEPRECATED"));
 }
+
+/// When the legacy-spk-version-tags feature is enabled, and when a package
+/// is published with a non-normalized version tag, `spk ls` is expected to
+/// list the package.
+#[cfg(feature = "legacy-spk-version-tags")]
+#[tokio::test]
+async fn test_ls_succeeds_for_package_saved_with_legacy_version_tag() {
+    use futures::prelude::*;
+    use relative_path::RelativePathBuf;
+    use spfs::storage::EntryType;
+    use spk_schema::ident_ops::VerbatimTagStrategy;
+    use spk_storage::RepositoryHandle;
+
+    let mut rt = spfs_runtime_with_tag_strategy::<VerbatimTagStrategy>().await;
+    let remote_repo = spfsrepo().await;
+
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    let recipe = recipe!({"pkg": "my-local-pkg/1.0.0"});
+    rt.tmprepo.publish_recipe(&recipe).await.unwrap();
+    let spec = spec!({"pkg": "my-local-pkg/1.0.0/BGSHW3CN"});
+    rt.tmprepo
+        .publish_package(
+            &spec,
+            &vec![(Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    // Confirm that the tag was created with the legacy version tag strategy.
+    match &*rt.tmprepo {
+        RepositoryHandle::SPFSWithVerbatimTags(spfs) => {
+            assert!(
+                spfs.ls_tags(&RelativePathBuf::from("spk/spec/my-local-pkg"))
+                    .filter(|tag| {
+                        future::ready(matches!(tag, Ok(EntryType::Tag(tag)) if tag == "1.0.0"))
+                    })
+                    .next()
+                    .await
+                    .is_some(),
+                "expected \"1.0.0\" tag to be found"
+            );
+        }
+        _ => panic!("expected SPFSWithVerbatimTags"),
+    }
+
+    let mut opt = Opt::try_parse_from(["ls", "my-local-pkg"]).unwrap();
+    opt.ls.run().await.unwrap();
+    assert_eq!(opt.ls.output.vec.len(), 1);
+}
