@@ -6,9 +6,9 @@ use std::borrow::Cow;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident_build::Build;
+use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::name::PkgName;
-use spk_schema_foundation::option_map::{host_options, OptionMap, Stringified};
+use spk_schema_foundation::option_map::{OptionMap, Stringified, HOST_OPTIONS};
 use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
 use spk_schema_foundation::version::Version;
 use spk_schema_ident::{
@@ -168,6 +168,15 @@ impl Recipe for Platform {
         &self.platform
     }
 
+    #[inline]
+    fn build_digest<V>(&self, variant: &V) -> Result<BuildId>
+    where
+        V: Variant,
+    {
+        // Platforms have no build!
+        BuildSpec::default().build_digest(self.name(), variant)
+    }
+
     fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
         Cow::Owned(vec![Self::Variant::default()])
     }
@@ -183,15 +192,14 @@ impl Recipe for Platform {
     where
         V: Variant,
     {
-        let options = self.resolve_options(variant)?;
-        let build_digest = Build::Digest(options.digest());
-
         let mut requirements = RequirementsList::default();
 
         if let Some(base) = self.base.as_ref() {
+            let build_digest = self.build_digest(variant)?;
+
             requirements.insert_or_merge(Request::Pkg(PkgRequest::from_ident(
                 base.clone().into_any(None),
-                RequestedBy::BinaryBuild(self.ident().to_build(build_digest.clone())),
+                RequestedBy::BinaryBuild(self.ident().to_build(Build::BuildId(build_digest))),
             )))?;
         }
 
@@ -237,14 +245,11 @@ impl Recipe for Platform {
         // related option names but leave the values for the later
         // steps of building to fill in.
         let mut build_host_options = Vec::new();
-        for (name, _value) in host_options()?.iter() {
+        for (name, _value) in HOST_OPTIONS.get()?.iter() {
             build_host_options.push(Opt::Var(VarOpt::new(name)?));
         }
-        spec.build = BuildSpec {
-            script: Script::new([""]),
-            options: build_host_options,
-            ..Default::default()
-        };
+        spec.build.script = Script::new([""]);
+        spec.build.options = build_host_options;
 
         // Add base requirements, if any, first.
         if let Some(base) = base.as_ref() {
