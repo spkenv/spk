@@ -264,6 +264,7 @@ impl Recipe for SpecRecipe {
     {
         match self {
             SpecRecipe::V0Package(r) => Recipe::build_digest(r, variant),
+            SpecRecipe::V0Platform(r) => Recipe::build_digest(r, variant),
         }
     }
 

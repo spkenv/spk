@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use rstest::rstest;
 use spk_schema_foundation::option_map;
-use spk_schema_foundation::option_map::host_options;
+use spk_schema_foundation::option_map::HOST_OPTIONS;
 use spk_schema_ident::{BuildIdent, InclusionPolicy, Request};
 
 use super::Platform;
@@ -66,7 +66,7 @@ fn test_platform_add_pkg_requirement(#[case] spec: &str) {
         .generate_binary_build(&option_map! {}, &build_env)
         .unwrap();
 
-    let host_options = host_options().unwrap();
+    let host_options = HOST_OPTIONS.get().unwrap();
     let build_options = build
         .build
         .options
