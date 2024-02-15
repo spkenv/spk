@@ -31,7 +31,7 @@ once_cell = { workspace = true }
 paste = "1.0"
 parsedbuf = { workspace = true }
 rand = { workspace = true }
-relative-path = "1.3"
+relative-path = { workspace = true }
 ring = { workspace = true }
 rstest = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
