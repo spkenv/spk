@@ -34,6 +34,12 @@ pub struct Publish {
     #[clap(long, short)]
     force: bool,
 
+    /// Allow publishing package specs written in unstable api versions
+    ///
+    /// The api version of a spec is the value of the `api` field within it.
+    #[clap(long)]
+    allow_unstable_api: bool,
+
     /// The local packages to publish
     ///
     /// This can be an entire package version with all builds or a
@@ -54,6 +60,7 @@ impl Run for Publish {
 
         let publisher = Publisher::new(Arc::new(source.into()), Arc::new(target.into()))
             .skip_source_packages(self.no_source)
+            .allow_unstable_api(self.allow_unstable_api)
             .force(self.force);
 
         let mut published = Vec::new();
