@@ -34,6 +34,9 @@ pub enum Error {
     SpkIdentError(#[from] spk_schema::ident::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
+    SpkNameError(#[from] spk_schema::name::Error),
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkSolverError(#[from] spk_solve::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]

@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use clap::Args;
 use futures::TryFutureExt;
-use miette::{bail, Context, IntoDiagnostic, Result};
+use itertools::Itertools;
+use miette::{bail, miette, Context, IntoDiagnostic, Report, Result};
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{flags, spk_exe, BuildArtifact, BuildResult, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
@@ -75,9 +76,9 @@ pub struct MakeBinary {
     #[clap(name = "SPEC_FILE|PKG/VER")]
     pub packages: Vec<PackageSpecifier>,
 
-    /// Build only the specified variant, by index, if defined
-    #[clap(long)]
-    pub variant: Option<usize>,
+    /// Build only the specified variants
+    #[clap(flatten)]
+    pub variant: flags::Variant,
 
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,
@@ -134,6 +135,9 @@ impl Run for MakeBinary {
             packages.push(None)
         }
 
+        let opt_host_options =
+            (!self.options.no_host).then(|| HOST_OPTIONS.get().unwrap_or_default());
+
         for package in packages {
             let (recipe, filename) = flags::find_package_recipe_from_template_or_repo(
                 package.as_ref().map(|p| p.get_specifier()),
@@ -147,40 +151,42 @@ impl Run for MakeBinary {
             local.force_publish_recipe(&recipe).await?;
 
             tracing::info!("building binary package(s) for {}", ident.format_ident());
-            let mut built = std::collections::HashSet::new();
 
-            let default_variants = recipe.default_variants();
-            let variants_to_build: Box<
-                dyn Iterator<Item = &spk_schema::SpecVariant> + Send + Sync,
-            > = match self.variant {
-                Some(index) if index < default_variants.len() => {
-                    Box::new(default_variants.iter().skip(index).take(1))
-                }
-                Some(index) => {
-                    miette::bail!(
-                        "--variant {index} is out of range; {} variant(s) found in {}",
-                        default_variants.len(),
-                        recipe.ident().format_ident(),
-                    );
-                }
-                None => Box::new(default_variants.iter()),
-            };
+            let default_variants = recipe.default_variants(&options);
+            let variants_to_build = self
+                .variant
+                .requested_variants(
+                    &recipe,
+                    &default_variants,
+                    &options,
+                    opt_host_options.as_ref(),
+                )
+                .collect::<Result<Vec<_>>>()?;
 
-            let mut variant_index = self.variant.unwrap_or(0);
-            for variant in variants_to_build {
+            for variant_info in &variants_to_build {
+                let variant = match &variant_info.build_status {
+                    flags::VariantBuildStatus::Enabled(variant) => variant,
+                    flags::VariantBuildStatus::FilteredOut(mismatches) => {
+                        tracing::debug!("Skipping variant that was filtered out:\n{this_location} didn't match on {mismatches}", this_location = variant_info.location, mismatches = mismatches.keys().join(", "));
+                        continue;
+                    }
+                    flags::VariantBuildStatus::Duplicate(location) => {
+                        tracing::debug!("Skipping variant that was already built:\n{this_location} is a duplicate of {location}", this_location = variant_info.location);
+                        continue;
+                    }
+                };
+
                 let mut overrides = OptionMap::default();
                 if !self.options.no_host {
                     overrides.extend(HOST_OPTIONS.get()?);
                 }
                 overrides.extend(options.clone());
-                let variant = variant.with_overrides(overrides);
+                let variant = (**variant).clone().with_overrides(overrides);
 
-                if !built.insert(variant.clone()) {
-                    tracing::debug!("Skipping variant that was already built:\n{variant}");
-                    continue;
-                }
-
-                tracing::info!("building variant {variant_index}:\n{variant}");
+                tracing::info!(
+                    "building {location}:\n{variant}",
+                    location = variant_info.location
+                );
 
                 // Always show the solution packages for the solves
                 let mut fmt_builder = self
@@ -231,7 +237,10 @@ impl Run for MakeBinary {
                             }
                         }
 
-                        tracing::error!("variant {variant_index} failed:\n{variant}");
+                        tracing::error!(
+                            "{location} failed:\n{variant}",
+                            location = variant_info.location
+                        );
                         return Err(err.into());
                     }
                     Ok((spec, _cmpts)) => spec,
@@ -242,7 +251,7 @@ impl Run for MakeBinary {
                     filename.to_string_lossy().to_string(),
                     BuildArtifact::Binary(
                         out.ident().clone(),
-                        variant_index,
+                        variant_info.location,
                         variant.options().into_owned(),
                     ),
                 );
@@ -258,9 +267,52 @@ impl Run for MakeBinary {
                     let status = cmd.status().into_diagnostic()?;
                     return Ok(status.code().unwrap_or(1));
                 }
-                variant_index += 1;
+            }
+
+            // If nothing was built (i.e., variant filters didn't match anything),
+            // treat this as an error.
+            if self.created_builds.is_empty() {
+                let help = "Check --variant filters or host options match at least one variant";
+                let mut report: Option<Report> = None;
+                for variant_info in variants_to_build.iter().rev() {
+                    if let flags::VariantBuildStatus::FilteredOut(mismatches) =
+                        &variant_info.build_status
+                    {
+                        let message = format!(
+                            "{location} didn't match on {mismatches}",
+                            location = variant_info.location,
+                            mismatches = mismatches
+                                .iter()
+                                .map(|(k, v)| {
+                                    if let Some(actual) = &v.actual {
+                                        format!(
+                                            "{k} (expected {expected}, variant has {actual})",
+                                            expected = v.expected
+                                        )
+                                    } else {
+                                        format!("{k} (missing from variant)")
+                                    }
+                                })
+                                .join(", ")
+                        );
+
+                        match report {
+                            Some(r) => report = Some(r.wrap_err(message)),
+                            None => {
+                                report = Some(miette!(help = help, "{message}"));
+                            }
+                        }
+                    }
+                }
+                return Err(match report {
+                    Some(report) => report.wrap_err("No packages were built"),
+                    None => {
+                        miette!(help = help, "No packages were built")
+                    }
+                });
             }
         }
+
         Ok(0)
     }
 }

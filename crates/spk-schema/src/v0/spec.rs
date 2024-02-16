@@ -100,6 +100,10 @@ impl<Ident> Spec<Ident> {
         }
     }
 
+    pub fn build_options(&self) -> Cow<'_, [Opt]> {
+        Cow::Borrowed(self.build.options.as_slice())
+    }
+
     /// Convert the ident type associated to this package
     pub fn map_ident<F, ToIdent>(self, map: F) -> Spec<ToIdent>
     where
@@ -371,8 +375,15 @@ impl Recipe for Spec<VersionIdent> {
         self.build.build_digest(self.pkg.name(), variant)
     }
 
-    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
-        Cow::Borrowed(&self.build.variants)
+    fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
+        if self.build.variants.is_empty() {
+            Cow::Owned(vec![super::Variant::from_build_options(
+                &self.build.options,
+                options,
+            )])
+        } else {
+            Cow::Borrowed(&self.build.variants)
+        }
     }
 
     fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>

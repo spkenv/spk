@@ -382,7 +382,7 @@ fn test_variants_can_append_components() {
     )
     .unwrap();
 
-    let variants = spec.default_variants();
+    let variants = spec.default_variants(&OptionMap::default());
 
     let variant = variants[0].clone().with_overrides(option_map! {});
 
@@ -467,7 +467,7 @@ fn test_variants_can_append_components_and_modify_version() {
     )
     .unwrap();
 
-    let variants = spec.default_variants();
+    let variants = spec.default_variants(&OptionMap::default());
 
     let variant = variants[0].clone().with_overrides(option_map! {});
 

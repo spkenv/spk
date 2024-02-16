@@ -123,6 +123,13 @@ pub struct Platform {
     pub requirements: Option<PlatformRequirements>,
 }
 
+impl Platform {
+    pub fn build_options(&self) -> Cow<'_, [Opt]> {
+        // Platforms have no build!
+        Cow::Borrowed(&[])
+    }
+}
+
 impl Deprecate for Platform {
     fn is_deprecated(&self) -> bool {
         self.deprecated
@@ -177,7 +184,8 @@ impl Recipe for Platform {
         BuildSpec::default().build_digest(self.name(), variant)
     }
 
-    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
+    fn default_variants(&self, _options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
+        // Platforms have no build!
         Cow::Owned(vec![Self::Variant::default()])
     }
 

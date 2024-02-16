@@ -117,11 +117,7 @@ pub struct BuildSpec {
     pub options: Vec<Opt>,
     /// The raw variant specs as they were parsed from the recipe, so the
     /// recipe can be serialized back out with the same variant spec.
-    #[serde(
-        default,
-        rename = "variants",
-        skip_serializing_if = "BuildSpec::is_default_variants"
-    )]
+    #[serde(default, rename = "variants", skip_serializing_if = "Vec::is_empty")]
     raw_variants: Vec<v0::VariantSpec>,
     /// The parsed variants, which are used for building.
     #[serde(skip)]
@@ -137,8 +133,8 @@ impl Default for BuildSpec {
         Self {
             script: Script(vec!["sh ./build.sh".into()]),
             options: Vec::new(),
-            raw_variants: vec![v0::VariantSpec::default()],
-            variants: vec![v0::Variant::default()],
+            raw_variants: Vec::new(),
+            variants: Vec::new(),
             validation: ValidationSpec::default(),
             auto_host_vars: AutoHostVars::default(),
         }
@@ -148,13 +144,6 @@ impl Default for BuildSpec {
 impl BuildSpec {
     pub fn is_default(&self) -> bool {
         self == &Self::default()
-    }
-
-    fn is_default_variants(variants: &[v0::VariantSpec]) -> bool {
-        if variants.len() != 1 {
-            return false;
-        }
-        variants.first() == Some(&v0::VariantSpec::default())
     }
 
     /// Returns this build's options, plus any additional ones needed

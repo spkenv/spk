@@ -8,7 +8,7 @@ use spk_cli_common::{flags, CommandArgs, Run};
 use spk_cmd_make_binary::cmd_make_binary::PackageSpecifier;
 
 #[cfg(test)]
-#[path = "./cmd_build_test.rs"]
+#[path = "./cmd_build_test/mod.rs"]
 mod cmd_build_test;
 
 /// Build a binary package from a spec file or source package.
@@ -41,9 +41,9 @@ pub struct Build {
     #[clap(name = "NAME|SPEC_FILE")]
     packages: Vec<String>,
 
-    /// Build only the specified variant, by index, if defined
-    #[clap(long, hide = true)]
-    variant: Option<usize>,
+    /// Build only the specified variants
+    #[clap(flatten)]
+    variant: flags::Variant,
 
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,
@@ -54,10 +54,22 @@ pub struct Build {
     pub allow_circular_dependencies: bool,
 }
 
+#[derive(Debug)]
+pub struct BuildResult {
+    pub exit_status: i32,
+    pub created_builds: spk_cli_common::BuildResult,
+}
+
+impl From<BuildResult> for i32 {
+    fn from(result: BuildResult) -> Self {
+        result.exit_status
+    }
+}
+
 /// Runs make-source and then make-binary
 #[async_trait::async_trait]
 impl Run for Build {
-    type Output = i32;
+    type Output = BuildResult;
 
     async fn run(&mut self) -> Result<Self::Output> {
         self.runtime
@@ -77,10 +89,10 @@ impl Run for Build {
                 verbose: self.verbose,
                 packages: packages.clone(),
                 runtime: self.runtime.clone(),
-                created_src: std::mem::take(&mut builds_for_summary),
+                created_src: spk_cli_common::BuildResult::default(),
             };
             let idents = make_source.make_source().await?;
-            builds_for_summary = std::mem::take(&mut make_source.created_src);
+            builds_for_summary.extend(make_source.created_src);
 
             let mut make_binary = spk_cmd_make_binary::cmd_make_binary::MakeBinary {
                 verbose: self.verbose,
@@ -97,17 +109,19 @@ impl Run for Build {
                         PackageSpecifier::WithSourceIdent((package, ident.into()))
                     })
                     .collect(),
-                variant: self.variant,
+                variant: self.variant.clone(),
                 formatter_settings: self.formatter_settings.clone(),
                 allow_circular_dependencies: self.allow_circular_dependencies,
-                created_builds: std::mem::take(&mut builds_for_summary),
+                created_builds: spk_cli_common::BuildResult::default(),
             };
-            let code = make_binary.run().await?;
-            if code != 0 {
-                return Ok(code);
+            let exit_status = make_binary.run().await?;
+            builds_for_summary.extend(make_binary.created_builds);
+            if exit_status != 0 {
+                return Ok(BuildResult {
+                    exit_status,
+                    created_builds: builds_for_summary,
+                });
             }
-
-            builds_for_summary = std::mem::take(&mut make_binary.created_builds);
         }
 
         println!("Completed builds:");
@@ -115,7 +129,10 @@ impl Run for Build {
             println!("   {artifact}");
         }
 
-        Ok(0)
+        Ok(BuildResult {
+            exit_status: 0,
+            created_builds: builds_for_summary,
+        })
     }
 }
 

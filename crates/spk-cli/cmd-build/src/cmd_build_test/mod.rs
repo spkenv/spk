@@ -18,6 +18,8 @@ use spk_storage::fixtures::*;
 use super::Build;
 use crate::{build_package, try_build_package};
 
+mod variant_filter;
+
 #[derive(Parser)]
 struct Opt {
     #[clap(flatten)]

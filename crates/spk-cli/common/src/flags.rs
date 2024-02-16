@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+mod variant;
+
 use std::collections::HashSet;
 use std::convert::From;
 use std::sync::Arc;
@@ -22,6 +24,7 @@ use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage, VariantExt};
 #[cfg(feature = "statsd")]
 use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
+pub use variant::{Variant, VariantBuildStatus, VariantLocation};
 use {spk_solve as solve, spk_storage as storage};
 
 use crate::parsing::{stage_specifier, VariantIndex};
@@ -429,7 +432,7 @@ impl Requests {
                     TestStage::Build => {
                         let requirements = match build_variant {
                             Some(VariantIndex(index)) => {
-                                let default_variants = recipe.default_variants();
+                                let default_variants = recipe.default_variants(&options);
                                 let variant =
                                     default_variants
                                         .iter()

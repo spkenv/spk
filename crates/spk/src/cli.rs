@@ -181,7 +181,7 @@ impl Run for Command {
     async fn run(&mut self) -> Result<i32> {
         match self {
             Command::Bake(cmd) => cmd.run().await,
-            Command::Build(cmd) => cmd.run().await,
+            Command::Build(cmd) => cmd.run().await.map(Into::into),
             Command::Completion(cmd) => cmd.run(Opt::command()),
             Command::Convert(cmd) => cmd.run().await,
             Command::Debug(cmd) => cmd.run().await,

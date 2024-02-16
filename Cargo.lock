@@ -3952,6 +3952,7 @@ dependencies = [
  "async-trait",
  "clap 4.5.0",
  "futures",
+ "itertools 0.12.0",
  "miette",
  "rstest 0.18.2",
  "spfs",

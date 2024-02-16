@@ -246,6 +246,16 @@ pub enum SpecRecipe {
     V0Platform(super::v0::Platform),
 }
 
+impl SpecRecipe {
+    /// Access the recipe's build options
+    pub fn build_options(&self) -> Cow<'_, [Opt]> {
+        match self {
+            SpecRecipe::V0Package(r) => r.build_options(),
+            SpecRecipe::V0Platform(r) => r.build_options(),
+        }
+    }
+}
+
 impl Recipe for SpecRecipe {
     type Output = Spec;
     type Variant = SpecVariant;
@@ -268,13 +278,13 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn default_variants(&self) -> Cow<'_, Vec<Self::Variant>> {
+    fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
         match self {
             SpecRecipe::V0Package(r) => Cow::Owned(
                 // use into_owned instead of iter().cloned() in case it's
                 // already an owned instance
                 #[allow(clippy::unnecessary_to_owned)]
-                r.default_variants()
+                r.default_variants(options)
                     .into_owned()
                     .into_iter()
                     .map(SpecVariant::V0)
@@ -284,7 +294,7 @@ impl Recipe for SpecRecipe {
                 // use into_owned instead of iter().cloned() in case it's
                 // already an owned instance
                 #[allow(clippy::unnecessary_to_owned)]
-                r.default_variants()
+                r.default_variants(options)
                     .into_owned()
                     .into_iter()
                     .map(SpecVariant::V0)

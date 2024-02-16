@@ -41,7 +41,7 @@ impl Run for NumVariants {
         )
         .await?;
 
-        println!("{}", recipe.default_variants().len());
+        println!("{}", recipe.default_variants(&options).len());
 
         Ok(0)
     }
