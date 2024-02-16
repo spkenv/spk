@@ -8,11 +8,12 @@ use std::sync::{Arc, RwLock};
 
 use derive_builder::Builder;
 use once_cell::sync::OnceCell;
+use relative_path::RelativePath;
 use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
 use tokio_stream::StreamExt;
 
-use crate::storage::TagNamespaceBuf;
+use crate::storage::{TagNamespaceBuf, TagStorageMut};
 use crate::{runtime, storage, tracking, Error, Result};
 
 #[cfg(test)]
@@ -152,15 +153,30 @@ pub struct RemoteConfig {
     #[builder(setter(strip_option), default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<tracking::TimeSpec>,
+    #[builder(setter(strip_option), default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag_namespace: Option<TagNamespaceBuf>,
     #[serde(flatten)]
     pub inner: RepositoryConfig,
 }
 
 impl ToAddress for RemoteConfig {
     fn to_address(&self) -> Result<url::Url> {
-        let mut inner = self.inner.to_address()?;
-        if let Some(when) = &self.when {
+        let Self {
+            when,
+            tag_namespace,
+            inner,
+        } = self;
+        let mut inner = inner.to_address()?;
+        if let Some(when) = when {
             let query = format!("when={when}");
+            match inner.query() {
+                None | Some("") => inner.set_query(Some(&query)),
+                Some(q) => inner.set_query(Some(&format!("{q}&{query}"))),
+            }
+        }
+        if let Some(tag_namespace) = tag_namespace {
+            let query = format!("tag_namespace={}", tag_namespace.as_rel_path());
             match inner.query() {
                 None | Some("") => inner.set_query(Some(&query)),
                 Some(q) => inner.set_query(Some(&format!("{q}&{query}"))),
@@ -195,8 +211,14 @@ impl RemoteConfig {
     pub async fn from_address(url: url::Url) -> Result<Self> {
         let mut builder = RemoteConfigBuilder::default();
         for (k, v) in url.query_pairs() {
-            if let "when" = k.as_ref() {
-                builder.when(tracking::TimeSpec::parse(v)?);
+            match k.as_ref() {
+                "when" => {
+                    builder.when(tracking::TimeSpec::parse(v)?);
+                }
+                "tag_namespace" => {
+                    builder.tag_namespace(TagNamespaceBuf::new(RelativePath::new(&v)));
+                }
+                _ => (),
             }
         }
         let result = match url.scheme() {
@@ -233,7 +255,12 @@ impl RemoteConfig {
 
     /// Open a handle to a repository using this configuration
     pub async fn open(&self) -> storage::OpenRepositoryResult<storage::RepositoryHandle> {
-        let handle = match self.inner.clone() {
+        let Self {
+            when,
+            tag_namespace,
+            inner,
+        } = self;
+        let mut handle: storage::RepositoryHandle = match inner.clone() {
             RepositoryConfig::Fs(config) => {
                 storage::fs::FsRepository::from_config(config).await?.into()
             }
@@ -247,10 +274,27 @@ impl RemoteConfig {
                 .await?
                 .into(),
         };
-        match &self.when {
-            None => Ok(handle),
-            Some(ts) => Ok(handle.into_pinned(ts.to_datetime_from_now())),
-        }
+        // Set tag namespace first before pinning, because it is not possible
+        // to set the tag namespace on a pinned handle.
+        let handle = match tag_namespace {
+            None => handle,
+            Some(tag_namespace) => {
+                handle
+                    .try_set_tag_namespace(Some(tag_namespace.clone()))
+                    .map_err(
+                        |err| storage::OpenRepositoryError::FailedToSetTagNamespace {
+                            tag_namespace: tag_namespace.clone(),
+                            source: Box::new(err),
+                        },
+                    )?;
+                handle
+            }
+        };
+        let handle = match when {
+            None => handle,
+            Some(ts) => handle.into_pinned(ts.to_datetime_from_now()),
+        };
+        Ok(handle)
     }
 }
 

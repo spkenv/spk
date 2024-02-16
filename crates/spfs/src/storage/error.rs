@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use super::TagNamespaceBuf;
+
 #[derive(Debug, miette::Diagnostic, thiserror::Error)]
 #[diagnostic()]
 pub enum OpenRepositoryError {
@@ -90,6 +92,12 @@ pub enum OpenRepositoryError {
     },
     #[error("Pinned repository is read only")]
     RepositoryIsPinned,
+
+    #[error("Failed to set tag namespace '{tag_namespace}'")]
+    FailedToSetTagNamespace {
+        tag_namespace: TagNamespaceBuf,
+        source: Box<dyn miette::Diagnostic + Send + Sync>,
+    },
 }
 
 impl OpenRepositoryError {

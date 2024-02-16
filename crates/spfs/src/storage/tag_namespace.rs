@@ -12,6 +12,7 @@ pub const TAG_NAMESPACE_MARKER: &str = "#ns";
 
 /// A borrowed tag namespace name
 #[repr(transparent)]
+#[derive(Debug)]
 pub struct TagNamespace(RelativePath);
 
 impl TagNamespace {
@@ -54,6 +55,12 @@ impl TagNamespaceBuf {
 impl std::borrow::Borrow<TagNamespace> for TagNamespaceBuf {
     fn borrow(&self) -> &TagNamespace {
         self.deref()
+    }
+}
+
+impl std::fmt::Display for TagNamespaceBuf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
     }
 }
 
