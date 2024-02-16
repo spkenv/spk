@@ -30,7 +30,7 @@ bytes = { workspace = true }
 clap = { workspace = true }
 dashmap = { workspace = true }
 futures-core = { workspace = true, optional = true }
-nix = { workspace = true, features = ["fs", "process", "signal"] }
+nix = { workspace = true, features = ["process"] }
 libc = "0.2"
 miette = { workspace = true, features = ["fancy"] }
 prost = { workspace = true, optional = true }
@@ -61,4 +61,4 @@ windows = { workspace = true, optional = true, features = [
 
 [build-dependencies]
 protobuf-src = { version = "1.0.5", optional = true } # protoc @ 3.19.3
-tonic-build = "0.8"
+tonic-build = "0.11"
