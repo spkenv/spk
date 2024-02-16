@@ -6,6 +6,7 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
+use derive_builder::Builder;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
@@ -146,8 +147,9 @@ pub struct RemoteAddress {
     pub address: url::Url,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Builder, Clone, Debug, Deserialize, Serialize)]
 pub struct RemoteConfig {
+    #[builder(setter(strip_option), default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<tracking::TimeSpec>,
     #[serde(flatten)]
@@ -191,12 +193,12 @@ impl ToAddress for RepositoryConfig {
 impl RemoteConfig {
     /// Parse a complete repository connection config from a url
     pub async fn from_address(url: url::Url) -> Result<Self> {
-        let when = url
-            .query_pairs()
-            .find(|(k, _)| k == "when")
-            .map(|(_, v)| v)
-            .map(tracking::TimeSpec::parse)
-            .transpose()?;
+        let mut builder = RemoteConfigBuilder::default();
+        for (k, v) in url.query_pairs() {
+            if let "when" = k.as_ref() {
+                builder.when(tracking::TimeSpec::parse(v)?);
+            }
+        }
         let result = match url.scheme() {
             "tar" => storage::tar::Config::from_url(&url)
                 .await
@@ -212,11 +214,11 @@ impl RemoteConfig {
                 .map(RepositoryConfig::Proxy),
             scheme => return Err(format!("Unsupported repository scheme: '{scheme}'").into()),
         };
-        let inner = result.map_err(|source| Error::FailedToOpenRepository {
+        builder.inner(result.map_err(|source| Error::FailedToOpenRepository {
             repository: url.to_string(),
             source,
-        })?;
-        Ok(Self { when, inner })
+        })?);
+        Ok(builder.build().expect("No uninitialized fields"))
     }
 
     /// Parse a complete repository connection from an address string

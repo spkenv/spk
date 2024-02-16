@@ -32,6 +32,7 @@ colored = "2.0"
 config = { workspace = true }
 dashmap = { workspace = true }
 data-encoding = "2.3"
+derive_builder = { workspace = true }
 dirs = { workspace = true }
 dunce = { workspace = true }
 faccess = "0.2.3"
