@@ -8,6 +8,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+
   build-windows:
     name: Windows Build
     runs-on: windows-latest

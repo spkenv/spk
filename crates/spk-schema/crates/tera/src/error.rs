@@ -1,3 +1,7 @@
+// Copyright (c) Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+
 use once_cell::sync::Lazy;
 use regex::Regex;
 use spk_schema_foundation::{name, version, version_range};
