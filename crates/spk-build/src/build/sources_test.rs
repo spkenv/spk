@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::ident::build_ident;

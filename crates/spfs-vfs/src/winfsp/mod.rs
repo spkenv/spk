@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 //! A virtual filesystem implementation backed by winfsp
 
 use std::sync::Arc;

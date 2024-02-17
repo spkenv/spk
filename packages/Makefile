@@ -102,7 +102,7 @@ lint: $(shell find . -name "*.spk.yaml")
 
 docker.%:
 	if [ ! -f ../dist/rpm/RPMS/x86_64/spk-*.rpm ]; then \
-	echo "Please run 'make rpm' or download the latest spk rpm from github"; \
+	echo "Please run 'make spk-rpm' or download the latest spk rpm from github"; \
 	echo "and place it into dist/rpm/RPMS/x86_64/ before continuing"; \
 	exit 1; \
 	fi

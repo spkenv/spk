@@ -1,0 +1,19 @@
+name: Housekeeping
+
+on:
+  workflow_dispatch:
+  push:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-copyrights:
+    name: Copyright Notice Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+      - uses: actions/checkout@v2
+      - name: Check for Copyright Notices
+        run: make check-copyrights

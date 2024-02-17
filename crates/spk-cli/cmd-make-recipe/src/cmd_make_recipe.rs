@@ -60,9 +60,13 @@ impl Run for MakeRecipe {
         tracing::info!("using options {}", options.format_option_map());
         let data = spk_schema::TemplateData::new(&options);
         tracing::debug!("full template data: {data:#?}");
-        let rendered = spk_schema_liquid::render_template(template.source(), &data)
-            .into_diagnostic()
-            .wrap_err("Failed to render template")?;
+        let rendered = spk_schema_tera::render_template(
+            template.file_path().to_string_lossy(),
+            template.source(),
+            &data,
+        )
+        .into_diagnostic()
+        .wrap_err("Failed to render template")?;
         print!("{rendered}");
 
         match template.render(&options) {

@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 use serde::{Deserialize, Serialize};
 use spk_schema_ident::BuildIdent;
 

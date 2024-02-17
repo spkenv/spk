@@ -104,7 +104,7 @@ spk-exec = { path = "crates/spk-exec" }
 spk-schema = { path = "crates/spk-schema" }
 spk-schema-foundation = { path = "crates/spk-schema/crates/foundation" }
 spk-schema-ident = { path = "crates/spk-schema/crates/ident" }
-spk-schema-liquid = { path = "crates/spk-schema/crates/liquid" }
+spk-schema-tera = { path = "crates/spk-schema/crates/tera" }
 spk-solve = { path = "crates/spk-solve" }
 spk-solve-graph = { path = "crates/spk-solve/crates/graph" }
 spk-solve-macros = { path = "crates/spk-solve/crates/macros" }
