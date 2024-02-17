@@ -1,6 +1,7 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
+
 //! Protocol Buffer message formats and conversions for the spfs virtual filesystem.
 
 mod generated {

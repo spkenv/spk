@@ -54,5 +54,16 @@ setcap:
 	sudo setcap 'cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep' '$(DESTDIR)$(bindir)/spfs-enter'
 	sudo setcap 'cap_sys_admin+ep' '$(DESTDIR)$(bindir)/spfs-fuse'
 
-check-copyrights:
+.PHONY: check-copyrights
+check-copyrights: check-copyrights-exist check-copyrights-spacing
+
+.PHONY: check-copyrights-exist
+check-copyrights-exist:
+	# basic check to ensure that the copyright appears in each source file
 	grep -LR --include="*.rs" "// Copyright (c) Sony Pictures Imageworks, et al." ./crates/ || exit 1
+
+.PHONY: check-copyrights-spacing
+check-copyrights-spacing:
+	# basic check to ensure that the copyright notice is followed by
+	# a blank line, as this ensures good automated import management
+	grep -zLRP --include="*.rs" "// https://github.com/imageworks/spk\s{2}" ./crates/ || exit 1
