@@ -8,7 +8,7 @@ weight: 999
 
 ### Build Validation Errors
 
-These rules are checked either before or just after a package build and validate the build setup and collected package contents for common issues and potential danger. In all cases it will depend on the default and any additional configuration of the [validation rules]({{< ref "ref/spec" >}}#validationspec) in the package spec.
+These rules are checked either before or just after a package build and validate the build setup and collected package contents for common issues and potential danger. In all cases it will depend on the default and any additional configuration of the [validation rules]({{< ref "../ref/spec" >}}#validationspec) in the package spec.
 
 #### `spk::build::validation::empty_package`
 
@@ -36,25 +36,25 @@ If you cannot stop the build process from touching the files, you can add a call
 
 Packages that appear in a build environment may assert that one or more requirements must be included in the output package. Typically, this is because building against that dependency crates a compatibility requirement that should be represented in your package and should be added as denoted by the error message.
 
-In some cases, the developer maybe know that the dependency was not used for compilation or the compatibility requirement was somehow mitigated because of how it was being used in the build environment. In these cases, the validation rule can be disabled like any other (see [validation rules]({{< ref "ref/spec" >}}#validationspec))
+In some cases, the developer maybe know that the dependency was not used for compilation or the compatibility requirement was somehow mitigated because of how it was being used in the build environment. In these cases, the validation rule can be disabled like any other (see [validation rules]({{< ref "../ref/spec" >}}#validationspec))
 
 #### `spk::build::validation::recursive_build`
 
 This validation is triggered when a version of the package being built appears in the resolved build environment (either directly or indirectly as a dependency of a dependency). Typically, this is not desired and creates confusing build output with other errors.
 
-In the case that this is expected and desired, see the documentation section on [recursive builds]({{< ref "use/spec" >}}#recursivebuilds)
+In the case that this is expected and desired, see the documentation section on [recursive builds]({{< ref "../use/spec" >}}#recursivebuilds)
 
 #### `spk::build::validation::long_var_description`
 
 This validation is triggered when a build var description is greater than 256 characters is found.
 
-In cases where a longer description is required, see the documentation section on [build variable description]({{< ref "use/spec" >}}#buildvariabledescription)
+In cases where a longer description is required, see the documentation section on [build variable description]({{< ref "../use/spec" >}}#buildvariabledescription)
 
 #### `spk::build::validation::strong_inheritance_var_description`
 
 This validation is triggered when a description is not provided for strong inheritance build variables.
 
-In cases where a description is not required, see the documentation section on [build variable description]({{< ref "use/spec" >}}#buildvariabledescription)
+In cases where a description is not required, see the documentation section on [build variable description]({{< ref "../use/spec" >}}#buildvariabledescription)
 
 ## Spfs Errors
 
