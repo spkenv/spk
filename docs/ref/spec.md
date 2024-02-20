@@ -355,7 +355,7 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 
 #### RangeIdentifier
 
-Like an [Identifier](#identifier) but with a version range rather than an exact version, see [versioning]({{< ref "../use/versioning." >}}). Additionally, range identifiers can be used to identify one or more package components. The `name:component` syntax can be used when only one component is desired, and the `:{component,component}` syntax for when multiple are desired:
+Like an [Identifier](#identifier) but with a version range rather than an exact version, see [versioning]({{< ref "../use/versioning" >}}). Additionally, range identifiers can be used to identify one or more package components. The `name:component` syntax can be used when only one component is desired, and the `:{component,component}` syntax for when multiple are desired:
 
 ```txt
 mypkg:lib/1.0.0
