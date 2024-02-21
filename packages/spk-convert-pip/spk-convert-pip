@@ -25,6 +25,12 @@ logging.basicConfig(format="%(message)s", stream=sys.stdout, level=logging.INFO)
 _LOGGER = logging.getLogger()
 BAKED_PYTHON_PACKAGES = ("setuptools", "pip", "wheel")
 
+# Longest value this will put into the metadata -> license field
+LICENSE_FIELD_LIMIT = 80
+TRUNCATED_VALUE_INDICATOR = "..."
+# Long license values are truncated to this number of characters to
+# allow "..." to be added to the value so show it has been truncated.
+LICENSE_FIELD_TRUNCATION_POINT = LICENSE_FIELD_LIMIT - len(TRUNCATED_VALUE_INDICATOR)
 
 def spk_exe() -> str:
     return os.environ.get("SPK_BIN_PATH", "spk")
@@ -253,11 +259,19 @@ class PipImporter:
         assert not info.requires_external, "No support for external requirements"
         assert not info.supported_platforms, "No support for supported platforms field"
 
+        # The spk default is "Unlicensed", which seems odd
+        package_license = "Unknown"
+        if hasattr(info, 'license'):
+            if info.license is not None:
+                package_license = str(info.license)
+                if len(package_license) > LICENSE_FIELD_TRUNCATION_POINT:
+                    packackage_license = package_license[:LICENSE_FIELD_TRUNCATION_POINT] + TRUNCATED_VALUE_INDICATOR
+
         spec = {
             "pkg": f"{_to_spk_name(info.name)}/{_to_spk_version(info.version)}",
             "sources": [],
             "meta": {
-                "license": "Unknown",
+                "license": package_license,
                 "labels": {
                     "spk:generated_by": "spk-convert-pip",
                     "spk-convert-pip:cli": self._cli_args,
