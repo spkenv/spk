@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use spk_schema::ident_ops::VerbatimTagStrategy;
+use spk_schema::ident_ops::{NormalizedTagStrategy, VerbatimTagStrategy};
 use spk_schema::{Spec, SpecRecipe};
 
 use super::Repository;
@@ -12,7 +12,7 @@ type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
 #[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
-    SPFS(super::SpfsRepository),
+    SPFS(super::SpfsRepository<NormalizedTagStrategy>),
     SPFSWithVerbatimTags(super::SpfsRepository<VerbatimTagStrategy>),
     Mem(super::MemRepository<SpecRecipe>),
     Runtime(super::RuntimeRepository),
@@ -78,9 +78,15 @@ impl std::ops::DerefMut for RepositoryHandle {
     }
 }
 
-impl From<super::SpfsRepository> for RepositoryHandle {
-    fn from(repo: super::SpfsRepository) -> Self {
+impl From<super::SpfsRepository<NormalizedTagStrategy>> for RepositoryHandle {
+    fn from(repo: super::SpfsRepository<NormalizedTagStrategy>) -> Self {
         RepositoryHandle::SPFS(repo)
+    }
+}
+
+impl From<super::SpfsRepository<VerbatimTagStrategy>> for RepositoryHandle {
+    fn from(repo: super::SpfsRepository<VerbatimTagStrategy>) -> Self {
+        RepositoryHandle::SPFSWithVerbatimTags(repo)
     }
 }
 

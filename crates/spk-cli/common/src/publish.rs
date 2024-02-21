@@ -136,7 +136,7 @@ impl Publisher {
         };
 
         for build in builds.iter() {
-            use storage::RepositoryHandle::SPFS;
+            use storage::RepositoryHandle::{SPFSWithVerbatimTags, SPFS};
 
             if build.is_source() && self.skip_source_packages {
                 tracing::info!("skipping source package: {}", build.format_ident());
@@ -154,22 +154,27 @@ impl Publisher {
             let components = self.from.read_components(build).await?;
             tracing::info!("publishing package: {}", spec.ident().format_ident());
             let env_spec = components.values().cloned().collect();
-            match (&*self.from, &*self.to) {
-                (SPFS(src), SPFS(dest)) => {
-                    tracing::debug!(
-                        " syncing components: {}",
-                        ComponentSet::from(components.keys().cloned()).format_components()
-                    );
-                    let syncer = spfs::Syncer::new(src, dest)
-                        .with_reporter(spfs::sync::ConsoleSyncReporter::default());
-                    syncer.sync_env(env_spec).await?;
+            tracing::debug!(
+                " syncing components: {}",
+                ComponentSet::from(components.keys().cloned()).format_components()
+            );
+            let syncer = match (&*self.from, &*self.to) {
+                (SPFS(src), SPFS(dest)) => spfs::Syncer::new(src, dest),
+                (SPFS(src), SPFSWithVerbatimTags(dest)) => spfs::Syncer::new(src, dest),
+                (SPFSWithVerbatimTags(src), SPFS(dest)) => spfs::Syncer::new(src, dest),
+                (SPFSWithVerbatimTags(src), SPFSWithVerbatimTags(dest)) => {
+                    spfs::Syncer::new(src, dest)
                 }
                 _ => {
                     return Err(Error::String(
                         "Source and destination must both be spfs repositories".into(),
                     ))
                 }
-            }
+            };
+            syncer
+                .with_reporter(spfs::sync::ConsoleSyncReporter::default())
+                .sync_env(env_spec)
+                .await?;
             self.to.publish_package(&spec, &components).await?;
         }
 

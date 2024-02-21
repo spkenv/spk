@@ -8,6 +8,7 @@ use clap::{Args, ValueHint};
 use colored::Colorize;
 use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
+use spk_schema::ident_ops::{NormalizedTagStrategy, VerbatimTagStrategy};
 use spk_storage as storage;
 
 #[cfg(test)]
@@ -34,6 +35,15 @@ pub struct Export {
     /// The file to export into (Defaults to the name and version of the package)
     #[arg(value_hint = ValueHint::FilePath, value_name = "FILE")]
     pub filename: Option<std::path::PathBuf>,
+
+    /// Turn on exporting packages using legacy version tags.
+    ///
+    /// This is enabled by default if built with the
+    /// `legacy-spk-version-tags-for-writes` feature flag. It is only needed if
+    /// writing to a repository that may be read by older versions of spk that
+    /// do not implement version tag normalization.
+    #[clap(long, hide = true, default_value_t = cfg!(feature = "legacy-spk-version-tags-for-writes"))]
+    pub legacy_spk_version_tags_for_writes: bool,
 }
 
 #[async_trait::async_trait]
@@ -65,7 +75,11 @@ impl Run for Export {
         });
         // TODO: this doesn't take the repos as an argument, but probably
         // should. It assumes/uses 'local' and 'origin' repos internally.
-        let res = storage::export_package(&pkg, &filename).await;
+        let res = if self.legacy_spk_version_tags_for_writes {
+            storage::export_package::<_, _, VerbatimTagStrategy>(&pkg, &filename).await
+        } else {
+            storage::export_package::<_, _, NormalizedTagStrategy>(&pkg, &filename).await
+        };
         if let Err(spk_storage::Error::PackageNotFound(_)) = res {
             tracing::warn!("Ensure that you are specifying at least a package and");
             tracing::warn!("version number when exporting from the local repository");
