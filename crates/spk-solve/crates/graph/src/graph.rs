@@ -1282,6 +1282,8 @@ impl State {
         name: &PkgName,
     ) -> super::error::GetCurrentResolveResult<(&CachedHash<Arc<Spec>>, &PackageSource, &StateId)>
     {
+        // this lint is a false-positive as we are converting &(...) into (&...)
+        #[allow(clippy::map_identity)]
         self.packages
             .get(name)
             .map(|(s, p, id)| (s, p, id))
