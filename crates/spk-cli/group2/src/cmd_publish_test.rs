@@ -30,6 +30,7 @@ struct Opt {
 #[rstest]
 #[tokio::test]
 async fn test_publish_writes_with_legacy_version_tags(
+    #[values("1", "1.0", "1.0.0", "1.0.0.0", "1.0.0.0.0")] version_to_create: &str,
     #[values("1", "1.0", "1.0.0", "1.0.0.0", "1.0.0.0.0")] version_to_publish: &str,
 ) {
     let mut rt = spfs_runtime_with_tag_strategy::<NormalizedTagStrategy>().await;
@@ -43,9 +44,9 @@ async fn test_publish_writes_with_legacy_version_tags(
     )
     .unwrap();
 
-    let recipe = recipe!({"pkg": format!("my-local-pkg/{version_to_publish}")});
+    let recipe = recipe!({"pkg": format!("my-local-pkg/{version_to_create}")});
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
-    let spec = spec!({"pkg": format!("my-local-pkg/{version_to_publish}/BGSHW3CN")});
+    let spec = spec!({"pkg": format!("my-local-pkg/{version_to_create}/BGSHW3CN")});
     rt.tmprepo
         .publish_package(
             &spec,
@@ -115,12 +116,12 @@ async fn test_publish_writes_with_legacy_version_tags(
     for (tag_path, entry_type_filter) in [
         (
             "spk/spec/my-local-pkg",
-            Box::new(|tag: &_| matches!(tag, Ok(EntryType::Tag(tag)) if tag == version_to_publish))
+            Box::new(|tag: &_| matches!(tag, Ok(EntryType::Tag(tag)) if tag == version_to_create))
                 as Box<dyn for<'a> Fn(&'a Result<EntryType, spfs::Error>) -> bool>,
         ),
         (
             "spk/pkg/my-local-pkg",
-            Box::new(|tag| matches!(tag, Ok(EntryType::Folder(tag)) if tag == version_to_publish)),
+            Box::new(|tag| matches!(tag, Ok(EntryType::Folder(tag)) if tag == version_to_create)),
         ),
     ]
     .iter()
@@ -133,7 +134,7 @@ async fn test_publish_writes_with_legacy_version_tags(
                         .next()
                         .await
                         .is_some(),
-                    "expected \"{tag_path}/{version_to_publish}\" tag to be found"
+                    "expected \"{tag_path}/{version_to_create}\" tag to be found"
                 );
             }
             _ => panic!("expected SPFSWithVerbatimTags"),
@@ -146,13 +147,13 @@ async fn test_publish_writes_with_legacy_version_tags(
                 spfs.ls_tags(&RelativePathBuf::from("spk/spec/my-local-pkg"))
                     .filter(|tag| {
                         future::ready(
-                            matches!(tag, Ok(EntryType::Tag(tag)) if tag == version_to_publish),
+                            matches!(tag, Ok(EntryType::Tag(tag)) if tag == version_to_create),
                         )
                     })
                     .next()
                     .await
                     .is_some(),
-                "expected \"{version_to_publish}\" tag to be found"
+                "expected \"{version_to_create}\" tag to be found"
             );
         }
         _ => panic!("expected SPFSWithVerbatimTags"),
