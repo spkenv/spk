@@ -240,7 +240,8 @@ impl<'de> Deserialize<'de> for Opt {
                     }
                 };
 
-                while let Some(key) = map.next_key::<Stringified>()? {
+                while let Some(mut key) = map.next_key::<Stringified>()? {
+                    key.make_ascii_lowercase();
                     match key.as_str() {
                         "pkg" => {
                             let pkg_name_with_components: PkgNameWithComponents =
@@ -251,7 +252,7 @@ impl<'de> Deserialize<'de> for Opt {
                             }
                             self.pkg = Some(pkg_name_with_components);
                         }
-                        "prereleasePolicy" => {
+                        "prereleasepolicy" => {
                             self.prerelease_policy = Some(map.next_value::<PreReleasePolicy>()?)
                         }
                         "var" => {

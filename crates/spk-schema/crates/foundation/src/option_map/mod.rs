@@ -311,6 +311,12 @@ impl std::ops::Deref for Stringified {
     }
 }
 
+impl std::ops::DerefMut for Stringified {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl<'de> Deserialize<'de> for Stringified {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where

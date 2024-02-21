@@ -270,19 +270,20 @@ impl<'de> Deserialize<'de> for Request {
             where
                 A: serde::de::MapAccess<'de>,
             {
-                while let Some(key) = map.next_key::<Stringified>()? {
+                while let Some(mut key) = map.next_key::<Stringified>()? {
+                    key.make_ascii_lowercase();
                     match key.as_str() {
                         "pkg" => self.pkg = Some(map.next_value::<RangeIdent>()?),
-                        "prereleasePolicy" => {
+                        "prereleasepolicy" => {
                             self.prerelease_policy = Some(map.next_value::<PreReleasePolicy>()?)
                         }
-                        "ifPresentInBuildEnv" => {
+                        "ifpresentinbuildenv" => {
                             self.pin_policy = Some(map.next_value::<PinPolicy>()?)
                         }
                         "include" => {
                             self.inclusion_policy = Some(map.next_value::<InclusionPolicy>()?)
                         }
-                        "fromBuildEnv" => self.pin = Some(map.next_value::<PinValue>()?),
+                        "frombuildenv" => self.pin = Some(map.next_value::<PinValue>()?),
                         "var" => {
                             let NameAndValue(name, value) = map.next_value()?;
                             self.var = Some(name);
