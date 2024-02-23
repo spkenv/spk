@@ -48,6 +48,10 @@ impl Meta {
         "Unlicensed".into()
     }
 
+    pub fn is_spk_generated(&self) -> bool {
+        self.labels.get(&String::from("spk:generated_by")).is_some()
+    }
+
     pub fn update_metadata(&mut self, global_config: &Metadata) -> Result<i32> {
         for config in global_config.global.iter() {
             let cmd = &config.command;

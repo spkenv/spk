@@ -651,6 +651,10 @@ impl Recipe for Spec<VersionIdent> {
         let digest = self.build_digest(variant.input_variant())?;
         Ok(updated.map_ident(|i| i.into_build(Build::BuildId(digest))))
     }
+
+    fn metadata(&self) -> Meta {
+        self.meta.clone()
+    }
 }
 
 impl Satisfy<PkgRequest> for Spec<BuildIdent> {

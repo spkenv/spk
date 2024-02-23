@@ -39,6 +39,10 @@ pub struct Publish {
     #[clap(long, short)]
     force: bool,
 
+    /// Allow publishing builds when the version already exists
+    #[clap(long, hide = true)]
+    skip_existing: bool,
+
     /// The local packages to publish
     ///
     /// This can be an entire package version with all builds or a
@@ -76,6 +80,7 @@ impl Run for Publish {
 
         let publisher = Publisher::new(Arc::new(source.into()), Arc::new(target))
             .skip_source_packages(self.no_source)
+            .skip_existing(self.skip_existing)
             .force(self.force);
 
         let mut published = Vec::new();

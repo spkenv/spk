@@ -106,7 +106,7 @@ def main() -> int:
         )
 
     if args.publish:
-        cmd = [spk_exe(), "publish", "-r", args.target_repo]
+        cmd = [spk_exe(), "publish", "--skip-existing", "-r", args.target_repo]
         if args.force:
             cmd.append("--force")
         cmd.extend([spec["pkg"] for spec in specs])
