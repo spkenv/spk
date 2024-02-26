@@ -71,7 +71,7 @@ async fn test_export_works_with_missing_builds() {
 
     let filename = rt.tmpdir.path().join("archive.spk");
     filename.ensure();
-    spk_storage::export_package::<_, _, NormalizedTagStrategy>(
+    spk_storage::export_package::<NormalizedTagStrategy>(
         red_spec.ident().clone().to_version().to_any(None),
         &filename,
     )

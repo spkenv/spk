@@ -11,10 +11,8 @@ use spk_schema::{AnyIdent, BuildIdent, VersionIdent};
 use super::{Repository, SpfsRepository};
 use crate::{Error, NameAndRepositoryWithTagStrategy, Result};
 
-pub async fn export_package<I, P, S>(pkg: I, filename: P) -> Result<()>
+pub async fn export_package<S>(pkg: impl AsRef<AnyIdent>, filename: impl AsRef<Path>) -> Result<()>
 where
-    I: AsRef<AnyIdent>,
-    P: AsRef<Path>,
     S: TagPathStrategy + Send + Sync,
 {
     let pkg = pkg.as_ref();

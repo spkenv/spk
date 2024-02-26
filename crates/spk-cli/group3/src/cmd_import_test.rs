@@ -30,7 +30,7 @@ async fn test_archive_io() {
 
     let filename = rt.tmpdir.path().join("archive.spk");
     filename.ensure();
-    spk_storage::export_package::<_, _, NormalizedTagStrategy>(spec.ident().to_any(), &filename)
+    spk_storage::export_package::<NormalizedTagStrategy>(spec.ident().to_any(), &filename)
         .await
         .expect("failed to export");
     let mut actual = Vec::new();

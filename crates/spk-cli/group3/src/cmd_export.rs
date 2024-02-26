@@ -76,9 +76,9 @@ impl Run for Export {
         // TODO: this doesn't take the repos as an argument, but probably
         // should. It assumes/uses 'local' and 'origin' repos internally.
         let res = if self.legacy_spk_version_tags_for_writes {
-            storage::export_package::<_, _, VerbatimTagStrategy>(&pkg, &filename).await
+            storage::export_package::<VerbatimTagStrategy>(&pkg, &filename).await
         } else {
-            storage::export_package::<_, _, NormalizedTagStrategy>(&pkg, &filename).await
+            storage::export_package::<NormalizedTagStrategy>(&pkg, &filename).await
         };
         if let Err(spk_storage::Error::PackageNotFound(_)) = res {
             tracing::warn!("Ensure that you are specifying at least a package and");
