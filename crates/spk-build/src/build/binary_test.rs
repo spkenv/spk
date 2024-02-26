@@ -188,10 +188,7 @@ async fn test_build_package_options() {
         .await
         .unwrap()
         .option_values();
-    assert_eq!(
-        build_options.get(opt_name!("dep")),
-        Some(&String::from("~1.0.0"))
-    );
+    assert_eq!(build_options.get(opt_name!("dep")), Some(&"~1.0.0".into()));
 }
 
 #[rstest]

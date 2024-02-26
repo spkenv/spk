@@ -703,7 +703,13 @@ where
 
         let mut cmd = cmd.into_std();
         cmd.envs(self.environment.drain());
-        cmd.envs(options.as_ref().to_environment());
+        cmd.envs(
+            options
+                .as_ref()
+                .to_environment()
+                .iter()
+                .map(|(k, v)| (&**k, &**v)),
+        );
         cmd.envs(get_package_build_env(package));
         cmd.env("PREFIX", &self.prefix);
         // force the base environment to be setup using bash, so that the

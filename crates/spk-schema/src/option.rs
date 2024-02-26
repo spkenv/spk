@@ -98,7 +98,10 @@ impl Opt {
         }
     }
 
-    pub fn validate(&self, value: Option<&str>) -> Compatibility {
+    pub fn validate<S>(&self, value: Option<S>) -> Compatibility
+    where
+        S: AsRef<str>,
+    {
         match self {
             Self::Pkg(opt) => opt.validate(value),
             Self::Var(opt) => opt.validate(value),
@@ -118,7 +121,10 @@ impl Opt {
     /// Return the current value of this option, if set.
     ///
     /// Given is only returned if the option is not currently set to something else.
-    pub fn get_value(&self, given: Option<&str>) -> String {
+    pub fn get_value<S>(&self, given: Option<S>) -> String
+    where
+        S: Copy + ToString,
+    {
         let value = match self {
             Self::Pkg(opt) => opt.get_value(given),
             Self::Var(opt) => opt.get_value(given),
@@ -389,7 +395,10 @@ impl VarOpt {
         })
     }
 
-    pub fn get_value(&self, given: Option<&str>) -> Option<String> {
+    pub fn get_value<S>(&self, given: Option<S>) -> Option<String>
+    where
+        S: ToString,
+    {
         if let Some(v) = &self.value {
             if !v.is_empty() {
                 return Some(v.clone());
@@ -415,12 +424,15 @@ impl VarOpt {
         Ok(())
     }
 
-    pub fn validate(&self, value: Option<&str>) -> Compatibility {
+    pub fn validate<S>(&self, value: Option<S>) -> Compatibility
+    where
+        S: AsRef<str>,
+    {
         if value.is_none() && self.value.is_some() {
             return self.validate(self.value.as_deref());
         }
         let assigned = self.value.as_deref();
-        match (value, assigned) {
+        match (value.as_ref().map(AsRef::<str>::as_ref), assigned) {
             (None, Some(_)) => Compatibility::Compatible,
             (Some(value), Some(assigned)) => {
                 if value == assigned {
@@ -510,7 +522,10 @@ impl PkgOpt {
         })
     }
 
-    pub fn get_value(&self, given: Option<&str>) -> Option<String> {
+    pub fn get_value<S>(&self, given: Option<S>) -> Option<String>
+    where
+        S: ToString,
+    {
         if let Some(v) = &self.value {
             Some(v.clone())
         } else if let Some(v) = given {
@@ -547,8 +562,14 @@ impl PkgOpt {
         Ok(())
     }
 
-    pub fn validate(&self, value: Option<&str>) -> Compatibility {
-        let value = value.unwrap_or_default();
+    pub fn validate<S>(&self, value: Option<S>) -> Compatibility
+    where
+        S: AsRef<str>,
+    {
+        let value = value
+            .as_ref()
+            .map(AsRef::<str>::as_ref)
+            .unwrap_or_else(|| "");
 
         // skip any default that might exist since
         // that does not represent a definitive range

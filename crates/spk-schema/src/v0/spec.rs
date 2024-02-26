@@ -168,7 +168,7 @@ impl Spec<BuildIdent> {
                     var,
                     // we are assuming that the var here will have a value because
                     // this is a built binary package
-                    value: o.get_value(None).unwrap_or_default().into(),
+                    value: o.get_value::<&str>(None).unwrap_or_default().into(),
                     description: o.description.clone(),
                 }
             })
@@ -227,7 +227,10 @@ impl Package for Spec<BuildIdent> {
         for opt in self.build.options.iter() {
             // we are assuming that this spec has been updated to represent
             // a build and had all of the options pinned/resolved.
-            opts.insert(opt.full_name().to_owned(), opt.get_value(None));
+            opts.insert(
+                opt.full_name().to_owned(),
+                opt.get_value::<&str>(None).into(),
+            );
         }
         opts
     }
@@ -285,7 +288,7 @@ impl Package for Spec<BuildIdent> {
                     // If no value was specified in the spec, there's
                     // no need to turn that into a requirement to
                     // find a var with an empty value.
-                    if let Some(value) = opt.get_value(None) {
+                    if let Some(value) = opt.get_value::<&str>(None) {
                         if !value.is_empty() {
                             requests
                                 .insert_or_merge(opt.to_request(Some(value.as_str())).into())?;
@@ -327,9 +330,7 @@ impl Package for Spec<BuildIdent> {
         let mut must_exist = given_options.package_options_without_global(self.name());
         let given_options = given_options.package_options(self.name());
         for option in self.build.options.iter() {
-            let value = given_options
-                .get(option.full_name().without_namespace())
-                .map(String::as_str);
+            let value = given_options.get(option.full_name().without_namespace());
             let compat = option.validate(value);
             if !compat.is_ok() {
                 return Compatibility::incompatible(format!(
@@ -406,7 +407,7 @@ impl Recipe for Spec<VersionIdent> {
         for opt in opts {
             match opt {
                 Opt::Pkg(opt) => {
-                    let given_value = options.get(opt.pkg.as_opt_name()).map(String::to_owned);
+                    let given_value = options.get(opt.pkg.as_opt_name()).map(ToString::to_string);
                     let mut req = opt.to_request(
                         given_value,
                         RequestedBy::BinaryBuild(self.ident().to_build(build_digest.clone())),
@@ -454,8 +455,9 @@ impl Recipe for Spec<VersionIdent> {
                         match key {
                             VariantSpecEntryKey::PkgOrOpt(pkg) => {
                                 // First the version asked for must match.
-                                if options.get(pkg.0.name.as_opt_name()) != Some(value) {
-                                    return false;
+                                match options.get(pkg.0.name.as_opt_name()) {
+                                    Some(v) if &**v == value.as_str() => {}
+                                    _ => return false,
                                 }
                                 // Then the components asked for must be a
                                 // subset of what is present.
@@ -483,11 +485,10 @@ impl Recipe for Spec<VersionIdent> {
                                     return false;
                                 }
                             }
-                            VariantSpecEntryKey::Opt(opt) => {
-                                if options.get(opt) != Some(value) {
-                                    return false;
-                                }
-                            }
+                            VariantSpecEntryKey::Opt(opt) => match options.get(opt) {
+                                Some(v) if &**v == value.as_str() => {}
+                                _ => return false,
+                            },
                         }
                     }
                 }
@@ -533,8 +534,8 @@ impl Recipe for Spec<VersionIdent> {
                         build_options
                             .get(&opt.var)
                             .or_else(|| build_options.get(opt.var.without_namespace()))
-                            .map(String::to_owned)
-                            .or_else(|| opt.get_value(None))
+                            .map(ToString::to_string)
+                            .or_else(|| opt.get_value::<&str>(None))
                             .unwrap_or_default(),
                     )?;
                     continue;

@@ -60,7 +60,7 @@ fn test_resolve_options_variant_adds_new_var_option(
     assert_eq!(resolved_options.len(), 1);
     let (k, v) = resolved_options.into_iter().next().unwrap();
     assert_eq!(k.as_str(), opt_name);
-    assert_eq!(v, default_value);
+    assert_eq!(&*v, default_value);
 
     // Now do the same thing but add-in an override for the option.
 
@@ -79,14 +79,14 @@ fn test_resolve_options_variant_adds_new_var_option(
     // The override should have won.
     let (k, v) = resolved_options.into_iter().next().unwrap();
     assert_eq!(k.as_str(), opt_name);
-    assert_eq!(v, override_value);
+    assert_eq!(&*v, override_value);
 }
 
 macro_rules! assert_option_map_contains {
     ( $option_map:expr, $expected_key:expr, $expected_value:expr ) => {{
         match $option_map.get($crate::opt_name!($expected_key)) {
             None => panic!("option map did not contain expected key {}", $expected_key),
-            Some(v) => assert_eq!(v, $expected_value),
+            Some(v) => assert_eq!(v.as_ref(), $expected_value),
         }
     }};
 }

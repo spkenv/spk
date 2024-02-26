@@ -462,7 +462,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         let mut opts = OptionMap::default();
         opts.insert(
             spec.name().as_opt_name().to_owned(),
-            spec.compat().render(spec.version()),
+            spec.compat().render(spec.version()).into(),
         );
         for (name, value) in spec.option_values() {
             if !value.is_empty() {
@@ -945,24 +945,27 @@ impl SetOptions {
 
     /// Compute the new options list for a state, preserving the insertion
     /// order based on option key.
-    pub fn compute_new_options<'i, I>(
+    pub fn compute_new_options<'i, I, V>(
         base: &State,
         new_options: I,
         update_existing_option_with_empty_value: bool,
-    ) -> BTreeMap<OptNameBuf, String>
+    ) -> BTreeMap<OptNameBuf, Arc<str>>
     where
-        I: Iterator<Item = (&'i OptNameBuf, &'i String)>,
+        I: Iterator<Item = (&'i OptNameBuf, &'i V)>,
+        V: AsRef<str> + Into<Arc<str>> + Clone + 'i,
     {
         let mut options = (*base.options).clone();
         // Update base options with request options...
         for (k, v) in new_options {
             match options.get_mut(k) {
                 // Unless already present and request option value is empty.
-                Some(_) if v.is_empty() && !update_existing_option_with_empty_value => continue,
+                Some(_) if v.as_ref().is_empty() && !update_existing_option_with_empty_value => {
+                    continue
+                }
                 // If option already existed, change the value
-                Some(value) => *value = v.to_owned(),
+                Some(value) => *value = (*v).clone().into(),
                 None => {
-                    options.insert(k.to_owned(), v.to_owned());
+                    options.insert(k.to_owned(), (*v).clone().into());
                 }
             };
         }
@@ -1048,7 +1051,7 @@ impl StateId {
         }
     }
 
-    fn options_hash(options: &BTreeMap<OptNameBuf, String>) -> u64 {
+    fn options_hash(options: &BTreeMap<OptNameBuf, Arc<str>>) -> u64 {
         let mut hasher = DefaultHasher::new();
         options.hash(&mut hasher);
         hasher.finish()
@@ -1084,7 +1087,7 @@ impl StateId {
         (global_hasher.finish(), var_requests_membership)
     }
 
-    fn with_options(&self, options: &BTreeMap<OptNameBuf, String>) -> Self {
+    fn with_options(&self, options: &BTreeMap<OptNameBuf, Arc<str>>) -> Self {
         Self::new(
             self.pkg_requests_hash,
             self.var_requests_hash,
@@ -1117,7 +1120,7 @@ impl StateId {
     fn with_var_requests_and_options(
         &self,
         var_requests: &BTreeSet<VarRequest>,
-        options: &BTreeMap<OptNameBuf, String>,
+        options: &BTreeMap<OptNameBuf, Arc<str>>,
     ) -> Self {
         let (var_requests_hash, var_requests_membership) = StateId::var_requests_hash(var_requests);
         Self::new(
@@ -1188,7 +1191,7 @@ pub struct State {
     // efficient for processing. This field does not contribute to the
     // state id. It is used to track the resolve order for a solution.
     packages_in_solve_order: Arc<Vec<Arc<Spec>>>,
-    options: Arc<BTreeMap<OptNameBuf, String>>,
+    options: Arc<BTreeMap<OptNameBuf, Arc<str>>>,
     state_id: StateId,
     cached_option_map: Arc<OnceCell<OptionMap>>,
     // How deep is this state?
@@ -1201,7 +1204,7 @@ impl State {
         pkg_requests: Vec<PkgRequest>,
         var_requests: Vec<VarRequest>,
         packages: Vec<(Arc<Spec>, PackageSource)>,
-        options: Vec<(OptNameBuf, String)>,
+        options: Vec<(OptNameBuf, Arc<str>)>,
     ) -> Arc<Self> {
         // TODO: This pre-calculates the hash but there
         // may be states constructed where the id is
@@ -1397,7 +1400,7 @@ impl State {
         self.state_id.packages_hash
     }
 
-    fn with_options(&self, parent: &Self, options: BTreeMap<OptNameBuf, String>) -> Self {
+    fn with_options(&self, parent: &Self, options: BTreeMap<OptNameBuf, Arc<str>>) -> Self {
         let state_id = self.state_id.with_options(&options);
         Self {
             pkg_requests: Arc::clone(&self.pkg_requests),
@@ -1468,7 +1471,7 @@ impl State {
         &self,
         parent: &Self,
         var_requests: Arc<BTreeSet<VarRequest>>,
-        options: BTreeMap<OptNameBuf, String>,
+        options: BTreeMap<OptNameBuf, Arc<str>>,
     ) -> Self {
         let state_id = self
             .state_id

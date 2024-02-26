@@ -207,7 +207,7 @@ fn test_strong_inheritance_injection() {
         built_package.build.options.iter().any(|opt| match opt {
             Opt::Pkg(_) => false,
             Opt::Var(var) =>
-                var.var == "base.inherit-me" && var.get_value(None) == Some("1.2.3".into()),
+                var.var == "base.inherit-me" && var.get_value::<&str>(None) == Some("1.2.3".into()),
         }),
         "didn't find inherited build option"
     );
@@ -275,7 +275,7 @@ fn test_strong_inheritance_injection_transitivity() {
         built_package.build.options.iter().any(|opt| match opt {
             Opt::Pkg(_) => false,
             Opt::Var(var) =>
-                var.var == "base.inherit-me" && var.get_value(None) == Some("1.2.3".into()),
+                var.var == "base.inherit-me" && var.get_value::<&str>(None) == Some("1.2.3".into()),
         }),
         "didn't find inherited build option"
     );
@@ -315,7 +315,7 @@ fn test_variants_can_introduce_components() {
         let mut found_pkg = false;
 
         for (opt_name, value) in variant.options().iter() {
-            if opt_name == "dep-pkg" && value == "1.2.3" {
+            if opt_name == "dep-pkg" && &**value == "1.2.3" {
                 found_opt = true;
                 break;
             }

@@ -30,7 +30,7 @@ fn test_option_flags_parsing(#[case] args: &[&str], #[case] expected: &[(&str, &
     let actual = options.get_options().unwrap();
     let expected: OptionMap = expected
         .iter()
-        .map(|(k, v)| (OptName::new(k).unwrap().to_owned(), v.to_string()))
+        .map(|(k, v)| (OptName::new(k).unwrap().to_owned(), (*v).into()))
         .collect();
     assert_eq!(actual, expected);
 }

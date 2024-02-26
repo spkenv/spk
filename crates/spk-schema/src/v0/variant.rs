@@ -47,7 +47,7 @@ impl Variant {
                         options
                             .get(&o.var)
                             .cloned()
-                            .unwrap_or_else(|| o.default.clone()),
+                            .unwrap_or_else(|| o.default.clone().into()),
                     )
                 })
             })
@@ -72,7 +72,7 @@ impl Variant {
                 VariantSpecEntryKey::Opt(opt) => opt.to_owned(),
             };
             let value = value.as_str();
-            options.insert(name.clone(), value.to_owned());
+            options.insert(name.clone(), value.into());
 
             // if it was parsed as something with components, then it is a pkg
             // request.

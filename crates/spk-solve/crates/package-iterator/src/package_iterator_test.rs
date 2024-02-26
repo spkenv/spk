@@ -215,7 +215,7 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
                 };
 
                 // Is the value what it should be for this option of this build in the order
-                assert_eq!(v, expected_v);
+                assert_eq!(&**v, expected_v);
             }
         }
     }

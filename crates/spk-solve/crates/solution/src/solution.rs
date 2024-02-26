@@ -354,12 +354,15 @@ impl Solution {
     /// Return the data of this solution as environment variables.
     ///
     /// If base is given, also clean any existing, conflicting values.
-    pub fn to_environment<V>(&self, base: Option<V>) -> HashMap<String, String>
+    pub fn to_environment<I, K, V>(&self, base: Option<I>) -> HashMap<String, String>
     where
-        V: IntoIterator<Item = (String, String)>,
+        I: IntoIterator<Item = (K, V)>,
+        K: ToString,
+        V: ToString,
     {
         let mut out = base
             .map(IntoIterator::into_iter)
+            .map(|i| i.into_iter().map(|(k, v)| (k.to_string(), v.to_string())))
             .map(HashMap::from_iter)
             .unwrap_or_default();
 
@@ -403,7 +406,12 @@ impl Solution {
             );
         }
 
-        out.extend(self.options.to_environment());
+        out.extend(
+            self.options
+                .to_environment()
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string())),
+        );
         out
     }
 

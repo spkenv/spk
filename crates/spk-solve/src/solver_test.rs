@@ -769,16 +769,10 @@ async fn test_solver_option_injection(mut solver: Solver) {
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
 
     let mut opts = solution.options().clone();
-    assert_eq!(opts.remove(opt_name!("vnp3")), Some("~2.0.0".to_string()));
-    assert_eq!(
-        opts.remove(opt_name!("vnp3.python")),
-        Some("~2.7.5".to_string())
-    );
-    assert_eq!(opts.remove(opt_name!("vnp3.debug")), Some("on".to_string()));
-    assert_eq!(
-        opts.remove(opt_name!("python.abi")),
-        Some("cp27mu".to_string())
-    );
+    assert_eq!(opts.remove(opt_name!("vnp3")), Some("~2.0.0".into()));
+    assert_eq!(opts.remove(opt_name!("vnp3.python")), Some("~2.7.5".into()));
+    assert_eq!(opts.remove(opt_name!("vnp3.debug")), Some("on".into()));
+    assert_eq!(opts.remove(opt_name!("python.abi")), Some("cp27mu".into()));
     assert!(
         !opts.contains_key(opt_name!("vnp3.special")),
         "should not define empty values"

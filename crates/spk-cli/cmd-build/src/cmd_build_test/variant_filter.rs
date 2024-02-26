@@ -69,7 +69,7 @@ build:
     assert!(
         matches!(
             &result.created_builds.artifacts[0].1,
-            BuildArtifact::Binary(_, VariantLocation::Index(index), options) if *index == 1 && matches!(options.get(opt_name_color), Some(color) if color == "green")
+            BuildArtifact::Binary(_, VariantLocation::Index(index), options) if *index == 1 && matches!(options.get(opt_name_color), Some(color) if &**color == "green")
         ),
         "Expected the second variant to be built, and color=green"
     );
@@ -121,7 +121,7 @@ build:
     assert!(
         matches!(
             &result.created_builds.artifacts[0].1,
-            BuildArtifact::Binary(_, VariantLocation::Index(index), options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if color == "green")
+            BuildArtifact::Binary(_, VariantLocation::Index(index), options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if &**color == "green")
         ),
         "Expected the first variant to be built, and color=green"
     );
@@ -201,7 +201,7 @@ build:
     assert!(
         matches!(
             &result.created_builds.artifacts[0].1,
-            BuildArtifact::Binary(_, VariantLocation::Index(index), options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if color == "blue")
+            BuildArtifact::Binary(_, VariantLocation::Index(index), options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if &**color == "blue")
         ),
         "Expected the first variant to be built, and color=blue"
     );
@@ -275,7 +275,7 @@ build:
     assert!(
         matches!(
             &result.created_builds.artifacts[0].1,
-            BuildArtifact::Binary(_, VariantLocation::Bespoke(index), options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if color == "green")
+            BuildArtifact::Binary(_, VariantLocation::Bespoke(index), options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if &**color == "green")
         ),
         "Expected the first extra-variant to be built, and color=green"
     );
@@ -331,8 +331,8 @@ build:
             &result.created_builds.artifacts[0].1,
             BuildArtifact::Binary(_, VariantLocation::Index(index), options) if
             *index == 1 &&
-            matches!(options.get(opt_name_color), Some(color) if color == "green")
-            && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "apple")
+            matches!(options.get(opt_name_color), Some(color) if &**color == "green")
+            && matches!(options.get(opt_name_fruit), Some(fruit) if &**fruit == "apple")
         ),
         "Expected the second variant to be built, with color=green and fruit=apple"
     );
@@ -424,8 +424,8 @@ build:
             &result.created_builds.artifacts[0].1,
             BuildArtifact::Binary(_, VariantLocation::Index(index), options) if
             *index == 1 &&
-            matches!(options.get(opt_name_color), Some(color) if color == "green")
-            && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "apple")
+            matches!(options.get(opt_name_color), Some(color) if &**color == "green")
+            && matches!(options.get(opt_name_fruit), Some(fruit) if &**fruit == "apple")
         ),
         "Expected the second variant to be built, with color=green and fruit=apple"
     );
@@ -479,7 +479,7 @@ build:
         result.created_builds.artifacts.iter().all(|(_, artifact)| {
             matches!(
                 artifact,
-                BuildArtifact::Binary(_, _, options) if matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "apple")
+                BuildArtifact::Binary(_, _, options) if matches!(options.get(opt_name_fruit), Some(fruit) if &**fruit == "apple")
             )
         }),
         "Expected all variants to be built with fruit=apple"
@@ -539,8 +539,8 @@ build:
             &result.created_builds.artifacts[0].1,
             BuildArtifact::Binary(_, VariantLocation::Index(index), options) if
             *index == 0 &&
-            matches!(options.get(opt_name_color), Some(color) if color == "green")
-            && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "banana")
+            matches!(options.get(opt_name_color), Some(color) if &**color == "green")
+            && matches!(options.get(opt_name_fruit), Some(fruit) if &**fruit == "banana")
         ),
         "Expected the first variant to be built, with color=green and fruit=banana"
     );
@@ -596,8 +596,8 @@ build:
             BuildArtifact::Binary(
                 _,
                 VariantLocation::Bespoke(index),
-                options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if color == "brown")
-            && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "kiwi")
+                options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if &**color == "brown")
+            && matches!(options.get(opt_name_fruit), Some(fruit) if &**fruit == "kiwi")
         ),
         "Expected the first extra-variant to be built, with color=brown and fruit=kiwi"
     );
@@ -656,8 +656,8 @@ build:
             BuildArtifact::Binary(
                 _,
                 VariantLocation::Bespoke(index),
-                options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if color == "green")
-            && matches!(options.get(opt_name_fruit), Some(fruit) if fruit == "kiwi")
+                options) if *index == 0 && matches!(options.get(opt_name_color), Some(color) if &**color == "green")
+            && matches!(options.get(opt_name_fruit), Some(fruit) if &**fruit == "kiwi")
         ),
         "Expected the first extra-variant to be built, with color=green and fruit=kiwi"
     );
@@ -710,7 +710,7 @@ async fn test_build_filters_variants_based_on_host_opts(tmpdir: tempfile::TempDi
             result.created_builds.artifacts.iter().all(|(_, artifact)| {
                 matches!(
                     artifact,
-                    BuildArtifact::Binary(_, _, options) if matches!(options.get(opt_name_distro), Some(distro) if distro == "centos")
+                    BuildArtifact::Binary(_, _, options) if matches!(options.get(opt_name_distro), Some(distro) if &**distro == "centos")
                 )
             }),
             "Expected all variants to be built with distro=centos"

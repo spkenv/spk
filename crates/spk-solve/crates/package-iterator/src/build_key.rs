@@ -179,7 +179,7 @@ impl BuildKey {
                             // options, could use that information here to
                             // determine the kind of value instead of
                             // relying on parsing errors.
-                            BuildKeyEntry::Text(value.clone())
+                            BuildKeyEntry::Text(value.to_string())
                         }
                     }
                 }

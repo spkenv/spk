@@ -320,7 +320,7 @@ impl Options {
                 })
                 .and_then(|(name, value)| Ok((OptName::new(name)?, value)))?;
 
-            opts.insert(name.to_owned(), value.to_string());
+            opts.insert(name.to_owned(), value.into());
         }
 
         Ok(opts)
@@ -331,7 +331,7 @@ impl Options {
             .get_options()?
             .into_iter()
             .filter(|(_name, value)| !value.is_empty())
-            .map(|(name, value)| VarRequest::new_with_value(name, value))
+            .map(|(name, value)| VarRequest::new_with_value(name, &*value))
             .collect())
     }
 }

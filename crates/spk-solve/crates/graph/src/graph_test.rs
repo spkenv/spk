@@ -75,7 +75,7 @@ fn test_empty_options_do_not_unset() {
     let opts = new_state.get_option_map();
     assert_eq!(
         opts.get(opt_name!("something")),
-        Some(String::new()).as_ref(),
+        Some(&"".into()),
         "should assign empty option of no current value"
     );
 
@@ -85,7 +85,7 @@ fn test_empty_options_do_not_unset() {
     let opts = new_state.get_option_map();
     assert_eq!(
         opts.get(opt_name!("something")),
-        Some(String::from("value")).as_ref(),
+        Some(&"value".into()),
         "should not unset value when one exists"
     );
 }

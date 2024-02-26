@@ -248,11 +248,11 @@ fn test_generating_build_key() {
     let value5 = "4.1.0/DIGEST".to_string();
 
     let mut resolved_options: OptionMap = OptionMap::default();
-    resolved_options.insert(name1.clone(), value1);
+    resolved_options.insert(name1.clone(), value1.into());
     // value3 is left out deliberately to exercise unset value processing
-    resolved_options.insert(name2.clone(), value2.clone());
-    resolved_options.insert(name4.clone(), value4);
-    resolved_options.insert(name5.clone(), value5);
+    resolved_options.insert(name2.clone(), value2.clone().into());
+    resolved_options.insert(name4.clone(), value4.into());
+    resolved_options.insert(name5.clone(), value5.into());
 
     // Generate the build's key based on the ordering of option names
     let ordering = vec![name1, name2, name3, name4, name5];
@@ -336,10 +336,10 @@ fn test_generating_build_key_src_build() {
     let value4 = "1.0.0,<1.5".to_string();
 
     let mut resolved_options: OptionMap = OptionMap::default();
-    resolved_options.insert(name1.clone(), value1);
+    resolved_options.insert(name1.clone(), value1.into());
     // value3 is left out deliberately to exercise unset value processing
-    resolved_options.insert(name2.clone(), value2);
-    resolved_options.insert(name4.clone(), value4);
+    resolved_options.insert(name2.clone(), value2.into());
+    resolved_options.insert(name4.clone(), value4.into());
 
     // Generate the build's key based on the ordering of option
     // names. Note: because this is a source build it won't use any of

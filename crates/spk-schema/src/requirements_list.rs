@@ -178,7 +178,7 @@ impl RequirementsList {
                             )))
                         }
                         Some(opt) => {
-                            Some(var_request.render_pin(opt.as_str()).map_err(Into::into).map(Request::Var))
+                            Some(var_request.render_pin(&**opt).map_err(Into::into).map(Request::Var))
                         }
                     }
                 }
