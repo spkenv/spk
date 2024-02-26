@@ -216,47 +216,58 @@ impl VersionParts {
         NormalizedPartsIter::new(self.parts.as_slice())
     }
 
-    /// Return a normalized copy of this version.
+    /// Return a copy of this version with no trailing zeros.
     ///
-    /// A normalized version has no trailing zeros, except if that would make
-    /// the parts list empty.
+    /// A version with all zeros, or an empty parts list, will be returned as
+    /// a version with a single part of 0.
     ///
     /// ```
     /// # use spk_schema_foundation::version::VersionParts;
     /// assert_eq!(
-    ///     VersionParts::from(vec![1, 0, 0]).normalize().parts,
+    ///     VersionParts::from(vec![1, 0, 0, 0]).strip_trailing_zeros().parts,
     ///     VersionParts::from(vec![1]).parts
     /// );
     /// assert_eq!(
-    ///     VersionParts::from(vec![1, 2, 3]).normalize().parts,
+    ///     VersionParts::from(vec![1, 0, 0, 1]).strip_trailing_zeros().parts,
+    ///     VersionParts::from(vec![1, 0, 0, 1]).parts
+    /// );
+    /// assert_eq!(
+    ///     VersionParts::from(vec![1, 0, 0, 1, 0]).strip_trailing_zeros().parts,
+    ///     VersionParts::from(vec![1, 0, 0, 1]).parts
+    /// );
+    /// assert_eq!(
+    ///     VersionParts::from(vec![1, 2]).strip_trailing_zeros().parts,
+    ///     VersionParts::from(vec![1, 2]).parts
+    /// );
+    /// assert_eq!(
+    ///     VersionParts::from(vec![1, 2, 3]).strip_trailing_zeros().parts,
     ///     VersionParts::from(vec![1, 2, 3]).parts
     /// );
     /// assert_eq!(
-    ///     VersionParts::from(vec![0, 0, 0]).normalize().parts,
+    ///     VersionParts::from(vec![0, 0, 0]).strip_trailing_zeros().parts,
     ///     VersionParts::from(vec![0]).parts
     /// );
     /// ```
-    pub fn normalize(&self) -> Cow<'_, Self> {
-        let Some(index_of_last_non_zero) = self.parts.iter().rposition(|p| p != &0) else {
-            return Cow::Owned(VersionParts {
+    pub fn strip_trailing_zeros(&self) -> Cow<'_, Self> {
+        match self.parts.iter().rposition(|p| p != &0) {
+            Some(index_of_last_non_zero) if index_of_last_non_zero == self.parts.len() - 1 => {
+                // Already normalized; can borrow.
+                Cow::Borrowed(self)
+            }
+            Some(index_of_last_non_zero) => Cow::Owned(VersionParts {
+                parts: self
+                    .parts
+                    .iter()
+                    .take(index_of_last_non_zero + 1)
+                    .copied()
+                    .collect(),
+                plus_epsilon: self.plus_epsilon,
+            }),
+            None => Cow::Owned(VersionParts {
                 parts: vec![0],
                 plus_epsilon: self.plus_epsilon,
-            });
-        };
-
-        if index_of_last_non_zero == self.parts.len() - 1 {
-            return Cow::Borrowed(self);
+            }),
         }
-
-        Cow::Owned(VersionParts {
-            parts: self
-                .parts
-                .iter()
-                .take(index_of_last_non_zero + 1)
-                .copied()
-                .collect(),
-            plus_epsilon: self.plus_epsilon,
-        })
     }
 }
 
@@ -338,7 +349,11 @@ impl Version {
     /// How many version parts are always shown when displaying a version.
     ///
     /// If a version has fewer parts than this, it will be padded with zeros.
-    const MINIMUM_PARTS_FOR_DISPLAY: usize = 3;
+    pub const MINIMUM_PARTS_FOR_DISPLAY: usize = 3;
+    /// How many version parts are always used when tagging a version.
+    ///
+    /// If a version has fewer parts than this, it will be padded with zeros.
+    pub const MINIMUM_PARTS_FOR_STORAGE: usize = 3;
 
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
         Version {

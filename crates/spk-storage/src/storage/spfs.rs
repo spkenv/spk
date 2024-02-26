@@ -936,7 +936,7 @@ impl SpfsRepository {
     where
         I: HasVersion + WithVersion,
     {
-        let normalized_parts = pkg.version().parts.normalize();
+        let normalized_parts = pkg.version().parts.strip_trailing_zeros();
         let normalized_parts_len = normalized_parts.len();
         (1..=5)
             // Handle all the part lengths that are bigger than the normalized

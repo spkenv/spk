@@ -2,20 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use super::Version;
+
 pub(super) struct NormalizedPartsIter<'a> {
-    inner: std::slice::Iter<'a, u32>,
+    parts: &'a [u32],
+    pos: usize,
     skipped_zeros: usize,
     next_non_zero: Option<u32>,
-    empty: bool,
 }
 
 impl NormalizedPartsIter<'_> {
     pub fn new(parts: &[u32]) -> NormalizedPartsIter<'_> {
         NormalizedPartsIter {
-            inner: parts.iter(),
+            parts,
+            pos: 0,
             skipped_zeros: 0,
             next_non_zero: None,
-            empty: true,
         }
     }
 }
@@ -24,9 +26,9 @@ impl<'a> Iterator for NormalizedPartsIter<'a> {
     type Item = u32;
 
     fn next(&mut self) -> Option<Self::Item> {
+        self.pos += 1;
         loop {
             if let Some(non_zero) = self.next_non_zero.take() {
-                self.empty = false;
                 if self.skipped_zeros > 0 {
                     self.skipped_zeros -= 1;
                     self.next_non_zero = Some(non_zero);
@@ -34,17 +36,18 @@ impl<'a> Iterator for NormalizedPartsIter<'a> {
                 }
                 return Some(non_zero);
             }
-            let Some(next) = self.inner.next() else {
-                if self.empty {
-                    self.empty = false;
+            if self.parts.is_empty() {
+                if self.pos - 1 < Version::MINIMUM_PARTS_FOR_STORAGE {
                     return Some(0);
                 }
                 return None;
-            };
-            if *next == 0 {
+            }
+            let next = self.parts[0];
+            self.parts = &self.parts[1..];
+            if next == 0 {
                 self.skipped_zeros += 1;
             } else {
-                self.next_non_zero = Some(*next);
+                self.next_non_zero = Some(next);
             }
         }
     }
