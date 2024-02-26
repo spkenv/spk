@@ -195,8 +195,10 @@ async fn test_build_package_options() {
 }
 
 #[rstest]
+#[case::camel_case("fromBuildEnv")]
+#[case::lower_case("frombuildenv")]
 #[tokio::test]
-async fn test_build_package_pinning() {
+async fn test_build_package_pinning(#[case] from_build_env_str: &str) {
     let rt = spfs_runtime().await;
     let dep_spec = recipe!(
         {"pkg": "dep/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
@@ -210,7 +212,7 @@ async fn test_build_package_pinning() {
                 ],
                 "options": [{"pkg": "dep/1.0.0"}],
             },
-            "install": {"requirements": [{"pkg": "dep", "fromBuildEnv": "~x.x"}]},
+            "install": {"requirements": [{"pkg": "dep", from_build_env_str: "~x.x"}]},
         }
     );
 
