@@ -476,9 +476,9 @@ requirements:
     - pkg: imath
 ```
 
-The `base:` field indicates which platform this platform spec is based on (inherits the requiremented from).
+The `base:` field indicates which platform this platform spec is based on (inherits the requirements from).
 
-Specifying a requirement drectly with `- ` is the same as specifying it with `add:`, but is a shorthand for convienence.
+Specifying a requirement directly with `- ` is the same as specifying it with `add:`, but is a shorthand for convenience.
 
 The `add:` and `remove:` entries indicate changes to the requirements inherited from the base platform. `add:` means "add or replace". `remove:` means remove entirely. `remove:` will work on components of packages, if they are specified, as well as full packages. Removing requirement is done before adding when determining the platform's final requirements.
 
