@@ -252,7 +252,11 @@ where
                 let node = node.into_owned();
                 let fut = async move {
                     let entry = &node.entry;
-                    if self.repo.has_object(entry.object).await {
+                    let (has_object, has_payload) = tokio::join!(
+                        self.repo.has_object(entry.object),
+                        self.repo.has_payload(entry.object),
+                    );
+                    if has_object && has_payload {
                         return Ok(CommitBlobResult::AlreadyExists(node));
                     }
                     let created = if entry.is_symlink() {
