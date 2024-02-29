@@ -58,7 +58,7 @@ impl tera::Filter for ParseVersion {
             Self::FIELD_MAJOR: version.major(),
             Self::FIELD_MINOR: version.minor(),
             Self::FIELD_PATCH: version.patch(),
-            Self::FIELD_BASE: version.base(),
+            Self::FIELD_BASE: version.base_normalized(),
             Self::FIELD_PARTS: version.parts.parts,
             Self::FIELD_PLUS_EPSILON: version.parts.plus_epsilon,
             Self::FIELD_PRE: version.pre.deref(),

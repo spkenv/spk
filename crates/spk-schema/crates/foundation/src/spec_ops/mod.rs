@@ -18,7 +18,7 @@ pub use file_matcher::FileMatcher;
 pub use has_build::HasBuild;
 pub use has_location::HasLocation;
 pub use named::Named;
-pub use versioned::{HasVersion, Versioned};
+pub use versioned::{HasVersion, Versioned, WithVersion};
 
 pub mod prelude {
     pub use super::{ComponentOps, EnvName, HasBuild, HasLocation, HasVersion, Named, Versioned};

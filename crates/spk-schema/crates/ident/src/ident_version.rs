@@ -7,11 +7,11 @@ use std::str::FromStr;
 
 use relative_path::RelativePathBuf;
 use spk_schema_foundation::ident_build::Build;
-use spk_schema_foundation::ident_ops::TagPath;
+use spk_schema_foundation::ident_ops::{TagPath, TagPathStrategy};
 use spk_schema_foundation::name::{PkgName, PkgNameBuf};
 use spk_schema_foundation::version::Version;
 
-use crate::{parsing, AnyIdent, BuildIdent, Ident, Result};
+use crate::{parsing, AnyIdent, BuildIdent, Ident, Result, ToAnyWithoutBuild};
 
 /// Identifies a package name and number version.
 pub type VersionIdent = Ident<PkgNameBuf, Version>;
@@ -87,13 +87,6 @@ macro_rules! version_ident_methods {
             pub fn set_version(&mut self, version: Version) {
                 self$(.$($access).+)?.target = version;
             }
-
-            /// Return a copy of this identifier with the given version number instead
-            pub fn with_version(&self, version: Version) -> Self {
-                let mut new = self.clone();
-                new$(.$($access).+)?.set_version(version);
-                new
-            }
         }
 
         impl spk_schema_foundation::spec_ops::Named for $Ident {
@@ -105,6 +98,17 @@ macro_rules! version_ident_methods {
         impl spk_schema_foundation::spec_ops::HasVersion for $Ident {
             fn version(&self) -> &Version {
                 self.version()
+            }
+        }
+
+        impl spk_schema_foundation::spec_ops::WithVersion for $Ident {
+            type Output = Self;
+
+            /// Return a copy of this identifier with the given version number instead
+            fn with_version(&self, version: Version) -> Self {
+                let mut new = self.clone();
+                new$(.$($access).+)?.set_version(version);
+                new
             }
         }
     };
@@ -139,8 +143,15 @@ impl FromStr for VersionIdent {
 }
 
 impl TagPath for VersionIdent {
-    fn tag_path(&self) -> RelativePathBuf {
-        RelativePathBuf::from(self.name().as_str()).join(self.version().tag_path())
+    fn tag_path<S: TagPathStrategy>(&self) -> RelativePathBuf {
+        RelativePathBuf::from(self.name().as_str()).join(self.version().tag_path::<S>())
+    }
+}
+
+impl ToAnyWithoutBuild for VersionIdent {
+    #[inline]
+    fn to_any_without_build(&self) -> AnyIdent {
+        self.to_any(None)
     }
 }
 

@@ -149,7 +149,9 @@ where
     Self: std::fmt::Display,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Ident").field(&self.to_string()).finish()
+        // When debugging, we want to see the version string verbatim.
+        let ident_string = format!("{:#}", self);
+        f.debug_tuple("Ident").field(&ident_string).finish()
     }
 }
 
@@ -161,7 +163,9 @@ where
     where
         S: Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        // Preserve the original version string as parsed.
+        let ident_string = format!("{:#}", self);
+        serializer.serialize_str(&ident_string)
     }
 }
 

@@ -8,7 +8,7 @@ use std::str::FromStr;
 use relative_path::RelativePathBuf;
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
-use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
+use spk_schema_foundation::ident_ops::{MetadataPath, TagPath, TagPathStrategy};
 use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
 use spk_schema_foundation::version::Version;
 
@@ -80,14 +80,22 @@ impl AnyIdent {
     /// A string containing the properly formatted name and version number
     ///
     /// This is the same as [`ToString::to_string`] when the build is None.
-    pub fn version_and_build(&self) -> Option<String> {
+    pub fn version_and_build(&self, f: &mut std::fmt::Formatter) -> Option<String> {
         match self.build() {
-            Some(build) => Some(format!("{}/{}", self.version(), build.digest())),
+            Some(build) => {
+                if f.alternate() {
+                    Some(format!("{:#}/{}", self.version(), build.digest()))
+                } else {
+                    Some(format!("{}/{}", self.version(), build.digest()))
+                }
+            }
             None => {
                 if self.version().is_zero() {
                     None
+                } else if f.alternate() {
+                    Some(format!("{:#}", self.version()))
                 } else {
-                    Some(self.version().to_string())
+                    Some(format!("{}", self.version()))
                 }
             }
         }
@@ -112,7 +120,7 @@ impl AnyIdent {
 impl std::fmt::Display for AnyIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         self.base.name().fmt(f)?;
-        if let Some(vb) = self.version_and_build() {
+        if let Some(vb) = self.version_and_build(f) {
             f.write_char('/')?;
             f.write_str(&vb)?;
         }
@@ -139,15 +147,17 @@ impl MetadataPath for AnyIdent {
 }
 
 impl TagPath for AnyIdent {
-    fn tag_path(&self) -> RelativePathBuf {
+    fn tag_path<S: TagPathStrategy>(&self) -> RelativePathBuf {
         let path = RelativePathBuf::from(self.name().as_str());
         match self.build() {
-            Some(build) => path.join(self.version().tag_path()).join(build.tag_path()),
+            Some(build) => path
+                .join(self.version().tag_path::<S>())
+                .join(build.tag_path::<S>()),
             None => {
                 if self.version().is_zero() {
                     path
                 } else {
-                    path.join(self.version().tag_path())
+                    path.join(self.version().tag_path::<S>())
                 }
             }
         }
@@ -247,4 +257,9 @@ impl TryFrom<&RangeIdent> for AnyIdent {
 /// Parse a package identifier string with optional build.
 pub fn parse_ident<S: AsRef<str>>(source: S) -> Result<AnyIdent> {
     Ident::from_str(source.as_ref())
+}
+
+pub trait ToAnyWithoutBuild {
+    /// Copy this identifier and remove the build, if any.
+    fn to_any_without_build(&self) -> AnyIdent;
 }

@@ -12,7 +12,7 @@ use thiserror::Error;
 use super::BuildId;
 use crate::ident_component::{Component, Components};
 use crate::ident_ops::parsing::IdentPartsBuf;
-use crate::ident_ops::{MetadataPath, TagPath};
+use crate::ident_ops::{MetadataPath, TagPath, TagPathStrategy};
 
 #[cfg(test)]
 #[path = "./build_test.rs"]
@@ -153,7 +153,7 @@ impl MetadataPath for Build {
 }
 
 impl TagPath for Build {
-    fn tag_path(&self) -> RelativePathBuf {
+    fn tag_path<S: TagPathStrategy>(&self) -> RelativePathBuf {
         self.metadata_path()
     }
 }

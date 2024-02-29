@@ -193,28 +193,28 @@ fn test_compat_and_equals_restrict() {
     "{pkg: something/>1.0, include: IfAlreadyPresent}",
     "{pkg: something/>2.0, include: IfAlreadyPresent}",
     InclusionPolicy::IfAlreadyPresent,
-    Some(">2.0")
+    Some(">2.0.0")
 )]
 // case 2
 #[case(
     "{pkg: something/>1.0, include: Always}",
     "{pkg: something/>2.0, include: Always}",
     InclusionPolicy::Always,
-    Some(">2.0")
+    Some(">2.0.0")
 )]
 // case 3 (mixed)
 #[case(
     "{pkg: something/>1.0, include: IfAlreadyPresent}",
     "{pkg: something/>2.0, include: Always}",
     InclusionPolicy::Always,
-    Some(">2.0")
+    Some(">2.0.0")
 )]
 // case 4 (alt. mixed)
 #[case(
     "{pkg: something/>1.0, include: Always}",
     "{pkg: something/>2.0, include: IfAlreadyPresent}",
     InclusionPolicy::Always,
-    Some(">2.0")
+    Some(">2.0.0")
 )]
 // Two otherwise incompatible requests but are `IfAlreadyPresent`
 #[case(
@@ -224,7 +224,7 @@ fn test_compat_and_equals_restrict() {
     // The requests are merged. This will become an impossible
     // request to satisfy iff a firm request for the package is
     // introduced.
-    Some("=1.0,=2.0")
+    Some("=1.0.0,=2.0.0")
 )]
 // Incompatible requests when something is `Always` is a restrict
 // failure.
@@ -327,7 +327,7 @@ fn test_pkg_request_pin_rendering(
     let res = req
         .render_pin(&version)
         .expect("should not fail to render pin");
-    assert_eq!(&res.pkg.version.to_string(), expected);
+    assert_eq!(format!("{:#}", &res.pkg.version), expected);
 }
 
 /// Confirm that the error provided when both 'var' or 'pkg' field

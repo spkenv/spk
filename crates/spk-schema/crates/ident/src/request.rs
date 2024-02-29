@@ -304,7 +304,7 @@ impl<'de> Deserialize<'de> for Request {
                 match (self.pkg, self.var) {
                     (Some(pkg), None) if self.pin.as_ref().map(PinValue::is_some).unwrap_or_default() && !pkg.version.is_empty() => {
                         Err(serde::de::Error::custom(
-                            format!("request for `{}` cannot specify a value `/{}` when `fromBuildEnv` is specified", pkg.name, pkg.version)
+                            format!("request for `{}` cannot specify a value `/{:#}` when `fromBuildEnv` is specified", pkg.name, pkg.version)
                         ))
                     },
                     (Some(pkg), None) => Ok(Request::Pkg(PkgRequest {
@@ -820,7 +820,7 @@ impl PkgRequest {
             )),
             Some(pin) if pin == API_STR || pin == BINARY_STR => {
                 // Supply the full base (digit-only) part of the version
-                let base = pkg.version().base();
+                let base = pkg.version().base_normalized();
                 let mut rendered: Vec<char> = Vec::with_capacity(
                     pin.len()
                         // ':'
