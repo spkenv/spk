@@ -24,7 +24,7 @@ components:
       tags:
         - proxy
       variables:
-        FEATURES: migration-to-components,sentry,spfs/protobuf-src,legacy-spk-version-tags
+        FEATURES: migration-to-components,sentry,spfs/protobuf-src,legacy-spk-version-tags,legacy-spk-version-tags-for-writes
 
   - kind: RustCrate
     name: spk-no-sentry
@@ -33,7 +33,7 @@ components:
       tags:
         - proxy
       variables:
-        FEATURES: migration-to-components,spfs/protobuf-src,legacy-spk-version-tags
+        FEATURES: migration-to-components,spfs/protobuf-src,legacy-spk-version-tags,legacy-spk-version-tags-for-writes
 
   - kind: HugoDocs
     name: docs

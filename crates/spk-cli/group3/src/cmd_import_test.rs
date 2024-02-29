@@ -6,6 +6,7 @@ use rstest::rstest;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::Run;
 use spk_schema::foundation::option_map;
+use spk_schema::ident_ops::NormalizedTagStrategy;
 use spk_schema::{recipe, Package};
 use spk_storage::fixtures::*;
 
@@ -29,7 +30,7 @@ async fn test_archive_io() {
 
     let filename = rt.tmpdir.path().join("archive.spk");
     filename.ensure();
-    spk_storage::export_package(spec.ident().to_any(), &filename)
+    spk_storage::export_package::<NormalizedTagStrategy>(spec.ident().to_any(), &filename)
         .await
         .expect("failed to export");
     let mut actual = Vec::new();

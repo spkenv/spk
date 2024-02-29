@@ -72,7 +72,7 @@ macro_rules! verbatim_tag_if_enabled {
 }
 
 #[derive(Debug)]
-pub struct SpfsRepository<S = NormalizedTagStrategy> {
+pub struct SpfsRepository<S> {
     address: url::Url,
     name: RepositoryNameBuf,
     inner: spfs::storage::RepositoryHandle,
@@ -128,24 +128,6 @@ where
     }
 }
 
-impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> TryFrom<(S, T)> for SpfsRepository {
-    type Error = crate::Error;
-
-    fn try_from(name_and_repo: (S, T)) -> Result<Self> {
-        let inner = name_and_repo.1.into();
-        let address = inner.address();
-        Ok(Self {
-            caches: CachesForAddress::new(&address),
-            address,
-            name: name_and_repo.0.as_ref().try_into()?,
-            inner,
-            cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
-            tag_strategy: PhantomData,
-            legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
-        })
-    }
-}
-
 pub struct NameAndRepositoryWithTagStrategy<S, T, TagStrategy>
 where
     S: AsRef<str>,
@@ -198,7 +180,7 @@ where
     }
 }
 
-impl SpfsRepository {
+impl<S> SpfsRepository<S> {
     pub async fn new(name: &str, address: &str) -> Result<Self> {
         let inner = spfs::open_repository(address).await?;
         let address = inner.address();
@@ -1305,7 +1287,7 @@ impl StoredPackage {
 }
 
 /// Return the local packages repository used for development.
-pub async fn local_repository() -> Result<SpfsRepository> {
+pub async fn local_repository() -> Result<SpfsRepository<NormalizedTagStrategy>> {
     let config = spfs::get_config()?;
     let repo = config.get_local_repository().await?;
     let inner: spfs::prelude::RepositoryHandle = repo.into();
@@ -1324,7 +1306,9 @@ pub async fn local_repository() -> Result<SpfsRepository> {
 /// Return the remote repository of the given name.
 ///
 /// If not name is specified, return the default spfs repository.
-pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SpfsRepository> {
+pub async fn remote_repository<S: AsRef<str>, TagStrategy>(
+    name: S,
+) -> Result<SpfsRepository<TagStrategy>> {
     let config = spfs::get_config()?;
     let inner = config.get_remote(&name).await?;
     let address = inner.address();

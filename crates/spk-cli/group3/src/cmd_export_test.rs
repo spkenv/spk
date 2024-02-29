@@ -7,6 +7,7 @@ use spfs::config::Remote;
 use spfs::RemoteAddress;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_schema::foundation::option_map;
+use spk_schema::ident_ops::NormalizedTagStrategy;
 use spk_schema::{recipe, Package};
 use spk_storage::fixtures::*;
 
@@ -70,7 +71,7 @@ async fn test_export_works_with_missing_builds() {
 
     let filename = rt.tmpdir.path().join("archive.spk");
     filename.ensure();
-    spk_storage::export_package(
+    spk_storage::export_package::<NormalizedTagStrategy>(
         red_spec.ident().clone().to_version().to_any(None),
         &filename,
     )

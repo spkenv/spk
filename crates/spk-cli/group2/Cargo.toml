@@ -9,6 +9,7 @@ workspace = true
 
 [features]
 legacy-spk-version-tags = ["spk-cli-common/legacy-spk-version-tags"]
+legacy-spk-version-tags-for-writes = []
 
 [dependencies]
 miette = { workspace = true, features = ["fancy"] }
