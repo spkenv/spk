@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use spk_schema::ident_ops::VerbatimTagStrategy;
 use spk_schema::{Spec, SpecRecipe};
 
 use super::Repository;
@@ -12,6 +13,7 @@ type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
     SPFS(super::SpfsRepository),
+    SPFSWithVerbatimTags(super::SpfsRepository<VerbatimTagStrategy>),
     Mem(super::MemRepository<SpecRecipe>),
     Runtime(super::RuntimeRepository),
 }
@@ -31,7 +33,7 @@ impl RepositoryHandle {
     }
 
     pub fn is_spfs(&self) -> bool {
-        matches!(self, Self::SPFS(_))
+        matches!(self, Self::SPFS(_) | Self::SPFSWithVerbatimTags(_))
     }
 
     pub fn is_mem(&self) -> bool {
@@ -45,6 +47,7 @@ impl RepositoryHandle {
     pub fn to_repo(self) -> Box<Handle> {
         match self {
             Self::SPFS(repo) => Box::new(repo),
+            Self::SPFSWithVerbatimTags(repo) => Box::new(repo),
             Self::Mem(repo) => Box::new(repo),
             Self::Runtime(repo) => Box::new(repo),
         }
@@ -57,6 +60,7 @@ impl std::ops::Deref for RepositoryHandle {
     fn deref(&self) -> &Self::Target {
         match self {
             RepositoryHandle::SPFS(repo) => repo,
+            RepositoryHandle::SPFSWithVerbatimTags(repo) => repo,
             RepositoryHandle::Mem(repo) => repo,
             RepositoryHandle::Runtime(repo) => repo,
         }
@@ -67,6 +71,7 @@ impl std::ops::DerefMut for RepositoryHandle {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             RepositoryHandle::SPFS(repo) => repo,
+            RepositoryHandle::SPFSWithVerbatimTags(repo) => repo,
             RepositoryHandle::Mem(repo) => repo,
             RepositoryHandle::Runtime(repo) => repo,
         }

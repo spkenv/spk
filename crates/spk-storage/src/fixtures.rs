@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::convert::TryInto;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
@@ -12,9 +11,16 @@ use spfs::config::Remote;
 use spfs::prelude::*;
 use spfs::Result;
 use spk_schema::foundation::fixtures::*;
+use spk_schema::ident_ops::{
+    NormalizedTagStrategy,
+    TagPathStrategy,
+    TagPathStrategyType,
+    VerbatimTagStrategy,
+};
 use tokio::sync::{Mutex, MutexGuard};
 
 use crate as storage;
+use crate::NameAndRepositoryWithTagStrategy;
 
 static SPFS_RUNTIME_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
@@ -92,11 +98,21 @@ pub fn tmprepo() -> storage::RepositoryHandle {
 /// for use in generating test data to sync around.
 #[fixture]
 pub async fn spfsrepo() -> TempRepo {
-    make_repo(RepoKind::Spfs).await
+    spfsrepo_with_tag_strategy::<NormalizedTagStrategy>().await
+}
+
+pub async fn spfsrepo_with_tag_strategy<TagStrategy>() -> TempRepo
+where
+    TagStrategy: TagPathStrategy,
+{
+    make_repo_with_tag_strategy::<TagStrategy>(RepoKind::Spfs).await
 }
 
 /// Create a temporary repository of the desired flavor
-pub async fn make_repo(kind: RepoKind) -> TempRepo {
+async fn make_repo_with_tag_strategy<S>(kind: RepoKind) -> TempRepo
+where
+    S: TagPathStrategy,
+{
     tracing::trace!(?kind, "creating repo for test...");
 
     let tmpdir = tempfile::Builder::new()
@@ -124,14 +140,26 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
                 .await
                 .expect("failed to save empty manifest to spfs repo");
             assert_eq!(written, spfs::encoding::EMPTY_DIGEST.into());
-            storage::RepositoryHandle::SPFS(
-                (
-                    format!("temp-repo-{}", ulid::Ulid::new().to_string().to_lowercase()),
-                    spfs_repo,
-                )
-                    .try_into()
+            match S::strategy_type() {
+                TagPathStrategyType::Normalized => storage::RepositoryHandle::SPFS(
+                    storage::SpfsRepository::<NormalizedTagStrategy>::try_from(
+                        NameAndRepositoryWithTagStrategy::<_, _, NormalizedTagStrategy>::new(
+                            format!("temp-repo-{}", ulid::Ulid::new().to_string().to_lowercase()),
+                            spfs_repo,
+                        ),
+                    )
                     .unwrap(),
-            )
+                ),
+                TagPathStrategyType::Verbatim => storage::RepositoryHandle::SPFSWithVerbatimTags(
+                    storage::SpfsRepository::<VerbatimTagStrategy>::try_from(
+                        NameAndRepositoryWithTagStrategy::<_, _, VerbatimTagStrategy>::new(
+                            format!("temp-repo-{}", ulid::Ulid::new().to_string().to_lowercase()),
+                            spfs_repo,
+                        ),
+                    )
+                    .unwrap(),
+                ),
+            }
         }
         RepoKind::Mem => storage::RepositoryHandle::new_mem(),
     };
@@ -140,12 +168,24 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
     TempRepo { tmpdir, repo }
 }
 
+/// Create a temporary repository of the desired flavor
+pub async fn make_repo(kind: RepoKind) -> TempRepo {
+    make_repo_with_tag_strategy::<NormalizedTagStrategy>(kind).await
+}
+
 /// Establishes a segregated spfs runtime for use in the test.
 ///
 /// This is a managed resource, and will cause all tests that use
 /// it to run serially.
 #[fixture]
 pub async fn spfs_runtime() -> RuntimeLock {
+    spfs_runtime_with_tag_strategy::<NormalizedTagStrategy>().await
+}
+
+pub async fn spfs_runtime_with_tag_strategy<TagStrategy>() -> RuntimeLock
+where
+    TagStrategy: TagPathStrategy,
+{
     init_logging();
 
     // because these tests are all async, anything that is interacting
@@ -160,7 +200,7 @@ pub async fn spfs_runtime() -> RuntimeLock {
         .as_ref()
         .clone();
 
-    let tmprepo = spfsrepo().await;
+    let tmprepo = spfsrepo_with_tag_strategy::<TagStrategy>().await;
     let storage_root = tmprepo.tmpdir.path().join("repo");
 
     let mut new_config = original_config.clone();

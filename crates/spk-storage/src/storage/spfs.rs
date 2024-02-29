@@ -4,6 +4,7 @@
 
 use std::collections::{hash_map, HashMap, HashSet};
 use std::convert::{TryFrom, TryInto};
+use std::marker::PhantomData;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::Arc;
@@ -24,9 +25,7 @@ use spk_schema::foundation::version::{parse_version, Version};
 use spk_schema::ident::{ToAnyWithoutBuild, VersionIdent};
 use spk_schema::ident_build::parsing::embedded_source_package;
 use spk_schema::ident_build::{EmbeddedSource, EmbeddedSourcePackage};
-#[cfg(feature = "legacy-spk-version-tags")]
-use spk_schema::ident_ops::VerbatimTagStrategy;
-use spk_schema::ident_ops::{NormalizedTagStrategy, TagPath, TagPathStrategy};
+use spk_schema::ident_ops::{NormalizedTagStrategy, TagPath, TagPathStrategy, VerbatimTagStrategy};
 use spk_schema::spec_ops::{HasVersion, WithVersion};
 use spk_schema::version::VersionParts;
 use spk_schema::{AnyIdent, BuildIdent, FromYaml, Package, Recipe, Spec, SpecRecipe};
@@ -64,53 +63,55 @@ macro_rules! verbatim_build_package_tag_if_enabled {
 
 macro_rules! verbatim_tag_if_enabled {
     ($self:expr, $tag:tt, $output:ty, $ident:expr) => {{
-        #[cfg(feature = "legacy-spk-version-tags")]
-        {
+        if $self.legacy_spk_version_tags {
             $self.$tag::<VerbatimTagStrategy, $output>($ident)
-        }
-        #[cfg(not(feature = "legacy-spk-version-tags"))]
-        {
+        } else {
             $self.$tag::<NormalizedTagStrategy, $output>($ident)
         }
     }};
 }
 
 #[derive(Debug)]
-pub struct SpfsRepository {
+pub struct SpfsRepository<S = NormalizedTagStrategy> {
     address: url::Url,
     name: RepositoryNameBuf,
     inner: spfs::storage::RepositoryHandle,
     cache_policy: AtomicPtr<CachePolicy>,
     caches: CachesForAddress,
+    tag_strategy: PhantomData<S>,
+    legacy_spk_version_tags: bool,
 }
 
-impl std::hash::Hash for SpfsRepository {
+impl<S> std::hash::Hash for SpfsRepository<S> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.address.hash(state);
     }
 }
 
-impl Ord for SpfsRepository {
+impl<S> Ord for SpfsRepository<S> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.address.cmp(&other.address)
     }
 }
 
-impl PartialOrd for SpfsRepository {
+impl<S> PartialOrd for SpfsRepository<S> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for SpfsRepository {
+impl<S> PartialEq for SpfsRepository<S> {
     fn eq(&self, other: &Self) -> bool {
         self.address == other.address
     }
 }
 
-impl Eq for SpfsRepository {}
+impl<S> Eq for SpfsRepository<S> {}
 
-impl std::ops::Deref for SpfsRepository {
+impl<TagStrategy> std::ops::Deref for SpfsRepository<TagStrategy>
+where
+    TagStrategy: TagPathStrategy + Send + Sync,
+{
     type Target = spfs::storage::RepositoryHandle;
 
     fn deref(&self) -> &Self::Target {
@@ -118,7 +119,10 @@ impl std::ops::Deref for SpfsRepository {
     }
 }
 
-impl std::ops::DerefMut for SpfsRepository {
+impl<TagStrategy> std::ops::DerefMut for SpfsRepository<TagStrategy>
+where
+    TagStrategy: TagPathStrategy + Send + Sync,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
@@ -136,6 +140,60 @@ impl<S: AsRef<str>, T: Into<spfs::storage::RepositoryHandle>> TryFrom<(S, T)> fo
             name: name_and_repo.0.as_ref().try_into()?,
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+            tag_strategy: PhantomData,
+            legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
+        })
+    }
+}
+
+pub struct NameAndRepositoryWithTagStrategy<S, T, TagStrategy>
+where
+    S: AsRef<str>,
+    T: Into<spfs::storage::RepositoryHandle>,
+    TagStrategy: TagPathStrategy,
+{
+    name: S,
+    repo: T,
+    _phantom: PhantomData<TagStrategy>,
+}
+
+impl<S, T, TagStrategy> NameAndRepositoryWithTagStrategy<S, T, TagStrategy>
+where
+    S: AsRef<str>,
+    T: Into<spfs::storage::RepositoryHandle>,
+    TagStrategy: TagPathStrategy,
+{
+    pub fn new(name: S, repo: T) -> Self {
+        Self {
+            name,
+            repo,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, T, TagStrategy> TryFrom<NameAndRepositoryWithTagStrategy<S, T, TagStrategy>>
+    for SpfsRepository<TagStrategy>
+where
+    S: AsRef<str>,
+    T: Into<spfs::storage::RepositoryHandle>,
+    TagStrategy: TagPathStrategy,
+{
+    type Error = crate::Error;
+
+    fn try_from(
+        name_and_repo: NameAndRepositoryWithTagStrategy<S, T, TagStrategy>,
+    ) -> Result<Self> {
+        let inner = name_and_repo.repo.into();
+        let address = inner.address();
+        Ok(Self {
+            caches: CachesForAddress::new(&address),
+            address,
+            name: name_and_repo.name.as_ref().try_into()?,
+            inner,
+            cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+            tag_strategy: PhantomData,
+            legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
         })
     }
 }
@@ -150,6 +208,8 @@ impl SpfsRepository {
             name: name.try_into()?,
             inner,
             cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+            tag_strategy: PhantomData,
+            legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
         })
     }
 
@@ -169,9 +229,14 @@ impl SpfsRepository {
             .query_pairs_mut()
             .append_pair("when", &ts.to_string());
     }
+
+    /// Enable or disable the use of legacy spk version tags
+    pub fn set_legacy_spk_version_tags(&mut self, enabled: bool) {
+        self.legacy_spk_version_tags = enabled;
+    }
 }
 
-impl std::ops::Drop for SpfsRepository {
+impl<S> std::ops::Drop for SpfsRepository<S> {
     fn drop(&mut self) {
         // Safety: We only put valid `Box` pointers into `self.cache_policy`.
         unsafe {
@@ -265,7 +330,10 @@ impl std::fmt::Debug for CachesForAddress {
 }
 
 #[async_trait::async_trait]
-impl Storage for SpfsRepository {
+impl<TagStrategy> Storage for SpfsRepository<TagStrategy>
+where
+    TagStrategy: TagPathStrategy + Send + Sync,
+{
     type Recipe = SpecRecipe;
     type Package = Spec;
 
@@ -282,7 +350,7 @@ impl Storage for SpfsRepository {
 
         let mut builds = HashSet::new();
 
-        for pkg in Self::iter_possible_parts(pkg) {
+        for pkg in Self::iter_possible_parts(pkg, self.legacy_spk_version_tags) {
             let spec_base = verbatim_build_spec_tag_if_enabled!(self, &pkg);
             let package_base = verbatim_build_package_tag_if_enabled!(self, &pkg);
 
@@ -323,7 +391,7 @@ impl Storage for SpfsRepository {
         let mut builds = HashSet::new();
 
         let pkg = pkg.to_any(Some(Build::Source));
-        for pkg in Self::iter_possible_parts(&pkg) {
+        for pkg in Self::iter_possible_parts(&pkg, self.legacy_spk_version_tags) {
             let mut base = verbatim_build_spec_tag_if_enabled!(self, &pkg);
             // the package tag contains the name and build, but we need to
             // remove the trailing build in order to list the containing 'folder'
@@ -378,7 +446,7 @@ impl Storage for SpfsRepository {
 
     async fn publish_embed_stub_to_storage(&self, spec: &Self::Package) -> Result<()> {
         let ident = spec.ident();
-        let tag_path = self.build_spec_tag::<NormalizedTagStrategy, _>(ident);
+        let tag_path = self.build_spec_tag::<TagStrategy, _>(ident);
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
 
         let payload = serde_yaml::to_string(&spec)
@@ -397,7 +465,7 @@ impl Storage for SpfsRepository {
         package: &<Self::Recipe as spk_schema::Recipe>::Output,
         components: &HashMap<Component, spfs::encoding::Digest>,
     ) -> Result<()> {
-        let tag_path = self.build_package_tag::<NormalizedTagStrategy, _>(package.ident());
+        let tag_path = self.build_package_tag::<TagStrategy, _>(package.ident());
 
         // We will also publish the 'run' component in the old style
         // for compatibility with older versions of the spk command.
@@ -427,7 +495,7 @@ impl Storage for SpfsRepository {
         }
 
         // TODO: dedupe this part with force_publish_recipe
-        let tag_path = self.build_spec_tag::<NormalizedTagStrategy, _>(package.ident());
+        let tag_path = self.build_spec_tag::<TagStrategy, _>(package.ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
         let payload = serde_yaml::to_string(&package)
             .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
@@ -446,7 +514,7 @@ impl Storage for SpfsRepository {
         publish_policy: PublishPolicy,
     ) -> Result<()> {
         let ident = spec.ident();
-        let tag_path = self.build_spec_tag::<NormalizedTagStrategy, _>(ident);
+        let tag_path = self.build_spec_tag::<TagStrategy, _>(ident);
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
         if matches!(publish_policy, PublishPolicy::DoNotOverwriteVersion)
             && self.inner.has_tag(&tag_spec).await
@@ -634,7 +702,10 @@ impl Storage for SpfsRepository {
 }
 
 #[async_trait::async_trait]
-impl crate::Repository for SpfsRepository {
+impl<TagStrategy> crate::Repository for SpfsRepository<TagStrategy>
+where
+    TagStrategy: TagPathStrategy + Send + Sync,
+{
     fn address(&self) -> &url::Url {
         &self.address
     }
@@ -847,7 +918,7 @@ impl crate::Repository for SpfsRepository {
                     for (name, tag_spec) in components.into_iter() {
                         let tag = self.inner.resolve_tag(&tag_spec).await?;
                         let new_tag_path = self
-                            .build_package_tag::<NormalizedTagStrategy, _>(&build)
+                            .build_package_tag::<TagStrategy, _>(&build)
                             .join(name.to_string());
                         let new_tag_spec = spfs::tracking::TagSpec::parse(&new_tag_path)?;
 
@@ -884,7 +955,10 @@ impl crate::Repository for SpfsRepository {
     }
 }
 
-impl SpfsRepository {
+impl<TagStrategy> SpfsRepository<TagStrategy>
+where
+    TagStrategy: TagPathStrategy + Send + Sync,
+{
     fn cached_result_permitted(&self) -> bool {
         // Safety: We only put valid `Box` pointers into `self.cache_policy`.
         unsafe { *self.cache_policy.load(Ordering::Relaxed) }.cached_result_permitted()
@@ -932,7 +1006,10 @@ impl SpfsRepository {
     ///
     /// If spk is built without the `legacy-spk-version-tags` feature enabled,
     /// then only the one canonical normalized part will be returned.
-    fn iter_possible_parts<I>(pkg: &I) -> impl Iterator<Item = I::Output> + '_
+    fn iter_possible_parts<I>(
+        pkg: &I,
+        legacy_spk_version_tags: bool,
+    ) -> impl Iterator<Item = I::Output> + '_
     where
         I: HasVersion + WithVersion,
     {
@@ -942,9 +1019,7 @@ impl SpfsRepository {
             // Handle all the part lengths that are bigger than the normalized
             // parts, except for the normalized parts length itself, which may
             // be larger than 5 and not hit by this range.
-            .filter(move |num_parts| {
-                cfg!(feature = "legacy-spk-version-tags") && *num_parts > normalized_parts_len
-            })
+            .filter(move |num_parts| legacy_spk_version_tags && *num_parts > normalized_parts_len)
             // Then, handle the normalized parts length itself, which is
             // skipped by the filter above so it isn't processed twice,
             // and is handled even if the length is outside the above range.
@@ -1008,7 +1083,7 @@ impl SpfsRepository {
         Fut: Future<Output = Result<R>>,
     {
         let mut first_resolve_err = None;
-        for pkg in Self::iter_possible_parts(pkg) {
+        for pkg in Self::iter_possible_parts(pkg, self.legacy_spk_version_tags) {
             let tag_path = tag_path(&pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
             let tag = match self
@@ -1123,7 +1198,7 @@ impl SpfsRepository {
     /// (with or without package components)
     async fn lookup_package(&self, pkg: &BuildIdent) -> Result<StoredPackage> {
         let mut first_resolve_err = None;
-        for pkg in Self::iter_possible_parts(pkg) {
+        for pkg in Self::iter_possible_parts(pkg, self.legacy_spk_version_tags) {
             let tag_path = verbatim_build_package_tag_if_enabled!(self, &pkg);
             let tag_specs: HashMap<Component, TagSpec> = self
                 .ls_tags(&tag_path)
@@ -1241,6 +1316,8 @@ pub async fn local_repository() -> Result<SpfsRepository> {
         name: "local".try_into()?,
         inner,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+        tag_strategy: PhantomData,
+        legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
     })
 }
 
@@ -1257,5 +1334,7 @@ pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SpfsRepository>
         name: name.as_ref().try_into()?,
         inner,
         cache_policy: AtomicPtr::new(Box::leak(Box::new(CachePolicy::CacheOk))),
+        tag_strategy: PhantomData,
+        legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
     })
 }

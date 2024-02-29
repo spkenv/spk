@@ -844,6 +844,16 @@ pub struct Repositories {
     /// that attempts to make changes to a repository, even if the time is in the future.
     #[clap(long)]
     pub when: Option<spfs::tracking::TimeSpec>,
+
+    /// Enable support for legacy spk version tags in the repository.
+    ///
+    /// This causes extra file I/O but is required if the repository contains
+    /// any packages that were published with non-normalized version tags.
+    ///
+    /// This is enabled by default if spk is built with the legacy-spk-version-tags
+    /// feature flag enabled.
+    #[clap(long, hide = true)]
+    pub legacy_spk_version_tags: bool,
 }
 
 impl Repositories {
@@ -875,6 +885,9 @@ impl Repositories {
             if let Some(ts) = self.when.as_ref() {
                 repo.pin_at_time(ts);
             }
+            if self.legacy_spk_version_tags {
+                repo.set_legacy_spk_version_tags(true);
+            }
             repos.push(("local".into(), repo.into()));
         }
         for (name, ts) in enabled.iter() {
@@ -895,6 +908,9 @@ impl Repositories {
             }?;
             if let Some(ts) = ts.as_ref().or(self.when.as_ref()) {
                 repo.pin_at_time(ts);
+            }
+            if self.legacy_spk_version_tags {
+                repo.set_legacy_spk_version_tags(true);
             }
             repos.push((name.to_string(), repo.into()));
         }
@@ -933,6 +949,9 @@ impl Repositories {
             if let Some(ts) = self.when.as_ref() {
                 repo.pin_at_time(ts);
             }
+            if self.legacy_spk_version_tags {
+                repo.set_legacy_spk_version_tags(true);
+            }
             repos.push(("local".into(), repo.into()));
         }
         if self.local_repo_only {
@@ -955,6 +974,9 @@ impl Repositories {
             }?;
             if let Some(ts) = ts.as_ref().or(self.when.as_ref()) {
                 repo.pin_at_time(ts);
+            }
+            if self.legacy_spk_version_tags {
+                repo.set_legacy_spk_version_tags(true);
             }
             repos.push((name.into(), repo.into()));
         }

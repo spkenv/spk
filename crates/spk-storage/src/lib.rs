@@ -15,6 +15,7 @@ pub use storage::{
     remote_repository,
     CachePolicy,
     MemRepository,
+    NameAndRepositoryWithTagStrategy,
     Repository,
     RepositoryHandle,
     RuntimeRepository,
