@@ -22,6 +22,7 @@ build:
       default: "{{cpXX}}m"
       choices: ["{{cpXX}}m", "{{cpXX}}dm"]
       inheritance: Strong
+      description: the python abi used at build time
     - var: debug
       default: off
       choices: [on, off]
