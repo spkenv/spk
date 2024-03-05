@@ -13,12 +13,12 @@ BuildRequires: libcap-devel
 BuildRequires: openssl-devel
 BuildRequires: python3-devel
 BuildRequires: python3-pip
-BuildRequires: fuse-devel
+BuildRequires: fuse3-devel
 BuildRequires: m4
 BuildRequires: cmake3
 BuildRequires: make
 Requires: bash
-Requires: fuse
+Requires: fuse3
 Requires: rsync
 Obsoletes: spfs
 Provides: spfs = 0.38.0

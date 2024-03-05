@@ -1,9 +1,10 @@
-FROM centos:7 as build_env
+FROM almalinux:9 as build_env
 
 RUN yum install -y \
     epel-release \
-    curl \
+    curl-minimal \
     rpm-build \
+    yum-utils \
     && yum clean all
 
 RUN ln -s cmake3 /usr/bin/cmake

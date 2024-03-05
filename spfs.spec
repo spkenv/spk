@@ -12,9 +12,9 @@ BuildRequires: gcc-c++
 BuildRequires: make
 BuildRequires: cmake3
 BuildRequires: openssl-devel
-BuildRequires: fuse-devel
+BuildRequires: fuse3-devel
 BuildRequires: m4
-Requires: fuse
+Requires: fuse3
 Requires: rsync
 
 %define debug_package %{nil}
@@ -34,6 +34,8 @@ RELEASE_DIR=%{_builddir}/%{name}-%{version}/target/release
 for cmd in $RELEASE_DIR/spfs $RELEASE_DIR/spfs-*; do
     # skip debug info for commands
     if [[ $cmd =~ \.d$ ]]; then continue; fi
+    # skip windows
+    if [[ $cmd =~ spfs-winfsp$ ]]; then continue; fi
     install -p -m 755 $cmd %{buildroot}/usr/local/bin/
 done
 
