@@ -521,7 +521,7 @@ impl DiskUsage for Entry {
                     if entry.kind.is_blob() {
                         yield EntryDiskUsage::new(
                                 updated_paths.clone(),
-                                entry.size,
+                                entry.size(),
                                 entry.object,
                             )
                     }

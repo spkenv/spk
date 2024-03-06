@@ -92,10 +92,10 @@ impl Manifest {
                 let mut new_entry = tracking::Entry {
                     kind: entry.kind(),
                     mode: entry.mode(),
-                    size: entry.size(),
                     entries: Default::default(),
                     object: *entry.object(),
                     user_data: (),
+                    legacy_size: entry.size_for_legacy_encode(),
                 };
                 if entry.kind().is_tree() {
                     new_entry.object = encoding::NULL_DIGEST.into();
@@ -275,7 +275,7 @@ impl ManifestBuilder {
                         node.path.as_str(),
                         node.entry.kind,
                         node.entry.mode,
-                        node.entry.size,
+                        node.entry.size_for_legacy_encode(),
                         &sub_root_digest,
                     )
                 }

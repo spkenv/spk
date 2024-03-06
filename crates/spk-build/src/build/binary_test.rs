@@ -30,12 +30,12 @@ fn test_split_manifest_permissions() {
         .mknod(
             "bin/runme",
             Entry {
-                kind: EntryKind::Blob,
+                kind: EntryKind::Blob(0),
                 object: EMPTY_DIGEST.into(),
                 mode: 0o555,
-                size: 0,
                 entries: Default::default(),
                 user_data: (),
+                legacy_size: 0,
             },
         )
         .unwrap();

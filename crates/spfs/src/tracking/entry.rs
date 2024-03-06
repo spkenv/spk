@@ -16,8 +16,8 @@ mod entry_test;
 pub enum EntryKind {
     /// directory / node
     Tree,
-    /// file / leaf
-    Blob,
+    /// file / leaf with size
+    Blob(u64),
     /// removed entry / node or leaf
     Mask,
 }
@@ -26,7 +26,11 @@ impl std::fmt::Display for EntryKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Tree => f.write_str("tree"),
-            Self::Blob => f.write_str("file"),
+            Self::Blob(_) => {
+                // This is currently used in encoding and the size is not
+                // included.
+                f.write_str("file")
+            }
             Self::Mask => f.write_str("mask"),
         }
     }
@@ -53,7 +57,7 @@ impl EntryKind {
         matches!(self, Self::Tree)
     }
     pub fn is_blob(&self) -> bool {
-        matches!(self, Self::Blob)
+        matches!(self, Self::Blob(_))
     }
     pub fn is_mask(&self) -> bool {
         matches!(self, Self::Mask)
@@ -66,7 +70,7 @@ impl FromStr for EntryKind {
     fn from_str(s: &str) -> Result<Self> {
         match s {
             "tree" => Ok(Self::Tree),
-            "file" => Ok(Self::Blob),
+            "file" => Ok(Self::Blob(0)),
             "mask" => Ok(Self::Mask),
             kind => Err(format!("invalid entry kind: {kind}").into()),
         }
@@ -76,7 +80,7 @@ impl FromStr for EntryKind {
 impl From<EntryKind> for spfs_proto::EntryKind {
     fn from(val: EntryKind) -> spfs_proto::EntryKind {
         match val {
-            EntryKind::Blob => spfs_proto::EntryKind::Blob,
+            EntryKind::Blob(_) => spfs_proto::EntryKind::Blob,
             EntryKind::Tree => spfs_proto::EntryKind::Tree,
             EntryKind::Mask => spfs_proto::EntryKind::Mask,
         }
@@ -105,9 +109,10 @@ pub struct Entry<T = ()> {
     pub kind: EntryKind,
     pub object: encoding::Digest,
     pub mode: u32,
-    pub size: u64,
     pub entries: std::collections::HashMap<String, Entry<T>>,
     pub user_data: T,
+    /// The size associated with non-blob entries.
+    pub legacy_size: u64,
 }
 
 impl<T> std::fmt::Debug for Entry<T>
@@ -121,14 +126,13 @@ where
             kind,
             object,
             mode,
-            size,
             entries,
             user_data,
+            legacy_size: _,
         } = self;
         f.debug_struct("Entry")
             .field("kind", kind)
             .field("mode", &format!("{mode:#06o}"))
-            .field("size", size)
             .field("object", object)
             .field("entries", entries)
             .field("user_data", user_data)
@@ -144,18 +148,15 @@ impl<T, T2> PartialEq<Entry<T2>> for Entry<T> {
             kind,
             object,
             mode,
-            size,
             entries,
             user_data: _,
+            legacy_size: _,
         } = other;
-        if self.kind != *kind || self.mode != *mode || self.object != *object {
-            return false;
-        }
-        // Only compare size for blobs. The size captured for directories can
-        // vary based on the filesystem in use or if fuse is in use, and
-        // a rendered manifest may not have the expected size even if it is
-        // unmodified.
-        if self.kind.is_blob() && self.size != *size {
+        if self.kind != *kind
+            || self.mode != *mode
+            || self.size() != other.size()
+            || self.object != *object
+        {
             return false;
         }
         if self.entries.len() != entries.len() {
@@ -192,21 +193,21 @@ impl<T> Entry<T> {
             kind: EntryKind::Mask,
             object: encoding::NULL_DIGEST.into(),
             mode: 0o0777, // for backwards-compatible hashing
-            size: 0,
             entries: Default::default(),
             user_data,
+            legacy_size: 0,
         }
     }
 
     /// Create an entry that represents an empty symlink
     pub fn empty_symlink_with_data(user_data: T) -> Self {
         Self {
-            kind: EntryKind::Blob,
+            kind: EntryKind::Blob(0),
             object: encoding::EMPTY_DIGEST.into(),
             mode: 0o0120777,
-            size: 0,
             entries: Default::default(),
             user_data,
+            legacy_size: 0,
         }
     }
 
@@ -217,9 +218,9 @@ impl<T> Entry<T> {
             kind: EntryKind::Tree,
             object: encoding::NULL_DIGEST.into(),
             mode: 0o0040777,
-            size: 0,
             entries: Default::default(),
             user_data,
+            legacy_size: 0,
         }
     }
 
@@ -227,12 +228,33 @@ impl<T> Entry<T> {
     /// directory with fully open permissions
     pub fn empty_file_with_open_perms_with_data(user_data: T) -> Self {
         Self {
-            kind: EntryKind::Blob,
+            kind: EntryKind::Blob(0),
             object: encoding::EMPTY_DIGEST.into(),
             mode: 0o0100777,
-            size: 0,
             entries: Default::default(),
             user_data,
+            legacy_size: 0,
+        }
+    }
+
+    /// Return the size of the blob; size is meaningless for other entry types.
+    #[inline]
+    pub fn size(&self) -> u64 {
+        match self.kind {
+            EntryKind::Blob(size) => size,
+            _ => 0,
+        }
+    }
+
+    /// Return the size of the blob or the legacy size for non-blobs.
+    ///
+    /// This is required to preserve backwards compatibility with how digests
+    /// are calculated for non-blob entries.
+    #[inline]
+    pub fn size_for_legacy_encode(&self) -> u64 {
+        match self.kind {
+            EntryKind::Blob(size) => size,
+            _ => self.legacy_size,
         }
     }
 }
@@ -289,13 +311,13 @@ impl<T> Entry<T> {
             kind: self.kind,
             object: self.object,
             mode: self.mode,
-            size: self.size,
             entries: self
                 .entries
                 .into_iter()
                 .map(|(n, e)| (n, e.strip_user_data()))
                 .collect(),
             user_data: (),
+            legacy_size: self.legacy_size,
         }
     }
 
@@ -305,13 +327,13 @@ impl<T> Entry<T> {
             kind: self.kind,
             object: self.object,
             mode: self.mode,
-            size: self.size,
             entries: self
                 .entries
                 .into_iter()
                 .map(|(n, e)| (n, e.and_user_data(user_data.clone())))
                 .collect(),
             user_data,
+            legacy_size: self.legacy_size,
         }
     }
 
@@ -322,13 +344,13 @@ impl<T> Entry<T> {
             kind: self.kind,
             object: self.object,
             mode: self.mode,
-            size: self.size,
             entries: self
                 .entries
                 .into_iter()
                 .map(|(n, e)| (n, e.with_user_data(T1::default())))
                 .collect(),
             user_data,
+            legacy_size: self.legacy_size,
         }
     }
 }
@@ -342,7 +364,6 @@ where
         self.object = other.object;
         self.mode = other.mode;
         if !self.kind.is_tree() {
-            self.size = other.size;
             return;
         }
 
@@ -357,6 +378,5 @@ where
                 self.entries.insert(name.clone(), node.clone());
             }
         }
-        self.size = self.entries.len() as u64;
     }
 }

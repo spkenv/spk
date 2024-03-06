@@ -12,7 +12,7 @@ use crate::tracking::{self, EntryKind};
 
 #[rstest(entry, digest,
     case(
-        EntryBuf::build(
+        EntryBuf::build_with_legacy_size(
             "testcase",
             EntryKind::Tree,
             0o40755,
@@ -24,9 +24,8 @@ use crate::tracking::{self, EntryKind};
     case(
         EntryBuf::build(
             "swig_full_names.xsl",
-            EntryKind::Blob,
+            EntryKind::Blob(3293),
             0o100644,
-            3293,
             &"ZD25L3AN5E3LTZ6MDQOIZUV6KRV5Y4SSXRE4YMYZJJ3PXCQ3FMQA====".parse().unwrap(),
         ),
         "GP7DYE22DYLH3I5MB33PW5Z3AZXZIBGOND7MX65KECBMHVMXBUHQ====".parse().unwrap(),
@@ -46,15 +45,13 @@ fn test_entry_encoding_compat(entry: EntryBuf, digest: encoding::Digest) {
 fn test_entry_blobs_compare_name() {
     let a = EntryBuf::build(
         "a",
-        tracking::EntryKind::Blob,
-        0,
+        tracking::EntryKind::Blob(0),
         0,
         &encoding::EMPTY_DIGEST.into(),
     );
     let b = EntryBuf::build(
         "b",
-        tracking::EntryKind::Blob,
-        0,
+        tracking::EntryKind::Blob(0),
         0,
         &encoding::EMPTY_DIGEST.into(),
     );
@@ -68,13 +65,11 @@ fn test_entry_trees_compare_name() {
         "a",
         tracking::EntryKind::Tree,
         0,
-        0,
         &encoding::EMPTY_DIGEST.into(),
     );
     let b = EntryBuf::build(
         "b",
         tracking::EntryKind::Tree,
-        0,
         0,
         &encoding::EMPTY_DIGEST.into(),
     );
@@ -88,13 +83,11 @@ fn test_entry_mask_compare_name() {
         "a",
         tracking::EntryKind::Mask,
         0,
-        0,
         &encoding::EMPTY_DIGEST.into(),
     );
     let b = EntryBuf::build(
         "b",
         tracking::EntryKind::Mask,
-        0,
         0,
         &encoding::EMPTY_DIGEST.into(),
     );
@@ -106,15 +99,13 @@ fn test_entry_mask_compare_name() {
 fn test_entry_compare_kind() {
     let blob = EntryBuf::build(
         "a",
-        tracking::EntryKind::Blob,
-        0,
+        tracking::EntryKind::Blob(0),
         0,
         &encoding::EMPTY_DIGEST.into(),
     );
     let tree = EntryBuf::build(
         "b",
         tracking::EntryKind::Tree,
-        0,
         0,
         &encoding::EMPTY_DIGEST.into(),
     );
@@ -126,15 +117,13 @@ fn test_entry_compare_kind() {
 fn test_entry_compare() {
     let root_file = EntryBuf::build(
         "file",
-        tracking::EntryKind::Blob,
-        0,
+        tracking::EntryKind::Blob(0),
         0,
         &encoding::NULL_DIGEST.into(),
     );
     let root_dir = EntryBuf::build(
         "xdir",
         tracking::EntryKind::Tree,
-        0,
         0,
         &encoding::NULL_DIGEST.into(),
     );

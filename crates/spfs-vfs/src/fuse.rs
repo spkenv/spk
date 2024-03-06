@@ -115,9 +115,9 @@ impl Filesystem {
             kind,
             object,
             mode,
-            size,
             entries,
             user_data: _,
+            legacy_size,
         } = entry;
 
         let inode = self.allocate_inode();
@@ -129,9 +129,9 @@ impl Filesystem {
             kind,
             object,
             mode,
-            size,
             entries,
             user_data: inode,
+            legacy_size,
         });
         self.inodes.insert(inode, Arc::clone(&entry));
         entry
@@ -159,15 +159,15 @@ impl Filesystem {
 
     fn attr_from_entry(&self, entry: &Entry<u64>) -> FileAttr {
         let kind = match entry.kind {
-            EntryKind::Blob if entry.is_symlink() => FileType::Symlink,
-            EntryKind::Blob => FileType::RegularFile,
+            EntryKind::Blob(_) if entry.is_symlink() => FileType::Symlink,
+            EntryKind::Blob(_) => FileType::RegularFile,
             EntryKind::Tree => FileType::Directory,
             EntryKind::Mask => unreachable!(),
         };
         let size = if entry.is_dir() {
             entry.entries.len() as u64
         } else {
-            entry.size
+            entry.size()
         };
         let nlink: u32 = if entry.is_dir() {
             // Directory has 2 hardlinks, one for . and one for the
@@ -230,7 +230,7 @@ impl Filesystem {
         let blocks = self
             .inodes
             .iter()
-            .map(|i| (i.value().size / Self::BLOCK_SIZE as u64) + 1)
+            .map(|i| (i.value().size() / Self::BLOCK_SIZE as u64) + 1)
             .sum();
         let files = self
             .inodes
@@ -263,7 +263,7 @@ impl Filesystem {
         tracing::trace!("lookup {name} in {}", parent.key());
 
         match parent.kind {
-            EntryKind::Blob => {
+            EntryKind::Blob(_) => {
                 reply.error(libc::ENOTDIR);
                 return;
             }
@@ -357,7 +357,7 @@ impl Filesystem {
                 reply.error(libc::ENOENT);
                 return;
             }
-            EntryKind::Blob => &entry.object,
+            EntryKind::Blob(_) => &entry.object,
         };
 
         let mut handle = None;
@@ -511,7 +511,7 @@ impl Filesystem {
         };
 
         let handle = match entry.kind {
-            EntryKind::Blob => {
+            EntryKind::Blob(_) => {
                 reply.error(libc::ENOTDIR);
                 return;
             }
@@ -556,8 +556,8 @@ impl Filesystem {
         }
         for (name, entry) in remaining {
             let kind = match entry.kind {
-                EntryKind::Blob if entry.is_symlink() => FileType::Symlink,
-                EntryKind::Blob => FileType::RegularFile,
+                EntryKind::Blob(_) if entry.is_symlink() => FileType::Symlink,
+                EntryKind::Blob(_) => FileType::RegularFile,
                 EntryKind::Tree => FileType::Directory,
                 EntryKind::Mask => continue,
             };

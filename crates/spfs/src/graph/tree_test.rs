@@ -14,7 +14,7 @@ use crate::tracking::EntryKind;
 #[rstest]
 #[case(
     TreeBuf::build(vec![
-        EntryBuf::build(
+        EntryBuf::build_with_legacy_size(
             "pkg",
             EntryKind::Tree,
             0o40755,
@@ -28,19 +28,17 @@ use crate::tracking::EntryKind;
     TreeBuf::build(vec![
         EntryBuf::build(
             ".helmignore",
-            EntryKind::Blob,
+            EntryKind::Blob(342),
             0o100644,
-            342,
             &"NJDVDBWMXKU2BJG6L2LKLS3N3T47VUGXNPBY4BCHBLEEIRNSDILA====".parse().unwrap(),
         ),
         EntryBuf::build(
             "Chart.yaml",
-            EntryKind::Blob,
+            EntryKind::Blob(911),
             0o100644,
-            911,
             &"ULAX2BMLX3WKVI7YKRQLJEQDEWJRSDPCFPZPGBJCIQZJ4FIVZIKA====".parse().unwrap(),
         ),
-        EntryBuf::build(
+        EntryBuf::build_with_legacy_size(
             "templates",
             EntryKind::Tree,
             0o40755,
@@ -49,9 +47,8 @@ use crate::tracking::EntryKind;
         ),
         EntryBuf::build(
             "values.yaml",
-            EntryKind::Blob,
+            EntryKind::Blob(1699),
             0o100644,
-            1699,
             &"IZFXS6UQJTHYBVYK3KYPPZC3FYX6NL3L3MWXAJUULAJMFTGZPODQ====".parse().unwrap(),
         ),
     ]),

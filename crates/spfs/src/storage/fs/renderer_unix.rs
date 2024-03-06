@@ -502,7 +502,7 @@ where
                             res.map(|_| None).map_err(|err| err.wrap(format!("render_into_dir '{}'", entry.name())))
                         }
                         tracking::EntryKind::Mask => Ok(None),
-                        tracking::EntryKind::Blob => {
+                        tracking::EntryKind::Blob(_) => {
                             self.render_blob(root_dir_fd, entry, render_type).await.map(Some).map_err(|err| err.wrap(format!("render blob '{}'", entry.name())))
                         }
                     }.map(|render_blob_result_opt| (entry, render_blob_result_opt))
