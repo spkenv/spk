@@ -138,8 +138,14 @@ impl<T, T2> PartialEq<Entry<T2>> for Entry<T> {
             entries,
             user_data: _,
         } = other;
-        if self.kind != *kind || self.mode != *mode || self.size != *size || self.object != *object
-        {
+        if self.kind != *kind || self.mode != *mode || self.object != *object {
+            return false;
+        }
+        // Only compare size for blobs. The size captured for directories can
+        // vary based on the filesystem in use or if fuse is in use, and
+        // a rendered manifest may not have the expected size even if it is
+        // unmodified.
+        if self.kind.is_blob() && self.size != *size {
             return false;
         }
         if self.entries.len() != entries.len() {
