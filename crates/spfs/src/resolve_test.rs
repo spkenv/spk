@@ -58,7 +58,7 @@ async fn test_auto_merge_layers(tmpdir: tempfile::TempDir) {
         layers.push(layer);
     }
 
-    let storage = crate::runtime::Storage::new(Arc::clone(&repo));
+    let storage = crate::runtime::Storage::new(fs_repo.clone()).unwrap();
     let mut runtime = storage
         .create_owned_runtime()
         .await

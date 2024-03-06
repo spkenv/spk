@@ -64,3 +64,13 @@ fn test_tag_spec_validation() {
     TagSpec::parse("name~-1").expect_err("should fail with negative version");
     TagSpec::parse("name~1.23").expect_err("should fail with float");
 }
+
+#[rstest]
+// This test is intended to make sure tag names can't contain the
+// TAG_NAMESPACE_MARKER value.
+#[case::tag_namespace_name("illegal#ns.0")]
+#[tokio::test]
+async fn test_tag_name_violation(#[case] tag: &str) {
+    // It should not be possible to push a tag with an illegal name.
+    TagSpec::parse(tag).expect_err(&format!("tag name '{tag}' expected to not parse"));
+}

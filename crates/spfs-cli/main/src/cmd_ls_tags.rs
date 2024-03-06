@@ -51,6 +51,10 @@ impl CmdLsTags {
                                 dirs.push_back(dir.join(name));
                             }
                             EntryType::Folder(_name) => names.push(path),
+                            EntryType::Namespace { .. } => {
+                                // Hide namespaces from end users
+                                continue;
+                            }
                             EntryType::Tag(_name) => names.push(path),
                         }
                     }

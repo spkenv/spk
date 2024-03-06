@@ -47,7 +47,7 @@ impl CmdRuntimePrune {
         let runtime_storage = match &self.remote {
             Some(remote) => {
                 let repo = config.get_remote(remote).await?;
-                spfs::runtime::Storage::new(repo)
+                spfs::runtime::Storage::new(repo)?
             }
             None => config.get_runtime_storage().await?,
         };

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::convert::TryInto;
 use std::ffi::OsStr;
 use std::mem::size_of;
@@ -20,20 +21,33 @@ use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 
 use super::{FsRepository, OpenFsRepository};
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
-use crate::storage::TagStorage;
+use crate::storage::{
+    TagNamespace,
+    TagNamespaceBuf,
+    TagStorage,
+    TagStorageMut,
+    TAG_NAMESPACE_MARKER,
+};
 use crate::{encoding, tracking, Error, OsError, OsErrorExt, Result};
 
 const TAG_EXT: &str = "tag";
 
 #[async_trait::async_trait]
 impl TagStorage for FsRepository {
-    fn ls_tags(
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
+        Self::get_tag_namespace(self)
+    }
+
+    fn ls_tags_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
         let path = path.to_owned();
+        let namespace = namespace.map(ToOwned::to_owned);
         self.opened()
-            .map_ok(move |opened| opened.ls_tags(&path))
+            .map_ok(move |opened| opened.ls_tags_in_namespace(namespace.as_deref(), &path))
             .try_flatten_stream()
             .boxed()
     }
@@ -42,58 +56,113 @@ impl TagStorage for FsRepository {
     ///
     /// This is an O(n) operation based on the number of all
     /// tag versions in each tag stream.
-    fn find_tags(
+    fn find_tags_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
         let digest = *digest;
+        let namespace = namespace.map(ToOwned::to_owned);
         self.opened()
-            .map_ok(move |opened| opened.find_tags(&digest))
+            .map_ok(move |opened| opened.find_tags_in_namespace(namespace.as_deref(), &digest))
             .try_flatten_stream()
             .boxed()
     }
 
     /// Iterate through the available tags in this storage.
-    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
+    fn iter_tag_streams_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+    ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
+        let namespace = namespace.map(ToOwned::to_owned);
         self.opened()
-            .and_then(|opened| ready(Ok(opened.iter_tag_streams())))
+            .and_then(move |opened| {
+                ready(Ok(
+                    opened.iter_tag_streams_in_namespace(namespace.as_deref())
+                ))
+            })
             .try_flatten_stream()
             .boxed()
     }
 
-    async fn read_tag(
+    async fn read_tag_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
-        self.opened().await?.read_tag(tag).await
+        self.opened()
+            .await?
+            .read_tag_in_namespace(namespace, tag)
+            .await
     }
 
-    async fn insert_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        self.opened().await?.insert_tag(tag).await
+    async fn insert_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::Tag,
+    ) -> Result<()> {
+        self.opened()
+            .await?
+            .insert_tag_in_namespace(namespace, tag)
+            .await
     }
 
-    async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
-        self.opened().await?.remove_tag_stream(tag).await
+    async fn remove_tag_stream_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::TagSpec,
+    ) -> Result<()> {
+        self.opened()
+            .await?
+            .remove_tag_stream_in_namespace(namespace, tag)
+            .await
     }
 
-    async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        self.opened().await?.remove_tag(tag).await
+    async fn remove_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::Tag,
+    ) -> Result<()> {
+        self.opened()
+            .await?
+            .remove_tag_in_namespace(namespace, tag)
+            .await
     }
 }
 
 impl OpenFsRepository {
-    fn tags_root(&self) -> PathBuf {
-        self.root().join("tags")
+    fn tags_root_in_namespace(&self, namespace: Option<&TagNamespace>) -> PathBuf {
+        let mut tags_root = self.root().join("tags");
+        if let Some(tag_namespace) = namespace {
+            for component in tag_namespace.as_rel_path().components() {
+                // Assuming the tag namespace is only made up of `Normal`
+                // elements (validated elsewhere).
+                let relative_path::Component::Normal(component) = component else {
+                    continue;
+                };
+
+                // Add a suffix in the form of `"#ns"` to distinguish
+                // tag namespace subdirectories from normal tag subdirectories.
+                tags_root = tags_root.join(format!("{component}{TAG_NAMESPACE_MARKER}"));
+            }
+        }
+        tags_root
     }
 }
 
 #[async_trait::async_trait]
 impl TagStorage for OpenFsRepository {
-    fn ls_tags(
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
+        Self::get_tag_namespace(self)
+    }
+
+    fn ls_tags_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
-        let filepath = path.to_path(self.tags_root());
+        let filepath = path.to_path(self.tags_root_in_namespace(namespace));
         let read_dir = match std::fs::read_dir(&filepath) {
             Ok(r) => r,
             Err(err) => match err.kind() {
@@ -126,8 +195,13 @@ impl TagStorage for OpenFsRepository {
                 path.file_stem()
                     .map(|s| Ok(EntryType::Tag(s.to_string_lossy().to_string())))
             } else if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
-                path.file_name()
-                    .map(|s| Ok(EntryType::Folder(s.to_string_lossy().to_string())))
+                path.file_name().map(|s| {
+                    let s = s.to_string_lossy();
+                    match s.split_once(TAG_NAMESPACE_MARKER) {
+                        Some((name, _)) => Ok(EntryType::Namespace(name.to_owned())),
+                        None => Ok(EntryType::Folder(s.to_string())),
+                    }
+                })
             } else {
                 None
             }
@@ -139,12 +213,13 @@ impl TagStorage for OpenFsRepository {
     ///
     /// This is an O(n) operation based on the number of all
     /// tag versions in each tag stream.
-    fn find_tags(
+    fn find_tags_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
         let digest = *digest;
-        let stream = self.iter_tag_streams();
+        let stream = self.iter_tag_streams_in_namespace(namespace);
         let mapped = futures::StreamExt::filter_map(stream, move |res| async move {
             let (spec, stream) = match res {
                 Ok(res) => res,
@@ -166,15 +241,19 @@ impl TagStorage for OpenFsRepository {
     }
 
     /// Iterate through the available tags in this storage.
-    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
-        Box::pin(TagStreamIter::new(self.tags_root()))
+    fn iter_tag_streams_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+    ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
+        Box::pin(TagStreamIter::new(self.tags_root_in_namespace(namespace)))
     }
 
-    async fn read_tag(
+    async fn read_tag_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
-        let path = tag.to_path(self.tags_root());
+        let path = tag.to_path(self.tags_root_in_namespace(namespace));
         match read_tag_file(path).await {
             Err(err) if err.is_os_not_found() => Err(Error::UnknownReference(tag.to_string())),
             Err(err) => Err(err),
@@ -182,16 +261,20 @@ impl TagStorage for OpenFsRepository {
         }
     }
 
-    async fn insert_tag(&self, tag: &tracking::Tag) -> Result<()> {
+    async fn insert_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::Tag,
+    ) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
-        let filepath = tag_spec.to_path(self.tags_root());
+        let filepath = tag_spec.to_path(self.tags_root_in_namespace(namespace));
         crate::runtime::makedirs_with_perms(filepath.parent().unwrap(), 0o777).map_err(|err| {
             Error::StorageWriteError("insert_tag::create_parent", filepath.clone(), err)
         })?;
         let working_file = TagWorkingFile::new(&filepath).await?;
 
         let mut tags: Vec<tracking::Tag> = vec![];
-        match self.read_tag(&tag_spec).await {
+        match self.read_tag_in_namespace(namespace, &tag_spec).await {
             Ok(mut stream) => {
                 let mut inserted = false;
                 while let Some(next) = stream.next().await {
@@ -233,9 +316,13 @@ impl TagStorage for OpenFsRepository {
         working_file.write_tags(&tags).await
     }
 
-    async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
+    async fn remove_tag_stream_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::TagSpec,
+    ) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
-        let filepath = tag_spec.to_path(self.tags_root());
+        let filepath = tag_spec.to_path(self.tags_root_in_namespace(namespace));
         let lock = match TagLock::new(&filepath).await {
             Ok(lock) => lock,
             Err(err) => match err.os_error() {
@@ -262,7 +349,7 @@ impl TagStorage for OpenFsRepository {
         // the lock file needs to be removed if the directory has any hope of being empty
         drop(lock);
 
-        let tags_root = self.tags_root();
+        let tags_root = self.tags_root_in_namespace(namespace);
         let mut filepath = filepath.as_path();
         while filepath.starts_with(&tags_root) {
             let Some(parent) = filepath.parent() else {
@@ -293,9 +380,13 @@ impl TagStorage for OpenFsRepository {
         Ok(())
     }
 
-    async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
+    async fn remove_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::Tag,
+    ) -> Result<()> {
         let tag_spec = tracking::build_tag_spec(tag.org(), tag.name(), 0)?;
-        let filepath = tag_spec.to_path(self.tags_root());
+        let filepath = tag_spec.to_path(self.tags_root_in_namespace(namespace));
         let working_file = TagWorkingFile::new(&filepath).await?;
 
         let mut tags: Vec<tracking::Tag> = vec![];
@@ -313,6 +404,15 @@ impl TagStorage for OpenFsRepository {
         }?;
 
         working_file.write_tags(&tags).await
+    }
+}
+
+impl TagStorageMut for FsRepository {
+    fn try_set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Result<Option<TagNamespaceBuf>> {
+        Ok(Self::set_tag_namespace(self, tag_namespace))
     }
 }
 

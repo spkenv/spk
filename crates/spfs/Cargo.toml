@@ -32,6 +32,7 @@ colored = "2.0"
 config = { workspace = true }
 dashmap = { workspace = true }
 data-encoding = "2.3"
+derive_builder = { workspace = true }
 dirs = { workspace = true }
 dunce = { workspace = true }
 faccess = "0.2.3"
@@ -52,7 +53,7 @@ pin-project-lite = { workspace = true }
 progress_bar_derive_macro = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
-relative-path = { workspace = true }
+relative-path = { workspace = true, features = ["serde"] }
 ring = { workspace = true }
 semver = "1.0"
 sentry = { workspace = true, optional = true }

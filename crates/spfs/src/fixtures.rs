@@ -12,7 +12,7 @@ use tempfile::TempDir;
 use crate as spfs;
 
 pub enum TempRepo {
-    FS(Arc<spfs::storage::RepositoryHandle>, TempDir),
+    FS(Arc<spfs::storage::RepositoryHandle>, Arc<TempDir>),
     Tar(Arc<spfs::storage::RepositoryHandle>, TempDir),
     Rpc {
         repo: Arc<spfs::storage::RepositoryHandle>,
@@ -30,6 +30,24 @@ impl TempRepo {
             Self::FS(r, _) => Arc::clone(r),
             Self::Tar(r, _) => Arc::clone(r),
             Self::Rpc { repo, .. } => Arc::clone(repo),
+        }
+    }
+
+    pub async fn with_tag_namespace<S>(&self, namespace: S) -> Self
+    where
+        S: AsRef<str>,
+    {
+        match self {
+            TempRepo::FS(_, tempdir) => {
+                let mut repo = spfs::storage::fs::FsRepository::open(tempdir.path().join("repo"))
+                    .await
+                    .unwrap();
+                repo.set_tag_namespace(Some(spfs::storage::TagNamespaceBuf::new(
+                    namespace.as_ref(),
+                )));
+                TempRepo::FS(Arc::new(repo.into()), Arc::clone(tempdir))
+            }
+            _ => panic!("only TempRepo::FS type supports setting tag namespaces"),
         }
     }
 }
@@ -122,7 +140,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                 .await
                 .unwrap()
                 .into();
-            TempRepo::FS(Arc::new(repo), tmpdir)
+            TempRepo::FS(Arc::new(repo), Arc::new(tmpdir))
         }
         "tar" => {
             let repo = spfs::storage::tar::TarRepository::create(tmpdir.path().join("repo.tar"))

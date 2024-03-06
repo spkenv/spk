@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 #[cfg(unix)]
 use std::fs::Permissions;
 use std::io::Write;
@@ -18,7 +19,13 @@ use super::FsHashStore;
 use crate::config::ToAddress;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
-use crate::storage::{LocalRepository, OpenRepositoryError, OpenRepositoryResult};
+use crate::storage::{
+    LocalRepository,
+    OpenRepositoryError,
+    OpenRepositoryResult,
+    TagNamespace,
+    TagNamespaceBuf,
+};
 use crate::{Error, Result};
 
 /// The directory name within the repo where durable runtimes keep
@@ -54,6 +61,7 @@ pub struct Params {
     pub create: bool,
     #[serde(default)]
     pub lazy: bool,
+    pub tag_namespace: Option<TagNamespaceBuf>,
 }
 
 #[async_trait::async_trait]
@@ -211,6 +219,42 @@ impl FsRepository {
             InnerFsRepository::Open(o) => o.root(),
         }
     }
+
+    pub fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
+        match &**self.0.load() {
+            InnerFsRepository::Open(repo) => repo
+                .get_tag_namespace()
+                .as_deref()
+                .map(ToOwned::to_owned)
+                .map(Cow::Owned),
+            InnerFsRepository::Closed(config) => config
+                .params
+                .tag_namespace
+                .as_ref()
+                .map(|ns| Cow::Owned(ns.clone())),
+        }
+    }
+
+    pub fn set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Option<TagNamespaceBuf> {
+        let mut old_namespace = None;
+        self.0.rcu(|inner| match &**inner {
+            InnerFsRepository::Open(repo) => {
+                let mut new_repo = (**repo).clone();
+                old_namespace = new_repo.set_tag_namespace(tag_namespace.clone());
+                InnerFsRepository::Open(Arc::new(new_repo))
+            }
+            InnerFsRepository::Closed(config) => {
+                let mut new_config = config.clone();
+                old_namespace = new_config.params.tag_namespace.clone();
+                new_config.params.tag_namespace = tag_namespace.clone();
+                InnerFsRepository::Closed(new_config)
+            }
+        });
+        old_namespace
+    }
 }
 
 impl BlobStorage for FsRepository {}
@@ -232,6 +276,9 @@ impl std::fmt::Debug for FsRepository {
 /// A validated and opened fs repository.
 pub struct OpenFsRepository {
     root: PathBuf,
+    /// the namespace to use for tag resolution. If set, then this is treated
+    /// as "chroot" of the real tag root.
+    tag_namespace: Option<TagNamespaceBuf>,
     /// stores the actual file data/payloads of this repo
     pub payloads: FsHashStore,
     /// stores all digraph object data for this repo
@@ -245,11 +292,15 @@ impl FromConfig for OpenFsRepository {
     type Config = Config;
 
     async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
-        if config.params.create {
+        let repo = if config.params.create {
             Self::create(&config.path).await
         } else {
             Self::open(&config.path).await
-        }
+        };
+        repo.map(|mut repo| {
+            repo.set_tag_namespace(config.params.tag_namespace);
+            repo
+        })
     }
 }
 
@@ -261,6 +312,7 @@ impl Clone for OpenFsRepository {
             payloads: FsHashStore::open_unchecked(root.join("payloads")),
             renders: self.renders.clone(),
             root,
+            tag_namespace: self.tag_namespace.clone(),
         }
     }
 }
@@ -282,7 +334,16 @@ impl LocalRepository for OpenFsRepository {
 impl OpenFsRepository {
     /// The address of this repository that can be used to re-open it
     pub fn address(&self) -> url::Url {
-        url::Url::from_directory_path(self.root()).unwrap()
+        Config {
+            path: self.root(),
+            params: Params {
+                create: false,
+                lazy: false,
+                tag_namespace: self.tag_namespace.clone(),
+            },
+        }
+        .to_address()
+        .expect("repository address is valid")
     }
 
     /// The filesystem root path of this repository
@@ -326,6 +387,21 @@ impl OpenFsRepository {
         // FIXME: No attempt to check if the repo already existed and is
         // actually incompatible.
         unsafe { Self::open_unchecked(root) }
+    }
+
+    /// Return the configured tag namespace, if any.
+    #[inline]
+    pub fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
+        self.tag_namespace.as_deref().map(Cow::Borrowed)
+    }
+
+    /// Set the configured tag namespace, returning the old tag namespace,
+    /// if there was one.
+    pub fn set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Option<TagNamespaceBuf> {
+        std::mem::replace(&mut self.tag_namespace, tag_namespace)
     }
 
     // Open a repository over the given directory, which must already
@@ -377,6 +453,7 @@ impl OpenFsRepository {
             payloads: FsHashStore::open(root.join("payloads"))?,
             renders: RenderStore::for_user(root, username).ok(),
             root: root.to_owned(),
+            tag_namespace: None,
         })
     }
 
@@ -448,6 +525,7 @@ impl OpenFsRepository {
                             .as_ref()
                             .and_then(|_| RenderStore::for_user(self.root.as_ref(), dir).ok()),
                         root: self.root.clone(),
+                        tag_namespace: self.tag_namespace.clone(),
                     },
                 )
             })

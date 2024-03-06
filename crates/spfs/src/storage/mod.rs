@@ -10,6 +10,7 @@ pub mod payload;
 mod platform;
 mod repository;
 mod tag;
+mod tag_namespace;
 
 mod config;
 pub mod fallback;
@@ -32,9 +33,11 @@ pub use payload::PayloadStorage;
 pub use platform::PlatformStorage;
 pub use proxy::{Config, ProxyRepository};
 pub use repository::{LocalRepository, Repository};
-pub use tag::{EntryType, TagStorage};
+pub use tag::{EntryType, TagStorage, TagStorageMut};
+pub use tag_namespace::{TagNamespace, TagNamespaceBuf, TAG_NAMESPACE_MARKER};
 
 pub use self::config::{FromConfig, FromUrl, OpenRepositoryResult};
+use crate::{Error, Result};
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
@@ -85,9 +88,18 @@ impl RepositoryHandle {
             ))),
         }
     }
-}
 
-impl RepositoryHandle {
+    pub fn try_as_tag_mut(&mut self) -> Result<&mut dyn TagStorageMut> {
+        match self {
+            RepositoryHandle::FS(repo) => Ok(repo),
+            RepositoryHandle::Tar(repo) => Ok(repo),
+            RepositoryHandle::Rpc(repo) => Ok(repo),
+            RepositoryHandle::FallbackProxy(repo) => Ok(&mut **repo),
+            RepositoryHandle::Proxy(repo) => Ok(&mut **repo),
+            RepositoryHandle::Pinned(_) => Err(Error::RepositoryIsPinned),
+        }
+    }
+
     pub fn to_repo(self) -> Box<dyn Repository> {
         match self {
             Self::FS(repo) => Box::new(repo),

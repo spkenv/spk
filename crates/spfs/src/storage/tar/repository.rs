@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::io::BufReader;
 use std::path::Path;
 use std::pin::Pin;
@@ -16,7 +17,14 @@ use crate::config::ToAddress;
 use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::tag::TagSpecAndTagStream;
-use crate::storage::{EntryType, OpenRepositoryError, OpenRepositoryResult};
+use crate::storage::{
+    EntryType,
+    OpenRepositoryError,
+    OpenRepositoryResult,
+    TagNamespace,
+    TagNamespaceBuf,
+    TagStorageMut,
+};
 use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
@@ -307,54 +315,92 @@ impl PayloadStorage for TarRepository {
 
 #[async_trait::async_trait]
 impl TagStorage for TarRepository {
-    async fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
-        self.repo.resolve_tag(tag_spec).await
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
+        self.repo.get_tag_namespace()
     }
 
-    fn ls_tags(
+    async fn resolve_tag_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::TagSpec,
+    ) -> Result<tracking::Tag> {
+        self.repo.resolve_tag_in_namespace(namespace, tag).await
+    }
+
+    fn ls_tags_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
-        self.repo.ls_tags(path)
+        self.repo.ls_tags_in_namespace(namespace, path)
     }
 
-    fn find_tags(
+    fn find_tags_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
-        self.repo.find_tags(digest)
+        self.repo.find_tags_in_namespace(namespace, digest)
     }
 
-    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
-        self.repo.iter_tag_streams()
-    }
-
-    async fn read_tag(
+    fn iter_tag_streams_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
+    ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
+        self.repo.iter_tag_streams_in_namespace(namespace)
+    }
+
+    async fn read_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
-        self.repo.read_tag(tag).await
+        self.repo.read_tag_in_namespace(namespace, tag).await
     }
 
-    async fn insert_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        self.repo.insert_tag(tag).await?;
+    async fn insert_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::Tag,
+    ) -> Result<()> {
+        self.repo.insert_tag_in_namespace(namespace, tag).await?;
         self.up_to_date
             .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 
-    async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
-        self.repo.remove_tag_stream(tag).await?;
+    async fn remove_tag_stream_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::TagSpec,
+    ) -> Result<()> {
+        self.repo
+            .remove_tag_stream_in_namespace(namespace, tag)
+            .await?;
         self.up_to_date
             .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 
-    async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        self.repo.remove_tag(tag).await?;
+    async fn remove_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::Tag,
+    ) -> Result<()> {
+        self.repo.remove_tag_in_namespace(namespace, tag).await?;
         self.up_to_date
             .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
+    }
+}
+
+impl TagStorageMut for TarRepository {
+    fn try_set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Result<Option<TagNamespaceBuf>> {
+        self.repo.try_set_tag_namespace(tag_namespace)
     }
 }
 

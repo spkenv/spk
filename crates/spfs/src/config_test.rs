@@ -104,6 +104,25 @@ async fn test_remote_config_pinned_from_address() {
     )
 }
 
+#[rstest]
+#[tokio::test]
+async fn test_remote_config_with_tag_namespace_from_address() {
+    let address =
+        url::Url::parse("http2://test.local?lazy=true&tag_namespace=ns").expect("a valid url");
+    let config = RemoteConfig::from_address(address)
+        .await
+        .expect("can parse address with 'tag_namespace' query");
+    let repo = config
+        .open()
+        .await
+        .expect("should open repo address with tag namespace");
+    assert_eq!(
+        repo.get_tag_namespace().unwrap().as_rel_path(),
+        "ns",
+        "using a tag_namespace query should create a repo with a tag namespace"
+    )
+}
+
 static ENV_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
 

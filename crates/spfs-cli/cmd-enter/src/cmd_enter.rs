@@ -262,7 +262,7 @@ impl CmdEnter {
             Some(address) => spfs::open_repository(address).await?,
             None => config.get_local_repository_handle().await?,
         };
-        let storage = spfs::runtime::Storage::new(repo);
+        let storage = spfs::runtime::Storage::new(repo)?;
         storage
             .read_runtime(&self.runtime)
             .await

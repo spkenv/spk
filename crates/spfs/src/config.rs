@@ -6,11 +6,14 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
+use derive_builder::Builder;
 use once_cell::sync::OnceCell;
+use relative_path::RelativePath;
 use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
 use tokio_stream::StreamExt;
 
+use crate::storage::{TagNamespaceBuf, TagStorageMut};
 use crate::{runtime, storage, tracking, Error, Result};
 
 #[cfg(test)]
@@ -79,6 +82,7 @@ pub struct Storage {
     /// is owned by a different user than the current user. Only applies to
     /// payloads readable by "other".
     pub allow_payload_sharing_between_users: bool,
+    pub tag_namespace: Option<TagNamespaceBuf>,
 }
 
 impl Storage {
@@ -98,6 +102,7 @@ impl Default for Storage {
                 .map(|data| data.join(DEFAULT_USER_STORAGE))
                 .unwrap_or_else(|| PathBuf::from(FALLBACK_STORAGE_ROOT)),
             allow_payload_sharing_between_users: false,
+            tag_namespace: None,
         }
     }
 }
@@ -143,19 +148,35 @@ pub struct RemoteAddress {
     pub address: url::Url,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Builder, Clone, Debug, Deserialize, Serialize)]
 pub struct RemoteConfig {
+    #[builder(setter(strip_option), default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<tracking::TimeSpec>,
+    #[builder(setter(strip_option), default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag_namespace: Option<TagNamespaceBuf>,
     #[serde(flatten)]
     pub inner: RepositoryConfig,
 }
 
 impl ToAddress for RemoteConfig {
     fn to_address(&self) -> Result<url::Url> {
-        let mut inner = self.inner.to_address()?;
-        if let Some(when) = &self.when {
+        let Self {
+            when,
+            tag_namespace,
+            inner,
+        } = self;
+        let mut inner = inner.to_address()?;
+        if let Some(when) = when {
             let query = format!("when={when}");
+            match inner.query() {
+                None | Some("") => inner.set_query(Some(&query)),
+                Some(q) => inner.set_query(Some(&format!("{q}&{query}"))),
+            }
+        }
+        if let Some(tag_namespace) = tag_namespace {
+            let query = format!("tag_namespace={}", tag_namespace.as_rel_path());
             match inner.query() {
                 None | Some("") => inner.set_query(Some(&query)),
                 Some(q) => inner.set_query(Some(&format!("{q}&{query}"))),
@@ -188,12 +209,18 @@ impl ToAddress for RepositoryConfig {
 impl RemoteConfig {
     /// Parse a complete repository connection config from a url
     pub async fn from_address(url: url::Url) -> Result<Self> {
-        let when = url
-            .query_pairs()
-            .find(|(k, _)| k == "when")
-            .map(|(_, v)| v)
-            .map(tracking::TimeSpec::parse)
-            .transpose()?;
+        let mut builder = RemoteConfigBuilder::default();
+        for (k, v) in url.query_pairs() {
+            match k.as_ref() {
+                "when" => {
+                    builder.when(tracking::TimeSpec::parse(v)?);
+                }
+                "tag_namespace" => {
+                    builder.tag_namespace(TagNamespaceBuf::new(RelativePath::new(&v)));
+                }
+                _ => (),
+            }
+        }
         let result = match url.scheme() {
             "tar" => storage::tar::Config::from_url(&url)
                 .await
@@ -209,11 +236,11 @@ impl RemoteConfig {
                 .map(RepositoryConfig::Proxy),
             scheme => return Err(format!("Unsupported repository scheme: '{scheme}'").into()),
         };
-        let inner = result.map_err(|source| Error::FailedToOpenRepository {
+        builder.inner(result.map_err(|source| Error::FailedToOpenRepository {
             repository: url.to_string(),
             source,
-        })?;
-        Ok(Self { when, inner })
+        })?);
+        Ok(builder.build().expect("No uninitialized fields"))
     }
 
     /// Parse a complete repository connection from an address string
@@ -228,7 +255,12 @@ impl RemoteConfig {
 
     /// Open a handle to a repository using this configuration
     pub async fn open(&self) -> storage::OpenRepositoryResult<storage::RepositoryHandle> {
-        let handle = match self.inner.clone() {
+        let Self {
+            when,
+            tag_namespace,
+            inner,
+        } = self;
+        let mut handle: storage::RepositoryHandle = match inner.clone() {
             RepositoryConfig::Fs(config) => {
                 storage::fs::FsRepository::from_config(config).await?.into()
             }
@@ -242,10 +274,27 @@ impl RemoteConfig {
                 .await?
                 .into(),
         };
-        match &self.when {
-            None => Ok(handle),
-            Some(ts) => Ok(handle.into_pinned(ts.to_datetime_from_now())),
-        }
+        // Set tag namespace first before pinning, because it is not possible
+        // to set the tag namespace on a pinned handle.
+        let handle = match tag_namespace {
+            None => handle,
+            Some(tag_namespace) => {
+                handle
+                    .try_set_tag_namespace(Some(tag_namespace.clone()))
+                    .map_err(
+                        |err| storage::OpenRepositoryError::FailedToSetTagNamespace {
+                            tag_namespace: tag_namespace.clone(),
+                            source: Box::new(err),
+                        },
+                    )?;
+                handle
+            }
+        };
+        let handle = match when {
+            None => handle,
+            Some(ts) => handle.into_pinned(ts.to_datetime_from_now()),
+        };
+        Ok(handle)
     }
 }
 
@@ -388,7 +437,7 @@ impl Config {
                 Some(self.storage.root.join("ci").join(format!("pipeline_{id}")));
         }
 
-        storage::fs::OpenFsRepository::create(
+        let mut local_repo = storage::fs::OpenFsRepository::create(
             use_ci_isolated_storage_path
                 .as_ref()
                 .unwrap_or(&self.storage.root),
@@ -397,7 +446,11 @@ impl Config {
         .map_err(|source| Error::FailedToOpenRepository {
             repository: LOCAL_STORAGE_NAME.into(),
             source,
-        })
+        })?;
+
+        local_repo.set_tag_namespace(self.storage.tag_namespace.clone());
+
+        Ok(local_repo)
     }
 
     /// Get the local repository instance as configured, creating it if needed.
@@ -435,9 +488,9 @@ impl Config {
 
     /// Get the local runtime storage, as configured.
     pub async fn get_runtime_storage(&self) -> Result<runtime::Storage> {
-        Ok(runtime::Storage::new(storage::RepositoryHandle::from(
+        runtime::Storage::new(storage::RepositoryHandle::from(
             self.get_local_repository().await?,
-        )))
+        ))
     }
 
     /// Get a remote repository by name.

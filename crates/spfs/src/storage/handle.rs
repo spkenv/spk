@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -14,9 +15,9 @@ use spfs_encoding as encoding;
 use super::prelude::*;
 use super::repository::Ref;
 use super::tag::TagSpecAndTagStream;
-use super::RepositoryHandle;
+use super::{RepositoryHandle, TagNamespace, TagNamespaceBuf, TagStorageMut};
 use crate::tracking::{self, BlobRead};
-use crate::{graph, Result};
+use crate::{graph, Error, Result};
 
 /// Runs a code block on each variant of the handle,
 /// easily allowing the use of storage code without using
@@ -63,45 +64,102 @@ impl Repository for RepositoryHandle {
 
 #[async_trait::async_trait]
 impl TagStorage for RepositoryHandle {
-    async fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
-        each_variant!(self, repo, { repo.resolve_tag(tag_spec).await })
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
+        each_variant!(self, repo, { repo.get_tag_namespace() })
     }
 
-    fn ls_tags(
+    async fn resolve_tag_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
+        tag_spec: &tracking::TagSpec,
+    ) -> Result<tracking::Tag> {
+        each_variant!(self, repo, {
+            repo.resolve_tag_in_namespace(namespace, tag_spec).await
+        })
+    }
+
+    fn ls_tags_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<super::EntryType>> + Send>> {
-        each_variant!(self, repo, { repo.ls_tags(path) })
+        each_variant!(self, repo, { repo.ls_tags_in_namespace(namespace, path) })
     }
 
-    fn find_tags(
+    fn find_tags_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
-        each_variant!(self, repo, { repo.find_tags(digest) })
+        each_variant!(self, repo, {
+            repo.find_tags_in_namespace(namespace, digest)
+        })
     }
 
-    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
-        each_variant!(self, repo, { repo.iter_tag_streams() })
-    }
-
-    async fn read_tag(
+    fn iter_tag_streams_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
+    ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
+        each_variant!(self, repo, {
+            repo.iter_tag_streams_in_namespace(namespace)
+        })
+    }
+
+    async fn read_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
-        each_variant!(self, repo, { repo.read_tag(tag).await })
+        each_variant!(self, repo, {
+            repo.read_tag_in_namespace(namespace, tag).await
+        })
     }
 
-    async fn insert_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        each_variant!(self, repo, { repo.insert_tag(tag).await })
+    async fn insert_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::Tag,
+    ) -> Result<()> {
+        each_variant!(self, repo, {
+            repo.insert_tag_in_namespace(namespace, tag).await
+        })
     }
 
-    async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
-        each_variant!(self, repo, { repo.remove_tag_stream(tag).await })
+    async fn remove_tag_stream_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::TagSpec,
+    ) -> Result<()> {
+        each_variant!(self, repo, {
+            repo.remove_tag_stream_in_namespace(namespace, tag).await
+        })
     }
 
-    async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        each_variant!(self, repo, { repo.remove_tag(tag).await })
+    async fn remove_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::Tag,
+    ) -> Result<()> {
+        each_variant!(self, repo, {
+            repo.remove_tag_in_namespace(namespace, tag).await
+        })
+    }
+}
+
+impl TagStorageMut for RepositoryHandle {
+    fn try_set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Result<Option<TagNamespaceBuf>> {
+        match self {
+            RepositoryHandle::FS(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::Tar(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::Rpc(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::FallbackProxy(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::Proxy(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::Pinned(_) => Err(Error::RepositoryIsPinned),
+        }
     }
 }
 
@@ -223,45 +281,88 @@ impl Repository for Arc<RepositoryHandle> {
 
 #[async_trait::async_trait]
 impl TagStorage for Arc<RepositoryHandle> {
-    async fn resolve_tag(&self, tag_spec: &tracking::TagSpec) -> Result<tracking::Tag> {
-        each_variant!(&**self, repo, { repo.resolve_tag(tag_spec).await })
+    #[inline]
+    fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
+        RepositoryHandle::get_tag_namespace(self)
     }
 
-    fn ls_tags(
+    async fn resolve_tag_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
+        tag_spec: &tracking::TagSpec,
+    ) -> Result<tracking::Tag> {
+        each_variant!(&**self, repo, {
+            repo.resolve_tag_in_namespace(namespace, tag_spec).await
+        })
+    }
+
+    fn ls_tags_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<super::EntryType>> + Send>> {
-        each_variant!(&**self, repo, { repo.ls_tags(path) })
+        each_variant!(&**self, repo, {
+            repo.ls_tags_in_namespace(namespace, path)
+        })
     }
 
-    fn find_tags(
+    fn find_tags_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
-        each_variant!(&**self, repo, { repo.find_tags(digest) })
+        each_variant!(&**self, repo, {
+            repo.find_tags_in_namespace(namespace, digest)
+        })
     }
 
-    fn iter_tag_streams(&self) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
-        each_variant!(&**self, repo, { repo.iter_tag_streams() })
-    }
-
-    async fn read_tag(
+    fn iter_tag_streams_in_namespace(
         &self,
+        namespace: Option<&TagNamespace>,
+    ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
+        each_variant!(&**self, repo, {
+            repo.iter_tag_streams_in_namespace(namespace)
+        })
+    }
+
+    async fn read_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
-        each_variant!(&**self, repo, { repo.read_tag(tag).await })
+        each_variant!(&**self, repo, {
+            repo.read_tag_in_namespace(namespace, tag).await
+        })
     }
 
-    async fn insert_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        each_variant!(&**self, repo, { repo.insert_tag(tag).await })
+    async fn insert_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::Tag,
+    ) -> Result<()> {
+        each_variant!(&**self, repo, {
+            repo.insert_tag_in_namespace(namespace, tag).await
+        })
     }
 
-    async fn remove_tag_stream(&self, tag: &tracking::TagSpec) -> Result<()> {
-        each_variant!(&**self, repo, { repo.remove_tag_stream(tag).await })
+    async fn remove_tag_stream_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::TagSpec,
+    ) -> Result<()> {
+        each_variant!(&**self, repo, {
+            repo.remove_tag_stream_in_namespace(namespace, tag).await
+        })
     }
 
-    async fn remove_tag(&self, tag: &tracking::Tag) -> Result<()> {
-        each_variant!(&**self, repo, { repo.remove_tag(tag).await })
+    async fn remove_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: &tracking::Tag,
+    ) -> Result<()> {
+        each_variant!(&**self, repo, {
+            repo.remove_tag_in_namespace(namespace, tag).await
+        })
     }
 }
 

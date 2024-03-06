@@ -353,6 +353,7 @@ where
                         }
                         Ok(EntryType::Tag(_)) => None,
                         Ok(EntryType::Folder(name)) => Some(name),
+                        Ok(EntryType::Namespace { .. }) => None,
                         Err(_) => None,
                     })
                     .filter_map(|b| match parse_build(&b) {
@@ -387,6 +388,7 @@ where
                     .filter_map(|entry| match entry {
                         Ok(EntryType::Tag(name)) => Some(name),
                         Ok(EntryType::Folder(_)) => None,
+                        Ok(EntryType::Namespace { .. }) => None,
                         Err(_) => None,
                     })
                     .filter_map(|b| {
@@ -702,6 +704,7 @@ where
             .filter_map(|entry| match entry {
                 Ok(EntryType::Folder(name)) => name.parse().ok(),
                 Ok(EntryType::Tag(_)) => None,
+                Ok(EntryType::Namespace { .. }) => None,
                 Err(_) => None,
             })
             .collect::<Vec<_>>())
@@ -725,6 +728,7 @@ where
                     // undo our encoding of the invalid '+' character in spfs tags
                     Ok(EntryType::Folder(name)) => Some(name.replace("..", "+")),
                     Ok(EntryType::Tag(name)) => Some(name.replace("..", "+")),
+                    Ok(EntryType::Namespace { .. }) => None,
                     Err(_) => None,
                 })
                 .filter_map(|v| match parse_version(&v) {
@@ -1189,6 +1193,7 @@ where
                 .filter_map(|entry| match entry {
                     Ok(EntryType::Tag(name)) => Some(name),
                     Ok(EntryType::Folder(_)) => None,
+                    Ok(EntryType::Namespace { .. }) => None,
                     Err(_) => None,
                 })
                 .filter_map(|e| Component::parse(&e).map(|c| (c, e)).ok())

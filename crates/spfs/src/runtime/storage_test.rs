@@ -156,7 +156,7 @@ async fn test_storage_create_runtime(tmpdir: tempfile::TempDir) {
             .await
             .unwrap(),
     );
-    let storage = Storage::new(repo);
+    let storage = Storage::new(repo).unwrap();
 
     let runtime = storage
         .create_owned_runtime()
@@ -181,7 +181,7 @@ async fn test_storage_remove_runtime(tmpdir: tempfile::TempDir) {
             .await
             .unwrap(),
     );
-    let storage = Storage::new(repo);
+    let storage = Storage::new(repo).unwrap();
 
     let runtime = storage
         .create_owned_runtime()
@@ -202,7 +202,7 @@ async fn test_storage_iter_runtimes(tmpdir: tempfile::TempDir) {
             .await
             .unwrap(),
     );
-    let storage = Storage::new(repo);
+    let storage = Storage::new(repo).unwrap();
 
     let runtimes: Vec<_> = storage
         .iter_runtimes()
@@ -254,7 +254,7 @@ async fn test_runtime_reset(tmpdir: tempfile::TempDir) {
             .await
             .unwrap(),
     );
-    let storage = Storage::new(repo);
+    let storage = Storage::new(repo).unwrap();
 
     let mut runtime = storage
         .create_owned_runtime()
@@ -301,7 +301,7 @@ async fn test_runtime_ensure_extra_bind_mount_locations_exist(tmpdir: tempfile::
             .await
             .unwrap(),
     );
-    let storage = Storage::new(repo);
+    let storage = Storage::new(repo).unwrap();
 
     let dir = "/tmp";
     let mountpoint = "tests/tests/tests".to_string();
