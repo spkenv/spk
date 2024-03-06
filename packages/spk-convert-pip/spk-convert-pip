@@ -31,6 +31,9 @@ TRUNCATED_VALUE_INDICATOR = "..."
 # Long license values are truncated to this number of characters to
 # allow "..." to be added to the value so show it has been truncated.
 LICENSE_FIELD_TRUNCATION_POINT = LICENSE_FIELD_LIMIT - len(TRUNCATED_VALUE_INDICATOR)
+# Metadata labels
+SPK_GENERATED_BY_LABEL = "spk:generated_by"
+SPK_GENERATED_BY_VALUE = "spk-convert-pip"
 
 
 def spk_exe() -> str:
@@ -106,7 +109,7 @@ def main() -> int:
         )
 
     if args.publish:
-        cmd = [spk_exe(), "publish", "--skip-existing", "-r", args.target_repo]
+        cmd = [spk_exe(), "publish", "--allow-existing-with-label", f"{SPK_GENERATED_BY_LABEL}={SPK_GENERATED_BY_VALUE}", "-r", args.target_repo]
         if args.force:
             cmd.append("--force")
         cmd.extend([spec["pkg"] for spec in specs])
@@ -278,7 +281,7 @@ class PipImporter:
             "meta": {
                 "license": package_license,
                 "labels": {
-                    "spk:generated_by": "spk-convert-pip",
+                    SPK_GENERATED_BY_LABEL: SPK_GENERATED_BY_VALUE,
                     "spk-convert-pip:cli": self._cli_args,
                 },
             },

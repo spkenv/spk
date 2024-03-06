@@ -48,8 +48,11 @@ impl Meta {
         "Unlicensed".into()
     }
 
-    pub fn is_spk_generated(&self) -> bool {
-        self.labels.get(&String::from("spk:generated_by")).is_some()
+    pub fn has_label_with_value(&self, label: &str, value: &str) -> bool {
+        if let Some(label_value) = self.labels.get(label) {
+            return *label_value == value;
+        }
+        false
     }
 
     pub fn update_metadata(&mut self, global_config: &Metadata) -> Result<i32> {

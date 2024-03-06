@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use clap::Args;
 use miette::Result;
-use spk_cli_common::{CommandArgs, Publisher, Run};
+use spk_cli_common::{CommandArgs, PublishLabel, Publisher, Run};
 use spk_schema::ident_ops::{NormalizedTagStrategy, VerbatimTagStrategy};
 use spk_schema::AnyIdent;
 use spk_storage as storage;
@@ -39,9 +39,11 @@ pub struct Publish {
     #[clap(long, short)]
     force: bool,
 
-    /// Allow publishing builds when the version already exists
-    #[clap(long, hide = true)]
-    skip_existing: bool,
+    /// Allow publishing builds when the version already exists and
+    /// the existing version recipe contains the given metadata label
+    /// and value.
+    #[clap(long, hide = true, value_name = "LABEL=VALUE")]
+    allow_existing_with_label: Option<PublishLabel>,
 
     /// The local packages to publish
     ///
@@ -80,7 +82,7 @@ impl Run for Publish {
 
         let publisher = Publisher::new(Arc::new(source.into()), Arc::new(target))
             .skip_source_packages(self.no_source)
-            .skip_existing(self.skip_existing)
+            .allow_existing_with_label(self.allow_existing_with_label.clone())
             .force(self.force);
 
         let mut published = Vec::new();
