@@ -273,6 +273,7 @@ class PipImporter:
 
         spec = {
             "pkg": f"{_to_spk_name(info.name)}/{_to_spk_version(info.version)}",
+            "api": "v0/package",
             "sources": [],
             "meta": {
                 "license": package_license,
