@@ -395,6 +395,7 @@
     "goldmark",
     "gperf",
     "hardlinks",
+    "hasattr",
     "hashable",
     "hashalgo",
     "helmignore",

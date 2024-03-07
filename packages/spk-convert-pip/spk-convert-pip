@@ -32,6 +32,7 @@ TRUNCATED_VALUE_INDICATOR = "..."
 # allow "..." to be added to the value so show it has been truncated.
 LICENSE_FIELD_TRUNCATION_POINT = LICENSE_FIELD_LIMIT - len(TRUNCATED_VALUE_INDICATOR)
 
+
 def spk_exe() -> str:
     return os.environ.get("SPK_BIN_PATH", "spk")
 
@@ -261,11 +262,14 @@ class PipImporter:
 
         # The spk default is "Unlicensed", which seems odd
         package_license = "Unknown"
-        if hasattr(info, 'license'):
+        if hasattr(info, "license"):
             if info.license is not None:
                 package_license = str(info.license)
                 if len(package_license) > LICENSE_FIELD_TRUNCATION_POINT:
-                    packackage_license = package_license[:LICENSE_FIELD_TRUNCATION_POINT] + TRUNCATED_VALUE_INDICATOR
+                    package_license = (
+                        package_license[:LICENSE_FIELD_TRUNCATION_POINT]
+                        + TRUNCATED_VALUE_INDICATOR
+                    )
 
         spec = {
             "pkg": f"{_to_spk_name(info.name)}/{_to_spk_version(info.version)}",
@@ -275,9 +279,8 @@ class PipImporter:
                 "labels": {
                     "spk:generated_by": "spk-convert-pip",
                     "spk-convert-pip:cli": self._cli_args,
-                    },
+                },
             },
-            
             "build": {
                 "options": [
                     {"var": "os"},
