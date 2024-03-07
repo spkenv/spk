@@ -296,6 +296,9 @@ class PipImporter:
             },
         }
 
+        if info.name == "pip":
+            spec["build"]["validation"] = {"rules": [{"allow": "RecursiveBuild"}]}
+
         for extra in requester.extras:
             spec["build"]["options"].append({"var": f"python_extra_{extra}/true"})
 
