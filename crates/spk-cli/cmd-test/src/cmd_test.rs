@@ -14,7 +14,7 @@ use spk_schema::foundation::format::FormatOptionMap;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::option_map::{OptionMap, HOST_OPTIONS};
 use spk_schema::prelude::*;
-use spk_schema::{Recipe, TestStage};
+use spk_schema::{Recipe, Request, TestStage};
 
 use crate::test::{PackageBuildTester, PackageInstallTester, PackageSourceTester, Tester};
 
@@ -78,6 +78,15 @@ impl Run for CmdTest {
 
         let opt_host_options =
             (!self.options.no_host).then(|| HOST_OPTIONS.get().unwrap_or_default());
+
+        // This includes any host options added by command line flag,
+        // or not if --nohost was used.
+        let options_reqs: Vec<Request> = self
+            .options
+            .get_var_requests()?
+            .into_iter()
+            .map(Request::Var)
+            .collect();
 
         for package in &self.packages {
             let (name, stages) = match package.split_once('@') {
@@ -203,6 +212,7 @@ impl Run for CmdTest {
                                     .with_options(variant.options().into_owned())
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(test.additional_requirements())
+                                    .with_requirements(options_reqs.clone())
                                     .with_source(source.clone())
                                     .watch_environment_resolve(&install_formatter);
 
