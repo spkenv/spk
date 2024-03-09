@@ -4234,6 +4234,7 @@ dependencies = [
  "serde_yaml 0.9.27",
  "spk-schema-foundation",
  "thiserror",
+ "variantly",
 ]
 
 [[package]]

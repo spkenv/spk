@@ -28,6 +28,7 @@ use spk_schema_foundation::version_range::{
     RestrictMode,
     VersionFilter,
 };
+use variantly::Variantly;
 
 use super::AnyIdent;
 use crate::{BuildIdent, Error, RangeIdent, Result, Satisfy, VersionIdent};
@@ -248,6 +249,7 @@ impl<'de> Deserialize<'de> for Request {
             pkg: Option<RangeIdent>,
             prerelease_policy: Option<PreReleasePolicy>,
             inclusion_policy: Option<InclusionPolicy>,
+            version_iteration_order: Option<VersionIterationOrder>,
 
             // VarRequest
             var: Option<OptNameBuf>,
@@ -291,6 +293,10 @@ impl<'de> Deserialize<'de> for Request {
                         }
                         "value" => self.value = Some(map.next_value::<String>()?),
                         "description" => self.description = Some(map.next_value::<String>()?),
+                        "versioniterationorder" => {
+                            self.version_iteration_order =
+                                Some(map.next_value::<VersionIterationOrder>()?)
+                        }
                         _ => {
                             // unrecognized fields are explicitly ignored in case
                             // they were added in a newer version of spk. We assume
@@ -313,6 +319,7 @@ impl<'de> Deserialize<'de> for Request {
                         inclusion_policy: self.inclusion_policy.unwrap_or_default(),
                         pin_policy: self.pin_policy.unwrap_or_default(),
                         pin: self.pin.unwrap_or_default().into_pkg_pin(),
+                        version_iteration_order: self.version_iteration_order,
                         required_compat: None,
                         requested_by: Default::default(),
                     })),
@@ -637,6 +644,27 @@ impl std::fmt::Display for RequestedBy {
     }
 }
 
+/// Specify what order versions should be iterated over when resolving.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Deserialize,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    Variantly,
+)]
+pub enum VersionIterationOrder {
+    #[default]
+    NewestFirst,
+    OldestFirst,
+}
+
 /// A desired package and set of restrictions on how it's selected.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct PkgRequest {
@@ -665,6 +693,12 @@ pub struct PkgRequest {
         skip_serializing_if = "PinPolicy::is_default"
     )]
     pub pin_policy: PinPolicy,
+    #[serde(
+        rename = "versionIterationOrder",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub version_iteration_order: Option<VersionIterationOrder>,
     #[serde(skip)]
     pub required_compat: Option<CompatRule>,
     // The 'requested_by' field is a BTreeMap to keep all the
@@ -735,6 +769,7 @@ impl PkgRequest {
             inclusion_policy: Default::default(),
             pin_policy: Default::default(),
             pin: Default::default(),
+            version_iteration_order: Default::default(),
             required_compat: Some(CompatRule::Binary),
             requested_by: BTreeMap::from([(key, vec![requester])]),
         }

@@ -14,6 +14,7 @@ use spk_schema::{recipe, spec, BuildIdent, Package, Spec};
 use spk_solve_macros::{make_build, make_repo};
 
 use super::{BuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator};
+use crate::package_iterator::VersionIterationOrder;
 
 #[rstest]
 #[tokio::test]
@@ -180,7 +181,11 @@ async fn test_solver_sorted_build_iterator_sort_by_option_values() {
     let arc_repo = Arc::new(repo);
     let repos = vec![Arc::clone(&arc_repo)];
 
-    let mut rp_iterator = RepositoryPackageIterator::new(pkg_name.to_owned(), repos.clone());
+    let mut rp_iterator = RepositoryPackageIterator::new(
+        pkg_name.to_owned(),
+        VersionIterationOrder::NewestFirst,
+        repos.clone(),
+    );
     while let Some((_pkg, builds)) = rp_iterator.next().await.unwrap() {
         // This runs the test, by sorting the builds
         let mut iterator = SortedBuildIterator::new(

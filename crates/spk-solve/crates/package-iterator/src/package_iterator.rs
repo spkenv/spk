@@ -12,7 +12,7 @@ use once_cell::sync::Lazy;
 use spk_schema::foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Version;
-use spk_schema::ident::VersionIdent;
+use spk_schema::ident::{VersionIdent, VersionIterationOrder};
 use spk_schema::version::Compatibility;
 use spk_schema::{AnyIdent, BuildIdent, Package, Spec};
 use spk_solve_solution::PackageSource;
@@ -114,6 +114,7 @@ pub struct RepositoryPackageIterator {
     builds_map: HashMap<Version, Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>>,
     active_version: Option<Arc<Version>>,
     embedded_stubs: bool,
+    version_iteration_order: VersionIterationOrder,
 }
 
 #[async_trait::async_trait]
@@ -126,6 +127,7 @@ impl PackageIterator for RepositoryPackageIterator {
                 Err(Error::SpkStorageError(spk_storage::Error::PackageNotFound(_))) => {
                     return Box::new(RepositoryPackageIterator::new(
                         self.package_name.clone(),
+                        self.version_iteration_order,
                         self.repos.clone(),
                     ))
                 }
@@ -152,6 +154,7 @@ impl PackageIterator for RepositoryPackageIterator {
             builds_map: HashMap::default(),
             active_version: None,
             embedded_stubs: self.embedded_stubs,
+            version_iteration_order: self.version_iteration_order,
         })
     }
 
@@ -237,7 +240,11 @@ impl PackageIterator for RepositoryPackageIterator {
 }
 
 impl RepositoryPackageIterator {
-    pub fn new(package_name: PkgNameBuf, repos: Vec<Arc<RepositoryHandle>>) -> Self {
+    pub fn new(
+        package_name: PkgNameBuf,
+        version_iteration_order: VersionIterationOrder,
+        repos: Vec<Arc<RepositoryHandle>>,
+    ) -> Self {
         RepositoryPackageIterator {
             package_name,
             repos,
@@ -246,6 +253,7 @@ impl RepositoryPackageIterator {
             builds_map: HashMap::default(),
             active_version: None,
             embedded_stubs: false,
+            version_iteration_order,
         }
     }
 
@@ -290,7 +298,9 @@ impl RepositoryPackageIterator {
     async fn restart_version_iterator(&mut self) -> Result<()> {
         let mut versions: Vec<Arc<Version>> = self.version_map.keys().cloned().collect();
         versions.sort();
-        versions.reverse();
+        if self.version_iteration_order.is_newest_first() {
+            versions.reverse();
+        }
         self.versions = Some(VersionIterator::new(versions.into()));
         Ok(())
     }

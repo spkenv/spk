@@ -17,7 +17,14 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
+use spk_schema::ident::{
+    PkgRequest,
+    Request,
+    RequestedBy,
+    Satisfy,
+    VarRequest,
+    VersionIterationOrder,
+};
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::version::IncompatibleReason;
 use spk_schema::{try_recipe, BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
@@ -319,13 +326,14 @@ impl Solver {
         &self,
         node: &mut Arc<Node>,
         package_name: &PkgName,
+        version_iteration_order: VersionIterationOrder,
     ) -> Arc<tokio::sync::Mutex<Box<dyn PackageIterator + Send>>> {
-        if let Some(iterator) = node.get_iterator(package_name) {
+        if let Some(iterator) = node.get_iterator(package_name, version_iteration_order) {
             return iterator;
         }
-        let iterator = self.make_iterator(package_name.to_owned());
+        let iterator = self.make_iterator(package_name.to_owned(), version_iteration_order);
         Arc::make_mut(node)
-            .set_iterator(package_name.to_owned(), &iterator)
+            .set_iterator(package_name.to_owned(), version_iteration_order, &iterator)
             .await;
         iterator
     }
@@ -333,10 +341,15 @@ impl Solver {
     fn make_iterator(
         &self,
         package_name: PkgNameBuf,
+        version_iteration_order: VersionIterationOrder,
     ) -> Arc<tokio::sync::Mutex<Box<dyn PackageIterator + Send>>> {
         debug_assert!(!self.repos.is_empty());
         Arc::new(tokio::sync::Mutex::new(Box::new(
-            RepositoryPackageIterator::new(package_name, self.repos.clone()),
+            RepositoryPackageIterator::new(
+                package_name,
+                version_iteration_order,
+                self.repos.clone(),
+            ),
         )))
     }
 
@@ -511,7 +524,13 @@ impl Solver {
         // This is a step forward in the solve
         self.number_of_steps += 1;
 
-        let iterator = self.get_iterator(node, &request.pkg.name).await;
+        let iterator = self
+            .get_iterator(
+                node,
+                &request.pkg.name,
+                request.version_iteration_order.unwrap_or_default(),
+            )
+            .await;
         let mut iterator_lock = iterator.lock().await;
         loop {
             let (pkg, builds) = match iterator_lock.next().await {
