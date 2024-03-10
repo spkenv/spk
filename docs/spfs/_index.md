@@ -141,7 +141,7 @@ The spfs _reference_ is any string that identifies either a layer or a platform 
 
 #### Remote Storage
 
-To spfs a remote storage is simply any storage location that is not the default local storage. Each storage location has a name, with **origin** being the default remote storage (just like git). The set of available remote storages is defined in the spfs [config file]({{< ref "./configuration" >}}).
+To spfs a remote storage is simply any storage location that is not the default local storage. Each storage location has a name, with **origin** being the default remote storage (just like git). The set of available remote storages is defined in the spfs [config file]({{< ref "../admin/config" >}}).
 
 #### Pushing and Pulling References
 
