@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fmt::Write;
 
 use clap::Args;
 use colored::Colorize;
-use miette::{miette, Result};
+use miette::{miette, Error, Result};
 use nom::combinator::all_consuming;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
@@ -15,8 +15,9 @@ use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::ident::{parse_ident, AnyIdent};
 use spk_schema::ident_ops::parsing::{ident_parts, IdentParts, KNOWN_REPOSITORY_NAMES};
+use spk_schema::name::OptNameBuf;
 use spk_schema::spec_ops::WithVersion;
-use spk_schema::{Deprecate, Package, Spec};
+use spk_schema::{Deprecate, OptionMap, Package, Spec};
 use spk_storage as storage;
 
 #[cfg(test)]
@@ -44,6 +45,40 @@ impl Output for Console {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct OptFilter {
+    pub(crate) name: OptNameBuf,
+    pub(crate) value: String,
+}
+
+impl OptFilter {
+    pub fn matches(&self, options: &OptionMap) -> bool {
+        if let Some(v) = options.get(&self.name) {
+            self.value == *v
+        } else {
+            false
+        }
+    }
+}
+
+impl std::str::FromStr for OptFilter {
+    type Err = Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        let (name, value) = value
+            .split_once('=')
+            .or_else(|| value.split_once(':'))
+            .ok_or_else(|| {
+                miette!("Invalid option filter: {value} (should be in the form NAME=VALUE)")
+            })
+            .and_then(|(name, value)| Ok((OptNameBuf::try_from(name)?, value)))?;
+        Ok(Self {
+            name,
+            value: value.to_string(),
+        })
+    }
+}
+
 /// List packages in one or more repositories
 #[derive(Args)]
 #[clap(visible_alias = "list")]
@@ -65,6 +100,10 @@ pub struct Ls<Output: Default = Console> {
     /// Show the deprecated packages
     #[clap(long, short)]
     deprecated: bool,
+
+    /// Only show packages with builds that match the filter, e.g. 'distro=centos'
+    #[clap(long, name = "OPT=VALUE")]
+    filter_by: Option<OptFilter>,
 
     /// Given a name, list versions. Given a name/version list builds.
     ///
@@ -95,13 +134,23 @@ impl<T: Output> Run for Ls<T> {
                 // in multiple repos
                 // TODO: should this include the repo name in the output?
                 let mut set = BTreeSet::new();
-                for (_repo_name, repo) in repos {
+                if let Some(_filter) = &self.filter_by {
                     set.extend(
-                        repo.list_packages()
+                        self.filter_all_top_level_packages(repos)
                             .await?
                             .into_iter()
                             .map(PkgNameBuf::into),
-                    )
+                    );
+                } else {
+                    // Simpler without a filter
+                    for (_repo_name, repo) in repos {
+                        set.extend(
+                            repo.list_packages()
+                                .await?
+                                .into_iter()
+                                .map(PkgNameBuf::into),
+                        )
+                    }
                 }
                 results = set.into_iter().collect();
             }
@@ -143,15 +192,26 @@ impl<T: Output> Run for Ls<T> {
                         continue;
                     }
 
+                    let mut builds_remaining = false;
                     let mut any_deprecated = false;
                     let mut any_not_deprecated = false;
                     while let Some(build) = builds.pop() {
                         match repo.read_package(&build).await {
-                            Ok(spec) if !spec.is_deprecated() => {
-                                any_not_deprecated = true;
-                            }
-                            Ok(_) => {
-                                any_deprecated = true;
+                            Ok(spec) => {
+                                if let Some(filter) = &self.filter_by {
+                                    if !filter.matches(&spec.option_values()) {
+                                        // Skip this one
+                                        continue;
+                                    }
+                                }
+
+                                builds_remaining = true;
+
+                                if spec.is_deprecated() {
+                                    any_deprecated = true;
+                                } else {
+                                    any_not_deprecated = true;
+                                }
                             }
                             Err(err) => {
                                 self.output
@@ -162,6 +222,12 @@ impl<T: Output> Run for Ls<T> {
                             break;
                         }
                     }
+
+                    if !builds_remaining {
+                        // All the builds of this version were filtered out
+                        continue;
+                    }
+
                     let all_deprecated = any_deprecated && !any_not_deprecated;
 
                     // TODO: tempted to swap this over to call
@@ -205,6 +271,14 @@ impl<T: Output> Run for Ls<T> {
                                 continue;
                             }
                         };
+
+                        if let Some(filter) = &self.filter_by {
+                            if !filter.matches(&spec.option_values()) {
+                                // Skip this one
+                                continue;
+                            }
+                        }
+
                         if spec.is_deprecated() && !self.deprecated {
                             // Hide deprecated packages by default
                             continue;
@@ -319,6 +393,14 @@ impl<T: Output> Ls<T> {
                             continue;
                         }
                     };
+
+                    if let Some(filter) = &self.filter_by {
+                        if !filter.matches(&spec.option_values()) {
+                            // Skip this one
+                            continue;
+                        }
+                    }
+
                     if spec.is_deprecated() && !self.deprecated {
                         // Hide deprecated packages by default
                         continue;
@@ -337,6 +419,73 @@ impl<T: Output> Ls<T> {
             }
         }
         Ok(0)
+    }
+
+    async fn filter_all_top_level_packages(
+        &mut self,
+        repos: Vec<(String, storage::RepositoryHandle)>,
+    ) -> Result<HashSet<PkgNameBuf>> {
+        let mut packages = Vec::new();
+        for (index, (_repo_name, repo)) in repos.iter().enumerate() {
+            packages.extend(repo.list_packages().await?.into_iter().map(|p| (p, index)));
+        }
+
+        let mut results = HashSet::new();
+        for (package, index) in packages {
+            if results.contains(&package) {
+                continue;
+            }
+
+            let (_repo_name, repo) = repos.get(index).unwrap();
+
+            let versions = {
+                let base = AnyIdent::from(package.clone());
+                repo.list_package_versions(base.name())
+                    .await?
+                    .iter()
+                    .map(|v| base.with_version((**v).clone()))
+                    .collect::<Vec<_>>()
+            };
+
+            for pkg in versions {
+                let mut found_a_match = false;
+                for build in repo.list_package_builds(pkg.as_version()).await? {
+                    let spec = match repo.read_package(&build).await {
+                        Ok(spec) => spec,
+                        Err(err) => {
+                            self.output.warn(format!("Skipping {build}: {err}"));
+                            continue;
+                        }
+                    };
+
+                    if let Some(filter) = &self.filter_by {
+                        if !filter.matches(&spec.option_values()) {
+                            // Skip this one
+                            continue;
+                        }
+                    }
+
+                    if spec.is_deprecated() && !self.deprecated {
+                        // Hide deprecated packages by default
+                        continue;
+                    }
+
+                    // One build passing the filters is enough for this
+                    // version to be counted as matching.
+                    found_a_match = true;
+                    break;
+                }
+
+                // One version with a matching build is enough for
+                // this package to be counted has matching
+                if found_a_match {
+                    results.insert(package);
+                    break;
+                }
+            }
+        }
+
+        Ok(results)
     }
 
     async fn format_build(&self, spec: &Spec, repo: &storage::RepositoryHandle) -> Result<String> {
