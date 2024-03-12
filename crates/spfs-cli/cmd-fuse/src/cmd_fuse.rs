@@ -14,13 +14,13 @@ use tokio::signal::unix::{signal, SignalKind};
 // The runtime setup process manages the current namespace
 // which operates only on the current thread. For this reason
 // we must use a single threaded async runtime, if any.
-fn main() -> Result<()> {
+fn main() {
     // because this function exits right away it does not
     // properly handle destruction of data, so we put the actual
     // logic into a separate function/scope
-    std::process::exit(main2()?)
+    std::process::exit(main2())
 }
-fn main2() -> Result<i32> {
+fn main2() -> i32 {
     let mut opt = CmdFuse::parse();
     opt.logging
         .log_file
@@ -31,13 +31,24 @@ fn main2() -> Result<i32> {
     let config = match spfs::get_config() {
         Err(err) => {
             tracing::error!(err = ?err, "failed to load config");
-            return Ok(1);
+            return 1;
         }
         Ok(config) => config,
     };
     let result = opt.run(&config);
-
-    spfs_cli_common::handle_result!(result)
+    let result = spfs_cli_common::handle_result!(result);
+    // a regular main function that returns an error prints
+    // that message to stdout. Because there is rarely
+    // any way to view stderr for this mount process,
+    // we explicitly log the error to tracing so that
+    // it will appear in the fuse log and syslog.
+    match result {
+        Ok(code) => code,
+        Err(err) => {
+            tracing::error!("{err:?}");
+            1
+        }
+    }
 }
 
 /// Run a fuse
