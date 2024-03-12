@@ -97,12 +97,12 @@ impl CmdFuse {
         let calling_gid = nix::unistd::getegid();
 
         // these will cause conflicts later on if their counterpart is also provided
-        let required_opts = vec![
-            MountOption::RO,
-            MountOption::NoDev,
-            MountOption::NoSuid,
-            MountOption::CUSTOM("nonempty".into()),
-        ];
+        let mut required_opts = vec![MountOption::RO, MountOption::NoDev, MountOption::NoSuid];
+        if !fuse3_available() {
+            // the nonempty option became a default and was removed in
+            // fuse3 but is still needed for fuse2
+            required_opts.push(MountOption::CUSTOM("nonempty".into()));
+        }
         let mut opts = Config {
             root_mode: 0o777,
             uid: calling_uid,
@@ -302,4 +302,9 @@ fn parse_options_from_args(args: &[String]) -> Vec<MountOption> {
             x => MountOption::CUSTOM(x.into()),
         })
         .collect()
+}
+
+/// Checks if fusermount3 is available to be used on this system
+fn fuse3_available() -> bool {
+    spfs::which("fusermount3").is_some()
 }
