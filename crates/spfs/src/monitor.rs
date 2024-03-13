@@ -39,7 +39,7 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
     }
 
     let exe = match super::resolve::which_spfs("monitor") {
-        None => return Err(Error::MissingBinary("spfs")),
+        None => return Err(Error::MissingBinary("spfs-monitor")),
         Some(exe) => exe,
     };
 

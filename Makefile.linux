@@ -35,16 +35,16 @@ install-dirs:
 copy-debug: copy-debug-spfs copy-debug-spk
 
 copy-debug-spfs: debug-spfs install-dirs
-	sudo cp -f $(CARGO_TARGET_DIR)/debug/spfs* '$(DESTDIR)$(bindir)'
+	for bin in $(CARGO_TARGET_DIR)/debug/spfs*; do sudo install -p -m 755 $$bin '$(DESTDIR)$(bindir)'; done
 
 copy-debug-spk: debug install-dirs
-	sudo cp -f $(CARGO_TARGET_DIR)/debug/spk '$(DESTDIR)$(bindir)'
+	sudo install -p -m 755 $(CARGO_TARGET_DIR)/debug/spk '$(DESTDIR)$(bindir)'
 
 copy-release: release install-dirs
-	sudo cp -f $(CARGO_TARGET_DIR)/release/spk $(CARGO_TARGET_DIR)/release/spfs* '$(DESTDIR)$(bindir)'
+	sudo install -p -m 755 $(CARGO_TARGET_DIR)/release/spk '$(DESTDIR)$(bindir)'
 
 copy-spfs: release-spfs install-dirs
-	sudo cp -f $(CARGO_TARGET_DIR)/release/spfs* '$(DESTDIR)$(bindir)'
+	for bin in $(CARGO_TARGET_DIR)/release/spfs*; do sudo install -p -m 755 $$bin '$(DESTDIR)$(bindir)'; done
 
 setcap:
 	sudo setcap 'cap_dac_override,cap_fowner+ep' '$(DESTDIR)$(bindir)/spfs-clean'
