@@ -142,7 +142,7 @@ impl CmdInfo {
                     self.format_digest(*obj.manifest(), repo).await?
                 );
                 if self.follow {
-                    self.to_process.push_back(obj.manifest.to_string());
+                    self.to_process.push_back(obj.manifest().to_string());
                 }
             }
 
