@@ -15,7 +15,8 @@ use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::ident::{parse_ident, AnyIdent};
 use spk_schema::ident_ops::parsing::{ident_parts, IdentParts, KNOWN_REPOSITORY_NAMES};
-use spk_schema::name::OptNameBuf;
+use spk_schema::name::{OptName, OptNameBuf};
+use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::spec_ops::WithVersion;
 use spk_schema::{Deprecate, OptionMap, Package, Spec};
 use spk_storage as storage;
@@ -140,9 +141,11 @@ pub struct Ls<Output: Default = Console> {
     #[clap(long, name = "OPT=VALUE")]
     filter_by: Option<OptFilter>,
 
-    // TODO: disable the always check the host options setting, which I haven't implemented yet
-    // #[cla[(long)]
-    // nohost: bool
+    /// Disable only showing items that have a build that matches the
+    /// current host's distro host option.
+    #[clap(long)]
+    nohost: bool,
+
     /// Given a name, list versions. Given a name/version list builds.
     ///
     /// If nothing is provided, list all available packages.
@@ -163,6 +166,22 @@ impl<T: Output> Run for Ls<T> {
         if self.recursive {
             return self.list_recursively(repos).await;
         }
+
+        // Set the default filter to the current host's distro option.
+        // --nohost and --filter-by will override this. Note: this
+        // only uses the 'distro' option.
+        // TODO: longer term make this configurable and support multiple filters
+        if !self.nohost && self.filter_by.is_none() {
+            let host_options = HOST_OPTIONS.get()?;
+            if let Some(value) = host_options.get(OptName::distro()) {
+                self.filter_by = Some(OptFilter {
+                    name: OptName::distro().into(),
+                    op: FilterOperator::MustMatchNameValue,
+                    value: value.to_string(),
+                });
+            }
+        }
+        tracing::debug!("Filter is: {:?}", self.filter_by);
 
         let mut results = Vec::new();
         match &self.package {

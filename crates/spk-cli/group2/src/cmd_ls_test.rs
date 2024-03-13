@@ -11,12 +11,14 @@ use spfs::storage::EntryType;
 use spfs::RemoteAddress;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::ident_ops::VerbatimTagStrategy;
+use spk_schema::name::OptName;
 use spk_schema::recipe;
 use spk_solve::spec;
 use spk_storage::fixtures::*;
 use spk_storage::RepositoryHandle;
 
 use super::{Ls, Output, Run};
+use crate::cmd_ls::HOST_OPTIONS;
 
 #[derive(Default)]
 struct OutputToVec {
@@ -58,10 +60,10 @@ async fn test_ls_trivially_works() {
     assert_eq!(opt.ls.output.vec.len(), 0);
 }
 
-/// `spk ls` is expected to list packages in the configured remote
-/// repositories.
+/// `spk ls --nohost` is expected to list all packages in the configured
+/// remote repositories.
 #[tokio::test]
-async fn test_ls_shows_remote_packages() {
+async fn test_ls_shows_remote_packages_with_no_host() {
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
 
@@ -89,7 +91,136 @@ async fn test_ls_shows_remote_packages() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from([] as [&str; 0]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--nohost"]).unwrap();
+    opt.ls.run().await.unwrap();
+    assert_ne!(opt.ls.output.vec.len(), 0);
+}
+
+/// `spk ls` is expected to list packages in the configured remote
+/// repositories that match the default filter for the current host
+#[tokio::test]
+async fn test_ls_shows_remote_packages_with_default_filter() {
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
+
+    // Populate the "origin" repo with one package.
+    // The "local" repo is empty.
+
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
+    let host_options = HOST_OPTIONS.get().unwrap();
+    let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN",
+    "build": {
+        "options": [
+            {"var": format!("distro/{}", host_options.get(OptName::distro()).unwrap()) }
+        ]
+    }});
+    remote_repo
+        .publish_package(
+            &spec,
+            &vec![(Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    let mut opt = Opt::try_parse_from(["ls"]).unwrap();
+    opt.ls.run().await.unwrap();
+    assert_ne!(opt.ls.output.vec.len(), 0);
+}
+
+/// `spk ls --filter-by opt=value` is expected to list packages in the
+/// configured remote repositories that match the filter, which should
+/// override the default host distro filter
+#[tokio::test]
+async fn test_ls_shows_remote_packages_with_filter_by() {
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
+
+    // Populate the "origin" repo with one package.
+    // The "local" repo is empty.
+
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
+    let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN",
+    "build": {
+        "options": [
+            {"var": "distro/futureOs" },
+            {"var": "testopt/testvalue" }
+        ]
+    }});
+    remote_repo
+        .publish_package(
+            &spec,
+            &vec![(Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    let mut opt = Opt::try_parse_from(["ls", "--filter-by", "testopt=testvalue"]).unwrap();
+    opt.ls.run().await.unwrap();
+    assert_ne!(opt.ls.output.vec.len(), 0);
+}
+
+/// `spk ls --filter-by opt?=value` is expected to list packages in the
+/// configured remote repositories that match the filter, which should
+/// override the default host distro filter
+#[tokio::test]
+async fn test_ls_shows_remote_packages_with_filter_by_ok_if_name_missing() {
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
+
+    // Populate the "origin" repo with one package.
+    // The "local" repo is empty.
+
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
+    let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN",
+    "build": {
+        "options": [
+            {"var": "testopt/testvalue" }
+        ]
+    }});
+    remote_repo
+        .publish_package(
+            &spec,
+            &vec![(Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    // Filtering by a opt name, distro, that the package does not
+    // have. This is ok with the ?= operator.
+    let mut opt = Opt::try_parse_from(["ls", "--filter-by", "distro?=testvalue"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_ne!(opt.ls.output.vec.len(), 0);
 }
@@ -138,7 +269,7 @@ async fn test_ls_shows_local_and_remote_packages() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from([] as [&str; 0]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--nohost"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 2);
 }
@@ -186,7 +317,7 @@ async fn test_ls_dash_l_shows_local_packages_only() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "-L"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "-L", "--nohost"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 1);
     assert_eq!(opt.ls.output.vec.first().unwrap(), "my-local-pkg");
@@ -236,7 +367,7 @@ async fn test_ls_dash_r_shows_local_and_remote_packages() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "-r", "origin"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "-r", "origin", "--nohost"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 2);
 }
@@ -285,7 +416,7 @@ async fn test_ls_dash_dash_no_local_repo_shows_remote_packages_only() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "--no-local-repo"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--no-local-repo", "--nohost"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 1);
     assert_eq!(opt.ls.output.vec.first().unwrap(), "my-remote-pkg");
@@ -335,7 +466,7 @@ async fn test_ls_dash_dash_disable_repo_shows_local_packages_only() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "--disable-repo", "origin"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--disable-repo", "origin", "--nohost"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 1);
     assert_eq!(opt.ls.output.vec.first().unwrap(), "my-local-pkg");
@@ -366,7 +497,7 @@ async fn test_ls_succeeds_for_package_with_no_version_spec() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "my-pkg"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "my-pkg", "--nohost"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(
         opt.ls.output.warnings.len(),
@@ -406,7 +537,7 @@ async fn test_ls_hides_deprecated_version() {
         .unwrap();
 
     // `ls` without showing deprecated
-    let mut opt = Opt::try_parse_from(["ls", "my-pkg"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "my-pkg", "--nohost"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(
         opt.ls.output.warnings.len(),
@@ -422,7 +553,7 @@ async fn test_ls_hides_deprecated_version() {
     );
 
     // `ls` with showing deprecated
-    let mut opt = Opt::try_parse_from(["ls", "--deprecated", "my-pkg"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--deprecated", "my-pkg", "--nohost"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(
         opt.ls.output.warnings.len(),
@@ -476,7 +607,7 @@ async fn test_ls_shows_partially_deprecated_version() {
         .unwrap();
 
     // `ls` without showing deprecated
-    let mut opt = Opt::try_parse_from(["ls", "my-pkg"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "my-pkg", "--nohost"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(
         opt.ls.output.warnings.len(),
@@ -490,7 +621,7 @@ async fn test_ls_shows_partially_deprecated_version() {
     assert_eq!(opt.ls.output.vec.first().unwrap(), "1.0.0");
 
     // `ls` with showing deprecated
-    let mut opt = Opt::try_parse_from(["ls", "--deprecated", "my-pkg"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--deprecated", "my-pkg", "--nohost"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(
         opt.ls.output.warnings.len(),
@@ -550,7 +681,13 @@ async fn test_ls_succeeds_for_package_saved_with_legacy_version_tag() {
         _ => panic!("expected SPFSWithVerbatimTags"),
     }
 
-    let mut opt = Opt::try_parse_from(["ls", "--legacy-spk-version-tags", "my-local-pkg"]).unwrap();
+    let mut opt = Opt::try_parse_from([
+        "ls",
+        "--legacy-spk-version-tags",
+        "my-local-pkg",
+        "--nohost",
+    ])
+    .unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 1);
 }
